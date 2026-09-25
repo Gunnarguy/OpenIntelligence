@@ -1,5 +1,7 @@
 # Documentation Consistency Audit
 
+> **Documentation status:** Point-in-time findings from Phase 8 of the July 2026 Architecture Atlas audit (`Docs/AuditArtifacts/ArchitectureAtlas/PHASE_LEDGER.md`, Phase 8), with one dated resolution (2026-07-01, §2). Not re-audited as a whole since. It is still a read-first document for documentation-governance routes (`Docs/RepoOS/01_TASK_ROUTER.md:94`), so treat each finding as a lead to re-check against the code, not as current fact. Re-checked 2026-09-24, code side only: the Sync, SQLite and Billing findings in §3 still hold; the PCC finding does not (see §3 and §8). `[evidence_level: code_verified, confidence: high, evidence_source: WorkspaceSyncService.swift:3479-3480 (NSMetadataQuery over the ubiquitous documents scope; no `import CloudKit` under OpenIntelligence/); SQLiteFullTextService.swift:87,189-195 (one fulltext.sqlite with a container_id column); EntitlementStore.swift:96,107 (UserDefaults); FoundationModelSessionFactory.swift:86-92 (native PCC model)]`
+
 ## 1. Docs Inspected
 - `Docs/ARCHITECTURE.md`
 - `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`
@@ -32,7 +34,7 @@
 - FTS5 query tokenizer behavior in `SQLiteFullTextService.swift` is undocumented.
 
 ## 6. Recommended Doc Actions
-Apply the Documentation Reconciliation Workflow (`02_DOCUMENTATION_RECONCILIATION.md`).
+Apply the Documentation Reconciliation Workflow (`Docs/AgentPlaybooks/02_DOCUMENTATION_RECONCILIATION.md`).
 
 ## 7. Docs that should be kept
 - `Docs/LIMITATIONS.md`

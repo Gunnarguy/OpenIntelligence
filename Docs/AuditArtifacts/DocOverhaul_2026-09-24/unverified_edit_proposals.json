@@ -1,0 +1,1007 @@
+{
+ "generated": "2026-09-24",
+ "base_commit": "d5cc916",
+ "status": "proposed by one agent each; NOT independently verified; not applied",
+ "edits": [
+  {
+   "group": "atlas-1",
+   "index": 1,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "## 2. Subsystem Map\n",
+   "new_string": "## 2. Subsystem Map\n> **Audit snapshot, not a current census.** These counts sum to 271 against the 270 quoted above, and they do not match the audit's tracked inventory, `Docs/AuditArtifacts/ArchitectureAtlas/component_inventory.csv` (270 rows across 29 subsystems, e.g. App Intents/Siri/Shortcuts 12, retrieval 26, generation 37). Do not quote either set as current. `[evidence_level: artifact_derived, confidence: exact, evidence_source: component_inventory.csv subsystem column, counted 2026-09-24]`\n\n",
+   "kind": "other",
+   "rationale": "Section 2 gives per-subsystem counts as if they were current. They sum to 271, not the 270 the doc quotes, and they disagree with the audit's own tracked inventory. An agent quoting them would repeat numbers with no source. I annotated rather than rewrote, because the audit phase they came from cannot be identified.",
+   "evidence": "Summed doc lines 10-39: 271. Counted the subsystem column of Docs/AuditArtifacts/ArchitectureAtlas/component_inventory.csv with Python: 270 rows, 29 distinct subsystems (App Intents/Siri/Shortcuts 12, retrieval 26, generation 37, OCR/extraction 21, StoreKit 2, among others)."
+  },
+  {
+   "group": "atlas-1",
+   "index": 2,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "24 terms, each defined in a",
+   "new_string": "31 terms (the cases of `GlossaryTermID`, counted 2026-09-24 at Glossary.swift:102-140), each defined in a",
+   "kind": "drift_fix",
+   "rationale": "The term count is wrong for the current code. GlossaryTermID has 31 cases, not 24.",
+   "evidence": "OpenIntelligence/UI/Components/Glossary.swift:102-140 declares `enum GlossaryTermID`: 11 file terms (words through importTime), 7 device terms (chip through gpuProfile), 9 answering terms (languageModel through routing) and 4 trust terms (confidence through abstained). A grep count gives 31. GlossaryTests.swift:53 asserts Glossary.all.count == GlossaryTermID.allCases.count, and no test hardcodes 24. The rest of the paragraph checks out: .definedTerm at GlossaryViews.swift:231, GlossaryInfoButton at GlossaryViews.swift:240, GlossaryView at Features/Settings/GlossaryView.swift:20, the shared AppStorage key GlossaryPreference.technicalDetailKey, and the consumers OnboardingChecklistView, HowItWorksView and SettingsView."
+  },
+  {
+   "group": "atlas-1",
+   "index": 3,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "the sample guides (`SamplePCCCopy`) choose their wording on the same static, so one",
+   "new_string": "the sample guides choose their wording on the same compiler condition: the first three read\n`DeviceCapabilities.pccRoutingCompiledIn`, while `SamplePCCCopy` keeps its own `compiledIn` static behind the same\n`#if compiler(>=6.4)` (SampleDocumentManager.swift:48-55), so a change to one static does not move the other. So one",
+   "kind": "drift_fix",
+   "rationale": "The doc says all four consumers read one static. SamplePCCCopy has its own static with the same #if condition. An agent changing pccRoutingCompiledIn would expect the sample guides to follow, and they would not.",
+   "evidence": "RAGService.swift:19158-19164 defines `static let pccRoutingCompiledIn` under `#if compiler(>=6.4)`. The consumers of DeviceCapabilities.pccRoutingCompiledIn are Glossary.swift:413/427/456/504, SettingsView.swift:933/2353 and UnifiedMetricsBar.swift:4495. SampleDocumentManager.swift:48-55 declares `enum SamplePCCCopy { static let compiledIn: Bool = { #if compiler(>=6.4) ... }() }` and its strings key on `compiledIn` (lines 58 and 63), not on DeviceCapabilities."
+  },
+  {
+   "group": "atlas-1",
+   "index": 4,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "signed installation/distribution verification is pending.",
+   "new_string": "signed installation/distribution verification is pending. (Written before 5.2: since 2026-09-10 PCC ships in App Store builds per `Docs/SHIPPED_CAPABILITIES.json` `private_cloud_compute` = `shipping`; whether that closes this entry's distribution-build check was not re-verified on 2026-09-24.)",
+   "kind": "other",
+   "rationale": "As written, \"pending\" reads as if PCC has not reached distribution builds. It shipped in 5.2 on both platforms. I annotated rather than removed the pending claim, because shipping does not prove the no-profile distribution path was verified on device.",
+   "evidence": "Docs/SHIPPED_CAPABILITIES.json:100-108: private_cloud_compute status \"shipping\", with a note that it was flipped 2026-09-10 when iOS and macOS 5.2 reached READY_FOR_SALE with build 451. EngineSDKCompatibility.swift:198-215 has the no-profile branch `return entitlementKey == privateCloudComputeKey`, which the doc describes correctly."
+  },
+  {
+   "group": "atlas-1",
+   "index": 5,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "exact citation byte offsets. `[evidence: code_verified, exact, ContainerSettingsSheet+Sections.swift]`",
+   "new_string": "exact citation byte offsets. `[evidence: code_verified, exact, ContainerSettingsSheet+Sections.swift]` **Unknown (2026-09-24):** whether this card reports live state. In the code only the embedding readiness row reads state (`CoreAISentenceEmbeddingProvider.shared.isModelLoaded`, and only under `#if canImport(CoreAI)` on iOS/macOS 27). The active-model row (`MiniLM-L6-v2 (384D)`), the readiness row's other branches (`Verified Ready`), the tokenizer parser, vocabulary and citation-alignment rows, and the `v4.5.0` badge are fixed strings. **Verify:** whether the card is meant to read the active library's embedding provider and live tokenizer state, before describing it as real-time. `[evidence_level: code_verified, confidence: high, evidence_source: ContainerSettingsSheet+Sections.swift:1697, 1714, 1743-1758, 1775, 1784, 1792]`",
+   "kind": "unknown_note",
+   "rationale": "The doc says the card \"displays real-time readiness status\" of all five items. The code shows most rows are hardcoded text. The code may be the bug here (a diagnostics card showing fixed values), so I used an Unknown/Verify note instead of rewriting the claim.",
+   "evidence": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift: 1697 Text(\"v4.5.0\"); 1714 Text(\"MiniLM-L6-v2 (384D)\"); 1743-1758 read isModelLoaded only under canImport(CoreAI) with #available 27, and the else branches are Text(\"Verified Ready\"); 1775 Text(\"Rust-backed swift-tokenizers\"); 1784 Text(\"30,522 (BERT WordPiece)\"); 1792 Text(\"Exact Byte-Level Offsets\"). The consent panel at 1621-1677 does read self.settings.applePCCConsent, as the doc says."
+  },
+  {
+   "group": "atlas-1",
+   "index": 6,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "- **Keychain**: Strictly used for API keys, not entitlements. `[evidence: code_verified, exact]`",
+   "new_string": "- **Keychain**: Strictly used for API keys, not entitlements. `[evidence: code_verified, exact]` The only Keychain code is `KeychainStorage` (`Core/Extensions/KeychainStorage.swift:6`, documented for small secrets such as API keys); a 2026-09-24 repository grep found no caller of it, and `Package.swift` lists it only in the engine target's `exclude`. `[evidence_level: grep_verified, confidence: high, evidence_source: KeychainStorage.swift:4-6, Package.swift:34, grep for KeychainStorage/SecItem/kSecClassGenericPassword]`",
+   "kind": "other",
+   "rationale": "The claim has no evidence source. It tells an agent Keychain holds API keys, but no code path writes anything to Keychain. I kept the claim (it is not contradicted for entitlements) and added where the code lives and that nothing calls it.",
+   "evidence": "grep -rn \"SecItemAdd|SecItemCopyMatching|kSecClassGenericPassword|Keychain\" OpenIntelligence matches only OpenIntelligence/Core/Extensions/KeychainStorage.swift, whose doc comment at lines 4-5 reads \"Minimal Keychain wrapper for storing small secrets like API keys\". grep -rn KeychainStorage --include=*.swift across the whole repo finds only Package.swift:34, inside the `exclude:` list at Package.swift:26-34. EntitlementStore.swift:96-243 uses UserDefaults only."
+  },
+  {
+   "group": "atlas-2",
+   "index": 0,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "  VM->>RAG: generateResponse()\n  RAG->>LLM: execute()",
+   "new_string": "  VM->>RAG: query()\n  RAG->>LLM: generate()",
+   "kind": "drift_fix",
+   "rationale": "The Query Answering Flow diagram names two methods that do not exist. The chat calls RAGService.query, and the LLMService protocol method is generate. The participants stay the same; only the two message labels change.",
+   "evidence": "grep 'func generateResponse' finds nothing in OpenIntelligence/ (only regenerateResponse at ChatScreen.swift:2164 and compactDegenerateResponse). ChatScreen.swift:3068 calls capturedService.query(. RAGService.swift:9368 has func query(. LLMService.swift:30-35 has protocol LLMService { func generate(prompt:context:config:) } and no execute. RAGService.swift:16580 calls service.generate(."
+  },
+  {
+   "group": "atlas-2",
+   "index": 1,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "  VM-->>User: Output\n```\n",
+   "new_string": "  VM-->>User: Output\n```\n\n`[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen.swift:3068 (capturedService.query); RAGService.swift:9368 (func query); LLMService.swift:32 (protocol func generate); RAGService.swift:16580 (service.generate). Deep Think and Maximum reach generation through AgenticOrchestrator.execute instead (RAGService.swift:8926; AgenticOrchestrator.swift:263)]`\n",
+   "kind": "drift_fix",
+   "rationale": "Adds the evidence tag for the corrected diagram labels. It also records that the agentic modes go through AgenticOrchestrator.execute, which is probably what the old 'execute()' label was reaching for.",
+   "evidence": "RAGService.swift:8926 calls orchestrator.execute(. AgenticOrchestrator.swift:263 has func execute(. The other lines are as cited in the previous edit."
+  },
+  {
+   "group": "atlas-2",
+   "index": 2,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "A2 -- \"< 10MB\" --> A3",
+   "new_string": "A2 -- \"not a PDF, or PDF <= 10 MB\" --> A3",
+   "kind": "drift_fix",
+   "rationale": "The streaming branch is PDF-only and needs more than 10 MB. The diagram showed a size-only threshold with the boundary on the wrong side, so an agent would expect a large DOCX to stream.",
+   "evidence": "RAGService.swift:5939 has `let isLargePDF = documentType == .pdf && fileSizeMB > 10`, and :5940-5941 calls importLargePDFStreamed only when that is true."
+  },
+  {
+   "group": "atlas-2",
+   "index": 3,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "A2 -- \">= 10MB\" --> S1",
+   "new_string": "A2 -- \"PDF > 10 MB\" --> S1",
+   "kind": "drift_fix",
+   "rationale": "The other edge of the same verified branch condition.",
+   "evidence": "RAGService.swift:5939 `documentType == .pdf && fileSizeMB > 10`. RAGService+Streaming.swift:70 has `let batchSize = 15`, which confirms the existing 15-page node."
+  },
+  {
+   "group": "atlas-2",
+   "index": 4,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "\nQueue tombstones are part of the existing",
+   "new_string": "\nThe size branch applies to PDFs only: `addDocument` streams when `documentType == .pdf && fileSizeMB > 10`, so a file of any other type never takes the streaming branch, whatever its size. The 10-page pre-scan runs only when the library's `autoAdaptDimension` is on. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:5909, :5939-5941, :8337; RAGService+Streaming.swift:70]`\n\nQueue tombstones are part of the existing",
+   "kind": "drift_fix",
+   "rationale": "Gives the evidence for the edge-label changes and states the pre-scan condition. The diagram draws the pre-scan as unconditional, and an agent would act on these thresholds.",
+   "evidence": "RAGService.swift:5909 has `if let currentContainer = container, currentContainer.autoAdaptDimension {` guarding extractPreviewText. RAGService.swift:8337 has `let pageCount = min(pdfDoc.pageCount, 10)`. RAGService.swift:5939 is the gate."
+  },
+  {
+   "group": "atlas-2",
+   "index": 6,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "EmbeddingService.swift forProvider]`\n",
+   "new_string": "EmbeddingService.swift forProvider]`\n  Unknown: whether \"absent in a shipping app\" holds on a device that earlier ran a DEBUG benchmark\n  build with the launch argument. Only the writer is `#if DEBUG`; the read at\n  `EmbeddingService.swift:116` compiles into release builds. Verify: after such a run, install a\n  release build over it and check the log for `[EmbeddingService] Benchmark override`.\n  `[evidence_level: code_verified, confidence: high, evidence_source: EmbeddingService.swift:116-121; DebugRAGValidationHarness.swift:1, :159-167]`\n",
+   "kind": "unknown_note",
+   "rationale": "The doc says the benchmark override is absent in a shipping app. Only its writer is compiled out; the reader ships. That may be a code gap, not a doc error, so this is an Unknown/Verify note and the original sentence stays.",
+   "evidence": "EmbeddingService.swift:116 reads UserDefaults 'benchmarkEmbeddingProvider' with no surrounding #if DEBUG (lines 105-122 read), and :117-118 logs '[EmbeddingService] Benchmark override'. DebugRAGValidationHarness.swift:1 is `#if DEBUG`; :163 removes and :166 sets the key."
+  },
+  {
+   "group": "atlas-2",
+   "index": 8,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "RAGEngine.swift:920]",
+   "new_string": "RAGEngine.swift:920 when recorded; reciprocalRankFusion is at :963 and keys scores on chunk.id at :995 as of d5cc916]",
+   "kind": "drift_fix",
+   "rationale": "The evidence line reference is stale. The recorded number is kept and the current location added.",
+   "evidence": "RAGEngine.swift:963 has `func reciprocalRankFusion(`. :995 has `scores[r.chunk.id, default: 0] += vectorWeight / ...`, and :1006 does the same for the keyword arm."
+  },
+  {
+   "group": "atlas-2",
+   "index": 9,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "AgenticOrchestrator.swift:4195 and the sessionContexts",
+   "new_string": "AgenticOrchestrator.swift:4195 when recorded, :5121 as of d5cc916, and the sessionContexts",
+   "kind": "drift_fix",
+   "rationale": "The evidence line reference for the hardcoded disableToolsForSession is stale. The recorded number is kept and the current one added.",
+   "evidence": "AgenticOrchestrator.swift:5121 has `let disableToolsForSession = true`. The sessionContexts loop is at :4848-4915, still before it."
+  },
+  {
+   "group": "atlas-2",
+   "index": 10,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "It still has exactly one call site,\n  reached only in an agentic mode and only after the chain has finished.",
+   "new_string": "It has two call sites,\n  both reached only in an agentic mode and only after the chain has finished: the one directly after\n  the chain (`maxIterations: 5`), whose gate is described below, and Deep Think's Self-RAG retry\n  inside `runVerificationLoop` (`maxIterations: 3`), which a code comment identifies as the site that\n  fired in the 2026-08-14 device captures.\n  `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:722, :780-783, :889, :3725-3754]`",
+   "kind": "drift_fix",
+   "rationale": "The present-tense claim of exactly one call site is contradicted by the code. A code comment says the second site is the one that fired in the same 2026-08-14 captures, so the claim was wrong even when recorded.",
+   "evidence": "AgenticOrchestrator.swift:722 calls self.executeRecursiveResearch(query: researchQuery, maxIterations: 5). :3751 calls executeRecursiveResearch(query:, maxIterations: 3) inside runVerificationLoop (:3682). The comment at :3743-3748 reads 'This is the second of two call sites and the one that actually fires in Deep Think'. runVerificationLoop is called at :783 and :889, both gated on isDeepThinkMode (:780), after chainResult exists."
+  },
+  {
+   "group": "atlas-2",
+   "index": 11,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "only if a regex\nover the final answer decides they failed.",
+   "new_string": "only if the chain\nfinished below its own coverage target, a regex over the final answer reads as a miss, or, in Deep\nThink only, Self-RAG verification asks for a retry. `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:676-680, :3725]`",
+   "kind": "drift_fix",
+   "rationale": "'The gap, stated precisely' is written as current state, but it still describes the regex-only gate. The same section's bullet records that gate as replaced on 2026-08-14, and the code shows the coverage gate plus the Self-RAG retry path.",
+   "evidence": "AgenticOrchestrator.swift:676 has `let coverageShortfall = chainResult.evidenceCoverage < chainResult.evidenceCoverageTarget`. :678 has proseSuggestsMiss = answerIndicatesRetrievalMiss(...). :680 is `if coverageShortfall || proseSuggestsMiss {`. :3725 is `if verification.action == \"retry\" && !answerIndicatesRetrievalMiss(currentAnswer) {`, which leads to executeRecursiveResearch at :3751."
+  },
+  {
+   "group": "atlas-2",
+   "index": 12,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "adds a universal iOS `luminosity=dark` rendition using `AppIcon-dark-1024.png`.",
+   "new_string": "adds `luminosity=dark` renditions: the universal iOS one uses `AppIcon-dark-universal-1024.png`, the `ios-marketing` one uses `AppIcon-dark-1024.png`, and the iPhone, iPad and Mac sizes each have a dark file. A universal iOS `luminosity=tinted` rendition uses `AppIcon-tinted-universal-1024.png`. `[evidence_level: code_verified, confidence: exact, evidence_source: AppIcon.appiconset/Contents.json:502, :520, :532]`",
+   "kind": "drift_fix",
+   "rationale": "The current-state claim names the wrong file for the universal iOS dark rendition, and it leaves out the tinted and per-size dark entries now in the catalog.",
+   "evidence": "OpenIntelligence/Resources/Assets/Assets.xcassets/AppIcon.appiconset/Contents.json:502 has AppIcon-dark-1024.png with idiom ios-marketing. :520 has AppIcon-dark-universal-1024.png with idiom universal, platform ios, luminosity dark. :532 has AppIcon-tinted-universal-1024.png with luminosity tinted. A python tally found dark renditions for iphone 8/8, ipad 9/9 and mac 10/10."
+  },
+  {
+   "group": "atlas-2",
+   "index": 13,
+   "file": "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+   "old_string": "it builds `optimizedConfig` from `qualityMode.agenticConfig`.",
+   "new_string": "it builds `optimizedConfig` from `qualityMode.agenticConfig` for Maximum and from\n   `DeviceCapabilityService.optimizedAgenticConfig()` for Deep Think\n   `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:8873-8879]`.",
+   "kind": "drift_fix",
+   "rationale": "Only Maximum uses qualityMode.agenticConfig; Deep Think uses the device-optimised config. An agent tuning Deep Think through qualityMode.agenticConfig would change nothing. The section's conclusion (the agentic path does not read inferenceConfig) is unaffected.",
+   "evidence": "RAGService.swift:8871-8879 reads: '// Use unlimited config for Maximum mode, otherwise device-optimized'; if isUnlimitedMode { optimizedConfig = qualityMode.agenticConfig } else { optimizedConfig = deviceService.optimizedAgenticConfig() }, where deviceService = DeviceCapabilityService.shared (:8872)."
+  },
+  {
+   "group": "canonical",
+   "index": 1,
+   "file": "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
+   "old_string": "(using `NSRecursiveLock` around CGImage rendering)",
+   "new_string": "(using `OSAllocatedUnfairLock` render locks around CGImage rendering `[evidence_level: code_verified, confidence: exact, evidence_source: LayoutAwareExtractor.swift:89, StructuredDocumentParser.swift:43, PageComplexityAnalyzer.swift:183]`; this doc previously named `NSRecursiveLock`, which does not appear in the current source)",
+   "kind": "drift_fix",
+   "rationale": "NSRecursiveLock appears nowhere in any .swift file in the repo. The CGImage render paths in the three files this claim cites are serialized by OSAllocatedUnfairLock.withLock. The old name stays in the text as history rather than being dropped.",
+   "evidence": "grep -rn NSRecursiveLock --include=*.swift . finds nothing. LayoutAwareExtractor.swift:89 `private nonisolated static let renderLock = OSAllocatedUnfairLock()`, used at :218 `let renderedCG = Self.renderLock.withLock {`. StructuredDocumentParser.swift:43 `nonisolated private let renderLock = OSAllocatedUnfairLock()`, used at :663. PageComplexityAnalyzer.swift:183 is the same, used at :885 `let cgImage = Self.renderLock.withLock {`."
+  },
+  {
+   "group": "canonical",
+   "index": 2,
+   "file": "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
+   "old_string": "and nothing in the app detects this.**",
+   "new_string": "and nothing in the app detected this when the fix landed.**",
+   "kind": "drift_fix",
+   "rationale": "The sentence says in the present tense that no detection exists, but detection now exists (see the next edit). The rewording keeps the statement as a true historical fact: the 2753d15 commit message itself said 'nothing detects the change'. It does not delete the claim.",
+   "evidence": "EmbeddingFingerprint.swift:19-24 quotes the 2753d15 commit message: 'Old vectors are valid, not corrupt, and nothing detects the change.' RAGService.swift:4661-4700 now flags such libraries."
+  },
+  {
+   "group": "canonical",
+   "index": 3,
+   "file": "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
+   "old_string": "INGESTION_PIPELINE.md section 5b]`",
+   "new_string": "INGESTION_PIPELINE.md section 5b]` Detection now exists: `RAGService.resolveEmbeddingContext` puts a library that has documents but no stored `embeddingFingerprint` (first carried by v5.0 builds, per the comment at RAGService.swift:4666), or whose stored fingerprint differs from the live `EmbeddingFingerprint`, into `librariesNeedingIndexRebuild`, which shows the rebuild banner in the document library instead of silently adopting the live fingerprint. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift:4642-4700, EmbeddingFingerprint.swift:19-27, KnowledgeContainer.swift:62, DocumentLibraryView.swift:1171]`",
+   "kind": "drift_fix",
+   "rationale": "This adds the current detection path, so an agent does not act on the stale belief that pre-fix vectors go undetected. It sits after the existing measured-evidence tag, so that tag still covers only the measured claims.",
+   "evidence": "RAGService.swift:4565 `private func resolveEmbeddingContext`. :4642-4643 guards on the same provider and dimension. :4645-4654: a stored fingerprint that differs from the live one inserts into librariesNeedingIndexRebuild. :4661-4696: nil fingerprint with documents inserts into librariesNeedingIndexRebuild (comment at :4666: 'v5.0 is the first build to carry'). EmbeddingFingerprint.swift:27 `enum EmbeddingFingerprint`. KnowledgeContainer.swift:62 `var embeddingFingerprint: String?`. DocumentLibraryView.swift:1171 shows the banner 'This library needs its search index rebuilt'."
+  },
+  {
+   "group": "canonical",
+   "index": 4,
+   "file": "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
+   "old_string": "on changes, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime) in `QuotaPolicy.swift`. `[evidence: code_verified, exact]`",
+   "new_string": "on changes. `[evidence: code_verified, exact]` Thread creation, not sync, is gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime) in `QuotaPolicy.swift`, checked per library in `RAGService.createNewThread`; `synchronizeEvidenceThreads` copies every thread `.json` it finds without a quota check. `[evidence_level: code_verified, confidence: exact, evidence_source: QuotaPolicy.swift:55-57, RAGService.swift:878-885, WorkspaceSyncService.swift:2749-2765]`\n  - Unknown: whether this sync reaches the thread files the app writes. `EvidenceThreadStore` writes `<AppSupport>/EvidenceThreads/<containerId>/`, while `synchronizeEvidenceThreads` reads `localRoot/EvidenceThreads/<containerId>/` with `localRoot` = `OpenIntelligenceRuntimePaths.applicationSupportRoot()` = `<AppSupport>/OpenIntelligence`. Under on-device investigation as of 2026-09-24; the code may be the defect, not this claim. Verify: create a thread on one device and confirm it appears on a second device signed into the same iCloud account. `[evidence_level: code_verified, confidence: high, evidence_source: EvidenceThreadStore.swift:60, WorkspaceSyncService.swift:2739, OpenIntelligenceRuntimePaths.swift:105-111]`",
+   "kind": "unknown_note",
+   "rationale": "This follows the Evidence Threads rule: the sync claim is kept with its original tag, and an Unknown/Verify note is added for the path mismatch rather than a rewrite. The quota numbers match QuotaPolicy.swift exactly and are kept. Only the 'gated by' linkage is corrected, because the quota check lives in thread creation, not in the sync path.",
+   "evidence": "QuotaPolicy.swift:55-57 sets free 5, pro 20, lifetime .max. RAGService.swift:878-885 `createNewThread` reads QuotaPolicy.evidenceThreadLimit and throws EvidenceThreadQuotaError when listThreads(for: containerId).count >= limit. WorkspaceSyncService.swift:2732-2806 synchronizeEvidenceThreads collects every .json (:2749-2752) and copies each one (:2765+) with no QuotaPolicy reference; grep finds no QuotaPolicy in WorkspaceSyncService.swift. EvidenceThreadStore.swift:60 returns appSupportURL/EvidenceThreads. WorkspaceSyncService.swift:2739 uses localRoot/EvidenceThreads/<id>, with localRoot from OpenIntelligenceRuntimePaths.applicationSupportRoot() (WorkspaceSyncService.swift:401, 600, 987), which returns appSupport/OpenIntelligence (OpenIntelligenceRuntimePaths.swift:105-111)."
+  },
+  {
+   "group": "retrieval",
+   "index": 4,
+   "file": "Docs/RETRIEVAL_PIPELINE.md",
+   "old_string": "`HybridSearchService` already computes per-keyword hit rates and builds `discriminativeKeywords` before fusion runs, so the signal needed to choose a weight per query already exists at the moment the weight is applied.",
+   "new_string": "`HybridSearchService` already computes per-keyword hit rates and builds `discriminativeKeywords`, so the signal needed to choose a weight per query already exists. **Corrected 2026-09-24:** this sentence said the signal exists \"before fusion runs\" and \"at the moment the weight is applied\". Neither holds: `discriminativeKeywords` is a local of `applyKeywordMatchBoost`, which both search paths call on `fusedResults` after `reciprocalRankFusion` returns, while the fusion weights are fixed earlier, when `RAGService` constructs the `HybridSearchService` from `QueryProfile.adjustedHybridWeights`. Choosing a weight from this signal means computing the hit rates over the two arms' candidates before fusion. `[evidence_level: code_verified, confidence: exact, evidence_source: HybridSearchService.swift:294, :306, :398-417, :1186, :1195; RAGService.swift:10376, :10562, :19525, :19561; QueryProfileService.swift:39]`",
+   "kind": "drift_fix",
+   "rationale": "The ordering claim is written in the present tense, and an agent would act on it when implementing per-query weights. It is contradicted by the code: the hit-rate signal is computed after fusion, over the fused set. The original wording is kept inside the correction, following the doc's own withdraw-not-delete style (item 11).",
+   "evidence": "HybridSearchService.swift:294 reciprocalRankFusion, then :306 applyKeywordMatchBoost(query: boostQuery, results: fusedResults); :1186 reciprocalRankFusion, then :1195 applyKeywordMatchBoost(query: originalQuery, results: fusedResults); :398-417 discriminativeKeywords built inside applyKeywordMatchBoost from `results`; :208-211 weights are init parameters; RAGService.swift:19525 adjustedHybridWeights, then :19561 HybridSearchService(vectorWeight:keywordWeight:); :10376 and :10562 the same on the standard path; QueryProfileService.swift:39-54 adjustedHybridWeights with the [0.35, 0.65] clamp."
+  },
+  {
+   "group": "retrieval",
+   "index": 6,
+   "file": "Docs/RETRIEVAL_PIPELINE.md",
+   "old_string": "`SuggestedQuestionsService` runs the same retrieval and turns the chunks into the questions offered before the user types anything.",
+   "new_string": "`SuggestedQuestionsService` runs the same retrieval and turns the chunks into the questions offered before the user types anything. **Corrected 2026-09-24:** in the app it does not run query retrieval. The Chat tab passes it `RAGService.getSampleChunks`, a prioritised sample of the container's chunks, and ingestion passes the document's own chunks; only the `--rag-validation-questions` harness feeds it a query's `retrievedChunks`. The passage-quality argument below holds for any of these sources. `[evidence_level: code_verified, confidence: high, evidence_source: ChatScreen.swift:1984-1996; RAGService.swift:4243-4249, :6920-6922; RAGService+Streaming.swift:248-251; DebugRAGValidationHarness.swift:384-385]`",
+   "kind": "drift_fix",
+   "rationale": "This is a present-tense 'what calls what' claim that the product code contradicts. An agent could conclude that retrieval changes alter the suggestion chips, or instrument the wrong path. The original sentence is kept and a correction appended. The later Suggested questions section (line 195, 'it reads chunks, never the index') already agrees with the code.",
+   "evidence": "ChatScreen.swift:1984-1996 sampleChunks = ragService.getSampleChunks(for:limit:), then suggestedQuestionsService.generateQuestions(sampleChunks:); RAGService.swift:4243-4249 getSampleChunks reads db.allChunks() and samples; RAGService.swift:6920-6922 and RAGService+Streaming.swift:248-251 generateQuestionsForIngestedDocument(chunks: documentChunks); DebugRAGValidationHarness.swift:384-385 sampleChunks = response.retrievedChunks; SuggestedQuestionsService.swift has no RAGService, HybridSearch or VectorDatabase reference (grep)."
+  },
+  {
+   "group": "retrieval",
+   "index": 7,
+   "file": "Docs/RETRIEVAL_PIPELINE.md",
+   "old_string": "so a future instance of this is readable in a trace instead of inferable from a wrong answer.",
+   "new_string": "so a future instance of this is readable in a trace instead of inferable from a wrong answer.\n\n    **Unknown (added 2026-09-24): whether this fix reaches every agentic synthesis.** It is in `executeDirectSynthesis`. `executeRecursiveResearch`, whose second call site the code identifies as the one that fires in Deep Think, still builds its context from `executeSearchStepWithChunks` output, which renders `chunks.prefix(10)` of the Lost-in-the-Middle-ordered array; `getResearchDecision` then cuts that to 2000 characters and `executeForcedSynthesis` to 3500. **Verify:** run a large-result Deep Think query with pipeline tracing and check whether the rank-0 chunk reaches the research-decision prompt. `[evidence_level: code_verified, confidence: medium, evidence_source: AgenticOrchestrator.swift:1859, :2900-2908, :3088, :3189, :3740-3751]`",
+   "kind": "unknown_note",
+   "rationale": "Item 18 reads as though the fixed-size-cut-over-LiM-ordering defect is fixed, but the fix is scoped to executeDirectSynthesis. The same composition is still present in the recursive-research path, which the code says fires in Deep Think. The code may be the bug, so this adds an Unknown/Verify note rather than rewriting the item.",
+   "evidence": "AgenticOrchestrator.swift:1859 `for (index, retrieved) in chunks.prefix(10).enumerated()` in executeSearchStepWithChunks; :2900-2908 accumulatedContext = initialStep.output; :3088 `String(currentContext.prefix(2000))` in getResearchDecision; :3189 `String(accumulatedContext.prefix(3500))` in executeForcedSynthesis; :3740-3751 comment 'the one that actually fires in Deep Think' at the executeRecursiveResearch call; RAGService.swift:19748-19759 LiM reorder at the end of performFullRetrievalPipeline."
+  },
+  {
+   "group": "ingestion-1",
+   "index": 4,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "old_string": "    B -- PDF Size < 10MB --> C{Native Text Layer?}\n    B -- PDF Size >= 10MB --> STREAM",
+   "new_string": "    B -- PDF Size <= 10MB --> C{Native Text Layer?}\n    B -- PDF Size > 10MB --> STREAM",
+   "kind": "drift_fix",
+   "rationale": "The streaming gate is strictly greater than 10 MiB, so a PDF of exactly 10 MiB takes the standard lane. The diagram also contradicted the doc's own §5 ('Every PDF at or under 10 MB ... takes the non-streamed path'). Only the two edge labels change.",
+   "evidence": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:5939 'let isLargePDF = documentType == .pdf && fileSizeMB > 10'; RAGService.swift:5905 fileSizeMB = size / 1_048_576.0; Docs/INGESTION_PIPELINE.md:711"
+  },
+  {
+   "group": "ingestion-1",
+   "index": 5,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "old_string": "the behaviour §5 and the canonical source of truth both\ndescribe.",
+   "new_string": "the behaviour\n`Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` describes; §5 of this document does not cover it,\nand the guard itself is `WorkspaceSyncService.swift:1403`.",
+   "kind": "dead_ref",
+   "rationale": "§5 (lines 543-759) never mentions the modification-date touch or the 15-minute sweep guard, so this cross-reference leads nowhere. The canonical doc does describe it. The edit adds the code location of the guard.",
+   "evidence": "Read Docs/INGESTION_PIPELINE.md:543-759 and grepped it for touch/recent/copied/modif/sweep (only tombstone lines 747/750 match); Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md:18 describes the 15-minute sweep guard; WorkspaceSyncService.swift:1400-1405 skips deletion when timeIntervalSince(modDate) < 900; DocumentPicker.swift:41-46 sets .modificationDate after copy"
+  },
+  {
+   "group": "ingestion-1",
+   "index": 6,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "old_string": "drop that would exceed the document limit raises the paywall instead of half-importing.\n`[evidence_level: code_verified, confidence: exact]`",
+   "new_string": "drop that would exceed the document limit raises the paywall instead of half-importing.\n`[evidence_level: code_verified, confidence: exact]`\n\n**Unknown (2026-09-24): whether a multi-file drop can still half-import.** The pre-copy check is\n`entitlementStore.canAddDocument(currentCount:)` (`DocumentLibraryView.swift:1546`), which is\n`hasUnlimitedDocuments || currentCount < documentLimit` (`EntitlementStore.swift:328-329`). It stops a\ndrop only when the library is already full, so several files dropped into the last free slot pass it,\nall of them are copied into the workspace, and the per-document quota gate in `RAGService`\n(`RAGService.swift:5719-5757`) rejects the extras after they are staged. Verify: on a library one\ndocument below its limit, drop three files and record whether the paywall appears and whether the\nrejected copies stay in the workspace.\n`[evidence_level: code_verified, confidence: high, evidence_source: DocumentLibraryView.swift:1536-1555, EntitlementStore.swift:328-329, RAGService.swift:5719-5757]`",
+   "kind": "unknown_note",
+   "rationale": "The doc says a drop that would exceed the limit raises the paywall instead of half-importing. The code checks only whether the library is already full, so the code may be the bug. Per protocol this adds an Unknown/Verify note and does not rewrite the claim.",
+   "evidence": "DocumentLibraryView.swift:1546-1552 guard canAddDocument(currentCount: ragService.documents.count) then copyIntoWorkspace(fileURLs) for all files; EntitlementStore.swift:328-329 'hasUnlimitedDocuments || currentCount < documentLimit'; RAGService.swift:4893-4932 enqueueDocuments has no quota check; RAGService.swift:5719-5757 per-document gate throws DocumentQuotaError"
+  },
+  {
+   "group": "ingestion-1",
+   "index": 7,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "old_string": "All four are now exercised by automated tests in `OpenIntelligenceTests/Services/Document/Processing/`. See §2.6.",
+   "new_string": "All four are now exercised by automated tests in `OpenIntelligenceTests/Services/Document/Processing/`. See §2.6. `[evidence_level: doc_claim_only, confidence: low, evidence_source: unverified 2026-09-24 — no file under OpenIntelligenceTests/ references CameraManager or analyzeCapture, so no test was found for the camera-capture path in rows 1 and 4]`",
+   "kind": "other",
+   "rationale": "Row 4 (camera captures) and the camera half of row 1 (the CameraManager join) live in CameraManager.analyzeCapture, and no test references it. Absence is not proof, so the claim stays and gets a low-confidence tag as the rules allow.",
+   "evidence": "grep -rln 'CameraManager\\|analyzeCapture' across all .swift outside OpenIntelligence/ returns nothing (the only test target is OpenIntelligenceTests); CameraManager.swift:676-680 holds the camera newline-join fix; ImageUnderstandingService.swift:260-266 holds the other join, which testTablePNG_DoesNotCollapseIntoOneLine (IngestionFormatCoverageTests.swift:155) reaches through DocumentProcessor"
+  },
+  {
+   "group": "ingestion-1",
+   "index": 8,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "old_string": "the transitivity, and that the left edge never overrides a real vertical difference.",
+   "new_string": "the transitivity, and that the left edge never overrides a real vertical difference.\n\n**Unknown (2026-09-24): the same comparator shape survives outside this file.** A sort of the form\n`if abs(Δy) > threshold { by y } else { by minX }` is still used in\n`DocumentProcessor.extractTableDominantText` (`DocumentProcessor.swift:8215-8220`, 0.02),\n`StructuredDocumentParser.buildFallbackReadingBlocks` (`StructuredDocumentParser.swift:1484-1492` and\n`1530-1535`, 0.02), `IntelligentDocumentProcessor.buildReadingOrderText`\n(`IntelligentDocumentProcessor.swift:676-681`, 0.03), `ImageUnderstandingService.swift:244-253` (0.05)\nand `CameraManager.analyzeCapture` (`CameraManager.swift:665-674`, 0.02). Verify: whether any of them\nreorders stored text on a dense page the way `buildReadingOrderText` did.\n`[evidence_level: code_verified, confidence: high, evidence_source: the file:line ranges above, read 2026-09-24]`",
+   "kind": "unknown_note",
+   "rationale": "The section says the non-transitive comparator was the root cause of scrambled line order and was fixed 'in the file'. An agent could read that as fixed everywhere. The identical shape remains at six other sort sites, which may be latent defects. This adds an Unknown/Verify note and leaves the history alone.",
+   "evidence": "DocumentProcessor.swift:8215-8220 (in extractTableDominantText, func at 8194); StructuredDocumentParser.swift:1483-1492 and 1530-1535 (buildFallbackReadingBlocks, func at 1480); IntelligentDocumentProcessor.swift:676-681 (buildReadingOrderText, func at 630); ImageUnderstandingService.swift:244-253 (lineThreshold 0.05); CameraManager.swift:665-674 (analyzeCapture, func at 651); LayoutAwareExtractor.swift:603-609 shows the fixed readingOrderPrecedes"
+  },
+  {
+   "group": "ingestion-1",
+   "index": 9,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "old_string": "**This does not make the camera reachable.** `ChatScreen` still passes `onVisionCapture: nil` and\nthe presenting `fullScreenCover` is still commented out, so the detector is correct and still\nunreached. That is tracked separately as a product decision, not a defect.",
+   "new_string": "**This does not make the detector reachable.** Updated 2026-09-24: the camera screen is no longer\ncommented out. `ChatScreen` presents `CameraVisionOverlayView` from an iOS `fullScreenCover` and passes\n`onVisionCapture: visionCaptureAction`, which is non-nil only under `#if os(iOS) && DEBUG` (decided\n2026-09-13), so a Release build still hands `AttachmentPicker` nil and the menu item cannot render.\nThat screen's frame analysis lives in `CameraManager` and does not call `LiveObjectDetectionService`;\nthe detector's one call site is `DocumentCaptureView.performFullAnalysis`, and `DocumentCaptureView`\nis constructed only in its `#Preview`. So the detector is correct and still unreached. That is\ntracked separately as a product decision, not a defect.\n`[evidence_level: code_verified, confidence: high, evidence_source: ChatScreen.swift:334-340, ChatScreen.swift:649-656, ChatScreen.swift:2362, DocumentCaptureView.swift:486, DocumentCaptureView.swift:1034-1038]`",
+   "kind": "drift_fix",
+   "rationale": "The paragraph's current-state reasons are false today: ChatScreen no longer passes a literal nil, and the fullScreenCover is live code. The conclusion that the detector is unreached still holds for a different reason. The edit keeps the 'product decision' framing.",
+   "evidence": "ChatScreen.swift:334-340 visionCaptureAction returns a closure only under '#if os(iOS) && DEBUG'; ChatScreen.swift:637-656 comment 'Enabled 2026-09-11, having been commented out since v1' and live .fullScreenCover presenting CameraVisionOverlayView; ChatScreen.swift:2362 'onVisionCapture: visionCaptureAction'; CameraVisionOverlayView.swift:24,137 uses CameraManager only; grep of OpenIntelligence/ for LiveObjectDetectionService gives only DocumentCaptureView.swift:486 as a call site; grep for 'DocumentCaptureView(' gives only DocumentCaptureView.swift:1035 inside #Preview"
+  },
+  {
+   "group": "ingestion-2",
+   "index": 0,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "It runs adaptive windows (default size $\\le 310$ words) with character overlap.",
+   "new_string": "It runs adaptive windows (default size $\\le 310$ words) with word overlap, not character overlap: `advancePosition` steps back `overlap` words from the chunk end and snaps to a nearby sentence start. `DocumentProcessor` clamps every request to `maxTargetSize` = 260 target words and `maxOverlap` = 50 overlap words, with `safeMaxSize` = 310 as the hard ceiling. `[evidence_level: code_verified, confidence: exact, evidence_source: SemanticChunker.swift:156-161, :1859-1882; DocumentProcessor.swift:875-883]`",
+   "rationale": "Overlap is counted in words, not characters, and the 260/50 clamp is what actually reaches the chunker.",
+   "evidence": "SemanticChunker.swift:156-161 (safeMaxSize=310, maxTargetSize=safeMaxSize-50, maxOverlap=50); SemanticChunker.swift:1859-1882 advancePosition: 'Move back by overlap words from chunk end', words.suffix(overlap), snap via findNearestSentenceStart within 30 chars; DocumentProcessor.swift:875-883 builds ChunkingConfig with targetSize min(activeWindow, maxTargetSize), overlap min(activeOverlap, maxOverlap), maxSize safeMaxSize."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 1,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "unknown_note",
+   "old_string": "ensuring that data cells are not separated from their column headers during retrieval.",
+   "new_string": "ensuring that data cells are not separated from their column headers during retrieval.\n- Unknown: a structural table chunk stays atomic up to `maxAtomicWords` = 380 words, and above that `splitOversizedAtomicChunk` splits it by rows and repeats the header row. Any table chunk still over the 430-token `safeTokenLimit`, including a 380-word part from that split, is then split again by `splitOversizedChunkByTokens`, which splits on `.!?\\n` and does not repeat the `HEADERS:` line, so its later parts may carry cells without column labels. Verify with a dense table that is under 380 words but over 430 tokens. `[evidence_level: code_verified, confidence: medium, evidence_source: DocumentProcessor.swift:5288-5315, :5821-5826, :6235-6238, :6597-6603]`",
+   "rationale": "The header-preservation guarantee holds for the row split but not for the later token-limit split. That may be a code gap, so it is flagged, not rewritten.",
+   "evidence": "DocumentProcessor.swift:5288 'let maxAtomicWords = 380', :5289-5315 split only above it via splitOversizedAtomicChunk; :5821-5826 structural table text is one 'HEADERS: a | b' line then 'ROW n: v1 | v2' lines with no per-cell labels; :6235-6238 'For tables: repeats the header row'; :6597-6603 splitOversizedChunkByTokens splits on CharacterSet(\".!?\\n\") with no header handling; :6440 safeTokenLimit = 430."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 2,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "- Before indexing, chunks are checked against local tokenizers (e.g. `BertTokenizer`) to guarantee they are within the embedding model's limit ($\\le 510$ tokens).",
+   "new_string": "- Before indexing, `enforceTokenLimitOnChunks` counts each chunk with the bundled WordPiece embedding tokenizer (loaded by `AutoTokenizer.from(directory:)` from `embedding_tokenizer.bundle`; the `BertTokenizer` type is not used on this path) and splits, rather than drops, any chunk over `safeTokenLimit` = 430 tokens: the model's 510 usable tokens less 80 reserved for the contextual prefix added at embedding time. If the tokenizer has not loaded, counts fall back to `text.count / 3 + 2`. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift:486, :6434-6440, :6450-6462, :6486-6488]`",
+   "rationale": "The gate is 430 tokens, not 510. It splits chunks rather than rejecting them, and the tokenizer is AutoTokenizer over embedding_tokenizer.bundle. Section 5b of the same doc already relies on 430.",
+   "evidence": "DocumentProcessor.swift:486 AutoTokenizer.from(directory: url) for embedding_tokenizer.bundle; :6434 maxEmbeddableTokens = 510, :6437 contextualPrefixTokens = 80, :6440 safeTokenLimit = 430; :6450-6462 countTokens with text.count / 3 + 2 fallback; :6486-6488 over-limit chunks go to splitOversizedChunkByTokens. BertTokenizer appears only in ExtractiveQAService.swift:116/:147."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 3,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "unknown_note",
+   "old_string": "a separate decision with its own blast radius, not a drive-by fix.",
+   "new_string": "a separate decision with its own blast radius, not a drive-by fix.\n\nUnknown: the same `.!?\\n` split also fires on every period inside a token, so decimals, version numbers, abbreviations and file names are rewritten as well: `12.5` reaches embedding and FTS5 as `12. 5`, and `e.g.` as `e. g.`. It applies only to chunks over the 430-token `safeTokenLimit`, and dense numeric tables are the likeliest to be over it. Verify with a device ingest of an oversized table that contains decimals, then an exact search for one of its values. `[evidence_level: code_verified, confidence: high, evidence_source: DocumentProcessor.swift:6486-6488, :6603, :6647]`",
+   "rationale": "The recorded side effects of the splitter leave out the one most likely to hurt retrieval (numbers). It may be a defect, so I flagged it next to the existing decision and left the decision as written.",
+   "evidence": "DocumentProcessor.swift:6603 text.components(separatedBy: CharacterSet(charactersIn: \".!?\\n\")) then :6647 currentText += sentence + \". \". I reproduced the same split and rejoin in Python: 'Torque 12.5 Nm per v5.3 spec, see e.g. fig.pdf.' becomes 'Torque 12. 5 Nm per v5. 3 spec, see e. g.  fig. pdf.'. Only chunks over safeTokenLimit reach it (:6486-6488)."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 4,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "BM25 column weights prioritize section titles and entity tags.",
+   "new_string": "BM25 column weights on the chunk table prioritize section titles (`section_title` 10.0) and section paths (`section_path` 5.0) over body text (`content` 1.0); none of the three FTS5 tables has an entity-tag column. `[evidence_level: code_verified, confidence: exact, evidence_source: SQLiteFullTextService.swift:190-195, :242-254, :321-328, :1458]`",
+   "rationale": "The second weighted column is section_path, not entity tags, and no FTS5 table has an entity column.",
+   "evidence": "SQLiteFullTextService.swift:1458 bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) against the column order at :242-254 (chunk_id, document_id, container_id, chunk_index, page_number, section_title, section_path, structure_type, content). The documents table (:190-195) and document_pages table (:321-328) have only id/container/page columns plus content. grep 'USING fts5' finds only these three tables."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 5,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "Dense query vectors (384-dimensions) are generated",
+   "new_string": "Dense chunk vectors (384 dimensions with the default `coreml_sentence_embedding` provider, `KnowledgeContainer.swift:168-169`) are generated",
+   "rationale": "Ingestion writes chunk vectors to the vector index, not query vectors. 384 is the default provider's dimension, not a fixed property; section 6 of this doc discusses 512-D providers.",
+   "evidence": "KnowledgeContainer.swift:168-169 default embeddingProviderId 'coreml_sentence_embedding', embeddingDim 384; RAGService+Streaming.swift:141-154 stores chunk embeddings via db.storeBatch; CoreMLSentenceEmbeddingProvider.swift:200 loads EmbeddingModel."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 6,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "Both indexes are isolated by `container_id` to enforce library boundaries.",
+   "new_string": "Both indexes are isolated per library: the FTS5 tables carry a `container_id` column that container-scoped queries filter on, and the vector side is a separate `BNNSVectorDatabase` per container, cached by `VectorStoreRouter` under the container ID and persisted at `AppSupportPaths.vectorsFileURL(containerId:)`. `[evidence_level: code_verified, confidence: high, evidence_source: SQLiteFullTextService.swift:521, :1460; VectorStoreRouter.swift:148-169; KnowledgeContainer.swift:483-486]`",
+   "rationale": "BNNSVectorDatabase has no container_id field. Vector isolation comes from one store per container, and that is where an agent would look for it.",
+   "evidence": "SQLiteFullTextService.swift:521 and :1460 'AND container_id = ?'; VectorStoreRouter.swift:148-169 creates BNNSVectorDatabase(dimension:storageURL: AppSupportPaths.vectorsFileURL(containerId: container.id)) and sets stores[container.id] = created; KnowledgeContainer.swift:483-486 vector_database_<id>.json; BNNSVectorDatabase.swift has no container property."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 7,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "other",
+   "old_string": "accelerating extraction by 30%+ and avoiding OOM memory spikes.",
+   "new_string": "accelerating extraction by 30%+ and avoiding OOM memory spikes. `[evidence_level: doc_claim_only, confidence: low, evidence_source: unverified 2026-09-24 — no measurement behind the 30% figure found in the repository; it is repeated without a source in Docs/RELEASE_NOTES.md:569 and Docs/Archive/CHANGELOG_2.0_to_5.2.md:661]`",
+   "rationale": "30%+ is a performance claim and I found no measurement behind it. Per the claim-audit rule I tagged it rather than removing it.",
+   "evidence": "grep for '30%+' across *.md finds only Docs/RELEASE_NOTES.md:569, Docs/Archive/CHANGELOG_2.0_to_5.2.md:661 and this line. The CGImage conversion itself is verified at DocumentProcessor.swift:7501, :7705, :7802 (gpuContext.createCGImage)."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 8,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "DocumentProcessor.swift:3323 and :4049]`",
+   "new_string": "DocumentProcessor.swift:3323 and :4049 on 2026-08-29; the two `analyzeBatch` call sites are at :3363 and :4100 at HEAD 2026-09-24]`",
+   "rationale": "The line references moved but the claim still holds, so I kept the dated reference and added the current lines.",
+   "evidence": "grep 'analyzeBatch(' finds only DocumentProcessor.swift:3363 and :4100. PageComplexityAnalyzer.swift:1045-1072 renderPageForAnalysis is still '#if canImport(UIKit) ... #else return nil'; :367-373 analyzeBatch calls analyze(page:pageNumber:) with no pageImage; :298 Vision refinement is gated on pageImage ?? renderPageForAnalysis."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 9,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "`LayoutAwareExtractor`, and pre-26 fallbacks.",
+   "new_string": "`LayoutAwareExtractor`, and pre-26 fallbacks. At HEAD 2026-09-24 there are more than six: `VNRecognizeTextRequest` is constructed at 16 sites in 9 files, the others including `VisualIntelligenceIntents`, `CoreMLRegionDetector`, `ImageUnderstandingService` and `IntelligentDocumentProcessor`. `[evidence_level: grep_verified, confidence: high, evidence_source: grep -rnE 'VNRecognizeTextRequest(\\(\\)| \\{)' OpenIntelligence/ on 2026-09-24]`",
+   "rationale": "'six places' is written as current state and undercounts. An agent auditing OCR configuration would miss sites.",
+   "evidence": "grep -rnE 'VNRecognizeTextRequest(\\(\\)| \\{)' OpenIntelligence: CameraManager.swift 4 (107, 424, 661, 1047), DocumentCaptureView.swift 2 (398, 492), CaptureToRAGBridge.swift:274, VisualIntelligenceIntents.swift 2 (117, 183), CoreMLRegionDetector.swift:339, ImageUnderstandingService.swift:231, DocumentProcessor.swift 3 (7510, 7714, 7810), IntelligentDocumentProcessor.swift:716, LayoutAwareExtractor.swift:238 = 16 in 9 files."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 10,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "unknown_note",
+   "old_string": "sizes\". It is now `0.004`.",
+   "new_string": "sizes\". It is now `0.004`.\n\nUnknown: the same parser's in-path fallback, `performTextRecognitionFallback`, which `parsePageImage` takes when a page has no document structure or parses below its quality floor, builds a `RecognizeTextRequest` that still sets `minimumTextHeightFraction = 0.0`, `automaticallyDetectsLanguage = true` and the full language list, and is passed no `recognitionLanguages`. Neither change in this section reaches it. Verify whether that is deliberate for low-quality scans. `[evidence_level: code_verified, confidence: high, evidence_source: StructuredDocumentParser.swift:731, :774, :1418-1426]`",
+   "rationale": "The section says the live request was fixed, but a fallback on that same live path was not. That may be intended or may be a gap, so it is flagged, not rewritten.",
+   "evidence": "StructuredDocumentParser.swift:1418-1426 performTextRecognitionFallback: RecognizeTextRequest with automaticallyDetectsLanguage = true, minimumTextHeightFraction = 0.0, recognitionLanguages = OCRConfiguration.recognitionLanguages. It is called at :731 (no document structure) and :774 (quality too low) with only the image and customWords. parsePageImage (:629-636) takes recognitionLanguages but does not forward it."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 11,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "(`RAGService.swift:5666`).** Every PDF at or under 10 MB,\n  and every non-PDF of any size, takes the non-streamed path and has no checkpoint at all.",
+   "new_string": "(`RAGService.swift:5666` when written; `:5939` at HEAD 2026-09-24).** Every PDF at or under 10 MB,\n  and every non-PDF of any size, takes the non-streamed path and has no `ingestion_state.json` session\n  state. Per-page `page_<index>.json` parse checkpoints are not streamed-only: `extractWithStructuredParsing`\n  writes and reloads them for every PDF on the OS 26+ structured path, and `addDocument` deletes them on\n  success, so a retried small PDF skips re-parsing checkpointed pages but still re-chunks, re-embeds and\n  re-indexes. `[evidence_level: code_verified, confidence: high, evidence_source: DocumentProcessor.swift:3904-3905, :4171-4210, :4975-4990; RAGService.swift:6958-6959]`",
+   "rationale": "'has no checkpoint at all' is contradicted by the structured-parsing path, which writes page checkpoints whatever the file size. Only the session state file is streamed-only. The line reference also moved.",
+   "evidence": "RAGService.swift:5939 'let isLargePDF = documentType == .pdf && fileSizeMB > 10'. DocumentProcessor.swift:3904-3905 computes fingerprint and checkpointDir unconditionally in extractWithStructuredParsing; :4171-4210 loads page_<index>.json and skips rendering with 'continue'; :4975-4990 writes it. RAGService.swift:6958-6959 in addDocument: 'Clean up temporary page checkpoints on successful ingestion completion'. Non-streamed PDFs reach extractWithStructuredParsing via processDocument :708 -> extractStructuredPDFContent :3855."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 12,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "- Each page's intermediate `PageParseResult` is serialized to a Codable JSON format.",
+   "new_string": "- Each page's intermediate `PageParseResult` (itself only `Sendable`) is mapped to the Codable `IngestionCheckpointPage` and written as `page_<pageIndex>.json` in the same checkpoint folder. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift:4067, :4975-4990, :10015]`",
+   "rationale": "PageParseResult is not Codable. An agent needs the serialized type and the file name to find the checkpoint.",
+   "evidence": "DocumentProcessor.swift:4067 'struct PageParseResult: Sendable'; :4975-4990 builds IngestionCheckpointPage and writes checkpointDir/page_\\(pageIndex).json; :10015 'struct IngestionCheckpointPage: Codable, Sendable'."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 13,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "unknown_note",
+   "old_string": "- Document FTS5 text is combined iteratively with existing content, pages are inserted sequentially, and all batch chunks are appended.",
+   "new_string": "- Document FTS5 text is combined iteratively with existing content, pages are inserted sequentially, and all batch chunks are appended.\n- Unknown: `store(text:for:containerId:append:)` concatenates onto the existing text but then calls `delete(for:)` unconditionally, and `delete(for:)` also deletes that document's `document_pages` rows. `DocumentProcessor` calls `store` before `storePages` for every batch, so each batch may wipe the page rows of the batches before it. Separately, chunk indices restart at 0 in every batch and nothing offsets them, while the FTS5 `chunk_id` and the hybrid-search chunk lookup are both keyed `<documentId>_<chunkIndex>`. Verify after streaming a PDF over 10 MB with more than 15 pages: count its `document_pages` rows and its distinct `chunk_id` values. `[evidence_level: code_verified, confidence: medium, evidence_source: SQLiteFullTextService.swift:369-377, :653-661, :864; DocumentProcessor.swift:812-822, :928-930, :5104; RAGService+Streaming.swift:151, :179; HybridSearchService.swift:1078, :1098]`",
+   "rationale": "The doc presents append mode as accumulating across batches, but the code suggests page rows and chunk keys do not survive batching. That is a possible defect, so it is flagged, not described as intended behaviour.",
+   "evidence": "SQLiteFullTextService.swift:369-377: append reads the existing text, then 'await delete(for: documentId)'. :653-661: delete(for:) runs 'DELETE FROM document_pages WHERE document_id = ?'. DocumentProcessor.swift:812-813 store(append: shouldAppend) runs before :822 storePages(append: shouldAppend). Chunk indices start at 0 on every processDocument call (:928-930 enumerated index, :5104 var chunkIndex = 0) with no pageRange offset. RAGService+Streaming.swift:151 metadata: chunk.metadata and :179 chunkIndex: chunk.metadata.chunkIndex. SQLiteFullTextService.swift:864 chunkId = documentId_chunkIndex. HybridSearchService.swift:1078/:1098 lookups are keyed documentId_chunkIndex."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 14,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "1. **Sample Extraction**: The system extracts a raw text preview from the first 10 pages of the document (or the first 10,000 characters).",
+   "new_string": "1. **Sample Extraction**: The system extracts a raw text preview from the first 10 pages of the document (or the first 10,000 characters). For a PDF that is the PDFKit text of the first 10 pages, uncapped; for any other type it is the first 10,000 characters of the file read as UTF-8, so a binary format such as `.docx` yields no preview and skips the pre-scan. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift:5909-5911, :8326-8345]`",
+   "rationale": "Makes clear which rule applies to which file type. Because non-PDFs are read as UTF-8, Office files never get a pre-scan.",
+   "evidence": "RAGService.swift:8326-8345 extractPreviewText: non-PDF 'try? String(contentsOf: url, encoding: .utf8)' prefix(10000), else ''; PDF: pdfDoc.page(at:).string for min(pageCount, 10) pages with no cap. :5909-5911 the pre-scan runs only 'if !previewText.isEmpty'."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 15,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "unknown_note",
+   "old_string": "   - **Language Properties**: Classifies vocabulary richness, multilingual complexity, and technical jargon density.",
+   "new_string": "   - **Language Properties**: Classifies vocabulary richness, multilingual complexity, and technical jargon density.\n   - Unknown: in `recommendChunkingPlan(forPreviewText:contentType:)` only code, math, the multilingual score and the share of lines starting with `-`, `*` or a digit reach the plan. Technical density and semantic complexity are computed and discarded (`_ =`), vocabulary richness is not computed, and no table or multi-column measure is taken. Verify whether the unused signals were meant to feed `buildChunkingPlan`. `[evidence_level: code_verified, confidence: exact, evidence_source: AdaptiveEmbeddingOptimizer.swift:174-217]`",
+   "rationale": "The doc lists more feature analysis than the pre-scan code uses. This may be unfinished wiring rather than a doc error, so it is flagged.",
+   "evidence": "AdaptiveEmbeddingOptimizer.swift:174-217: '_ = detectTechnicalDensity(...)' :179, '_ = analyzeSemanticComplexity(text)' :182, structuredRatio from lines starting with '-', '*' or a digit :185-190. buildChunkingPlan is called with only avgWords, hasCode, hasMath, structuredRatio and multilingualScore (:209-216)."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 16,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "drift_fix",
+   "old_string": "3. **Pre-Ingestion Adaptation**: Based on these signals, the engine resolves the optimal `ChunkingPlan` (e.g. `densePrecision` strategy, `300` word window for structured text/code) *before* processing page 1.",
+   "new_string": "3. **Pre-Ingestion Adaptation**: Based on these signals, the engine resolves the optimal `ChunkingPlan` (e.g. `densePrecision` strategy with a `300` word window for structured text, `280` for code) *before* processing page 1. `[evidence_level: code_verified, confidence: exact, evidence_source: AdaptiveEmbeddingOptimizer.swift:235-249; RAGService.swift:5909-5935]`",
+   "rationale": "Code gets a 280-word window, not 300.",
+   "evidence": "AdaptiveEmbeddingOptimizer.swift:235-238 hasCode -> densePrecision, window = 280; :245-248 structuredRatio > 0.35 -> densePrecision, window = 300. RAGService.swift:5909-5935 runs the pre-scan before importLargePDFStreamed and processDocument."
+  },
+  {
+   "group": "ingestion-2",
+   "index": 17,
+   "file": "Docs/INGESTION_PIPELINE.md",
+   "kind": "unknown_note",
+   "old_string": "eliminating the need to re-process the file.",
+   "new_string": "eliminating the need to re-process the file.\n   - Unknown: every window `buildChunkingPlan` emits (280 to 420 words) and every overlap (50 to 70 words) is at or above the ceiling `DocumentProcessor` clamps chunking to (`maxTargetSize` 260, `maxOverlap` 50), so the tuned window and overlap cannot reach the chunker and only the strategy does. Verify whether the plan or the clamp holds the intended values. `[evidence_level: code_verified, confidence: high, evidence_source: AdaptiveEmbeddingOptimizer.swift:229-262; RAGService.swift:8314-8323; DocumentProcessor.swift:864-883; SemanticChunker.swift:156-161]`",
+   "rationale": "The doc says the tuned configuration is used immediately, but the clamp means the tuned numbers never take effect. The plan values may be the defect, so it is flagged.",
+   "evidence": "AdaptiveEmbeddingOptimizer.swift:229-262: windows 280/320/300/380/max(300,min(420,avg)) and overlaps 60/50/55/55/65, max(overlap,70) for vision assets. RAGService.swift:8314-8323 chunkingOverride passes targetWordWindow and overlapWords. DocumentProcessor.swift:864-865 take activeWindow/activeOverlap from the override, and :877-881 apply min(activeWindow, maxTargetSize) and min(activeOverlap, maxOverlap). SemanticChunker.swift:156-161: maxTargetSize 260, maxOverlap 50."
+  },
+  {
+   "group": "privacy-routing",
+   "index": 2,
+   "file": "Docs/PRIVACY_AND_ROUTING.md",
+   "old_string": "- evidence sufficiency, score distribution, context size, and multi-document synthesis need;",
+   "new_string": "- evidence sufficiency, score distribution, context size, and multi-document synthesis need (of the scores, only the top one is read: sufficiency is `chunkCount > 0 && topScore >= 0.20`, and the mean score is stored in the plan but no planner branch reads it `[evidence_level: code_verified, confidence: exact, evidence_source: ModelExecutionPlan.swift:104-106, ModelExecutionPlanner.swift:37; checked 2026-09-24]`);",
+   "kind": "drift_fix",
+   "rationale": "'score distribution' implies the planner weighs more than the top score. It reads only PostRetrievalEvidence.isSufficient (top score and chunk count); meanScore is computed and stored but never read. Wording kept, precision added.",
+   "evidence": "ModelExecutionPlan.swift:104-106 (isSufficient = chunkCount > 0 && topScore >= 0.20); ModelExecutionPlanner.swift:37 (only evidence.isSufficient, requiresExactExtraction, hasContradictions, requiresMultiDocumentSynthesis are read); grep meanScore: only ModelExecutionPlan.swift:98 (declaration) and RAGService.swift:16227/16240 (assignment)."
+  },
+  {
+   "group": "privacy-routing",
+   "index": 4,
+   "file": "Docs/PRIVACY_AND_ROUTING.md",
+   "old_string": "Background and App Intent execution never waits for a foreground consent sheet. Remembered consent may permit PCC; otherwise Hybrid and explicit PCC policy complete through the declared on-device fallback. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, CloudConsentPromptView.swift, AgenticOrchestrator.swift]`",
+   "new_string": "Background and App Intent execution never waits for a foreground consent sheet. Remembered consent may permit PCC; otherwise Hybrid and explicit PCC policy complete through the declared on-device fallback. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, CloudConsentPromptView.swift, AgenticOrchestrator.swift]` Unknown: on iOS the consent step checks foreground state before it reads remembered consent. A backgrounded request that the planner approved on remembered consent therefore throws `cloudConsentUnavailable` and falls back on-device. That function has no foreground check on macOS. Verify: which behaviour is intended, then run a backgrounded App Intent on each platform with Always Allow set. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift:3693-3711 (UIKit-only guard ahead of cloudConsentDecision), ModelExecutionPlanner.swift:83 (isForegroundInteractive || consentGranted); checked 2026-09-24]`",
+   "kind": "unknown_note",
+   "rationale": "The doc says remembered consent may permit PCC in background. The planner does allow that, but on UIKit platforms ensureCloudConsentIfNeeded throws before it reads the remembered state, so on iOS it does not happen. This could be a code defect or a deliberate conservative choice, so it gets an Unknown/Verify note, not a rewrite.",
+   "evidence": "RAGService.swift:3688-3691 (transient grant returns early), 3693-3709 (#if canImport(UIKit) foreground guard throws cloudConsentUnavailable), 3711 (cloudConsentDecision read only afterwards), 3731-3733 (.allowed -> remembered); ModelExecutionPlanner.swift:52,83 (planner accepts consentGranted when not foreground); RAGService.swift:13720 (caller treats cloudConsentUnavailable as fallback)."
+  },
+  {
+   "group": "privacy-routing",
+   "index": 5,
+   "file": "Docs/PRIVACY_AND_ROUTING.md",
+   "old_string": "so a prompt is tied only to a real finalized post-retrieval envelope. `[evidence_level: code_verified+test_verified, confidence: high_pending_physical_device_validation, evidence_source: SettingsStore.swift, RAGService.swift, PCCConsentPreferenceMigrationTests.swift]`",
+   "new_string": "so a prompt is tied only to a real finalized post-retrieval envelope. `[evidence_level: code_verified+test_verified, confidence: high_pending_physical_device_validation, evidence_source: SettingsStore.swift, RAGService.swift, PCCConsentPreferenceMigrationTests.swift]` Unknown: the picker's allow option is labelled \"Allow for Deep Think and Maximum\", but it writes the same remembered `.allowed` that authorizes any mode. The planner's local-overflow PCC branch has no mode check, so a Standard question whose evidence overflows the on-device budget can go to PCC with no prompt. Verify: owner decision on whether the label or the scope is wrong. `[evidence_level: code_verified, confidence: high, evidence_source: LLMModel.swift:219, SettingsStore.swift:726-728, ModelExecutionPlanner.swift:78-90, RAGService.swift:3731-3733; checked 2026-09-24]`",
+   "kind": "unknown_note",
+   "rationale": "Confirmed the suspected mismatch by reading code. The doc's consent section covers the picker, so an agent reasoning about what 'allow' permits needs to know. Copy is not edited; the mismatch is recorded as Unknown/Verify and in suspected_code_defects.",
+   "evidence": "LLMModel.swift:219 (case allow = \"Allow for Deep Think and Maximum\"); SettingsStore.swift:726-731 (.allow sets applePCCConsent = .allowed, executionContext = .automatic); ModelExecutionPlanner.swift:78-90 (shouldUsePCC includes !localBudget.fits with no qualityMode test; only complexityRequestsPCC checks qualityMode != \"Standard\"); RAGService.swift:13660-13680 (Standard path calls the planner); RAGService.swift:3731-3733 (.allowed returns allowAndRemember without a sheet)."
+  },
+  {
+   "group": "privacy-routing",
+   "index": 6,
+   "file": "Docs/PRIVACY_AND_ROUTING.md",
+   "old_string": "- Intermediate Deep Think/Maximum reasoning sessions stay on-device; only final post-retrieval synthesis may be selected for PCC.",
+   "new_string": "- Intermediate Deep Think/Maximum reasoning sessions stay on-device; only final post-retrieval synthesis may be selected for PCC. **Exception, verified 2026-09-24:** the on-device pin on the four `forceOnDevice: true` reasoning calls gives way to an explicit Private Cloud Compute model selection, so with PCC selected those sessions are planned like any other call. `generateWithFreshSession` stays on-device under every setting. `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:9000-9013 (budgetPin = forceOnDevice && !userRouting.explicitlyPrefersPCC), AgenticOrchestrator.swift:8920-8922, RAGService.swift:413-414]`",
+   "kind": "drift_fix",
+   "rationale": "Written as a current invariant, but the code deliberately lifts the on-device pin when the user explicitly selects PCC (the code comment states it as intended). The exception is documented rather than the invariant deleted.",
+   "evidence": "AgenticOrchestrator.swift:9000-9002 (comment: 'an explicit PCC selection outranks it'), 9008 (budgetPin), 9009-9013 (only then forced onDeviceOnly); AgenticOrchestrator.swift:3119, 5159, 6703, 7107 (the four forceOnDevice: true sites); AgenticOrchestrator.swift:8920-8922 (generateWithFreshSession forces onDeviceOnly); RAGService.swift:413-414 (explicitlyPrefersPCC = fmPreference.canonical == .privateCloudCompute)."
+  },
+  {
+   "group": "privacy-routing",
+   "index": 9,
+   "file": "Docs/PRIVACY_AND_ROUTING.md",
+   "old_string": "Routing stays entirely in `FoundationModelRoutePolicy`, which reads the explicit model preference\nfirst, then the execution plan, then the context estimate against the on-device window.",
+   "new_string": "Routing stays in `ModelExecutionPlanner`, which chooses the target on the planned path, and in\n`FoundationModelRoutePolicy`, which reads that execution plan first when one is attached, then the\nexplicit model preference, then the context estimate against the on-device window.\n`[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelRoutePolicy.swift:28-57 (plan before fmPreference), FoundationModelRoutePolicy.swift:87-118 (planless context estimate), RAGService.swift:16311; corrected 2026-09-24]`",
+   "kind": "drift_fix",
+   "rationale": "The order was reversed: determineRoute returns from the attached plan before it looks at fmPreference. 'Entirely in FoundationModelRoutePolicy' also left out the planner, which decides the target on every planned path.",
+   "evidence": "FoundationModelRoutePolicy.swift:28-47 (if let plan = config.modelExecutionPlan ... return), 49-57 (fmPreference switch reached only without a plan), 87-118 (context estimate vs onDeviceLimit); RAGService.swift:16311 (ModelExecutionPlanner().makePlan)."
+  },
+  {
+   "group": "privacy-routing",
+   "index": 10,
+   "file": "Docs/PRIVACY_AND_ROUTING.md",
+   "old_string": "generation parameters only removes that coupling.\n",
+   "new_string": "generation parameters only removes that coupling.\n\nUnknown: one coupling may remain. On the Standard path an applied profile replaces `maxTokens`, which\n(after clamping) becomes the output reserve in the planner's local budget, and the planner selects PCC\nwhen that budget does not fit, so a profile may be able to change the planned route. Verify: plan one\nStandard query with `adaptiveInferenceProfiles` on and off and compare `localBudget.fits` and the\nsynthesis target.\n`[evidence_level: code_verified, confidence: medium, evidence_source: RAGService.swift:9582, RAGService.swift:13566-13574, RAGService.swift:16294, ModelExecutionPlanner.swift:85; checked 2026-09-24]`\n",
+   "kind": "unknown_note",
+   "rationale": "The section says a profile cannot escalate or suppress PCC and that producing generation parameters only removed the coupling, but its evidence checked only FoundationModelRoutePolicy. On the planned Standard path the profile's maxTokens feeds the planner's local budget, and the planner routes on it. The route effect has not been observed, so this is an Unknown/Verify note, not a rewrite. The agentic path is unaffected: generateWithProperConsent takes only temperature from the profile (AgenticOrchestrator.swift:8960-8965).",
+   "evidence": "RAGService.swift:9582 (inferenceConfig = applyingAdaptiveProfile), FoundationModelDynamicProfileRegistry.swift:128-133 (replaces temperature and maxTokens); RAGService.swift:13425 (genConfig = inferenceConfig), 13566-13574 (clamped to availableForOutput); RAGService.swift:16294 (outputReserve: max(128, config.maxTokens)); ModelExecutionPlanner.swift:85 (!localBudget.fits triggers PCC)."
+  },
+  {
+   "group": "privacy-routing",
+   "index": 11,
+   "file": "Docs/PRIVACY_AND_ROUTING.md",
+   "old_string": "That reasoning happens on the device and a written profile does not touch\n  it.",
+   "new_string": "That reasoning happens on the device and a written profile does not touch\n  it, unless Private Cloud Compute is explicitly selected as the model, which lifts that pin (see\n  *Fallback and stream integrity*).",
+   "kind": "drift_fix",
+   "rationale": "Same verified exception as the stream-integrity bullet: with an explicit PCC selection the four pinned calls can be planned to PCC. There FoundationModelRoutePolicy gives them a non-none reasoning level, so a written profile applies to them.",
+   "evidence": "AgenticOrchestrator.swift:9008-9013; FoundationModelRoutePolicy.swift:38-45 (planned PCC: deepThink -> .moderate, maximum -> .deep); FoundationModelRoute.swift:66-74 (custom profile substituted when reasoning != .none)."
+  },
+  {
+   "group": "transition-roadmap",
+   "index": 1,
+   "file": "Docs/AppleIntelligenceTransitionPlan.md",
+   "old_string": "ensuring thread-safe Metal access.",
+   "new_string": "ensuring thread-safe Metal access. As of 2026-09-24 the lock in code is an `OSAllocatedUnfairLock` named `renderLock` around each `createCGImage` call, and no `NSRecursiveLock` remains in source. `[evidence_level: code_verified, confidence: high, evidence_source: StructuredDocumentParser.swift:43,663; LayoutAwareExtractor.swift:89,218; PageComplexityAnalyzer.swift:183,885]`",
+   "kind": "drift_fix",
+   "rationale": "The 'Current Branch Status' column names NSRecursiveLock as the serialization primitive; grep finds no NSRecursiveLock in any .swift file in the repository, and the render paths use OSAllocatedUnfairLock. The original name is kept, a dated note is appended.",
+   "evidence": "grep -rln NSRecursiveLock --include=*.swift . -> no hits; OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift:43 `nonisolated private let renderLock = OSAllocatedUnfairLock()`, :663 `renderLock.withLock { sharedGPUContext.createCGImage(...) }`; LayoutAwareExtractor.swift:89 and :218; PageComplexityAnalyzer.swift:183 and :885."
+  },
+  {
+   "group": "transition-roadmap",
+   "index": 2,
+   "file": "Docs/AppleIntelligenceTransitionPlan.md",
+   "old_string": "resolving in-process via `activePresentedInstance` binding.",
+   "new_string": "resolving in-process via `activePresentedInstance` binding. Unknown: only the Evidence Thread, Screen Awareness and Visual Intelligence intents use `RAGService.activePresentedInstance ?? RAGService()`; seven intents in `RAGAppIntents.swift`, including `QueryDocumentsIntent`, `ListDocumentsIntent` and `SearchLibraryIntent`, still construct a fresh `RAGService()` (§4.1 lists this as backlog). Verify: whether those intents answer against the active library on device. `[evidence_level: code_verified, confidence: high, evidence_source: RAGAppIntents.swift:60,175,218,632,675,724,769 versus :812,:860; ScreenAwarenessIntents.swift:65,102; VisualIntelligenceIntents.swift:65,202]`",
+   "kind": "unknown_note",
+   "rationale": "Row claims 100% in-process binding via activePresentedInstance. Code shows seven intents still create a fresh RAGService(), which the plan's own §4.1 calls a defect to fix. This may be a code gap rather than doc drift, so an Unknown/Verify note is added instead of a rewrite.",
+   "evidence": "grep -rn 'RAGService()' OpenIntelligence/Services/Agentic: RAGAppIntents.swift:60 (QueryDocumentsIntent), :175 (ListDocumentsIntent), :218 (DocumentImportStatusIntent), :632 (AskDocumentIntent), :675 (SummarizeDocumentIntent), :724 (CompareDocumentsIntent), :769 (SearchLibraryIntent) construct RAGService() directly; :812 and :860 (ListEvidenceThreadsIntent, CreateNewEvidenceThreadIntent), ScreenAwarenessIntents.swift:65,102 and VisualIntelligenceIntents.swift:65,202 use activePresentedInstance ?? RAGService()."
+  },
+  {
+   "group": "transition-roadmap",
+   "index": 3,
+   "file": "Docs/AppleIntelligenceTransitionPlan.md",
+   "old_string": "Same document-level preview index.",
+   "new_string": "Same document-level preview index, plus chunk-level Spotlight items written at ingestion (`SpotlightIndexService.indexDocumentChunks`, called from `RAGService.swift:6546` when Spotlight indexing is on); no `CSSearchQuery` or `CSUserQuery` call exists in source, so retrieval does not read Spotlight. `[evidence_level: code_verified, confidence: high, evidence_source: SpotlightIndexService.swift:251-278; RAGService.swift:6531-6552; grep CSSearchQuery/CSUserQuery in OpenIntelligence/ 2026-09-24]`",
+   "kind": "drift_fix",
+   "rationale": "The current-status cell says Spotlight has only the document-level index. The code already indexes each chunk as its own CSSearchableItem during ingestion, which is half of the 'Future Backlog Target'. The query half is still absent, so the % column and backlog target are left alone.",
+   "evidence": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift:251 `func indexDocumentChunks(`, :278 `uniqueIdentifier: \"chunk-\\(chunk.id.uuidString)\"`; OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:6530 comment 'Index individual document chunks in Spotlight', :6546 call; grep CSSearchQuery|CSUserQuery over all .swift files returns nothing."
+  },
+  {
+   "group": "transition-roadmap",
+   "index": 6,
+   "file": "Docs/AppleIntelligenceTransitionPlan.md",
+   "old_string": "and incremental Core Spotlight semantic re-indexing).",
+   "new_string": "and incremental Core Spotlight semantic re-indexing). Status 2026-09-24: a charging-only `BGProcessingTaskRequest` (`com.openintelligence.index-maintenance`) is already registered and scheduled, but its handler only logs entity and gazetteer counts and records a timestamp; no compaction, `VACUUM` or FTS5 optimize runs. The `spotlight-reindex` task only sets a flag for the next foreground launch. `[evidence_level: code_verified, confidence: high, evidence_source: BackgroundTaskService.swift:184-188, :1280-1305, :1316-1330; OpenIntelligenceApp.swift:166-172; ContentView.swift:410]`",
+   "kind": "drift_fix",
+   "rationale": "Backlog item reads as if no BGProcessingTask exists. One is registered and scheduled already, so an agent following this item would duplicate it; but the handler performs none of the listed optimizations, so the backlog target stays open.",
+   "evidence": "OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift:184-188 scheduleIndexMaintenance with requiresExternalPower = true; :1280-1305 handleIndexMaintenance only reads EntityIndexService statistics, Gazetteer counts, writes UserDefaults timestamps; :1316-1330 handleSpotlightReindex sets 'spotlightReindexNeeded'; OpenIntelligence/App/OpenIntelligenceApp.swift:168 register(forTaskWithIdentifier: \"com.openintelligence.index-maintenance\"); OpenIntelligence/App/ContentView.swift:410 schedules it."
+  },
+  {
+   "group": "transition-roadmap",
+   "index": 7,
+   "file": "Docs/AppleIntelligenceTransitionPlan.md",
+   "old_string": "      └── ModelResolutionService.swift           # Tracks where queries execute (Estimated PCC vs Local)\n```",
+   "new_string": "      └── ModelResolutionService.swift           # Tracks where queries execute (Estimated PCC vs Local)\n```\n\n**Status against code, 2026-09-24:** `OpenIntelligence/Services/AIPlatform/AppleFoundationModels/` exists and holds every file above except `FoundationModelBackend.swift`, plus `FoundationModelCapabilityProvider.swift`, `FoundationModelRoute.swift` and `FoundationModelRoutePolicy.swift`. Neither `ModelRouting/` nor `Services/RAGPipeline/` exists: `ModelRouter.swift`, `ModelRoute.swift` and `ModelExecutionPolicy.swift` were never created (route planning is `ModelExecutionPlanner.swift` under `OpenIntelligence/Services/RAG/Orchestration/` plus `FoundationModelRoutePolicy.determineRoute`), `ModelResolutionService.swift` is at `OpenIntelligence/Services/LLM/ModelResolutionService.swift`, and retrieval stages live under `OpenIntelligence/Services/RAG/`. `FoundationModelDynamicProfileRegistry` now returns generation parameters only and is applied behind the opt-in `adaptiveInferenceProfiles` toggle; it is not Apple's Dynamic Profiles. `[evidence_level: code_verified, confidence: high, evidence_source: ls OpenIntelligence/Services/AIPlatform/AppleFoundationModels/ and OpenIntelligence/Services/ 2026-09-24; ModelExecutionPlanner.swift:23; FoundationModelRoutePolicy.swift:23; RAGService.swift:8810-8815, :9578-9583; ModelConfigurationSheet.swift:35]`",
+   "kind": "drift_fix",
+   "rationale": "The refactoring tree is where an agent would look for files. Four listed paths do not exist and one lives elsewhere; three existing files are not listed. The tree itself is left untouched as the original plan and a dated status line is added after it.",
+   "evidence": "ls OpenIntelligence/Services/AIPlatform/ -> only AppleFoundationModels/ (FoundationModelCapabilityProvider, DynamicProfileRegistry, ErrorMapper, PromptCompiler, Route, RoutePolicy, SessionFactory, StructuredGenerator, TokenBudget, ToolRegistry, TranscriptStore); ls OpenIntelligence/Services/RAGPipeline -> no such directory; grep for FoundationModelBackend and ModelExecutionPolicy in OpenIntelligence/ -> no hits; ModelRouter appears only as a log prefix (RAGService.swift:13749); OpenIntelligence/Services/LLM/ModelResolutionService.swift exists; ModelExecutionPlanner.swift:23 struct ModelExecutionPlanner; FoundationModelRoutePolicy.swift:23 static func determineRoute; RAGService.swift:8810-8812 and :9578-9583 call the registry under UserDefaults 'adaptiveInferenceProfiles'; ModelConfigurationSheet.swift:35 @AppStorage(\"adaptiveInferenceProfiles\") ... = false."
+  },
+  {
+   "group": "transition-roadmap",
+   "index": 9,
+   "file": "Docs/AppleIntelligenceTransitionPlan.md",
+   "old_string": "to prevent context contamination and performance degradation.",
+   "new_string": "to prevent context contamination and performance degradation. As of 2026-09-24 `FoundationModelToolRegistry.createTools` returns six tools, a deliberate choice explained in its own comment; `Docs/Engineering/HARD_LIMITS.md` puts the recommended count at 3-5. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelToolRegistry.swift:421-473; Docs/Engineering/HARD_LIMITS.md:30]`",
+   "kind": "drift_fix",
+   "rationale": "The constraint says no more than 5 tools; code registers six on purpose and says so. Stating the current count prevents an agent from either 'fixing' the code blindly or assuming compliance. The constraint text is unchanged.",
+   "evidence": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelToolRegistry.swift:428-470 appends RetrieveCorpusEvidenceTool, InspectDocumentTool, CompareTopicAcrossDocumentsTool, GetLibraryOverviewTool, CountPatternTool, SearchExactPatternTool; :444-451 comment 'HARD_LIMITS puts the useful ceiling around five. Six live tools stays near that.'; FoundationModelSessionFactory.swift:32 attaches createTools output unless disableTools; Docs/Engineering/HARD_LIMITS.md:30 'Recommended tool count | 3-5 tools'."
+  },
+  {
+   "group": "transition-roadmap",
+   "index": 14,
+   "file": "Docs/ROADMAP.md",
+   "old_string": "`FoundationModelDynamicProfileRegistry.swift` has zero call sites today. An unused registry that looks implemented is worse than neither.",
+   "new_string": "`FoundationModelDynamicProfileRegistry.swift` has zero call sites today. An unused registry that looks implemented is worse than neither. **Update 2026-09-24: adopted, not deleted.** The registry now returns generation parameters only and is applied on the Standard and agentic paths behind the opt-in, off-by-default `adaptiveInferenceProfiles` toggle in Model Parameters. `[evidence_level: code_verified, confidence: high, evidence_source: FoundationModelDynamicProfileRegistry.swift:92-110; RAGService.swift:8810-8815, :9578-9583; AgenticOrchestrator.swift:8963-8964; ModelConfigurationSheet.swift:35]`",
+   "kind": "drift_fix",
+   "rationale": "Item says the registry has zero call sites and must be adopted or deleted; an agent acting on it could delete a live, tested feature. The 2026-08-06 sentence is kept as history and a dated update is appended.",
+   "evidence": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:8810-8815 (agentic path sets activeAdaptiveProfile from FoundationModelDynamicProfileRegistry when UserDefaults 'adaptiveInferenceProfiles' is true), :9578-9583 (Standard path applyingAdaptiveProfile); OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:8963-8964 (extension RAGService reads activeAdaptiveProfile); OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift:35 @AppStorage(\"adaptiveInferenceProfiles\") ... = false, :85 navigationTitle(\"Model Parameters\"); OpenIntelligenceTests/Services/AIPlatform/AdaptiveInferenceProfileTests.swift exercises it."
+  },
+  {
+   "group": "billing-limits",
+   "index": 0,
+   "file": "Docs/BILLING_AND_LIMITS.md",
+   "old_string": "the grandfathering section in §4 was **not** re-verified. The shipped tree is 5.3 on both platforms (released 2026-09-18, build 464), and 5.4 is the open release.",
+   "new_string": "the grandfathering section in §4 was **not** re-verified then. §4 was re-read against source on 2026-09-24, and it and §2 now carry Unknown notes on how paid-history protection interacts with the Pro limits and with refunds. For which version is live and which is in review, read `Docs/SHIPPED_VERSION.json` rather than a number written here.",
+   "kind": "stale_header",
+   "rationale": "Hardcoded current-version statement replaced with a pointer to Docs/SHIPPED_VERSION.json per the overhaul rule; also records that §4 has now been re-read, since this pass adds notes there.",
+   "evidence": "Docs/SHIPPED_VERSION.json app_store=5.3, in_review 5.4 (build 478), updated 2026-09-23; §4 re-read against EntitlementStore.swift:352-423, :533-579 this pass."
+  },
+  {
+   "group": "billing-limits",
+   "index": 2,
+   "file": "Docs/BILLING_AND_LIMITS.md",
+   "old_string": "| **Deep Think Runs** | Unlimited | Unlimited | Unlimited |",
+   "new_string": "| **Deep Think Runs** | Unlimited | Unlimited | Unlimited |\n| **Evidence Threads** | 5 per library | 20 per library | Unlimited |",
+   "kind": "other",
+   "rationale": "The matrix says every row is read from QuotaPolicy.swift but omits the Evidence Thread limits QuotaPolicy defines and RAGService enforces; an agent asking for tier limits would miss them. Provenance sentence and evidence tag are added in the next edit.",
+   "evidence": "QuotaPolicy.swift:55-57 freeEvidenceThreadLimit=5, proEvidenceThreadLimit=20, lifetimeEvidenceThreadLimit=.max; RAGService.swift:877-885 createNewThread counts listThreads(for: containerId) against evidenceThreadLimit(for: effectiveTier); QuotaPolicy.swift:76 error text 'active threads per library'."
+  },
+  {
+   "group": "billing-limits",
+   "index": 3,
+   "file": "Docs/BILLING_AND_LIMITS.md",
+   "old_string": "EntitlementStore.buildSnapshot; read 2026-09-20]`",
+   "new_string": "EntitlementStore.buildSnapshot; read 2026-09-20]`\n\nAdded 2026-09-24: the Evidence Threads row is `QuotaPolicy.evidenceThreadLimit(for:)`, checked per library against the effective tier in `RAGService.createNewThread`. Library creation (`ContainerService.createContainer`) and the sync library-limit checks read `EntitlementStore.currentLibraryLimit`, which repeats 1, 10 and 20 as literals rather than calling `QuotaPolicy.libraryLimit(for:)`; the figures match today. iCloud sync is gated at Pro and above by `effectiveTier.isAtLeast(.pro)`, not by a `QuotaPolicy` constant, and below Pro `WorkspaceSyncService` sets shared libraries back to local-only. `[evidence_level: code_verified, confidence: exact, evidence_source: QuotaPolicy.swift:55-68, RAGService.swift:877-885, ContainerService.swift:125-129, EntitlementStore.swift:243-252, WorkspaceSyncService.swift:411-435, :1234, :3343-3348]`\n\n> **Unknown:** whether a Pro purchaser is ever held to the Pro column. A Pro or Lifetime transaction, active or lapsed, promotes `legacyProtectionState` to `.historicalPaidPurchase` (in `applyPurchase`, and in `reconcileEntitlementsOnLaunch` on every launch), and `buildSnapshot` resolves every protected state to `.lifetime`. Read literally, a Pro subscriber gets unlimited documents, 20 libraries and unlimited Evidence Threads, and Settings shows the plan as Lifetime, while the paywall sells Pro as \"Up to 1,000 documents\" and \"10 libraries\". The code comment calls this paid-history protection; it does not say whether new subscribers were meant to be included. **Verify:** on a clean install with the StoreKit test configuration, buy `pro_monthly`, then read the document limit, the library limit and the plan badge in Settings. `[evidence_level: code_verified, confidence: high, evidence_source: EntitlementStore.swift:205, :352-355, :382-383, :533-536; MonetizationPolicy.swift:27; SettingsView.swift:744-760; PlanUpgradeSheet.swift:37-38, :52-53]`",
+   "kind": "unknown_note",
+   "rationale": "§2 states Pro is a 1,000-document, 10-library tier. The code promotes every Pro purchase to a protected state that resolves to Lifetime, so the doc and the code disagree and the code may be the bug. Per protocol this adds an Unknown/Verify note instead of rewriting the tier. It also records where the thread and library limits are enforced and that iCloud sync is Pro-gated.",
+   "evidence": "EntitlementStore.swift:205 `resolvedTier = legacyProtectionState.isProtected ? .lifetime : activeTier`; :382-383 active paid tier -> promote .historicalPaidPurchase; :533-536 applyPurchase promotes .historicalPaidPurchase for any product with an associatedTier; MonetizationPolicy.swift:27 isProtected = self != .none; SettingsView.swift:744-760 status text and badge from effectiveTier; PlanUpgradeSheet.swift:37-38,52-53 Pro bullets; EntitlementStore.swift:243-252 literal 1/10/20; ContainerService.swift:125-129; WorkspaceSyncService.swift:411-435, :1234, :3343-3348."
+  },
+  {
+   "group": "billing-limits",
+   "index": 4,
+   "file": "Docs/BILLING_AND_LIMITS.md",
+   "old_string": "Expired packs are pruned on app launch via `pruneExpiredDocumentPacksIfNeeded()`.",
+   "new_string": "Expired packs are pruned on app launch via `pruneExpiredDocumentPacksIfNeeded()`.\n- **Effect on the limit:** once a pack is recorded, or found in the ledger at launch, the owner is promoted to `.legacyDocumentPackOwner`, which `buildSnapshot` resolves to Lifetime. Credits are added only to a finite base limit, so from then on a pack owner's document limit is Lifetime's unlimited one and the credits change nothing. `[evidence_level: code_verified, confidence: exact, evidence_source: EntitlementStore.swift:205-211, :303, :390-391; MonetizationPolicy.swift:27]`",
+   "kind": "drift_fix",
+   "rationale": "§3 presents +10 credits per pack (up to +30) as the owner's effective allowance. In code the pack owner resolves to Lifetime (unlimited), and credits are only added to finite limits, so the credits have no effect. The existing bullets are kept and this one adds the effective behaviour.",
+   "evidence": "EntitlementStore.swift:303 appendDocumentPack promotes .legacyDocumentPackOwner; :390-391 reconcile promotes when documentPacks non-empty; :205 protected -> .lifetime; :206-211 credits added only when base limit is not unlimited; QuotaPolicy.swift:10 lifetimeDocumentLimit = .max."
+  },
+  {
+   "group": "billing-limits",
+   "index": 5,
+   "file": "Docs/BILLING_AND_LIMITS.md",
+   "old_string": "This maintains their Lifetime access and protects their active document limits even if their StoreKit subscription has expired or is unrenewed.",
+   "new_string": "This maintains their Lifetime access and protects their active document limits even if their StoreKit subscription has expired or is unrenewed. The promotion is not limited to lapsed purchases: an active Pro subscription is promoted too (see the Unknown note in §2), and `.legacyDocumentPackOwner` comes from a non-empty local pack ledger rather than from a StoreKit transaction. `[evidence_level: code_verified, confidence: exact, evidence_source: EntitlementStore.swift:382-391, :533-536; re-read 2026-09-24]`\n- **Unknown:** whether a refund is meant to end access. `handleRevocation` drops `activeTier` to Free when the refunded product's tier is the active one, but nothing ever lowers `legacyProtectionState`, which only rises, so a refunded Pro or Lifetime purchase keeps effective Lifetime on the device that recorded it. **Verify:** refund a purchase in the StoreKit test configuration, relaunch, and read the plan badge in Settings. `[evidence_level: code_verified, confidence: high, evidence_source: EntitlementStore.swift:205, :552-555, :576-579]`",
+   "kind": "unknown_note",
+   "rationale": "§4 was marked not re-verified. On reading it: the #L356 anchor and the grandfathering behaviour hold, but the promotion also fires for active Pro, the pack-owner state comes from the local ledger, and revocation never clears protection. That last point may be a code defect, so it gets an Unknown/Verify note rather than being described as intended.",
+   "evidence": "EntitlementStore.swift:356 reconcileEntitlementsOnLaunch; :382-383 active tier -> .historicalPaidPurchase; :385-388 historical detection only when state is .none; :390-391 ledger -> .legacyDocumentPackOwner; :533-536 applyPurchase; :552-555 handleRevocation only resets activeTier; :576-579 promoteLegacyProtection only raises; no other assignment to legacyProtectionState except init (:123)."
+  },
+  {
+   "group": "billing-limits",
+   "index": 6,
+   "file": "Docs/BILLING_AND_LIMITS.md",
+   "old_string": "- **Local Simulation:** In `DEBUG` simulator builds, the app supports simulated billing overrides using `simulateDebugPurchase(_:)` to bypass StoreKit connection failures.",
+   "new_string": "- **Local Simulation:** In `DEBUG` builds, on simulator or device, `PlanUpgradeSheet` falls back to `simulateDebugPurchase(_:)` when StoreKit has returned no product for the tapped plan, and only if the `billing.debugSimulationEnabled` default is set. It is off unless set, so Debug builds take the real StoreKit path by default. `[evidence_level: code_verified, confidence: exact, evidence_source: EntitlementStore.swift:430-441, :472; PlanUpgradeSheet.swift:400-402, :490-506]`",
+   "kind": "drift_fix",
+   "rationale": "The doc says this is simulator-only and implies it is always on. The code is compiled under #if DEBUG with no simulator condition, and it is gated on an opt-in UserDefaults flag that defaults to false.",
+   "evidence": "EntitlementStore.swift:430 `#if DEBUG`, :432-434 comment 'Default is `false` so Debug builds exercise the same StoreKit path as Release', key billing.debugSimulationEnabled, :439-441 defaults.bool; :472 simulateDebugPurchase; PlanUpgradeSheet.swift:400-402 canPurchase = product loaded; :490-494 fallback only when isDebugBillingSimulationEnabled; #if targetEnvironment(simulator) at :495 only selects the hint text."
+  },
+  {
+   "group": "billing-limits",
+   "index": 7,
+   "file": "Docs/LIMITATIONS.md",
+   "old_string": "Deep Think and Maximum still have no valid figure; the one Deep Think run attempted scored 1 of 5 with a timeout at 1800s.",
+   "new_string": "Deep Think and Maximum still have no valid figure. The Deep Think run this line described, `overnight-smoke`, scored 1 of 5 with a timeout at 1800s, but it was not the only one, and whether any later run counts as a valid figure is unsettled: `BenchmarkRuns/LEDGER.md` calls an 8-case run (2 of 8) \"Deep Think's first quality number ever\", and records the largest paired run, 25 QASPER cases per mode, at 9 of 25 (36%) against Standard's 10 of 25, a one-case gap it calls unresolvable at that size. `[evidence_level: artifact_derived, confidence: high, evidence_source: BenchmarkRuns/LEDGER.md:159, :287, :760-762; BenchmarkRuns/PROGRESSION.md:21, :26; read 2026-09-24]`",
+   "kind": "drift_fix",
+   "rationale": "'The one Deep Think run attempted' is contradicted by the tracked benchmark ledger and index, which record many later Deep Think runs, including an 83-case one and a 25-case paired one. The 'no valid figure' judgement is kept, not withdrawn, and is marked unsettled because the ledger itself calls one run Deep Think's first quality number.",
+   "evidence": "BenchmarkRuns/LEDGER.md:159 overnight-smoke '1/5 correct, 1 timeout at 1800s'; :287 paired-retry 'deep-think 2/8 ... Deep Think's first quality number ever'; :760-762 'deep-think 9/25 (36%), standard 10/25 (40%) ... nothing is resolvable at this size'; BenchmarkRuns/PROGRESSION.md:21 qasper-deepthink-20260815 82/83, 0.205; :26 overnight-25case-nodeadlock deep-think 25/25, 0.360."
+  },
+  {
+   "group": "billing-limits",
+   "index": 8,
+   "file": "Docs/LIMITATIONS.md",
+   "old_string": "Building committed fixtures with external ground truth is tracked on the roadmap.",
+   "new_string": "Building committed fixtures with external ground truth was tracked on the roadmap, and for the QASPER figure above they now exist: `Benchmarks/ResearchFixtures/qasper_external_v1/` holds its 83-case manifest and 40-paper pool, and its README gives the `scripts/run_quality_matrix.py` invocation. Whether a re-run lands on 0.410 has not been checked; `BenchmarkRuns/PROGRESSION.md` indexes other runs over the same 83 cases, under differing settings, from 0.349 to 0.470. `[evidence_level: grep_verified, confidence: high, evidence_source: Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json (83 cases), git ls-files Benchmarks/ResearchFixtures/qasper_external_v1/fixtures (40 files), Benchmarks/ResearchFixtures/qasper_external_v1/README.md:18-19, :25-31, BenchmarkRuns/PROGRESSION.md:17, :18, :54, :55; checked 2026-09-24]`",
+   "kind": "drift_fix",
+   "rationale": "The doc says committed fixtures with external ground truth are still future roadmap work. They are committed and tracked, with a runner command. The bold 'cannot currently reproduce' claim and the true TestDocuments and gitignored-PDF statements are kept. The edit adds that nobody has re-run the figure and that recorded 83-case runs spread from 0.349 to 0.470.",
+   "evidence": "git ls-files: Benchmarks/ResearchFixtures/qasper_external_v1/{manifest.json,fixtures.lock.json,README.md,ATTRIBUTION.md} and 40 files under fixtures/; manifest.json has 83 cases and description 'Evaluation pack with external ground truth'; README.md:18-19 Cases 83 / Pool documents 40, :25-31 run_quality_matrix.py invocation; scripts/run_quality_matrix.py and scripts/build_external_fixtures.py tracked; PROGRESSION.md:17 greedy-83-1 0.470, :18 shipcfg-50 0.386, :54 qasper-postfix-20260813 0.349, :55 qasper-overnight 0.410."
+  },
+  {
+   "group": "evals",
+   "index": 1,
+   "file": "Docs/EVALS.md",
+   "old_string": "No dataset score for Deep Think or Maximum exists that postdates both fixes.",
+   "new_string": "No dataset score for Deep Think or Maximum postdating both fixes existed when this banner was written. `BenchmarkRuns/LEDGER.md` has since recorded a Deep Think QASPER run after both fixes (`paired-retry`), and `BenchmarkRuns/PROGRESSION.md` lists `qasper-deepthink-20260815`; neither file lists a Maximum run after 2026-07-30. `[evidence_level: artifact_derived, confidence: high, evidence_source: BenchmarkRuns/LEDGER.md:287; BenchmarkRuns/PROGRESSION.md:21,64]`",
+   "kind": "drift_fix",
+   "rationale": "The banner states as current fact that no post-fix Deep Think score exists. The tracked ledger records Deep Think runs after both fixes. The original claim is kept as history and the Maximum half stays true.",
+   "evidence": "BenchmarkRuns/LEDGER.md:287: paired-retry at 1b700ed, deep-think 2/8, 'Deep Think's first quality number ever'. LEDGER.md:309-311 ties that run to e16a2d3, the 2026-08-18 fix, so it postdates 665da0a (2026-07-30) and acfbfbd (in 4.9, live by 2026-08-13 per Docs/SHIPPED_VERSION.json). BenchmarkRuns/PROGRESSION.md:21 is the qasper-deepthink-20260815 row, 82/83. PROGRESSION.md:64 is the only maximum row, 20260730-091821-matrix. Both files are tracked (git ls-files; .gitignore:34-40)."
+  },
+  {
+   "group": "evals",
+   "index": 2,
+   "file": "Docs/EVALS.md",
+   "old_string": "Extending this harness to report retrieval-stage metrics — recall@k, MRR, nDCG — is item 2A in `Docs/Engineering/RETRIEVAL_UPGRADE_PLAN_2026-08.md` and is the next planned work.",
+   "new_string": "Retrieval-stage metrics — recall@k, MRR, nDCG — are item 2A in `Docs/Engineering/RETRIEVAL_UPGRADE_PLAN_2026-08.md`. The benchmark harness now emits them per stage in its `STAGE METRICS` block, scored by `RetrievalStageEvaluator`; whether 2A is closed is tracked in the Notion roadmap, not here. `[evidence_level: code_verified, confidence: high, evidence_source: DebugRAGValidationHarness.swift:532-555; RetrievalStageMetrics.swift:245-257]`",
+   "kind": "drift_fix",
+   "rationale": "The banner presents stage-level recall/MRR/nDCG reporting as future work. The harness already emits those metrics, and this document's own stage tables use them. Plan status belongs in Notion (CLAUDE.md), so the 'next planned work' claim becomes a pointer there.",
+   "evidence": "OpenIntelligence/App/DebugRAGValidationHarness.swift:532 calls RetrievalStageEvaluator.score. Line 536 emits 'STAGE METRICS'. Line 547 prints the header 'stage results relevant r1 r3 r5 r10 mrr ndcg5 ndcg10 p5'. OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift:245-257 defines recallAt1..10, reciprocalRank, ndcgAt5, ndcgAt10 and precisionAt5. Docs/Engineering/RETRIEVAL_UPGRADE_PLAN_2026-08.md:113-117 defines 2A."
+  },
+  {
+   "group": "evals",
+   "index": 5,
+   "file": "Docs/EVALS.md",
+   "old_string": "python3 scripts/compare_runs.py <baseline> <candidate>  # paired case-by-case comparison\n",
+   "new_string": "python3 scripts/compare_runs.py <baseline> <candidate>  # paired case-by-case comparison\npython3 scripts/compare_benchmark_runs.py <baseline> <candidate>  # paired per-stage retrieval comparison\npython3 scripts/benchmark_progression.py --out BenchmarkRuns/PROGRESSION.md  # regenerate the cross-run index\n",
+   "kind": "other",
+   "rationale": "The script list says it is the durable list ('Counts in prose go stale; the list below them does not'), but it omits two live measurement scripts. PROGRESSION.md tells readers to use one of them for real comparisons, and the doc relies on the other's output at line 564.",
+   "evidence": "Both scripts exist. scripts/compare_benchmark_runs.py:2 docstring reads 'Compare two benchmark runs paired by case_id', with args at :100-103 (baseline, candidate, --stage, --metric). scripts/benchmark_progression.py:273 takes --out. .gitignore:39 gives 'python3 scripts/benchmark_progression.py --out BenchmarkRuns/PROGRESSION.md'. BenchmarkRuns/PROGRESSION.md:14 says 'For a real comparison use scripts/compare_benchmark_runs.py'."
+  },
+  {
+   "group": "evals",
+   "index": 6,
+   "file": "Docs/EVALS.md",
+   "old_string": "(both call sites, `HybridSearchService.swift:276` and `:1075`)",
+   "new_string": "(both call sites, `HybridSearchService.swift:294` and `:1186`)",
+   "kind": "drift_fix",
+   "rationale": "The two RRF call sites have moved. Both still pass k: 60, so only the line numbers change.",
+   "evidence": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift:294-300 is `engine.reciprocalRankFusion(... k: 60 ...)`, and :1186-1192 is `engine.reciprocalRankFusion(... k: 60 ...)`. grep finds no other call sites."
+  },
+  {
+   "group": "evals",
+   "index": 7,
+   "file": "Docs/EVALS.md",
+   "old_string": "RAGEngine.swift:899-956",
+   "new_string": "RAGEngine.swift:962-1032",
+   "kind": "drift_fix",
+   "rationale": "The evidence tag points at a stale line range for RAGEngine.reciprocalRankFusion.",
+   "evidence": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift:962 is the doc comment '/// Reciprocal Rank Fusion over vector and keyword ranks', :963 is `func reciprocalRankFusion(`, and :1032 closes the function (`return ranked` at :1031)."
+  },
+  {
+   "group": "evals",
+   "index": 8,
+   "file": "Docs/EVALS.md",
+   "old_string": "| **Visual OCR Evidence Use** | $\\ge 0.90$ | Fraction of visual queries utilizing OCR text. |\n",
+   "new_string": "| **Visual OCR Evidence Use** | $\\ge 0.90$ | Fraction of visual queries utilizing OCR text. |\n\n**Unknown:** `RAGEvalMetrics.compute(from:)` does not compute four of these as described. Exact-value accuracy and correct-abstention rate are taken over every case, not only the exact-value or abstention cases. The unsupported-claim rate counts `!answerMatch && !abstentionCorrect`, which a wrong but non-empty answer to an answerable question never meets, because `abstentionCorrect` is true for any non-empty answer there. When a case supplies `groundTruthChunkIds`, recall is scored over every retrieved chunk rather than the top five. **Verify:** whether the definitions above or the code are intended, before quoting a gate figure. `[evidence_level: code_verified, confidence: high, evidence_source: RAGEvalMetrics.swift:126-137; RAGEvalRunner.swift:105-110,172-174]`\n",
+   "kind": "unknown_note",
+   "rationale": "The table's definitions are the intended semantics, and the code computes four of the metrics differently. The code may be the bug, so this adds an Unknown/Verify note instead of rewriting the definitions.",
+   "evidence": "In RAGEvalMetrics.swift, :127-128 divides answerMatch count by total over all results, not exact_value cases. :131-132 computes unsupported = !answerMatch && !abstentionCorrect. :135 builds `abstentionCases = results.filter { _ in true }` over all cases. RAGEvalRunner.swift:172-174 sets abstentionCorrect = non-empty answer for answerable cases. RAGEvalRunner.swift:105-110 matches ground-truth chunk IDs against all of response.retrievedChunks with no top-5 cutoff; only the filename fallback at :118-122 uses recallAt5."
+  },
+  {
+   "group": "evals",
+   "index": 9,
+   "file": "Docs/EVALS.md",
+   "old_string": "let jsonReport = try RAGEvalReportWriter.generateJSON(metrics: metrics, results: results)\n```\n",
+   "new_string": "let jsonReport = try RAGEvalReportWriter.generateJSON(metrics: metrics, results: results)\n```\n\nNo app or test code calls `RAGEvalRunner` today. The benchmark figures in this document come from the DEBUG-only `DebugRAGValidationHarness`, which `scripts/run_quality_matrix.py` launches with `--rag-validation` arguments and which scores stages through `RetrievalStageEvaluator`. `[evidence_level: grep_verified, confidence: high, evidence_source: DebugRAGValidationHarness.swift:1,532,826; run_quality_matrix.py:665-669; grep for RAGEvalRunner callers 2026-09-24]`\n",
+   "kind": "other",
+   "rationale": "The API snippet is accurate, but an agent would assume it produced the numbers above. It did not: the only benchmark path is the DEBUG harness driven by run_quality_matrix.py. The note says where the numbers actually come from.",
+   "evidence": "`grep -rn RAGEvalRunner --include=*.swift` finds only RAGEvalRunner.swift itself, a comment at RetrievalStageMetrics.swift:377 and a comment at OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift:9. DebugRAGValidationHarness.swift:1 is `#if DEBUG`. :826 gates on LaunchArguments '--rag-validation'. :532 calls RetrievalStageEvaluator.score. scripts/run_quality_matrix.py:665-669 builds the '--rag-validation' command line."
+  },
+  {
+   "group": "evals",
+   "index": 10,
+   "file": "Docs/EVALS.md",
+   "old_string": "allowing the evaluation runs to be analyzed natively on Apple platforms.",
+   "new_string": "allowing the evaluation runs to be analyzed natively on Apple platforms.\n\n**Unknown:** in code the bridge builds a `[String: Any]` payload (`bridgeResult`, `exportForFMCLI`), its FoundationModels hook is a placeholder comment that only sets `apple_framework_compatible`, and nothing outside its own file calls it. **Verify:** whether the `fm` integration described above is intended and unfinished before relying on it. `[evidence_level: code_verified, confidence: high, evidence_source: AppleEvaluationsBridge.swift:21,38-41,49; grep for AppleEvaluationsBridge 2026-09-24]`",
+   "kind": "unknown_note",
+   "rationale": "The doc presents the bridge as working integration under a 'describes shipped behavior' scope. The code is scaffolding. It may be unfinished work rather than a doc error, so this adds Unknown/Verify instead of deleting the capability claim.",
+   "evidence": "OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift:21 is `func bridgeResult`. :38-41 is `if #available(...) { // Placeholder for Apple FoundationModels Evaluation metric reporting ... payload[\"apple_framework_compatible\"] = true }`. :49 is `func exportForFMCLI`. `grep -rn AppleEvaluationsBridge` finds no reference outside that file."
+  },
+  {
+   "group": "evals",
+   "index": 11,
+   "file": "Docs/EVALS.md",
+   "old_string": "| `completedTargetAttested` | A receipt may only claim a route that has a `.succeeded` attempt on that same route |",
+   "new_string": "| `completedTargetAttested` | A receipt may only claim a route that has a `.succeeded` or `.partial` attempt on that same route `[evidence_level: code_verified, confidence: exact, evidence_source: RouteEvalMetrics.swift:122-136]` |",
+   "kind": "drift_fix",
+   "rationale": "The scorer deliberately accepts partial-stream attempts as attesting, with a comment explaining why. The doc row omits `.partial`, so an agent would misread a partial-stream receipt as a violation.",
+   "evidence": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift:122-126: '// `.partial` attests alongside `.succeeded`: a partial stream's delivered text genuinely came from that target', with attestingTargets filtered on `.succeeded || .partial`. :130 checks completedTarget against attestingTargets. :259-262 documents partialCompletions as 'Coherent, not a violation'."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 1,
+   "file": "Docs/README.md",
+   "old_string": "Current through v5.3. Mirrored",
+   "new_string": "Carries every released version plus a section for the release being prepared. Mirrored",
+   "kind": "drift_fix",
+   "rationale": "USER_CHANGELOG now also carries an unreleased v5.4 section, so 'current through v5.3' undersells it. The replacement names no version, so it will not go stale.",
+   "evidence": "Docs/USER_CHANGELOG.md:10 '## v5.4 - unreleased', :24 '## v5.3 - September 18, 2026'. Mirror claim verified: OpenIntelligenceTests/Features/Settings/VersionHistoryTests.swift:12,31,43."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 4,
+   "file": "Docs/README.md",
+   "old_string": "[RAG_TECHNICAL.md](Engineering/RAG_TECHNICAL.md) | **Deep-Dive Specification** |",
+   "new_string": "[RAG_TECHNICAL.md](Engineering/RAG_TECHNICAL.md) | **Deep-Dive Specification** — verified at v4.4 (2026-06-30) |",
+   "kind": "drift_fix",
+   "rationale": "The index preamble (line 7) says an entry verified at an older version must name that version. This one did not.",
+   "evidence": "Docs/Engineering/RAG_TECHNICAL.md:1 'Verified for OpenIntelligence v4.4 (working on v4.5) on 2026-06-30'; Docs/README.md:7 preamble rule."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 5,
+   "file": "Docs/README.md",
+   "old_string": "**Active Reference** — product IDs re-checked 2026-08-05 |",
+   "new_string": "**Active Reference** — product IDs re-checked 2026-08-05; §2 quota matrix re-checked 2026-09-20; §4 grandfathering not re-verified |",
+   "kind": "drift_fix",
+   "rationale": "The row omitted the doc's newer partial re-verification and the section it explicitly did not re-verify.",
+   "evidence": "Docs/BILLING_AND_LIMITS.md:1 title 'quota matrix re-verified at v5.3'; :3 'The §2 quota matrix was re-read against source on 2026-09-20 ... the grandfathering section in §4 was not re-verified'."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 6,
+   "file": "Docs/README.md",
+   "old_string": "[PRIVATE_CLOUD_COMPUTE.md](Engineering/PRIVATE_CLOUD_COMPUTE.md) | **Active Reference** |",
+   "new_string": "[PRIVATE_CLOUD_COMPUTE.md](Engineering/PRIVATE_CLOUD_COMPUTE.md) | **Active Reference** — verified at v4.3 (2026-06-20), before PCC shipped in 5.2 |",
+   "kind": "drift_fix",
+   "rationale": "The doc was last verified at v4.3, before PCC shipped. Under the preamble rule the entry must say so, and an agent reading about PCC needs that warning.",
+   "evidence": "Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md:1 'Verified for OpenIntelligence v4.3 on 2026-06-20'; Docs/SHIPPED_VERSION.json comment '2026-09-10 ... 5.2 IS LIVE ... This is the Private Cloud Compute release'."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 7,
+   "file": "Docs/README.md",
+   "old_string": "[APPLE_MODELS.md](Engineering/APPLE_MODELS.md) | **Active Reference** |",
+   "new_string": "[APPLE_MODELS.md](Engineering/APPLE_MODELS.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index says the lifecycle state describes the document. This document calls itself a historical reference, so the index contradicted it. Token budgets are an area where agents act on numbers.",
+   "evidence": "Docs/Engineering/APPLE_MODELS.md:1 'Documentation status: Historical reference ... Do not use as the source of truth for OpenIntelligence v4.1.'; Docs/README.md:7."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 8,
+   "file": "Docs/README.md",
+   "old_string": "[APPLE_DOCUMENT_INTELLIGENCE.md](Engineering/APPLE_DOCUMENT_INTELLIGENCE.md) | **Active Reference** |",
+   "new_string": "[APPLE_DOCUMENT_INTELLIGENCE.md](Engineering/APPLE_DOCUMENT_INTELLIGENCE.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index lifecycle state contradicted the doc's own historical tag.",
+   "evidence": "Docs/Engineering/APPLE_DOCUMENT_INTELLIGENCE.md:1 'Documentation status: Historical reference.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 9,
+   "file": "Docs/README.md",
+   "old_string": "[APPLE_FM_TECH_REPORT_2025.md](Engineering/APPLE_FM_TECH_REPORT_2025.md) | **Active Reference** |",
+   "new_string": "[APPLE_FM_TECH_REPORT_2025.md](Engineering/APPLE_FM_TECH_REPORT_2025.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index lifecycle state contradicted the doc's own historical tag.",
+   "evidence": "Docs/Engineering/APPLE_FM_TECH_REPORT_2025.md:1 'Documentation status: Historical reference.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 10,
+   "file": "Docs/README.md",
+   "old_string": "[RAG_AND_RETRIEVAL_2024_2026.md](Research/RAG_AND_RETRIEVAL_2024_2026.md) | **Active Reference** |",
+   "new_string": "[RAG_AND_RETRIEVAL_2024_2026.md](Research/RAG_AND_RETRIEVAL_2024_2026.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index lifecycle state contradicted the doc's own historical tag.",
+   "evidence": "Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md:1 'Documentation status: Historical reference.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 11,
+   "file": "Docs/README.md",
+   "old_string": "[COREML_METAL_ON_DEVICE_AI.md](Research/COREML_METAL_ON_DEVICE_AI.md) | **Active Reference** |",
+   "new_string": "[COREML_METAL_ON_DEVICE_AI.md](Research/COREML_METAL_ON_DEVICE_AI.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index lifecycle state contradicted the doc's own historical tag.",
+   "evidence": "Docs/Research/COREML_METAL_ON_DEVICE_AI.md:1 'Documentation status: Historical reference.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 12,
+   "file": "Docs/README.md",
+   "old_string": "[DOCUMENT_INTELLIGENCE_AND_OCR.md](Research/DOCUMENT_INTELLIGENCE_AND_OCR.md) | **Active Reference** |",
+   "new_string": "[DOCUMENT_INTELLIGENCE_AND_OCR.md](Research/DOCUMENT_INTELLIGENCE_AND_OCR.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index lifecycle state contradicted the doc's own historical tag.",
+   "evidence": "Docs/Research/DOCUMENT_INTELLIGENCE_AND_OCR.md:1 'Documentation status: Historical reference.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 13,
+   "file": "Docs/README.md",
+   "old_string": "[APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md](Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md) | **Active Reference** |",
+   "new_string": "[APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md](Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index lifecycle state contradicted the doc's own historical tag.",
+   "evidence": "Docs/Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md:1 'Documentation status: Historical reference.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 14,
+   "file": "Docs/README.md",
+   "old_string": "[CAG_AND_CONTEXT_ENGINEERING_2024_2026.md](Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md) | **Active Reference** |",
+   "new_string": "[CAG_AND_CONTEXT_ENGINEERING_2024_2026.md](Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md) | *Historical reference* — so tagged in its own header |",
+   "kind": "drift_fix",
+   "rationale": "The index lifecycle state contradicted the doc's own historical tag.",
+   "evidence": "Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md:1 'Documentation status: Historical reference.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 15,
+   "file": "Docs/README.md",
+   "old_string": "**Active Reference** — verified at v4.4 |",
+   "new_string": "**Active Reference** — framework sections verified at v4.4; measurement sections re-verified 2026-08-13 |",
+   "kind": "drift_fix",
+   "rationale": "The row said only v4.4, but EVALS' own header says its measurement sections were re-verified more recently. Agents choosing whether to trust the measurement tables need that.",
+   "evidence": "Docs/EVALS.md:1 'Measurement sections re-verified 2026-08-13 against the completed 83-case run. The framework sections below still date from v4.4 on 2026-06-30.'"
+  },
+  {
+   "group": "readmes-demo",
+   "index": 16,
+   "file": "Docs/README.md",
+   "old_string": "| **Active Directive** | Coordinating file changes, task allocation, and roadmap updates. |",
+   "new_string": "| **Partly superseded** — the first version of the task router | Coordinating file changes, task allocation, and roadmap updates. Its task classes are superseded by the RepoOS change-impact matrix; its `PROCEED: IMPLEMENT` stop rule survives as `AGENTS.md` rule 12. |",
+   "kind": "drift_fix",
+   "rationale": "The RepoOS command center now records that this playbook's task classes are superseded. Listing it as an unqualified Active Directive sends agents to an outdated router.",
+   "evidence": "Docs/RepoOS/00_REPO_COMMAND_CENTER.md:16 '07_TASK_ROUTER_AND_CHANGE_CONTROL.md — the first version of the task router. Its task classes are superseded by the change-impact matrix; its PROCEED: IMPLEMENT stop rule is AGENTS.md rule 12.'; AGENTS.md:52 rule 12."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 17,
+   "file": "Docs/README.md",
+   "old_string": "| **Active Directive** | Evidence threads implementation tasks. |",
+   "new_string": "| *Historical plan* — Phase 1A is finished (`AGENTS.md` rule 15) | Evidence Threads Phase 1A tasks, local store only. Do not follow its storage path: it specifies `LocalCache/EvidenceThreads/<containerId>/`, which `EvidenceThreadStore` now treats as a legacy folder to migrate from; the store writes `Application Support/EvidenceThreads/<containerId>/`. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Storage/EvidenceThreadStore.swift:22,55-60]` |",
+   "kind": "drift_fix",
+   "rationale": "Phase 1A is finished, and the storage path the plan prescribes is now the legacy source the store migrates away from. An agent following this 'Active Directive' would write threads to the wrong folder. I deliberately make no claim about thread sync, which is under device investigation.",
+   "evidence": "AGENTS.md:55 rule 15 'a phase-based plan (Phase 1A–1D) that has finished'; Docs/AgentPlaybooks/06_PHASE_1A_IMPLEMENTATION_PLAN.md:8,23 specify LocalCache/EvidenceThreads; EvidenceThreadStore.swift:14-16 init calls migrateLegacyThreadsIfNeeded, :22 legacyRoot = LocalCache/EvidenceThreads, :55-60 getRootDirectoryURL = Application Support/EvidenceThreads."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 19,
+   "file": "Docs/README.md",
+   "old_string": "Referenced by 20 files including",
+   "new_string": "Its findings date from the July 2026 audit, and its header says which still hold. Referenced by 27 other files (`git grep`, 2026-09-24) including",
+   "kind": "drift_fix",
+   "rationale": "The reference count is wrong today. The row also presented the audit as a live directive without saying its findings are dated. This edit depends on the banner edit to DOCUMENTATION_CONSISTENCY_AUDIT.md: apply both or neither.",
+   "evidence": "`git grep -l DOCUMENTATION_CONSISTENCY_AUDIT` returns 28 files, which is 27 excluding Docs/README.md itself (RepoOS/01-04, the Atlas, AuditArtifacts/*); Docs/AuditArtifacts/ArchitectureAtlas/PHASE_LEDGER.md:95-98 Phase 8 created it."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 20,
+   "file": "Docs/README.md",
+   "old_string": "| *Dated spec* | Cited from `CHANGELOG.md`. |",
+   "new_string": "| *Dated spec* | Cited from the pre-5.3 changelog history, moved verbatim out of `CHANGELOG.md` into `Archive/CHANGELOG_2.0_to_5.2.md` on 2026-09-24. |",
+   "kind": "drift_fix",
+   "rationale": "Pass 1 moved the changelog sections that cite this spec into the archive, so CHANGELOG.md no longer cites it. The 2026-08-17 decision paragraph above this table is a dated record and stays untouched.",
+   "evidence": "`git grep -l PCC_Dynamic_Routing_Audit_Spec -- CHANGELOG.md Docs/Archive/CHANGELOG_2.0_to_5.2.md` returns only the archive (line 567); Docs/Archive/README.md:13 records the 2026-09-24 verbatim move."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 22,
+   "file": "Docs/DEMO.md",
+   "old_string": "Use the demo to show the prototype's engineering behavior, not to imply a finished commercial product.",
+   "new_string": "Use the demo to show the app's engineering behavior. **Corrected 2026-09-24:** this line said to show \"the prototype's engineering behavior, not to imply a finished commercial product\". The app ships on the App Store (`Docs/SHIPPED_VERSION.json`), and `Docs/LIMITATIONS.md` withdrew the same prototype framing on 2026-08-05.",
+   "kind": "drift_fix",
+   "rationale": "An undated, present-tense instruction on a page the public README links as the Demo Guide. It calls a paid App Store product a prototype. LIMITATIONS.md withdrew the same framing as false on 2026-08-05. Following the repo convention, the old text is kept in a dated correction note, not deleted.",
+   "evidence": "Docs/LIMITATIONS.md:3,5 ('Corrected 2026-08-05 ... previously opened by calling the app ... a prototype ... Both were false: the app has been selling pro_monthly, pro_annual, and lifetime_cohort through StoreKit since v4.4'); Docs/SHIPPED_VERSION.json app_store 5.3; README.md:205; README.md:13 links Docs/DEMO.md."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 24,
+   "file": "Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md",
+   "old_string": "- **PCC**: Docs claim remote enclave; Code uses local simulation.",
+   "new_string": "- **PCC**: Docs claim remote enclave; Code uses local simulation. **No longer true of the code (re-checked 2026-09-24):** PCC runs natively. `FoundationModelSessionFactory` builds a session on `FoundationModels.PrivateCloudComputeLanguageModel()` on iOS/macOS 27 behind `#if compiler(>=6.4)`, and PCC shipped to users in 5.2 on 2026-09-10. In a Simulator build PCC is unavailable and queries run on the on-device model. Do not act on this finding. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift:86-92; OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift:162-166; Docs/SHIPPED_CAPABILITIES.json:100-101]`",
+   "kind": "drift_fix",
+   "rationale": "A finding written as current state that the code now contradicts outright. The original text stays, and a dated note follows it, matching the doc's own §2 RESOLVED convention.",
+   "evidence": "FoundationModelSessionFactory.swift:86-92 (case .privateCloudCompute, #if compiler(>=6.4), #available(iOS 27.0, macOS 27.0), FoundationModels.PrivateCloudComputeLanguageModel()); QueryRuntimeCoordinator.swift:162-166 (#if targetEnvironment(simulator) → onDeviceOnly); Docs/SHIPPED_CAPABILITIES.json:100-101 private_cloud_compute status shipping; `grep -rni simulat` over OpenIntelligence finds no PCC stand-in, only Simulator-unavailability paths."
+  },
+  {
+   "group": "readmes-demo",
+   "index": 26,
+   "file": "Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md",
+   "old_string": "- `Docs/PRIVACY_AND_ROUTING.md` (Update to local simulation, remove pronouns)",
+   "new_string": "- `Docs/PRIVACY_AND_ROUTING.md` (Update to local simulation, remove pronouns). **2026-09-24: do not apply \"Update to local simulation\".** It follows from the §3 PCC finding, which the code no longer supports; PCC is native (see §3).",
+   "kind": "drift_fix",
+   "rationale": "This is an actionable instruction in a read-first governance doc. Followed today, it would make an agent rewrite a correct doc to call PCC simulated. The original instruction stays, with a dated do-not-apply note.",
+   "evidence": "FoundationModelSessionFactory.swift:86-92; Docs/PRIVACY_AND_ROUTING.md:3 already says PCC shipped in 5.2 and is live on both platforms; Docs/RepoOS/01_TASK_ROUTER.md:94 makes this audit read-first."
+  }
+ ]
+}

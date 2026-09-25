@@ -374,7 +374,11 @@ def main() -> int:
     # Guard against the check silently ceasing to match. A rewording that stops
     # tripping the pattern reads as a pass, which is the failure mode this whole
     # script exists to prevent -- so each rule declares a floor it must clear.
-    for rule, floor in (("version", 1), ("enum", 1), ("path", 20), ("anchor", 1), ("symbol", 20)):
+    # "version" has no floor since 2026-09-24: the core documents stopped restating the shipped
+    # version and point at Docs/SHIPPED_VERSION.json instead, which is what ends that drift, so
+    # the rule usually has nothing to match. test_verify_doc_claims.sh still proves it fires on a
+    # planted claim, and the floor case there now guards the symbol rule.
+    for rule, floor in (("version", 0), ("enum", 1), ("path", 20), ("anchor", 1), ("symbol", 20)):
         if checked[rule] < floor:
             failures.append(
                 f"verify_doc_claims: the '{rule}' rule matched {checked[rule]} claims, "

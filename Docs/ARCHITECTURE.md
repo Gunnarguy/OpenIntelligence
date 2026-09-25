@@ -1,6 +1,6 @@
 # Docs/ARCHITECTURE.md — historical, written at v4.1
 
-> **Documentation status:** [Superseded]. Superseded by `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`, and below that by `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, which wins over both. This file describes the v4.1 architecture and is kept for history. The shipped version is 4.9. Do not use it as the source of truth for any version. `[evidence_level: historical, confidence: superseded]`
+> **Documentation status:** [Superseded]. Superseded by `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`, and below that by `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, which wins over both. This file describes the v4.1 architecture and is kept for history. For the current map of where code lives, read `Docs/ai/ARCHITECTURE.md`. For the version that is live on the App Store, read `Docs/SHIPPED_VERSION.json`. Do not use this file as the source of truth for any version. `[evidence_level: historical, confidence: superseded]`
 
 OpenIntelligence is an Apple-native document intelligence application built around a SwiftUI app shell and a retrieval-oriented document engine.
 
@@ -74,7 +74,7 @@ graph TD
 - **`OpenIntelligence/Services/Storage`**: Full-text indexers (SQLite FTS5) and local storage services.
 - **`OpenIntelligence/Services/VectorStore`**: Vector database abstractions and local vector search ([BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)).
 - **`OpenIntelligence/Services/AIPlatform/AppleFoundationModels`**: Monolithic manager handling Apple Foundation Model sessions, prompt compilation, and token budgets.
-- **`OpenIntelligence/Services/AIPlatform/CoreAI`**: Custom local model registry, local model runtimes, and disabled embedding/cross-encoder scaffolding.
+- **`OpenIntelligence/Services/AIPlatform/CoreAI`** (no longer in the repository): Custom local model registry, local model runtimes, and disabled embedding/cross-encoder scaffolding.
 - **`OpenIntelligence/Services/Evaluation`**: Local evaluation suite containing the RAG runner, JSONL datasets loader, report writer, and evaluations bridge.
 - **`OpenIntelligence/SDK`**: Experimental package boundary for the engine-facing API.
 

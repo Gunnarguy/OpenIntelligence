@@ -1,63 +1,43 @@
 # Current State
 
-Updated: 2026-09-24 (documentation overhaul in progress on a branch; 5.4 still in review with build 478)
+Updated: 2026-09-25 (documentation overhaul done on a branch, awaiting the owner's merge; 5.4 still in review with build 478)
 Branch/worktree: `claude/feature-knowledge-graph-fhu4mc` (cloud session), branched from `main` at d5cc916
 Last verified commit: d5cc916
 
 ## Objective
 
-Finish the documentation overhaul the owner approved on 2026-09-24 (`PROCEED: IMPLEMENT`): cut what
-agents load at the start of every task, and correct documents that disagree with the code, without
-touching app source, build inputs or store copy. It lives on the branch above and reaches `main`
-only when the owner merges it. Roadmap row (Future Backlog, In Progress):
+The documentation overhaul the owner approved on 2026-09-24 (`PROCEED: IMPLEMENT`) is done on the
+branch above and waits for the owner to merge it. It cut what agents load at the start of every
+task and corrected documents that disagree with the code, without touching app source, build inputs
+or store copy. Roadmap row (Future Backlog, In Progress):
 https://app.notion.com/p/3e549a74d54f815087d7db62848adb40
 
 5.4 is with Apple and needs nothing until review returns (section "5.4 release" below).
 
 ## Status: documentation overhaul
 
-- **Pass 1 (agent instruction layer): done.**
-  - Every task reads 3 documents instead of 8 (22,981 bytes, down from 131,868): `Docs/ai/STATE.md`,
-    the superseding protocol and `Docs/ai/ARCHITECTURE.md`. Everything else loads on demand, by section.
-  - `AGENTS.md` rule 15 is that rule's one home, and `repoos_router.py` `UNIVERSAL_DOCS` executes it.
+- **Done on the branch, committed:**
+  - Every task reads 3 documents instead of 8 (22,981 bytes, down from 131,868). `AGENTS.md` rule 15 is
+    the rule's one home, and `repoos_router.py` `UNIVERSAL_DOCS` executes it.
   - `CHANGELOG.md` went from 651 KB to 99 KB. Versions 2.0–5.2 moved verbatim to
     `Docs/Archive/CHANGELOG_2.0_to_5.2.md`.
   - `HANDOFF.md` is a 3 KB reading order. `.agents/AGENTS.md` and `.geminirules` are pointers.
-- **Checker and hooks: done.**
-  - `scripts/verify_doc_claims.py` now also checks `Type.member` names, route-table paths and the
-    instruction files, and skips gitignored machine-local paths.
-  - The pre-commit gate runs it with `-f`, not `-x`.
-  - `mktemp` is portable in 3 hooks/scripts and 1 test.
-- **Pass 2 (reference docs): pending.** A review workflow in this session proposes code-verified
-  edits. Drift already verified by reading code:
-  - **`Docs/ai/ARCHITECTURE.md`:**
-    - The model-routing row points at `Services/AIPlatform/`. The decision is
-      `ModelExecutionPlanner.makePlan` in `Services/RAG/Orchestration/`; `AIPlatform` enforces the route.
-    - Fusion is `RAGEngine.reciprocalRankFusion` (`Services/RAG/Orchestration/RAGEngine.swift`), not
-      in `Retrieval/`.
-    - `HybridSearchService` does not rerank: `RAGService` calls `RAGEngine.rerank` after it returns.
-    - A missing reranker model runs a heuristic fallback (`RAGEngine.swift` ~340-400), not "fusion
-      order". `Docs/RETRIEVAL_PIPELINE.md` item 21 says the same wrong thing.
-  - **The Atlas, ~line 381,** cites `RAGService.importDocument`, which does not exist. This is the
-    only failure `verify_doc_claims.py` reports.
-  - **Stale citations:**
-    - `Docs/INGESTION_PIPELINE.md:5` and `Docs/RETRIEVAL_PIPELINE.md:15` cite `Docs/AUDIT/` (not in
-      the repo) and `CHANGELOG.md` 4.8–4.9 (now archived).
-    - `INGESTION_PIPELINE.md` ~200 anchors `CHANGELOG.md:162`, now `Docs/Archive/CHANGELOG_2.0_to_5.2.md:48`.
-  - **Also to add:**
-    - In `INGESTION_PIPELINE.md`, after "...nothing in the log said which stage owned the time.":
-      page render is 12–16 ms a page at 360 DPI, so OCR time is Vision recognition (source:
-      `Docs/EdgeToEdge/02_File_extraction_and_document_understanding.md:15`).
-    - A "read by section" line at the top of the Atlas and `INGESTION_PIPELINE.md`.
-- **Pass 3 (every other doc): pending.** Historical banners and dead-reference fixes only:
-  `Docs/AuditArtifacts`, `EdgeToEdge`, `Research`, `Engineering`, `Release`, `Archive`, `.agent`,
-  `Docs/AgentPlaybooks`.
-- **Off limits under the approval:**
-  - App source.
-  - The top heading and 5.4 section of `CHANGELOG.md`. One `[General]` line was added there, as the
-    route requires.
-  - User changelogs, `WHATS_NEW.md`, fastlane text, release notes, `Docs/SHIPPED_*.json`,
-    `HOW_IT_WORKS.md`, benchmark fixtures.
+  - `verify_doc_claims.py` checks symbols, route paths and instruction files. It runs on fresh clones
+    and exits 0.
+  - Hooks and tests use a portable `mktemp`.
+- **Reference docs, 50 edits applied:**
+  - Every edit to `Docs/ai/ARCHITECTURE.md` was checked by a second agent. That includes the corrected
+    routing, fusion and reranker rows and a new product-vocabulary section.
+  - From the rest, only low-risk kinds: version headers now point at `Docs/SHIPPED_VERSION.json`, plus
+    `Docs/AUDIT/` pointers, dead paths and a historical banner on the Transition Plan.
+  - Also the corrections confirmed another way: the Evidence Threads sync note, prefer-cloud, the
+    Atlas `importDocument` history, and the reranker fallback.
+- **Not applied:**
+  - The review was stopped early to limit cost. 100 edit proposals nobody checked a second time are in
+    `Docs/AuditArtifacts/DocOverhaul_2026-09-24/unverified_edit_proposals.json`.
+  - 60 suspected code defects (leads, not findings) are listed in that directory's `README.md`.
+  - The planned historical-banner pass over old audit docs was skipped. Agents do not load those docs
+    by default.
 
 ## 5.4 release (with Apple; nothing to do until review returns)
 
@@ -106,28 +86,17 @@ https://app.notion.com/p/3e549a74d54f815087d7db62848adb40
 
 ## Working Set (overhaul)
 
-- The instruction planes: `AGENTS.md` (rules 3, 4, 11-17), `CLAUDE.md`, `HANDOFF.md`, `GEMINI.md`,
-  `.geminirules`, `.agents/**`.
-- Routing:
-  - `.codex/skills/route-openintelligence-work/` (`SKILL.md`, `repoos_router.py`,
-    `test_repoos_router.py`).
-  - `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv`.
-  - `Docs/RepoOS/00_*.md`, `01_*.md`.
-- Enforcement:
-  - `scripts/verify_doc_claims.py` and `scripts/test_verify_doc_claims.sh`.
-  - `scripts/enforce_docs_hook.sh`, `scripts/instructions_report.sh` and `scripts/test_enforce_docs_hook.sh`.
-  - `.claude/hooks/instructions-loaded.sh`, `.claude/hooks/notion-receipt.sh`, `.claude/rules/repo-governance.md`.
-- `CHANGELOG.md`, `Docs/Archive/` (3 new files and the README), `Docs/ai/*`.
-- Next: `Docs/ai/ARCHITECTURE.md`, the Atlas, `Docs/RETRIEVAL_PIPELINE.md`,
-  `Docs/INGESTION_PIPELINE.md`, `Docs/PRIVACY_AND_ROUTING.md`, the canonical doc.
+- The branch diff against `main` (`git diff main...claude/feature-knowledge-graph-fhu4mc --stat`) is the
+  full list. All of it is documentation, agent instructions, `.codex/`/`.claude/` tooling, `scripts/`
+  checks and `Docs/AuditArtifacts/`.
+- `Docs/AuditArtifacts/DocOverhaul_2026-09-24/` holds the unapplied proposals and the defect leads.
 
 ## Verification
 
 2026-09-24, Linux cloud container, output read:
-- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 31 tests, OK.
-- `bash scripts/test_verify_doc_claims.sh` -> all 7 break cases caught. The baseline case fails on the
-  pass-2 drift.
-- `python3 scripts/verify_doc_claims.py` -> 600 claims, 1 failure (Atlas:381).
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 31 tests, OK (re-run 2026-09-25).
+- `bash scripts/test_verify_doc_claims.sh` -> 8 passed, 0 failed, baseline included (2026-09-25).
+- `python3 scripts/verify_doc_claims.py` -> 717 claims, every one matches, exit 0 (2026-09-25).
 - `bash scripts/test_enforce_docs_hook.sh` -> 18 passed. It could not run on Linux before the `mktemp` fix.
 - `bash scripts/test_stop_handoff.sh` -> 11 passed. It was 10 passed, 1 failed on `mktemp -t`.
 - `python3 scripts/secret_scan.py` -> clean.
@@ -170,7 +139,7 @@ both records `WAITING_FOR_REVIEW`, build 478 `VALID`. **Nothing verified on a de
 
 ## Exact Next Action
 
-On branch `claude/feature-knowledge-graph-fhu4mc`, correct `Docs/ai/ARCHITECTURE.md` for the
-routing, fusion and reranker items under "Status: documentation overhaul". Verify each against the
-named Swift file first. Then fix the Atlas line citing `RAGService.importDocument` so that
-`python3 scripts/verify_doc_claims.py` exits 0, and commit with explicit paths.
+The owner reviews and merges branch `claude/feature-knowledge-graph-fhu4mc` into `main`. It changes
+only docs and agent tooling; a docs-only push to `main` starts no Xcode Cloud build. Then, in a fresh
+Claude Code session on the Mac, run `/context` to confirm the lighter startup load, and close the
+roadmap row above.

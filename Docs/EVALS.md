@@ -1,10 +1,10 @@
-> **Documentation status:** Measurement sections re-verified 2026-08-13 against the completed 83-case run. The framework sections below still date from v4.4 on 2026-06-30. **4.9 is the App Store version; 5.0 is being prepared.** See `Docs/SHIPPED_VERSION.json`.
+> **Documentation status:** Measurement sections re-verified 2026-08-13 against the completed 83-case run. The framework sections below still date from v4.4 on 2026-06-30. The App Store version and the release being prepared are recorded in `Docs/SHIPPED_VERSION.json`; read them there, not from this banner.
 > **Read this before trusting any mode comparison.** Two defects invalidated quality-mode benchmark runs made before they were fixed, and both are in the measurement path this document describes:
 > 1. Until 2026-07-30 the Deep Think and Maximum reasoning chain abstained on every session, so every prior mode comparison measured Standard against a broken path (fixed in `665da0a`).
 > 2. Until 4.9 the post-retrieval planner read `chunks.first`'s similarity score rather than the maximum over the set, which triggered abstentions from a number that never described the evidence (fixed in `acfbfbd`).
 >
 > No dataset score for Deep Think or Maximum exists that postdates both fixes. Extending this harness to report retrieval-stage metrics — recall@k, MRR, nDCG — is item 2A in `Docs/Engineering/RETRIEVAL_UPGRADE_PLAN_2026-08.md` and is the next planned work.
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Source of truth:** The code. The codebase audit this line cited in `Docs/AUDIT/` is not in the repository: `Docs/AUDIT/` is gitignored and holds only `QUALITY_MODE_VERIFICATION_2026-07-30.md`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
 # OpenIntelligence RAG Pipeline Evaluations
@@ -32,6 +32,8 @@ The short version as of 2026-08-13:
 | Measured results, findings, caveats | **this file** |
 | One committed summary per run | `Docs/AuditArtifacts/Benchmarks/` |
 | Full run artifacts, per-case reports | `BenchmarkRuns/`, **gitignored**, local only |
+| Run ledger and cross-run index, tracked | `BenchmarkRuns/LEDGER.md`, `BenchmarkRuns/PROGRESSION.md` |
+| Evaluation code | `OpenIntelligence/Services/Evaluation/`; benchmark launch harness `OpenIntelligence/App/DebugRAGValidationHarness.swift`, DEBUG builds only |
 | How to build and run a benchmark | `Docs/ai/RUNBOOK.md`, "Retrieval benchmark" |
 | Current state and next action | `Docs/ai/STATE.md` |
 | The 31-step pipeline being measured | `Docs/Engineering/RAG_TECHNICAL.md` |
@@ -528,7 +530,7 @@ Alongside the gates, the type reports completion latency by route, PCC→on-devi
 
 ### Scope
 
-Scoring is computable from receipts alone, so identical scoring applies to simulator, physical-device, and TestFlight runs. **This makes device evidence checkable; it does not substitute for it.** Producing receipts that represent real Private Cloud Compute execution still requires a signed device — see the `Validate:` items in the Notion engineering roadmap and `Docs/AUDIT/PCC_DYNAMIC_ROUTING_TEST_MATRIX.csv`.
+Scoring is computable from receipts alone, so identical scoring applies to simulator, physical-device, and TestFlight runs. **This makes device evidence checkable; it does not substitute for it.** Producing receipts that represent real Private Cloud Compute execution still requires a signed device — see the `Validate:` items in the Notion engineering roadmap and `Docs/AUDIT/PCC_DYNAMIC_ROUTING_TEST_MATRIX.csv` (no longer in the repository: `Docs/AUDIT/` is gitignored; its column layout is specified in `Docs/PCC_Dynamic_Routing_Audit_Spec.md`).
 
 ### Novelty counts rephrasing as new information
 

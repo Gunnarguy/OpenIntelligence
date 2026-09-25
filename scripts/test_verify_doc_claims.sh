@@ -175,12 +175,14 @@ expect_fail "a route table path that no longer exists is caught" \
 
 # The floor guard: a pattern that stops matching must not read as a pass.
 # Rebinding the pattern to one that matches nothing, just before main() runs,
-# takes the version count to zero whatever the documents say.
+# takes the symbol count to zero whatever the documents say. (This case guarded
+# the version rule until 2026-09-24, when the documents stopped restating the
+# shipped version and that rule's floor went to zero.)
 mutate scripts/verify_doc_claims.py \
   'if __name__ == "__main__":' \
-  $'SHIPPED_PHRASE = re.compile(r"(?!)")  # test_verify_doc_claims.sh: match nothing\n\nif __name__ == "__main__":'
+  $'SYMBOL_CLAIM = re.compile(r"(?!)")  # test_verify_doc_claims.sh: match nothing\n\nif __name__ == "__main__":'
 expect_fail "a rule that stops matching trips its floor instead of passing" \
-  "the 'version' rule matched 0 claims, below its floor"
+  "the 'symbol' rule matched 0 claims, below its floor"
 
 echo
 echo "$PASS passed, $FAIL failed"

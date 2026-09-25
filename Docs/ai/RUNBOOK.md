@@ -572,6 +572,24 @@ python3 scripts/secret_scan.py
 
 *Verified 2026-08-07: passes.* Prints `secret_scan: no sensitive tokens discovered`.
 
+```bash
+python3 scripts/verify_doc_claims.py
+bash scripts/test_verify_doc_claims.sh
+bash scripts/test_enforce_docs_hook.sh
+bash scripts/test_stop_handoff.sh
+```
+
+*Verified 2026-09-25, on Linux:*
+- `verify_doc_claims.py`: 717 claims, all match, exit 0. It had failed on every clean clone until
+  2026-09-24.
+- `test_verify_doc_claims.sh`: 8 passed.
+- `test_enforce_docs_hook.sh`: 18 passed.
+- `test_stop_handoff.sh`: 11 passed.
+- The router suite (above): 31 tests, OK.
+
+Before 2026-09-24, the two hook suites could not run on Linux (BSD-only `mktemp -t`). On macOS, set
+`TMPDIR` if `/tmp` is inside iCloud.
+
 The `repoos_workspace_automation` route also names
 `python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/route-openintelligence-work`.
 *Unverified:* that path is outside the repository and may not exist on a given machine.

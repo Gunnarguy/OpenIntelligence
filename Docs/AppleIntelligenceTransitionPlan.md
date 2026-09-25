@@ -1,4 +1,6 @@
-> **Documentation status:** Mixed implemented/backlog plan, source-verified 2026-07-15. PCC Dynamic Routing Phases 0–8 plus app-level GPU execution profiles and consent persistence are implemented for v4.6; signed-device/distribution verification remains pending. Apple Foundation Model Dynamic Profiles remain deferred.
+> **Status 2026-09-24: historical phase record, not current state.** The phase-based plan this document tracked (Phase 1A–1D) has finished (`AGENTS.md` rule 15). For current state read `Docs/ai/STATE.md`; for plans and priorities, the Notion roadmap database (`notion-roadmap` skill), which `Docs/ROADMAP.md` only mirrors; for what is live and what is in review, `Docs/SHIPPED_VERSION.json`. Notes dated 2026-09-24 below were checked against the code on that date; everything else is as originally written.
+>
+> **Documentation status (2026-07-15):** Mixed implemented/backlog plan, source-verified 2026-07-15. PCC Dynamic Routing Phases 0–8 plus app-level GPU execution profiles and consent persistence are implemented for v4.6; signed-device/distribution verification remains pending. Apple Foundation Model Dynamic Profiles remain deferred.
 
 # Apple Intelligence & Foundation Models Transition Plan (WWDC26 Master Blueprint)
 
@@ -64,13 +66,14 @@ At WWDC26, Apple introduced **Core AI** as a framework designed specifically to 
 #### B. Dynamic Heterogeneous Compute Orchestration
 *   **The Problem in Core ML**: Compute targets are routed statically at compile time (e.g., CPU + GPU, or ANE-only). If the Neural Engine is occupied by system processes, threads stall.
 *   **The Core AI Solution**: Automatically orchestrates CPU, GPU, and Neural Engine tasks in real-time. It dynamically balances workload allocation depending on thermal limits and memory pressure.
-*   **Impact**: Streaming performance for local models is consistently high (averaging **≈65 tokens/sec** on the A18 Neural Engine) without causing UI stutters.
+*   **Impact**: Streaming performance for local models is consistently high (averaging **≈65 tokens/sec** on the A18 Neural Engine) without causing UI stutters. `[evidence_level: doc_claim_only, confidence: low, evidence_source: contradicted by the A18 Pro device measurement of 27 tok/s on-device and 86 tok/s on PCC in Docs/Engineering/HARD_LIMITS.md:40-47, which retired this ≈65 tok/s figure from the Settings card on 2026-08-05]`
 
 #### C. Ahead-of-Time (AOT) Compilation
 *   **The Problem in Core ML**: Model loading and compilation are performed at application launch, causing startup delays and latency spikes on the first query.
 *   **The Core AI Solution**: The `coreai-build` tool compiles model packages ahead of time into a static `.aimodel` structure, securing predictable startup speeds and uniform inference latency curves.
 
 ### Verified Benchmark Metrics (A18 Pro / M4 Silicon)
+`[evidence_level: doc_claim_only, confidence: low, evidence_source: unverified 2026-09-24 — no benchmark artifact, harness case or ledger entry for the three figures below was found; searched BenchmarkRuns/LEDGER.md, Benchmarks/, Docs/Engineering/HARD_LIMITS.md and the repository's .md/.swift/.json files for ≈45ms, ≈26ms and '42% latency']`
 *   *MiniLM-L6-v2 Embeddings (Core ML)*: Average latency is **≈45ms** per 128-token sequence.
 *   *MiniLM-L6-v2 Embeddings (Core AI)*: Average latency is **≈26ms** per 128-token sequence (representing a **42% latency improvement**).
 *   *Memory Footprint*: Core AI compiled models run with a **15-20% smaller memory buffer** because model adapters and states are swapped inside dynamic cache registers rather than allocating parallel models.
@@ -157,7 +160,7 @@ To implement these changes safely without breaking current runtime behaviors, th
 3. **Dynamic Island Deep-Link Visibility Restore**
    - *Implementation*: Kept `IngestionQueueOverlay` active in the SwiftUI hierarchy to guarantee dynamic link navigation and restore action functions open properly when tapped.
 4. **Evidence Threads Integration (Phase 1A & 1B)**
-   - *Implementation*: Implemented thread-safe local JSON storage for isolated chat history, bidirectionally synchronized via `WorkspaceSyncService` in iCloud Drive, gated with billing quotas (5/20/unlimited), and registered as Siri App Intents.
+   - *Implementation*: Implemented thread-safe local JSON storage for isolated chat history, bidirectionally synchronized via `WorkspaceSyncService` in iCloud Drive, gated with billing quotas (5/20/unlimited), and registered as Siri App Intents. Unknown: `EvidenceThreadStore` writes threads under `<Application Support>/EvidenceThreads/<container>/`, while `WorkspaceSyncService.synchronizeEvidenceThreads` reads `localRoot/EvidenceThreads/`, with `localRoot` resolving to `<Application Support>/OpenIntelligence/`, so the sync may never see locally written threads. Verify: create a thread on one device and confirm it arrives on the other; under investigation on device as of 2026-09-24. `[evidence_level: code_verified, confidence: medium, evidence_source: EvidenceThreadStore.swift:55-60; WorkspaceSyncService.swift:401, :2331, :2739; OpenIntelligenceRuntimePaths.swift:105-111]`
 
 ---
 
@@ -192,7 +195,7 @@ These guidelines must be enforced during the transition:
 1.  **Preserve Precision Extraction Paths**: Never route exact-value, numeric lookup, dosage, legal statute, or specification questions directly to free-form LLM generation when exact keyword/regex evidence is resolved.
 2.  **Tool-calling Limits**: Avoid attaching more than **5 active tools** to a `LanguageModelSession` simultaneously to prevent context contamination and performance degradation.
 3.  **No Latency Regression**: Standard queries must target a Time-To-First-Token (TTFT) of **<= 1.5 seconds** when running on local hardware.
-4.  **No Unsanctioned Data Exposure**: Under no circumstances should raw document content be routed to a remote endpoint without checking the user's `CloudExecutionPolicy` and network state.
+4.  **No Unsanctioned Data Exposure**: Under no circumstances should raw document content be routed to a remote endpoint without checking the user's `CloudExecutionPolicy` and network state. (No type named `CloudExecutionPolicy` exists in code as of 2026-09-24: the user's consent is `CloudConsentState` and the cloud gate is `FoundationModelCapabilitySnapshot.canUsePCC`. `[evidence_level: code_verified, confidence: high, evidence_source: CloudTransmission.swift:20; ModelExecutionPlan.swift:134, :146-148]`)
 ### Phase 2B Completed: Large-Document Streaming
 - Notion Task: `Accelerate Document Ingestion Without Sacrificing Accuracy` completed.
 - `RAGService` now leverages batched embeddings (15 pages per batch) with real-time UI telemetry.

@@ -1,4 +1,4 @@
-> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use it as the source of truth for any version; `Docs/SHIPPED_VERSION.json` records which version is live on each platform.
 
 # Demo
 

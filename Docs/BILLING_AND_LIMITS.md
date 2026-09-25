@@ -2,7 +2,7 @@
 
 > **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30. Product identifiers and the Document Pack status re-checked against source on 2026-08-05. **The §2 quota matrix was re-read against source on 2026-09-20 and every figure matches**; the grandfathering section in §4 was **not** re-verified. The shipped tree is 5.3 on both platforms (released 2026-09-18, build 464), and 5.4 is the open release.
 > **Document Pack Add-On is no longer sold (see §3).** `doc_pack_addon` is absent from `OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit` and has no paywall UI. The `BillingProduct.documentPackAddOn` case, the cap logic, and the `legacyDocumentPackOwner` protection state are deliberately retained so existing owners keep their capacity. `StoreKitBillingService` still requests the id via `BillingProduct.allCases`, and StoreKit simply omits an unavailable product from the result, so nothing fails. `[evidence_level: code_verified, confidence: exact, evidence_source: StoreKitConfiguration.storekit, BillingProduct.swift, PlanUpgradeSheet.swift, StoreKitBillingService.swift:42]`
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Source of truth:** The code. The codebase audit this line used to cite, in `Docs/AUDIT/`, is not in the repository (`Docs/AUDIT/` is gitignored).
 
 This document describes the billing tiers, StoreKit 2 product identifiers, and resource quota boundaries as audited in the OpenIntelligence v4.4 codebase.
 

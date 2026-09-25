@@ -1,11 +1,13 @@
-# Ingestion Pipeline — source-verified at v4.6, shipped tree is v5.3
+# Ingestion Pipeline — source-verified at v4.6; shipped versions in `Docs/SHIPPED_VERSION.json`
 
-> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.3** and **macOS 5.3** are the shipped versions (both READY_FOR_SALE 2026-09-18, build 464, released manually after approval); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11, 5.3 recorded 2026-09-20. Private Cloud Compute shipped in 5.2 on 2026-09-10 and is live on both platforms, and it still does not change ingestion: indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
-> **Known drift as of 2026-08-05** — in `CHANGELOG.md` under 4.9 but not yet described below: all five workspace metadata writes are now atomic read-modify-writes through `coordinatedMergeData(at:transform:)`, closing the race where an ingestion completing mid-sync-pass left a fully intact document on disk with no metadata row pointing at it. `WorkspaceSyncService` also no longer deletes an index for a library that still has documents.
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`, plus `CHANGELOG.md` 4.8–4.9 for ingestion and sync.
+> **Read this file by section, never whole** (about 65 KB): `grep -n '^## ' Docs/INGESTION_PIPELINE.md`, then the section a task touches.
+
+> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** `Docs/SHIPPED_VERSION.json` is the per-platform record of which version is live and which is in review; read it there, because a version number hardcoded in this header went stale with each release. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11, 5.3 recorded 2026-09-20. Private Cloud Compute shipped in 5.2 on 2026-09-10 and is live on both platforms, and it still does not change ingestion: indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
+> **Known drift as of 2026-08-05** — in the changelog under 4.9 (now `Docs/Archive/CHANGELOG_2.0_to_5.2.md`) but not yet described below: all five workspace metadata writes are now atomic read-modify-writes through `coordinatedMergeData(at:transform:)`, closing the race where an ingestion completing mid-sync-pass left a fully intact document on disk with no metadata row pointing at it. `WorkspaceSyncService` also no longer deletes an index for a library that still has documents.
+> **Source of truth:** The code. The codebase audit this line cited, in `Docs/AUDIT/`, is not in the repository (`Docs/AUDIT/` is gitignored). For history, see `Docs/Archive/CHANGELOG_2.0_to_5.2.md` 4.8–4.9 for ingestion and sync (moved out of `CHANGELOG.md` on 2026-09-24).
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
-This document describes the design and implementation of the import-time document ingestion pipeline, as audited at v4.6 and corrected in place since. Dated section notes carry the later changes; the shipped tree is v5.3.
+This document describes the design and implementation of the import-time document ingestion pipeline, as audited at v4.6 and corrected in place since. Dated section notes carry the later changes. The tree carries work for the release being prepared as well as what shipped; `Docs/SHIPPED_VERSION.json` records what is live.
 
 ---
 
@@ -197,7 +199,7 @@ not just by absence:
 So implementing this genuinely means parsing Apple's undocumented `.iwa` protobuf, and
 `ZIPArchive` being file-scoped private means a new reader cannot even see the unzip helper without
 an access-level change. **The formats stay in the picker on purpose** so the failure is reachable
-and explained; removing them re-creates the defect `CHANGELOG.md:162` already fixed.
+and explained; removing them re-creates the defect `CHANGELOG.md:162` already fixed (that line is now `Docs/Archive/CHANGELOG_2.0_to_5.2.md:48`).
 `[evidence_level: code_verified+sdk_verified, confidence: exact]`
 
 ### Spatial extraction: the word-position arithmetic, and two branches that used to fail silently
@@ -593,6 +595,10 @@ Two things about it matter:
 - Paired with the existing `Page N: OCR extracted ... (Y.YYs)` line, it splits render cost from OCR
   cost per page, which is the measurement that did not exist when a 210-page PDF took five hours on
   a Mac and nothing in the log said which stage owned the time.
+
+  Measured since on a live trace: rendering costs 12 to 16 ms a page at 360 DPI, so a multi-hour
+  ingest is Vision recognition. Look for OCR speed in recognition, not in rasterisation.
+  `[evidence_level: doc_claim_only, confidence: medium, evidence_source: Docs/EdgeToEdge/02_File_extraction_and_document_understanding.md:15 and HANDOFF.md at d5cc916; not re-run]`
 
 **Known remaining gap, not fixed here.** `PageComplexityAnalyzer.renderPageForAnalysis` is
 `#if canImport(UIKit) ... #else return nil #endif`, and both production call sites reach it through

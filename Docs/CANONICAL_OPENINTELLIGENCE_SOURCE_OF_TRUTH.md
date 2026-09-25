@@ -25,7 +25,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Knowledge libraries use separate isolated SQLite files. (FALSE) `[evidence: code_verified, exact]`
 
 ## 5. Non-Negotiable Facts
-- `SUPERSEDING_EVIDENCE_PROTOCOL.md` must be followed for all agent workflows.
+- `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md` must be followed for all agent workflows.
 - No destructive commands may be run.
 
 ## 6. Storage Boundaries

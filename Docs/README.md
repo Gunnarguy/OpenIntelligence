@@ -2,7 +2,7 @@
 
 This index organizes the repository's documentation by purpose, lifecycle state, and the code it maps to.
 
-> **Reconciled 2026-09-20 against the shipped tree.** 5.3 is live on both platforms (released 2026-09-18, build 464), and 5.4 is the open release. 5.2 was the Private Cloud Compute release and shipped on 2026-09-10, so PCC is live to users rather than staged; `Docs/SHIPPED_VERSION.json` is the per-platform record and `Docs/SHIPPED_CAPABILITIES.json` is the per-capability one.
+> **Reconciled 2026-09-24.** This index no longer copies the live version number, because copies of it went stale; read what is live and what is in review from `Docs/SHIPPED_VERSION.json`. 5.2 was the Private Cloud Compute release and shipped on 2026-09-10, so PCC is live to users rather than staged; `Docs/SHIPPED_VERSION.json` is the per-platform record and `Docs/SHIPPED_CAPABILITIES.json` is the per-capability one.
 >
 > Lifecycle state describes the **document**, not the code. A document can be an Active Reference and still be verified at an older version; where that is true, the entry says which version, and the document's own header carries the detail.
 
@@ -30,8 +30,8 @@ Step-by-step execution mechanics for ingestion and query retrieval.
 
 | Document | Lifecycle State | Purpose & Code Subsystems |
 | :--- | :--- | :--- |
-| [RETRIEVAL_PIPELINE.md](RETRIEVAL_PIPELINE.md) | **Active Specification** — source-verified at v4.6, shipped tree is v5.3 | The query loop, reciprocal rank fusion, Lost-in-the-Middle context packing, and verification gates. Its header lists the 4.8–4.9 retrieval changes it does not yet describe. |
-| [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) | **Active Specification** — source-verified at v4.6, shipped tree is v5.3 | Vision OCR preprocessing, semantic chunking, subword validation, SQLite/BNNS storage. Header lists the 4.9 atomic-write changes not yet described. |
+| [RETRIEVAL_PIPELINE.md](RETRIEVAL_PIPELINE.md) | **Active Specification** — narrative source-verified at v4.6, claims re-checked 2026-09-01; shipped version in `SHIPPED_VERSION.json` | The query loop, reciprocal rank fusion, Lost-in-the-Middle context packing, and verification gates. Its header lists the 4.8–4.9 retrieval changes it does not yet describe. |
+| [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) | **Active Specification** — source-verified at v4.6; shipped version in `SHIPPED_VERSION.json` | Vision OCR preprocessing, semantic chunking, subword validation, SQLite/BNNS storage. Header lists the 4.9 atomic-write changes not yet described. |
 | [RAG_TECHNICAL.md](Engineering/RAG_TECHNICAL.md) | **Deep-Dive Specification** | Code examples, class interfaces, parameters, algorithms (MMR, TinyBERT cross-encoders). |
 | [FULL_SYSTEM_TRACE.md](Engineering/FULL_SYSTEM_TRACE.md) | **Active Reference** — source-verified 2026-09-01 at `4840078` | **The execution trace**: launch, navigation, ingestion, a Standard query, the agentic modes, every hardware-unit request and the concurrency map, the iOS/macOS split, and a claims audit of the two earlier walkthroughs. Read this for *which unit runs what and how the code decides*. |
 | [STUDY_GUIDE.md](STUDY_GUIDE.md) | **Active Reference** — written 2026-09-02 at `273b007` | **The course.** Seventeen modules in pipeline order: what each part is, why it exists, where it runs, its share of the 612-concept word bank, corrections, an explain-it checklist and a quiz. Sources: the Terra word bank and Opus walkthrough under `Research/`, numbers from `Engineering/FULL_SYSTEM_TRACE.md`. |
@@ -106,7 +106,8 @@ Operating protocol for any agent or engineer modifying the codebase.
 | [SUPERSEDING_EVIDENCE_PROTOCOL.md](AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md) | **Active Directive** | Resolving architectural contradictions and scoring codebase claims. Evidence tagging is mandatory. |
 | [TASK_ROUTER_AND_CHANGE_CONTROL.md](AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md) | **Active Directive** | Coordinating file changes, task allocation, and roadmap updates. |
 | [PHASE_1A_IMPLEMENTATION_PLAN.md](AgentPlaybooks/06_PHASE_1A_IMPLEMENTATION_PLAN.md) | **Active Directive** | Evidence threads implementation tasks. |
-| [RepoOS Command Center](RepoOS/00_REPO_COMMAND_CENTER.md) | **Active Directive** | One-page entry point: canonical read order, edit boundaries, required tests. |
+| [RepoOS Command Center](RepoOS/00_REPO_COMMAND_CENTER.md) | **Active Directive** | One-page entry point: document authority order (a ranking, not a reading list), edit boundaries, required tests. |
+| [Docs/ai/INDEX.md](ai/INDEX.md) | **Agent entry point** | Where an agent session starts. Every task reads `ai/STATE.md` (current objective and next action), the superseding protocol and `ai/ARCHITECTURE.md` (component map), then only what the preflight's route names (`AGENTS.md` rule 15). `ai/PROJECT.md`, `ai/DECISIONS.md` and `ai/RUNBOOK.md` are read on demand. |
 
 ---
 

@@ -1,6 +1,6 @@
-# Privacy and Model Routing — source-verified at v4.6, shipped tree is v5.3
+# Privacy and Model Routing — source-verified at v4.6; shipped version in `Docs/SHIPPED_VERSION.json`
 
-> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.3** and **macOS 5.3** are the shipped versions (both READY_FOR_SALE 2026-09-18, build 464, released manually after approval); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11, 5.3 recorded 2026-09-20. **Private Cloud Compute shipped in 5.2 on 2026-09-10 and is live on both platforms**; `Docs/SHIPPED_CAPABILITIES.json` carries it as `shipping`, so present-tense copy about it is correct. Native PCC execution is owner-confirmed on a physical device (2026-07-28). Signed physical-device installation, Archive/TestFlight entitlement propagation, quota-exhaustion, network-transition, and background/App Intent validation remain pending.
+> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified as a whole since**; later-dated sections and inline evidence tags carry their own verification dates. Shipped and in-review versions are not restated here: `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11, 5.3 recorded 2026-09-20. **Private Cloud Compute shipped in 5.2 on 2026-09-10 and is live on both platforms**; `Docs/SHIPPED_CAPABILITIES.json` carries it as `shipping`, so present-tense copy about it is correct. Native PCC execution is owner-confirmed on a physical device (2026-07-28). Signed physical-device installation, Archive/TestFlight entitlement propagation, quota-exhaustion, network-transition, and background/App Intent validation remain pending.
 > **Note on the routing picker:** until 2026-07-30 the stored routing policy did not govern Deep Think or Maximum, and an On-Device selection could still send a minimized envelope to PCC. Consent was never bypassed. Fixed in `6f29d2d`; see `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` §8. If you are reading this document to answer a question about what a routing setting guaranteed *before* that date, the answer differs from what is described below.
 > **Source of truth:** `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` and the current implementation.
 
@@ -52,7 +52,7 @@ flowchart TD
 `QueryRuntimeCoordinator` preserves the user's policy but does not predict a final route. After retrieval, `ModelExecutionPlanner` evaluates:
 
 - evidence sufficiency, score distribution, context size, and multi-document synthesis need;
-- automatic, on-device-only, prefer-cloud, or cloud-only policy;
+- automatic, on-device-only, prefer-cloud, or cloud-only policy. **Corrected 2026-09-24:** the planner tells apart only on-device-only (`requiresOnDevice`) and cloud-only (`requiresPCC`). Prefer-cloud sets neither, so it takes the same branch as automatic, and chat sends prefer-cloud whenever the model preference and the execution context are both Automatic. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:16278-16279, ModelExecutionPlanner.swift:41-104, ChatScreen.swift:2917-2919]` Unknown: whether prefer-cloud was meant to lean toward PCC. `ExecutionContext.preferCloud` is documented as "Prefer Private Cloud Compute" (LLMModel.swift:281-282) and no test references it. Verify: owner decision, then either a planner branch or a wording change;
 - network and foreground/background state;
 - signed PCC entitlement, live availability, live quota, and SDK-reported context size;
 - whether the app is foreground-interactive, **now on macOS as well**. That input gates cloud alongside remembered consent, and until 2026-08-11 it was computed inside `#if canImport(UIKit)` with the `#else` branch hardcoding `true`. A backgrounded Shortcut on a Mac therefore reported itself foreground-interactive and could reach PCC with nobody present to answer the consent sheet, which is the case the gate exists to prevent. macOS reads `NSApplication.shared.isActive` now, and a platform with no UI framework falls closed to `false`. `[evidence_level: code_verified+build_verified, confidence: exact, evidence_source: RAGService.swift makePostRetrievalModelPlan]`;
@@ -135,7 +135,7 @@ non-zero reasoning count is positive evidence that a reasoning-capable backend d
 reasoning tokens on a route recorded as PCC with Deep Think or Maximum selected is a contradiction
 worth investigating rather than a value to display.
 
-This is telemetry of counts and public target names, which section 8 permits. It records no query,
+This is telemetry of counts and public target names, which section 8 of `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` permits. It records no query,
 document, transcript or reasoning **content**, which section 8 forbids.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModels.swiftinterface, Xcode 27A266a: LanguageModelSession.usage is @available(iOS 27.0, macOS 27.0, ...); Usage.Output declares totalTokenCount and reasoningTokenCount; Usage.Input declares totalTokenCount and cachedTokenCount; Response declares no backend field]`
@@ -163,7 +163,7 @@ first eight characters of the plan UUID, and the policy version constant. Its AP
 those types, so no call site can hand it a query, a passage or an answer. Every interpolation is
 marked `privacy: .public` because the unified log otherwise renders dynamic strings as `<private>`,
 and each of these is a public target name or a code by construction. This is the section 8
-allowance for public target names, reason codes and counts, applied to the unified log.
+(`Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`) allowance for public target names, reason codes and counts, applied to the unified log.
 
 It deliberately bypasses the `Log` facade rather than adding a unified-log sink to it: the
 facade's `.llm` lines can carry prompt and response text at debug level, which section 8 forbids
