@@ -20,7 +20,7 @@ Test Case 'PrecisionLockAnswerTypeTests.testCapacityQuestionStillLocksItsLiquidV
 🔍 [ExtractiveQA] Candidate: '1,500 lb' (Measurement) score=0.88
 🔍 [ExtractiveQA] Same-category candidates (Measurement): picking best
 ℹ️  [ExtractiveQA] ✓ Extracted '3,200 lb' (confidence: 88%)
-<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:122: error: PrecisionLockAnswerTypeTests.testFuelQuestionDoesNotLockAWeight : XCTAssertNil failed: "3,200 lb" - A fuel question locked the weight '3,200 lb'
+<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:129: error: PrecisionLockAnswerTypeTests.testFuelQuestionDoesNotLockAWeight : XCTAssertNil failed: "3,200 lb" - A fuel question locked the weight '3,200 lb'
 Test Case 'PrecisionLockAnswerTypeTests.testFuelQuestionDoesNotLockAWeight' failed
 🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "notice", "have", "give", "before"]
 🔍 [ExtractiveQA] Primary entities: []
@@ -31,7 +31,7 @@ Test Case 'PrecisionLockAnswerTypeTests.testFuelQuestionDoesNotLockAWeight' fail
 🔍 [ExtractiveQA] Candidate: '120 V' (Measurement) score=0.67
 🔍 [ExtractiveQA] Candidate: '1700 W' (Measurement) score=0.66
 ℹ️  [ExtractiveQA] ✓ Extracted '5.8 qt' (confidence: 88%)
-<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:113: error: PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockALiquidCapacity : XCTAssertNil failed: "5.8 qt" - A notice question locked '5.8 qt'; it must go to the model
+<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:118: error: PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockALiquidCapacity : XCTAssertNil failed: "5.8 qt" - A notice question locked '5.8 qt'; it must go to the model
 Test Case 'PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockALiquidCapacity' failed
 🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "notice", "have", "give", "before"]
 🔍 [ExtractiveQA] Primary entities: []
@@ -43,6 +43,6 @@ Test Case 'PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockALiquidCapa
 🔍 [ExtractiveQA] Candidate: '1 lb' (Measurement) score=0.85
 🔍 [ExtractiveQA] Candidate: '1 lb' (Measurement) score=0.80
 ℹ️  [ExtractiveQA] ✓ Extracted '1 lb' (confidence: 85%)
-<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:103: error: PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockAWeightFromACookingChart : XCTAssertNil failed: "1 lb" - A notice question locked '1 lb'; it must go to the model
+<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:106: error: PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockAWeightFromACookingChart : XCTAssertNil failed: "1 lb" - A notice question locked '1 lb'; it must go to the model
 Test Case 'PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockAWeightFromACookingChart' failed
 	 Executed 4 tests, with 3 failures (0 unexpected)

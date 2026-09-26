@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import OpenIntelligenceEngine
 
 /// Pins what the extractive lookup may put in place of a generated answer.
@@ -96,37 +97,45 @@ final class PrecisionLockAnswerTypeTests: XCTestCase {
 
     /// The reported case: a notice question, a lease clause, and a chart of weights.
     func testNoticeQuestionDoesNotLockAWeightFromACookingChart() async {
-        let span = await lockedSpan(noticeQuestion, [
-            chunk(leaseSection16, document: "Maple Court Lease.pdf", page: 4),
-            chunk(airFryerCookingChart, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 1),
-        ])
+        let span = await lockedSpan(
+            noticeQuestion,
+            [
+                chunk(leaseSection16, document: "Maple Court Lease.pdf", page: 4),
+                chunk(airFryerCookingChart, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 1),
+            ])
         XCTAssertNil(span, "A notice question locked '\(span ?? "")'; it must go to the model")
     }
 
     /// The same question against a genuine liquid capacity. Fixing the unit test alone leaves this
     /// locking "5.8 qt": only the expansion rule decides whether a notice question is about volume.
     func testNoticeQuestionDoesNotLockALiquidCapacity() async {
-        let span = await lockedSpan(noticeQuestion, [
-            chunk(leaseSection16, document: "Maple Court Lease.pdf", page: 4),
-            chunk(airFryerSpecifications, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 2),
-        ])
+        let span = await lockedSpan(
+            noticeQuestion,
+            [
+                chunk(leaseSection16, document: "Maple Court Lease.pdf", page: 4),
+                chunk(airFryerSpecifications, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 2),
+            ])
         XCTAssertNil(span, "A notice question locked '\(span ?? "")'; it must go to the model")
     }
 
     /// A pound is not a liquid unit, whatever the question. "Fuel" keeps the question a volume
     /// question, so this is the unit test's own case, independent of the expansion rule.
     func testFuelQuestionDoesNotLockAWeight() async {
-        let span = await lockedSpan("How much fuel does the tank hold?", [
-            chunk(truckSpecifications, document: "Truck Manual.pdf", page: 9),
-        ])
+        let span = await lockedSpan(
+            "How much fuel does the tank hold?",
+            [
+                chunk(truckSpecifications, document: "Truck Manual.pdf", page: 9)
+            ])
         XCTAssertNil(span, "A fuel question locked the weight '\(span ?? "")'")
     }
 
     /// The case the extractor exists for must keep working.
     func testCapacityQuestionStillLocksItsLiquidValue() async {
-        let span = await lockedSpan("How much food does the basket hold?", [
-            chunk(airFryerSpecifications, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 2),
-        ])
+        let span = await lockedSpan(
+            "How much food does the basket hold?",
+            [
+                chunk(airFryerSpecifications, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 2)
+            ])
         XCTAssertEqual(span, "5.8 qt")
     }
 }
