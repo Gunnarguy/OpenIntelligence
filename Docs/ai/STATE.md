@@ -1,8 +1,8 @@
 # Current State
 
 Updated: 2026-09-26 (the approved "1 lb" extractor fix is committed on the session branch and verified as Swift 6.4 on Linux; 5.5 is open there; nothing is built in Xcode yet)
-Branch/worktree: `claude/determined-ritchie-7y60am`, a cloud-session branch from `main` at `b37ab4c` carrying `cd11c4f` (audit), `9478d59` (fix) and `62c9e35` (test layout); not merged into `main`
-Last verified commit: 62c9e35
+Branch/worktree: `claude/determined-ritchie-7y60am`, a cloud-session branch from `main` at `b37ab4c` carrying the audit (`cd11c4f`), the fix (`9478d59`), the test layout (`62c9e35`) and handoffs; not merged into `main`
+Last verified commit: 6651d08
 
 ## Objective
 
@@ -23,19 +23,14 @@ owner's call.
 - **Scheduled:** 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`. It is still needed.
 - **The fix.** On 2026-09-25, Deep Think answered "How much notice do I have to give before I move
   out?" with "1 lb." from an air fryer manual, marked Verified.
-  - What changed in `SpecificationExtractor`:
-    - "much" and "many" add the volume words only when the question names a measurement anchor
-      (`:1502`);
-    - the liquid-unit test compares the unit exactly (`:587`, `measurementUnit(of:)` at `:625`);
-    - the keyword log keeps the question's order (`:1526`).
-  - `PrecisionLockAnswerTypeTests` has four tests.
-  - Records: the `CHANGELOG.md` `## 5.5` entry, and item 22 of `Docs/RETRIEVAL_PIPELINE.md`.
-- **Linux harness results.** From `Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/swift/`:
-  - 3 of the 4 tests fail before the fix, and 4 of 4 pass after it.
-  - An 18-question probe:
-    - three wrong locks removed;
-    - one right lock gained ("4.5L" without a space);
-    - one right lock lost ("How much water does the reservoir take?" now goes to the model).
+  In `SpecificationExtractor`, "much" and "many" add the volume words only when the question names a
+  measurement anchor (`:1502`); the liquid-unit test compares the unit exactly (`:587`, `:625`); the
+  keyword log keeps the question's order (`:1526`). Four tests in `PrecisionLockAnswerTypeTests`.
+  Recorded in `CHANGELOG.md` `## 5.5` and item 22 of `Docs/RETRIEVAL_PIPELINE.md`.
+- **Linux harness** (`Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/swift/`): 3 of the 4 tests
+  fail before the fix and 4 of 4 pass after it. An 18-question probe: three wrong locks removed, one
+  right lock gained ("4.5L" without a space), one right lock lost ("How much water does the reservoir
+  take?" now goes to the model).
 - **Found, not fixed.** When volumes in one passage tie, the extractor keeps the first
   (`SpecificationExtractor.swift:300-305`). On a car manual's capacities list, the fuel-tank and
   coolant questions lock the engine oil's figure, before and after the fix. It is noted on the
@@ -50,22 +45,20 @@ owner's call.
     and leave the branch unmerged.
   - The answer-seat row https://app.notion.com/p/3e749a74d54f817083a6fbf197ff26db has a dated note on
     the tie and the doc corrections.
-  - The other audit rows are unchanged: To Do, Future Backlog. They are listed in the audit
-    `README.md`.
+  - The other audit rows are unchanged (To Do, Future Backlog), listed in the audit `README.md`.
 
 ## Documentation overhaul (merged into `main` 2026-09-25), still open
 
 - Row https://app.notion.com/p/3e549a74d54f815087d7db62848adb40 (Future Backlog, In Progress) closes
   when `/context` in a fresh Claude Code session on the Mac shows the lighter startup load.
 - **Leads, not findings,** in `Docs/AuditArtifacts/DocOverhaul_2026-09-24/`: 100 unverified doc edits
-  and 60 suspected code defects. First check whether Evidence Threads sync copies anything:
-  - the store writes `<AppSupport>/EvidenceThreads/` (`EvidenceThreadStore.swift:60`);
-  - sync reads `<AppSupport>/OpenIntelligence/EvidenceThreads/` (`WorkspaceSyncService.swift:2739`);
-  - row: https://app.notion.com/p/3e649a74d54f811492b6d0d8f5e89f71.
+  and 60 suspected code defects. First check whether Evidence Threads sync copies anything: the store
+  writes `<AppSupport>/EvidenceThreads/` (`EvidenceThreadStore.swift:60`), sync reads
+  `<AppSupport>/OpenIntelligence/EvidenceThreads/` (`WorkspaceSyncService.swift:2739`); row
+  https://app.notion.com/p/3e649a74d54f811492b6d0d8f5e89f71.
 - Its two `[General]` changelog entries are filed under `## 5.5` on this branch and reach `main` with it.
-- Owner decisions carried:
-  - whether to rename Lifetime, which needs a new IAP version;
-  - `.build` (841 MB) and `build/` (444 MB) at the root lack `.nosync`.
+- Owner decisions carried: renaming Lifetime (needs a new IAP version); `.build` (841 MB) and `build/`
+  (444 MB) at the root lack `.nosync`.
 
 ## Active Constraints
 
@@ -75,16 +68,15 @@ owner's call.
     rejects the build. Merging this branch does both.
   - The 5.5 records in App Store Connect are not created. Create them before the first 5.5 build.
 - **Xcode Cloud.** It skips pushes that touch only `*.md`, `Docs/`, `.claude/`, `.agents/`, `.codex/`,
-  `fastlane/metadata/` and `.github/`. App source or `scripts/` starts a build, so all three branch
-  commits carry `[ci skip]`.
+  `fastlane/metadata/` and `.github/`. App source or `scripts/` starts a build, so every branch
+  commit carries `[ci skip]`.
 - App Store Connect writes happen only at the owner's word.
 - Guard memory on builds (18 GB Mac): `-jobs 2`, stop at 15% free, build from `/private/tmp/oi-src`.
-- **swift-format rewrites Swift files edited with Edit/Write on the Mac.**
-  - `SpecificationExtractor.swift` has 96 lint warnings, all older than the fix (99 before it). Its
-    next edit may bring a whitespace diff that is not the fix.
-  - The new test file is clean.
+- **swift-format rewrites Swift files edited with Edit/Write on the Mac.** `SpecificationExtractor.swift`
+  has 96 lint warnings, all older than the fix (99 before it), so its next edit may bring a whitespace
+  diff that is not the fix. The new test file is clean.
 - **Commits** go to `main`, with no branches or pull requests unless the owner asks, and no AI trailer.
-  This session's three commits are on the branch because the cloud session pushes there. The branch
+  This session's commits are on the branch because the cloud session pushes there. The branch
   fast-forwards onto `main` at `b37ab4c`.
 
 ## Working Set
@@ -109,11 +101,9 @@ These ran in a Linux cloud container with no Xcode.
 - `run.sh before b37ab4c` -> 3 of 4 fail ("1 lb" 0.85, "5.8 qt" 0.88, "3,200 lb" 0.88).
   `run.sh after` -> 4 of 4 pass. Both repeat byte for byte, with no build diagnostics beyond two old
   `LoggingConfiguration.swift` warnings.
-- `swift-format lint` on the test file -> 20 warnings before `swift-format format`, 0 after. The
-  results were unchanged.
+- `swift-format lint` on the test file -> 20 warnings, 0 after `swift-format format`; results unchanged.
 - `python3 scripts/verify_doc_claims.py` -> 727 claims, all match.
-- `python3 scripts/secret_scan.py` -> clean.
-- `test_repoos_router.py` -> 31 OK.
+- `python3 scripts/secret_scan.py` -> clean. `test_repoos_router.py` -> 31 OK.
 - `bash scripts/enforce_docs_hook.sh` -> passes on the staged set, and fails naming
   `Docs/RETRIEVAL_PIPELINE.md` when it is unstaged.
 - The preflight reports `v5.5` in development. Both Notion rows read back.
@@ -121,34 +111,28 @@ These ran in a Linux cloud container with no Xcode.
 ## Blockers / Unknowns
 
 - **Xcode verification** is the next action. Nothing was built by Xcode or run on a simulator.
-- **The device check.**
-  - Re-ask the incident question in Deep Think over the same 10-document library. Expect no "Direct
-    Source Extraction" answer.
-  - In Standard, use a fresh phrasing: an exact semantic-cache hit replays old retrieval
-    (`RAGService.swift:9832-9850`).
-  - This check and the tests close the incident row.
-- **Six `v5.4` rows close on the owner's device check.** Set each `Completed`, dated 2026-09-24 or
-  later:
-  - https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142 (answers finish at the last word)
-  - https://app.notion.com/p/3e449a74d54f8193964bdda0f50d16c3 (off-screen finish signals)
-  - https://app.notion.com/p/3e449a74d54f813787a6cf91ef814767 (Deep Think and Maximum stream)
-  - https://app.notion.com/p/3e349a74d54f81b49205d1a75f2a4b99 (free Maximum cap)
-  - https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9 (plans screen after setup)
-  - https://app.notion.com/p/3e149a74d54f819aba78e2b85f0e9942 (5.4 What's New)
-- **Owner decisions:**
-  - whether the answer-seat and Verified-label rows join 5.5 (both state test 2);
-  - whether to widen the anchor list (for example "water"), which needs a golden set to judge.
+- **The device check**, which with the tests closes the incident row: re-ask the incident question in
+  Deep Think over the same 10-document library and expect no "Direct Source Extraction" answer. In
+  Standard use a fresh phrasing, since an exact semantic-cache hit replays old retrieval
+  (`RAGService.swift:9832-9850`).
+- **Six `v5.4` rows close on the owner's device check**; set each `Completed`, dated 2026-09-24 or
+  later: [answers finish at the last word](https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142),
+  [off-screen finish signals](https://app.notion.com/p/3e449a74d54f8193964bdda0f50d16c3),
+  [agentic streaming](https://app.notion.com/p/3e449a74d54f813787a6cf91ef814767),
+  [free Maximum cap](https://app.notion.com/p/3e349a74d54f81b49205d1a75f2a4b99),
+  [plans screen after setup](https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9),
+  [5.4 What's New](https://app.notion.com/p/3e149a74d54f819aba78e2b85f0e9942).
+- **Owner decisions:** whether the answer-seat and Verified-label rows join 5.5 (both state test 2),
+  and whether to widen the anchor list (for example "water"), which needs a golden set to judge.
 - **`ContextOptions` in `.claude/skills/apple-api-truth/SKILL.md` may be wrong as worded.** Count
   `contextOptions` overloads in the iOS 27 SDK's `FoundationModels.swiftinterface` (the path pattern is
   in that skill) before editing.
 - **Three subscription descriptions in App Store Connect are wrong.** The API refuses them (409), so
   they need the owner's web edit.
-- **Cleanup, test data only:**
-  - `/private/tmp/oi-ui-appsupport-2026-09-23` and `/private/tmp/oi-bench/`;
-  - three shut-down simulators: `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`,
-    `57E0CE08-EA1A-4D02-9D74-FEBD238709ED` and `F798E00A-9F48-44B8-A087-45413A96783A`;
-  - in iCloud Documents, `~/Documents/SampleDocuments` and
-    `~/Documents/SampleDocuments.evicted-2026-09-23`.
+- **Cleanup, test data only:** `/private/tmp/oi-ui-appsupport-2026-09-23`, `/private/tmp/oi-bench/`,
+  simulators `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`, `57E0CE08-EA1A-4D02-9D74-FEBD238709ED` and
+  `F798E00A-9F48-44B8-A087-45413A96783A`, and in iCloud Documents `~/Documents/SampleDocuments` and
+  `~/Documents/SampleDocuments.evicted-2026-09-23`.
 
 ## Exact Next Action
 
