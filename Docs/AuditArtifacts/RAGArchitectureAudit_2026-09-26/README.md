@@ -1,8 +1,10 @@
 # RAG architecture audit, 2026-09-26
 
 > **Status:** working record of an audit, not live documentation. These are findings, not decisions: the
-> owner decides what is scheduled, and development is paused after 5.4. Nothing here was compiled, run or
-> tested on a device.
+> owner decides what is scheduled. The owner approved the proposed extractor fix on 2026-09-26, and it is
+> applied to the source; see "Open for the owner". The audit's own findings were never compiled. The fix
+> was: `swift/` builds the extractor from source with Swift 6.4 on Linux and runs its tests. Nothing has
+> been built in Xcode or tested on a device.
 
 ## Why it exists
 
@@ -30,7 +32,8 @@ recipe. The larger problems sit around it:
 | [`REPORT.md`](REPORT.md) | The report. It covers:<ul><li>the verdict;</li><li>how the pipeline works in each quality mode;</li><li>fifteen defects;</li><li>the missing capabilities;</li><li>six conflicts between sources, settled against the code;</li><li>ten changes ranked by effect on answer correctness, mapped to roadmap rows and hard-boundary files;</li><li>the evidence limits.</li></ul> |
 | [`notes/`](notes/) | The nine evidence notes the report was written from, every claim tagged. Three read the app's code at `b37ab4c`: ingestion, storage and the query path. Six read the web: Apple's iOS 27 frameworks, WWDC26 and Apple's model documentation, retrieval and generation practice, ingestion and storage practice, agentic and on-device RAG research, and reference architectures. They were written in a cloud session, so their absolute `/tmp/...` paths refer to that session's scratchpad. |
 | [`port/`](port/) | A Python re-implementation of the extractor's decision path, `extractor_port.py`, with its fixture runs. `python3 run_fixture.py` writes `port_run_fixture.txt`, and `python3 validate_proposed_test.py` writes `port_validate_proposed_test.txt`, which predicts the outcome of the proposed tests. Run both from this folder with `PYTHONHASHSEED=0` to reproduce the saved files byte for byte; other seeds change only the order of printed keyword lists, not any score. Evidence level: inferred. The port shows what the Swift computes only if it is faithful. |
-| [`proposed/extractor-fix.patch`](proposed/extractor-fix.patch) | The proposed fix, not applied. It edits `OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift` and adds four regression tests in `OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift`. `git apply --check` passes at `b37ab4c`. It awaits `PROCEED: IMPLEMENT`, and the tests must run on the Mac. |
+| [`proposed/extractor-fix.patch`](proposed/extractor-fix.patch) | The fix as proposed and approved. It edits `OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift` and adds four regression tests in `OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift`. Applied on 2026-09-26 with one change: `@MainActor` on the test class. The engine module defaults to main-actor isolation, so reading an extraction's fields from a nonisolated test warned under Swift 5 and is an error under Swift 6. Other engine tests, `SourceOnlyStandardGateTests` among them, use the same annotation. Kept as the record of what was approved. |
+| [`swift/`](swift/) | The extractor compiled and run as Swift, added 2026-09-26 when the fix was applied.<ul><li>`run.sh <label> [rev]` builds the extractor, detector, scoring policy, logging and chunk model from source in a SwiftPM package that mirrors the engine target's compiler settings.</li><li>It runs `PrecisionLockAnswerTypeTests` and `LockMatrixProbe.swift`, an 18-question before/after probe over fictional passages.</li><li>`tests_before.txt` and `probe_before.txt` come from `b37ab4c`; the `_after` files come from the fixed source.</li></ul>Toolchain: Swift 6.4 on x86_64 Linux. The outputs repeat byte for byte. Before the fix, 3 of the 4 tests fail; after it, 4 of 4 pass. That matches the Python port's prediction case for case, and the scores agree to two decimals ("1 lb" 0.8525 in the port, 0.85 in Swift). This is a Linux build of six source files, not an Xcode build of the app. |
 
 ## How it was produced
 
@@ -67,12 +70,25 @@ All new rows are To Do, Future Backlog.
 - **Scheduling.** All new rows default to Future Backlog. Three rows name the case for test 2 (an
   advertised capability does not work): the incident, the answer-seat row and the label row. The case
   rests on `fastlane/metadata/en-US/description.txt:23` and `:25`.
-- **The proposed fix** waits for `PROCEED: IMPLEMENT`. The tests need `xcodebuild test` with an iOS 27
-  simulator (`Docs/ai/RUNBOOK.md`, Test). Re-check the incident on a device in Deep Think. In Standard,
-  use a fresh phrasing, because the semantic query cache can replay old retrieval.
+- **The fix is applied, not closed.** The owner approved it with `PROCEED: IMPLEMENT` on 2026-09-26.
+  It is on the branch `claude/determined-ritchie-7y60am` with the 5.5 changelog entry and item 22 of
+  `Docs/RETRIEVAL_PIPELINE.md`.
+  - Still to run on the Mac: `xcodebuild test` with an iOS 27 simulator (`Docs/ai/RUNBOOK.md`, Test)
+    and the build smoke test.
+  - Then re-ask the incident question on a device in Deep Think. In Standard, use a fresh phrasing,
+    because the semantic query cache can replay old retrieval.
+- **Found while verifying the fix, and not fixed by it.** When several volumes in one passage score the
+  same, the extractor keeps the first. On a car manual's capacities list, "What is the fuel tank
+  capacity?" locks the engine oil's 4.5 L, and "How much coolant does it need?" locks its 4.8 US qt,
+  both before and after the fix (`swift/probe_*.txt`). The cause is at `SpecificationExtractor.swift:300-305`:
+  - The check for competing answers treats same-category ties as "variants of the same spec".
+  - It picks the first.
+
+  This belongs to the answer-seat row.
 - **A correction candidate for `.claude/skills/apple-api-truth/SKILL.md`.** Apple's documentation shows
   `ContextOptions` only on the 12 new iOS 27 `respond`/`streamResponse` overloads, not on every overload.
   Confirm against the iOS 27 SDK's `.swiftinterface` before editing that table: the SDK is authoritative
   on what exists.
 
 `[evidence_level: artifact_derived, confidence: high, evidence_source: REPORT.md and notes/ in this folder; roadmap rows read back on 2026-09-26]`
+`[evidence_level: measured, confidence: exact_for_these_runs, evidence_source: swift/tests_*.txt and swift/probe_*.txt, for the fix's test results and the same-category tie]`

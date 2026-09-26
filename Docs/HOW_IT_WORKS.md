@@ -381,11 +381,21 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 #### Step 5.10. Extractive answers: built, then switched off
 
 > **In plain words**
-> There used to be a shortcut here: for a plain "what's the number" question, copy the number straight out of the table instead of asking the AI. It sounds obviously right, and it was **turned off**, because it guessed wrong too often. Asked for fuel tank capacity, it once answered "three-quarters" because that phrase sat near the right words. So every question now goes through the model, which is slower and more reliable.
+> There used to be a shortcut here: for a plain "what's the number" question, copy the number straight out of the table instead of asking the AI. It sounds obviously right, and at this step it was **turned off**, because it guessed wrong too often. Asked for fuel tank capacity, it once answered "three-quarters" because that phrase sat near the right words.
+> **The same shortcut still runs at other points in the pipeline.** For a question that asks for a value, Deep Think and Maximum try it before the AI does anything, and in Standard it can replace the AI's answer afterwards. Nothing checks it when it is wrong: on 2026-09-25 it answered a question about a lease's notice period with "1 lb" from an air fryer manual.
 
-**Status.** **Disabled.** The code path is commented out and every query proceeds to model generation. The recorded reason: heuristic extraction produced false positives, returning "three-quarters" for a fuel-tank-capacity query, and bypassed the model entirely when it fired.
+**Status.** **Disabled at this step.** Step 5.10's own code path is commented out (`RAGService.swift:13350`). The recorded reason: heuristic extraction produced false positives, returning "three-quarters" for a fuel-tank-capacity query, and bypassed the model entirely when it fired.
 
-**What replaced it.** Exact-value questions are now served by targeted retrieval at step 4.8 rather than by a generation bypass. Evidence is steered toward specification tables and the model still writes the answer, so a wrong extraction becomes a wrong *candidate* that the verification checks can catch, instead of a wrong answer that skipped them.
+**Still live elsewhere.** The same extractor answers at five other call sites of `RAGService.highPrecisionLookupOverrideAnswer`. The 5.4 source calls it in these places:
+
+- Deep Think and Maximum return a locked span before the orchestrator runs. Step 4.8's targeted retrieval feeds one of those calls (`:8705` and `:8734`, reached from `:8904`).
+- A locked span replaces the answer an agentic run generated (`:9199`).
+- Standard replaces the model's answer after generation when the question is a lookup (`:14383`).
+- The reliability fallback uses it when generation fails (`:15192`).
+
+A locked answer skips the source-only check (`:17293`). The scoring rules, and what an 18-question probe found about them, are in `Docs/RETRIEVAL_PIPELINE.md` item 22. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift at the lines named, read 2026-09-26; the 2026-09-25 device incident]`
+
+**Corrected 2026-09-26.** This section said "every query proceeds to model generation" and "every question now goes through the model". Under "What replaced it" it said that exact-value questions are "served by targeted retrieval at step 4.8 rather than by a generation bypass", and that "the model still writes the answer, so a wrong extraction becomes a wrong *candidate* that the verification checks can catch, instead of a wrong answer that skipped them". That holds for step 5.10's own path only. The claims are withdrawn rather than deleted, so the record shows what was claimed.
 
 ### Phase E · Write it, then check it
 

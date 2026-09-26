@@ -956,7 +956,15 @@ To let the Foundation Models rate budget recover before the generation call, bec
 
 <details><summary><strong>Is extractive QA used?</strong></summary>
 
-No. The neural span model is a stub that returns nil and the code always proceeds to generation. The bank labels it Dormant, which is correct.
+The neural span model is not: it is a stub that returns nil, and the bank labels it Dormant, which is correct. The heuristic extractor is used. `RAGService.highPrecisionLookupOverrideAnswer` makes a span that scores at or above the precision lock the answer:
+
+- Deep Think and Maximum return it before the orchestrator runs.
+- Standard swaps it in after generation.
+- The reliability fallback uses it when generation fails.
+
+`Docs/HOW_IT_WORKS.md` step 5.10 lists the call sites.
+
+**Corrected 2026-09-26:** this answer said "No" and that "the code always proceeds to generation". That is true only of step 5.10's own path, which is commented out. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift call sites :8705, :8734, :9199, :14383, :15192]`
 
 </details>
 

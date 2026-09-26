@@ -1,0 +1,46 @@
+# swift Swift version 6.4 (swift-6.4-RELEASE)
+# source: working tree
+# build diagnostics outside LoggingConfiguration's two unused-result warnings: 0
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "food", "basket", "hold", "capacity", "volume"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["much", "food", "basket", "hold", "capacity", "volume"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 3 candidates
+🔍 [ExtractiveQA] Candidate: '5.8 qt' (Measurement) score=0.89
+🔍 [ExtractiveQA] Candidate: '1700 W' (Measurement) score=0.67
+🔍 [ExtractiveQA] Candidate: '120 V' (Measurement) score=0.67
+ℹ️  [ExtractiveQA] ✓ Extracted '5.8 qt' (confidence: 89%)
+Test Case 'PrecisionLockAnswerTypeTests.testCapacityQuestionStillLocksItsLiquidValue' passed
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "fuel", "tank", "hold", "liters", "quarts", "gallons", "capacity", "volume", "gas"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["much", "fuel", "tank", "hold", "liters", "quarts", "gallons", "capacity", "volume", "gas"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 2 candidates
+🔍 [ExtractiveQA] Candidate: '3,200 lb' (Measurement) score=0.67
+🔍 [ExtractiveQA] Candidate: '1,500 lb' (Measurement) score=0.67
+🔍 [ExtractiveQA] Same-category candidates (Measurement): picking best
+ℹ️  [ExtractiveQA] ✓ Extracted '3,200 lb' (confidence: 66%)
+Test Case 'PrecisionLockAnswerTypeTests.testFuelQuestionDoesNotLockAWeight' passed
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "notice", "have", "give", "before", "move", "out"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["much", "notice", "have", "give", "before", "move", "out"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 5 candidates
+🔍 [ExtractiveQA] Candidate: '120 V' (Measurement) score=0.46
+🔍 [ExtractiveQA] Candidate: 'with 60' (Code) score=0.45
+🔍 [ExtractiveQA] Candidate: '5.8 qt' (Measurement) score=0.44
+🔍 [ExtractiveQA] Ambiguous: 4 competing values
+Test Case 'PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockALiquidCapacity' passed
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "notice", "have", "give", "before", "move", "out"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["much", "notice", "have", "give", "before", "move", "out"]
+🔍 [ExtractiveQA] Proximity candidate: 'AF-620' score=0.00 keywords=[]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 14 candidates
+🔍 [ExtractiveQA] Candidate: '390°F' (Measurement) score=0.54
+🔍 [ExtractiveQA] Candidate: '1 lb' (Measurement) score=0.52
+🔍 [ExtractiveQA] Candidate: '380°F' (Measurement) score=0.52
+🔍 [ExtractiveQA] Same-category candidates (Measurement): picking best
+🔍 [ExtractiveQA] Low confidence: 0.54 < 0.65
+Test Case 'PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockAWeightFromACookingChart' passed
+	 Executed 4 tests, with 0 failures (0 unexpected)

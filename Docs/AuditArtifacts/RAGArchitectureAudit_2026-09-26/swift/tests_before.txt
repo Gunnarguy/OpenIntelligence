@@ -1,0 +1,48 @@
+# swift Swift version 6.4 (swift-6.4-RELEASE)
+# source: b37ab4c
+# build diagnostics outside LoggingConfiguration's two unused-result warnings: 0
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "food", "basket", "hold", "liters"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["capacity", "much", "quarts", "basket", "liters"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 3 candidates
+🔍 [ExtractiveQA] Candidate: '5.8 qt' (Measurement) score=0.87
+🔍 [ExtractiveQA] Candidate: '1700 W' (Measurement) score=0.65
+🔍 [ExtractiveQA] Candidate: '120 V' (Measurement) score=0.65
+ℹ️  [ExtractiveQA] ✓ Extracted '5.8 qt' (confidence: 87%)
+Test Case 'PrecisionLockAnswerTypeTests.testCapacityQuestionStillLocksItsLiquidValue' passed
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "fuel", "tank", "hold", "liters"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["capacity", "much", "quarts", "gallons", "liters"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 2 candidates
+🔍 [ExtractiveQA] Candidate: '3,200 lb' (Measurement) score=0.88
+🔍 [ExtractiveQA] Candidate: '1,500 lb' (Measurement) score=0.88
+🔍 [ExtractiveQA] Same-category candidates (Measurement): picking best
+ℹ️  [ExtractiveQA] ✓ Extracted '3,200 lb' (confidence: 88%)
+<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:122: error: PrecisionLockAnswerTypeTests.testFuelQuestionDoesNotLockAWeight : XCTAssertNil failed: "3,200 lb" - A fuel question locked the weight '3,200 lb'
+Test Case 'PrecisionLockAnswerTypeTests.testFuelQuestionDoesNotLockAWeight' failed
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "notice", "have", "give", "before"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["give", "have", "capacity", "volume", "much"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 5 candidates
+🔍 [ExtractiveQA] Candidate: '5.8 qt' (Measurement) score=0.88
+🔍 [ExtractiveQA] Candidate: '120 V' (Measurement) score=0.67
+🔍 [ExtractiveQA] Candidate: '1700 W' (Measurement) score=0.66
+ℹ️  [ExtractiveQA] ✓ Extracted '5.8 qt' (confidence: 88%)
+<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:113: error: PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockALiquidCapacity : XCTAssertNil failed: "5.8 qt" - A notice question locked '5.8 qt'; it must go to the model
+Test Case 'PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockALiquidCapacity' failed
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["much", "notice", "have", "give", "before"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["give", "have", "capacity", "volume", "much"]
+🔍 [ExtractiveQA] Proximity candidate: 'AF-620' score=0.00 keywords=[]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] Found 14 candidates
+🔍 [ExtractiveQA] Candidate: '1 lb' (Measurement) score=0.85
+🔍 [ExtractiveQA] Candidate: '1 lb' (Measurement) score=0.85
+🔍 [ExtractiveQA] Candidate: '1 lb' (Measurement) score=0.80
+ℹ️  [ExtractiveQA] ✓ Extracted '1 lb' (confidence: 85%)
+<harness>/Tests/OpenIntelligenceEngineTests/PrecisionLockAnswerTypeTests.swift:103: error: PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockAWeightFromACookingChart : XCTAssertNil failed: "1 lb" - A notice question locked '1 lb'; it must go to the model
+Test Case 'PrecisionLockAnswerTypeTests.testNoticeQuestionDoesNotLockAWeightFromACookingChart' failed
+	 Executed 4 tests, with 3 failures (0 unexpected)
