@@ -1,143 +1,142 @@
 # Current State
 
-Updated: 2026-09-25 (5.4 live and closed out; development paused; documentation overhaul merged into `main`)
-Branch/worktree: `main`, primary checkout
-Last verified commit: 0a0ebf1
+Updated: 2026-09-26 (RAG architecture audit saved and filed on the roadmap; development still paused after 5.4)
+Branch/worktree: `claude/determined-ritchie-7y60am`, a cloud-session branch based on `main` at `b37ab4c`; not merged into `main`
+Last verified commit: b37ab4c
 
 ## Objective
 
-None active. 5.4 shipped on both platforms on 2026-09-24 and is closed out in this repository, on
-GitHub, on all three websites and in Notion. The owner paused development after 5.4 the same day
-(`Docs/ai/DECISIONS.md`, 2026-09-24). Pick work up only when he says to. The next version is 5.5,
-his pick.
+No build work is active. 5.4 shipped on both platforms on 2026-09-24, and the owner paused development
+after it (`Docs/ai/DECISIONS.md`, 2026-09-24). What is open is the owner's call on the 2026-09-26 RAG
+architecture audit: when to schedule its roadmap rows, and whether to approve the proposed extractor
+fix with `PROCEED: IMPLEMENT`. The next version is 5.5, the owner's pick.
 
 ## Status
 
-- **5.4 is live on iOS and macOS**, build 478 (Xcode Cloud #478 from `c276b9a`), release MANUAL.
-  Apple approved each platform, and the owner could not get the Release button in App Store Connect
-  to work, so at his request each went out through `POST /v1/appStoreVersionReleaseRequests`: iOS
-  at 14:32 PT and macOS at 17:00 PT. Both returned 201 and read back `READY_FOR_SALE`
-  (`appVersionState` `READY_FOR_DISTRIBUTION`) within seconds. Records: iOS
-  `edac9a46-fd9c-4082-99f8-372008d20289`, macOS `0e7e7d98-9878-4418-b977-3bc0b04ddf96`. The procedure
-  is in `Docs/ai/RUNBOOK.md`, "Releasing an approved version through the API".
-- **Repository close-out, done:** `Docs/SHIPPED_VERSION.json` has `app_store` 5.4 on both platforms,
-  `preparing` 5.4 and `in_review` empty. `CHANGELOG.md` has `## 5.4 - September 24, 2026` with no
-  version open above it. `Docs/USER_CHANGELOG.md` and the byte-identical bundled copy have
-  `## v5.4 - September 24, 2026`. `Docs/Release/APP_STORE_METADATA_HISTORY.md` records both release
-  times, and `README.md`, `WHATS_NEW.md`, `Docs/README.md`, `Docs/ROADMAP.md` and the pipeline doc
-  headers say 5.4.
-- **GitHub:** `v5.4.0` is a full release, and it is Latest, at `c276b9a`. Its first line reads "live
-  on iPhone, iPad and Mac since 2026-09-24". `v5.3.0` (`a2d99ab`, build 464) covers 5.2 and 5.3.
-- **Websites, all at 5.4 by 17:15 PT and read back live with curl:**
-  - fascinaiting.me: Fascinaiting `91c9b21e` made the hero span 5.4 and 5.4 the current timeline
-    entry, marked 5.3 superseded, and removed the in-development entry. Site Verification, the
-    OpenIntelligence Version check and the Pages deploy all passed.
-  - gunzino.me: Gunzino `6f08666` changed all four version lines in one commit; Deploy passed.
-  - gunnarguy.me: its version bot committed `f23820a`, "sync site to v5.4", and Build and Deploy
-    passed.
-  - What follows Apple's lookup, which still read 5.3 at 17:05 PT: gunnarguy.me's store-listing
-    fields (`data/appstore.json`, refreshed daily at 15:00 UTC) and Gunzino's App Store Versions
-    check (daily at 06:20 UTC). If the lookup has not caught up by then, that check fails once.
-- **Notion:** all six `v5.4` rows carry `Shipped On` iOS and macOS, and stay In Progress until the
-  owner's device check (Blockers). fascinaiting.me's board counts 5.4 as shipped from its live
-  version regardless. Its roadmap sync ran at 00:11 UTC; the nightly sync a minute later lost a
-  rebase race on `roadmap.json` and failed harmlessly.
-- **Post Desk** (https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7): the 5.4 switch is on, so the 5.4
-  posts are unlocked, with the "It's live" quote post first.
-- Scheduled: 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`, which takes the sale
+- **5.4 is live on iOS and macOS**, build 478 from `c276b9a`. `Docs/SHIPPED_VERSION.json` has
+  `app_store` 5.4 on both platforms. No version is open in `CHANGELOG.md`. The full release, GitHub and
+  website close-out record is the previous copy of this file: `git show 696680c:Docs/ai/STATE.md`.
+- **Scheduled:** 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`, which takes the sale
   line off the listing and the three sites. It is still needed.
+- **RAG architecture audit, 2026-09-26.** Everything is in
+  `Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/`; start with its `README.md`.
+  - **Trigger.** On 2026-09-25, on the macOS Debug build of 5.4 in Deep Think, "How much notice do I
+    have to give before I move out?" returned "1 lb." from an air fryer manual, marked Verified.
+  - **Verdict** (`REPORT.md`). The proposed ~10-line extractor fix is correct but a band-aid: it
+    changes 2 of the 11 decisions behind that answer. The pipeline's overall design is standard. The
+    structural problems are:
+    - regex extraction can pre-empt or overwrite the model's answer at five places;
+    - verification never checks the answer, and never runs in Deep Think or Maximum;
+    - the Verified label defaults to Verified;
+    - ranking and storage plumbing discard or damage the pipeline's own work.
+  - `REPORT.md` ranks ten changes and maps each to roadmap rows.
+- **Roadmap, filed 2026-09-26.** All new rows are To Do, Future Backlog:
+  - the "1 lb" incident and its proposed fix: https://app.notion.com/p/3e749a74d54f8115a76ad5b06b196956
+  - regex extraction in the answer seat: https://app.notion.com/p/3e749a74d54f817083a6fbf197ff26db
+  - the Verified badge on failed or unrun checks: https://app.notion.com/p/3e749a74d54f81b1ae8bc414159799ed
+  - the semantic query cache is never cleared: https://app.notion.com/p/3e749a74d54f810c86fefac905fa1d6f
+  - the vector index is deleted on a size mismatch: https://app.notion.com/p/3e749a74d54f81859f4dd44bc4c9e9b2
+  - the splitter stores "4.5 L" as "4. 5 L": https://app.notion.com/p/3e749a74d54f8198b727fa124d5db474
+  - Dated notes were added to the fusion, Evaluations and embedder rows (listed in the audit `README.md`).
+  - Three rows (incident, answer seat, badge) state the case for release test 2, citing
+    `fastlane/metadata/en-US/description.txt:23` and `:25`. The owner decides.
 
-## Documentation overhaul, merged into `main` on 2026-09-25
+## Documentation overhaul (merged into `main` 2026-09-25), still open
 
-- **Landed:**
-  - Every task reads 3 documents (`Docs/ai/STATE.md`, the superseding protocol,
-    `Docs/ai/ARCHITECTURE.md`): 22,981 bytes, where 8 documents were 131,868. The rule is
-    `AGENTS.md` rule 15.
-  - `CHANGELOG.md` versions 2.0–5.2 are in `Docs/Archive/CHANGELOG_2.0_to_5.2.md`.
-  - `HANDOFF.md` is a 3 KB pointer.
-  - `Docs/ai/ARCHITECTURE.md` has corrected routing, fusion and reranker rows and a
-    product-vocabulary section.
-  - `scripts/verify_doc_claims.py` passes on a clean clone and also checks symbols, the route table
-    and the instruction files.
-- **Open:** roadmap row https://app.notion.com/p/3e549a74d54f815087d7db62848adb40 (Future Backlog,
-  In Progress). It closes when `/context` in a fresh Claude Code session on the Mac shows the
-  lighter startup load.
+- Roadmap row https://app.notion.com/p/3e549a74d54f815087d7db62848adb40 (Future Backlog, In Progress)
+  closes when `/context` in a fresh Claude Code session on the Mac shows the lighter startup load.
 - **Leads, not findings,** in `Docs/AuditArtifacts/DocOverhaul_2026-09-24/`: 100 unverified doc edits
-  and 60 suspected code defects. Check first: Evidence Threads sync may copy nothing.
-  - The store writes `<AppSupport>/EvidenceThreads/` (`EvidenceThreadStore.swift:60`); sync reads
-    `<AppSupport>/OpenIntelligence/EvidenceThreads/` (`WorkspaceSyncService.swift:2739`).
-  - Verify on a Pro build with library sync on. `WorkspaceSyncService.swift` is a hard-boundary file.
-- **Changelog:** the overhaul's two `[General]` entries are waiting in that directory's `README.md`,
-  to go under 5.5 when it opens. They are not in 5.4, and no version is open.
-- **Owner decisions carried from the old `HANDOFF.md`:**
-  - Whether to rename Lifetime, which needs a new IAP version.
-  - `.build` (841 MB) and `build/` (444 MB) at the root lack `.nosync`.
+  and 60 suspected code defects. Check first whether Evidence Threads sync copies anything:
+  - the store writes `<AppSupport>/EvidenceThreads/` (`EvidenceThreadStore.swift:60`);
+  - sync reads `<AppSupport>/OpenIntelligence/EvidenceThreads/` (`WorkspaceSyncService.swift:2739`);
+  - roadmap row: https://app.notion.com/p/3e649a74d54f811492b6d0d8f5e89f71.
+- The overhaul's two `[General]` changelog entries wait in that directory's `README.md`, to go under 5.5.
+- Owner decisions carried: whether to rename Lifetime (needs a new IAP version), and `.build` (841 MB)
+  and `build/` (444 MB) at the root lack `.nosync`.
 
 ## Active Constraints
 
 - **No version is open in `CHANGELOG.md`.** Before any app-change push, open
   `## 5.5 <!-- unreleased -->` above `## 5.4` with `<!-- next-version: 5.5 -->`, and create the 5.5
-  records in App Store Connect. Otherwise `ci_post_clone.sh` stamps 5.4, and App Store Connect rejects
-  the upload. Pushes of documentation only do not start a build. Xcode Cloud's filter covers only
-  `*.md`, `Docs/`, `.claude/`, `.agents/`, `.codex/`, `fastlane/metadata/` and `.github/`, so a push
-  that also touches `scripts/` does start one. Put `[ci skip]` in that commit message, as the
-  2026-09-25 overhaul merge did.
-- App Store Connect writes happen only at the owner's word. Auto mode refused a release-type change
-  and a website version move on 2026-09-24, and allowed the same work once he asked outright.
+  records in App Store Connect. Otherwise `ci_post_clone.sh` stamps 5.4 and App Store Connect rejects
+  the upload.
+  - Pushes of documentation only do not start a build. Xcode Cloud's filter covers only `*.md`,
+    `Docs/`, `.claude/`, `.agents/`, `.codex/`, `fastlane/metadata/` and `.github/`.
+  - A push that also touches `scripts/` does start a build. Put `[ci skip]` in that commit message.
+- App Store Connect writes happen only at the owner's word.
 - Guard memory on builds (18 GB Mac): `-jobs 2`, stop at 15% free, and build from `/private/tmp/oi-src`.
-  swift-format rewrites Swift files edited with Edit/Write. Commit to `main`, no branches or pull
-  requests unless the owner asks, no AI trailer.
+- swift-format rewrites Swift files edited with Edit/Write.
+- Commits: commit to `main`, with no branches or pull requests unless the owner asks, and no AI
+  trailer. Exception: the 2026-09-26 audit commit is on `claude/determined-ritchie-7y60am` because the
+  cloud session was set to push there. Merging it into `main` is the owner's call.
 
 ## Working Set
 
-- `Docs/SHIPPED_VERSION.json`, `CHANGELOG.md`, `Docs/USER_CHANGELOG.md` and
-  `OpenIntelligence/Resources/VersionHistory.md` are the release records.
-- In the site repos: Fascinaiting `index.html` (timeline), Gunzino `openintelligence/index.html:226`,
-  `index.html:374`, `src/content/pages/openintelligence.md:4` and `src/data/home.json:9`.
+| Path | Why it matters |
+|---|---|
+| `Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/README.md` | Entry point: rows filed, open items |
+| `Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/REPORT.md` | The report, with the ranked changes table |
+| `Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/proposed/extractor-fix.patch` | The fix plus four regression tests; not applied |
+| `OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift` | What the patch changes: the "much/many" expansion at `:1482-1484` and the unit match at `:583-615` |
+| `OpenIntelligenceTests/Services/RAG/Tuning/` | Where the patch creates the new test class `PrecisionLockAnswerTypeTests`, which does not exist yet |
+| `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift` | Precision lookup at `:8578`. Override sites at `:8705`, `:8734`, `:9199`, `:14383` and `:15192` |
+| `.claude/skills/apple-api-truth/SKILL.md` | Its `ContextOptions` fact needs re-checking (Blockers) |
+| Release records | `Docs/SHIPPED_VERSION.json`, `CHANGELOG.md`, `Docs/USER_CHANGELOG.md`, `OpenIntelligence/Resources/VersionHistory.md` |
 
-## Verification (2026-09-24, output read)
+## Verification (2026-09-26, output read)
 
-- App Store Connect, 17:00 PT: iOS 5.4 and macOS 5.4 are both `READY_FOR_SALE`, build 478.
-- `python3 scripts/verify_doc_claims.py` passes, apart from a stale path in the previous copy of this
-  file. The router preflight reports active release `v5.4`, state shipped, last shipped `v5.4`.
-- Fascinaiting `./scripts/verify-site.sh source` and Gunzino `npm run verify` each exited 0 before
-  the push. Every site run since the push passed, apart from the harmless roadmap race above.
-- Live, by curl: fascinaiting.me reads "App Store 5.4", gunzino.me "Version 5.4" on both pages, and
-  gunnarguy.me "Version 5.4". Fascinaiting's four internal files (`/CLAUDE.md`,
-  `/ANALYTICS_AUDIT.md`, `/google_ads_config.json`, `/FACT_CHECK-2026-09.md`) return 404.
-- Earlier, on the 5.4 code: the full iOS suite ran 500 tests with 0 failures and 3 skipped
-  (2026-09-23).
+These ran in a Linux cloud container with no Swift toolchain. Nothing was compiled, built or run on a
+device.
+- `git diff --stat c276b9a b37ab4c -- '*.swift'` -> only `scripts/screenshots/winid.swift` and
+  `winlist.swift` changed, so the app source at `b37ab4c` is the shipped 5.4 source.
+- `git apply --check --verbose Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/proposed/extractor-fix.patch`
+  -> both files check clean at `b37ab4c`.
+- In that folder's `port/`, `PYTHONHASHSEED=0 python3 validate_proposed_test.py` -> the Python port of
+  the extractor predicts 3 of the 4 proposed tests fail on today's code and all 4 pass with the patch.
+  This is a prediction from the port, not a Swift run.
+- `python3 scripts/secret_scan.py` -> no sensitive tokens.
+- `python3 scripts/verify_doc_claims.py`, run after this file was written -> 722 claims checked, all
+  match the source.
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 31 tests OK.
+- Earlier checks of the 5.4 release are recorded in `git show 696680c:Docs/ai/STATE.md` and were not
+  re-run: App Store Connect states, the three sites, and the 500-test suite on 2026-09-23.
 
 ## Blockers / Unknowns
 
 - **Six `v5.4` rows close on the owner's device check**, and nothing can verify that from here:
-  - answers finish when the last word appears:
-    https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142
-  - the haptic, badge and clock for an answer that finishes off screen:
-    https://app.notion.com/p/3e449a74d54f8193964bdda0f50d16c3
-  - Deep Think and Maximum stream:
-    https://app.notion.com/p/3e449a74d54f813787a6cf91ef814767
-  - the free plan's Maximum cap is enforced:
-    https://app.notion.com/p/3e349a74d54f81b49205d1a75f2a4b99
-  - the plans screen after setup does not crash:
-    https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9
-  - 5.4's What's New shows to updaters:
-    https://app.notion.com/p/3e149a74d54f819aba78e2b85f0e9942
+  - answers finish when the last word appears: https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142
+  - haptic, badge and clock for an answer that finishes off screen: https://app.notion.com/p/3e449a74d54f8193964bdda0f50d16c3
+  - Deep Think and Maximum stream: https://app.notion.com/p/3e449a74d54f813787a6cf91ef814767
+  - the free plan's Maximum cap is enforced: https://app.notion.com/p/3e349a74d54f81b49205d1a75f2a4b99
+  - the plans screen after setup does not crash: https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9
+  - 5.4's What's New shows to updaters: https://app.notion.com/p/3e149a74d54f819aba78e2b85f0e9942
 
-  When he says they work, set each row to `Completed` with `date:Completed:start` 2026-09-24 or later.
+  When the owner confirms they work, set each row to `Completed` with `date:Completed:start`
+  2026-09-24 or later.
+- **The extractor patch has never been compiled.** To verify it on the Mac:
+  1. Apply only the test file:
+     `git apply --include='OpenIntelligenceTests/*' Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/proposed/extractor-fix.patch`.
+  2. Run the `Docs/ai/RUNBOOK.md` `## Test` invocation with
+     `-only-testing:OpenIntelligenceTests/PrecisionLockAnswerTypeTests`. Expect 3 failures and 1 pass.
+  3. Apply the rest of the patch and run the same command again. Expect 4 passes.
+  4. Re-ask the incident question on a device in Deep Think. In Standard, use a fresh phrasing: an
+     exact semantic-cache hit replays old retrieval (`RAGService.swift:9832-9850`).
+- **The `ContextOptions` row in `.claude/skills/apple-api-truth/SKILL.md` may be wrong as worded.** It
+  says `ContextOptions` is a defaulted argument on every `respond`/`streamResponse` overload. Apple's
+  documentation, fetched 2026-09-26, shows it only on the 12 new iOS 27 overloads. Before editing the
+  table, grep `contextOptions` in the iOS 27 SDK's `FoundationModels.swiftinterface` (path pattern in
+  that skill) and count the overloads.
 - The three subscription descriptions in App Store Connect are still wrong ("unlimited documents and
-  5 libraries" for Pro, "10 Libraries" for Lifetime). The API refuses them (409, ACTIVE), so they are
-  a web-page edit, the owner's.
-- Cleanup, test data only:
-  - `/private/tmp/oi-ui-appsupport-2026-09-23`
-  - simulators `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`, `57E0CE08-EA1A-4D02-9D74-FEBD238709ED` and
-    `F798E00A-9F48-44B8-A087-45413A96783A`, all shut down
-  - `/private/tmp/oi-bench/`
-  - in the owner's iCloud Documents, `~/Documents/SampleDocuments` and
-    `~/Documents/SampleDocuments.evicted-2026-09-23`, which hold sample copies only
+  5 libraries" for Pro, "10 Libraries" for Lifetime). The API refuses them (409, ACTIVE), so the fix is
+  the owner's web-page edit.
+- Cleanup, test data only: `/private/tmp/oi-ui-appsupport-2026-09-23`; `/private/tmp/oi-bench/`; three
+  shut-down simulators (`6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`, `57E0CE08-EA1A-4D02-9D74-FEBD238709ED`,
+  `F798E00A-9F48-44B8-A087-45413A96783A`); and, in the owner's iCloud Documents,
+  `~/Documents/SampleDocuments` and `~/Documents/SampleDocuments.evicted-2026-09-23`, which hold sample
+  copies only.
 
 ## Exact Next Action
 
-None. 5.4 is shipped and closed out, and the owner paused development after it. When he confirms
-the device checks, close the six rows in Blockers. When he resumes building, open 5.5 as Active
-Constraints describes before the first app-change push.
+None until the owner decides on the audit. If the reply is `PROCEED: IMPLEMENT` for the extractor
+patch, start on the Mac with step 1 of "The extractor patch has never been compiled" under Blockers.
+Before any push to `main`, open 5.5 as Active Constraints describes.

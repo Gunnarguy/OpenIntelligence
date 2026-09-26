@@ -1,0 +1,265 @@
+====================================================================================================
+REPORTED CASE via spec sniper (Deep Think / Maximum precision path)
+Q: How much notice do I have to give before I move out?
+  sniper query words: ['notice', 'give', 'move', 'out']
+  sniper picked: Kestrel AF-620 Air Fryer Manual.pdf p.1  score=0.835 hits=['move', 'out']
+  sniper picked: Kestrel AF-620 Air Fryer Manual.pdf p.2  score=0.805 hits=['move', 'out']
+  sniper picked: Maple Court Lease.pdf p.4  score=0.750 hits=['notice', 'give', 'move', 'out']
+-- current code (b37ab4c)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (12): ['before', 'capacity', 'gallons', 'give', 'have', 'liters', 'move', 'much', 'notice', 'out', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8775 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0375, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1 lb' (Measurement) score=0.8525 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0125, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22}
+   Candidate '1 lb' (Measurement) score=0.8525 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0125, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22}
+   extractor returned '5.8 qt' conf=0.8775
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+-- fix A only (expansion needs an anchor)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (7): ['before', 'give', 'have', 'move', 'much', 'notice', 'out']
+          measurement-style query: False
+   Candidate '390°F' (Measurement) score=0.5429 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '1 lb' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '380°F' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   lowConfidence 0.5429 < 0.65
+   => no lock -> question goes to the model
+-- fix B only (exact unit token)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (12): ['before', 'capacity', 'gallons', 'give', 'have', 'liters', 'move', 'much', 'notice', 'out', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8775 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0375, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '120 V' (Measurement) score=0.6700 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '1700 W' (Measurement) score=0.6575 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0375, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '5.8 qt' conf=0.8775
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+-- fix A + fix B
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (7): ['before', 'give', 'have', 'move', 'much', 'notice', 'out']
+          measurement-style query: False
+   Candidate '390°F' (Measurement) score=0.5429 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '1 lb' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '380°F' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   lowConfidence 0.5429 < 0.65
+   => no lock -> question goes to the model
+====================================================================================================
+MINIMAL FIXTURE: lease s16 + air fryer chart, passed straight to the extractor
+Q: How much notice do I have to give before I move out?
+-- current code (b37ab4c)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (12): ['before', 'capacity', 'gallons', 'give', 'have', 'liters', 'move', 'much', 'notice', 'out', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '1 lb' (Measurement) score=0.8525 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0125, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22}
+   Candidate '1 lb' (Measurement) score=0.8525 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0125, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22}
+   Candidate '1 lb' (Measurement) score=0.8025 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.2, 'kw_ratio': 0.0125, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22}
+   extractor returned '1 lb' conf=0.8525
+   => LOCKED (model skipped): 1 lb. [Kestrel AF-620 Air Fryer Manual.pdf, p.1]
+-- fix A only (expansion needs an anchor)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (7): ['before', 'give', 'have', 'move', 'much', 'notice', 'out']
+          measurement-style query: False
+   Candidate '390°F' (Measurement) score=0.5429 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '1 lb' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '380°F' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   lowConfidence 0.5429 < 0.65
+   => no lock -> question goes to the model
+-- fix B only (exact unit token)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (12): ['before', 'capacity', 'gallons', 'give', 'have', 'liters', 'move', 'much', 'notice', 'out', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '390°F' (Measurement) score=0.6450 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move'] parts={'proximity': 0.25, 'kw_ratio': 0.025, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12}
+   Candidate '1 lb' (Measurement) score=0.6325 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0125, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12}
+   Candidate '380°F' (Measurement) score=0.6325 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0125, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12}
+   lowConfidence 0.6450 < 0.65
+   => no lock -> question goes to the model
+-- fix A + fix B
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (7): ['before', 'give', 'have', 'move', 'much', 'notice', 'out']
+          measurement-style query: False
+   Candidate '390°F' (Measurement) score=0.5429 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '1 lb' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate '380°F' (Measurement) score=0.5214 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out'] parts={'proximity': 0.25, 'kw_ratio': 0.0214, 'structure': 0.1, 'chunk_rel': 0.1, 'type': 0.05}
+   lowConfidence 0.5429 < 0.65
+   => no lock -> question goes to the model
+====================================================================================================
+NOTICE QUESTION vs a page with a genuine liquid unit (5.8 qt)
+Q: How much notice do I have to give before I move out?
+-- current code (b37ab4c)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (12): ['before', 'capacity', 'gallons', 'give', 'have', 'liters', 'move', 'much', 'notice', 'out', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8775 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0375, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '120 V' (Measurement) score=0.6700 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '1700 W' (Measurement) score=0.6575 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0375, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '5.8 qt' conf=0.8775
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+-- fix A only (expansion needs an anchor)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (7): ['before', 'give', 'have', 'move', 'much', 'notice', 'out']
+          measurement-style query: False
+   Candidate '120 V' (Measurement) score=0.4643 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0643, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate 'with 60' (Code) score=0.4529 from Maple Court Lease.pdf  matched=['give', 'notice'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.06}
+   Candidate '5.8 qt' (Measurement) score=0.4429 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05}
+   ambiguousMultiple ['120 V', '1700 W', '5.8 qt', 'with 60']
+   => no lock -> question goes to the model
+-- fix B only (exact unit token)
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (12): ['before', 'capacity', 'gallons', 'give', 'have', 'liters', 'move', 'much', 'notice', 'out', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8775 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0375, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '120 V' (Measurement) score=0.6700 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '1700 W' (Measurement) score=0.6575 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'capacity', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0375, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '5.8 qt' conf=0.8775
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+-- fix A + fix B
+   [1502] Descriptive (ordered prefix 5): ['much', 'notice', 'have', 'give', 'before']
+          full descriptive set (7): ['before', 'give', 'have', 'move', 'much', 'notice', 'out']
+          measurement-style query: False
+   Candidate '120 V' (Measurement) score=0.4643 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['out', 'move', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0643, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05}
+   Candidate 'with 60' (Code) score=0.4529 from Maple Court Lease.pdf  matched=['give', 'notice'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.06}
+   Candidate '5.8 qt' (Measurement) score=0.4429 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['move', 'before'] parts={'proximity': 0.25, 'kw_ratio': 0.0429, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05}
+   ambiguousMultiple ['120 V', '1700 W', '5.8 qt', 'with 60']
+   => no lock -> question goes to the model
+====================================================================================================
+CONTROL: car oil capacity (must still lock 4.5 L / 4.8 qt)
+Q: How much oil does the engine take?
+-- current code (b37ab4c)
+   [1502] Descriptive (ordered prefix 5): ['much', 'oil', 'engine', 'liters', 'quarts']
+          full descriptive set (8): ['capacity', 'engine', 'gallons', 'liters', 'much', 'oil', 'quarts', 'volume']
+          measurement-style query: True
+   Structured-table phase locked '0W-20' conf=0.85 (keywords in context ['oil', 'capacity', 'engine'])
+   extractor returned '0W-20' conf=0.8500
+   => LOCKED (model skipped): 0W-20 [Owner's Manual.pdf, p.312]
+-- fix A only (expansion needs an anchor)
+   [1502] Descriptive (ordered prefix 5): ['much', 'oil', 'engine', 'liters', 'quarts']
+          full descriptive set (8): ['capacity', 'engine', 'gallons', 'liters', 'much', 'oil', 'quarts', 'volume']
+          measurement-style query: True
+   Structured-table phase locked '0W-20' conf=0.85 (keywords in context ['oil', 'capacity', 'engine'])
+   extractor returned '0W-20' conf=0.8500
+   => LOCKED (model skipped): 0W-20 [Owner's Manual.pdf, p.312]
+-- fix B only (exact unit token)
+   [1502] Descriptive (ordered prefix 5): ['much', 'oil', 'engine', 'liters', 'quarts']
+          full descriptive set (8): ['capacity', 'engine', 'gallons', 'liters', 'much', 'oil', 'quarts', 'volume']
+          measurement-style query: True
+   Structured-table phase locked '0W-20' conf=0.85 (keywords in context ['oil', 'capacity', 'engine'])
+   extractor returned '0W-20' conf=0.8500
+   => LOCKED (model skipped): 0W-20 [Owner's Manual.pdf, p.312]
+-- fix A + fix B
+   [1502] Descriptive (ordered prefix 5): ['much', 'oil', 'engine', 'liters', 'quarts']
+          full descriptive set (8): ['capacity', 'engine', 'gallons', 'liters', 'much', 'oil', 'quarts', 'volume']
+          measurement-style query: True
+   Structured-table phase locked '0W-20' conf=0.85 (keywords in context ['oil', 'capacity', 'engine'])
+   extractor returned '0W-20' conf=0.8500
+   => LOCKED (model skipped): 0W-20 [Owner's Manual.pdf, p.312]
+====================================================================================================
+CONTROL: basket capacity (must still lock 5.8 qt)
+Q: How much food does the basket hold?
+-- current code (b37ab4c)
+   [1502] Descriptive (ordered prefix 5): ['much', 'food', 'basket', 'hold', 'liters']
+          full descriptive set (9): ['basket', 'capacity', 'food', 'gallons', 'hold', 'liters', 'much', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8733 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.0333, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1700 W' (Measurement) score=0.6533 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.0333, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '120 V' (Measurement) score=0.6533 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.0333, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '5.8 qt' conf=0.8733
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+-- fix A only (expansion needs an anchor)
+   [1502] Descriptive (ordered prefix 5): ['much', 'food', 'basket', 'hold', 'capacity']
+          full descriptive set (6): ['basket', 'capacity', 'food', 'hold', 'much', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8900 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1700 W' (Measurement) score=0.6700 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '120 V' (Measurement) score=0.6700 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '5.8 qt' conf=0.8900
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+-- fix B only (exact unit token)
+   [1502] Descriptive (ordered prefix 5): ['much', 'food', 'basket', 'hold', 'liters']
+          full descriptive set (9): ['basket', 'capacity', 'food', 'gallons', 'hold', 'liters', 'much', 'quarts', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8733 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.0333, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1700 W' (Measurement) score=0.6533 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.0333, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '120 V' (Measurement) score=0.6533 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.0333, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '5.8 qt' conf=0.8733
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+-- fix A + fix B
+   [1502] Descriptive (ordered prefix 5): ['much', 'food', 'basket', 'hold', 'capacity']
+          full descriptive set (6): ['basket', 'capacity', 'food', 'hold', 'much', 'volume']
+          measurement-style query: True
+   Candidate '5.8 qt' (Measurement) score=0.8900 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1700 W' (Measurement) score=0.6700 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '120 V' (Measurement) score=0.6700 from Kestrel AF-620 Air Fryer Manual.pdf  matched=['basket', 'capacity'] parts={'proximity': 0.25, 'kw_ratio': 0.05, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '5.8 qt' conf=0.8900
+   => LOCKED (model skipped): 5.8 qt. [Kestrel AF-620 Air Fryer Manual.pdf, p.2]
+====================================================================================================
+CONTROL: fuel question, weight + gallons nearby (must pick gallons, never lb)
+Q: How much fuel does the tank hold?
+-- current code (b37ab4c)
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '21 gallons' (Measurement) score=1.0000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1, 'desc_contain': 0.1}
+   Candidate '3,200 lb' (Measurement) score=0.9000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.9000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   extractor returned '21 gallons' conf=1.0000
+   => LOCKED (model skipped): 21 gallons. [Truck Manual.pdf, p.9]
+-- fix A only (expansion needs an anchor)
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '21 gallons' (Measurement) score=1.0000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1, 'desc_contain': 0.1}
+   Candidate '3,200 lb' (Measurement) score=0.9000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.9000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   extractor returned '21 gallons' conf=1.0000
+   => LOCKED (model skipped): 21 gallons. [Truck Manual.pdf, p.9]
+-- fix B only (exact unit token)
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '21 gallons' (Measurement) score=1.0000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1, 'desc_contain': 0.1}
+   Candidate '3,200 lb' (Measurement) score=0.6800 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.6800 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '21 gallons' conf=1.0000
+   => LOCKED (model skipped): 21 gallons. [Truck Manual.pdf, p.9]
+-- fix A + fix B
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '21 gallons' (Measurement) score=1.0000 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1, 'desc_contain': 0.1}
+   Candidate '3,200 lb' (Measurement) score=0.6800 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.6800 from Truck Manual.pdf  matched=['fuel', 'capacity', 'gallons', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.06, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '21 gallons' conf=1.0000
+   => LOCKED (model skipped): 21 gallons. [Truck Manual.pdf, p.9]
+====================================================================================================
+CONTROL: fuel question, ONLY weights nearby (must not lock a weight)
+Q: How much fuel does the tank hold?
+-- current code (b37ab4c)
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '3,200 lb' (Measurement) score=0.8850 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.8850 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   extractor returned '3,200 lb' conf=0.8850
+   => LOCKED (model skipped): 3,200 lb. [Truck Manual.pdf, p.9]
+-- fix A only (expansion needs an anchor)
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '3,200 lb' (Measurement) score=0.8850 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.8850 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'unit_match': 0.22, 'anchor': 0.1}
+   extractor returned '3,200 lb' conf=0.8850
+   => LOCKED (model skipped): 3,200 lb. [Truck Manual.pdf, p.9]
+-- fix B only (exact unit token)
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '3,200 lb' (Measurement) score=0.6650 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.6650 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '3,200 lb' conf=0.6650
+   => no lock -> question goes to the model
+-- fix A + fix B
+   [1502] Descriptive (ordered prefix 5): ['much', 'fuel', 'tank', 'hold', 'liters']
+          full descriptive set (10): ['capacity', 'fuel', 'gallons', 'gas', 'hold', 'liters', 'much', 'quarts', 'tank', 'volume']
+          measurement-style query: True
+   Candidate '3,200 lb' (Measurement) score=0.6650 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   Candidate '1,500 lb' (Measurement) score=0.6650 from Truck Manual.pdf  matched=['fuel', 'capacity', 'tank'] parts={'proximity': 0.25, 'kw_ratio': 0.045, 'structure': 0, 'chunk_rel': 0.1, 'type': 0.05, 'measure_style': 0.12, 'anchor': 0.1}
+   extractor returned '3,200 lb' conf=0.6650
+   => no lock -> question goes to the model
