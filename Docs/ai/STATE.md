@@ -2,7 +2,7 @@
 
 Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: eb6b5f6
+Last verified commit: f2298d0
 
 ## Objective
 
@@ -26,15 +26,16 @@ left needs his word or an app release (Blockers).
     are, the page's GitHub links point at `df2c5b5`.
 - **Cleanup, done 2026-09-28** (documentation and tooling only):
   - Docs naming code or files that no longer exist: 19 down to 7. Corrected against the code, with
-    evidence tags: `Docs/INGESTION_PIPELINE.md` (token limit as `DocumentProcessor` enforces it, not
-    `BertTokenizer`), both EdgeToEdge docs (`HybridSearchService.searchWithFTS5`),
+    evidence tags: `Docs/INGESTION_PIPELINE.md` (token limit as `DocumentProcessor` enforces it, replacing a mention of
+    the removed BertTokenizer), both EdgeToEdge docs (`HybridSearchService.searchWithFTS5`),
     `Docs/Engineering/FULL_SYSTEM_TRACE.md` (`OCRConfiguration.configureRequest`), the research
     reference sheet, and dated notes in `Docs/AppleIntelligenceTransitionPlan.md` and
     `Docs/Engineering/V5_EMBEDDING_ARC_LEDGER.md`. The seven left are plans, playbooks or a ledger
     that name files that were proposed and never built; the page shows each reason.
   - The survey stopped flagging correct references: a `+` in a file name, xcodebuild test
     identifiers, and names whose own sentence says they are gone. Earlier this session I said three
-    docs call `BertTokenizer` current; only `Docs/INGESTION_PIPELINE.md` did, and it is fixed.
+    docs present the removed BertTokenizer as current; only `Docs/INGESTION_PIPELINE.md` did, and it
+    is fixed.
   - Six loose root files (five console logs and `default.profraw`) moved into `.attic.nosync/`, the
     attic `.gitignore` line 264 names for exactly this. Not in git before or after.
   - Roadmap row https://app.notion.com/p/3db49a74d54f81ecaec2f00491bc1239 closed: its two Stop-hook
