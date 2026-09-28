@@ -1,6 +1,6 @@
 ---
 name: repo-map
-description: Rebuild and republish the OpenIntelligence Repo Map, the owner's private page that shows every file in the repository, a trust status for each doc checked against the code, the Swift files nothing uses, a flow diagram, and the loose files git ignores. Use when the owner asks to refresh, rebuild or open the repo map, asks which docs are stale, accurate or safe to archive, which files are unused, or wants to see or visualize the repository. It is a page for the owner, not the agent feature index; that is the global codemap skill.
+description: Rebuild and republish the Repo Map pages, the owner's private pages that show every file in a repository, a trust status for each doc checked against the code, the Swift files nothing uses, and the loose files git ignores, for OpenIntelligence and his other App Store apps (OpenResponses, OpenManual, OpenCone). Use when the owner asks to refresh, rebuild or open a repo map, asks which docs are stale, accurate or safe to archive, which files are unused, or wants to see or visualize a repository. It is a page for the owner, not the agent feature index; that is the global codemap skill.
 ---
 
 # Repo Map
@@ -24,6 +24,35 @@ Xcode SDK's `.swiftinterface` files. `build_map.py` refuses an output path insid
 To look at it before publishing, add `--preview "$OUT/preview.html"` to `render.py` and serve `$OUT`
 over `python3 -m http.server`; the browser pane will not open a `file://` page it did not create.
 
+## The owner's other App Store apps
+
+The same builder maps any Swift app repository. The parts that need something OpenIntelligence has
+(its doc gate, its architecture tables and flow diagram, its Engine target, `Docs/SHIPPED_VERSION.json`)
+switch on only where they exist; a repository with a codemap (`docs/ai/codemap/`, from the global
+`codemap` skill) gets its features listed by name. Nothing is written inside the mapped repository.
+
+| App | Repository | Page |
+|---|---|---|
+| OpenResponses | `~/Documents/GitHub/OpenResponses` | https://claude.ai/artifact/B6HQyzdf8Gxa1ZBRVm8MYa |
+| OpenManual | `~/Documents/GitHub/OpenManual` | https://claude.ai/artifact/RhpBCzLL15CrdHqg5efEWf |
+| OpenCone | `~/Documents/GitHub/OpenCone` | https://claude.ai/artifact/1EfQKxBhW2TtjRg4wKySFF |
+
+```bash
+APP=OpenCone; OUT="${TMPDIR:-/tmp}/$APP-map"
+python3 .claude/skills/repo-map/scripts/build_map.py --root ~/Documents/GitHub/$APP --name $APP \
+    --live-version 3 --out "$OUT/data.json"
+python3 .claude/skills/repo-map/scripts/render.py "$OUT/data.json" "$OUT/repo-map.html"
+```
+
+`--live-version` is the version live on the App Store; take it from the store rather than from
+memory: `curl -s "https://itunes.apple.com/lookup?bundleId=<bundle id>"`. Which apps are live was
+read on 2026-09-28 from App Store Connect (`/v1/apps`, through `~/ASC`) plus that lookup: the four
+above. WoWCA, Bud4, WoWGuessr, OpenAssistant and ASCDash exist in App Store Connect but were not in
+the US store. The repositories live in iCloud, so read each `.git` once before a survey
+(`find .git -type f -print0 | xargs -0 cat > /dev/null`), or git can stall on evicted objects.
+`REPO_MAP_ROOT=<repo> REPO_MAP_NAME=<app> python3 .claude/skills/repo-map/scripts/test_build_map.py`
+runs the same checks against another repository.
+
 ## What each doc status means
 
 | Status | Rule |
@@ -34,7 +63,7 @@ over `python3 -m http.server`; the browser pane will not open a `file://` page i
 | Gate-checked | On `scripts/verify_doc_claims.py`'s list, and every reference resolves |
 | References resolve | Three or more references, all resolve, and the code it cites has mostly not changed since |
 | Can't check | Fewer than 3 references; prose |
-| History | Archives, audits, snapshots, release logs, or a doc that says it was superseded |
+| History | Archives, audits, snapshots, release logs, a folder per shipped version (`docs/releases/v2.6/`), a review or audit folder, or a doc that says it was superseded |
 
 "Removed" means not declared or used in live code (comments do not count), not an Apple SDK type,
 and not from a package dependency. A missing name whose own sentence or table cell says it is gone

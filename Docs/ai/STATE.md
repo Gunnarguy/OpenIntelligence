@@ -2,7 +2,7 @@
 
 Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 59a5906
+Last verified commit: 25722e2
 
 ## Objective
 
@@ -42,6 +42,13 @@ left needs his word or an app release (Blockers).
     tests pass (11/11), and `ff7f493` names the cause.
   - Deliberately not moved: the seven top-level audit snapshots in `Docs/`. `Docs/README.md`
     records a 2026-08-17 decision that moving them breaks 48 references and the RepoOS.
+- **Repo Maps for the other App Store apps, done 2026-09-28.** The builder now maps any Swift
+  repository; OpenIntelligence's own map came out identical apart from two release folders it now
+  counts as history. Pages: OpenResponses https://claude.ai/artifact/B6HQyzdf8Gxa1ZBRVm8MYa, OpenManual
+  https://claude.ai/artifact/RhpBCzLL15CrdHqg5efEWf, OpenCone https://claude.ai/artifact/1EfQKxBhW2TtjRg4wKySFF.
+  Live apps came from App Store Connect plus the public store lookup; commands and the list are in
+  `.claude/skills/repo-map/SKILL.md`. Nothing was written inside those repositories. The generalized
+  builder is committed here after `25722e2`, **not pushed**.
 - **5.4 is live on iOS and macOS**, build 478 (Xcode Cloud #478 from `c276b9a`), and closed out in
   this repository, on GitHub (`v5.4.0` is Latest), on all three websites and in Notion. The release
   procedure used is in `Docs/ai/RUNBOOK.md`, "Releasing an approved version through the API".
@@ -82,6 +89,8 @@ left needs his word or an app release (Blockers).
 
 ## Verification (2026-09-28, output read)
 
+- `test_build_map.py` against all four repositories (`REPO_MAP_ROOT=... REPO_MAP_NAME=...`) -> 9
+  tests OK in each, 2026-09-28, after the builder was generalized.
 - `python3 .claude/skills/repo-map/scripts/test_build_map.py` -> 9 tests OK after the cleanup
   (three added to pin the false-positive fixes). An earlier run failed on `Package.swift`'s exclude
   list naming `KeychainStorage.swift`; the test now reads only the source folders the survey reads.

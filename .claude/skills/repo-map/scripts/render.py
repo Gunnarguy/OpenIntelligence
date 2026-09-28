@@ -3,6 +3,9 @@
 
     python3 .claude/skills/repo-map/scripts/render.py <data.json> <out.html> [--preview <preview.html>]
 
+The page is named "<app> Repo Map", taking the app from the survey (build_map.py --name, or the
+repository folder name).
+
 <out.html> is what the Artifact tool publishes: page content with no <html>/<head>/<body>, because
 the publisher wraps it. --preview also writes a standalone copy with that wrapper, for a browser.
 """
@@ -24,6 +27,9 @@ template = (HERE / "page_template.html").read_text()
 if "/*__DATA__*/" not in template:
     raise SystemExit("page_template.html has lost its /*__DATA__*/ placeholder")
 # "</" inside the JSON would end the <script> element early; "\/" is the same JSON string.
+# Name the page before the survey goes in, so no string inside the survey can be renamed by accident.
+app = json.loads(data).get("app") or "OpenIntelligence"
+template = template.replace("OpenIntelligence Repo Map", f"{app} Repo Map")
 page = template.replace("/*__DATA__*/", data.replace("</", "<\\/"))
 Path(args.out).write_text(page)
 if args.preview:

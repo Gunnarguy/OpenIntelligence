@@ -243,7 +243,7 @@ footer{color:var(--muted);font-size:12.5px;padding-block:10px 40px;border-top:1p
   </section>
 
   <nav class="tabs" role="tablist" aria-label="Views">
-    <button role="tab" id="tab-how" aria-controls="p-how" data-tab="how">How it fits together</button>
+    <button role="tab" id="tab-how" aria-controls="p-how" data-tab="how">Overview</button>
     <button role="tab" id="tab-docs" aria-controls="p-docs" data-tab="docs">Docs</button>
     <button role="tab" id="tab-code" aria-controls="p-code" data-tab="code">Code</button>
     <button role="tab" id="tab-map" aria-controls="p-map" data-tab="map">Map</button>
@@ -283,6 +283,13 @@ const blob = p => REPO + '/blob/' + LINK + '/' + p.split('/').map(encodeURICompo
 const hist = p => REPO + '/commits/' + LINK + '/' + p.split('/').map(encodeURIComponent).join('/');
 const commit = s => REPO + '/commit/' + s;
 const base = p => p.split('/').pop();
+const IS_OI = D.flow === 'openintelligence';
+if (IS_OI) document.getElementById('tab-how').textContent = 'How it fits together';
+{
+  const ex = IS_OI ? ['HUD', 'paywall', 'RAGService']
+    : [...(D.features || []).slice(0, 2).map(f => f.name), ...D.files.filter(f => f.k === 'app' && f.types && f.types.length).sort((a, b) => b.lines - a.lines).slice(0, 1).map(f => f.types[0])];
+  document.getElementById('q').placeholder = 'Find a feature, file, type or doc' + (ex.length ? ': try ' + ex.join(', ') : '');
+}
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -317,7 +324,7 @@ const ST = {
   'unchecked':  {label: "Can't check",        color: '--unk',      icon: 'q'},
   'history':    {label: 'History',            color: '--hist',     icon: 'box'},
 };
-const ORDER = Object.keys(ST);
+const ORDER = Object.keys(ST).filter(s => s !== 'verified' || D.has_gate !== false);
 const chip = st => h('span', {class: 'chip'}, h('span', {class: 'ic', style: `color:var(${ST[st].color})`, html: ICON[ST[st].icon]}), ST[st].label);
 const useChip = f => f.use === 'orphan'
   ? h('span', {class: 'chip'}, h('span', {class: 'ic', style: 'color:var(--critical)', html: ICON.unused}), 'Nothing uses it')
@@ -345,8 +352,8 @@ function ownerDocs(owner) {
 
 /* ---------- header, summary ---------- */
 $('#meta').append(
-  'Surveyed at ', LINK === HEAD ? h('a', {href: commit(HEAD), target: '_blank', rel: 'noopener', class: 'mono'}, SHORT)
-    : [h('span', {class: 'mono'}, SHORT), ' (not on GitHub yet; links use ', h('a', {href: commit(LINK), target: '_blank', rel: 'noopener', class: 'mono'}, LINK.slice(0, 7)), ')'],
+  'Surveyed at ', ...(LINK === HEAD ? [h('a', {href: commit(HEAD), target: '_blank', rel: 'noopener', class: 'mono'}, SHORT)]
+    : [h('span', {class: 'mono'}, SHORT), ' (not on GitHub yet; links use ', h('a', {href: commit(LINK), target: '_blank', rel: 'noopener', class: 'mono'}, LINK.slice(0, 7)), ')']),
   ' · ', D.generated.replace('T', ' '), ' · live version ', h('b', null, D.live_version),
   ' · ', fmt(D.counts.tracked), ' files in git');
 
@@ -459,7 +466,7 @@ function openDoc(d) {
 function openSwift(f) {
   openDrawer(base(f.p), f.p, b => {
     b.append(actions(f.p));
-    const tags = h('div', {class: 'acts'}, useChip(f), h('span', {class: 'tag'}, f.k === 'test' ? 'Test' : f.engine ? 'App + Engine SDK target' : 'App target only'), f.area ? h('span', {class: 'tag'}, f.area) : null);
+    const tags = h('div', {class: 'acts'}, useChip(f), f.k === 'test' ? h('span', {class: 'tag'}, 'Test') : f.engine === true ? h('span', {class: 'tag'}, 'App + Engine SDK target') : f.engine === false ? h('span', {class: 'tag'}, 'App target only') : null, f.area ? h('span', {class: 'tag'}, f.area) : null);
     b.append(tags);
     if (f.blurb) b.append(sec('What it says it does', h('div', null, f.blurb)));
     if (f.types?.length) b.append(sec('Declares', h('div', {class: 'mono'}, f.types.join(', '))));
@@ -519,6 +526,7 @@ const NODES = {
 };
 function renderHow() {
   const P = $('#p-how');
+  if (!IS_OI) return renderOverview(P);
   const box = (id, x, y, w) => `<g class="node" tabindex="0" role="button" data-id="${id}" aria-label="${NODES[id].t}: list its files"><rect class="box" x="${x}" y="${y}" width="${w}" height="54" rx="9"/><text class="nt" x="${x + 12}" y="${y + 23}">${NODES[id].t}</text><text class="ns" x="${x + 12}" y="${y + 41}">${NODES[id].s}</text></g>`;
   const lab = (x, y, t, key) => `<text class="elabel${key ? ' key' : ''}" x="${x}" y="${y}" text-anchor="middle">${t}</text>`;
   const svg = `
@@ -580,6 +588,32 @@ function renderHow() {
   P.append(h('div', {class: 'tablewrap'}, h('table', {class: 'plain'}, h('thead', null, h('tr', null, h('th', null, 'Area'), h('th', null, 'Folder'), h('th', null, 'Swift files'), h('th', null, 'Owning doc'))), tb)));
 }
 
+function renderOverview(P) {
+  if (D.features && D.features.length) {
+    P.append(h('h3', {class: 'h3', style: 'margin-top:4px'}, 'Features, by the names people use'));
+    P.append(h('div', {class: 'muted', style: 'margin:-4px 0 10px;font-size:13px'}, 'From the codemap feature index in ' + (D.features[0].source || '').replace(/\/features\/.*$/, '') + '.'));
+    P.append(h('div', {class: 'vocab'}, D.features.map(v => h('div', {class: 'vcard'},
+      h('div', {class: 'vn'}, v.name),
+      v.purpose ? h('div', {class: 'muted', style: 'font-size:13px;margin-top:2px'}, v.purpose.slice(0, 220)) : null,
+      h('div', {class: 'vf'}, v.files.length ? v.files.map(p => h('button', {class: 'linkbtn', on: {click: () => openAny(p)}}, base(p))) : h('span', {class: 'muted'}, 'no primary files listed')),
+      v.aliases && v.aliases.length ? h('div', {class: 'vs'}, 'Also called: ' + v.aliases.join('  ·  ')) : null))));
+  }
+  P.append(h('h3', {class: 'h3'}, 'Folders'));
+  const groups = new Map();
+  for (const f of swift) { const k = groupKey(f.p); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
+  const tb = h('tbody');
+  for (const k of [...groups.keys()].sort()) {
+    const fs = groups.get(k), un = fs.filter(f => f.use === 'orphan').length;
+    const ds = docs.filter(d => d.path.startsWith(k + '/'));
+    tb.append(h('tr', null,
+      h('td', null, h('button', {class: 'linkbtn', style: 'font-family:var(--sans);font-weight:600', on: {click: () => openArea(k, [k], [])}}, k)),
+      h('td', {class: 'num'}, fs.length), h('td', {class: 'num'}, fmt(fs.reduce((a, f) => a + f.lines, 0))),
+      h('td', {class: 'num'}, un || '—'), h('td', {class: 'num'}, ds.length || '—')));
+  }
+  P.append(h('div', {class: 'tablewrap'}, h('table', {class: 'plain'}, h('thead', null, h('tr', null, h('th', null, 'Folder'), h('th', null, 'Swift files'), h('th', null, 'Lines'), h('th', null, 'Unused'), h('th', null, 'Docs'))), tb)));
+  P.append(h('div', {class: 'muted', style: 'font-size:12.5px;margin-top:8px'}, 'Click a folder to list its files, who uses each one, and the docs that live there.'));
+}
+
 /* ---------- Docs ---------- */
 let docFilter = new Set(), docCat = '', docSort = 'status';
 function renderDocs() {
@@ -590,7 +624,7 @@ function renderDocs() {
       h('dt', null, chip('outdated')), h('dd', null, 'At least 3 references, and at least 10% of them, name a file, type or function that no longer exists.'),
       h('dt', null, chip('dead-links')), h('dd', null, 'One or two references no longer resolve. The rest do.'),
       h('dt', null, chip('behind')), h('dd', null, 'Every reference resolves, but at least 3 (and at least half) of the Swift files it cites changed after the doc was last edited, or its header names a version older than the live one.'),
-      h('dt', null, chip('verified')), h('dd', null, 'On the list scripts/verify_doc_claims.py checks on every run, and every reference resolves, including the kinds the gate does not check.'),
+      D.has_gate ? [h('dt', null, chip('verified')), h('dd', null, 'On the list scripts/verify_doc_claims.py checks on every run, and every reference resolves, including the kinds the gate does not check.')] : null,
       h('dt', null, chip('current')), h('dd', null, 'Three or more references, all resolve, and the code it cites has mostly not changed since. The prose can still be wrong.'),
       h('dt', null, chip('unchecked')), h('dd', null, 'Fewer than 3 references to check. It is prose, and its age is the only signal.'),
       h('dt', null, chip('history')), h('dd', null, 'Archives, audits, snapshots, release logs, or a doc that says it was superseded. Right for its date, not a description of today.'),
@@ -625,8 +659,8 @@ function renderDocs() {
 /* ---------- Code ---------- */
 let onlyUnused = false;
 function groupKey(p) {
-  const s = p.split('/');
-  return s.length > 3 ? s.slice(0, 3).join('/') : s.slice(0, -1).join('/') || s[0];
+  const s = p.split('/'), d = D.group_depth || 3;
+  return s.length > d ? s.slice(0, d).join('/') : s.slice(0, -1).join('/') || s[0];
 }
 function renderCode() {
   const P = $('#p-code');
@@ -644,7 +678,8 @@ function renderCode() {
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(f);
   }
-  const keys = [...groups.keys()].sort((a, b) => (a.startsWith('OpenIntelligenceTests') - b.startsWith('OpenIntelligenceTests')) || a.localeCompare(b));
+  const isTest = k => groups.get(k).every(f => f.k === 'test');
+  const keys = [...groups.keys()].sort((a, b) => (isTest(a) - isTest(b)) || a.localeCompare(b));
   for (const k of keys) {
     const fs = groups.get(k).sort((a, b) => a.p.localeCompare(b.p));
     const lines = fs.reduce((a, f) => a + f.lines, 0);
@@ -652,14 +687,14 @@ function renderCode() {
     const owners = new Set();
     for (const a of D.areas) if (a.paths.some(px => px === k || px.startsWith(k + '/') || k.startsWith(px + '/'))) ownerDocs(a.owner).forEach(o => owners.add(o));
     const det = h('details', {class: 'group', open: onlyUnused || null},
-      h('summary', null, h('span', {class: 'gname'}, k.replace(/^OpenIntelligence\//, '').replace(/\//g, ' › ')),
+      h('summary', null, h('span', {class: 'gname'}, (IS_OI ? k.replace(/^OpenIntelligence\//, '') : k).replace(/\//g, ' › ')),
         h('span', {class: 'gmeta'}, `${fs.length} files · ${fmt(lines)} lines${un ? ` · ${un} unused` : ''}`),
         owners.size ? h('span', {class: 'owners'}, [...owners].map(o => h('span', {style: 'display:inline-flex;gap:4px;align-items:center'}, chip(docBy.get(o).status), h('span', {class: 'mono muted'}, base(o))))) : null),
       h('div', {class: 'files'}, fs.map(fileRow)));
     P.append(det);
   }
   const vend = files.filter(f => f.k === 'vendored').length;
-  P.append(h('div', {class: 'muted', style: 'font-size:12.5px;margin-top:10px'}, `Not shown: ${vend} vendored files in OpenIntelligence/swift-transformers.`));
+  if (vend) P.append(h('div', {class: 'muted', style: 'font-size:12.5px;margin-top:10px'}, `Not shown: ${vend} vendored Swift files.`));
 }
 
 /* ---------- Map ---------- */

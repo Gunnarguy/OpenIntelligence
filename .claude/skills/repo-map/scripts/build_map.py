@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Build a navigable map of the OpenIntelligence repository, with an accuracy status for every
-document, derived from the repository itself. Read-only: it runs git and reads files, and it refuses
-to write inside the repository.
+"""Build a navigable map of a Swift app repository, with an accuracy status for every document,
+derived from the repository itself. Read-only: it runs git and reads files, and it refuses to write
+inside the repository. Written for OpenIntelligence; any other repository works too, and the parts
+that need something OpenIntelligence has (its doc gate, its architecture tables, its Engine target,
+its shipped-version file) switch on only when the repository has it.
 
     python3 .claude/skills/repo-map/scripts/build_map.py --out "${TMPDIR:-/tmp}/oi-repo-map/data.json"
+    python3 .claude/skills/repo-map/scripts/build_map.py --root ~/Documents/GitHub/OpenCone \
+        --live-version 3 --out "${TMPDIR:-/tmp}/opencone-map/data.json"
 
 Then `render.py` puts the result into the page. See ../SKILL.md.
 
@@ -29,6 +33,8 @@ import argparse
 _ap = argparse.ArgumentParser(description="Survey the repository for the Repo Map page (read-only).")
 _ap.add_argument("--root", default=None, help="repository root (default: the git top level of the working directory)")
 _ap.add_argument("--out", required=True, help="where to write the survey JSON; must be outside the repository")
+_ap.add_argument("--live-version", default="", help="the version live on the App Store, when the repo has no Docs/SHIPPED_VERSION.json")
+_ap.add_argument("--name", default="", help="the app's name for the page (default: the repository folder name)")
 _args = _ap.parse_args()
 _top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=_args.root or os.getcwd(),
                       capture_output=True, text=True).stdout.strip()
@@ -37,15 +43,69 @@ OUT = Path(_args.out).resolve()
 if OUT == ROOT or ROOT in OUT.parents:
     sys.exit(f"refusing to write {OUT}: output must be outside the repository ({ROOT})")
 OUT.parent.mkdir(parents=True, exist_ok=True)
-sys.path.insert(0, str(ROOT / "scripts"))
-import verify_doc_claims as vdc  # noqa: E402  reuse the repo's own claim patterns and Swift helpers
-
-vdc.ROOT = ROOT
+APP = _args.name or ROOT.name
 
 
 def git(*args: str, timeout: int = 300) -> str:
     return subprocess.run(["gtimeout", str(timeout), "git", *args], cwd=ROOT,
                           capture_output=True, text=True).stdout
+
+
+tracked = [p for p in git("ls-files").splitlines() if p]
+tracked_set = set(tracked)
+TOP_DIRS = sorted({p.split("/")[0] for p in tracked if "/" in p})
+VENDORED = ("swift-transformers", "Pods", "Carthage", "Vendor", "vendor", "ThirdParty", "third_party",
+            "External", "node_modules", ".build", "checkouts")
+
+
+class Claims:
+    """The claim patterns and Swift helpers. A repository with its own scripts/verify_doc_claims.py
+    (OpenIntelligence) lends its patterns and its gate list, so this survey and that gate agree; any
+    other repository gets the same patterns built from its own top-level folders."""
+
+    ANCHOR_CLAIM = re.compile(r"`?([A-Za-z0-9_+]+\.swift):(\d+)`?")
+    SYMBOL_CLAIM = re.compile(r"`([A-Z][A-Za-z0-9_]+)\.([a-z_][A-Za-z0-9_]*)(?:\([^`]*\))?`")
+    FILE_EXTENSIONS = {"swift", "md", "json", "py", "sh", "rb", "plist", "csv", "txt", "yml", "yaml",
+                       "storekit", "entitlements", "mlpackage", "xcodeproj", "pbxproj"}
+    PATH_EXEMPT_PREFIXES: tuple = ()
+    DOCS: list = []
+
+    def __init__(self):
+        dirs = "|".join(re.escape(d) for d in TOP_DIRS) or "Docs"
+        self.PATH_CLAIM = re.compile(r"[`(\[]((?:" + dirs + r")/[A-Za-z0-9._/@+-]+)")
+        self._sources = None
+        self._declaring: dict[str, list[str]] = {}
+
+    def is_machine_local(self, rel: str) -> bool:
+        return False
+
+    def swift_sources(self) -> dict[str, str]:
+        if self._sources is None:
+            self._sources = {p: (ROOT / p).read_text(errors="ignore") for p in tracked
+                             if p.endswith(".swift") and os.path.basename(p) != "Package.swift"
+                             and not any(part in VENDORED for part in p.split("/")[:-1])}
+        return self._sources
+
+    def declaring_files(self, type_name: str) -> list[str]:
+        if type_name not in self._declaring:
+            primary = re.compile(r"\b(?:class|struct|enum|protocol|actor)\s+" + re.escape(type_name) + r"\b")
+            extension = re.compile(r"\bextension\s+" + re.escape(type_name) + r"\b")
+            src = self.swift_sources()
+            owners = [p for p, t in src.items() if primary.search(t)]
+            if owners:
+                owners += [p for p, t in src.items() if p not in owners and extension.search(t)]
+            self._declaring[type_name] = owners
+        return self._declaring[type_name]
+
+
+if (ROOT / "scripts/verify_doc_claims.py").is_file():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import verify_doc_claims as vdc  # noqa: E402  the repository's own gate: same patterns, same list
+    vdc.ROOT = ROOT
+    HAS_GATE = True
+else:
+    vdc = Claims()
+    HAS_GATE = False
 
 
 HEAD = git("rev-parse", "HEAD").strip()
@@ -54,11 +114,10 @@ HEAD = git("rev-parse", "HEAD").strip()
 _remote = git("remote", "get-url", "origin").strip()
 _m = re.search(r"github\.com[:/]([^/]+/[^/.]+)", _remote)
 REPO_SLUG = _m.group(1) if _m else "Gunnarguy/OpenIntelligence"
+_default_branch = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip() or "origin/main"
 LINK_SHA = HEAD if git("branch", "-r", "--contains", HEAD).strip() else \
-    (git("merge-base", HEAD, "origin/main").strip() or HEAD)
+    (git("merge-base", HEAD, _default_branch).strip() or HEAD)
 TODAY = dt.date.today()
-tracked = [p for p in git("ls-files").splitlines() if p]
-tracked_set = set(tracked)
 by_base: dict[str, list[str]] = collections.defaultdict(list)
 for p in tracked:
     by_base[os.path.basename(p)].append(p)
@@ -103,25 +162,36 @@ def external_types(names: set[str]) -> set[str]:
     return found
 
 
-shipped = json.loads((ROOT / "Docs/SHIPPED_VERSION.json").read_text())
-SHIPPED_TXT = json.dumps(shipped)
-live_versions = sorted({v for v in re.findall(r'"(\d+\.\d+(?:\.\d+)?)"', SHIPPED_TXT)},
-                       key=lambda v: [int(x) for x in v.split(".")])
-LIVE = live_versions[-1] if live_versions else "0"
+if (ROOT / "Docs/SHIPPED_VERSION.json").is_file():
+    shipped = json.loads((ROOT / "Docs/SHIPPED_VERSION.json").read_text())
+    live_versions = sorted({v for v in re.findall(r'"(\d+\.\d+(?:\.\d+)?)"', json.dumps(shipped))},
+                           key=lambda v: [int(x) for x in v.split(".")])
+    LIVE = live_versions[-1] if live_versions else ""
+else:
+    shipped = {}
+    LIVE = _args.live_version
 
 
 def vkey(v: str) -> list[int]:
     return [int(x) for x in re.findall(r"\d+", v)][:3]
 
 
-# ---------------------------------------------------------------- engine target membership
-pkg = (ROOT / "Package.swift").read_text()
-seg = pkg[pkg.index('name: "OpenIntelligenceEngine",\n            dependencies'):]
-ENGINE_EX = re.findall(r'"([^"]+)"', seg[seg.index("exclude:"):seg.index("sources:")])
-ENGINE_SRC = re.findall(r'"([^"]+)"', seg[seg.index("sources:"):seg.index("resources:")])
+# ---------------------------------------------------------------- engine target membership (OpenIntelligence)
+ENGINE_EX: list[str] = []
+ENGINE_SRC: list[str] = []
+try:
+    pkg = (ROOT / "Package.swift").read_text()
+    seg = pkg[pkg.index('name: "OpenIntelligenceEngine",\n            dependencies'):]
+    ENGINE_EX = re.findall(r'"([^"]+)"', seg[seg.index("exclude:"):seg.index("sources:")])
+    ENGINE_SRC = re.findall(r'"([^"]+)"', seg[seg.index("sources:"):seg.index("resources:")])
+except (OSError, ValueError):
+    pass
+HAS_ENGINE = bool(ENGINE_SRC)
 
 
-def in_engine(rel: str) -> bool:
+def in_engine(rel: str) -> bool | None:
+    if not HAS_ENGINE:
+        return None
     if not rel.startswith("OpenIntelligence/"):
         return False
     r = rel[len("OpenIntelligence/"):]
@@ -147,13 +217,18 @@ def strip_comments(s: str) -> str:
 
 
 def swift_kind(p: str) -> str:
-    if "/swift-transformers/" in p:
+    parts = p.split("/")
+    if any(x in VENDORED for x in parts[:-1]):
         return "vendored"
-    if p.startswith("OpenIntelligenceTests/"):
+    if any(x.endswith(("Tests", "UITests")) for x in parts[:-1]) or parts[-1].endswith("Tests.swift"):
         return "test"
-    if p.startswith("OpenIntelligenceLiveActivities/"):
+    if any("Widget" in x or "LiveActivit" in x or x.endswith("Extension") for x in parts[:-1]):
         return "widget"
     return "app"
+
+
+BLURB_SKIP = {APP, APP + "Tests", ROOT.name, *TOP_DIRS}
+TEST_ROOTS = {p.split("/")[0] for p in SW if swift_kind(p) == "test"}
 
 
 def file_blurb(src: str) -> str:
@@ -180,7 +255,7 @@ def file_blurb(src: str) -> str:
             continue
         body = t.lstrip("/").strip()
         if not body or body.endswith(".swift") or "Created by" in body or "Copyright" in body \
-                or body in ("OpenIntelligence", "OpenIntelligenceTests") or body.startswith("MARK"):
+                or body in BLURB_SKIP or body.startswith("MARK"):
             continue
         return body[:220]
     return ""
@@ -264,7 +339,9 @@ for p, info in swift_info.items():
         info["use"] = "n/a"
 
 # ---------------------------------------------------------------- areas and features from ARCHITECTURE.md
-arch = (ROOT / "Docs/ai/ARCHITECTURE.md").read_text()
+AREAS: list[dict] = []
+FEATURES: list[dict] = []
+FLOW = ""
 
 
 def table_rows(text: str, header_start: str) -> list[list[str]]:
@@ -277,24 +354,48 @@ def table_rows(text: str, header_start: str) -> list[list[str]]:
     return rows
 
 
-AREAS = []
-for cells in table_rows(arch, "| Area | Source | Owning document |"):
-    area, source, owner = cells[0], cells[1], cells[-1]
-    paths = [x.rstrip("/") for x in re.findall(r"`([^`]+/)`", source)]
-    AREAS.append({"name": area, "paths": paths, "owner": owner.replace("`", "")})
-FEATURES = []
-for cells in table_rows(arch, "| Owner says | Entry file(s) | Key symbol(s) |"):
-    say, entry, syms = cells[0], cells[1], cells[-1]
-    files = []
-    for f in re.findall(r"`([^`]+\.swift)`", entry + " " + syms):
-        cand = f if f.startswith("OpenIntelligence") else "OpenIntelligence/" + f
-        if cand in tracked_set:
-            files.append(cand)
-        elif os.path.basename(f) in by_base:
-            files.extend(by_base[os.path.basename(f)])
-    FEATURES.append({"name": say, "files": sorted(set(files)),
-                     "symbols": sorted(set(re.findall(r"`([A-Za-z_][\w.]*(?:\([^`]*\))?)`", syms)))[:14],
-                     "source": "Docs/ai/ARCHITECTURE.md, \"If the owner says...\""})
+def resolve_code_path(f: str) -> list[str]:
+    if f in tracked_set:
+        return [f]
+    for d in TOP_DIRS:
+        if f"{d}/{f}" in tracked_set:
+            return [f"{d}/{f}"]
+    return by_base.get(os.path.basename(f), [])
+
+
+_arch = ROOT / "Docs/ai/ARCHITECTURE.md"
+if _arch.is_file() and "| Area | Source | Owning document |" in _arch.read_text():
+    arch = _arch.read_text()
+    for cells in table_rows(arch, "| Area | Source | Owning document |"):
+        area, source, owner = cells[0], cells[1], cells[-1]
+        paths = [x.rstrip("/") for x in re.findall(r"`([^`]+/)`", source)]
+        AREAS.append({"name": area, "paths": paths, "owner": owner.replace("`", "")})
+    if "| Owner says | Entry file(s) | Key symbol(s) |" in arch:
+        for cells in table_rows(arch, "| Owner says | Entry file(s) | Key symbol(s) |"):
+            say, entry, syms = cells[0], cells[1], cells[-1]
+            files = []
+            for f in re.findall(r"`([^`]+\.swift)`", entry + " " + syms):
+                files.extend(resolve_code_path(f if f.startswith(APP) else f"{APP}/{f}") or resolve_code_path(f))
+            FEATURES.append({"name": say, "files": sorted(set(files)),
+                             "symbols": sorted(set(re.findall(r"`([A-Za-z_][\w.]*(?:\([^`]*\))?)`", syms)))[:14],
+                             "source": "Docs/ai/ARCHITECTURE.md, \"If the owner says...\""})
+    FLOW = "openintelligence" if APP == "OpenIntelligence" else ""
+
+# A codemap (the global codemap skill) names features by what people call them; use it when present.
+for _cm in ("docs/ai/codemap/features", "Docs/ai/codemap/features"):
+    if not FEATURES and (ROOT / _cm).is_dir():
+        for fp in sorted((ROOT / _cm).glob("*.json")):
+            try:
+                sl = json.loads(fp.read_text())
+            except (OSError, ValueError):
+                continue
+            if sl.get("index") is False:
+                continue
+            files = [f["path"] for f in sl.get("files", []) if f.get("role") == "primary" and f.get("path") in tracked_set]
+            FEATURES.append({"name": sl.get("name") or sl.get("id", fp.stem), "files": files[:12],
+                             "symbols": [str(e) if isinstance(e, str) else str(e.get("id", "")) for e in sl.get("entry_points", [])][:8],
+                             "aliases": sl.get("aliases", [])[:8], "purpose": sl.get("purpose", ""),
+                             "source": f"{_cm}/{fp.name}"})
 
 
 def area_of(p: str) -> str:
@@ -308,9 +409,12 @@ def area_of(p: str) -> str:
 
 # ---------------------------------------------------------------- documents
 TEST_DATA = ("Docs/TestDocuments/", "Benchmarks/Fixtures/", "Benchmarks/ResearchFixtures/")
-HISTORY_DIRS = ("Docs/Archive/", "Docs/AuditArtifacts/", "Docs/AUDIT/", ".agent/", "Xrays/")
+HISTORY_DIRS = ("Docs/Archive/", "Docs/AuditArtifacts/", "Docs/AUDIT/", "Xrays/") + ((".agent/",) if FLOW else ())
 AGENT_DIRS = (".claude/", ".agents/", ".codex/", "Docs/AgentPlaybooks/", "Docs/RepoOS/", "Docs/ai/")
-AGENT_ROOT = {"CLAUDE.md", "AGENTS.md", "GEMINI.md", "HANDOFF.md", ".geminirules"}
+AGENT_ROOT = {"CLAUDE.md", "AGENTS.md", "GEMINI.md", "HANDOFF.md", "SESSION-HANDOFF.md", ".geminirules"}
+PRODUCT_ROOT = {"README.md", "PRIVACY.md", "LICENSE", "ROADMAP.md", "SECURITY.md", "SUPPORT.md", "TERMS.md",
+                "APP_STORE_SUBMISSION.md", "HOW_IT_WORKS.md", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md"}
+TEST_DATA_DIRS = {"fixtures", "testdata", "testdocuments", "testresources", "__snapshots__"}
 PRODUCT = {"README.md", "CHANGELOG.md", "WHATS_NEW.md", "PRIVACY.md", "HOW_IT_WORKS.md", "LICENSE",
            "THIRD_PARTY_NOTICES.md", "Docs/RELEASE_NOTES.md", "Docs/USER_CHANGELOG.md", "Docs/ROADMAP.md",
            "Docs/DEMO.md", "Docs/LIMITATIONS.md", "Docs/HOW_IT_WORKS.md", "Docs/README.md",
@@ -361,26 +465,37 @@ RELEASE_LOGS = {"CHANGELOG.md", "Docs/RELEASE_NOTES.md", "Docs/USER_CHANGELOG.md
 def doc_category(p: str) -> str | None:
     if p.startswith(TEST_DATA) or p.startswith("Benchmarks/") and not p.endswith("README.md"):
         return None
-    if "/swift-transformers/" in p:
+    parts = p.split("/")
+    base = parts[-1]
+    if "/swift-transformers/" in p or any(x in VENDORED for x in parts[:-1]):
         return None
-    if p in RELEASE_LOGS:
+    if any(x.lower() in TEST_DATA_DIRS for x in parts[:-1]):
+        return None
+    if p in RELEASE_LOGS or base in ("CHANGELOG.md", "RELEASE_NOTES.md", "WHATS_NEW.md", "USER_CHANGELOG.md"):
         return "Release logs"
-    if p.startswith("fastlane/") or p.startswith("InAppEvents/") or p.startswith("Docs/Release/"):
-        return "Store and release copy"
-    if p.startswith("Docs/Archive/"):
-        return "Archive"
-    if p.startswith(HISTORY_DIRS) or re.search(r"(?i)audit", os.path.basename(p)) and p.startswith("Docs/"):
+    # a folder per shipped version (docs/releases/v2.6/, Docs/Release/5.2/) records that release
+    if re.search(r"(^|/)[Rr]eleases?/v?\d+(\.\d+)*/", p):
+        return "Release logs"
+    # a folder named for reviews or audits holds point-in-time findings (.ai-review/, audits/). The name
+    # must be the folder's whole purpose: "oi-claim-audit" is a live skill and "review_notes" store copy.
+    if any(re.fullmatch(r"(\.?ai-)?reviews?|audits?|pr[-_]?reviews?|code[-_]?reviews?", x.lower()) for x in parts[:-1]):
         return "Audits and snapshots"
-    if p in AGENT_ROOT or p.startswith(AGENT_DIRS) or p.startswith(".github/"):
+    if "fastlane" in parts[:-1] or p.startswith("InAppEvents/") or re.search(r"(^|/)[Dd]ocs/Release/", p):
+        return "Store and release copy"
+    if any(x.lower() == "archive" for x in parts[:-1]):
+        return "Archive"
+    if p.startswith(HISTORY_DIRS) or re.search(r"(?i)audit", base) and (p.startswith(("Docs/", "docs/")) or len(parts) == 1):
+        return "Audits and snapshots"
+    if p in AGENT_ROOT or p.startswith(AGENT_DIRS) or p.startswith((".github/", ".agent/", "docs/ai/", ".cursor/", ".gemini/")):
         return "Agent instructions"
-    if p in PRODUCT:
+    if p in PRODUCT or (len(parts) == 1 and base in PRODUCT_ROOT):
         return "Product and release"
     if p.startswith("Docs/Audio/"):
         return "Study guides and audio"
     if p.startswith("BenchmarkRuns/") or p == "Benchmarks/README.md":
         return "Benchmarks"
-    if p.startswith("Docs/") or p.endswith(".md"):
-        return "Architecture and subsystems"
+    if p.startswith(("Docs/", "docs/")) or p.endswith(".md"):
+        return "Architecture and reference"
     return None
 
 
@@ -466,9 +581,12 @@ for p in docs_paths:
         exists = (ROOT / rel).exists() or any(t.startswith(rel) and t[len(rel):len(rel) + 1] in "-_." for t in tracked)
         # `OpenIntelligenceTests/SomeTests` is xcodebuild's -only-testing:Target/Class[/method] form, not a path
         seg = rel.split("/")
-        if not exists and seg[0] == "OpenIntelligenceTests" and len(seg) in (2, 3) and "." not in seg[1] \
-                and any(seg[1] in swift_info[q]["types"] for q in swift_info if q.startswith("OpenIntelligenceTests/")):
+        if not exists and seg[0] in TEST_ROOTS and len(seg) in (2, 3) and "." not in seg[1] \
+                and any(seg[1] in swift_info[q]["types"] for q in swift_info if q.split("/")[0] == seg[0]):
             exists = True
+        # a path git ignores exists only on some machine, like a gitignored audit folder: not a claim to check
+        if not exists and subprocess.run(["git", "check-ignore", "-q", rel], cwd=ROOT).returncode == 0:
+            continue
         why = "" if exists else ("removed or renamed" if rel in ever_paths else "never existed at this path")
         note("path", rel, exists, why)
         if exists and rel.endswith(".swift"):
@@ -571,7 +689,7 @@ def status(d: dict) -> tuple[str, list[str]]:
         why.append(f"{len(d['code_changed_since'])} of the {d['cited_swift']} Swift files it cites changed "
                    f"after its last edit ({d['code_commits_since']} commits)")
     hv = d["header_version"]
-    if hv and vkey(hv) < vkey(LIVE)[:2] and cat not in ("Archive", "Audits and snapshots"):
+    if hv and LIVE and vkey(hv) < vkey(LIVE)[:2] and cat not in ("Archive", "Audits and snapshots"):
         why.append(f"its header names {hv}; the live version is {LIVE}")
     if cat == "Archive":
         return "history", ["In Docs/Archive: a record of the past, not current truth"] + why
@@ -590,7 +708,7 @@ def status(d: dict) -> tuple[str, list[str]]:
     if total < 3:
         return "unchecked", [f"Only {total} checkable reference{'s' if total != 1 else ''}; the rest is prose"] + why
     if (len(d["code_changed_since"]) >= max(3, 0.5 * max(1, d["cited_swift"]))) or \
-            (hv and vkey(hv) < vkey(LIVE)[:2]):
+            (hv and LIVE and vkey(hv) < vkey(LIVE)[:2]):
         return "behind", why
     return "current", [f"All {total} references resolve"] + why
 
@@ -628,6 +746,23 @@ for p in tracked:
                     "tested_by": si["tested_by"][:6], "engine": in_engine(p)})
     files.append(rec)
 
+# ---------------------------------------------------------------- how deep the Code view groups folders
+
+
+def pick_group_depth() -> int:
+    """Shallowest folder depth that splits the app's Swift into enough groups to scan: 3 for
+    OpenIntelligence (OpenIntelligence/Services/RAG), deeper for apps nested in apps/ or packages/."""
+    app_files = [p for p in SW if swift_kind(p) in ("app", "widget")]
+    want = min(12, max(1, len(app_files) // 4))
+    for d in (3, 4, 5, 6):
+        groups = {"/".join(p.split("/")[:d]) if p.count("/") >= d else os.path.dirname(p) for p in app_files}
+        if len(groups) >= want:
+            return d
+    return 6
+
+
+GROUP_DEPTH = pick_group_depth()
+
 # ---------------------------------------------------------------- loose files in the working folder, not in git
 LOOSE_NOTES = {
     ".git.nosync": "Git's own data, kept out of iCloud on purpose. Leave it alone.",
@@ -642,6 +777,8 @@ LOOSE_NOTES = {
     "default.profraw": "Code-coverage profile left by a test run",
     ".gemini": "Gemini CLI state",
     ".claude": "",
+    "DerivedData": "Xcode build output",
+    ".derivedData": "Xcode build output",
 }
 loose = []
 for entry in sorted(os.listdir(ROOT)):
@@ -664,7 +801,8 @@ for entry in sorted(os.listdir(ROOT)):
     loose.append({"name": entry, "kb": kb, "modified": mtime, "dir": full.is_dir(), "note": note, "first": first})
 
 out = {
-    "repo": REPO_SLUG, "head": HEAD, "link_sha": LINK_SHA, "generated": dt.datetime.now().isoformat(timespec="minutes"),
+    "repo": REPO_SLUG, "head": HEAD, "link_sha": LINK_SHA, "app": APP, "flow": FLOW,
+    "has_engine": HAS_ENGINE, "has_gate": HAS_GATE, "group_depth": GROUP_DEPTH, "generated": dt.datetime.now().isoformat(timespec="minutes"),
     "live_version": LIVE, "shipped": shipped, "areas": AREAS, "features": FEATURES,
     "docs": docs, "files": files, "loose": loose,
     "counts": {"tracked": len(tracked), "swift": len(SW), "docs": len(docs)},

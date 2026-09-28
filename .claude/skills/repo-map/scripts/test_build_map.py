@@ -2,6 +2,7 @@
 """Run the real Repo Map survey on this repository and re-check its verdicts independently.
 
     python3 .claude/skills/repo-map/scripts/test_build_map.py
+    REPO_MAP_ROOT=~/Documents/GitHub/OpenCone REPO_MAP_NAME=OpenCone python3 .claude/skills/repo-map/scripts/test_build_map.py
 
 The assertions are properties that hold whatever the code contains, never a count or a file name
 from today's tree: a test that asserts the live tree goes red the first time someone cleans up, and a
@@ -10,6 +11,7 @@ build_map.py took. About a minute, most of it the survey.
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -18,7 +20,11 @@ import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ROOT = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=HERE, capture_output=True, text=True).stdout.strip())
+ROOT = Path(os.path.expanduser(os.environ.get("REPO_MAP_ROOT", ""))
+            or subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=HERE, capture_output=True, text=True).stdout.strip())
+NAME = os.environ.get("REPO_MAP_NAME", "")
+VENDORED = ("swift-transformers", "Pods", "Carthage", "Vendor", "vendor", "ThirdParty", "third_party",
+            "External", "node_modules", ".build", "checkouts")
 TMP = Path(tempfile.mkdtemp(prefix="oi-repo-map-test."))
 STATUSES = {"outdated", "dead-links", "behind", "verified", "current", "unchecked", "history"}
 
@@ -29,11 +35,11 @@ def strip_comments(s: str) -> str:
 
 
 def live_swift() -> dict[str, str]:
-    """Source the app, tests and widget compile. Package.swift is left out: its exclude list names
-    files by path, which is not a use (it flagged KeychainStorage.swift the first time this ran)."""
-    roots = ("OpenIntelligence/", "OpenIntelligenceTests/", "OpenIntelligenceLiveActivities/")
-    out = subprocess.run(["git", "ls-files", "*.swift"], cwd=ROOT, capture_output=True, text=True).stdout.split()
-    return {p: strip_comments((ROOT / p).read_text(errors="ignore")) for p in out if p.startswith(roots)}
+    """Tracked Swift the app, tests and extensions compile. Package.swift is left out: its exclude list
+    names files by path, which is not a use (it flagged KeychainStorage.swift the first time this ran)."""
+    out = subprocess.run(["git", "ls-files", "*.swift"], cwd=ROOT, capture_output=True, text=True).stdout.splitlines()
+    return {p: strip_comments((ROOT / p).read_text(errors="ignore")) for p in out
+            if os.path.basename(p) != "Package.swift" and not any(x in VENDORED for x in p.split("/")[:-1])}
 
 
 def sdk_declares(names: set[str]) -> set[str]:
@@ -56,7 +62,8 @@ class RepoMapTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         out = TMP / "data.json"
-        r = subprocess.run([sys.executable, str(HERE / "build_map.py"), "--root", str(ROOT), "--out", str(out)],
+        extra = ["--name", NAME] if NAME else []
+        r = subprocess.run([sys.executable, str(HERE / "build_map.py"), "--root", str(ROOT), "--out", str(out), *extra],
                            capture_output=True, text=True, timeout=600)
         if r.returncode != 0:
             raise AssertionError(f"build_map.py failed:\n{r.stdout}\n{r.stderr}")
@@ -65,10 +72,10 @@ class RepoMapTests(unittest.TestCase):
 
     def test_refuses_to_write_inside_the_repository(self):
         r = subprocess.run([sys.executable, str(HERE / "build_map.py"), "--root", str(ROOT),
-                            "--out", str(ROOT / "Docs" / "repo-map-test.json")], capture_output=True, text=True)
+                            "--out", str(ROOT / "repo-map-test.json")], capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("outside the repository", r.stderr)
-        self.assertFalse((ROOT / "Docs" / "repo-map-test.json").exists())
+        self.assertFalse((ROOT / "repo-map-test.json").exists())
 
     def test_every_doc_has_a_known_status_and_a_reason(self):
         for d in self.survey["docs"]:
@@ -121,12 +128,13 @@ class RepoMapTests(unittest.TestCase):
                 self.assertFalse(tails, f"{d['path']}: {b['ref']} reported dead, but it is the tail of {tails[:2]}")
 
     def test_a_dead_test_path_is_not_a_test_class(self):
-        test_types = {t for p, s in self.swift.items() if p.startswith("OpenIntelligenceTests/")
+        test_roots = {p.split("/")[0] for p in self.swift if p.split("/")[0].endswith("Tests")}
+        test_types = {t for p, s in self.swift.items() if p.split("/")[0] in test_roots
                       for t in re.findall(r"\b(?:class|struct|enum|actor)\s+([A-Z]\w*)", s)}
         for d in self.survey["docs"]:
             for b in d["refs_broken"]:
                 seg = b["ref"].split("/")
-                if b["kind"] == "path" and seg[0] == "OpenIntelligenceTests" and len(seg) > 1:
+                if b["kind"] == "path" and seg[0] in test_roots and len(seg) > 1:
                     self.assertNotIn(seg[1], test_types, f"{d['path']}: {b['ref']} is an -only-testing identifier")
 
     def test_a_history_mention_says_so_in_its_own_sentence(self):
@@ -150,7 +158,7 @@ class RepoMapTests(unittest.TestCase):
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         page = out.read_text()
-        self.assertIn("<title>OpenIntelligence Repo Map</title>", page[:8192])
+        self.assertIn(f"<title>{self.survey['app']} Repo Map</title>", page[:8192])
         m = re.search(r'<script type="application/json" id="data">(.*?)</script>', page, re.S)
         assert m is not None, "the page has no embedded survey"
         self.assertEqual(len(json.loads(m.group(1))["files"]), len(self.survey["files"]))
