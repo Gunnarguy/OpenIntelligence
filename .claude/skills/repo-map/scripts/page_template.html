@@ -1,0 +1,889 @@
+<title>OpenIntelligence Repo Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#f2f5f4; --surface:#fcfcfb; --raised:#ffffff;
+  --ink:#0e1614; --ink-2:#4b5753; --muted:#6f7a76; --hair:#dce2df; --hair-2:#e9eeec;
+  --accent:#0b6e79; --accent-soft:#dcefef; --accent-ink:#ffffff;
+  --cell-code:#d9e1de; --cell-other:#e8ecea;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b; --unk:#9a9892; --hist:#c9c7bd;
+  --seq-1:#b7d3f6; --seq-2:#6da7ec; --seq-3:#2a78d6; --seq-4:#1c5cab; --seq-5:#0d366b;
+  --shadow:0 1px 2px rgba(14,22,20,.06),0 10px 30px rgba(14,22,20,.08);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --display:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0b100f; --surface:#131918; --raised:#18201e;
+    --ink:#ecf2f0; --ink-2:#a9b5b1; --muted:#8b9692; --hair:#26302d; --hair-2:#1d2624;
+    --accent:#45b9c5; --accent-soft:#12302f; --accent-ink:#04191a;
+    --cell-code:#2a3733; --cell-other:#1d2624; --unk:#8a8882; --hist:#4b4a45;
+    --seq-1:#184f95; --seq-2:#256abf; --seq-3:#3987e5; --seq-4:#6da7ec; --seq-5:#b7d3f6;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0b100f; --surface:#131918; --raised:#18201e;
+  --ink:#ecf2f0; --ink-2:#a9b5b1; --muted:#8b9692; --hair:#26302d; --hair-2:#1d2624;
+  --accent:#45b9c5; --accent-soft:#12302f; --accent-ink:#04191a;
+  --cell-code:#2a3733; --cell-other:#1d2624; --unk:#8a8882; --hist:#4b4a45;
+  --seq-1:#184f95; --seq-2:#256abf; --seq-3:#3987e5; --seq-4:#6da7ec; --seq-5:#b7d3f6;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:14px/1.5 var(--sans)}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--accent)}
+.mono{font-family:var(--mono);font-size:.92em}
+.muted{color:var(--muted)}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:16px}
+@media (min-width:720px){.wrap{padding-inline:24px}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--ground) 90%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+.top .wrap{display:grid;grid-template-columns:1fr;gap:10px;padding-block:12px}
+@media (min-width:900px){.top .wrap{grid-template-columns:auto 1fr;align-items:center;gap:28px}}
+.brand h1{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:-.01em;margin:0;line-height:1.15;text-wrap:balance}
+.brand .meta{color:var(--muted);font-size:12px;margin-top:2px}
+.brand .meta b{color:var(--ink-2);font-weight:500}
+.search{position:relative}
+.search input{width:100%;height:44px;border-radius:10px;border:1px solid var(--hair);background:var(--surface);padding:0 14px 0 40px;font-size:15px}
+.search input::placeholder{color:var(--muted)}
+.search .lens{position:absolute;left:13px;top:13px;width:18px;height:18px;color:var(--muted);pointer-events:none}
+.results{position:absolute;left:0;right:0;top:50px;background:var(--raised);border:1px solid var(--hair);border-radius:12px;box-shadow:var(--shadow);max-height:min(70vh,640px);overflow:auto;padding:6px}
+.results h4{margin:10px 10px 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.res{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 10px;border-radius:8px;cursor:pointer;border:0;background:none;width:100%;text-align:left}
+.res:hover,.res[aria-selected="true"]{background:var(--accent-soft)}
+.res .l{font-weight:600;overflow-wrap:anywhere}
+.res .s{grid-column:1;color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.res .r{grid-row:1/span 2;grid-column:2;align-self:center}
+.empty{padding:14px 12px;color:var(--muted)}
+
+/* summary */
+.summary{display:grid;gap:14px;margin-block:18px 8px}
+@media (min-width:900px){.summary{grid-template-columns:1.35fr 1fr}}
+.card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:16px 18px}
+.card h2{font-family:var(--display);font-weight:700;font-size:17px;margin:0;letter-spacing:-.005em}
+.card .sub{color:var(--muted);font-size:12.5px;margin:2px 0 12px}
+.bar{display:flex;gap:2px;height:20px;margin-bottom:12px}
+.bar span{display:block;height:100%;min-width:3px;cursor:pointer}
+.bar span:first-child{border-radius:4px 0 0 4px}.bar span:last-child{border-radius:0 4px 4px 0}
+.bar span:hover{filter:brightness(1.08)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px}
+.leg{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--hair);background:var(--raised);border-radius:999px;padding:3px 10px 3px 8px;cursor:pointer;font-size:12.5px}
+.leg:hover{border-color:var(--accent)}
+.leg .n{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:12px 14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.tile:hover{border-color:var(--accent)}
+.tile .v{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.1}
+.tile .k{color:var(--ink-2);font-size:12.5px}
+.tile .go{color:var(--accent);font-size:12px;margin-top:auto;padding-top:4px}
+
+/* chips */
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;border-radius:999px;padding:2px 9px 2px 6px;background:var(--hair-2);color:var(--ink)}
+.ic{display:inline-flex;width:15px;height:15px}
+.ic svg{width:15px;height:15px}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--hair);border-radius:6px;padding:0 6px;color:var(--ink-2);white-space:nowrap}
+.tag.alert{border-color:color-mix(in srgb,var(--critical) 55%,var(--hair));color:var(--ink)}
+.tag.warnish{border-color:color-mix(in srgb,var(--warn) 70%,var(--hair))}
+
+/* tabs */
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--hair);margin-top:18px;scrollbar-width:none}
+.tabs button{border:0;background:none;padding:10px 14px;font-weight:600;color:var(--ink-2);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.panel{padding-block:18px 60px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;padding:6px 12px;cursor:pointer;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.fchip{border:1px solid var(--hair);background:var(--surface);border-radius:999px;padding:4px 11px 4px 8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px}
+.fchip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.fchip .n{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+select.sel{border:1px solid var(--hair);background:var(--surface);border-radius:8px;padding:5px 8px;font-size:13px}
+details.explain{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:10px 14px;margin-bottom:14px}
+details.explain summary{cursor:pointer;font-weight:600}
+details.explain dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:10px 0 2px}
+details.explain dt{white-space:nowrap}
+details.explain dd{margin:0;color:var(--ink-2);max-width:70ch}
+@media (max-width:640px){details.explain dl{grid-template-columns:1fr}}
+
+/* rows */
+.rows{display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:170px 1fr 150px 90px;gap:4px 16px;align-items:start;padding:10px 14px;background:var(--surface);border:1px solid var(--hair);border-radius:10px;cursor:pointer;text-align:left;width:100%}
+.row:hover{border-color:var(--accent)}
+.row .t{font-weight:600;overflow-wrap:anywhere}
+.row .p{font-family:var(--mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.row .w{color:var(--ink-2);font-size:12.5px;grid-column:2}
+.row .d{font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.row .x{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+@media (max-width:760px){.row{grid-template-columns:1fr}.row .w{grid-column:1}.row .x{text-align:left}}
+
+/* code groups */
+.group{background:var(--surface);border:1px solid var(--hair);border-radius:12px;margin-bottom:8px}
+.group>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;padding:12px 14px}
+.group>summary::-webkit-details-marker{display:none}
+.group>summary .gname{font-weight:700;font-family:var(--display);font-size:15px}
+.group>summary .gmeta{color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+.group>summary .owners{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.group[open]>summary{border-bottom:1px solid var(--hair)}
+.files{display:flex;flex-direction:column}
+.file{display:grid;grid-template-columns:minmax(180px,260px) 1fr auto;gap:2px 14px;padding:8px 14px;border:0;border-top:1px solid var(--hair-2);background:none;text-align:left;cursor:pointer;width:100%}
+.file:first-child{border-top:0}
+.file:hover{background:var(--accent-soft)}
+.file .fn{font-family:var(--mono);font-size:12.5px;font-weight:500;overflow-wrap:anywhere}
+.file .fb{color:var(--ink-2);font-size:12.5px}
+.file .ft{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.file .sub{grid-column:1/-1;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+@media (max-width:760px){.file{grid-template-columns:1fr}.file .ft{justify-content:flex-start}}
+
+/* how */
+figure.flow{margin:0 0 18px;background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:14px}
+.flowscroll{overflow-x:auto}
+.flowscroll svg{display:block;min-width:900px;width:100%;height:auto;color:var(--ink)}
+figure.flow figcaption{color:var(--ink-2);font-size:13px;margin-top:10px;max-width:90ch}
+.node{cursor:pointer}
+.node rect.box{fill:var(--raised);stroke:currentColor;stroke-opacity:.28;stroke-width:1.2}
+.node:hover rect.box,.node:focus-visible rect.box{stroke:var(--accent);stroke-opacity:1;stroke-width:2}
+.node text.nt{font:600 13px var(--sans);fill:currentColor}
+.node text.ns{font:11px var(--mono);fill:var(--muted)}
+.edge{stroke:currentColor;stroke-opacity:.55;stroke-width:1.5;fill:none}
+.edge.key{stroke:var(--accent);stroke-opacity:1;stroke-width:2}
+.elabel{font:11px var(--sans);fill:var(--ink-2)}
+.elabel.key{fill:var(--accent);font-weight:600}
+.h3{font-family:var(--display);font-weight:700;font-size:16px;margin:22px 0 10px}
+.vocab{display:grid;gap:8px}
+@media (min-width:900px){.vocab{grid-template-columns:1fr 1fr}}
+.vcard{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:12px 14px}
+.vcard .vn{font-weight:700}
+.vcard .vf{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+.linkbtn{border:1px solid var(--hair);background:var(--raised);border-radius:7px;padding:2px 8px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.linkbtn:hover{border-color:var(--accent)}
+.vcard .vs{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+table.plain{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--hair);border-radius:12px;overflow:hidden}
+table.plain th,table.plain td{text-align:left;padding:9px 12px;border-top:1px solid var(--hair-2);vertical-align:top;font-size:13px}
+table.plain th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-top:0;font-weight:600}
+table.plain td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tablewrap{overflow-x:auto}
+
+/* map */
+.mapbox{position:relative;background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:10px}
+#mapsvg{display:block;width:100%}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:13px}
+.crumbs button{border:0;background:none;padding:2px 4px;cursor:pointer;color:var(--accent);font-weight:600}
+.crumbs span.sep{color:var(--muted)}
+.tip{position:absolute;pointer-events:none;background:var(--raised);border:1px solid var(--hair);box-shadow:var(--shadow);border-radius:10px;padding:8px 10px;font-size:12.5px;max-width:340px;z-index:5}
+.tip .tv{font-weight:700}
+.tip .tp{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.maplegend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12.5px;color:var(--ink-2)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.cell{cursor:pointer}
+.cell:hover{filter:brightness(1.1)}
+.grp{fill:none;stroke:var(--hair)}
+.grp-hit{fill:transparent;cursor:zoom-in}
+.grp-label{font:600 11.5px var(--sans);fill:var(--ink-2);pointer-events:none}
+.cell-label{font:10.5px var(--mono);pointer-events:none}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(5,10,9,.32);z-index:40}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);background:var(--raised);border-left:1px solid var(--hair);box-shadow:var(--shadow);z-index:41;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.dhead{display:flex;gap:10px;align-items:flex-start;padding:16px 18px 12px;border-bottom:1px solid var(--hair)}
+.dhead h3{font-family:var(--display);font-weight:700;font-size:18px;margin:0;line-height:1.25;overflow-wrap:anywhere;text-wrap:balance}
+.dhead .dp{font-family:var(--mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:4px}
+.dclose{margin-left:auto;border:1px solid var(--hair);background:var(--surface);border-radius:8px;width:34px;height:34px;flex:none;cursor:pointer;font-size:18px;line-height:1}
+.dbody{overflow:auto;padding:14px 18px calc(24px + env(safe-area-inset-bottom,0px))}
+.dsec{margin-bottom:16px}
+.dsec h5{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.dsec ul{margin:0;padding-left:18px}
+.dsec li{margin:3px 0;overflow-wrap:anywhere}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--hair);background:var(--surface);border-radius:8px;padding:6px 11px;font-size:13px;cursor:pointer;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;overflow-wrap:anywhere}
+.refbad{display:grid;grid-template-columns:70px 1fr;gap:2px 10px;font-size:12.5px;padding:6px 0;border-top:1px solid var(--hair-2)}
+.refbad .rk{color:var(--muted)}
+.refbad .rr{font-family:var(--mono);overflow-wrap:anywhere}
+.refbad .rw{grid-column:2;color:var(--ink-2)}
+footer{color:var(--muted);font-size:12.5px;padding-block:10px 40px;border-top:1px solid var(--hair);margin-top:10px}
+@media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1>OpenIntelligence Repo Map</h1>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="search" role="search">
+      <svg class="lens" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Find a feature, file, type or doc: try HUD, paywall, RAGService" aria-label="Search the repository" aria-controls="results">
+      <div class="results" id="results" role="listbox" hidden></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="summary" aria-label="Summary">
+    <div class="card">
+      <h2>Can I trust this doc?</h2>
+      <div class="sub" id="trustsub"></div>
+      <div class="bar" id="trustbar" role="img"></div>
+      <div class="legend" id="trustlegend"></div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button role="tab" id="tab-how" aria-controls="p-how" data-tab="how">How it fits together</button>
+    <button role="tab" id="tab-docs" aria-controls="p-docs" data-tab="docs">Docs</button>
+    <button role="tab" id="tab-code" aria-controls="p-code" data-tab="code">Code</button>
+    <button role="tab" id="tab-map" aria-controls="p-map" data-tab="map">Map</button>
+    <button role="tab" id="tab-loose" aria-controls="p-loose" data-tab="loose">Loose files</button>
+  </nav>
+
+  <section class="panel" id="p-how" role="tabpanel" aria-labelledby="tab-how"></section>
+  <section class="panel" id="p-docs" role="tabpanel" aria-labelledby="tab-docs" hidden></section>
+  <section class="panel" id="p-code" role="tabpanel" aria-labelledby="tab-code" hidden></section>
+  <section class="panel" id="p-map" role="tabpanel" aria-labelledby="tab-map" hidden></section>
+  <section class="panel" id="p-loose" role="tabpanel" aria-labelledby="tab-loose" hidden></section>
+
+  <footer id="foot"></footer>
+</main>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-modal="true" role="dialog" aria-labelledby="dtitle">
+  <div class="dhead">
+    <div><h3 id="dtitle"></h3><div class="dp" id="dpath"></div></div>
+    <button class="dclose" id="dclose" aria-label="Close">×</button>
+  </div>
+  <div class="dbody" id="dbody"></div>
+</aside>
+
+<script type="application/json" id="data">/*__DATA__*/</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(() => {
+const D = JSON.parse(document.getElementById('data').textContent);
+const HEAD = D.head, SHORT = HEAD.slice(0, 7), REPO = 'https://github.com/' + D.repo, LINK = D.link_sha || D.head;
+const $ = s => document.querySelector(s);
+const fmt = n => n.toLocaleString('en-US');
+const today = new Date(D.generated.slice(0, 10) + 'T12:00:00');
+const daysAgo = d => d ? Math.round((today - new Date(d + 'T12:00:00')) / 864e5) : null;
+const ago = d => { const n = daysAgo(d); if (n == null) return 'never committed'; if (n <= 0) return 'today'; if (n === 1) return 'yesterday'; if (n < 60) return n + ' days ago'; return Math.round(n / 30.4) + ' months ago'; };
+const blob = p => REPO + '/blob/' + LINK + '/' + p.split('/').map(encodeURIComponent).join('/');
+const hist = p => REPO + '/commits/' + LINK + '/' + p.split('/').map(encodeURIComponent).join('/');
+const commit = s => REPO + '/commit/' + s;
+const base = p => p.split('/').pop();
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'on') for (const [ev, fn] of Object.entries(v)) el.addEventListener(ev, fn);
+    else if (k === 'html') el.innerHTML = v;  // trusted constants only (icons)
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) el.append(k.nodeType ? k : document.createTextNode(String(k)));
+  return el;
+}
+
+/* ---------- status vocabulary ---------- */
+const ICON = {
+  x: '<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>',
+  warn: '<svg viewBox="0 0 16 16"><path d="M8 2.2 14.6 13.6H1.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 6.4v3.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="11.7" r=".95" fill="currentColor"/></svg>',
+  clock: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 4.7V8l2.3 1.7" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg>',
+  shield: '<svg viewBox="0 0 16 16"><path d="M8 1.7 13.3 3.9v4.1c0 3-2.3 5.4-5.3 6.3-3-.9-5.3-3.3-5.3-6.3V3.9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M5.6 8.1 7.3 9.8 10.6 6.4" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 16 16"><path d="M3.3 8.6 6.6 11.7 12.7 4.7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  q: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.3 6.3a1.75 1.75 0 1 1 2.4 1.6c-.5.2-.7.6-.7 1.1v.3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="8" cy="11.6" r=".9" fill="currentColor"/></svg>',
+  box: '<svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3.2" rx=".8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.2 6.2v6.3c0 .5.4.9.9.9h7.8c.5 0 .9-.4.9-.9V6.2M6.3 8.9h3.4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>',
+  unused: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.8 12.2 12.2 3.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+};
+const ST = {
+  'outdated':   {label: 'Mostly out of date', color: '--critical', icon: 'x'},
+  'dead-links': {label: 'Dead references',    color: '--serious',  icon: 'warn'},
+  'behind':     {label: 'Code moved on',      color: '--warn',     icon: 'clock'},
+  'verified':   {label: 'Gate-checked',       color: '--good',     icon: 'shield'},
+  'current':    {label: 'References resolve', color: '--good',     icon: 'check'},
+  'unchecked':  {label: "Can't check",        color: '--unk',      icon: 'q'},
+  'history':    {label: 'History',            color: '--hist',     icon: 'box'},
+};
+const ORDER = Object.keys(ST);
+const chip = st => h('span', {class: 'chip'}, h('span', {class: 'ic', style: `color:var(${ST[st].color})`, html: ICON[ST[st].icon]}), ST[st].label);
+const useChip = f => f.use === 'orphan'
+  ? h('span', {class: 'chip'}, h('span', {class: 'ic', style: 'color:var(--critical)', html: ICON.unused}), 'Nothing uses it')
+  : f.use === 'test-only' ? h('span', {class: 'chip'}, h('span', {class: 'ic', style: 'color:var(--warn)', html: ICON.unused}), 'Only tests use it') : null;
+
+/* ---------- indexes ---------- */
+const files = D.files, docs = D.docs;
+const fileBy = new Map(files.map(f => [f.p, f]));
+const docBy = new Map(docs.map(d => [d.path, d]));
+const swift = files.filter(f => f.k && f.k !== 'vendored');
+const typeTo = new Map();
+for (const f of swift) for (const t of (f.types || [])) if (!typeTo.has(t)) typeTo.set(t, f.p);
+const docOf = name => {
+  if (/atlas/i.test(name)) return 'Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md';
+  if (/^canonical/i.test(name)) return 'Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md';
+  return name;
+};
+function ownerDocs(owner) {
+  const out = new Set();
+  for (const m of owner.matchAll(/[\w./-]+\.md/g)) out.add(m[0]);
+  if (/atlas/i.test(owner)) out.add(docOf('atlas'));
+  if (/canonical/i.test(owner)) out.add(docOf('canonical'));
+  return [...out].filter(p => docBy.has(p));
+}
+
+/* ---------- header, summary ---------- */
+$('#meta').append(
+  'Surveyed at ', LINK === HEAD ? h('a', {href: commit(HEAD), target: '_blank', rel: 'noopener', class: 'mono'}, SHORT)
+    : [h('span', {class: 'mono'}, SHORT), ' (not on GitHub yet; links use ', h('a', {href: commit(LINK), target: '_blank', rel: 'noopener', class: 'mono'}, LINK.slice(0, 7)), ')'],
+  ' · ', D.generated.replace('T', ' '), ' · live version ', h('b', null, D.live_version),
+  ' · ', fmt(D.counts.tracked), ' files in git');
+
+const counts = Object.fromEntries(ORDER.map(s => [s, docs.filter(d => d.status === s).length]));
+$('#trustsub').textContent = `${docs.length} documents, each checked against the code at ${SHORT}. A check means every file, type and function it names still exists; prose itself can't be checked.`;
+const bar = $('#trustbar');
+bar.setAttribute('aria-label', ORDER.map(s => `${counts[s]} ${ST[s].label}`).join(', '));
+for (const s of ORDER) if (counts[s]) {
+  const seg = h('span', {style: `flex:${counts[s]};background:var(${ST[s].color})`, title: `${counts[s]} · ${ST[s].label}`,
+    on: {click: () => { docFilter = new Set([s]); go('docs'); renderDocs(); }}});
+  bar.append(seg);
+}
+for (const s of ORDER) $('#trustlegend').append(h('button', {class: 'leg', on: {click: () => { docFilter = new Set([s]); go('docs'); renderDocs(); }}},
+  h('span', {class: 'ic', style: `color:var(${ST[s].color})`, html: ICON[ST[s].icon]}), ST[s].label, h('span', {class: 'n'}, counts[s])));
+
+const needsFix = counts['outdated'] + counts['dead-links'];
+const orphans = swift.filter(f => f.use === 'orphan');
+const looseMB = D.loose.reduce((a, l) => a + l.kb, 0) / 1024;
+const tile = (v, k, goText, fn) => h('button', {class: 'tile', on: {click: fn}}, h('span', {class: 'v'}, v), h('span', {class: 'k'}, k), h('span', {class: 'go'}, goText));
+$('#tiles').append(
+  tile(needsFix, 'docs name code or files that no longer exist', 'See which →', () => { docFilter = new Set(['outdated', 'dead-links']); go('docs'); renderDocs(); }),
+  tile(counts['behind'], 'docs older than the code they describe', 'See which →', () => { docFilter = new Set(['behind']); go('docs'); renderDocs(); }),
+  tile(orphans.length, 'Swift files nothing else uses', 'See which →', () => { onlyUnused = true; go('code'); renderCode(); }),
+  tile((looseMB / 1024).toFixed(1) + ' GB', 'in the repo folder but not in git', 'See what →', () => go('loose')),
+);
+
+/* ---------- tabs ---------- */
+const TABS = ['how', 'docs', 'code', 'map', 'loose'];
+function go(t) {
+  for (const x of TABS) {
+    $('#tab-' + x).setAttribute('aria-selected', x === t);
+    $('#p-' + x).hidden = x !== t;
+  }
+  if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t);
+  try { localStorage.setItem('oi-map-tab', t); } catch (e) {}
+  if (t === 'map') renderMap();
+}
+for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => go(b.dataset.tab));
+addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.includes(t)) go(t); });
+
+/* ---------- drawer ---------- */
+const drawer = $('#drawer'), scrim = $('#scrim'), dbody = $('#dbody');
+let lastFocus = null;
+function openDrawer(title, path, build) {
+  lastFocus = document.activeElement;
+  $('#dtitle').textContent = title;
+  $('#dpath').textContent = path || '';
+  dbody.replaceChildren();
+  build(dbody);
+  drawer.hidden = false; scrim.hidden = false;
+  dbody.scrollTop = 0;
+  $('#dclose').focus();
+}
+function closeDrawer() { drawer.hidden = true; scrim.hidden = true; if (lastFocus) lastFocus.focus(); }
+$('#dclose').addEventListener('click', closeDrawer);
+scrim.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) closeDrawer(); });
+const sec = (title, ...kids) => h('div', {class: 'dsec'}, h('h5', null, title), ...kids);
+function copyBtn(text, label) {
+  const b = h('button', {class: 'btn'}, label);
+  b.addEventListener('click', () => {
+    const done = () => { b.textContent = 'Copied'; setTimeout(() => b.textContent = label, 1400); };
+    navigator.clipboard?.writeText(text).then(done, () => { const r = document.createRange(); r.selectNodeContents($('#dpath')); getSelection().removeAllRanges(); getSelection().addRange(r); });
+  });
+  return b;
+}
+function actions(p) {
+  return h('div', {class: 'acts'},
+    h('a', {class: 'btn primary', href: blob(p), target: '_blank', rel: 'noopener'}, 'Open on GitHub'),
+    h('a', {class: 'btn', href: hist(p), target: '_blank', rel: 'noopener'}, 'History'),
+    copyBtn(base(p), 'Copy name for Xcode ⌘⇧O'),
+    copyBtn(p, 'Copy path'));
+}
+function pathLink(p) {
+  const known = docBy.has(p) || fileBy.has(p);
+  return known ? h('button', {class: 'linkbtn', on: {click: () => openAny(p)}}, p) : h('span', {class: 'mono'}, p);
+}
+function lastEdit(f) {
+  const sha = f.sha || f.last?.sha, date = typeof f.last === 'string' ? f.last : f.last?.date, subj = f.last?.subject;
+  return h('dl', {class: 'kv'},
+    h('dt', null, 'Last edited'), h('dd', null, date ? `${date} (${ago(date)})` : '—', sha ? [' · ', h('a', {href: commit(sha), target: '_blank', rel: 'noopener', class: 'mono'}, sha)] : null),
+    subj ? [h('dt', null, 'Commit'), h('dd', null, subj)] : null,
+    h('dt', null, 'Commits'), h('dd', null, String(f.edits ?? '—')),
+    f.lines != null ? [h('dt', null, 'Lines'), h('dd', null, fmt(f.lines))] : null);
+}
+function openAny(p) {
+  if (docBy.has(p)) return openDoc(docBy.get(p));
+  const f = fileBy.get(p);
+  if (f && f.k) return openSwift(f);
+  if (f) return openDrawer(base(p), p, b => { b.append(actions(p), lastEdit(f)); });
+}
+function openDoc(d) {
+  openDrawer(d.title || base(d.path), d.path, b => {
+    b.append(actions(d.path));
+    b.append(sec('Status', h('div', null, chip(d.status)), h('ul', null, d.why.map(w => h('li', null, w)))));
+    if (d.summary) b.append(sec('What it says it is', h('div', null, d.summary)));
+    if (d.refs_broken.length) b.append(sec(`References that no longer resolve (${d.n_broken})`,
+      ...d.refs_broken.map(r => h('div', {class: 'refbad'}, h('span', {class: 'rk'}, r.kind), h('span', {class: 'rr'}, r.ref), h('span', {class: 'rw'}, r.why)))));
+    const ch = Object.entries(d.code_changed_since || {}).sort((a, b) => b[1] - a[1]);
+    if (ch.length) b.append(sec(`Code it cites that changed after its last edit`, h('ul', null, ch.map(([p, n]) => h('li', null, pathLink(p), ` ${n} commit${n > 1 ? 's' : ''}`)))));
+    if (d.same_name?.length) b.append(sec('Another doc has the same name', h('ul', null, d.same_name.map(p => h('li', null, pathLink(p))))));
+    b.append(sec(`Pointed to by (${d.inbound.length})`, d.inbound.length ? h('ul', null, d.inbound.slice(0, 40).map(p => h('li', null, pathLink(p)))) : h('div', {class: 'muted'}, 'Nothing in the repository names this file.')));
+    b.append(sec('Numbers', h('dl', {class: 'kv'},
+      h('dt', null, 'References checked'), h('dd', null, `${d.refs_ok + d.n_broken} (${d.n_broken} dead)`),
+      h('dt', null, 'Category'), h('dd', null, d.category),
+      h('dt', null, 'Gate'), h('dd', null, d.gate_checked ? 'scripts/verify_doc_claims.py checks it' : 'not in the gate\'s list'))));
+    b.append(sec('History', lastEdit({...d, lines: d.lines})));
+  });
+}
+function openSwift(f) {
+  openDrawer(base(f.p), f.p, b => {
+    b.append(actions(f.p));
+    const tags = h('div', {class: 'acts'}, useChip(f), h('span', {class: 'tag'}, f.k === 'test' ? 'Test' : f.engine ? 'App + Engine SDK target' : 'App target only'), f.area ? h('span', {class: 'tag'}, f.area) : null);
+    b.append(tags);
+    if (f.blurb) b.append(sec('What it says it does', h('div', null, f.blurb)));
+    if (f.types?.length) b.append(sec('Declares', h('div', {class: 'mono'}, f.types.join(', '))));
+    if (f.use === 'orphan') b.append(sec('Why it counts as unused', h('div', null, 'No other Swift file names any type it declares or calls any extension method it adds, and it is not something the system finds on its own (an App Intent, widget or @main). Check before deleting: code can also be reached through strings or reflection.')));
+    b.append(sec(`Used by (${f.n_used_by ?? 0})`, f.used_by?.length ? h('ul', null, f.used_by.map(p => h('li', null, pathLink(p))), f.n_used_by > f.used_by.length ? h('li', {class: 'muted'}, `and ${f.n_used_by - f.used_by.length} more`) : null) : h('div', {class: 'muted'}, f.k === 'test' ? 'A test file.' : 'No other file names its types.')));
+    if (f.tested_by?.length) b.append(sec('Tested by', h('ul', null, f.tested_by.map(p => h('li', null, pathLink(p))))));
+    if (f.unused_types?.length) b.append(sec('Types inside that nothing uses', h('div', {class: 'mono'}, f.unused_types.join(', '))));
+    b.append(sec('History', lastEdit(f)));
+  });
+}
+function openArea(title, prefixes, owners) {
+  const inArea = f => prefixes.some(px => f.p === px || f.p.startsWith(px + '/'));
+  const sw = swift.filter(inArea).sort((a, b) => a.p.localeCompare(b.p));
+  const ds = docs.filter(d => inArea({p: d.path}));
+  openDrawer(title, prefixes.join('  ·  '), b => {
+    if (owners?.length) b.append(sec('Owning docs', h('div', {class: 'acts'}, owners.map(p => h('button', {class: 'btn', on: {click: () => openDoc(docBy.get(p))}}, chip(docBy.get(p).status), ' ', base(p))))));
+    const un = sw.filter(f => f.use === 'orphan').length;
+    b.append(sec(`Swift files (${sw.length}${un ? `, ${un} unused` : ''})`, h('div', {class: 'files'}, sw.map(fileRow))));
+    if (ds.length) b.append(sec(`Docs here (${ds.length})`, h('div', {class: 'rows'}, ds.map(docRow))));
+  });
+}
+
+/* ---------- rows ---------- */
+function docRow(d) {
+  const lead = d.status === 'verified' || d.status === 'current' ? d.why[0] : (d.why.find(w => !/^An |^In Docs|^Marks|^Only/.test(w)) || d.why[0]);
+  return h('button', {class: 'row', on: {click: () => openDoc(d)}},
+    h('div', null, chip(d.status)),
+    h('div', null, h('div', {class: 't'}, d.title || base(d.path)), h('div', {class: 'p'}, d.path)),
+    h('div', {class: 'd'}, d.last.date || '—', h('div', {class: 'muted'}, ago(d.last.date))),
+    h('div', {class: 'x'}, `${d.inbound.length} link${d.inbound.length === 1 ? '' : 's'} in`),
+    h('div', {class: 'w'}, lead || ''));
+}
+function fileRow(f) {
+  return h('button', {class: 'file', on: {click: () => openSwift(f)}},
+    h('span', {class: 'fn'}, base(f.p)),
+    h('span', {class: 'fb'}, f.blurb || (f.types?.length ? f.types.slice(0, 4).join(', ') : '')),
+    h('span', {class: 'ft'}, useChip(f), f.unused_types?.length ? h('span', {class: 'tag warnish'}, `${f.unused_types.length} unused type${f.unused_types.length > 1 ? 's' : ''}`) : null,
+      h('span', {class: 'tag'}, fmt(f.lines) + ' lines'), f.tested_by?.length ? h('span', {class: 'tag'}, 'tested') : null),
+    h('span', {class: 'sub'}, f.p.split('/').slice(0, -1).join('/') + (f.n_used_by ? `  ·  used by ${f.n_used_by} file${f.n_used_by > 1 ? 's' : ''}` : '')));
+}
+
+/* ---------- How it fits ---------- */
+const NODES = {
+  add:   {t: 'Add a document', s: 'Features/Documents', p: ['OpenIntelligence/Features/Documents']},
+  ext:   {t: 'Extract, OCR, chunk', s: 'Services/Document', p: ['OpenIntelligence/Services/Document'], o: ['Docs/INGESTION_PIPELINE.md']},
+  emb:   {t: 'Embed', s: 'Services/Embedding', p: ['OpenIntelligence/Services/Embedding']},
+  fts:   {t: 'Keyword index', s: 'Services/Storage · FTS5', p: ['OpenIntelligence/Services/Storage']},
+  vec:   {t: 'Vector store', s: 'Services/VectorStore', p: ['OpenIntelligence/Services/VectorStore']},
+  ask:   {t: 'Ask in chat', s: 'Features/Chat', p: ['OpenIntelligence/Features/Chat']},
+  qry:   {t: 'Read the question', s: 'Services/Query', p: ['OpenIntelligence/Services/Query'], o: ['Docs/RETRIEVAL_PIPELINE.md']},
+  hyb:   {t: 'Hybrid search', s: 'RAG/Retrieval', p: ['OpenIntelligence/Services/RAG/Retrieval'], o: ['Docs/RETRIEVAL_PIPELINE.md']},
+  rr:    {t: 'Fuse and rerank', s: 'RAGEngine.swift', p: ['OpenIntelligence/Services/RAG/Orchestration'], o: ['Docs/RETRIEVAL_PIPELINE.md']},
+  plan:  {t: 'Pick where to run', s: 'ModelExecutionPlanner', p: ['OpenIntelligence/Services/RAG/Orchestration/ModelExecutionPlanner.swift', 'OpenIntelligence/Services/AIPlatform/AppleFoundationModels'], o: ['Docs/PRIVACY_AND_ROUTING.md']},
+  dev:   {t: 'On-device model', s: 'Services/LLM', p: ['OpenIntelligence/Services/LLM', 'OpenIntelligence/Services/AIPlatform'], o: ['Docs/PRIVACY_AND_ROUTING.md']},
+  pcc:   {t: 'Private Cloud Compute', s: 'Apple, off device', p: ['OpenIntelligence/Services/AIPlatform/AppleFoundationModels'], o: ['Docs/PRIVACY_AND_ROUTING.md']},
+  ans:   {t: 'Answer + citations', s: 'Chat/Response', p: ['OpenIntelligence/Features/Chat/Response']},
+};
+function renderHow() {
+  const P = $('#p-how');
+  const box = (id, x, y, w) => `<g class="node" tabindex="0" role="button" data-id="${id}" aria-label="${NODES[id].t}: list its files"><rect class="box" x="${x}" y="${y}" width="${w}" height="54" rx="9"/><text class="nt" x="${x + 12}" y="${y + 23}">${NODES[id].t}</text><text class="ns" x="${x + 12}" y="${y + 41}">${NODES[id].s}</text></g>`;
+  const lab = (x, y, t, key) => `<text class="elabel${key ? ' key' : ''}" x="${x}" y="${y}" text-anchor="middle">${t}</text>`;
+  const svg = `
+<svg viewBox="0 0 1180 500" role="img" aria-label="Importing writes chunk text to a keyword index and vectors to a vector store; asking reads both, fuses and reranks, then runs the answer on the device or, only with consent, on Apple Private Cloud Compute." xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="currentColor" fill-opacity=".7"/></marker>
+  <marker id="ahk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--accent)"/></marker></defs>
+  <rect x="12" y="34" width="970" height="452" rx="16" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="6 5"/>
+  <text x="30" y="56" class="elabel" style="font-weight:600">On the user's iPhone, iPad or Mac</text>
+  <text x="30" y="92" class="elabel" style="text-anchor:start;font-size:11px;letter-spacing:.06em">IMPORT</text>
+  <text x="30" y="298" class="elabel" style="text-anchor:start;font-size:11px;letter-spacing:.06em">ASK</text>
+  ${box('add', 30, 100, 150)} ${box('ext', 222, 100, 168)} ${box('emb', 432, 100, 150)}
+  ${box('fts', 222, 204, 168)} ${box('vec', 432, 204, 150)}
+  ${box('ask', 30, 306, 132)} ${box('qry', 190, 306, 150)} ${box('hyb', 368, 306, 138)} ${box('rr', 534, 306, 138)} ${box('plan', 700, 306, 164)}
+  ${box('dev', 820, 394, 150)} ${box('ans', 610, 394, 170)}
+  ${box('pcc', 1010, 306, 160)}
+  <path class="edge" d="M180 127H218" marker-end="url(#ah)"/>${lab(199, 120, 'file')}
+  <path class="edge" d="M390 127H428" marker-end="url(#ah)"/>${lab(409, 120, 'chunks')}
+  <path class="edge" d="M306 154V200" marker-end="url(#ah)"/>${lab(334, 181, 'text')}
+  <path class="edge" d="M507 154V200" marker-end="url(#ah)"/>${lab(538, 181, 'vectors')}
+  <path class="edge" d="M162 333H186" marker-end="url(#ah)"/>
+  <path class="edge" d="M340 333H364" marker-end="url(#ah)"/>
+  <path class="edge" d="M410 306 330 262" marker-end="url(#ah)"/>${lab(352, 292, 'lexical')}
+  <path class="edge" d="M466 306 494 262" marker-end="url(#ah)"/>${lab(505, 292, 'dense')}
+  <path class="edge" d="M506 333H530" marker-end="url(#ah)"/>${lab(520, 298, 'top-K')}
+  <path class="edge" d="M672 333H696" marker-end="url(#ah)"/>
+  <path class="edge" d="M846 360 872 392" marker-end="url(#ah)"/>${lab(902, 380, 'by default')}
+  <path class="edge key" d="M864 322H1006" marker-end="url(#ahk)"/>${lab(935, 314, 'only with consent', true)}
+  <path class="edge" d="M820 421H784" marker-end="url(#ah)"/>
+  <path class="edge key" d="M1090 360V470H695V452" marker-end="url(#ahk)"/>${lab(1040, 462, 'answer returns', true)}
+</svg>`;
+  const fig = h('figure', {class: 'flow'}, h('div', {class: 'flowscroll', html: svg}),
+    h('figcaption', null, 'The two paths meet at the two stores: importing writes chunk text to the keyword index and vectors to the vector store, and asking reads both, then fuses and reranks the results. Only the final prompt can leave the device, to Apple Private Cloud Compute, and only with consent. Click any box to list its files and their status. Source: Docs/ai/ARCHITECTURE.md, "Data flow", which cites file and line for each step (verified 2026-09-24).'));
+  P.append(fig);
+  for (const g of fig.querySelectorAll('.node')) {
+    const n = NODES[g.dataset.id];
+    const open = () => openArea(n.t, n.p, (n.o || []).filter(p => docBy.has(p)));
+    g.addEventListener('click', open);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  }
+
+  P.append(h('h3', {class: 'h3'}, 'Words you use, and where they live'));
+  P.append(h('div', {class: 'muted', style: 'margin:-4px 0 10px;font-size:13px'}, 'From the "If the owner says..." table in Docs/ai/ARCHITECTURE.md.'));
+  P.append(h('div', {class: 'vocab'}, D.features.map(v => h('div', {class: 'vcard'},
+    h('div', {class: 'vn'}, v.name),
+    h('div', {class: 'vf'}, v.files.length ? v.files.map(p => h('button', {class: 'linkbtn', on: {click: () => openAny(p)}}, base(p))) : h('span', {class: 'muted'}, 'see the row above it')),
+    v.symbols.length ? h('div', {class: 'vs'}, v.symbols.join('  ·  ')) : null))));
+
+  P.append(h('h3', {class: 'h3'}, 'Areas and the doc that owns each'));
+  const tb = h('tbody');
+  for (const a of D.areas) {
+    const owners = ownerDocs(a.owner);
+    const n = swift.filter(f => a.paths.some(px => f.p.startsWith(px + '/') || f.p === px)).length;
+    tb.append(h('tr', null,
+      h('td', null, h('button', {class: 'linkbtn', style: 'font-family:var(--sans);font-weight:600', on: {click: () => openArea(a.name, a.paths, owners)}}, a.name)),
+      h('td', {class: 'mono'}, a.paths.map(p => p.replace('OpenIntelligence/', '')).join(', ') || '—'),
+      h('td', {class: 'num'}, n || '—'),
+      h('td', null, owners.length ? owners.map(p => h('div', {style: 'display:flex;gap:6px;align-items:center;margin:2px 0'}, chip(docBy.get(p).status), h('button', {class: 'linkbtn', on: {click: () => openDoc(docBy.get(p))}}, base(p)))) : h('span', {class: 'muted'}, a.owner))));
+  }
+  P.append(h('div', {class: 'tablewrap'}, h('table', {class: 'plain'}, h('thead', null, h('tr', null, h('th', null, 'Area'), h('th', null, 'Folder'), h('th', null, 'Swift files'), h('th', null, 'Owning doc'))), tb)));
+}
+
+/* ---------- Docs ---------- */
+let docFilter = new Set(), docCat = '', docSort = 'status';
+function renderDocs() {
+  const P = $('#p-docs');
+  P.replaceChildren();
+  P.append(h('details', {class: 'explain'}, h('summary', null, 'How each status is decided'),
+    h('dl', null,
+      h('dt', null, chip('outdated')), h('dd', null, 'At least 3 references, and at least 10% of them, name a file, type or function that no longer exists.'),
+      h('dt', null, chip('dead-links')), h('dd', null, 'One or two references no longer resolve. The rest do.'),
+      h('dt', null, chip('behind')), h('dd', null, 'Every reference resolves, but at least 3 (and at least half) of the Swift files it cites changed after the doc was last edited, or its header names a version older than the live one.'),
+      h('dt', null, chip('verified')), h('dd', null, 'On the list scripts/verify_doc_claims.py checks on every run, and every reference resolves, including the kinds the gate does not check.'),
+      h('dt', null, chip('current')), h('dd', null, 'Three or more references, all resolve, and the code it cites has mostly not changed since. The prose can still be wrong.'),
+      h('dt', null, chip('unchecked')), h('dd', null, 'Fewer than 3 references to check. It is prose, and its age is the only signal.'),
+      h('dt', null, chip('history')), h('dd', null, 'Archives, audits, snapshots, release logs, or a doc that says it was superseded. Right for its date, not a description of today.'),
+      h('dt', null, 'Removed'), h('dd', null, 'Not declared or used in live code (comments do not count), not an Apple SDK type in Xcode 27, and not from a package dependency.'))));
+
+  const cats = [...new Set(docs.map(d => d.category))].sort();
+  const bar = h('div', {class: 'toolbar'});
+  const all = h('button', {class: 'fchip', 'aria-pressed': docFilter.size === 0, on: {click: () => { docFilter.clear(); renderDocs(); }}}, 'All', h('span', {class: 'n'}, docs.length));
+  bar.append(all);
+  for (const s of ORDER) bar.append(h('button', {class: 'fchip', 'aria-pressed': docFilter.has(s), on: {click: () => { docFilter.has(s) ? docFilter.delete(s) : docFilter.add(s); renderDocs(); }}},
+    h('span', {class: 'ic', style: `color:var(${ST[s].color})`, html: ICON[ST[s].icon]}), ST[s].label, h('span', {class: 'n'}, counts[s])));
+  const catSel = h('select', {class: 'sel', id: 'doccat', 'aria-label': 'Category', on: {change: e => { docCat = e.target.value; renderDocs(); }}},
+    h('option', {value: ''}, 'Every category'), cats.map(c => h('option', {value: c, selected: c === docCat}, c)));
+  const sortSel = h('select', {class: 'sel', id: 'docsort', 'aria-label': 'Sort', on: {change: e => { docSort = e.target.value; renderDocs(); }}},
+    h('option', {value: 'status', selected: docSort === 'status'}, 'Worst first'),
+    h('option', {value: 'old', selected: docSort === 'old'}, 'Least recently edited'),
+    h('option', {value: 'orphan', selected: docSort === 'orphan'}, 'Fewest links in'),
+    h('option', {value: 'path', selected: docSort === 'path'}, 'By path'));
+  bar.append(catSel, sortSel);
+  P.append(bar);
+
+  let list = docs.filter(d => (!docFilter.size || docFilter.has(d.status)) && (!docCat || d.category === docCat));
+  const rank = s => ORDER.indexOf(s);
+  list.sort(docSort === 'old' ? (a, b) => (a.last.date || '').localeCompare(b.last.date || '')
+    : docSort === 'orphan' ? (a, b) => a.inbound.length - b.inbound.length || a.path.localeCompare(b.path)
+    : docSort === 'path' ? (a, b) => a.path.localeCompare(b.path)
+    : (a, b) => rank(a.status) - rank(b.status) || b.n_broken - a.n_broken || (a.last.date || '').localeCompare(b.last.date || ''));
+  P.append(h('div', {class: 'muted', style: 'margin:0 0 8px;font-size:12.5px'}, `${list.length} shown`));
+  P.append(h('div', {class: 'rows'}, list.map(docRow)));
+}
+
+/* ---------- Code ---------- */
+let onlyUnused = false;
+function groupKey(p) {
+  const s = p.split('/');
+  return s.length > 3 ? s.slice(0, 3).join('/') : s.slice(0, -1).join('/') || s[0];
+}
+function renderCode() {
+  const P = $('#p-code');
+  P.replaceChildren();
+  const bar = h('div', {class: 'toolbar'},
+    h('div', {class: 'seg', role: 'group', 'aria-label': 'Filter'},
+      h('button', {'aria-pressed': !onlyUnused, on: {click: () => { onlyUnused = false; renderCode(); }}}, 'All Swift files'),
+      h('button', {'aria-pressed': onlyUnused, on: {click: () => { onlyUnused = true; renderCode(); }}}, `Only files nothing uses (${orphans.length})`)),
+    h('span', {class: 'muted', style: 'font-size:12.5px'}, 'Grouped by folder. Open a group to see what each file says it does, who uses it, and whether tests cover it.'));
+  P.append(bar);
+  const groups = new Map();
+  for (const f of swift) {
+    if (onlyUnused && f.use !== 'orphan' && f.use !== 'test-only') continue;
+    const k = groupKey(f.p);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(f);
+  }
+  const keys = [...groups.keys()].sort((a, b) => (a.startsWith('OpenIntelligenceTests') - b.startsWith('OpenIntelligenceTests')) || a.localeCompare(b));
+  for (const k of keys) {
+    const fs = groups.get(k).sort((a, b) => a.p.localeCompare(b.p));
+    const lines = fs.reduce((a, f) => a + f.lines, 0);
+    const un = fs.filter(f => f.use === 'orphan').length;
+    const owners = new Set();
+    for (const a of D.areas) if (a.paths.some(px => px === k || px.startsWith(k + '/') || k.startsWith(px + '/'))) ownerDocs(a.owner).forEach(o => owners.add(o));
+    const det = h('details', {class: 'group', open: onlyUnused || null},
+      h('summary', null, h('span', {class: 'gname'}, k.replace(/^OpenIntelligence\//, '').replace(/\//g, ' › ')),
+        h('span', {class: 'gmeta'}, `${fs.length} files · ${fmt(lines)} lines${un ? ` · ${un} unused` : ''}`),
+        owners.size ? h('span', {class: 'owners'}, [...owners].map(o => h('span', {style: 'display:inline-flex;gap:4px;align-items:center'}, chip(docBy.get(o).status), h('span', {class: 'mono muted'}, base(o))))) : null),
+      h('div', {class: 'files'}, fs.map(fileRow)));
+    P.append(det);
+  }
+  const vend = files.filter(f => f.k === 'vendored').length;
+  P.append(h('div', {class: 'muted', style: 'font-size:12.5px;margin-top:10px'}, `Not shown: ${vend} vendored files in OpenIntelligence/swift-transformers.`));
+}
+
+/* ---------- Map ---------- */
+let mapMode = 'trust', mapFocus = '', mapTip;
+function cssv(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function lum(hex) {
+  const m = hex.replace('#', '');
+  if (m.length !== 6) return 0.5;
+  const c = [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const AGE = [[7, 'this week'], [30, 'this month'], [60, '1 to 2 months'], [90, '2 to 3 months'], [1e9, 'over 3 months']];
+function fillFor(f, pal) {
+  if (mapMode === 'age') {
+    const n = daysAgo(f.last);
+    const i = AGE.findIndex(([d]) => n <= d);
+    return pal.seq[Math.max(0, i)];
+  }
+  if (mapMode === 'unused') {
+    if (f.use === 'orphan') return pal.critical;
+    if (f.use === 'test-only') return pal.warn;
+    return f.k ? pal.code : pal.other;
+  }
+  const d = docBy.get(f.p);
+  return d ? pal[ST[d.status].color] : pal.other;
+}
+function buildTree(prefix) {
+  const root = {name: prefix || 'repo', path: prefix, kids: new Map()};
+  for (const f of files) {
+    if (!f.lines || !(f.k || docBy.has(f.p) || /\.(py|sh|rb|js|ya?ml)$/.test(f.p))) continue;
+    if (prefix && !(f.p.startsWith(prefix + '/'))) continue;
+    const rel = prefix ? f.p.slice(prefix.length + 1) : f.p;
+    const parts = rel.split('/');
+    let node = root, acc = prefix;
+    for (let i = 0; i < parts.length - 1; i++) {
+      acc = acc ? acc + '/' + parts[i] : parts[i];
+      if (!node.kids.has(parts[i])) node.kids.set(parts[i], {name: parts[i], path: acc, kids: new Map()});
+      node = node.kids.get(parts[i]);
+    }
+    node.kids.set(parts[parts.length - 1], {name: parts[parts.length - 1], path: f.p, file: f});
+  }
+  const conv = n => n.file ? {name: n.name, path: n.path, file: n.file} : {name: n.name, path: n.path, children: [...n.kids.values()].map(conv)};
+  return conv(root);
+}
+function renderMapShell() {
+  const P = $('#p-map');
+  P.replaceChildren();
+  const seg = h('div', {class: 'seg', role: 'group', 'aria-label': 'Color by'});
+  for (const [k, l] of [['trust', 'Doc trust'], ['unused', 'Unused code'], ['age', 'Last edited']])
+    seg.append(h('button', {'aria-pressed': mapMode === k, on: {click: () => { mapMode = k; renderMapShell(); renderMap(); }}}, l));
+  P.append(h('div', {class: 'toolbar'}, h('span', {class: 'muted', style: 'font-size:12.5px'}, 'Color by'), seg, h('div', {class: 'crumbs', id: 'crumbs'})));
+  const box = h('div', {class: 'mapbox', id: 'mapbox'});
+  box.innerHTML = '<svg id="mapsvg" role="img" aria-label="Treemap of the repository: each rectangle is a file sized by its line count. The Docs and Code views list the same files as tables."></svg>';
+  mapTip = h('div', {class: 'tip', hidden: true});
+  box.append(mapTip);
+  P.append(box, h('div', {class: 'maplegend', id: 'maplegend'}),
+    h('div', {class: 'muted', style: 'font-size:12.5px;margin-top:8px'}, 'Each rectangle is a file, sized by line count. Click a folder name to zoom in, and a file to open it. Data files (JSON, CSV, test fixtures), images and models are left out so code and docs stay readable.'));
+}
+function renderMap() {
+  if (typeof d3 === 'undefined') { $('#p-map').textContent = 'The map needs d3 from cdnjs, which did not load. The Docs and Code views show the same data.'; return; }
+  if (!$('#mapsvg')) renderMapShell();
+  const box = $('#mapbox'), svgEl = $('#mapsvg');
+  const W = Math.max(320, box.clientWidth - 20), H = Math.round(Math.max(420, Math.min(760, W * 0.6)));
+  const pal = {code: cssv('--cell-code'), other: cssv('--cell-other'), critical: cssv('--critical'), warn: cssv('--warn'),
+    seq: [1, 2, 3, 4, 5].map(i => cssv('--seq-' + i))};
+  for (const s of ORDER) pal[ST[s].color] = cssv(ST[s].color);
+  const tree = buildTree(mapFocus);
+  const root = d3.hierarchy(tree).sum(d => d.file ? Math.max(1, d.file.lines) : 0).sort((a, b) => b.value - a.value);
+  d3.treemap().size([W, H]).paddingOuter(2).paddingTop(d => d.depth === 1 && d.children ? 18 : 0).paddingInner(2).round(true)(root);
+  const svg = d3.select(svgEl).attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+  svg.selectAll('*').remove();
+  const ink = cssv('--ink');
+  const cells = svg.append('g').selectAll('g').data(root.leaves()).join('g');
+  cells.append('rect').attr('class', 'cell').attr('x', d => d.x0).attr('y', d => d.y0)
+    .attr('width', d => Math.max(0, d.x1 - d.x0)).attr('height', d => Math.max(0, d.y1 - d.y0)).attr('rx', 2)
+    .attr('fill', d => fillFor(d.data.file, pal))
+    .on('pointermove', (e, d) => tip(e, d)).on('pointerleave', () => mapTip.hidden = true)
+    .on('click', (e, d) => openAny(d.data.path));
+  cells.filter(d => d.x1 - d.x0 > 64 && d.y1 - d.y0 > 15).append('text').attr('class', 'cell-label')
+    .attr('x', d => d.x0 + 4).attr('y', d => d.y0 + 12)
+    .attr('fill', d => lum(fillFor(d.data.file, pal)) < 0.28 ? '#ffffff' : ink)
+    .text(d => { const w = d.x1 - d.x0 - 8, n = d.data.name; const max = Math.floor(w / 6.4); return n.length > max ? n.slice(0, Math.max(0, max - 1)) + '…' : n; });
+  const groups = svg.append('g').selectAll('g').data((root.children || []).filter(d => d.children)).join('g');
+  groups.append('rect').attr('class', 'grp').attr('x', d => d.x0).attr('y', d => d.y0).attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0).attr('rx', 3);
+  groups.append('rect').attr('class', 'grp-hit').attr('x', d => d.x0).attr('y', d => d.y0).attr('width', d => d.x1 - d.x0).attr('height', 18)
+    .on('click', (e, d) => { mapFocus = d.data.path; renderMap(); });
+  groups.filter(d => d.x1 - d.x0 > 44).append('text').attr('class', 'grp-label').attr('x', d => d.x0 + 5).attr('y', d => d.y0 + 13)
+    .text(d => { const t = `${d.data.name}  ${fmt(d.value)}`; const max = Math.floor((d.x1 - d.x0 - 10) / 6.6); return t.length > max ? t.slice(0, Math.max(0, max - 1)) + '…' : t; });
+  // breadcrumbs
+  const cr = $('#crumbs'); cr.replaceChildren();
+  cr.append(h('button', {on: {click: () => { mapFocus = ''; renderMap(); }}}, 'Repository'));
+  let acc = '';
+  for (const part of (mapFocus ? mapFocus.split('/') : [])) {
+    acc = acc ? acc + '/' + part : part;
+    const target = acc;
+    cr.append(h('span', {class: 'sep'}, '›'), h('button', {on: {click: () => { mapFocus = target; renderMap(); }}}, part));
+  }
+  // legend
+  const lg = $('#maplegend'); lg.replaceChildren();
+  const sw = (c, l) => h('span', null, h('span', {class: 'sw', style: `background:${c}`}), l);
+  if (mapMode === 'trust') {
+    for (const s of ORDER) if (s !== 'current') lg.append(sw(pal[ST[s].color], s === 'verified' ? 'Gate-checked or references resolve' : ST[s].label));
+    lg.append(sw(pal.other, 'Not a document'));
+  }
+  else if (mapMode === 'unused') lg.append(sw(pal.critical, 'Swift file nothing uses'), sw(pal.warn, 'Only tests use it'), sw(pal.code, 'Swift file in use'), sw(pal.other, 'Not Swift'));
+  else AGE.forEach(([, l], i) => lg.append(sw(pal.seq[i], l)));
+}
+function tip(e, d) {
+  const f = d.data.file, doc = docBy.get(f.p), box = $('#mapbox').getBoundingClientRect();
+  mapTip.replaceChildren(
+    h('div', {class: 'tv'}, `${fmt(f.lines)} lines`),
+    h('div', {class: 'tp'}, f.p),
+    doc ? h('div', {style: 'margin-top:4px'}, chip(doc.status)) : f.use === 'orphan' ? h('div', {style: 'margin-top:4px'}, useChip(f)) : null,
+    h('div', {class: 'muted', style: 'margin-top:2px'}, 'Last edited ' + (f.last || '—') + (f.last ? ` (${ago(f.last)})` : '')));
+  mapTip.hidden = false;
+  const x = e.clientX - box.left + 14, y = e.clientY - box.top + 14;
+  const tw = mapTip.offsetWidth, th = mapTip.offsetHeight;
+  mapTip.style.left = Math.min(x, box.width - tw - 8) + 'px';
+  mapTip.style.top = (y + th > box.height ? y - th - 24 : y) + 'px';
+}
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!$('#p-map').hidden) renderMap(); }, 150); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!$('#p-map').hidden) renderMap(); });
+new MutationObserver(() => { if (!$('#p-map').hidden) renderMap(); }).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+
+/* ---------- Loose ---------- */
+function renderLoose() {
+  const P = $('#p-loose');
+  const rows = [...D.loose].sort((a, b) => b.kb - a.kb);
+  P.append(h('p', {style: 'margin:0 0 12px;color:var(--ink-2);max-width:80ch'},
+    `These sit in the repository folder but git ignores them, so they never reach GitHub. They still show in Finder and Xcode, and the ones without a .nosync name live in iCloud. Together they come to ${(looseMB / 1024).toFixed(1)} GB.`));
+  const tb = h('tbody');
+  for (const l of rows) tb.append(h('tr', null,
+    h('td', {class: 'mono'}, l.name + (l.dir ? '/' : '')),
+    h('td', {class: 'num'}, l.kb >= 1024 ? (l.kb / 1024).toFixed(1) + ' MB' : l.kb + ' KB'),
+    h('td', {class: 'num'}, l.modified),
+    h('td', null, l.note || h('span', {class: 'muted'}, '—'), l.first ? h('div', {class: 'mono muted', style: 'font-size:11.5px;margin-top:3px;overflow-wrap:anywhere'}, 'First line: ' + l.first) : null)));
+  P.append(h('div', {class: 'tablewrap'}, h('table', {class: 'plain'}, h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Size'), h('th', null, 'Modified'), h('th', null, 'What it is'))), tb)));
+}
+
+/* ---------- search ---------- */
+const SYN = [
+  [['paywall', 'subscription', 'pricing', 'price', 'lifetime', 'pro plan', 'quota', 'storekit', 'purchase'], 'Billing, entitlements, quotas'],
+  [['ocr', 'pdf', 'import', 'ingest', 'ingestion', 'chunk', 'chunking', 'extract'], 'Ingestion, chunking, OCR'],
+  [['embedding', 'embed', 'vector', 'tokenizer'], 'Embedding and providers'],
+  [['search', 'retrieval', 'rerank', 'reranker', 'fusion', 'bm25', 'hybrid'], 'Hybrid retrieval, fusion, rerank'],
+  [['fts', 'fts5', 'sqlite', 'keyword'], 'Keyword index (SQLite FTS5)'],
+  [['pcc', 'private cloud', 'cloud', 'consent', 'routing', 'route'], 'Model routing, on-device vs PCC'],
+  [['siri', 'shortcut', 'shortcuts', 'intent', 'intents', 'app intents'], 'Agentic tools, App Intents, Siri'],
+  [['sync', 'icloud', 'cloudkit'], 'iCloud workspace sync'],
+  [['thread', 'threads', 'conversation', 'chat history'], 'Evidence Threads'],
+  [['eval', 'evals', 'benchmark', 'ndcg', 'mrr'], 'Evaluation harness'],
+  [['llm', 'model', 'foundation models', 'generate'], 'LLM execution'],
+  [['query', 'rewrite', 'intent classification'], 'Query understanding, rewriting'],
+  [['tuning', 'knobs', 'top-k', 'topk'], 'Retrieval tuning knobs'],
+  [['ui', 'screen', 'view', 'swiftui'], 'UI'],
+];
+const areaByName = new Map(D.areas.map(a => [a.name, a]));
+const IDX = [];
+for (const v of D.features) IDX.push({g: 'Features you name', l: v.name, s: v.files.map(base).join(', '), hay: v.name + ' ' + v.symbols.join(' '), boost: 20, act: () => openDrawer(v.name, v.source, b => {
+  b.append(sec('Entry files', h('div', {class: 'files'}, v.files.map(p => fileBy.get(p)).filter(Boolean).map(fileRow))));
+  if (v.symbols.length) b.append(sec('Key symbols', h('div', {class: 'mono'}, v.symbols.join('  ·  '))));
+})});
+for (const a of D.areas) IDX.push({g: 'Areas', l: a.name, s: a.paths.join(', '), hay: a.name + ' ' + a.paths.join(' ') + ' ' + a.owner, boost: 14, act: () => openArea(a.name, a.paths, ownerDocs(a.owner))});
+for (const [words, name] of SYN) { const a = areaByName.get(name); if (a) IDX.push({g: 'Areas', l: a.name, s: 'matches: ' + words.join(', '), hay: words.join(' '), syn: words, boost: 10, act: () => openArea(a.name, a.paths, ownerDocs(a.owner))}); }
+for (const k of new Set(swift.map(f => groupKey(f.p)))) IDX.push({g: 'Folders', l: k.replace(/^OpenIntelligence\//, ''), s: k, hay: k, boost: 4, act: () => openArea(k.replace(/^OpenIntelligence\//, '').replace(/\//g, ' › '), [k], [])});
+for (const f of swift) IDX.push({g: 'Swift files', l: base(f.p), s: f.p.split('/').slice(0, -1).join('/') + (f.blurb ? ' · ' + f.blurb.slice(0, 90) : ''), hay: f.p + ' ' + (f.blurb || ''), use: f, act: () => openSwift(f)});
+for (const [t, p] of typeTo) IDX.push({g: 'Types', l: t, s: p, hay: t, act: () => openSwift(fileBy.get(p))});
+for (const d of docs) IDX.push({g: 'Docs', l: d.title || base(d.path), s: d.path, hay: d.path + ' ' + (d.title || '') + ' ' + (d.summary || ''), st: d.status, act: () => openDoc(d)});
+for (const f of files) if (!f.k && !docBy.has(f.p) && f.lines) IDX.push({g: 'Other files', l: base(f.p), s: f.p, hay: f.p, act: () => openAny(f.p)});
+const GORDER = ['Features you name', 'Areas', 'Types', 'Swift files', 'Docs', 'Folders', 'Other files'];
+const q = $('#q'), res = $('#results');
+let hits = [], sel = -1;
+function search(raw) {
+  const s = raw.trim().toLowerCase();
+  if (!s) { res.hidden = true; return; }
+  const toks = s.split(/\s+/);
+  const scored = [];
+  for (const e of IDX) {
+    const l = e.l.toLowerCase(), hay = (e.hay || '').toLowerCase();
+    let sc = 0;
+    if (l === s) sc = 100; else if (e.syn && e.syn.includes(s)) sc = 90; else if (l.startsWith(s)) sc = 60; else if (l.includes(s)) sc = 42;
+    else if (toks.every(t => l.includes(t) || hay.includes(t))) sc = 20; else continue;
+    scored.push([sc + (e.boost || 0) - Math.min(8, l.length / 12), e]);
+  }
+  scored.sort((a, b) => b[0] - a[0]);
+  const seen = new Set(), groups = new Map();
+  for (const [, e] of scored) {
+    const key = e.g + '|' + e.l + '|' + e.s;
+    if (seen.has(key)) continue; seen.add(key);
+    if (!groups.has(e.g)) groups.set(e.g, []);
+    if (groups.get(e.g).length < 7) groups.get(e.g).push(e);
+  }
+  res.replaceChildren(); hits = []; sel = -1;
+  for (const g of GORDER) if (groups.has(g)) {
+    res.append(h('h4', null, g));
+    for (const e of groups.get(g)) {
+      const i = hits.length;
+      const b = h('button', {class: 'res', role: 'option', id: 'r' + i, 'aria-selected': 'false', on: {click: () => pick(i)}},
+        h('span', {class: 'l'}, e.l), h('span', {class: 's'}, e.s),
+        h('span', {class: 'r'}, e.st ? chip(e.st) : e.use ? useChip(e.use) : null));
+      hits.push([e, b]); res.append(b);
+    }
+  }
+  if (!hits.length) res.append(h('div', {class: 'empty'}, `Nothing matches "${raw.trim()}". Try a file name, a type name or a word from the app.`));
+  res.hidden = false;
+}
+function pick(i) { const [e] = hits[i]; res.hidden = true; e.act(); }
+function mark(i) { hits.forEach(([, b], j) => b.setAttribute('aria-selected', j === i)); if (hits[i]) hits[i][1].scrollIntoView({block: 'nearest'}); q.setAttribute('aria-activedescendant', hits[i] ? 'r' + i : ''); }
+q.addEventListener('input', () => search(q.value));
+q.addEventListener('focus', () => { if (q.value.trim()) search(q.value); });
+q.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(hits.length - 1, sel + 1); mark(sel); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, sel - 1); mark(sel); }
+  else if (e.key === 'Enter') { if (hits.length) pick(Math.max(0, sel)); }
+  else if (e.key === 'Escape') { q.value = ''; res.hidden = true; }
+});
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.search')) res.hidden = true; });
+document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== q && drawer.hidden) { e.preventDefault(); q.focus(); } });
+
+/* ---------- boot ---------- */
+$('#foot').append(`Generated by .claude/skills/repo-map from ${D.repo} at ${SHORT}, reading only. Doc statuses come from mechanical checks against the code: references to files, types, functions and line numbers, the history of the code a doc cites, and the version its header names. Code use comes from which Swift files name which types, with comments stripped. Nothing here is a judgment of the prose.`);
+renderHow(); renderDocs(); renderCode(); renderLoose();
+let start = (location.hash || '').slice(1);
+if (!TABS.includes(start)) { try { start = localStorage.getItem('oi-map-tab') || ''; } catch (e) { start = ''; } }
+go(TABS.includes(start) ? start : 'how');
+})();
+</script>

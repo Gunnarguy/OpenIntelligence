@@ -124,6 +124,7 @@ Scheme `OpenIntelligence`, test target
 | Routing, edit boundaries, release gate | `Docs/RepoOS/` |
 | Absolute ground truth on product claims | `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` |
 | Subsystem detail | `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`, `Docs/RETRIEVAL_PIPELINE.md`, `Docs/INGESTION_PIPELINE.md`, `Docs/PRIVACY_AND_ROUTING.md` |
+| Every file at once: which docs still match the code, unused Swift, loose files | the `repo-map` skill, which rebuilds the owner's Repo Map page |
 
 Load these on demand. Do not read the documentation set by default. Every task reads `Docs/ai/STATE.md`,
 the superseding protocol and `Docs/ai/ARCHITECTURE.md`; the preflight names the rest. Read large
