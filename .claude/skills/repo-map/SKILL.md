@@ -37,7 +37,9 @@ over `python3 -m http.server`; the browser pane will not open a `file://` page i
 | History | Archives, audits, snapshots, release logs, or a doc that says it was superseded |
 
 "Removed" means not declared or used in live code (comments do not count), not an Apple SDK type,
-and not from a package dependency.
+and not from a package dependency. A missing name whose own sentence or table cell says it is gone
+("legacy", "replaced", "removed", "no longer exists", "never created") counts as history, not as a
+dead reference; the page lists those under the document as history mentions.
 
 ## Traps it handles; keep them when editing
 
@@ -48,7 +50,12 @@ grep of the Xcode 27 SDK .swiftinterface files; ExtractiveQAService.swift:112-22
   declared here as shims and are now Apple SDK types. A type is called removed only after the SDK
   interfaces and `.build/checkouts` are searched for it.
 - Comments are stripped before a use is counted. `BertTokenizer` survives in live code only inside a <!-- verify-doc-claims: ignore -->
-  commented-out block, so the docs that describe it as the current tokenizer are correctly flagged.
+  commented-out block. A doc that presents it as the current tokenizer is flagged; one that calls it
+  legacy or replaced in the same sentence is not. The context is the sentence, not the paragraph: a
+  paragraph-wide window let an unrelated "Replaced" excuse an example file that never existed.
+- `RAGService+Streaming.swift`: the `+` belongs to the file name, so a match never starts after it.
+  `OpenIntelligenceTests/EmbeddingProviderAgreementTests` is xcodebuild's `-only-testing:` target and
+  class, not a path.
 - An extension of a file's own type, such as a delegate conformance, does not make the file used. An
   extension of another type does, when a member it adds is named elsewhere.
 - Lines carrying `verify-doc-claims: ignore` are skipped. `Type.init`, `allCases` on a `CaseIterable`

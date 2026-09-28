@@ -44,6 +44,8 @@ integrated at all.
   `CoreAIExecutionBackend.execute` returns `[:]`. `CoreAIModelRegistry` is a dictionary whose
   `registerModel` is never called, containing a `case reranker` nothing implements. None of the
   three import Apple's framework. `[evidence_level: code_verified, confidence: exact]`
+  All three were deleted later that day in `cb82471` ("delete Core AI scaffolding"), after this audit.
+  `[evidence_level: code_verified, confidence: exact, evidence_source: git log -S on each type name, 2026-09-28]`
 
 ---
 

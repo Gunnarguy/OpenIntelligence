@@ -451,7 +451,7 @@ unreached. That is tracked separately as a product decision, not a defect.
 - When structured tables or lists survive the parsing phase, they are preserved as atomic chunks to prevent layout breakage, ensuring that data cells are not separated from their column headers during retrieval.
 
 ### Token Limit Enforcement
-- Before indexing, chunks are checked against local tokenizers (e.g. `BertTokenizer`) to guarantee they are within the embedding model's limit ($\le 510$ tokens).
+- Before indexing, `DocumentProcessor.enforceTokenLimitOnChunks` counts each chunk with the embedding model's own tokenizer (`embeddingTokenizer`, loaded by `AutoTokenizer.from(directory:)` from the `swift-tokenizers` package) and splits any chunk over `safeTokenLimit`: 430 tokens, the model's 510-token limit less 80 reserved for the contextual prefix. Without the tokenizer it estimates 3 characters per token. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift:416,486,6434-6440,6450-6462; corrected 2026-09-28, the line named BertTokenizer, which left the code on 2026-07-01 in 8bc68d3]`
 
 ---
 

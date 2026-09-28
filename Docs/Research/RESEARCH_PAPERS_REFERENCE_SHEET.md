@@ -124,14 +124,14 @@ This document is the exhaustive engineering-academic bibliography for **OpenInte
 *   **Link**: [arXiv:1904.09751](https://arxiv.org/abs/1904.09751)
 *   **Core Concept**: Selects tokens from a dynamic vocabulary subset whose cumulative probability exceeds parameter $p$ (typically 0.9), preventing repetitive loops and ensuring lexical diversity.
 *   **Literal Codebase Mapping**:
-    - `TopPLogitsWarper.swift` inside `swift-transformers`: Filters the logits output of on-device foundation model runs.
+    - `TopPLogitsWarper.swift` inside `swift-transformers`, removed from the vendored copy in `8bc68d3` (2026-07-01) when tokenization moved to `swift-tokenizers`: filtered the logits output of on-device foundation model runs.
 
 ### 16. Repetition Penalty
 *   **Paper**: *CTRL: A Conditional Transformer Language Model for Controllable Generation* (Keskar et al., 2019)
 *   **Link**: [arXiv:1909.05858](https://arxiv.org/abs/1909.05858)
 *   **Core Concept**: Penalizes logits of tokens that have already been generated in the active session by dividing them by a penalty parameter (typically 1.1 - 1.2).
 *   **Literal Codebase Mapping**:
-    - `RepetitionPenaltyLogitsProcessor.swift` inside `swift-transformers`: Applies penalties to the logits vector.
+    - `RepetitionPenaltyLogitsProcessor.swift` inside `swift-transformers`, removed from the vendored copy in `8bc68d3` (2026-07-01) when tokenization moved to `swift-tokenizers`: applied penalties to the logits vector.
 
 ### 17. DFA-Guided Generation (JSON Grammars)
 *   **Paper**: *Efficient Guided Generation for Large Language Models* (Willard and Louf, 2023)
@@ -256,8 +256,8 @@ This defines how imported physical files and digital assets are processed into i
     - Runs Apple's Natural Language NLTagger framework to extract entities, PascalCase keywords, document authors, and section headers to tag chunk records.
     - *Mapping*: [ContentTaggingService.swift](../../OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift)
 *   **Step 4: Token Gating and Validation**
-    - Validates word-piece token boundaries using local tokenizers (e.g. `BertTokenizer`) to enforce subword limits ($\le 510$ tokens) before indexing.
-    - *Mapping*: `BertTokenizer.swift` / `Tokenizers` target
+    - Counts each chunk with the embedding model's own tokenizer and splits any chunk over 430 tokens (the 510-token limit less an 80-token prefix reserve) before indexing.
+    - *Mapping*: `DocumentProcessor.enforceTokenLimitOnChunks`, with `AutoTokenizer` from the `swift-tokenizers` package. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift:486,6434-6462; corrected 2026-09-28 from BertTokenizer.swift, removed in 8bc68d3]`
 *   **Step 5: Dense Embedding Vector Generation**
     - Generates 384-dimensional dense semantic vectors. Executes zero-copy sentence embedding models natively on Apple Neural Engines (ANE) on compatible OS versions, falling back to local Core ML compilation models.
     - *Mapping*: [CoreAISentenceEmbeddingProvider.swift](../../OpenIntelligence/Services/Embedding/Providers/CoreAISentenceEmbeddingProvider.swift) & `EmbeddingService.swift`

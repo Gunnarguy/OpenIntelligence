@@ -321,9 +321,35 @@ HIST_MARK = re.compile(
     r"|\bsuperseded by\b|\bhistorical record\b|\bkept for history\b|\bno longer (?:maintained|current|accurate|used)\b"
     r"|^\W*status\W*:\W*(?:historical|superseded|archived|deprecated|obsolete|frozen)\b)", re.M)
 HEADER_VERSION = re.compile(r"(?i)\b(?:version|release|shipped|live|current|updated|as of|for|v)\W{0,3}v?(\d\.\d{1,2})(?:\.\d+)?\b")
-BARE_SWIFT = re.compile(r"(?<![\w/.-])([A-Z][A-Za-z0-9_+]*\.swift)\b")
+BARE_SWIFT = re.compile(r"(?<![\w/.+-])([A-Z][A-Za-z0-9_+]*\.swift)\b")  # "+" is part of names like RAGService+Streaming.swift
 BARE_DOC = re.compile(r"(?<![\w/.-])([A-Za-z0-9_.-]+\.md)\b")
 BARE_TYPE = re.compile(r"`([A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]*)+)`")
+# A missing name in a sentence that says it is gone is history, not a dead link: "replacing legacy
+# pure-Swift `BertTokenizer`", "(that document no longer exists; noted 2026-08-27)". The context is
+# the table cell for a table row, otherwise the sentence within its paragraph. A paragraph was too
+# wide: an unrelated "Replaced" three bullets away excused an example file that never existed.
+HIST_CONTEXT = re.compile(
+    r"(?i)\b(legacy|replac(?:ed|ing|ement)|removed|deleted|retired|dropped|superseded|deprecated|formerly|"
+    r"previously|renamed|no longer (?:exists?|used|in)|never (?:created|built|existed|written|committed|implemented))\b")
+
+
+def passages(lines: list[str], token: str) -> list[str]:
+    out = []
+    for i, ln in enumerate(lines):
+        if token not in ln:
+            continue
+        if ln.lstrip().startswith("|"):
+            out.extend(cell for cell in ln.split("|") if token in cell)
+            continue
+        a = i
+        while a > 0 and lines[a - 1].strip():
+            a -= 1
+        b = i
+        while b + 1 < len(lines) and lines[b + 1].strip():
+            b += 1
+        para = " ".join(x.strip() for x in lines[a:b + 1])
+        out.extend(sent for sent in re.split(r"(?<=[.!?])\s+(?=[A-Z`*(\[-])", para) if token in sent)
+    return out
 
 
 SWIFTUI_MODIFIERS = {"init", "task", "onAppear", "onDisappear", "onChange", "onReceive", "sheet", "body", "refreshable",
@@ -438,6 +464,11 @@ for p in docs_paths:
             continue
         # "`.agents/rules/01` wins": shorthand for a real file that starts with it
         exists = (ROOT / rel).exists() or any(t.startswith(rel) and t[len(rel):len(rel) + 1] in "-_." for t in tracked)
+        # `OpenIntelligenceTests/SomeTests` is xcodebuild's -only-testing:Target/Class[/method] form, not a path
+        seg = rel.split("/")
+        if not exists and seg[0] == "OpenIntelligenceTests" and len(seg) in (2, 3) and "." not in seg[1] \
+                and any(seg[1] in swift_info[q]["types"] for q in swift_info if q.startswith("OpenIntelligenceTests/")):
+            exists = True
         why = "" if exists else ("removed or renamed" if rel in ever_paths else "never existed at this path")
         note("path", rel, exists, why)
         if exists and rel.endswith(".swift"):
@@ -485,6 +516,15 @@ for p in docs_paths:
         if name in ever_bases:
             note("doc", name, False, "document removed or renamed")
 
+    # a reference named only in passages that say it is gone is recorded as history, not as dead
+    historical = []
+    for b in list(broken):
+        token = b["ref"].split(":")[0] if b["kind"] == "anchor" else b["ref"]
+        ps = passages(lines, token)
+        if ps and all(HIST_CONTEXT.search(x) for x in ps):
+            broken.remove(b)
+            historical.append(b)
+
     # de-duplicate reference lists by (kind, ref)
     def dedupe(xs):
         seen, out = set(), []
@@ -510,6 +550,7 @@ for p in docs_paths:
         "path": p, "category": doc_category(p), "title": title[:160], "summary": summary,
         "lines": len(lines), "last": {"date": last[0], "sha": last[1], "subject": last[2][:140]},
         "edits": len(h), "refs_ok": len(ok), "refs_broken": broken[:60], "n_broken": len(broken),
+        "refs_historical": dedupe(historical)[:30],
         "cited_swift": len(cited_swift), "code_changed_since": since,
         "code_commits_since": sum(since.values()), "header_version": header_version,
         "hist_marker": bool(HIST_MARK.search("\n".join(lines[:15]))),

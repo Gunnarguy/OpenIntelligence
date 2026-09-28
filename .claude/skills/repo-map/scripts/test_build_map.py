@@ -110,6 +110,40 @@ class RepoMapTests(unittest.TestCase):
                 if hits and all("verify-doc-claims: ignore" in ln for ln in hits):
                     self.fail(f"{d['path']}: {b['ref']} is reported, but every line naming it is marked ignore")
 
+    def test_a_dead_file_reference_is_not_the_tail_of_a_real_file_name(self):
+        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+        names = {Path(p).name for p in tracked}
+        for d in self.survey["docs"]:
+            for b in d["refs_broken"]:
+                if b["kind"] != "file":
+                    continue
+                tails = [n for n in names if n != b["ref"] and n.endswith(b["ref"]) and not n[-len(b["ref"]) - 1].isalnum()]
+                self.assertFalse(tails, f"{d['path']}: {b['ref']} reported dead, but it is the tail of {tails[:2]}")
+
+    def test_a_dead_test_path_is_not_a_test_class(self):
+        test_types = {t for p, s in self.swift.items() if p.startswith("OpenIntelligenceTests/")
+                      for t in re.findall(r"\b(?:class|struct|enum|actor)\s+([A-Z]\w*)", s)}
+        for d in self.survey["docs"]:
+            for b in d["refs_broken"]:
+                seg = b["ref"].split("/")
+                if b["kind"] == "path" and seg[0] == "OpenIntelligenceTests" and len(seg) > 1:
+                    self.assertNotIn(seg[1], test_types, f"{d['path']}: {b['ref']} is an -only-testing identifier")
+
+    def test_a_history_mention_says_so_in_its_own_sentence(self):
+        words = re.compile(r"(?i)\b(legacy|replac(?:ed|ing|ement)|removed|deleted|retired|dropped|superseded|"
+                           r"deprecated|formerly|previously|renamed|no longer|never)\b")
+        for d in self.survey["docs"]:
+            text = (ROOT / d["path"]).read_text(errors="ignore")
+            for b in d.get("refs_historical", []):
+                token = b["ref"].split(":")[0] if b["kind"] == "anchor" else b["ref"]
+                hits = [m.start() for m in re.finditer(re.escape(token), text)]
+                self.assertTrue(hits, f"{d['path']}: history mention {token} not found")
+                for i in hits:
+                    start = max(text.rfind(". ", 0, i), text.rfind("\n\n", 0, i), text.rfind("|", 0, i)) + 1
+                    end_candidates = [j for j in (text.find(". ", i), text.find("\n\n", i), text.find("|", i)) if j != -1]
+                    window = text[start:min(end_candidates) if end_candidates else len(text)]
+                    self.assertRegex(window, words, f"{d['path']}: {token} excused without a history word near it")
+
     def test_render_embeds_the_survey_as_valid_json(self):
         out = TMP / "page.html"
         r = subprocess.run([sys.executable, str(HERE / "render.py"), str(TMP / "data.json"), str(out)],

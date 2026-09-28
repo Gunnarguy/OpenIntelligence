@@ -125,6 +125,8 @@ Active execution of large local foundation models on the Apple Neural Engine is 
 
 The monolithic components will be decomposed into focused, domain-specific services under `OpenIntelligence/Services/AIPlatform/` and `OpenIntelligence/Services/RAGPipeline/`.
 
+> **Status, 2026-09-28:** not carried out as written. `Services/RAGPipeline/`, `ModelRouting/`, `ModelRouter.swift`, `ModelRoute.swift`, `ModelExecutionPolicy.swift` and `FoundationModelBackend.swift` were never created: no commit on `main` adds them. The route decision is made by `ModelExecutionPlanner` in `Services/RAG/Orchestration/`, with `FoundationModelRoutePolicy` in `Services/AIPlatform/AppleFoundationModels/` deciding when no plan is attached; `ModelResolutionService.swift` is in `Services/LLM/`. See `Docs/ai/ARCHITECTURE.md`. `[evidence_level: code_verified, confidence: exact, evidence_source: git log over each path; ModelExecutionPlanner.swift:24; FoundationModelRoutePolicy.swift:23-117]`
+
 ```
 OpenIntelligence/Services/AIPlatform/
   ├── AppleFoundationModels/
