@@ -2,7 +2,7 @@
 
 Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 25722e2
+Last verified commit: fb5dd0a
 
 ## Objective
 
@@ -49,6 +49,20 @@ left needs his word or an app release (Blockers).
   Live apps came from App Store Connect plus the public store lookup; commands and the list are in
   `.claude/skills/repo-map/SKILL.md`. Nothing was written inside those repositories. The generalized
   builder is committed here after `25722e2`, **not pushed**.
+- **Every "can't check" document read, done 2026-09-28** (`fb5dd0a`, not pushed). All 201 documents
+  the reference check could not judge, across the four apps, were read claim by claim against the code.
+  A second reader tried to refute each "wrong" finding: 208 confirmed, 12 refuted. The verdicts are in
+  `~/.claude/repo-map-verdicts/<app>.json`, outside every repository, and expire when a document changes.
+  The procedure is in `.claude/skills/repo-map/SKILL.md` and `reading/`. In OpenIntelligence, 164
+  findings were confirmed and 7 refuted, and five agent-instruction documents were corrected. Notion
+  rows: https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 (PRIVACY.md, eight claims) and
+  https://app.notion.com/p/3e949a74d54f817f8933e538845009c6 (the store description offers Pro-only
+  iCloud sync to everyone).
+- **Another session is installing the codemap in this checkout** (seen 2026-09-28 from 14:52). It has
+  uncommitted edits in `.claude/settings.json` (a UserPromptSubmit hook that injects feature slices),
+  `AGENTS.md`, `CLAUDE.md`, `README.md`, `HANDOFF.md`, `Docs/ai/ARCHITECTURE.md`, `Docs/ai/INDEX.md`, the
+  RepoOS router docs and matrix, plus `.claude/codemap/` and `Docs/ai/codemap/`. Nothing in this handoff
+  touches those files. Commit only named paths until it lands.
 - **5.4 is live on iOS and macOS**, build 478 (Xcode Cloud #478 from `c276b9a`), and closed out in
   this repository, on GitHub (`v5.4.0` is Latest), on all three websites and in Notion. The release
   procedure used is in `Docs/ai/RUNBOOK.md`, "Releasing an approved version through the API".
@@ -118,8 +132,17 @@ left needs his word or an app release (Blockers).
     user-facing; check the three websites' links before moving either.
   - The seven docs still flagged are plans and playbooks naming proposed files. Leave them, or mark
     each as history if he says the plan is dead.
-- **Push:** done 2026-09-28 (`df2c5b5..59a5906`). Future pushes still wait for the owner's word,
-  because the repository is public.
+- **Push:** `df2c5b5..25722e2` pushed 2026-09-28 at the owner's word. `dc66b29` and `fb5dd0a` are
+  local. Future pushes wait for his word, because the repository is public.
+- **Public copy the reading found wrong, waiting on the owner:** OpenIntelligence `PRIVACY.md` (eight
+  claims) and the App Store description (per-library iCloud sync is Pro and Lifetime only). OpenManual's
+  live 1.2 listing says only a document's address and model are shared; 1.0 to 1.2 filed title, page
+  count, SHA-256 and timestamp to CloudKit's public database. OpenCone's live store page advertises
+  image OCR, DOCX, configurable chunking, bookmarks and alternate icons, none of which work. Store copy
+  changes are App Store Connect writes, the owner's call.
+- **`Docs/ai/ARCHITECTURE.md:110-111` is wrong and uncorrected:** it says the user sees which excerpts
+  would be sent. The sheet shows counts, and "Always Allow" skips it (`RAGService.swift:3725-3733`).
+  Correct it once the codemap session has committed its edit to that file.
 - **Six `v5.4` rows close on the owner's device check**; nothing can verify them from here. When he
   says they work, set each to `Completed` with `date:Completed:start` 2026-09-24 or later:
   https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142,
