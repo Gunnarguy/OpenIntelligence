@@ -2,7 +2,7 @@
 
 Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: fb5dd0a
+Last verified commit: 4fc8252
 
 ## Objective
 
@@ -49,7 +49,7 @@ left needs his word or an app release (Blockers).
   Live apps came from App Store Connect plus the public store lookup; commands and the list are in
   `.claude/skills/repo-map/SKILL.md`. Nothing was written inside those repositories. The generalized
   builder is committed here after `25722e2`, **not pushed**.
-- **Every "can't check" document read, done 2026-09-28** (`fb5dd0a`, not pushed). All 201 documents
+- **Every "can't check" document read, done 2026-09-28** (`fb5dd0a`, pushed). All 201 documents
   the reference check could not judge, across the four apps, were read claim by claim against the code.
   A second reader tried to refute each "wrong" finding: 208 confirmed, 12 refuted. The verdicts are in
   `~/.claude/repo-map-verdicts/<app>.json`, outside every repository, and expire when a document changes.
@@ -132,8 +132,9 @@ left needs his word or an app release (Blockers).
     user-facing; check the three websites' links before moving either.
   - The seven docs still flagged are plans and playbooks naming proposed files. Leave them, or mark
     each as history if he says the plan is dead.
-- **Push:** `df2c5b5..25722e2` pushed 2026-09-28 at the owner's word. `dc66b29` and `fb5dd0a` are
-  local. Future pushes wait for his word, because the repository is public.
+- **Push:** everything through `4fc8252` is pushed (2026-09-28, at the owner's word each time; no
+  Xcode Cloud build, every path inside its skip filter). Future pushes wait for his word, because the
+  repository is public.
 - **Public copy the reading found wrong, waiting on the owner:** OpenIntelligence `PRIVACY.md` (eight
   claims) and the App Store description (per-library iCloud sync is Pro and Lifetime only). OpenManual's
   live 1.2 listing says only a document's address and model are shared; 1.0 to 1.2 filed title, page
