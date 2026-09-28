@@ -2,7 +2,7 @@
 
 Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: f2298d0
+Last verified commit: 59a5906
 
 ## Objective
 
@@ -22,8 +22,8 @@ left needs his word or an app release (Blockers).
   the Swift files no other file names, draws the import and question flow, and lists the loose
   files git ignores. How to rebuild, and what each status means: `.claude/skills/repo-map/SKILL.md`.
   Roadmap row https://app.notion.com/p/3e949a74d54f8193a94ec70cfba90c0d (Completed, Future Backlog).
-  - Committed in `8759404`, `c0a2d69` and the cleanup commit after them, **none pushed**. Until they
-    are, the page's GitHub links point at `df2c5b5`.
+  - Committed in `8759404` through `59a5906` and pushed to `origin/main` on 2026-09-28 at the
+    owner's word. No Xcode Cloud build: every path is inside its skip filter.
 - **Cleanup, done 2026-09-28** (documentation and tooling only):
   - Docs naming code or files that no longer exist: 19 down to 7. Corrected against the code, with
     evidence tags: `Docs/INGESTION_PIPELINE.md` (token limit as `DocumentProcessor` enforces it, replacing a mention of
@@ -109,8 +109,8 @@ left needs his word or an app release (Blockers).
     user-facing; check the three websites' links before moving either.
   - The seven docs still flagged are plans and playbooks naming proposed files. Leave them, or mark
     each as history if he says the plan is dead.
-- **Push:** every commit since `df2c5b5` is local. Pushing publishes to the public repository; do it
-  only on the owner's word. Documentation and `.claude/` paths do not start an Xcode Cloud build.
+- **Push:** done 2026-09-28 (`df2c5b5..59a5906`). Future pushes still wait for the owner's word,
+  because the repository is public.
 - **Six `v5.4` rows close on the owner's device check**; nothing can verify them from here. When he
   says they work, set each to `Completed` with `date:Completed:start` 2026-09-24 or later:
   https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142,
@@ -129,5 +129,5 @@ left needs his word or an app release (Blockers).
 
 ## Exact Next Action
 
-None. The Repo Map and the safe cleanup are done and verified. There is no active objective; ask the
-owner whether to push the local commits, and what to pick up next.
+None. The Repo Map and the safe cleanup are done, verified and pushed. There is no active
+objective; ask the owner what to pick up next, or take a row from the Notion roadmap.
