@@ -2,7 +2,7 @@
 
 Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; codemap installed; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 0e9728e
+Last verified commit: 84e8461
 
 ## Objective
 
@@ -58,7 +58,7 @@ left needs his word or an app release (Blockers).
   rows: https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 (PRIVACY.md, eight claims) and
   https://app.notion.com/p/3e949a74d54f817f8933e538845009c6 (the store description offers Pro-only
   iCloud sync to everyone).
-- **Codemap, done 2026-09-28** (committed on `main` after `0e9728e`, not pushed). `Docs/ai/codemap/`
+- **Codemap, done 2026-09-28** (`84e8461`, not pushed). `Docs/ai/codemap/`
   holds 46 feature slices whose primary files cover all 299 app Swift files once: each names the entry
   points to read first, its hard-boundary traps, and typed links between symbols with the line each
   cites. A link is VERIFIED only where the Swift syntax on that line states it (it constructs the type
@@ -148,7 +148,7 @@ left needs his word or an app release (Blockers).
     each as history if he says the plan is dead.
 - **Push:** everything through `0e9728e` is pushed (2026-09-28, at the owner's word each time; no
   Xcode Cloud build, every path inside its skip filter). Future pushes wait for his word, because the
-  repository is public. The codemap commits after `0e9728e` are not pushed.
+  repository is public. `84e8461` (the codemap) and the handoff commit after it are not pushed.
 - **Public copy the reading found wrong, waiting on the owner:** OpenIntelligence `PRIVACY.md` (eight
   claims) and the App Store description (per-library iCloud sync is Pro and Lifetime only). OpenManual's
   live 1.2 listing says only a document's address and model are shared; 1.0 to 1.2 filed title, page
@@ -177,7 +177,7 @@ left needs his word or an app release (Blockers).
 
 ## Exact Next Action
 
-Ask the owner whether to push the codemap commits. They are on `main` after `0e9728e` and not pushed;
+Ask the owner whether to push the codemap commits. `84e8461` and the handoff after it are on `main`, not pushed;
 pushing publishes to the public repository, and every path is inside Xcode Cloud's skip filter, so no
 build starts. There is no other active objective; otherwise ask him what to pick up next, or take a row
 from the Notion roadmap.
