@@ -9,6 +9,7 @@
   --accent:#0b6e79; --accent-soft:#dcefef; --accent-ink:#ffffff;
   --cell-code:#d9e1de; --cell-other:#e8ecea;
   --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b; --unk:#9a9892; --hist:#c9c7bd;
+  --ref:#9fb3c6; --none:#dfe3e1;
   --seq-1:#b7d3f6; --seq-2:#6da7ec; --seq-3:#2a78d6; --seq-4:#1c5cab; --seq-5:#0d366b;
   --shadow:0 1px 2px rgba(14,22,20,.06),0 10px 30px rgba(14,22,20,.08);
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -21,7 +22,7 @@
     --ground:#0b100f; --surface:#131918; --raised:#18201e;
     --ink:#ecf2f0; --ink-2:#a9b5b1; --muted:#8b9692; --hair:#26302d; --hair-2:#1d2624;
     --accent:#45b9c5; --accent-soft:#12302f; --accent-ink:#04191a;
-    --cell-code:#2a3733; --cell-other:#1d2624; --unk:#8a8882; --hist:#4b4a45;
+    --cell-code:#2a3733; --cell-other:#1d2624; --unk:#8a8882; --hist:#4b4a45; --ref:#50667a; --none:#2c3431;
     --seq-1:#184f95; --seq-2:#256abf; --seq-3:#3987e5; --seq-4:#6da7ec; --seq-5:#b7d3f6;
     --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4);
   }
@@ -31,7 +32,7 @@
   --ground:#0b100f; --surface:#131918; --raised:#18201e;
   --ink:#ecf2f0; --ink-2:#a9b5b1; --muted:#8b9692; --hair:#26302d; --hair-2:#1d2624;
   --accent:#45b9c5; --accent-soft:#12302f; --accent-ink:#04191a;
-  --cell-code:#2a3733; --cell-other:#1d2624; --unk:#8a8882; --hist:#4b4a45;
+  --cell-code:#2a3733; --cell-other:#1d2624; --unk:#8a8882; --hist:#4b4a45; --ref:#50667a; --none:#2c3431;
   --seq-1:#184f95; --seq-2:#256abf; --seq-3:#3987e5; --seq-4:#6da7ec; --seq-5:#b7d3f6;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4);
 }
@@ -314,17 +315,26 @@ const ICON = {
   q: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.3 6.3a1.75 1.75 0 1 1 2.4 1.6c-.5.2-.7.6-.7 1.1v.3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="8" cy="11.6" r=".9" fill="currentColor"/></svg>',
   box: '<svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3.2" rx=".8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.2 6.2v6.3c0 .5.4.9.9.9h7.8c.5 0 .9-.4.9-.9V6.2M6.3 8.9h3.4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>',
   unused: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.8 12.2 12.2 3.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  eye: '<svg viewBox="0 0 16 16"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5.8 8.1 7.3 9.6 10.3 6.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  book: '<svg viewBox="0 0 16 16"><path d="M2.5 3.2c2-.8 3.8-.6 5.5.6 1.7-1.2 3.5-1.4 5.5-.6v9.3c-2-.8-3.8-.6-5.5.6-1.7-1.2-3.5-1.4-5.5-.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 3.8v9.3" stroke="currentColor" stroke-width="1.4"/></svg>',
+  dash: '<svg viewBox="0 0 16 16"><path d="M4 8h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  flag: '<svg viewBox="0 0 16 16"><path d="M4 14V2.5M4 3h7.5l-1.6 2.6L11.5 8.2H4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 const ST = {
-  'outdated':   {label: 'Mostly out of date', color: '--critical', icon: 'x'},
-  'dead-links': {label: 'Dead references',    color: '--serious',  icon: 'warn'},
-  'behind':     {label: 'Code moved on',      color: '--warn',     icon: 'clock'},
-  'verified':   {label: 'Gate-checked',       color: '--good',     icon: 'shield'},
-  'current':    {label: 'References resolve', color: '--good',     icon: 'check'},
-  'unchecked':  {label: "Can't check",        color: '--unk',      icon: 'q'},
-  'history':    {label: 'History',            color: '--hist',     icon: 'box'},
+  'outdated':     {label: 'Mostly out of date', color: '--critical', icon: 'x'},
+  'dead-links':   {label: 'Dead references',    color: '--serious',  icon: 'warn'},
+  'claims-wrong': {label: 'Some claims wrong',  color: '--serious',  icon: 'warn'},
+  'behind':       {label: 'Code moved on',      color: '--warn',     icon: 'clock'},
+  'verified':     {label: 'Gate-checked',       color: '--good',     icon: 'shield'},
+  'current':      {label: 'References resolve', color: '--good',     icon: 'check'},
+  'read-ok':      {label: 'Read, holds up',     color: '--good',     icon: 'eye'},
+  'plan':         {label: 'Open plan',          color: '--unk',      icon: 'flag'},
+  'unchecked':    {label: 'Not read yet',       color: '--unk',      icon: 'q'},
+  'external':     {label: 'Outside reference',  color: '--ref',      icon: 'book'},
+  'no-claims':    {label: 'Nothing to check',   color: '--none',     icon: 'dash'},
+  'history':      {label: 'History',            color: '--hist',     icon: 'box'},
 };
-const ORDER = Object.keys(ST).filter(s => s !== 'verified' || D.has_gate !== false);
+const ORDER = Object.keys(ST).filter(s => (s !== 'verified' || D.has_gate !== false) && (D.docs.some(d => d.status === s) || !['claims-wrong', 'read-ok', 'plan', 'external', 'no-claims', 'unchecked'].includes(s)));
 const chip = st => h('span', {class: 'chip'}, h('span', {class: 'ic', style: `color:var(${ST[st].color})`, html: ICON[ST[st].icon]}), ST[st].label);
 const useChip = f => f.use === 'orphan'
   ? h('span', {class: 'chip'}, h('span', {class: 'ic', style: 'color:var(--critical)', html: ICON.unused}), 'Nothing uses it')
@@ -358,7 +368,7 @@ $('#meta').append(
   ' · ', fmt(D.counts.tracked), ' files in git');
 
 const counts = Object.fromEntries(ORDER.map(s => [s, docs.filter(d => d.status === s).length]));
-$('#trustsub').textContent = `${docs.length} documents, each checked against the code at ${SHORT}. A check means every file, type and function it names still exists; prose itself can't be checked.`;
+$('#trustsub').textContent = `${docs.length} documents, checked against the code at ${SHORT}. Every file, type and function a document names is tested mechanically; ` + (D.verdicts ? `${docs.filter(d => d.read).length} were also read claim by claim against the code.` : 'prose is checked by reading, which has not run for this repository yet.');
 const bar = $('#trustbar');
 bar.setAttribute('aria-label', ORDER.map(s => `${counts[s]} ${ST[s].label}`).join(', '));
 for (const s of ORDER) if (counts[s]) {
@@ -369,12 +379,12 @@ for (const s of ORDER) if (counts[s]) {
 for (const s of ORDER) $('#trustlegend').append(h('button', {class: 'leg', on: {click: () => { docFilter = new Set([s]); go('docs'); renderDocs(); }}},
   h('span', {class: 'ic', style: `color:var(${ST[s].color})`, html: ICON[ST[s].icon]}), ST[s].label, h('span', {class: 'n'}, counts[s])));
 
-const needsFix = counts['outdated'] + counts['dead-links'];
+const needsFix = counts['outdated'] + counts['dead-links'] + (counts['claims-wrong'] || 0);
 const orphans = swift.filter(f => f.use === 'orphan');
 const looseMB = D.loose.reduce((a, l) => a + l.kb, 0) / 1024;
 const tile = (v, k, goText, fn) => h('button', {class: 'tile', on: {click: fn}}, h('span', {class: 'v'}, v), h('span', {class: 'k'}, k), h('span', {class: 'go'}, goText));
 $('#tiles').append(
-  tile(needsFix, 'docs name code or files that no longer exist', 'See which →', () => { docFilter = new Set(['outdated', 'dead-links']); go('docs'); renderDocs(); }),
+  tile(needsFix, 'docs say something the code contradicts', 'See which →', () => { docFilter = new Set(['outdated', 'dead-links', 'claims-wrong']); go('docs'); renderDocs(); }),
   tile(counts['behind'], 'docs older than the code they describe', 'See which →', () => { docFilter = new Set(['behind']); go('docs'); renderDocs(); }),
   tile(orphans.length, 'Swift files nothing else uses', 'See which →', () => { onlyUnused = true; go('code'); renderCode(); }),
   tile((looseMB / 1024).toFixed(1) + ' GB', 'in the repo folder but not in git', 'See what →', () => go('loose')),
@@ -450,6 +460,21 @@ function openDoc(d) {
     b.append(actions(d.path));
     b.append(sec('Status', h('div', null, chip(d.status)), h('ul', null, d.why.map(w => h('li', null, w)))));
     if (d.summary) b.append(sec('What it says it is', h('div', null, d.summary)));
+    if (d.read) {
+      const r = d.read;
+      b.append(sec(`Read on ${r.checked_on || 'an earlier date'}${r.current ? '' : ' (the document has changed since)'}`,
+        h('dl', {class: 'kv'},
+          h('dt', null, 'Kind'), h('dd', null, r.kind || '—'),
+          h('dt', null, 'Claims checked'), h('dd', null, `${r.claims_checked ?? '—'} of about ${r.claims_estimate ?? '—'}`),
+          r.used_by_app != null ? [h('dt', null, 'App uses it'), h('dd', null, r.used_by_app ? 'yes' : 'no')] : null),
+        r.summary ? h('p', {style: 'margin:8px 0 0'}, r.summary) : null));
+      if (r.wrong && r.wrong.length) b.append(sec(`Wrong, with the code that contradicts it (${r.wrong.length})`,
+        ...r.wrong.map(w => h('div', {class: 'refbad'}, h('span', {class: 'rk'}, 'claim'), h('span', null, w.claim), h('span', {class: 'rw mono', style: 'font-size:12px'}, w.evidence)))));
+      if (r.corrected && r.corrected.length) b.append(sec(`Corrected against the code (${r.corrected.length})`,
+        ...r.corrected.map(w => h('div', {class: 'refbad'}, h('span', {class: 'rk'}, w.corrected_on || 'fixed'), h('span', null, w.claim), h('span', {class: 'rw mono', style: 'font-size:12px'}, w.evidence)))));
+      if (r.holds && r.holds.length) b.append(sec('Checked and holds (examples)', h('ul', null, r.holds.map(x => h('li', null, x.claim, h('div', {class: 'mono muted', style: 'font-size:11.5px'}, x.evidence))))));
+      if (r.unverifiable && r.unverifiable.length) b.append(sec('The code cannot settle', h('ul', null, r.unverifiable.map(x => h('li', null, x)))));
+    }
     if (d.refs_broken.length) b.append(sec(`References that no longer resolve (${d.n_broken})`,
       ...d.refs_broken.map(r => h('div', {class: 'refbad'}, h('span', {class: 'rk'}, r.kind), h('span', {class: 'rr'}, r.ref), h('span', {class: 'rw'}, r.why)))));
     const ch = Object.entries(d.code_changed_since || {}).sort((a, b) => b[1] - a[1]);
@@ -626,7 +651,12 @@ function renderDocs() {
       h('dt', null, chip('behind')), h('dd', null, 'Every reference resolves, but at least 3 (and at least half) of the Swift files it cites changed after the doc was last edited, or its header names a version older than the live one.'),
       D.has_gate ? [h('dt', null, chip('verified')), h('dd', null, 'On the list scripts/verify_doc_claims.py checks on every run, and every reference resolves, including the kinds the gate does not check.')] : null,
       h('dt', null, chip('current')), h('dd', null, 'Three or more references, all resolve, and the code it cites has mostly not changed since. The prose can still be wrong.'),
-      h('dt', null, chip('unchecked')), h('dd', null, 'Fewer than 3 references to check. It is prose, and its age is the only signal.'),
+      h('dt', null, chip('claims-wrong')), h('dd', null, 'Read claim by claim: at most a third of the claims checked are contradicted by the code, each shown beside the line that contradicts it. More than a third reads as Mostly out of date.'),
+      h('dt', null, chip('read-ok')), h('dd', null, 'Read claim by claim: nothing checked is contradicted by the code. Claims the code cannot settle are listed, not counted as wrong.'),
+      h('dt', null, chip('plan')), h('dd', null, 'Proposes work that is not built, or only partly built.'),
+      h('dt', null, chip('external')), h('dd', null, 'A copy of outside documentation (Apple, OpenAI and the like), not a description of this code; the reading notes whether the app uses what it documents.'),
+      h('dt', null, chip('no-claims')), h('dd', null, 'Keywords, names, links or a template: nothing to be right or wrong about.'),
+      h('dt', null, chip('unchecked')), h('dd', null, 'Too few names for the mechanical check, and not read yet.'),
       h('dt', null, chip('history')), h('dd', null, 'Archives, audits, snapshots, release logs, or a doc that says it was superseded. Right for its date, not a description of today.'),
       h('dt', null, 'Removed'), h('dd', null, 'Not declared or used in live code (comments do not count), not an Apple SDK type in Xcode 27, and not from a package dependency.'))));
 
@@ -796,7 +826,10 @@ function renderMap() {
   const lg = $('#maplegend'); lg.replaceChildren();
   const sw = (c, l) => h('span', null, h('span', {class: 'sw', style: `background:${c}`}), l);
   if (mapMode === 'trust') {
-    for (const s of ORDER) if (s !== 'current') lg.append(sw(pal[ST[s].color], s === 'verified' ? 'Gate-checked or references resolve' : ST[s].label));
+    // one entry per color: statuses that share a color share a swatch
+    const byColor = new Map();
+    for (const s of ORDER) { const c = ST[s].color; if (!byColor.has(c)) byColor.set(c, []); byColor.get(c).push(ST[s].label); }
+    for (const [c, labels] of byColor) lg.append(sw(pal[c], labels.join(' / ')));
     lg.append(sw(pal.other, 'Not a document'));
   }
   else if (mapMode === 'unused') lg.append(sw(pal.critical, 'Swift file nothing uses'), sw(pal.warn, 'Only tests use it'), sw(pal.code, 'Swift file in use'), sw(pal.other, 'Not Swift'));

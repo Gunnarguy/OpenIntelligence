@@ -19,7 +19,7 @@ database    37f49a74-d54f-81b7-9424-dae1288c0043
 datasource  collection://37f49a74-d54f-81b0-92d9-000bce5e05fa
 ```
 
-The two differ only in the middle segment. Query tools take the **data source** URL; `notion-fetch`
+The two share their first two segments and differ in the last three. Query tools take the **data source** URL; `notion-fetch`
 takes either.
 
 **Never locate this database by workspace search.** Other databases in the workspace have
@@ -102,8 +102,9 @@ Never invent an option. These are the complete lists.
 
 ## `Shipped On`, and why a single `Target Release` was not enough
 
-The platforms diverged on 2026-08-26 and have not re-converged: macOS reached 5.0.2 while iOS is
-still on 5.0, so macOS carries fixes iOS has never received. Before this property existed a row for
+The platforms diverged on 2026-08-26, when macOS reached 5.0.2 while iOS stayed on 5.0, so macOS
+carried fixes iOS had not received. They re-converged with 5.2 on 2026-09-10 and are both on 5.4
+(`Docs/SHIPPED_VERSION.json`), but they can diverge again. Before this property existed a row for
 such a fix had no honest state — `Completed` lied to an iPhone user, `In Progress` lied to a Mac
 user — and two rows silently drifted for exactly that reason.
 

@@ -53,6 +53,19 @@ the US store. The repositories live in iCloud, so read each `.git` once before a
 `REPO_MAP_ROOT=<repo> REPO_MAP_NAME=<app> python3 .claude/skills/repo-map/scripts/test_build_map.py`
 runs the same checks against another repository.
 
+## Reading the documents the reference check cannot judge
+
+The survey tests every file, type, function and line a document names. Prose it cannot test is read:
+one reader per batch of documents checks each claim against the code with `path:line` evidence
+(`reading/READ_BRIEF.md`), then a second reader tries to refute every "this is wrong" finding
+(`reading/VERIFY_BRIEF.md`). Only findings that survive, and whose cited lines exist, are kept.
+`reading/aggregate.py collect` gathers the readers' results and checks the cited lines;
+`reading/aggregate.py apply` keeps what the second reader confirmed and writes the verdicts to
+`~/.claude/repo-map-verdicts/<app>.json`, outside every repository, because a private repository's
+findings must not land in this public one. The survey reads them from there. A verdict holds only while
+the document is byte-for-byte what was read (it stores the git blob id); a changed document shows
+"Read on <date>, but the document has changed since" and needs reading again.
+
 ## What each doc status means
 
 | Status | Rule |
@@ -64,6 +77,12 @@ runs the same checks against another repository.
 | References resolve | Three or more references, all resolve, and the code it cites has mostly not changed since |
 | Can't check | Fewer than 3 references; prose |
 | History | Archives, audits, snapshots, release logs, a folder per shipped version (`docs/releases/v2.6/`), a review or audit folder, or a doc that says it was superseded |
+| Some claims wrong | Read: at most a third of the claims checked are contradicted by the code, each confirmed by a second reader |
+| Read, holds up | Read: nothing checked is contradicted; claims the code cannot settle are listed, not counted |
+| Open plan | Proposes work that is not built, or only partly |
+| Outside reference | A copy of outside documentation; the reading notes whether the app uses it |
+| Nothing to check | Keywords, names, links or a template |
+| Not read yet | Too few names for the mechanical check, and not read |
 
 "Removed" means not declared or used in live code (comments do not count), not an Apple SDK type,
 and not from a package dependency. A missing name whose own sentence or table cell says it is gone

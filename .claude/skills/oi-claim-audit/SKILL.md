@@ -76,8 +76,8 @@ Every claim in this repo's docs carries
 `[evidence_level: ..., confidence: ..., evidence_source: ...]`. Never upgrade an evidence
 level without actually performing the verification the new level implies. `code_verified`
 means you read the line. `test_verified` means you ran it. `build_verified` means it
-compiled. `measured` means a benchmark produced the number, and until the harness lands,
-almost nothing in retrieval qualifies.
+compiled. `measured` means a benchmark produced the number; for retrieval, that means a run
+recorded in `BenchmarkRuns/LEDGER.md`, whose header explains why one run is not yet a result.
 
 ## Before you finish
 

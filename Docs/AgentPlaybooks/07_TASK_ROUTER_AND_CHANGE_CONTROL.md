@@ -1,5 +1,7 @@
 # Task Router and Change Control
 
+> **Status:** superseded. `AGENTS.md` rule 11 calls this the router's first version: the RepoOS preflight and `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv` route tasks now, no script uses the task classes below, and this file no longer needs reading before a task. Kept as history. `[evidence_level: code_verified, confidence: high, evidence_source: AGENTS.md rule 11; .codex/skills/route-openintelligence-work/scripts/repoos_router.py, 2026-09-28]`
+
 This document defines the strict governance rules for any AI agent interacting with the OpenIntelligence repository.
 All agents MUST read this document before executing any code changes.
 

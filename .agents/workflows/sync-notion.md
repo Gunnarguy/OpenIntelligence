@@ -50,10 +50,12 @@ than assuming.
    - Status: `To Do`, `In Progress`, `Completed` (never "Shipped" — it does not exist)
    - Component: `Ingestion`, `Chunking`, `Indexing`, `Retrieval`, `Orchestration`, `Shortcuts`, `General`, `UI`, `Infrastructure`
    - Priority: `High`, `Medium`, `Low`
-   - Target Release: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `Future Backlog`
+   - Target Release: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.0.1`, `v5.0.2`, `v5.1`, `v5.2`, `v5.3`, `v5.4`, `v5.5`, `Future Backlog`
      This list previously stopped at `v4.6`, which combined with the rule below meant an agent
      targeting v5.0 work would "round down" to a two-release-old label. The two split-numbering
      options are historical: from 4.9 onward both platforms share one version, so new rows use
      `v4.9` or `v5.0` and never a split label. `[read off the live data source 2026-08-05; matches .agents/rules/01-docs-and-notion-sync.md]`
+     The list stopped at `v5.0` until 2026-09-28, when the live data source had `v5.0.1` through `v5.5`
+     as well. `[evidence_level: measured, confidence: high, evidence_source: notion-fetch of collection://37f49a74-d54f-81b0-92d9-000bce5e05fa, 2026-09-28]`
    If a needed option doesn't exist, use the closest valid one and note it — never invent select options. If the closest valid option is more than one release away from the truth, stop and ask instead.
 6. Report the exact row(s) touched with their URLs.

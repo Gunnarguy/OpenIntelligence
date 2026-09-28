@@ -35,6 +35,7 @@ _ap.add_argument("--root", default=None, help="repository root (default: the git
 _ap.add_argument("--out", required=True, help="where to write the survey JSON; must be outside the repository")
 _ap.add_argument("--live-version", default="", help="the version live on the App Store, when the repo has no Docs/SHIPPED_VERSION.json")
 _ap.add_argument("--name", default="", help="the app's name for the page (default: the repository folder name)")
+_ap.add_argument("--verdicts", default="", help="verdicts from reading the documents (default: ~/.claude/repo-map-verdicts/<name>.json)")
 _args = _ap.parse_args()
 _top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=_args.root or os.getcwd(),
                       capture_output=True, text=True).stdout.strip()
@@ -721,6 +722,44 @@ for d in docs:
     base = os.path.basename(d["path"]).lower()
     d["same_name"] = [q for q in doc_names[base] if q != d["path"]] if base not in ("readme.md", "skill.md") else []
 
+# ---------------------------------------------------------------- verdicts from reading the documents
+# The reference checks above cannot judge prose. Documents they could not judge were read, claim by
+# claim, against the code, and the verdicts are kept outside every repository (a private repository's
+# findings must not land in a public one). A verdict counts only while the document is byte-for-byte
+# the one that was read: each carries the git blob id of what was read.
+VERDICT_STATUS = {"holds": "read-ok", "plan-done": "read-ok", "some-wrong": "claims-wrong",
+                  "mostly-wrong": "outdated", "external": "external", "not-claims": "no-claims",
+                  "template": "no-claims", "plan-open": "plan", "plan-partial": "plan", "record": "history"}
+_vpath = Path(os.path.expanduser(_args.verdicts or f"~/.claude/repo-map-verdicts/{APP}.json"))
+VERDICTS = json.loads(_vpath.read_text()) if _vpath.is_file() else {}
+if VERDICTS:
+    read_paths = [d["path"] for d in docs if d["path"] in VERDICTS]
+    blobs = dict(zip(read_paths, subprocess.run(["git", "hash-object", "--stdin-paths"], cwd=ROOT, input="\n".join(read_paths),
+                                               capture_output=True, text=True).stdout.split())) if read_paths else {}
+    for d in docs:
+        v = VERDICTS.get(d["path"])
+        if not v:
+            continue
+        v = dict(v)
+        v["current"] = blobs.get(d["path"]) == v.get("blob")
+        d["read"] = v
+        if not v["current"]:
+            d["why"].append(f"Read on {v.get('checked_on', 'an earlier date')}, but the document has changed since")
+            continue
+        if d["status"] in ("unchecked", "current", "behind") and v.get("verdict") in VERDICT_STATUS:
+            n_wrong, n_checked = len(v.get("wrong", [])), v.get("claims_checked", 0)
+            d["status"] = VERDICT_STATUS[v["verdict"]]
+            lead = {"read-ok": f"Read on {v.get('checked_on', '')}: the {n_checked} claims checked hold",
+                    "claims-wrong": f"Read on {v.get('checked_on', '')}: {n_wrong} of {n_checked} claims checked are wrong",
+                    "outdated": f"Read on {v.get('checked_on', '')}: {n_wrong} of {n_checked} claims checked are wrong",
+                    "external": "A copy of outside documentation, not a description of this code" +
+                                ("; the app uses what it documents" if v.get("used_by_app") else
+                                 "; the app does not use what it documents" if v.get("used_by_app") is False else ""),
+                    "no-claims": "Nothing in it makes a claim about the code (keywords, names, links or a template)",
+                    "plan": "A plan: " + ("partly carried out" if v["verdict"] == "plan-partial" else "not carried out"),
+                    "history": "A dated record of the past"}.get(d["status"], "")
+            d["why"] = [lead] + ([v["summary"]] if v.get("summary") else [])
+
 # ---------------------------------------------------------------- all files, for the map
 files = []
 for p in tracked:
@@ -801,7 +840,7 @@ for entry in sorted(os.listdir(ROOT)):
     loose.append({"name": entry, "kb": kb, "modified": mtime, "dir": full.is_dir(), "note": note, "first": first})
 
 out = {
-    "repo": REPO_SLUG, "head": HEAD, "link_sha": LINK_SHA, "app": APP, "flow": FLOW,
+    "repo": REPO_SLUG, "head": HEAD, "link_sha": LINK_SHA, "app": APP, "flow": FLOW, "verdicts": len(VERDICTS),
     "has_engine": HAS_ENGINE, "has_gate": HAS_GATE, "group_depth": GROUP_DEPTH, "generated": dt.datetime.now().isoformat(timespec="minutes"),
     "live_version": LIVE, "shipped": shipped, "areas": AREAS, "features": FEATURES,
     "docs": docs, "files": files, "loose": loose,

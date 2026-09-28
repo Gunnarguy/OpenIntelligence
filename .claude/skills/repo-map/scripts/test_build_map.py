@@ -26,7 +26,9 @@ NAME = os.environ.get("REPO_MAP_NAME", "")
 VENDORED = ("swift-transformers", "Pods", "Carthage", "Vendor", "vendor", "ThirdParty", "third_party",
             "External", "node_modules", ".build", "checkouts")
 TMP = Path(tempfile.mkdtemp(prefix="oi-repo-map-test."))
-STATUSES = {"outdated", "dead-links", "behind", "verified", "current", "unchecked", "history"}
+STATUSES = {"outdated", "dead-links", "behind", "verified", "current", "unchecked", "history",
+            "claims-wrong", "read-ok", "plan", "external", "no-claims"}
+READ_ONLY_STATUSES = {"claims-wrong", "read-ok", "plan", "external", "no-claims"}
 
 
 def strip_comments(s: str) -> str:
@@ -151,6 +153,17 @@ class RepoMapTests(unittest.TestCase):
                     end_candidates = [j for j in (text.find(". ", i), text.find("\n\n", i), text.find("|", i)) if j != -1]
                     window = text[start:min(end_candidates) if end_candidates else len(text)]
                     self.assertRegex(window, words, f"{d['path']}: {token} excused without a history word near it")
+
+    def test_a_reading_verdict_counts_only_for_the_document_that_was_read(self):
+        for d in self.survey["docs"]:
+            r = d.get("read")
+            if not r:
+                self.assertNotIn(d["status"], READ_ONLY_STATUSES, f"{d['path']} has a reading status but was never read")
+                continue
+            blob = subprocess.run(["git", "hash-object", d["path"]], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            self.assertEqual(r["current"], blob == r.get("blob"), f"{d['path']}: current flag disagrees with the blob")
+            if not r["current"]:
+                self.assertNotIn(d["status"], READ_ONLY_STATUSES, f"{d['path']} changed since it was read but kept its verdict")
 
     def test_render_embeds_the_survey_as_valid_json(self):
         out = TMP / "page.html"
