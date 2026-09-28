@@ -47,7 +47,7 @@ grep of the Xcode 27 SDK .swiftinterface files; ExtractiveQAService.swift:112-22
 - `PrivateCloudComputeLanguageModel`, `ContextOptions`, `ReasoningLevel` and `LanguageModel` were once
   declared here as shims and are now Apple SDK types. A type is called removed only after the SDK
   interfaces and `.build/checkouts` are searched for it.
-- Comments are stripped before a use is counted. `BertTokenizer` survives in live code only inside a
+- Comments are stripped before a use is counted. `BertTokenizer` survives in live code only inside a <!-- verify-doc-claims: ignore -->
   commented-out block, so the docs that describe it as the current tokenizer are correctly flagged.
 - An extension of a file's own type, such as a delegate conformance, does not make the file used. An
   extension of another type does, when a member it adds is named elsewhere.
@@ -65,8 +65,8 @@ grep of the Xcode 27 SDK .swiftinterface files; ExtractiveQAService.swift:112-22
 
 ## Files
 
-- `scripts/build_map.py`: the survey. It imports `scripts/verify_doc_claims.py` for its patterns and
+- `.claude/skills/repo-map/scripts/build_map.py`: the survey. It imports `scripts/verify_doc_claims.py` for its patterns and
   reads the tables in `Docs/ai/ARCHITECTURE.md` and the Engine target in `Package.swift`.
-- `scripts/page_template.html`: the page, with `/*__DATA__*/` where the survey goes.
-- `scripts/render.py`: puts the survey into the page.
-- `scripts/test_build_map.py`: runs the real survey and re-checks its verdicts independently.
+- `.claude/skills/repo-map/scripts/page_template.html`: the page, with `/*__DATA__*/` where the survey goes.
+- `.claude/skills/repo-map/scripts/render.py`: puts the survey into the page.
+- `.claude/skills/repo-map/scripts/test_build_map.py`: runs the real survey and re-checks its verdicts independently.
