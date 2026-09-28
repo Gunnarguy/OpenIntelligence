@@ -1,0 +1,42 @@
+{
+  "schema": "codemap/1",
+  "id": "app-store-rating-prompt",
+  "name": "App Store Rating Prompt",
+  "aliases": ["rating request", "App Store rating prompt", "review prompt", "ask for a rating", "rating prompt"],
+  "purpose": "Asks for an App Store rating at the moment the app has just proved itself, and holds the App Store rating snapshot.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["ReviewPromptService", "AppStoreRatingSnapshot"],
+  "files": [
+    {"path": "OpenIntelligence/App/ReviewPromptService.swift", "role": "primary", "blob": "5b35e113978121c150bcc36a0eae79ca3f2f25a1"},
+    {"path": "OpenIntelligence/Features/Billing/AppStoreRatingSnapshot.swift", "role": "primary", "blob": "2f2e427f118c9e978cc71245da6abb30926f04e1"},
+    {"path": "OpenIntelligenceTests/App/PlanAskServiceTests.swift", "role": "test", "blob": "17712022bc4f076f35e75158320c0289883b713e"},
+    {"path": "OpenIntelligenceTests/App/ReviewPromptServiceTests.swift", "role": "test", "blob": "124dd6728784229bd1eb93d54e64e57a803ea2ab"},
+    {"path": "OpenIntelligenceTests/Features/Billing/AppStoreRatingSnapshotTests.swift", "role": "test", "blob": "1d5f71a0c4495bf922724a7c9f3693fd1f3acac1"}
+  ],
+  "nodes": [
+    {"id": "ReviewPromptService", "kind": "service", "path": "OpenIntelligence/App/ReviewPromptService.swift", "line": 21, "match": "final class ReviewPromptService: ObservableObject {", "status": "VERIFIED", "by": "build"},
+    {"id": "ContentView.reviewPrompt", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 24, "match": "@ObservedObject private var reviewPrompt = ReviewPromptService.shared", "status": "VERIFIED", "by": "build"},
+    {"id": "PlanAskService.noteAnswer", "kind": "function", "path": "OpenIntelligence/App/PlanAskService.swift", "line": 64, "match": "func noteAnswer(gatingDecision: String?, retrievedSourceCount: Int, isFreeTier: Bool) {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.sendMessageNow", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2820, "match": "private func sendMessageNow(_ text: String) {", "status": "VERIFIED", "by": "build"},
+    {"id": "AppStoreRatingSnapshot", "kind": "model", "path": "OpenIntelligence/Features/Billing/AppStoreRatingSnapshot.swift", "line": 32, "match": "struct AppStoreRatingSnapshot: Codable, Equatable, Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "test:PlanAskServiceTests.swift", "kind": "test", "path": "OpenIntelligenceTests/App/PlanAskServiceTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
+    {"id": "test:ReviewPromptServiceTests.swift", "kind": "test", "path": "OpenIntelligenceTests/App/ReviewPromptServiceTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
+    {"id": "test:AppStoreRatingSnapshotTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Features/Billing/AppStoreRatingSnapshotTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "ContentView.reviewPrompt", "type": "depends_on", "to": "ReviewPromptService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 24, "match": "@ObservedObject private var reviewPrompt = ReviewPromptService.shared"}], "by": "build", "note": "named there"},
+    {"from": "PlanAskService.noteAnswer", "type": "depends_on", "to": "ReviewPromptService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/PlanAskService.swift", "line": 65, "match": "guard ReviewPromptService.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount) else { return }"}], "by": "build", "note": "named there"},
+    {"from": "ChatScreen.sendMessageNow", "type": "depends_on", "to": "ReviewPromptService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 3136, "match": "ReviewPromptService.shared.noteAnswer("}], "by": "build", "note": "named there"},
+    {"from": "ReviewPromptService", "type": "tested_by", "to": "test:PlanAskServiceTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/App/PlanAskServiceTests.swift", "line": 21, "match": "XCTAssertGreaterThan(PlanAskService.minimumVerifiedAnswers, ReviewPromptService.minimumVerifiedAnswers)"}], "by": "build", "note": "the test names it"},
+    {"from": "ReviewPromptService", "type": "tested_by", "to": "test:ReviewPromptServiceTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/App/ReviewPromptServiceTests.swift", "line": 11, "match": "XCTAssertEqual(ReviewPromptService.minimumVerifiedAnswers, 1)"}], "by": "build", "note": "the test names it"},
+    {"from": "AppStoreRatingSnapshot", "type": "tested_by", "to": "test:AppStoreRatingSnapshotTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Features/Billing/AppStoreRatingSnapshotTests.swift", "line": 26, "match": "XCTAssertFalse(AppStoreRatingSnapshot(average: 4.75, count: 5, fetchedAt: now).isWorthShowing)"}], "by": "build", "note": "the test names it"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["app-lifecycle", "billing-and-quotas", "chat-conversation-view"],
+  "entries": ["OpenIntelligence/App/ReviewPromptService.swift::ReviewPromptService", "OpenIntelligence/Features/Billing/AppStoreRatingSnapshot.swift::AppStoreRatingSnapshot"],
+  "owns": ["OpenIntelligence/App/ReviewPromptService.swift", "OpenIntelligence/Features/Billing/AppStoreRatingSnapshot.swift"],
+  "decisions": [],
+  "traps": ["The 120-day gate covers only the automatic request in ReviewPromptService; the thumbs-up alert can bring one sooner (CHANGELOG 5.4)."]
+}

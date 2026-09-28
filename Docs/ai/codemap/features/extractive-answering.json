@@ -1,0 +1,35 @@
+{
+  "schema": "codemap/1",
+  "id": "extractive-answering",
+  "name": "Extractive Answering",
+  "aliases": ["extractive QA service", "extractive summarization", "extractive-first answers", "sentence extraction"],
+  "purpose": "Pulls answer sentences and short summaries straight from the retrieved chunks instead of generating them.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["PlaceholderExtractiveQAService", "ExtractiveSummarizationService"],
+  "files": [
+    {"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift", "role": "primary", "blob": "d7ff0b6cdcaca89423077405365df7a5f7f8610e"},
+    {"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "role": "primary", "blob": "c69a74ff04a9b3fddcc2955c28e2e2c6c8f989ba"}
+  ],
+  "nodes": [
+    {"id": "PlaceholderExtractiveQAService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift", "line": 95, "match": "actor PlaceholderExtractiveQAService: ExtractiveQAService {", "status": "VERIFIED", "by": "build"},
+    {"id": "ExtractiveSummarizationService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 65, "match": "actor ExtractiveSummarizationService {", "status": "VERIFIED", "by": "build"},
+    {"id": "ExtractiveSummary", "kind": "model", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 26, "match": "struct ExtractiveSummary: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "SelectedSentence", "kind": "model", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 44, "match": "struct SelectedSentence: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "EmbeddingService.generateEmbedding", "kind": "function", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 239, "match": "func generateEmbedding(for text: String) async throws -> [Float] {", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.extractiveSummarizationService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 352, "match": "private let extractiveSummarizationService: ExtractiveSummarizationService", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "ExtractiveSummarizationService", "type": "depends_on", "to": "ExtractiveSummary", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 122, "match": "return ExtractiveSummary("}], "by": "build", "note": "constructs it"},
+    {"from": "ExtractiveSummarizationService", "type": "depends_on", "to": "SelectedSentence", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 247, "match": "selected.append(SelectedSentence("}], "by": "build", "note": "constructs it"},
+    {"from": "ExtractiveSummarizationService", "type": "calls", "to": "EmbeddingService.generateEmbedding", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 132, "match": "let queryEmbedding = try await embeddingService.generateEmbedding(for: query)"}], "by": "build", "note": "named in the body"},
+    {"from": "RAGService.extractiveSummarizationService", "type": "depends_on", "to": "ExtractiveSummarizationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 352, "match": "private let extractiveSummarizationService: ExtractiveSummarizationService"}], "by": "build", "note": "named there"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["rag-orchestration-core", "vector-embeddings"],
+  "entries": ["OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift::PlaceholderExtractiveQAService", "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift::ExtractiveSummarizationService"],
+  "owns": ["OpenIntelligence/Services/RAG/Extraction/**"],
+  "decisions": [],
+  "traps": ["CoreMLExtractiveQAService is commented out (/* */ at ExtractiveQAService.swift:112-223); PlaceholderExtractiveQAService is the only QA service compiled in that file."]
+}

@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; development still paused after 5.4)
+Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; codemap installed; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 4fc8252
+Last verified commit: 0e9728e
 
 ## Objective
 
@@ -58,22 +58,26 @@ left needs his word or an app release (Blockers).
   rows: https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 (PRIVACY.md, eight claims) and
   https://app.notion.com/p/3e949a74d54f817f8933e538845009c6 (the store description offers Pro-only
   iCloud sync to everyone).
-- **Another session is installing the codemap in this checkout** (seen 2026-09-28 from 14:52). It has
-  uncommitted edits in `.claude/settings.json` (a UserPromptSubmit hook that injects feature slices),
-  `AGENTS.md`, `CLAUDE.md`, `README.md`, `HANDOFF.md`, `Docs/ai/ARCHITECTURE.md`, `Docs/ai/INDEX.md`, the
-  RepoOS router docs and matrix, plus `.claude/codemap/` and `Docs/ai/codemap/`. Nothing in this handoff
-  touches those files. Commit only named paths until it lands.
+- **Codemap, done 2026-09-28** (committed on `main` after `0e9728e`, not pushed). `Docs/ai/codemap/`
+  holds 46 feature slices whose primary files cover all 299 app Swift files once: each names the entry
+  points to read first, its hard-boundary traps, and typed links between symbols with the line each
+  cites. A link is VERIFIED only where the Swift syntax on that line states it (it constructs the type
+  by name, or calls the member through its type), INFERRED where a name matched. In Claude Code the
+  prompt hook prints the slice a prompt names and the session brief says how many cited lines moved or
+  broke (both in `.claude/settings.json`, calling `~/.agents/codemap/` on this Mac); every agent gets
+  `AGENTS.md` rule 19. The checker is `.claude/codemap/codemap.py`, not `scripts/`, because a push
+  touching `scripts/` starts an Xcode Cloud build. Measured: an independent reader (Gemini) refuted 0
+  of 20 sampled VERIFIED and 2 of 20 INFERRED links on the fixed build (2 and 7 before the fixes). In an
+  A/B of three questions (`~/.agents/featuremap/ab/2026-09-28-OpenIntelligence/results.md`), the session
+  with the slice found the live model picker, which all three sessions without it missed. Roadmap row:
+  https://app.notion.com/p/3e949a74d54f81cca68ed0f314c2353b. `Docs/ai/ARCHITECTURE.md` is free to edit
+  again.
 - **5.4 is live on iOS and macOS**, build 478 (Xcode Cloud #478 from `c276b9a`), and closed out in
   this repository, on GitHub (`v5.4.0` is Latest), on all three websites and in Notion. The release
   procedure used is in `Docs/ai/RUNBOOK.md`, "Releasing an approved version through the API".
 - **Documentation overhaul row still open:** https://app.notion.com/p/3e549a74d54f815087d7db62848adb40
   (Future Backlog, In Progress). It closes when `/context` in a fresh Claude Code session on the Mac
   shows the lighter startup load.
-- **A global `codemap` skill exists** at `~/.claude/skills/codemap/`, built 2026-09-28 by another
-  session for a different app (OpenResponses). It is the agent-facing feature index and graph. It
-  has not been applied here. Its install step copies `codemap.py` into `scripts/`, and in this repo a
-  push touching `scripts/` starts an Xcode Cloud build, which with no version open stamps 5.4 and is
-  rejected. Keep the tool under `.claude/` or put `[ci skip]` in the commit message.
 - Scheduled: 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`, which takes the sale line
   off the listing and the three sites. It is still needed.
 
@@ -85,7 +89,8 @@ left needs his word or an app release (Blockers).
   `.agents/`, `.codex/`, `fastlane/metadata/` and `.github/`.
 - `[General]` changelog entries for post-5.4 tooling wait in
   `Docs/AuditArtifacts/DocOverhaul_2026-09-24/README.md`, "CHANGELOG entries, to file when 5.5
-  opens" (four entries, repo-map and the doc cleanup included). Copy them under 5.5 when it opens.
+  opens" (five entries, the repo-map, the doc cleanup and the codemap included). Copy them under 5.5
+  when it opens.
 - `CLAUDE.md` forbids deleting docs. Removing a doc means moving it (`git mv`) into `Docs/Archive/`
   unless the owner lifts that rule in so many words.
 - App Store Connect writes happen only at the owner's word. Guard memory on builds (18 GB Mac):
@@ -98,6 +103,8 @@ left needs his word or an app release (Blockers).
 - `.claude/skills/repo-map/scripts/build_map.py`: the survey; imports `scripts/verify_doc_claims.py`.
 - `.claude/skills/repo-map/scripts/page_template.html`, `render.py`: the page.
 - `.claude/skills/repo-map/scripts/test_build_map.py`: re-derives the survey's verdicts.
+- `Docs/ai/codemap/` (`config.json`, `features/*.json`, generated `INDEX.md`, `DRIFT.md`,
+  `UNMAPPED.md`), `.claude/codemap/codemap.py`: the codemap and its checker.
 - `Docs/SHIPPED_VERSION.json`, `CHANGELOG.md`, `Docs/USER_CHANGELOG.md`,
   `OpenIntelligence/Resources/VersionHistory.md`: the release records.
 
@@ -117,8 +124,15 @@ left needs his word or an app release (Blockers).
 - `python3 scripts/secret_scan.py` -> no sensitive tokens.
 - `bash scripts/test_enforce_docs_hook.sh` -> 18 passed. `bash scripts/test_stop_handoff.sh` -> 11
   passed, 0 failed.
+- Codemap, 2026-09-28 at `0e9728e`: `python3 .claude/codemap/codemap.py check` -> 46 slices, 0
+  errors, 0 warnings. `python3 scripts/verify_doc_claims.py` -> 751 claims checked, all match. The
+  prompt hook: 24 of 25 dev prompts and the 3 A/B questions matched their feature; a `claude -p`
+  session at the root quoted the injected `FEATURE` line. The router tests (31 OK), the secret scan,
+  `test_enforce_docs_hook.sh` (18 passed), `test_stop_handoff.sh` (11 passed) and
+  `test_verify_doc_claims.sh` (8 passed) were re-run with the codemap edits in the tree.
 - Not run: `bash scripts/build_simulator_smoke.sh`. No smoke DerivedData exists, so it would be a
-  cold build, and nothing compiled changed. Earlier: the full iOS suite ran 500 tests, 0 failures, on
+  cold build, and nothing compiled changed (the codemap commit touches no file Xcode compiles; another
+  session was running two `xcodebuild test` jobs on this Mac at the time). Earlier: the full iOS suite ran 500 tests, 0 failures, on
   the 5.4 code (2026-09-23).
 
 ## Blockers / Unknowns
@@ -132,18 +146,19 @@ left needs his word or an app release (Blockers).
     user-facing; check the three websites' links before moving either.
   - The seven docs still flagged are plans and playbooks naming proposed files. Leave them, or mark
     each as history if he says the plan is dead.
-- **Push:** everything through `4fc8252` is pushed (2026-09-28, at the owner's word each time; no
+- **Push:** everything through `0e9728e` is pushed (2026-09-28, at the owner's word each time; no
   Xcode Cloud build, every path inside its skip filter). Future pushes wait for his word, because the
-  repository is public.
+  repository is public. The codemap commits after `0e9728e` are not pushed.
 - **Public copy the reading found wrong, waiting on the owner:** OpenIntelligence `PRIVACY.md` (eight
   claims) and the App Store description (per-library iCloud sync is Pro and Lifetime only). OpenManual's
   live 1.2 listing says only a document's address and model are shared; 1.0 to 1.2 filed title, page
   count, SHA-256 and timestamp to CloudKit's public database. OpenCone's live store page advertises
   image OCR, DOCX, configurable chunking, bookmarks and alternate icons, none of which work. Store copy
   changes are App Store Connect writes, the owner's call.
-- **`Docs/ai/ARCHITECTURE.md:110-111` is wrong and uncorrected:** it says the user sees which excerpts
-  would be sent. The sheet shows counts, and "Always Allow" skips it (`RAGService.swift:3725-3733`).
-  Correct it once the codemap session has committed its edit to that file.
+- **`Docs/ai/ARCHITECTURE.md:113-114` is wrong and uncorrected** (lines 110-111 before the codemap
+  commit): it says the user sees which excerpts would be sent. The sheet shows counts, and "Always
+  Allow" skips it (`RAGService.swift:3725-3733`). The codemap commit that held the file has landed; the
+  line is a core privacy statement and waits on the owner's word.
 - **Six `v5.4` rows close on the owner's device check**; nothing can verify them from here. When he
   says they work, set each to `Completed` with `date:Completed:start` 2026-09-24 or later:
   https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142,
@@ -162,5 +177,7 @@ left needs his word or an app release (Blockers).
 
 ## Exact Next Action
 
-None. The Repo Map and the safe cleanup are done, verified and pushed. There is no active
-objective; ask the owner what to pick up next, or take a row from the Notion roadmap.
+Ask the owner whether to push the codemap commits. They are on `main` after `0e9728e` and not pushed;
+pushing publishes to the public repository, and every path is inside Xcode Cloud's skip filter, so no
+build starts. There is no other active objective; otherwise ask him what to pick up next, or take a row
+from the Notion roadmap.

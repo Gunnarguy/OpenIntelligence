@@ -149,6 +149,7 @@ physical device. Where something is unproven, it says so.
 
 **Contributing agents:** [RepoOS Command Center](Docs/RepoOS/00_REPO_COMMAND_CENTER.md) routes
 repository work through canonical evidence, safe edit boundaries, and required tests.
+The [codemap](Docs/ai/codemap/INDEX.md) names, for each feature, the code to read first and how it connects to the rest.
 
 ## Codebase map
 

@@ -1,0 +1,53 @@
+{
+  "schema": "codemap/1",
+  "id": "onboarding-checklist",
+  "name": "Onboarding Checklist",
+  "aliases": ["onboarding checklist", "first-run checklist", "first-run walkthrough", "onboarding guide", "getting started"],
+  "purpose": "Walks a new user through setting up a library, importing documents and asking a first question.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["OnboardingChecklistView", "OnboardingStateStore", "OnboardingChecklistLauncher"],
+  "files": [
+    {"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistLauncher.swift", "role": "primary", "blob": "ad4e29eb87bae41b771dd4fcd44861cbfaf2dc3a"},
+    {"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "role": "primary", "blob": "ffde0d84a6b8851c78964d1667595baedfeb10e0"},
+    {"path": "OpenIntelligence/Features/Onboarding/OnboardingPalette.swift", "role": "primary", "blob": "b9c4f3e31f7f0cfce76035d0cf6c661137c9edf0"},
+    {"path": "OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift", "role": "primary", "blob": "f954dd1ca6a08ca633d6adecaf1569a70e78dcea"}
+  ],
+  "nodes": [
+    {"id": "OnboardingChecklistView", "kind": "view", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 33, "match": "struct OnboardingChecklistView: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "SplashBackdrop", "kind": "view", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 1225, "match": "private struct SplashBackdrop: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "GlossaryView", "kind": "view", "path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 20, "match": "struct GlossaryView: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "UseCaseCard", "kind": "view", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 1169, "match": "private struct UseCaseCard: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "PipelineLogRow", "kind": "view", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 1128, "match": "private struct PipelineLogRow: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "ExampleQuestionPill", "kind": "view", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 1201, "match": "private struct ExampleQuestionPill: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "ContentView.body", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 94, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "OnboardingStateStore", "kind": "model", "path": "OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift", "line": 6, "match": "final class OnboardingStateStore: ObservableObject {", "status": "VERIFIED", "by": "build"},
+    {"id": "ContentView.onboardingStore", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 20, "match": "@StateObject private var onboardingStore: OnboardingStateStore", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.onboardingStore", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 216, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.onboardingStore", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 13, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore", "status": "VERIFIED", "by": "build"},
+    {"id": "OnboardingChecklistView.onboardingStore", "kind": "model", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 37, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore", "status": "VERIFIED", "by": "build"},
+    {"id": "HowItWorksView.onboardingStore", "kind": "model", "path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "line": 24, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore", "status": "VERIFIED", "by": "build"},
+    {"id": "OnboardingChecklistLauncher", "kind": "view", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistLauncher.swift", "line": 5, "match": "struct OnboardingChecklistLauncher: View {", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "OnboardingChecklistView", "type": "renders", "to": "SplashBackdrop", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 74, "match": "SplashBackdrop()"}], "by": "build", "note": "constructs it"},
+    {"from": "OnboardingChecklistView", "type": "renders", "to": "GlossaryView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 127, "match": "GlossaryView()"}], "by": "build", "note": "constructs it"},
+    {"from": "OnboardingChecklistView", "type": "renders", "to": "UseCaseCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 300, "match": "UseCaseCard(icon: \"tag.fill\", iconColor: .blue, docType: \"Product Guide\", exampleQuestion: \"What file types does OpenIntelligence handle best?\")"}], "by": "build", "note": "constructs it"},
+    {"from": "OnboardingChecklistView", "type": "renders", "to": "PipelineLogRow", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 608, "match": "PipelineLogRow(entry: entry)"}], "by": "build", "note": "constructs it"},
+    {"from": "OnboardingChecklistView", "type": "renders", "to": "ExampleQuestionPill", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 668, "match": "ExampleQuestionPill(text: \"How does OpenIntelligence work around the 4,096-token limit?\", icon: \"cpu.fill\", color: .orange)"}], "by": "build", "note": "constructs it"},
+    {"from": "ContentView.body", "type": "renders", "to": "OnboardingChecklistView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 99, "match": "OnboardingChecklistView("}], "by": "build", "note": "constructs it"},
+    {"from": "ContentView.body", "type": "renders", "to": "OnboardingChecklistLauncher", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 129, "match": "OnboardingChecklistLauncher("}], "by": "build", "note": "constructs it"},
+    {"from": "ContentView.onboardingStore", "type": "depends_on", "to": "OnboardingStateStore", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 20, "match": "@StateObject private var onboardingStore: OnboardingStateStore"}], "by": "build", "note": "named there"},
+    {"from": "ChatScreen.onboardingStore", "type": "depends_on", "to": "OnboardingStateStore", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 216, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore"}], "by": "build", "note": "named there"},
+    {"from": "DocumentLibraryView.onboardingStore", "type": "depends_on", "to": "OnboardingStateStore", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 13, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore"}], "by": "build", "note": "named there"},
+    {"from": "OnboardingChecklistView.onboardingStore", "type": "depends_on", "to": "OnboardingStateStore", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 37, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore"}], "by": "build", "note": "named there"},
+    {"from": "HowItWorksView.onboardingStore", "type": "depends_on", "to": "OnboardingStateStore", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "line": 24, "match": "@EnvironmentObject private var onboardingStore: OnboardingStateStore"}], "by": "build", "note": "named there"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["app-lifecycle", "chat-conversation-view", "document-library-and-containers", "glossary", "settings-and-configuration"],
+  "entries": ["OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift::OnboardingChecklistView", "OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift::OnboardingStateStore", "OpenIntelligence/Features/Onboarding/OnboardingChecklistLauncher.swift::OnboardingChecklistLauncher"],
+  "owns": ["OpenIntelligence/Features/Onboarding/OnboardingChecklistLauncher.swift", "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "OpenIntelligence/Features/Onboarding/OnboardingPalette.swift", "OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift"],
+  "decisions": [],
+  "traps": []
+}

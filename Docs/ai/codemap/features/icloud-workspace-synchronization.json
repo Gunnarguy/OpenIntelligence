@@ -1,0 +1,43 @@
+{
+  "schema": "codemap/1",
+  "id": "icloud-workspace-synchronization",
+  "name": "iCloud Workspace Synchronization",
+  "aliases": ["iCloud workspace sync", "iCloud libraries", "ubiquity container", "workspace inventory", "library synchronization"],
+  "purpose": "Keeps libraries, documents and threads in step across the user's devices through iCloud Drive, including deletions.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["WorkspaceSyncService", "WorkspaceSyncService.deleteSharedLibrary", "WorkspaceSyncService.synchronizeEvidenceThreads", "WorkspaceInventory", "SyncBootstrapChoice"],
+  "files": [
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "primary", "blob": "453f56d4ed18f3bfd2345b9048d19a77d61250dd"},
+    {"path": "OpenIntelligenceTests/Services/Storage/IngestionQueueTombstoneTests.swift", "role": "test", "blob": "93c549154bf641e72ba7f4ee1a743fc7aeeb4913"}
+  ],
+  "nodes": [
+    {"id": "WorkspaceSyncService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 215, "match": "final class WorkspaceSyncService: ObservableObject {", "status": "VERIFIED", "by": "build"},
+    {"id": "ContentView.workspaceSyncService", "kind": "service", "path": "OpenIntelligence/App/ContentView.swift", "line": 15, "match": "@StateObject private var workspaceSyncService: WorkspaceSyncService", "status": "VERIFIED", "by": "build"},
+    {"id": "KnowledgeContainer.init", "kind": "function", "path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 97, "match": "init(from decoder: Decoder) throws {", "status": "VERIFIED", "by": "build"},
+    {"id": "ModernDocumentCard.workspaceSyncService", "kind": "service", "path": "OpenIntelligence/Features/Documents/Components/DocumentCard.swift", "line": 13, "match": "@EnvironmentObject private var workspaceSyncService: WorkspaceSyncService", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.workspaceSyncService", "kind": "service", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 16, "match": "@EnvironmentObject private var workspaceSyncService: WorkspaceSyncService", "status": "VERIFIED", "by": "build"},
+    {"id": "LibraryDeletion.delete", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/LibraryDeletion.swift", "line": 68, "match": "static func delete(", "status": "VERIFIED", "by": "build"},
+    {"id": "ContainerSettingsSheet.workspaceSyncService", "kind": "service", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 17, "match": "@EnvironmentObject private var workspaceSyncService: WorkspaceSyncService", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.deleteSharedLibrary", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 730, "match": "func deleteSharedLibrary(_ container: KnowledgeContainer) async throws {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.synchronizeEvidenceThreads", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 2732, "match": "nonisolated private func synchronizeEvidenceThreads(", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceInventory", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 67, "match": "struct WorkspaceInventory {", "status": "VERIFIED", "by": "build"},
+    {"id": "SyncBootstrapChoice", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 10, "match": "enum SyncBootstrapChoice: Sendable {", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "ContentView.workspaceSyncService", "type": "depends_on", "to": "WorkspaceSyncService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 15, "match": "@StateObject private var workspaceSyncService: WorkspaceSyncService"}], "by": "build", "note": "named there"},
+    {"from": "KnowledgeContainer.init", "type": "depends_on", "to": "WorkspaceSyncService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 121, "match": "?? ((UserDefaults.standard.object(forKey: WorkspaceSyncService.syncEnabledDefaultsKey) as? Bool ?? false)"}], "by": "build", "note": "named there"},
+    {"from": "ModernDocumentCard.workspaceSyncService", "type": "depends_on", "to": "WorkspaceSyncService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Components/DocumentCard.swift", "line": 13, "match": "@EnvironmentObject private var workspaceSyncService: WorkspaceSyncService"}], "by": "build", "note": "named there"},
+    {"from": "DocumentLibraryView.workspaceSyncService", "type": "depends_on", "to": "WorkspaceSyncService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 16, "match": "@EnvironmentObject private var workspaceSyncService: WorkspaceSyncService"}], "by": "build", "note": "named there"},
+    {"from": "LibraryDeletion.delete", "type": "depends_on", "to": "WorkspaceSyncService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/LibraryDeletion.swift", "line": 72, "match": "workspaceSyncService: WorkspaceSyncService"}], "by": "build", "note": "named there"},
+    {"from": "ContainerSettingsSheet.workspaceSyncService", "type": "depends_on", "to": "WorkspaceSyncService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 17, "match": "@EnvironmentObject private var workspaceSyncService: WorkspaceSyncService"}], "by": "build", "note": "named there"},
+    {"from": "LibraryDeletion.delete", "type": "calls", "to": "WorkspaceSyncService.deleteSharedLibrary", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/LibraryDeletion.swift", "line": 82, "match": "try await workspaceSyncService.deleteSharedLibrary(container)"}], "by": "build", "note": "named there"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["app-lifecycle", "container-settings-and-customization", "document-library-and-containers"],
+  "entries": ["OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::WorkspaceSyncService", "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::WorkspaceSyncService.deleteSharedLibrary", "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::WorkspaceSyncService.synchronizeEvidenceThreads", "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::WorkspaceInventory", "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::SyncBootstrapChoice"],
+  "owns": ["OpenIntelligence/Services/Infrastructure/Storage/**"],
+  "decisions": [],
+  "traps": ["WorkspaceSyncService.swift is Tier 2 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md: the 15-minute mtime sweep guard is what keeps freshly imported files from being deleted."]
+}

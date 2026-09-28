@@ -14,6 +14,7 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 - Full tests: `xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO`
 - Clean-state check: `git status --porcelain` (must show only intended files)
 - Secret scan (before commit of new files): `python3 scripts/secret_scan.py`
+- Codemap (after a Swift change): `python3 .claude/codemap/codemap.py affected` names the feature slices whose cited code changed; rebuild and restamp them (`AGENTS.md` rule 19)
 
 ## Routes
 
@@ -128,6 +129,6 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 - **Read first:** `AGENTS.md`, `.codex/skills/route-openintelligence-work/SKILL.md`, `.agents/rules/00-repoos-routing.md`, `.agents/rules/01-docs-and-notion-sync.md`
 - **Allowed:** `.codex/skills/**`, `.agents/**`, `.claude/**`, `CLAUDE.md`, `Docs/ai/**`, `Docs/RepoOS/**`, `Docs/AuditArtifacts/RepoOS/**`, `AGENTS.md`, the other instruction planes (`HANDOFF.md`, `GEMINI.md`, `.geminirules`; unrouted until 2026-09-24), the enforcement-layer scripts (`scripts/required_docs.sh`, `scripts/enforce_docs_hook.sh`, `scripts/instructions_report.sh`, `scripts/verify_doc_claims.py`, and their tests), and documentation required by rule 14
 - **Forbidden:** all `OpenIntelligence/**` app source, Xcode project configuration, StoreKit, entitlements, package dependency pins, and every Tier 2 boundary in `03_FORBIDDEN_EDIT_BOUNDARIES.md`
-- **Verify:** skill `quick_validate.py`; router unit tests executed directly with `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py`; `bash scripts/test_enforce_docs_hook.sh`; `bash scripts/test_stop_handoff.sh`; `bash scripts/test_verify_doc_claims.sh`; representative preflight runs; CSV parse; secret scan on new files; build smoke to prove no app regression
+- **Verify:** `python3 .claude/codemap/codemap.py check` (0 errors) when the change touches `Docs/ai/codemap/` or `.claude/codemap/`; skill `quick_validate.py`; router unit tests executed directly with `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py`; `bash scripts/test_enforce_docs_hook.sh`; `bash scripts/test_stop_handoff.sh`; `bash scripts/test_verify_doc_claims.sh`; representative preflight runs; CSV parse; secret scan on new files; build smoke to prove no app regression
 - **Docs to update:** Command Center, Task Router, change-impact matrix, `CHANGELOG.md`, and the full AGENTS.md rule 14 set for a durable workflow feature
 - **Approval:** required before edits; Notion roadmap synchronization required for durable workspace automation

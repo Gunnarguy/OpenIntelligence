@@ -1,0 +1,52 @@
+{
+  "schema": "codemap/1",
+  "id": "visual-classification",
+  "name": "Visual Classification",
+  "aliases": ["Core ML document classifier", "region detector", "image understanding service", "live object detection"],
+  "purpose": "Classifies what a page or image shows and finds its layout regions with Core ML and Vision.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["CoreMLDocumentClassifier", "CoreMLRegionDetector", "ImageUnderstandingService", "LiveObjectDetectionService"],
+  "files": [
+    {"path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "role": "primary", "blob": "b68b4c702aad52834ad4c8a53fdce9af7052398c"},
+    {"path": "OpenIntelligence/Services/Document/Classification/CoreMLRegionDetector.swift", "role": "primary", "blob": "342aa0ce2bd3ef842c569953bfb915de42df1050"},
+    {"path": "OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift", "role": "primary", "blob": "2da67b6347e6e9b7b61e4a2bafcd0e6e9b70782b"},
+    {"path": "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift", "role": "primary", "blob": "385e1f0790bdf16ba138e01ed49f053c3927b504"},
+    {"path": "OpenIntelligenceTests/Services/Document/LiveObjectDetectionTests.swift", "role": "test", "blob": "13a8839c22101d777cbddd93ec45bd192ec5d881"}
+  ],
+  "nodes": [
+    {"id": "CoreMLDocumentClassifier", "kind": "model", "path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "line": 152, "match": "actor CoreMLDocumentClassifier {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentClassificationResult", "kind": "model", "path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "line": 138, "match": "struct DocumentClassificationResult: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "ImageClassification", "kind": "model", "path": "OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift", "line": 41, "match": "struct ImageClassification: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "ProcessingHints", "kind": "model", "path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "line": 119, "match": "struct ProcessingHints: Sendable, Equatable {", "status": "VERIFIED", "by": "build"},
+    {"id": "IntelligentDocumentProcessor.classifier", "kind": "model", "path": "OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift", "line": 118, "match": "private let classifier = CoreMLDocumentClassifier.shared", "status": "VERIFIED", "by": "build"},
+    {"id": "CoreMLRegionDetector", "kind": "model", "path": "OpenIntelligence/Services/Document/Classification/CoreMLRegionDetector.swift", "line": 127, "match": "actor CoreMLRegionDetector {", "status": "VERIFIED", "by": "build"},
+    {"id": "IntelligentDocumentProcessor.regionDetector", "kind": "model", "path": "OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift", "line": 119, "match": "private let regionDetector = CoreMLRegionDetector.shared", "status": "VERIFIED", "by": "build"},
+    {"id": "ImageUnderstandingService", "kind": "service", "path": "OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift", "line": 116, "match": "class ImageUnderstandingService {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentProcessor.analyzeEmbeddedImages", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 7129, "match": "private func analyzeEmbeddedImages(pdfDocument: PDFDocument, pageCount: Int) async -> [StructuredElementWrapper] {", "status": "VERIFIED", "by": "build"},
+    {"id": "LiveObjectDetectionService", "kind": "service", "path": "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift", "line": 80, "match": "actor LiveObjectDetectionService {", "status": "VERIFIED", "by": "build"},
+    {"id": "LiveObjectDetectionService.Frame", "kind": "service", "path": "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift", "line": 92, "match": "private struct Frame: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "DetectedObject", "kind": "model", "path": "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift", "line": 19, "match": "struct DetectedObject: Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "SmartCaptureManager.performFullAnalysis", "kind": "function", "path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 475, "match": "private func performFullAnalysis(on image: CGImage, mode: CaptureMode) async -> SmartCaptureResult {", "status": "VERIFIED", "by": "build"},
+    {"id": "test:LiveObjectDetectionTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Document/LiveObjectDetectionTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "CoreMLDocumentClassifier", "type": "depends_on", "to": "DocumentClassificationResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "line": 273, "match": "return DocumentClassificationResult("}], "by": "build", "note": "constructs it"},
+    {"from": "CoreMLDocumentClassifier", "type": "depends_on", "to": "ImageClassification", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "line": 344, "match": "ImageClassification(identifier: $0.identifier, confidence: $0.confidence)"}], "by": "build", "note": "constructs it"},
+    {"from": "CoreMLDocumentClassifier", "type": "depends_on", "to": "ProcessingHints", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "line": 420, "match": "return ProcessingHints(ocrAccuracy: .standard, preserveLayout: false, extractTables: false, chunkingPreset: .narrative)"}], "by": "build", "note": "constructs it"},
+    {"from": "LiveObjectDetectionService", "type": "depends_on", "to": "LiveObjectDetectionService.Frame", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift", "line": 128, "match": "await detect(Frame(storage: .cgImage(image)), threshold: confidenceThreshold)"}], "by": "build", "note": "constructs it"},
+    {"from": "LiveObjectDetectionService", "type": "depends_on", "to": "DetectedObject", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift", "line": 152, "match": "DetectedObject("}], "by": "build", "note": "constructs it"},
+    {"from": "IntelligentDocumentProcessor.classifier", "type": "depends_on", "to": "CoreMLDocumentClassifier", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift", "line": 118, "match": "private let classifier = CoreMLDocumentClassifier.shared"}], "by": "build", "note": "named there"},
+    {"from": "IntelligentDocumentProcessor.regionDetector", "type": "depends_on", "to": "CoreMLRegionDetector", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift", "line": 119, "match": "private let regionDetector = CoreMLRegionDetector.shared"}], "by": "build", "note": "named there"},
+    {"from": "DocumentProcessor.analyzeEmbeddedImages", "type": "depends_on", "to": "ImageUnderstandingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 7172, "match": "let (analyzedImages, _) = await ImageUnderstandingService.shared.analyzeDocumentImages("}], "by": "build", "note": "named there"},
+    {"from": "SmartCaptureManager.performFullAnalysis", "type": "depends_on", "to": "LiveObjectDetectionService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 486, "match": "let detected = await LiveObjectDetectionService.shared.detectObjects(in: image, confidenceThreshold: 0.4)"}], "by": "build", "note": "named there"},
+    {"from": "LiveObjectDetectionService", "type": "tested_by", "to": "test:LiveObjectDetectionTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Document/LiveObjectDetectionTests.swift", "line": 36, "match": "let description = LiveObjectDetectionService.shared.describeObjects(["}], "by": "build", "note": "the test names it"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["camera-document-capture", "document-ingestion-pipeline"],
+  "entries": ["OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift::CoreMLDocumentClassifier", "OpenIntelligence/Services/Document/Classification/CoreMLRegionDetector.swift::CoreMLRegionDetector", "OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift::ImageUnderstandingService", "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift::LiveObjectDetectionService"],
+  "owns": ["OpenIntelligence/Services/Document/Classification/**"],
+  "decisions": [],
+  "traps": []
+}

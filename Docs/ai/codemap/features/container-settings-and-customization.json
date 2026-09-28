@@ -1,0 +1,37 @@
+{
+  "schema": "codemap/1",
+  "id": "container-settings-and-customization",
+  "name": "Container Settings and Customization",
+  "aliases": ["container settings sheet", "Library Settings", "library color palette", "SF symbol picker", "chunking preview"],
+  "purpose": "Sets a library's symbol, color and chunking in its settings sheet.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["ContainerSettingsSheet", "LibraryColorPicker", "SFSymbolPicker"],
+  "files": [
+    {"path": "OpenIntelligence/Features/Documents/Settings/ColorPicker.swift", "role": "primary", "blob": "bacb40be21675b3799befabdfbaad2435c16f685"},
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift", "role": "primary", "blob": "1445138b701ac65b28af8a0d186c42532b0ff20a"},
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "role": "primary", "blob": "db49d270583cf5e25c79920b47b54bf271ad08e3"},
+    {"path": "OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift", "role": "primary", "blob": "254ece3d16259eeb1aebda1305ad1548a1771590"}
+  ],
+  "nodes": [
+    {"id": "ContainerSettingsSheet", "kind": "view", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 12, "match": "struct ContainerSettingsSheet: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "PlanUpgradeSheet", "kind": "view", "path": "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "line": 9, "match": "struct PlanUpgradeSheet: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.librarySheetView", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1326, "match": "private var librarySheetView: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "LibraryColorPicker", "kind": "view", "path": "OpenIntelligence/Features/Documents/Settings/ColorPicker.swift", "line": 82, "match": "struct LibraryColorPicker: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 307, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "SFSymbolPicker", "kind": "view", "path": "OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift", "line": 10, "match": "struct SFSymbolPicker: View {", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "ContainerSettingsSheet", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 343, "match": "PlanUpgradeSheet(entryPoint: .iCloudSync)"}], "by": "build", "note": "constructs it"},
+    {"from": "DocumentLibraryView.librarySheetView", "type": "renders", "to": "ContainerSettingsSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1334, "match": "ContainerSettingsSheet(containerService: containerService, ragService: ragService)"}], "by": "build", "note": "constructs it"},
+    {"from": "LibraryColorPicker", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ColorPicker.swift", "line": 183, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},
+    {"from": "SFSymbolPicker", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift", "line": 255, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["billing-and-quotas", "design-system-and-markdown", "document-library-and-containers"],
+  "entries": ["OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift::ContainerSettingsSheet", "OpenIntelligence/Features/Documents/Settings/ColorPicker.swift::LibraryColorPicker", "OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift::SFSymbolPicker"],
+  "owns": ["OpenIntelligence/Features/Documents/Settings/**"],
+  "decisions": [],
+  "traps": []
+}

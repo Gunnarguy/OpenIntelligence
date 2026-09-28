@@ -13,6 +13,7 @@ is the always-loaded control plane and points here. Read on demand, not by defau
 | [ARCHITECTURE.md](ARCHITECTURE.md) | You need the component map, or you do not know which doc owns an area. |
 | [DECISIONS.md](DECISIONS.md) | Something looks wrong and you are about to "fix" it. Check whether it was decided. Read by section. |
 | [RUNBOOK.md](RUNBOOK.md) | You need to build, test, release, or recover, and want to know which commands are actually verified. Read by section: `grep -n '^## '`. |
+| [codemap/INDEX.md](codemap/INDEX.md) | You need the code behind a feature: its entry points, the files it owns, and what it calls or renders. Open one slice, then confirm the cited lines. |
 
 ## Relationship to the rest of the documentation
 
@@ -30,6 +31,8 @@ This directory does not replace anything. It routes.
 `Docs/ai/STATE.md` is rewritten by the `project-handoff` skill. The other four change only when the
 underlying fact changes. The `project-context-audit` skill checks this directory against the
 repository and updates the date below.
+`codemap/` is regenerated from the code after Swift changes (`AGENTS.md` rule 19); never edit its
+generated Markdown by hand.
 
 Last context-system audit: 2026-09-24 (the documentation overhaul: startup reads cut to STATE, the
 superseding protocol and ARCHITECTURE; large files read by section; `verify_doc_claims.py` extended)

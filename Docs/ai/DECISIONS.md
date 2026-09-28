@@ -799,3 +799,37 @@ documentation only start no build. Opening 5.5 means the `CHANGELOG.md` heading 
 in-development entry back.
 
 `[evidence_source: owner's messages 2026-09-24; App Store Connect read 17:00 PT, both 5.4 records READY_FOR_SALE; git show 006f6a3 -- CHANGELOG.md]`
+
+## 2026-09-28 - A codemap for agents, whose links are VERIFIED only where the Swift syntax states them
+
+**Context.** A fresh agent session starts from the owner's words and 299 app Swift files.
+`Docs/ai/ARCHITECTURE.md` maps areas to folders and a dozen of his phrases to key symbols, and the
+Repo Map shows which documents still match the code, but nothing listed a feature's entry points, the
+files it owns and what they call or render. The `codemap` skill (`~/.claude/skills/codemap/`, built
+the same day for OpenResponses) defines a format and a checker; its installer puts the checker in
+`scripts/`, and here a push touching `scripts/` starts an Xcode Cloud build.
+
+**Decision.** `Docs/ai/codemap/` holds one slice per feature, 46 in all, whose primary files cover
+every app Swift file once. The checker is `.claude/codemap/codemap.py`, inside Xcode Cloud's skip
+filter. Links are written by `~/.agents/codemap/build.py`, shared with MissionToAutonomy. A link is
+VERIFIED only when the Swift syntax on the cited line states it on its own (the line constructs the
+type by name, or calls the member through its type), which this repository's evidence protocol calls
+`code_verified`; a link found by a matching name is INFERRED, `grep_verified`. Names, aliases and
+boundaries were drafted by Gemini on the owner's Google plan and corrected by hand, and entry points
+start from the symbols ARCHITECTURE names. A `UserPromptSubmit` hook prints the slice a prompt names;
+it is registered in the root `.claude/settings.json` because sessions here start at the root.
+
+**Alternatives.** The skill's own Swift `derive`, which marks every link INFERRED, so a reader cannot
+tell a stated link from a guess. An agent-written graph with hand-tagged verified links. The checker
+in `scripts/` with `[ci skip]` on every commit that touches it.
+
+**Consequences.** Slices go stale as code moves: `codemap.py check` re-finds every cited line and the
+session brief prints how many moved or broke; after a Swift change, `affected` names the slices to
+rebuild. The builder and the hook live on the owner's Mac, so a clone elsewhere can read and check the
+map but not rebuild it, and its hooks exit quietly. A slice is a map, not a proof (`AGENTS.md` rule
+19). An independent reader refuted 2 of 20 sampled VERIFIED links (real links, wrong type) and 7 of
+20 INFERRED links (names in comments, standard-library methods, calls on self); each cause became a
+builder rule. A second sample of 40 on the fixed build held 20 of 20 VERIFIED and 18 of 20 INFERRED,
+and its two failures (a private member of another file, SwiftUI's `dismiss()`) became rules too.
+
+`[evidence_source: codemap.py check 0 errors at 0e9728e; review samples and verdicts, and the A/B, in ~/.agents/featuremap/ab/2026-09-28-OpenIntelligence/ on the owner's Mac; build.py and its README]`

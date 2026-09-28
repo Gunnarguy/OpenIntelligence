@@ -1,0 +1,52 @@
+{
+  "schema": "codemap/1",
+  "id": "smart-replies-and-suggestions",
+  "name": "Smart Replies and Suggestions",
+  "aliases": ["smart replies", "suggested questions", "conversation follow-ups"],
+  "purpose": "Suggests questions for a newly imported document and follow-ups after each answer.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["SmartReplyService", "SuggestedQuestionsService", "SuggestedQuestionsService.generateQuestionsForIngestedDocument", "SuggestedQuestionsService.generateQuestions", "SuggestedQuestionList"],
+  "files": [
+    {"path": "OpenIntelligence/Services/Query/UX/SmartReplyService.swift", "role": "primary", "blob": "5ee29bb389a0e1a6a1c56c53f15208f34ade9425"},
+    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "role": "primary", "blob": "1b0193e3387d2551ffeed78f2ec8e45d36299cb6"},
+    {"path": "OpenIntelligenceTests/Services/Query/UX/SuggestedQuestionsSampleWorkspaceTests.swift", "role": "test", "blob": "cb8efce6b2d2eb45d70879e4f54d2ff582996f4b"}
+  ],
+  "nodes": [
+    {"id": "SmartReplyService", "kind": "service", "path": "OpenIntelligence/Services/Query/UX/SmartReplyService.swift", "line": 46, "match": "actor SmartReplyService {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.sendMessageNow", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2820, "match": "private func sendMessageNow(_ text: String) {", "status": "VERIFIED", "by": "build"},
+    {"id": "SuggestedQuestionsService", "kind": "service", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 46, "match": "actor SuggestedQuestionsService {", "status": "VERIFIED", "by": "build"},
+    {"id": "ContentView.refreshSharedWorkspaceIfNeeded", "kind": "function", "path": "OpenIntelligence/App/ContentView.swift", "line": 447, "match": "private func refreshSharedWorkspaceIfNeeded(forceReload: Bool = false) async {", "status": "VERIFIED", "by": "build"},
+    {"id": "DebugRAGValidationHarness.run", "kind": "function", "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 274, "match": "static func run(", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.dynamicQuestionCategories", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 351, "match": "@State private var dynamicQuestionCategories: [String: SuggestedQuestionsService.QuestionCategory] = [:]", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.importLargePDFStreamed", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 19, "match": "func importLargePDFStreamed(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.addDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 5607, "match": "func addDocument(", "status": "VERIFIED", "by": "build"},
+    {"id": "SuggestedQuestionsService.generateQuestionsForIngestedDocument", "kind": "function", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 308, "match": "func generateQuestionsForIngestedDocument(", "status": "VERIFIED", "by": "build"},
+    {"id": "SuggestedQuestionsService.generateQuestions", "kind": "function", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 486, "match": "func generateQuestions(", "status": "VERIFIED", "by": "build"},
+    {"id": "SuggestedQuestionsService.CachedEntry", "kind": "service", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 111, "match": "private struct CachedEntry: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.refreshSuggestedQuestions", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1947, "match": "private func refreshSuggestedQuestions(force: Bool) {", "status": "VERIFIED", "by": "build"},
+    {"id": "SuggestedQuestionList", "kind": "model", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 40, "match": "struct SuggestedQuestionList: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "test:SuggestedQuestionsSampleWorkspaceTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Query/UX/SuggestedQuestionsSampleWorkspaceTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "RAGService.importLargePDFStreamed", "type": "calls", "to": "SuggestedQuestionsService.generateQuestionsForIngestedDocument", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 248, "match": "await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument("}], "by": "build", "note": "the call names the type"},
+    {"from": "RAGService.addDocument", "type": "calls", "to": "SuggestedQuestionsService.generateQuestionsForIngestedDocument", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 6920, "match": "await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument("}], "by": "build", "note": "the call names the type"},
+    {"from": "SuggestedQuestionsService.generateQuestions", "type": "depends_on", "to": "SuggestedQuestionsService.CachedEntry", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 503, "match": "cachedQuestions[containerId] = CachedEntry("}], "by": "build", "note": "constructs it"},
+    {"from": "DebugRAGValidationHarness.run", "type": "calls", "to": "SuggestedQuestionsService.generateQuestions", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 385, "match": "let questions = await SuggestedQuestionsService.shared.generateQuestions("}], "by": "build", "note": "the call names the type"},
+    {"from": "ChatScreen.sendMessageNow", "type": "depends_on", "to": "SmartReplyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 3194, "match": "let suggestions = await SmartReplyService.shared.generateFollowUps("}], "by": "build", "note": "named there"},
+    {"from": "ContentView.refreshSharedWorkspaceIfNeeded", "type": "depends_on", "to": "SuggestedQuestionsService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 466, "match": "await SuggestedQuestionsService.shared.invalidateCache(for: containerId)"}], "by": "build", "note": "named there"},
+    {"from": "DebugRAGValidationHarness.run", "type": "depends_on", "to": "SuggestedQuestionsService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 385, "match": "let questions = await SuggestedQuestionsService.shared.generateQuestions("}], "by": "build", "note": "named there"},
+    {"from": "ChatScreen.dynamicQuestionCategories", "type": "depends_on", "to": "SuggestedQuestionsService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 351, "match": "@State private var dynamicQuestionCategories: [String: SuggestedQuestionsService.QuestionCategory] = [:]"}], "by": "build", "note": "named there"},
+    {"from": "RAGService.importLargePDFStreamed", "type": "depends_on", "to": "SuggestedQuestionsService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 248, "match": "await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument("}], "by": "build", "note": "named there"},
+    {"from": "RAGService.addDocument", "type": "depends_on", "to": "SuggestedQuestionsService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 6920, "match": "await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument("}], "by": "build", "note": "named there"},
+    {"from": "ChatScreen.refreshSuggestedQuestions", "type": "calls", "to": "SuggestedQuestionsService.generateQuestions", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1992, "match": "let questions = await suggestedQuestionsService.generateQuestions("}], "by": "build", "note": "named there"},
+    {"from": "SuggestedQuestionsService", "type": "tested_by", "to": "test:SuggestedQuestionsSampleWorkspaceTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Query/UX/SuggestedQuestionsSampleWorkspaceTests.swift", "line": 26, "match": "SuggestedQuestionsService.sampleIdentity(for: \"RAG-Technical-Architecture.md\"),"}], "by": "build", "note": "the test names it"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["app-lifecycle", "chat-conversation-view", "rag-orchestration-core", "rag-validation-and-diagnostics"],
+  "entries": ["OpenIntelligence/Services/Query/UX/SmartReplyService.swift::SmartReplyService", "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift::SuggestedQuestionsService", "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift::SuggestedQuestionsService.generateQuestionsForIngestedDocument", "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift::SuggestedQuestionsService.generateQuestions", "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift::SuggestedQuestionList"],
+  "owns": ["OpenIntelligence/Services/Query/UX/**"],
+  "decisions": [],
+  "traps": []
+}

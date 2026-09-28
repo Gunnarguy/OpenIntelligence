@@ -1,0 +1,37 @@
+{
+  "schema": "codemap/1",
+  "id": "openintelligence-engine-sdk",
+  "name": "OpenIntelligence Engine SDK",
+  "aliases": ["OpenIntelligence Engine SDK", "OIEngine", "engine SDK", "library SDK API"],
+  "purpose": "A Swift API that lets another app embed the library, ingestion and query engine.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["OIEngine", "OIEngine.ingest", "OIEngineConfiguration", "OIQueryResult", "OIAvailabilityState"],
+  "files": [
+    {"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "role": "primary", "blob": "cdc5167644e79a41ecbd120eba80e4001fc001f2"},
+    {"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "role": "test", "blob": "3e1f11cd4b9489c9bcfe4b4a36a8e3ba4e6209a6"}
+  ],
+  "nodes": [
+    {"id": "OIEngine", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 350, "match": "public final class OIEngine {", "status": "VERIFIED", "by": "build"},
+    {"id": "OIEngine.ingest", "kind": "function", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 472, "match": "public func ingest(_ request: OIIngestRequest) async throws -> OIIngestResult {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentCaptureView.body", "kind": "model", "path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 28, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.ingest", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1929, "match": "func ingest(_ chunks: [DocumentChunk]) {", "status": "VERIFIED", "by": "build"},
+    {"id": "OIEngineConfiguration", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 64, "match": "public struct OIEngineConfiguration: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "OIQueryResult", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 288, "match": "public struct OIQueryResult: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "OIAvailabilityState", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 7, "match": "public enum OIAvailabilityState: Equatable, Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "test:OpenIntelligenceEngineTests.swift", "kind": "test", "path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "DocumentCaptureView.body", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 84, "match": "onConfirm: { ingest(result) },"}], "by": "build", "note": "named there"},
+    {"from": "WorkspaceSyncService.ingest", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1929, "match": "func ingest(_ chunks: [DocumentChunk]) {"}], "by": "build", "note": "named there"},
+    {"from": "OIEngine", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 6, "match": "var engine: OIEngine!"}], "by": "build", "note": "the test names it"},
+    {"from": "OIEngineConfiguration", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 15, "match": "let config = OIEngineConfiguration(storageURL: tempURL)"}], "by": "build", "note": "the test names it"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["camera-document-capture", "icloud-workspace-synchronization"],
+  "entries": ["OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIEngine", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIEngine.ingest", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIEngineConfiguration", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIQueryResult", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIAvailabilityState"],
+  "owns": ["OpenIntelligence/SDK/**"],
+  "decisions": [],
+  "traps": []
+}

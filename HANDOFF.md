@@ -30,7 +30,8 @@ stale in 14 places. Its unique facts moved to their homes (`Docs/ai/RUNBOOK.md`,
 
 Short enough to read whole when the task needs them: `Docs/ai/PROJECT.md` (scope),
 `Docs/ai/ARCHITECTURE.md` (component map, product vocabulary, and which document owns each area),
-`Docs/SHIPPED_VERSION.json` (what the App Store has versus what is being prepared), `Docs/ai/INDEX.md`.
+`Docs/SHIPPED_VERSION.json` (what the App Store has versus what is being prepared), `Docs/ai/INDEX.md`,
+`Docs/ai/codemap/INDEX.md` (each feature's entry points; open only the one slice you need).
 
 ## Elsewhere
 

@@ -1,0 +1,51 @@
+{
+  "schema": "codemap/1",
+  "id": "live-activities",
+  "name": "Live Activities",
+  "aliases": ["Live Activities", "Dynamic Island", "import progress on the Lock Screen", "Lock Screen live activity"],
+  "purpose": "Shows import progress on the Lock Screen and in the Dynamic Island with ActivityKit.",
+  "revision": "0e9728e",
+  "verified_on": "2026-09-28",
+  "entry_points": ["IngestionLiveActivityService", "IngestionLiveActivityAttributes", "IngestionLiveActivityWidget", "OpenIntelligenceLiveActivitiesBundle"],
+  "files": [
+    {"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift", "role": "primary", "blob": "985d9474286cf7b297071d1f23bf67330db528bc"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "role": "primary", "blob": "f86febcfb8e5aad51641a6e9d0a56db4e39bb7fa"},
+    {"path": "OpenIntelligenceLiveActivities/Info.plist", "role": "primary", "blob": "a0e80acbe11d2e3933307915e2448197f1ee763c"},
+    {"path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "role": "primary", "blob": "a1a3dbfdce15d3d6c783eea09d69d4c124f33b39"},
+    {"path": "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift", "role": "primary", "blob": "fe3e4242e37de6163409ae0d849d79932b99d298"},
+    {"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "role": "test", "blob": "3e1f11cd4b9489c9bcfe4b4a36a8e3ba4e6209a6"}
+  ],
+  "nodes": [
+    {"id": "IngestionLiveActivityService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 7, "match": "final class IngestionLiveActivityService {", "status": "VERIFIED", "by": "build"},
+    {"id": "IngestionLiveActivityAttributes", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift", "line": 58, "match": "nonisolated struct IngestionLiveActivityAttributes: ActivityAttributes, Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "IngestionLiveActivityThermalBucket", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift", "line": 28, "match": "enum IngestionLiveActivityThermalBucket: String, Codable, Hashable, Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "SpeechAnalyzerService.cancel", "kind": "function", "path": "OpenIntelligence/Services/Document/Analysis/SpeechAnalyzerService.swift", "line": 152, "match": "func cancel() {", "status": "VERIFIED", "by": "build"},
+    {"id": "IngestionLiveActivityAttributes.ContentState", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift", "line": 59, "match": "struct ContentState: Codable, Hashable, Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "OpenIntelligenceApp.configureIngestionRuntimeBridge", "kind": "function", "path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "line": 47, "match": "private func configureIngestionRuntimeBridge() {", "status": "VERIFIED", "by": "build"},
+    {"id": "IngestionLiveActivityService.currentActivity", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 10, "match": "private var currentActivity: Activity<IngestionLiveActivityAttributes>?", "status": "VERIFIED", "by": "build"},
+    {"id": "IngestionLiveActivityWidget.body", "kind": "model", "path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "line": 7, "match": "var body: some WidgetConfiguration {", "status": "VERIFIED", "by": "build"},
+    {"id": "IngestionLiveActivityWidget", "kind": "model", "path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "line": 6, "match": "struct IngestionLiveActivityWidget: Widget {", "status": "VERIFIED", "by": "build"},
+    {"id": "IngestionLiveActivityLockScreenView", "kind": "view", "path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "line": 171, "match": "private struct IngestionLiveActivityLockScreenView: View {", "status": "VERIFIED", "by": "build"},
+    {"id": "OpenIntelligenceLiveActivitiesBundle.body", "kind": "model", "path": "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift", "line": 6, "match": "var body: some Widget {", "status": "VERIFIED", "by": "build"},
+    {"id": "OpenIntelligenceLiveActivitiesBundle", "kind": "model", "path": "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift", "line": 5, "match": "struct OpenIntelligenceLiveActivitiesBundle: WidgetBundle {", "status": "VERIFIED", "by": "build"}
+  ],
+  "edges": [
+    {"from": "IngestionLiveActivityService", "type": "depends_on", "to": "IngestionLiveActivityAttributes", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 81, "match": "attributes: IngestionLiveActivityAttributes("}], "by": "build", "note": "constructs it"},
+    {"from": "IngestionLiveActivityService", "type": "depends_on", "to": "IngestionLiveActivityThermalBucket", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 170, "match": "thermalBucket: IngestionLiveActivityThermalBucket(processInfoState: ProcessInfo.processInfo.thermalState)"}], "by": "build", "note": "constructs it"},
+    {"from": "IngestionLiveActivityWidget", "type": "depends_on", "to": "IngestionLiveActivityLockScreenView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "line": 9, "match": "IngestionLiveActivityLockScreenView(context: context)"}], "by": "build", "note": "constructs it"},
+    {"from": "OpenIntelligenceLiveActivitiesBundle.body", "type": "depends_on", "to": "IngestionLiveActivityWidget", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift", "line": 8, "match": "IngestionLiveActivityWidget()"}], "by": "build", "note": "constructs it"},
+    {"from": "OpenIntelligenceLiveActivitiesBundle", "type": "depends_on", "to": "IngestionLiveActivityWidget", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift", "line": 8, "match": "IngestionLiveActivityWidget()"}], "by": "build", "note": "constructs it"},
+    {"from": "IngestionLiveActivityService", "type": "calls", "to": "SpeechAnalyzerService.cancel", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 55, "match": "activityOperationTask?.cancel()"}], "by": "build", "note": "named in the body"},
+    {"from": "IngestionLiveActivityService", "type": "calls", "to": "IngestionLiveActivityAttributes.ContentState", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 158, "match": "let finalState = IngestionLiveActivityAttributes.ContentState("}], "by": "build", "note": "named in the body"},
+    {"from": "OpenIntelligenceApp.configureIngestionRuntimeBridge", "type": "depends_on", "to": "IngestionLiveActivityService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "line": 79, "match": "IngestionLiveActivityService.shared.restoreExistingActivityIfNeeded()"}], "by": "build", "note": "named there"},
+    {"from": "IngestionLiveActivityService.currentActivity", "type": "depends_on", "to": "IngestionLiveActivityAttributes", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 10, "match": "private var currentActivity: Activity<IngestionLiveActivityAttributes>?"}], "by": "build", "note": "named there"},
+    {"from": "IngestionLiveActivityWidget.body", "type": "depends_on", "to": "IngestionLiveActivityAttributes", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "line": 8, "match": "ActivityConfiguration(for: IngestionLiveActivityAttributes.self) { context in"}], "by": "build", "note": "named there"}
+  ],
+  "docs": [],
+  "unknowns": [],
+  "related": ["app-lifecycle", "document-analysis"],
+  "entries": ["OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift::IngestionLiveActivityService", "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift::IngestionLiveActivityAttributes", "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift::IngestionLiveActivityWidget", "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift::OpenIntelligenceLiveActivitiesBundle"],
+  "owns": ["OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift", "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "OpenIntelligenceLiveActivities/**", "OpenIntelligenceLiveActivities/Info.plist"],
+  "decisions": [],
+  "traps": []
+}
