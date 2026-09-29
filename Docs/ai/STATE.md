@@ -2,7 +2,7 @@
 
 Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; codemap installed; development still paused after 5.4)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 84e8461
+Last verified commit: 9789510
 
 ## Objective
 
@@ -58,7 +58,8 @@ left needs his word or an app release (Blockers).
   rows: https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 (PRIVACY.md, eight claims) and
   https://app.notion.com/p/3e949a74d54f817f8933e538845009c6 (the store description offers Pro-only
   iCloud sync to everyone).
-- **Codemap, done 2026-09-28** (`84e8461`, not pushed). `Docs/ai/codemap/`
+- **Codemap, done 2026-09-28** (`84e8461`, pushed with its handoff `9789510` at 18:32 PT; no Xcode
+  Cloud build started). `Docs/ai/codemap/`
   holds 46 feature slices whose primary files cover all 299 app Swift files once: each names the entry
   points to read first, its hard-boundary traps, and typed links between symbols with the line each
   cites. A link is VERIFIED only where the Swift syntax on that line states it (it constructs the type
@@ -146,9 +147,10 @@ left needs his word or an app release (Blockers).
     user-facing; check the three websites' links before moving either.
   - The seven docs still flagged are plans and playbooks naming proposed files. Leave them, or mark
     each as history if he says the plan is dead.
-- **Push:** everything through `0e9728e` is pushed (2026-09-28, at the owner's word each time; no
+- **Push:** everything through `9789510` is pushed (2026-09-28, at the owner's word each time; no
   Xcode Cloud build, every path inside its skip filter). Future pushes wait for his word, because the
-  repository is public. `84e8461` (the codemap) and the handoff commit after it are not pushed.
+  repository is public. The codemap went out as `0e9728e..9789510`; the newest Xcode Cloud
+  run afterwards was still #479 from 2026-09-24 (ciWorkflows buildRuns, read 18:33 PT).
 - **Public copy the reading found wrong, waiting on the owner:** OpenIntelligence `PRIVACY.md` (eight
   claims) and the App Store description (per-library iCloud sync is Pro and Lifetime only). OpenManual's
   live 1.2 listing says only a document's address and model are shared; 1.0 to 1.2 filed title, page
@@ -177,7 +179,5 @@ left needs his word or an app release (Blockers).
 
 ## Exact Next Action
 
-Ask the owner whether to push the codemap commits. `84e8461` and the handoff after it are on `main`, not pushed;
-pushing publishes to the public repository, and every path is inside Xcode Cloud's skip filter, so no
-build starts. There is no other active objective; otherwise ask him what to pick up next, or take a row
-from the Notion roadmap.
+None. The codemap is pushed (`0e9728e..9789510`, no Xcode Cloud build). There is no active
+objective; ask the owner what to pick up next, or take a row from the Notion roadmap.
