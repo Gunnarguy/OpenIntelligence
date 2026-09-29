@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-28, evening (5.5 opened: the cloud extractor-fix branch merged into main after the full suite passed in Xcode; development otherwise still paused)
+Updated: 2026-09-28, 22:00 PT (5.5 copy written and in App Store Connect with build 481; nothing submitted)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 87cddef
+Last verified commit: c13816f
 
 ## Objective
 
@@ -85,6 +85,15 @@ left needs his word or an app release (Blockers).
   Progress for `v5.5`: https://app.notion.com/p/3e749a74d54f8115a76ad5b06b196956. The fix removes the
   "1 lb." lock, but on 2026-09-26 Deep Think still answered "at least 30 days" where the lease says 60,
   marked Verified (memory `extractor-fix-device-check`), so the row stays open.
+- **5.5 has its user-facing copy, 2026-09-28** (`c13816f`, at the owner's "update the what's new and
+  other metadatas"). The in-app "5.5" What's New entry, `## v5.5 - unreleased` in the user changelog and its
+  bundled copy, `## 5.5` in `WHATS_NEW.md`, and the store notes (957 characters) and promotional text
+  (166) in both `fastlane/metadata*` trees. All of it is in the owner's voice, and each version says the
+  notice question was still answered wrong and marked Verified after the fix. Three checkers (facts,
+  voice, format) read the drafts first. `Docs/RELEASE_NOTES.md` got its missing 5.4 section and a 5.5
+  one, and the metadata history has `### 5.5`. Xcode Cloud #481 from `c13816f` built 5.5 for TestFlight
+  on both platforms. Both 5.5 records in App Store Connect now carry build 481, the notes, the promo,
+  the description and the keywords, read back at 22:00 PT. **Nothing is submitted.**
 - **5.4 is live on iOS and macOS**, build 478 (Xcode Cloud #478 from `c276b9a`), and closed out in
   this repository, on GitHub (`v5.4.0` is Latest), on all three websites and in Notion. The release
   procedure used is in `Docs/ai/RUNBOOK.md`, "Releasing an approved version through the API".
@@ -122,6 +131,12 @@ left needs his word or an app release (Blockers).
   `OpenIntelligence/Resources/VersionHistory.md`: the release records.
 
 ## Verification (2026-09-28, output read)
+
+- **5.5 copy:** `WhatsNewCoverageTests` and `VersionHistoryTests` -> 7 tests, 0 failures, TEST SUCCEEDED
+  (simulator `244AA789-A9EA-403B-A922-F12083D14495`, created after every simulator was wiped again that
+  evening). `cmp Docs/USER_CHANGELOG.md OpenIntelligence/Resources/VersionHistory.md` -> identical.
+  Codemap check 0/0 after restamping `what-s-new-and-version-history`; `verify_doc_claims.py` all match.
+  `asc_prepare_release.rb 5.5 481 --apply` -> build 481 attached and the text written on iOS and macOS.
 
 - **The merged tree, before the merge commit:** full iOS suite on the new simulator
   `F80F4025-4DC7-4666-9942-60F80AEF08AB` (iPhone 18 Pro, iOS 27.0; every simulator was deleted at
@@ -205,6 +220,8 @@ left needs his word or an app release (Blockers).
 
 ## Exact Next Action
 
-None. The merge is pushed, build 480 (5.5) is in TestFlight on both platforms, and no cloud branch is
-left. The next 5.5 work, Deep Think's wrong notice answer and the audit's Future Backlog rows, starts
-only when the owner says so. Nothing is submitted for review until he says so either.
+None. 5.5 is staged in App Store Connect on both platforms (build 481, notes, promo) and nothing is
+submitted; submitting is the owner's call. If he wants the store copy to stop naming the still-wrong
+notice answer, it is one sentence in each of the five places (`WhatsNewStore.swift`, both changelogs,
+`WHATS_NEW.md`, both release_notes.txt), and the in-app entry needs a new build. The repo cleanup plan
+(workflow `oi-repo-disposition`) is read-only and waits on his picks.
