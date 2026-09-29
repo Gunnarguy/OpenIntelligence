@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-29, 10:00 PT (repository cleanup done and committed locally; not pushed)
+Updated: 2026-09-29, 10:20 PT (cleanup pushed as `35024f0`; an entitlement fix is planned and waits on approval)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 8be003a
+Last verified commit: 35024f0
 
 ## Objective
 
@@ -11,11 +11,13 @@ both platforms with build 481, and nothing submitted. Submitting is the owner's 
 starts only when he says to (`Docs/ai/DECISIONS.md`, 2026-09-24).
 
 On 2026-09-29 he said to carry out the cleanup plan's recommendations as long as nothing fundamental
-breaks. That is done and committed locally (Status). Pushing waits on his word: the repository is public.
+breaks. That is done and pushed (Status). He then asked for the entitlement defect under Blockers to be
+fixed; the plan there waits on `PROCEED: IMPLEMENT` naming `EntitlementStore.swift`, a hard-boundary file.
 
 ## Status
 
-- **Cleanup, done 2026-09-29, committed locally with `[ci skip]`.** Documentation and tooling only; no file
+- **Cleanup, done 2026-09-29, pushed as `35024f0` with `[ci skip]` at the owner's word.** GitHub showed 0
+  checks and 0 statuses on it 3.5 minutes later, so no Xcode Cloud build started. Documentation and tooling only; no file
   Xcode compiles changed. The two 2026-09-29 `[General]` entries under `## 5.5` in `CHANGELOG.md` list it:
   - 27 files moved with `git mv` into `Docs/Archive/`; its README has a row for each and an old-to-new
     path table. Archived text is not edited to follow a move; the table resolves old citations.
@@ -95,11 +97,20 @@ breaks. That is done and committed locally (Status). Pushing waits on his word: 
 
 ## Blockers / Unknowns
 
-- **Push:** the cleanup commit is local and waits on the owner's word. Once it is on `origin/main`, close
-  https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 (the old `PRIVACY.md`'s false claims): the new
-  file states only what the code does, and the published policy
-  (`~/Documents/GitHub/Gunzino/src/content/pages/openintelligence.privacy.md`, `cb4aab6`, 2026-09-23) already matches it on
-  iCloud Sync, the non-expiring cache and what PCC receives. Set Completed with the push date.
+- **Entitlements, the owner asked for a fix on 2026-09-29.** Any Pro purchase, a free-trial start included, is
+  stored as permanent paid history, and that resolves to Lifetime everywhere (`EntitlementStore.swift:205`;
+  granted at `:381-383` on launch, `:533-537` on purchase and `:405-418` from StoreKit history; a refund does
+  not clear it, `:552-569`). No test covers the store. Plan, waiting on `PROCEED: IMPLEMENT` naming the file:
+  only `lifetime_cohort` earns the permanent state; on launch, clear it where StoreKit shows a subscription
+  and no unrefunded Lifetime purchase, and change nothing when StoreKit cannot answer; a refunded Lifetime
+  loses it; the document-pack grandfathering stays. Pure functions for both decisions with unit tests, the
+  guarded iOS suite, `Docs/BILLING_AND_LIMITS.md` section 4 and `CHANGELOG.md` in the same change; then a
+  push without `[ci skip]` builds 5.5 again, and the new build replaces 481 on both records. A downgraded
+  user keeps every library on the device: both workspace modes work from the local folder
+  (`WorkspaceSyncService.swift:883-905`) and synced libraries become local-only (`:411-434`).
+- **Privacy row stays open:** https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 has a dated note of
+  2026-09-29. The new `PRIVACY.md` is pushed; the published policy still says Private Cloud Compute gets data
+  for final synthesis only (see the next item), so the row closes when that page or the code changes.
 - **Public Private Cloud Compute wording, the owner's call.** `README.md:30-32`, the 5.5 store notes
   (`fastlane/metadata/en-US/release_notes.txt:13`), `Docs/SHIPPED_CAPABILITIES.json:102`,
   `Docs/PRIVACY_AND_ROUTING.md:116`, `Docs/ai/ARCHITECTURE.md:113-114` and `CLAUDE.md:7` say or imply that
@@ -127,17 +138,13 @@ breaks. That is done and committed locally (Status). Pushing waits on his word: 
     Whether that still fits monthly and annual Pro is a product question.
   - `Docs/RepoOS/01_TASK_ROUTER.md:9` and `00_REPO_COMMAND_CENTER.md:72` still cite playbook 07, which
     `AGENTS.md` rule 11 supersedes; changing them is a governance edit.
-  - Recorded audio made from the old study text still says the old facts.
-- **Carried, unchanged:** six `v5.4` rows close on the owner's device check (URLs in
-  `git show 8be003a:Docs/ai/STATE.md`); Evidence Threads sync may copy nothing
-  (`EvidenceThreadStore.swift:60` against `WorkspaceSyncService.swift:2739`; verify on a Pro build with
-  library sync on); the three subscription descriptions in App Store Connect are a web-page edit (the API
-  returns 409).
+- **Carried:** six `v5.4` rows close on the owner's device check (URLs in `git show 8be003a:Docs/ai/STATE.md`);
+  Evidence Threads sync may copy nothing (`EvidenceThreadStore.swift:60` against `WorkspaceSyncService.swift:2739`);
+  the three subscription descriptions in App Store Connect are a web-page edit (the API returns 409).
 
 ## Exact Next Action
 
-Ask the owner whether to push `main` to `origin`: one local commit on top of `8be003a`, holding the cleanup
-and this handoff, with `[ci skip]` in its message. If yes: `gtimeout 60 git push origin main`; a minute later,
-`gh api repos/Gunnarguy/OpenIntelligence/commits/$(git rev-parse HEAD)/check-runs --jq .total_count`
-should print 0 (a push that starts Xcode Cloud shows a check within twenty seconds, `Docs/ai/RUNBOOK.md`);
-then close the PRIVACY.md row as described under Blockers. If no, nothing else is pending.
+Wait for the owner's `PROCEED: IMPLEMENT` naming `EntitlementStore.swift`, then carry out the entitlement plan
+under Blockers, starting with pure decision functions and their tests in `OpenIntelligenceTests/Services/Billing/`.
+If he also asks for the Just Once consent fix, it belongs in the same 5.5 build (row
+https://app.notion.com/p/3ea49a74d54f81fd814ae82ce9449e41).
