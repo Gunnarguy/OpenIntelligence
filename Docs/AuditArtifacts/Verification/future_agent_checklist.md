@@ -1,5 +1,7 @@
 # Future Agent Execution Checklist
 
+> **Superseded (2026-09-29): written for the Evidence Threads Phase 1A gate, which closed in June 2026 (`AGENTS.md` rule 13).** Before a task, read `Docs/ai/STATE.md` and `HANDOFF.md`, and run the RepoOS preflight, which names the allowed and forbidden files for the route. Item 10 contradicts the shipped code: threads are stored in `Application Support/EvidenceThreads/<containerId>/` (`EvidenceThreadStore.swift:60`), and `migrateLegacyThreadsIfNeeded` moves any `LocalCache/EvidenceThreads/` files there at launch (`EvidenceThreadStore.swift:19-23`). `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Storage/EvidenceThreadStore.swift, read 2026-09-29]`
+
 Before modifying any source code in this repository, future agents must review this checklist, compile the answers in their reasoning process, and execute the steps in order:
 
 ---

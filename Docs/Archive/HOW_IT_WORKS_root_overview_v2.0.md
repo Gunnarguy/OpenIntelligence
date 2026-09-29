@@ -4,7 +4,7 @@ Version 2.0
 
 This document explains the product workflow at a high level. It is intentionally written for users, reviewers, and collaborators who want to understand what the app does without exposing the full internal retrieval and reasoning design.
 
-For the deeper engineering trace, see [Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md](./Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md).
+For the deeper engineering trace, see [Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md](./STORAGE_AND_PIPELINE_TRACE.md).
 
 ## Workflow Overview
 

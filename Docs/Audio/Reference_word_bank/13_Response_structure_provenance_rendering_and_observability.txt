@@ -1,10 +1,10 @@
 Module 13. Response structure, provenance, rendering, and observability.
 
-What it is. What comes back and how you can inspect it. Typed answers, citations to byte offsets, the route badge, and the trace that records every stage.
+What it is. What comes back and how you can inspect it. Typed answers, chunk-level citations with page and quote, the route badge, and the trace that records every stage.
 
 In the word bank's own words. The final report includes the answer, the receipts, the source labels, and clues showing how the machine got there.
 
-Why it exists. An answer you cannot audit is a guess with good typography. So the response is a Structured Answer of claims with evidence IDs, citations map to character ranges in the source (the tokenizer pass in ingestion is what makes that exact), the route badge says which model completed, the retrieval diagnostics show what was dropped, and the pipeline trace log records every stage with timings. Evidence threads persist so a conversation's sources survive relaunch.
+Why it exists. An answer you cannot audit is a guess with good typography. So the response is a Structured Answer of claims with evidence IDs, each evidence ID is a chunk ID whose record carries the page, a quote of at most 240 characters, the document name and the section path, the route badge says which model completed, the retrieval diagnostics show what was dropped, and the pipeline trace log records every stage with timings. Evidence threads persist so a conversation's sources survive relaunch.
 
 Where it runs. C P U. The trace file is pipeline trace.log in the app container's Documents folder; it rotates, so long captures use tail -F into an archive. The hardware heads-up display's Neural Engine pulse is synthetic: no public A P I reports Neural Engine occupancy.
 
@@ -47,14 +47,14 @@ Unified metrics bar. Support. The response UI combining timing, model route, con
 Writing Tools integration. Conditional. The local service exposing proofread, rewrite, and summarize operations for answer or user text. Presentation changes can use Apple intelligence features without entering the retrieval pipeline again.
 
 Can you explain it? Say each of these out loud. If you cannot, go back.
-1. Explain how a citation reaches a character range.
+1. Explain how a citation reaches its chunk, page and quote.
 2. Say what the route badge reads and why it reflects the receipt, not the selection.
 3. Name three things the retrieval diagnostics sheet shows.
 4. Say where the pipeline trace lives and why it needs an archive tail.
 5. Explain what the heads-up display can and cannot measure.
 
 Quiz.
-Question 1. Why can citations point at a sentence rather than a page? Pause here if you want to answer first. ... The answer. Because the tokenizer validation pass at ingestion records exact byte offsets for each chunk, and claims carry evidence IDs that map back to those offsets.
+Question 1. Can citations point at a sentence rather than a page? Pause here if you want to answer first. ... The answer. No. They point at a chunk. The model cites labels such as S1, each claim carries evidence IDs that are chunk IDs, and each evidence record keeps the page, a quote of at most 240 characters, the document name and the section path. Chunks store character positions, but no citation carries them.
 Question 2. Why does the route badge read from the execution receipt? Pause here if you want to answer first. ... The answer. Because the selected model is user intent and the completed route is what actually ran; a Private Cloud Compute plan can fall back to on-device, and the badge must show the fallback, not the wish.
 Question 3. What does the pipeline trace record and where is it? Pause here if you want to answer first. ... The answer. Every query and ingestion stage with timings and counts, in pipeline trace.log under the app container's Documents folder. It rotates, so a long run is captured with tail -F into an archive file.
 Question 4. Can the app show live Neural Engine utilisation? Pause here if you want to answer first. ... The answer. No. There is no public A P I for it. The heads-up display shows a synthetic activity pulse and device lookup data.

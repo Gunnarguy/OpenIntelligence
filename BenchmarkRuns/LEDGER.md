@@ -9,6 +9,18 @@
 > extract it rather than assuming it is gone. `LEDGER.md` and `PROGRESSION.md` are the only tracked
 > files in `BenchmarkRuns/` and were deliberately left in place.
 >
+> **2026-09-29: two later runs are on disk and not in that archive.** They are
+> `BenchmarkRuns/2026-09-23-sourceonly-before-greedy25/` and
+> `BenchmarkRuns/2026-09-23-sourceonly-after-greedy25/`, the pair in the 2026-09-23 entry below, which
+> names them without the `2026-09-23-` prefix. Like every run they are gitignored (`.gitignore:34`), so
+> a fresh clone has neither. The archive also carries its own 2026-09-01 copies of
+> `BenchmarkRuns/LEDGER.md` and `BenchmarkRuns/PROGRESSION.md`, so extracting it at the repository root
+> overwrites both tracked files; exclude those two members
+> (`--exclude 'BenchmarkRuns/LEDGER.md' --exclude 'BenchmarkRuns/PROGRESSION.md'`, which drop exactly
+> those two when listed with `tar -t`). `[evidence_level: measured, confidence: exact, evidence_source:
+> ls BenchmarkRuns; tar -tzf of the archive (1,628 members, 53 results.jsonl, none named sourceonly);
+> git check-ignore -v on both runs' results.jsonl; read 2026-09-29]`
+>
 > `.gitignore:34` is `BenchmarkRuns/*` with `LEDGER.md` and `PROGRESSION.md` negated back in, so the
 > run contents are ignored and were never recoverable from git. Checking `git check-ignore
 > BenchmarkRuns` on the *directory* reports "not ignored" and is misleading; the pattern targets the
@@ -814,7 +826,10 @@ reaches the model.
 ### 2026-08-21: an index over this ledger, and a warning it now carries
 
 `BenchmarkRuns/PROGRESSION.md` (regenerate with `python3 scripts/benchmark_progression.py --out
-BenchmarkRuns/PROGRESSION.md`) tabulates every run on disk — 44 run/mode pairs across 39 runs —
+BenchmarkRuns/PROGRESSION.md`, but only after extracting the 2026-09-01 archive named at the top of
+this file: the script reads whatever is in `BenchmarkRuns/`, which now holds only the two
+2026-09-23 runs, so running it now would replace the table with those two; qualified 2026-09-29)
+tabulates every run on disk — 44 run/mode pairs across 39 runs —
 with the config that produced each row beside it, so a reader can see at a glance whether two rows
 are comparable at all. **It is an index, not a replacement.** This file stays authoritative for what
 each run settled and for the analyses that turned out to be wrong, which is the part a table cannot

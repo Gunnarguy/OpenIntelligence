@@ -1,10 +1,8 @@
-import os
+> **Archived 2026-09-29.** Recovered verbatim from the string literal in `scripts/audit_components.py`, a v4.1 audit script that wrote this
+> document into an untracked `Docs/AUDIT/`. The script was removed the same day; its text lives here and in git history.
+> A record of what the v4.1 audit found, not current.
 
-WORKSPACE_DIR = "/Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public"
-OUTPUT_PATH = os.path.join(WORKSPACE_DIR, "Docs/AUDIT/05_COMPONENT_REALITY_MAP_4.1.md")
-
-def main():
-    content = """# Phase 5: Component-by-Component Reality Map - OpenIntelligence v4.1
+# Phase 5: Component-by-Component Reality Map - OpenIntelligence v4.1
 
 This document provides a component-by-component reality audit of the OpenIntelligence v4.1 application, mapping claimed capabilities in documentation and marketing against actual code implementations.
 
@@ -858,11 +856,3 @@ This document provides a component-by-component reality audit of the OpenIntelli
 - **Evidence:** `test_extension.swift`.
 - **Not shipped / caveats:** None.
 - **Public-safe wording:** "Unused testing stubs."
-"""
-    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
-        f.write(content)
-        
-    print(f"Successfully wrote Component Reality Map to {OUTPUT_PATH}")
-
-if __name__ == "__main__":
-    main()

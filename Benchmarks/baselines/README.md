@@ -28,11 +28,18 @@ in about ten minutes:
 ```bash
 git worktree add --detach /private/tmp/oi-49 v4.9.0
 git -C /private/tmp/oi-49 apply "$PWD/Benchmarks/baselines/v4.9.0-measurement-backport.patch"
-cd /private/tmp/oi-49 && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
+cd /private/tmp/oi-49 && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
   -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug \
   -derivedDataPath /private/tmp/oi-dd-49 -skipPackagePluginValidation \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
+
+2026-09-29: this command named `/Applications/Xcode-beta.app`, which was removed from this Mac on
+2026-09-10; `/Applications/Xcode.app` is Xcode 27.0 (`27A266a`). Building `v4.9.0` with Xcode 27.0
+is unverified: the recipe above was recorded with the beta toolchain, and no build of that tag on
+the release toolchain is recorded. `[evidence_level: code_verified, confidence: high, evidence_source:
+ls /Applications (no Xcode-beta.app); xcodebuild -version (Xcode 27.0, 27A266a); CLAUDE.md
+"Commands"; RAGService.swift queryInternal; 2026-09-29]`
 
 If `git worktree add` refuses because a stale entry survives a reboot, run `git worktree prune`.
 
@@ -57,7 +64,9 @@ cp -a /private/tmp/oi-library-backup ~/Library/"Application Support"/OpenIntelli
 ## Which flags to use
 
 **To describe the product**, pass no `--temperature`. The app clamps `ragOptimized`'s 0.7 down to
-0.4 via `min(config, qualityMode.temperature)` (`RAGService.swift:12745`), and to 0.2 on the
+0.4 via `min(config, qualityMode.temperature)` (in `RAGService.queryInternal`, the line
+`genConfig.temperature = min(genConfig.temperature, qualityModeTemperature)`; the anchor
+`RAGService.swift:12745` it cited drifted and was replaced on 2026-09-29), and to 0.2 on the
 cautious and high-accuracy paths. `--temperature` is applied downstream of every clamp, so passing
 0.7 forces the model *hotter than the app ever runs it*.
 

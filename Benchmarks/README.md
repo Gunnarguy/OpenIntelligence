@@ -36,6 +36,7 @@ Benchmark manifests are JSON files with a top-level `cases` array:
     "quality_mode": "standard",
     "timeout_seconds": 300
   },
+  "pool": ["Benchmarks/Fixtures/distractor_manual.pdf"],
   "cases": [
     {
       "id": "fuel_capacity",
@@ -48,11 +49,28 @@ Benchmark manifests are JSON files with a top-level `cases` array:
       "expected_source": {
         "filename": "private_manual.pdf",
         "page": 2
-      }
+      },
+      "expected_sources": [
+        {"filename": "private_manual.pdf", "page": 2}
+      ]
     }
   ]
 }
 ```
+
+Three more fields are read by `scripts/run_quality_matrix.py` (added here 2026-09-29):
+
+- `pool` (top level, optional): repository-relative paths ingested for every case, so retrieval has
+  distractors to beat. `--pool-limit N` keeps the case's own documents and fills the remaining slots
+  in manifest order. `qasper_external_v1` declares a 40-paper pool; `tiny_research_suite` has none.
+- `expected_sources` (per case, optional): every document the answer needs, as `filename`/`page`
+  objects. All of them are passed as retrieval ground truth; without the list the runner falls back
+  to `expected_source.filename`. Cases whose `expected_behavior` is `abstain` are not
+  retrieval-scored.
+- `expected_evidence` (per case, optional): objects whose `excerpt` is matched against the retrieved
+  chunk text, to report whether the answer's passage reached the model.
+
+`[evidence_level: code_verified, confidence: high, evidence_source: scripts/run_quality_matrix.py:452 (expected_evidence), :647-657 and :1101 (pool), :696-705 (expected_sources); top-level and case keys of Benchmarks/ResearchFixtures/*/manifest.json, read 2026-09-29]`
 
 Allowed categories:
 
@@ -76,13 +94,21 @@ Allowed `expected_behavior` values:
 
 ## Running
 
-Validate a manifest without building or launching the app:
-
-```bash
-python3 scripts/run_rag_benchmarks.py Benchmarks/rag_validation_sample.json --dry-run
-```
+See `Docs/ai/RUNBOOK.md`, section "## Retrieval benchmark": how to build the unsigned macOS
+Debug app the harness needs, and the `scripts/run_quality_matrix.py --app <path>` commands, with
+`--manifest` for the QASPER pack (the tiny suite is the default). Replaced 2026-09-29: this section used to show
+`scripts/run_rag_benchmarks.py --dry-run`, which was removed in `abd1e3b`; the old text is in
+`git log -p -- Benchmarks/README.md`.
 
 ## Ad Hoc Document Studio
+
+> **Historical (2026-09-29). Nothing in this section works today.** `scripts/rag_benchmark_studio.py`
+> still points its `RUNNER` at the removed `scripts/run_rag_benchmarks.py` (line 35), and the Mac
+> Catalyst path it describes is gone: the app target sets `SUPPORTS_MACCATALYST = NO` in both Debug
+> and Release (`OpenIntelligence.xcodeproj/project.pbxproj:795`, `:860`) and builds for native macOS
+> instead. Kept for the flags and workflows it records. `[evidence_level: code_verified,
+> confidence: exact, evidence_source: scripts/rag_benchmark_studio.py:35; project.pbxproj:794-796,
+> 859-861; ls scripts/run_rag_benchmarks.py (absent), 2026-09-29]`
 
 For document-specific testing without hand-writing a manifest, start the local
 studio on this Mac:
@@ -112,8 +138,9 @@ By default the studio uses:
 - app refresh limit: disabled through the runner default
 
 Note: the Mac runtime here is an App Catalyst evaluation path, not a separate native macOS app target.
+*(Historical: the app now builds for native macOS and Catalyst is off; see the note at the top of this section.)*
 
-The Debug configuration enables Mac Catalyst for benchmarking. The runner uses
+*(Historical.)* The Debug configuration enables Mac Catalyst for benchmarking. The runner uses
 that path when you choose `--runtime mac`, copies uploaded documents into the
 app's Mac container, launches the debug harness locally, then copies the report
 and trace back into `BenchmarkRuns/<run-id>/`.
@@ -189,7 +216,7 @@ verification behavior.
 Builds use reusable derived data at `/tmp/openintelligence-rag-bench/DerivedData`
 so later runs do not pay a full clean-build cost every time. Use
 `--derived-data` to override it. With `--runtime mac`, the runner builds for
-Xcode's Mac Catalyst destination, copies each case's fixture files into the
+Xcode's Mac Catalyst destination (historical: Catalyst is off), copies each case's fixture files into the
 app's Mac container, launches the debug harness locally, then copies the report
 and trace back into
 `BenchmarkRuns/<run-id>/cases/<case-id>/storage/`. With `--runtime device`, the
@@ -242,80 +269,23 @@ BenchmarkRuns/latest/dashboard.html
 
 ## Output
 
-Each run writes:
-
-- `BenchmarkRuns/<run-id>/results.json`: machine-readable results.
-- `BenchmarkRuns/<run-id>/summary.md`: human-readable summary table.
-- `BenchmarkRuns/<run-id>/dashboard.html`: local visual dashboard.
-- `BenchmarkRuns/latest/dashboard.html`: redirect to the newest dashboard.
-- `BenchmarkRuns/<run-id>/cases/<case-id>/storage/ValidationOutput/rag_validation_report.txt`
-- `BenchmarkRuns/<run-id>/cases/<case-id>/storage/ValidationOutput/pipeline_trace.log`
-- `BenchmarkRuns/<run-id>/cases/<case-id>/simctl_stdout.log` or `devicectl_stdout.log`
-- `BenchmarkRuns/<run-id>/cases/<case-id>/simctl_stderr.log` or `devicectl_stderr.log`
-
-The dashboard shows totals, pass rate, every case's category/query/expected
-behavior/status, confidence, retrieved chunk count, latency, failure reason,
-response preview, retrieved sources, exact input files used, raw artifact links,
-and comparison against the previous `results.json` in the output directory.
-
-Scoring currently checks:
-
-- expected answer regex matched
-- expected source filename/page appeared in retrieved chunks when provided
-- abstention detected when expected
-- confidence score captured
-- retrieved chunk count captured
-- launch-to-report latency captured
-
-Cases with missing local fixture files are marked `skipped`, not failed.
-
-If the runner prints `Passed 0/0 scored cases, failed 0, skipped N`, no real
-benchmark ran. That usually means the sample manifest is still pointing at
-placeholder private fixture names. Add local documents under
-`Benchmarks/Fixtures/` or edit `input_files` to point at absolute local paths.
+See `Docs/ai/RUNBOOK.md`, section "## Retrieval benchmark": `scripts/run_quality_matrix.py` writes
+`BenchmarkRuns/<timestamp>-matrix/` with `report.md`, `results.json` and a per-case report under
+`reports/`, and `BenchmarkRuns/` is gitignored, so no run survives a fresh clone. What each run
+tested and settled goes in `BenchmarkRuns/LEDGER.md`. Replaced 2026-09-29: this section described
+the output and scoring of the removed `scripts/run_rag_benchmarks.py` (dashboards, `summary.md`,
+`BenchmarkRuns/latest/`); the old text is in `git log -p -- Benchmarks/README.md`.
 
 ## Research Fixture Packs
 
-Create the smallest useful local research-style pack:
-
-```bash
-python3 scripts/prepare_rag_research_fixtures.py --preset tiny
-```
-
-That writes:
-
-```text
-Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json
-```
-
-Then run it:
-
-```bash
-python3 scripts/run_rag_benchmarks.py Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json --open-dashboard
-```
-
-For answer-generation scoring on your connected iPhone:
-
-```bash
-python3 scripts/run_rag_benchmarks.py Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json \
-  --runtime device \
-  --device "iPhone 16 Pro Max" \
-  --open-dashboard
-```
-
-The tiny preset creates 20 local cases:
-
-- 5 exact-value cases
-- 5 retrieval-only cases
-- 5 multi-hop cases
-- 3 synthetic lost-in-the-middle cases
-- 2 missing-evidence cases
-
-The prep script also has small adapter hooks for FinanceBench, BEIR, Vectara
-Open RAGBench, MultiHop-RAG, QASPER, DocVQA, and RAGTruth. These are adapted
-fixtures, not full official benchmark reproductions. Some datasets require
-manual download or license/terms acceptance, and many public RAG benchmarks are
-JSON/corpus/qrels based rather than raw PDFs.
+See `Benchmarks/ResearchFixtures/README.md` for which pack to use (`qasper_external_v1` for
+measuring anything, `tiny_research_suite` for smoke checks) and for licensing, and
+`Docs/ai/RUNBOOK.md`, section "## Retrieval benchmark", for running them.
+`python3 scripts/prepare_rag_research_fixtures.py --preset tiny` is what generated the tiny pack.
+Running it deletes and rewrites the tracked `tiny_research_suite/` folder (`ensure_clean_pack`,
+with `--overwrite` on by default), so diff the result before keeping it.
+Replaced 2026-09-29: this section ran the packs with the removed `scripts/run_rag_benchmarks.py`;
+the old text is in `git log -p -- Benchmarks/README.md`.
 
 ## Limitations
 

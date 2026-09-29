@@ -1,4 +1,5 @@
 // Prints "id x y w h" (points, global, top-left origin) for each on-screen normal window of a pid, largest first.
+// Saved as raw/mac-<scene>.windows.txt, which scripts/compose_store_screenshots.py reads to place the window and any sheet.
 import CoreGraphics
 import Foundation
 let pid = Int32(CommandLine.arguments[1])!

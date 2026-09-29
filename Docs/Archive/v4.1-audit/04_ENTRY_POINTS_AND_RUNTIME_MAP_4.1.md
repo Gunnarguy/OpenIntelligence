@@ -1,10 +1,8 @@
-import os
+> **Archived 2026-09-29.** Recovered verbatim from the string literal in `scripts/audit_entry_points.py`, a v4.1 audit script that wrote this
+> document into an untracked `Docs/AUDIT/`. The script was removed the same day; its text lives here and in git history.
+> A record of what the v4.1 audit found, not current.
 
-WORKSPACE_DIR = "/Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public"
-OUTPUT_PATH = os.path.join(WORKSPACE_DIR, "Docs/AUDIT/04_ENTRY_POINTS_AND_RUNTIME_MAP_4.1.md")
-
-def main():
-    content = """# Phase 4: Runtime Entry Points Mapping - OpenIntelligence v4.1
+# Phase 4: Runtime Entry Points Mapping - OpenIntelligence v4.1
 
 This document maps all application launch, UI navigation, background, deep link, and pipeline execution entry points. Verified for OpenIntelligence v4.1.
 
@@ -76,11 +74,3 @@ The app registers the following background tasks in `OpenIntelligenceApp.swift` 
 - `"com.openintelligence.index-maintenance"`: Periodic background compaction of the vector database and database defragmentation.
 - `"com.openintelligence.spotlight-reindex"`: Synchronizes local documents index with system search database.
 - `"com.openintelligence.app-refresh"`: Background cache warming and local model pre-check.
-"""
-    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
-        f.write(content)
-        
-    print(f"Successfully wrote Entry Points map to {OUTPUT_PATH}")
-
-if __name__ == "__main__":
-    main()

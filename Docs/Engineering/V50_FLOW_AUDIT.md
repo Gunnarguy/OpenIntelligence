@@ -5,6 +5,37 @@ independent agent that also gated every fix on whether it removes functionality.
 Raw output: `Docs/AuditArtifacts/DefectDiagnosis/flow_audit.json`. Companion throughput audit:
 `V50_PERF_AUDIT.md`. Supersedes `flow_audit_partial.json`, which was the unverified early stop.
 
+> **Status, 2026-09-29.** Each commit below was read with `git show` and each open item re-found in
+> the current tree. Line numbers in the body are from `dc097cc` and have moved; the ones in this
+> block are current. No commit message below records a device check of its fix, which §5 still
+> requires.
+>
+> **Landed:**
+> - §1, the cancel block scoped to a real container change: `b87123d` (2026-08-18). Its companion,
+>   restarting the elapsed-time clock on return while an answer runs: `faed0d6` (2026-09-23).
+> - #4, no forced scroll to the bottom on every appearance: `b87123d`.
+> - #9, source-chip press feedback from a `ButtonStyle`: `078292d` (2026-08-18). Whether the empty
+>   `onTap` it also names is now wired was not checked.
+> - #11, the Atlas half: the loading card now requires `currentProfile == nil` (`b87123d`).
+> - #14, partly: `faed0d6` unlocks the composer once the text stops, during the checks; while text
+>   streams it is still `.disabled(isProcessing && !isCheckingAnswer)` (`ChatComposerV2.swift:107`).
+> - §6's Atlas duplicate `.task` and the plain-`Text` streaming bubble: `dc097cc` (2026-08-18).
+>
+> **Still open:** #1 (`ContentView.swift:116` assigns `activeContainerId` directly; `setActive(_:)`
+> is at `ContainerService.swift:46`), #2 (`ChatScreen.swift:4226`), #3 (`ChatScreen.swift:3477`),
+> #5 (`AdaptiveVisualizationsView.swift:2911` and `:2914`), #6 (the eager load stays, and
+> `ChatScreen.swift:748` still invalidates the cache on a container switch), #7
+> (`MessageListV2.swift:170`), #8 (`ContainerPicker.swift:46` has no `ScrollViewReader`), #10
+> (`ChunkInspectorView.swift:256`, `SettingsView.swift:2224`), the Database half of #11 and #12
+> (`DatabaseDashboardView.swift:219` raises `isLoading` on every load; `:196-198` still seeds the
+> scope into the `onChange` at `:192`), #13 (two mounts, per-instance `@State` at
+> `IngestionQueueOverlay.swift:299-300`), #16 (no `@SceneStorage` anywhere), #17
+> (`Embedding3DView.swift:3423`), #18 (`isRefreshingSuggestions` is still set only when forced,
+> `ChatScreen.swift:1948-1950`), #19 (one `accessibilityReduceMotion` reader, 14 `repeatForever`
+> sites) and §3's `.accessibilityAction`s (none in `MessageBubbleV2.swift`). **Not re-checked:** #15.
+>
+> `[evidence_level: code_verified+grep_verified, confidence: high, evidence_source: git show b87123d, dc097cc, 078292d, faed0d6; grep and read of each file:line named above, 2026-09-29]`
+
 ---
 
 # Felt Responsiveness — Audit Result and Plan

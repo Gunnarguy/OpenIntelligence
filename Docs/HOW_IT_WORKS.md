@@ -10,6 +10,12 @@
 > implication that Private Cloud Compute runs in production, was reversed on 2026-09-20: PCC shipped
 > in 5.2 on 2026-09-10, and section 05 keeps both the original correction and this supersession. `[evidence_level: code_verified, confidence: exact_for_constants_withdrawn_for_measurements]`
 
+> **Corrected 2026-09-29** against `8be003a`: the GPU Acceleration profile gates Metal vector search
+> (Efficiency and Balanced, the default, keep it on the CPU); a citation points at a chunk with its page
+> and a short quote, not at a byte range or an exact sentence; and the extractive answer step's own path
+> is off, but the same extractor answers value questions through five live call sites.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: BNNSVectorDatabase.swift:501-507; DeviceCapabilityService.swift:923-934; StructuredAnswer.swift:65-117,440; RAGService.swift:8705,8734,9199,14383,15192]`
+
 This is the long-form explanation of what the app does, in order, and **why each part is there**.
 It is written at two levels throughout: a plain-English block for anyone, and the technical detail
 underneath it.
@@ -111,9 +117,9 @@ Vectors live outside SQLite in three files per library: a metadata JSON of rough
 ### How a search physically runs
 
 > **In plain words**
-> Comparing your question against every card is just arithmetic, repeated a lot. For a small library the processor does it directly. Past about a thousand cards it becomes worth handing to the graphics chip, which does thousands of small sums at once. The app switches automatically, and either way it reads the numbers straight from the file rather than copying them into memory first.
+> Comparing your question against every card is just arithmetic, repeated a lot. For a small library the processor does it directly. Past about a thousand cards it becomes worth handing to the graphics chip, which does thousands of small sums at once. The app switches automatically when GPU Acceleration is set to Performance or Maximum; Efficiency and Balanced, the default, keep it on the processor. Either way it reads the numbers straight from the file rather than copying them into memory first.
 
-Below 1,000 chunks, similarity is computed with Accelerate's `vDSP_dotpr` directly against the memory-mapped pointer. At or above 1,000 chunks the same data is handed to a Metal compute shader through an unsafe buffer pointer over the same mapping, so the GPU path is near-zero-copy. Neither path materialises the embeddings on the heap.
+Below 1,000 chunks, similarity is computed with Accelerate's `vDSP_dotpr` directly against the memory-mapped pointer. At or above 1,000 chunks, on the Performance or Maximum GPU profile, the same data is handed to a Metal compute shader through an unsafe buffer pointer over the same mapping, so the GPU path is near-zero-copy; Efficiency and Balanced, the default, keep it on the CPU. Neither path materialises the embeddings on the heap.
 
 ## 02. Reading your documents: six steps
 
@@ -149,11 +155,11 @@ Below 1,000 chunks, similarity is computed with Accelerate's `vDSP_dotpr` direct
 #### Step 4. Check it fits
 
 > **In plain words**
-> Make sure the card actually fits on the card. Write too much and the extra doesn't spill onto a second card, it falls off the edge and vanishes, with no warning. So it gets measured first. This step is also what lets citations jump to the exact sentence rather than roughly the right page.
+> Make sure the card actually fits on the card. Write too much and the extra doesn't spill onto a second card, it falls off the edge and vanishes, with no warning. So it gets measured first. This step does not make citations more precise: they point at the whole card, with its page and a short quote, not at an exact sentence.
 
 **How.** A Rust-backed tokenizer validates every chunk against the 510 word-piece ceiling before embedding.
 
-**Why.** Exceeding the limit does not raise an error, it silently truncates, producing an embedding of the first 510 tokens filed under the identity of the whole chunk. That is silent index corruption and nothing downstream can detect it. The same pass yields exact byte offsets, which is what makes citations point at a character range in the source.
+**Why.** Exceeding the limit does not raise an error, it silently truncates, producing an embedding of the first 510 tokens filed under the identity of the whole chunk. That is silent index corruption and nothing downstream can detect it. The chunker in step 2, not this pass, records each chunk's character positions in the extracted text, and no citation carries them: a citation names the chunk, with its page and a quote of up to 240 characters.
 
 #### Step 5. Turn meaning into coordinates
 
@@ -433,9 +439,9 @@ A locked answer skips the source-only check (`:17293`). The scoring rules, and w
 #### Step 9 / 10. Render with tappable sources
 
 > **In plain words**
-> Show the answer with citations that jump to the exact sentence in the original file. Those precise jump points come from the measuring step back in ingestion, step 4. Nothing in this app is only one component.
+> Show the answer with citations that point to the card each claim came from, with its page and a short quote, rather than to an exact sentence. The cards and their pages were made back when the document was read. Nothing in this app is only one component.
 
-**How.** Timings, token footprint, cache hits and thermal state are recorded, then the answer renders with inline citation controls that resolve to the exact source span using the byte offsets captured during ingestion.
+**How.** Timings, token footprint, cache hits and thermal state are recorded, then the answer renders with inline citation controls that resolve to a source chunk and its page rather than to an exact span; no citation carries byte or character offsets.
 
 ## 04. The nine checks
 
@@ -668,7 +674,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
 | `1` | Get the words out of the file | Parsing and extraction: PDFKit text layer, Vision document recognition, Office XML, RFC 4180 CSV, speech transcription |
 | `2` | Cut it into overlapping index cards, keep tables whole | Semantic and structure-aware chunking, ≤310 words, atomic table preservation, contextual prefixing |
 | `3` | Highlight names, dates and section headings | Named entity recognition and metadata tagging |
-| `4` | Check each card fits before filing it | Token gating, ≤510 word-piece tokens, with byte-offset capture for citations |
+| `4` | Check each card fits before filing it | Token gating, ≤510 word-piece tokens; citations are chunk-level, with page and quote, not byte offsets |
 | `5` | Give each card a position on a map of meaning | Dense embedding generation, 384 dimensions, Neural Engine or Core ML |
 | `6` | File every card twice, and leave bookmarks | Dual index storage: FTS5 lexical plus memory-mapped vector store, with page-level checkpointing |
 
@@ -698,7 +704,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
 | `5` | Put the best material at both ends | Context assembly with Lost-in-the-Middle positional reordering |
 | `5.9` | Assemble summaries directly | Extractive summarization for summarize intent |
 | `5.10` | Copy exact numbers instead of generating
-**(switched off)** | Extractive QA override, **disabled**; superseded by step 4.8 |
+**(switched off)** | Extractive QA override, **disabled at this step**; the same extractor still answers value questions elsewhere (see step 5.10) |
 | `6` | Write the answer from the desk | Generation within a 4,096-token session, tool schemas withdrawn once evidence is assembled |
 | `6.5` | Repair the formatting | Response formatting and markdown normalisation |
 | `7` | Score how well it came out | Quality assessment |
@@ -784,7 +790,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
   Turning the app's internal score into a percentage that means something.Platt scaling, mapping an uncalibrated score toward a probability.
 
 **Citation**
-  A tappable link back to the exact sentence that supported a claim.A byte-offset span into the source document, captured during ingestion tokenization.
+  A tappable link back to the index card that supported a claim, with its page and a short quote.The chunk's ID, with its page, a quote of up to 240 characters, the document name and the section path; no byte or character offsets.
 
 **Private Cloud Compute**
   Apple's secure cloud, used only for the writing step and only with your approval.Apple's stateless enclave-based inference service. Reached only after a minimized payload is built and consented to.

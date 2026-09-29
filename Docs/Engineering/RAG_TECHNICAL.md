@@ -1,18 +1,18 @@
-> **Documentation status:** Verified for OpenIntelligence v4.4 (working on v4.5) on 2026-06-30.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30; dated notes below carry their own dates. Shipped and in-development versions are not restated here: `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-29; from 2026-06-30 this line and the Version line below said "working on v4.5".
 
 # RAG Technical Specifications
 
-**Version**: 4.4 (working on v4.5)
-**Updated**: June 30, 2026
+**Version**: see `Docs/SHIPPED_VERSION.json` (this line read "4.4 (working on v4.5)" until 2026-09-29)
+**Updated**: June 30, 2026, for the whole document; dated notes below are later
 **Compatibility**: iOS 26+ / Apple Intelligence
 
 This document provides the technical formulas, algorithms, and deep dive specifications for the RAG pipeline.
 
 > **For the High-Level Flow**: See [HOW_IT_WORKS.md](../HOW_IT_WORKS.md)
 
-> **Full Architecture**: See [ARCHITECTURE.md](../ARCHITECTURE.md). The current repo contains 107 Swift service files under `OpenIntelligence/Services`.
+> **Full Architecture**: See [ARCHITECTURE.md](../ai/ARCHITECTURE.md) (repointed 2026-09-29; the v4.1 architecture document this linked is archived at `Docs/Archive/ARCHITECTURE_v4.1.md`). `OpenIntelligence/Services` held 155 tracked Swift files on 2026-09-29. This line said 107 from 2026-05-12, a figure no tracked tree matches: 115 at `6dc093c` that day, 146 at the 2026-06-30 verification (`d8217c8`). `[evidence_level: grep_verified, confidence: exact, evidence_source: git ls-files 'OpenIntelligence/Services/*.swift' | wc -l and find OpenIntelligence/Services -name '*.swift' both 155; git ls-tree -r at 6dc093c and d8217c8]`
 
-> **Current State**: See CURRENT_STATE_AND_GAPS.md *(that document no longer exists in this repository; noted 2026-08-27)*. The repo currently has 107 Swift service files under `OpenIntelligence/Services`. The 31-step pipeline below is a logical/audit view; the implementation is adaptive and does not run every step for every query.
+> **Current State**: See CURRENT_STATE_AND_GAPS.md *(that document no longer exists in this repository; noted 2026-08-27)*. The Swift file count under `OpenIntelligence/Services` is on the Full Architecture line above (corrected 2026-09-29; this line said 107). The 31-step pipeline below is a logical/audit view; the implementation is adaptive and does not run every step for every query.
 
 > **Research Links**: See [Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md](../Research/RAG_AND_RETRIEVAL_2024_2026.md) and [Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md](../Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md).
 

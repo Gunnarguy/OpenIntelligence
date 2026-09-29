@@ -1,10 +1,8 @@
-import os
+> **Archived 2026-09-29.** Recovered verbatim from the string literal in `scripts/audit_feature_claims.py`, a v4.1 audit script that wrote this
+> document into an untracked `Docs/AUDIT/`. The script was removed the same day; its text lives here and in git history.
+> A record of what the v4.1 audit found, not current.
 
-WORKSPACE_DIR = "/Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public"
-OUTPUT_PATH = os.path.join(WORKSPACE_DIR, "Docs/AUDIT/06_FEATURE_CLAIM_REGISTER_4.1.md")
-
-def main():
-    content = """# Phase 6: Feature Claim Verification Register - OpenIntelligence v4.1
+# Phase 6: Feature Claim Verification Register - OpenIntelligence v4.1
 
 This register catalogs marketing and technical claims found across documentation, release notes, and App Store copy, cross-referencing them directly with implementation reality in the codebase. Verified for OpenIntelligence v4.1.
 
@@ -57,11 +55,3 @@ This register catalogs marketing and technical claims found across documentation
 | **no data stored** | PRIVACY | `VERIFIED_SHIPPED` | No telemetry analytics or logs are uploaded. | "No text or document metrics are stored externally." | Keep. |
 | **iCloud sync** | README | `VERIFIED_SCAFFOLD` | `WorkspaceSyncService` contains stubs and does not execute sync logic. | "iCloud sync is scaffolded for a future release." | Remove active claims. |
 | **local-only libraries** | PRIVACY | `VERIFIED_SHIPPED` | Library databases reside in the local app container. | "Local-only document containers." | Keep. |
-"""
-    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
-        f.write(content)
-        
-    print(f"Successfully wrote Feature Claim Register to {OUTPUT_PATH}")
-
-if __name__ == "__main__":
-    main()

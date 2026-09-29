@@ -5,6 +5,14 @@
 > applied to the source; see "Open for the owner". The audit's own findings were never compiled. The fix
 > was: `swift/` builds the extractor from source with Swift 6.4 on Linux and runs its tests. Nothing has
 > been built in Xcode or tested on a device.
+>
+> **2026-09-29:** the fix is applied in 5.5, the open release, which is not yet submitted. The branch
+> merged into `main` in `206e044` on 2026-09-28, after the full iOS suite ran in Xcode on the merged
+> tree: 504 tests, 4 skipped, 0 failures, the four new tests among the passes. Per the same commit, Deep
+> Think on the Mac on 2026-09-26 still answered the notice question "at least 30 days" where the lease
+> says 60, so the incident's roadmap row stays In Progress. `[evidence_level: artifact_derived,
+> confidence: high, evidence_source: commit message of 206e044; Docs/ai/STATE.md "Verification
+> (2026-09-28)"; not re-run for this note]`
 
 ## Why it exists
 
@@ -77,6 +85,10 @@ All new rows are To Do, Future Backlog.
     and the build smoke test.
   - Then re-ask the incident question on a device in Deep Think. In Standard, use a fresh phrasing,
     because the semantic query cache can replay old retrieval.
+  - 2026-09-29: the branch is merged into `main` (`206e044`, 2026-09-28) and deleted, and
+    `xcodebuild test` passed on the merged tree (see the status note at the top). `Docs/ai/STATE.md`
+    records no run of the build smoke test on it. The Mac re-ask is the one in the status note, so the
+    row is still open.
 - **Found while verifying the fix, and not fixed by it.** When several volumes in one passage score the
   same, the extractor keeps the first. On a car manual's capacities list, "What is the fuel tank
   capacity?" locks the engine oil's 4.5 L, and "How much coolant does it need?" locks its 4.8 US qt,

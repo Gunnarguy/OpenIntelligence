@@ -1,6 +1,6 @@
 # Retrieval Pipeline — narrative source-verified at v4.6; claims re-checked 2026-09-01
 
-> **Documentation status:** Sections 1–5 source-verified 2026-07-15 against v4.6 and **not re-narrated since**; 4.8–4.9 changed retrieval behaviour in ways they do not describe. The numbered items 12–21 and the Suggested questions section are individually dated and evidence-tagged and are the current record.
+> **Documentation status:** Sections 1–5 source-verified 2026-07-15 against v4.6 and **not re-narrated since**; 4.8–4.9 changed retrieval behaviour in ways they do not describe. The numbered items 12–22 and the Suggested questions section are individually dated and evidence-tagged and are the current record.
 >
 > **Shipped versions:** read `Docs/SHIPPED_VERSION.json`, the per-platform record. This document deliberately states no current version number, because each one it stated went stale: before 2026-09-01 this block said "iOS/macOS 4.9 is the shipped version" while the title said v5.0, and the correction made that day (iOS 5.0, macOS 5.0.2) has since been superseded too. The 2026-09-01 note that PCC device/distribution validation was pending predates PCC shipping; `Docs/SHIPPED_CAPABILITIES.json` records `private_cloud_compute` as `shipping` since 2026-09-10. <!-- verify-doc-claims: ignore, this line quotes the withdrawn claim -->
 >
@@ -198,6 +198,8 @@ Diagnostic and telemetry surfaces are included for inspecting chunks, retrieval 
     **What an 18-question probe shows about the rest of the lookup.** The change removes three wrong locks and gains one right one. It costs one: "How much water does the reservoir take?" now goes to the model instead of locking the right "1.2 L", because "water" is not an anchor. It leaves three wrong locks exactly as they were. On a car manual's capacities list, both fuel-tank questions and the coolant question lock the engine oil's figure. When several volumes in one passage score the same, the extractor treats them as variants of one specification and keeps the first. No unit or keyword rule can say which value belongs to which label, and that is the roadmap row on regex extraction in the answer seat. `[evidence_level: measured, confidence: exact_for_these_runs, evidence_source: swift/probe_before.txt and probe_after.txt in that folder, over fictional passages; not run against real ingested chunks]`
 
     **Not device-verified.** None of this has been built in Xcode, run on the iOS 27 simulator, or re-asked on a device.
+
+    **Since then (note of 2026-09-29).** On 2026-09-26 the notice question, re-asked on a macOS Debug build of the fix, no longer locked "1 lb.", but Deep Think answered "at least 30 days" where the lease says 60 and still marked it Verified, so the roadmap row stays open. On 2026-09-28 the full iOS 27 simulator suite passed with the four regression tests (504 tests, 0 failures), and Xcode Cloud built it as 5.5, builds 480 and 481, for TestFlight on iOS and macOS. No iPhone has re-asked it. `[evidence_level: test_verified, confidence: high, evidence_source: CHANGELOG.md ## 5.5 Fixed, Retrieval entry; Docs/ai/STATE.md verification of 2026-09-28; App Store Connect build list read 2026-09-28]`
 
 ## Suggested questions
 

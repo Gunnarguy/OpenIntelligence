@@ -19,6 +19,9 @@ compared on accuracy at all.
 Usage:
     python3 scripts/benchmark_progression.py                 # markdown to stdout
     python3 scripts/benchmark_progression.py --out FILE.md   # write to a file
+
+Before --out BenchmarkRuns/PROGRESSION.md: that table covers runs that now live only in the 2026-09-01
+archive, so extract it first (BenchmarkRuns/LEDGER.md header), or --out replaces it with a few rows.
 """
 from __future__ import annotations
 

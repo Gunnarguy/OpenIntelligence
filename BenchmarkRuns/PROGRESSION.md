@@ -1,5 +1,21 @@
 # Benchmark progression
 
+> **Frozen snapshot, last changed 2026-08-24 (`5f30a37`). Do not regenerate it** unless
+> `~/OpenIntelligence-BenchmarkArchive/BenchmarkRuns-2026-09-01.tar.gz` is extracted first.
+> `scripts/benchmark_progression.py` reads only `BenchmarkRuns/`, which now holds just the two
+> 2026-09-23 runs: a dry run to stdout on 2026-09-29 reported "2 run/mode pairs across 2 runs", so
+> `--out` would replace this table with two rows. The archive also carries its own 2026-09-01 copies
+> of this file and `LEDGER.md`; read `LEDGER.md`'s header before extracting it.
+>
+> **Counts.** The generated line below says 58 run/mode pairs across 51 runs. The table holds 62
+> across 55, because four rows (`greedy-83-1`, `shipcfg-50`, `greedy-25-a`, `greedy-25-b`) were added
+> by hand on 2026-08-24 without regenerating that line. Its "79 run directories on disk, every one
+> accounted for" held on 2026-08-21. By the archive's file times, six further run directories existed
+> by 2026-08-24 with no row here: `baseline-49`, `greedy-50`, `greedy-5case`, `probe-49`,
+> `shipcfg-49` and `smoke-rerank-text`. `[evidence_level: measured, confidence: high,
+> evidence_source: row count of the table below; git show 5f30a37; tar -tvzf of the archive, earliest
+> file time per run directory; ls of the archive path; 2026-09-29]`
+
 Generated 2026-08-21 12:29 by `scripts/benchmark_progression.py`. 58 run/mode pairs across 51 runs, of 79 run directories on disk — every one accounted for below.
 
 **† marks 11 run(s) rebuilt from `results.jsonl`** because the harness never wrote a `results.json` — normally a run killed before it finished. The per-case data is real; the aggregates in those rows were recomputed here, not written by the harness, and `min` is unavailable for them.

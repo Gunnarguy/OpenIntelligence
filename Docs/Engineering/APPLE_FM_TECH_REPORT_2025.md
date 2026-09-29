@@ -1,4 +1,4 @@
-> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+> **Documentation status:** Historical reference, re-dated 2026-09-29. It summarizes Apple's 2025 tech report and the iOS/macOS 26 framework that report describes. Where it says the framework exposes only the on-device model to third parties, and where its implications say 4096 tokens is the only ceiling and the app's whole pipeline runs on the on-device model (items 1 and 3), it describes iOS/macOS 26 and the app before 5.2: iOS/macOS 27 adds `PrivateCloudComputeLanguageModel`, which Apple documents at a 32K-token context, and the app has used it since 5.2 shipped on 2026-09-10. This file does not establish whether the model behind that API is the report's PT-MoE server model. Two app-specific lines are corrected inline (Repo Grounding and implication 7). For current routing read [`Docs/PRIVACY_AND_ROUTING.md`](../PRIVACY_AND_ROUTING.md). Until 2026-09-29 this line said only that the file was historical and not the source of truth for OpenIntelligence v4.1. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift:86-102]` `[evidence_level: artifact_derived, confidence: high, evidence_source: Docs/SHIPPED_CAPABILITIES.json:100-108]` `[evidence_level: documented, confidence: high, evidence_source: https://developer.apple.com/documentation/foundationmodels/adding-server-side-intelligence-with-private-cloud-compute, fetched 2026-09-29]`
 
 # Apple Intelligence Foundation Language Models — Tech Report 2025
 
@@ -15,8 +15,8 @@ This report describes Apple's model family. It does not mean OpenIntelligence ha
 Current app-safe interpretation:
 
 - Public app generation uses Apple's Foundation Models framework where available.
-- The repo budgets `LanguageModelSession` work at 4096 tokens.
-- The server/PCC model is platform context, not a direct OpenIntelligence server-model dependency.
+- ~~The repo budgets `LanguageModelSession` work at 4096 tokens.~~ Corrected 2026-09-29: on-device work is budgeted from the window the SDK reports, with 4096 as the fallback (`FoundationModelTokenBudget.swift:28-35`).
+- ~~The server/PCC model is platform context, not a direct OpenIntelligence server-model dependency.~~ Corrected 2026-09-29: since 5.2 (shipped 2026-09-10), PCC is a direct, optional route on iOS/macOS 27. The session factory builds the session on `PrivateCloudComputeLanguageModel` once the entitlement, availability and quota checks pass; the final answer may go there after consent, and with Private Cloud Compute chosen in the model picker Deep Think and Maximum's reasoning passes may too, behind the same consent check (`AgenticOrchestrator.swift:9000-9014`). On iOS/macOS 26 the app stays on device. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift:86-110]` `[evidence_level: artifact_derived, confidence: high, evidence_source: Docs/SHIPPED_CAPABILITIES.json:100-108; Docs/Archive/CHANGELOG_2.0_to_5.2.md:12-25; Docs/PRIVACY_AND_ROUTING.md:7,14,116]`
 - Foundation Models are used for generation, guided output, and tool calling; current embeddings are Core ML/Natural Language based.
 - The shipped architecture should be described as retrieval-first, not long-context-first.
 
@@ -374,7 +374,7 @@ Server model is **behind** LLaMA 4 Scout, Qwen-3-235B, and GPT-4o on all benchma
 
 6. **NLTagger NER + PascalCase entity extraction is appropriate** — using the OS-level NER (which is fast and free) instead of burning LLM tokens on entity extraction is the right call.
 
-7. **Tool calling is limited** — Apple recommends 3-5 tools max. The current project has 12+. This requires optimization.
+7. **Tool calling is limited** — Apple recommends 3-5 tools max. ~~The current project has 12+. This requires optimization.~~ Corrected 2026-09-29: `FoundationModelToolRegistry.createTools`, the only place tools reach a session, registers six: `retrieve_corpus_evidence`, `inspect_document`, `compare_topic_across_documents`, `get_library_overview`, `count_pattern` and `search_exact_pattern`. The same file declares twelve `Tool` structs; the other six duplicate registered ones and never run. `RAGService` also drops every tool when it has already assembled the retrieved context. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelToolRegistry.swift:421-473, with the twelve Tool structs at lines 20-396; FoundationModelSessionFactory.swift:32; RAGService.swift:12653-12662]`
 
 
 ---

@@ -1,2 +1,2 @@
 # Architecture Atlas Update Playbook
-When the codebase changes, the architecture atlas MUST be updated. Follow `00_SUPERSEDING_EVIDENCE_PROTOCOL.md`.
+When code changes, update the Atlas section that `.agents/rules/01-docs-and-notion-sync.md` names for the path you edited (for example Atlas §9 for `Services/Storage/**`, §12 for `RAGAppIntents.swift`, §15 for `EvidenceThread*`), in the same turn, and tag each claim as `00_SUPERSEDING_EVIDENCE_PROTOCOL.md` requires. `scripts/required_docs.sh` is the enforcing copy of that table, run by the pre-commit hook. A full atlas rediscovery (`01_PHASED_ARCHITECTURE_ATLAS.md`) is needed only to supersede `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, per its section 16. (Pointer updated 2026-09-29.)

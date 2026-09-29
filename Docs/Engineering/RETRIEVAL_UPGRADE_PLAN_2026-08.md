@@ -5,7 +5,18 @@
 > `NLContextualEmbeddingProvider`, `SQLiteFullTextService`) contain **zero** platform conditionals
 > today, and both deployment targets are 26.0.
 > **Research basis:** `Docs/Research/EMBEDDING_AND_INGESTION_UPGRADE_2026-08.md`.
-> **Status:** plan only. Nothing here is implemented.
+> **Status, 2026-09-29.** From 2026-08-05 this line read "plan only. Nothing here is implemented", which no longer holds. The Notion roadmap (the `notion-roadmap` skill) remains the authority on what is scheduled; this block records only what the code and history show, item by item:
+> - **1A, partly.** Exact counting predates this plan: `FoundationModelTokenBudget.snapshot` counts with `model.tokenCount(for:)` behind `#available(iOS 26.4, macOS 26.4, *)` (`c6052df`, 2026-07-15), and `RAGService` builds the execution plan from it. `176e32c` (2026-08-06) made the planless route check read `SystemLanguageModel.default.contextSize` in place of a fixed 4096. Open: `AgenticOrchestrator.supplementaryCharBudget` still turns the window into characters with `onDeviceCharsPerToken`, and a grep of `OpenIntelligenceTests` for `contextSize` finds no test that the packer stays under it.
+> - **1B, done** in `0e647c7` (2026-08-06): one weight per `chunks` column, `bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)`. Before it, the 4.9 code passed weights shifted one column left, not the equal weights 1B's problem statement below describes.
+> - **1C, not started.** All three FTS5 tables still declare `tokenize='porter unicode61'`.
+> - **1D, not started.** No Spotlight tool is registered in `FoundationModelToolRegistry.swift` or anywhere under `Services/AIPlatform` or `Services/Agentic`.
+> - **2A, done for the metrics.** `RetrievalStageMetrics` (recall@1/3/5/10, MRR, nDCG@5/10, precision@5 per stage) landed in `cb82471` (2026-08-07), was wired into the query path and `RAGEvalRunner` in `493d577`, and was corrected in `6e5937e`, which also put a STAGE METRICS block in each harness report (both 2026-08-08). The per-stage figures in `BenchmarkRuns/LEDGER.md` come from it. Open: the part-number and table-lookup cases; neither committed fixture manifest has a category for them.
+> - **2B, not run.** The ledger records no comparison with `NLContextualEmbedding` or EmbeddingGemma. `coreml-provider` (2026-08-17) compared two runtimes of the same MiniLM weights, not two embedders.
+> - **3A, not started.** Part of its prerequisite landed in `3b48c88` (2026-08-18): a changed embedder is detected and the library flagged for rebuild rather than mixed. The resumable, additive-then-swap re-index flow was not checked.
+> - **3B, resolved without Apple's protocol.** `f26dc5b` and `0da8528` (2026-09-11) turned `FoundationModelDynamicProfileRegistry` into generation parameters per answer intent, called from `RAGService` and off unless enabled in Model Parameters. It does not adopt Apple's `DynamicProfile`.
+> - **3D and 4, not started.** `0e647c7` removed a "Late Chunking" label that described a different technique; `BNNSVectorDatabase.swift` has no multi-vector or MaxSim code. **3C was not checked.**
+>
+> `[evidence_level: code_verified+grep_verified, confidence: high, evidence_source: git show of c6052df, 176e32c, 0e647c7, cb82471, 493d577, 6e5937e, 3b48c88, f26dc5b, 0da8528; FoundationModelTokenBudget.swift:97-123; AgenticOrchestrator.swift:8366-8375; SQLiteFullTextService.swift:195, :252, :327, :1458; grep for Spotlight and DynamicProfile; category counts in Benchmarks/ResearchFixtures/*/manifest.json; grep of BenchmarkRuns/LEDGER.md for NLContextual and Gemma; checked 2026-09-29]`
 
 ---
 

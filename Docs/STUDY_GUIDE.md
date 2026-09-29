@@ -7,6 +7,26 @@
 > walkthrough in `Docs/Research/HOW_OPENINTELLIGENCE_WORKS_OPUS_2026-08-22.txt`. Where the word
 > bank and the source disagree, the correction is listed in the module and the source wins.
 > `[evidence_level: code_verified_via_trace, confidence: high]`
+>
+> **Corrected 2026-09-29** against the code at `8be003a`, where this guide, or the trace it took a
+> figure from, was wrong or had gone stale: Private Cloud Compute shipped in 5.2 on 2026-09-10, so
+> its rows are Conditional, not Dormant; fusion weights are 0.50 and 0.50 on a default library's
+> first pass, not 0.7 and 0.3, and in Standard a weak-retrieval cascade and a keyword retry lean
+> keyword; the GPU profile does gate Metal vector search; citations carry a chunk, its page and a
+> quote, not byte or character offsets; the consent sheet shows how much would be sent and why, and
+> after Always Allow it stops asking; embedding concurrency reaches 128 on a Mac, not 64; adaptive
+> generation profiles are opt-in, not Dormant; and for lookup answers a source-only check can run
+> two more on-device sessions, one drafting claims and one rating them, in `SourceOnlyAnswerService`.
+> `[evidence_level: code_verified, confidence: high, evidence_source: Docs/SHIPPED_CAPABILITIES.json
+> private_cloud_compute; first-pass fusion HybridSearchService.swift:294-299 and, on the FTS5 path,
+> :1186-1192, with RAGService.swift:10376-10378 and 10562-10566, QueryProfileService.swift:39-52 and
+> KnowledgeContainer.swift:266-273; cascade RAGService.swift:11051-11067 with
+> RetrievalPolicyService.swift:119-130; keyword retry RAGService.swift:11145-11166 (weights at 11162-11166);
+> BNNSVectorDatabase.swift:501-507 and 528 with DeviceCapabilityService.swift:923-934;
+> StructuredAnswer.swift:65-117; CloudConsentPromptView.swift:7, 45-48, 162-184, 199-203 and
+> 220-222 with RAGService.swift:2036-2046 and 3729-3733; DeviceCapabilityService.swift:749-766;
+> RAGService.swift:9578 with ModelConfigurationSheet.swift:35; SourceOnlyAnswerService.swift:363
+> and 432-445 with RAGService.swift:14745-14758]`
 
 This is the course. Its job is that you can explain every component of your own app and the reason
 it exists, to a non-technical person, to an engineer, and at a whiteboard, without notes.
@@ -50,7 +70,8 @@ Memorise this first. It is the spine every module hangs from.
 10. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and
     only then asks for consent.
 11. The model streams a typed answer with citations; nine deterministic gates decide what survives.
-12. What comes back is inspectable: claims, byte-offset citations, the completed route, and a trace.
+12. What comes back is inspectable: claims, chunk-level citations with page and quote, the completed
+    route, and a trace.
 
 ---
 
@@ -60,7 +81,7 @@ Memorise this first. It is the spine every module hangs from.
 
 **In the bank's words.** Before looking at the machinery, you need to know where the walls, rooms, and rules are. These concepts define what the app is, what belongs to one library, and which steps are rule-based versus model-generated.
 
-**Why it exists.** Everything else in the app assumes these boundaries. A **knowledge container** (a library) scopes every store, so one library's chunks can never answer another library's question. **Local-first** is a concrete promise: ingestion, indexing, retrieval and ranking never leave the device; only the final answer may reach Private Cloud Compute, and only after consent. The **deterministic versus generative** split is the reason the app can be honest about hallucination: extraction, chunking, search, fusion, gates and citations are rule-based and cannot invent; only the two generative stages (query rewriting and answer synthesis) can, so they are the only stages the gates police.
+**Why it exists.** Everything else in the app assumes these boundaries. A **knowledge container** (a library) scopes every store, so one library's chunks can never answer another library's question. **Local-first** is a concrete promise: ingestion, indexing, retrieval and ranking never leave the device; only the final answer may reach Private Cloud Compute, and only after consent. The **deterministic versus generative** split is the reason the app can be honest about hallucination: extraction, chunking, search, fusion, gates and citations are rule-based and cannot invent; the two generative stages (query rewriting and answer synthesis) can, so they are the stages the gates police. For lookup answers a source-only check can add two more on-device sessions, one drafting claims and one rating them, and its result can replace the answer.
 
 **Where it runs.** Nothing here runs by itself. These are the invariants the code enforces: container scoping in every store, the `OpenIntelligenceEngine` SwiftPM target that excludes UI and Billing, and the three quality modes that turn the same pipeline up or down.
 
@@ -557,7 +578,7 @@ A record on the library of the provider, dimension and pooling recipe used to bu
 
 **Why it exists.** Neither index is enough alone. Exact identifiers, part numbers and rare words are BM25's territory; paraphrase is the vector's. FTS5 keeps nine tables, and the `chunks` table weights `section_title` at 10, `section_path` at 5 and `content` at 1 so a match in a heading outranks the same word in prose. Vectors live in `_vectors.bin`, memory-mapped so a library's embeddings cost no heap; norms are in `_norms.bin`. Writes are atomic file swaps. **WAL** lets reads continue during a write.
 
-**Where it runs.** FTS5 is CPU and disk, inside an actor, with a 3 s busy timeout. Vector similarity has a two-level switch: at 1,000 or more vectors **and** a Metal device present, the mapped buffer goes to a Metal kernel with no copy; below that, CPU Accelerate, using one `vDSP_mmul` when the count exceeds the device's batch threshold (16 on M-series) and per-vector `vDSP_dotpr` otherwise. The user's GPU profile does not gate this path.
+**Where it runs.** FTS5 is CPU and disk, inside an actor, with a 3 s busy timeout. Vector similarity has a two-level switch: at 1,000 or more vectors, the Performance or Maximum GPU profile, **and** a Metal device present, the mapped buffer goes to a Metal kernel with no copy; without all three, CPU Accelerate, using one `vDSP_mmul` when the count reaches the device's batch threshold (16 on M-series) and per-vector `vDSP_dotpr` otherwise. The user's GPU profile gates this path: Efficiency and Balanced, the default, keep vector search on the CPU, and so does a background ingestion running CPU-only.
 
 ### The word bank (49 concepts)
 
@@ -615,21 +636,21 @@ A record on the library of the provider, dimension and pooling recipe used to bu
 
 ### Corrections
 
-- OI-0155 caveat says the route also depends on the user GPU policy. It does not; the conditions are the 1,000 count and `isGPUAvailable`. The profile gates Core ML units and the MMR matrix.
+- OI-0155 caveat says the route also depends on the user GPU policy. It does: the conditions are the 1,000 count, `useMetalForVectorOps` (true only for Performance and Maximum) and `isGPUAvailable`. The profile also gates Core ML units and the MMR matrix.
 
 ### Can you explain it?
 
 1. List the nine tables.
 2. Give the three FTS column weights and the tokenizer.
 3. Explain memory mapping and what it saves.
-4. State both conditions for the GPU path and both tiers of the CPU path.
+4. State all three conditions for the GPU path and both tiers of the CPU path.
 5. Explain why two live instances must never map one file.
 
 ### Quiz
 
-<details><summary><strong>What are the two conditions for vector search to use the GPU?</strong></summary>
+<details><summary><strong>What are the three conditions for vector search to use the GPU?</strong></summary>
 
-At least 1,000 vectors in the container, and a Metal device with a command queue. The GPU execution profile is not consulted on this path.
+At least 1,000 vectors in the container, the Performance or Maximum GPU execution profile, and a Metal device with a command queue. Efficiency and Balanced keep vector search on the CPU.
 
 </details>
 
@@ -848,7 +869,7 @@ A query in a category such as medical, legal, financial, safety or dosage. It ra
 
 <details><summary><strong>What are the fusion constants?</strong></summary>
 
-RRF with `k = 60`, vector weight 0.7, keyword weight 0.3. Fusion runs off the main thread on a snapshot of the candidates so document-frequency statistics are valid.
+RRF with `k = 60`, vector weight 0.50, keyword weight 0.50 in a default library; the query's intent moves them (keyword questions 0.45 and 0.55, conceptual ones 0.60 and 0.40), clamped to 0.35 to 0.65 on the first pass. In Standard, when retrieval looks weak, a cascade can re-fuse leaning keyword (0.35 and 0.65, or 0.38 and 0.62, in a default library), and when the top match scores below 0.45 and a keyword-only form of the question differs from it, a keyword retry fuses at 0.3 vector and 0.7 keyword. Fusion runs off the main thread on a snapshot of the candidates so document-frequency statistics are valid.
 
 </details>
 
@@ -976,7 +997,7 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 
 **In the bank's words.** Now the app chooses which answering engine is allowed to run, gives it the evidence and rules, and records what engine actually completed the answer.
 
-**Why it exists.** Where the answer runs is a decision with privacy, cost and quality consequences, so it is made explicitly and after retrieval by `ModelExecutionPlanner`: abstain if the evidence is insufficient, deterministic if a rule-based extractor can answer, Private Cloud Compute only if the capability exists, the network is up, the user is present or has consented, **and** either the local budget does not fit or the query complexity asks for it. Every PCC plan carries an on-device fallback. The **minimised payload** is built before consent is requested, so the user is asked about the exact text that would leave. Structured generation with `@Generable` exists so the answer arrives as typed claims with citations, not prose to be parsed.
+**Why it exists.** Where the answer runs is a decision with privacy, cost and quality consequences, so it is made explicitly and after retrieval by `ModelExecutionPlanner`: abstain if the evidence is insufficient, deterministic if a rule-based extractor can answer, Private Cloud Compute only if the capability exists, the network is up, the user is present or has consented, **and** either the local budget does not fit or the query complexity asks for it. Every PCC plan carries an on-device fallback. The **minimised payload** is built before consent is requested, so the user is asked about the exact text that would leave; after Always Allow, it stops asking. Structured generation with `@Generable` exists so the answer arrives as typed claims with citations, not prose to be parsed.
 
 **Where it runs.** Planning is CPU. Generation is `LanguageModelSession.streamResponse` on `SystemLanguageModel.default`; Apple places the on-device model and the app cannot move it. PCC needs iOS 27 or macOS 27, the entitlement, availability and quota, and is built with Swift 6.4. The advanced on-device route executes the same default model; no advanced model exists in the SDK.
 
@@ -993,8 +1014,8 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 | Apple Foundation Models | Core | Apple's on-device generative model framework used for local answer generation, constrained structures, tools, and auxiliary model tasks. It supplies a private, system-managed language model without bundling a large generative… |
 | Atomic claim | Core | One independently verifiable assertion in the answer rather than a paragraph containing several facts. Verification and evidence mapping are more reliable when each claim can be supported or rejected separately. |
 | Citation namespace | Core | The one-to-one mapping among prompt source labels, model citations, retrieved chunks, response chips, and source views. A cited answer is unsafe if S3 in the text can refer to a different source than chip 3 below it. |
-| Cloud consent | Dormant | The user decision allow once, allow and remember, or deny for a specific provider and minimized payload. Even privacy-preserving cloud compute should not receive document evidence without an explicit user policy. |
-| Cloud transmission record | Dormant | The audit record of provider, model, prompt preview, character counts, chunk count, content hashes, estimated bytes, plan ID, and route reason. A cloud badge alone cannot show what left the device or why. |
+| Cloud consent | Conditional | The user decision allow once, allow and remember, or deny for a specific provider and minimized payload. Even privacy-preserving cloud compute should not receive document evidence without an explicit user policy. |
+| Cloud transmission record | Conditional | The audit record of provider, model, prompt preview, character counts, chunk count, content hashes, estimated bytes, plan ID, and route reason. A cloud badge alone cannot show what left the device or why. |
 | Constrained decoding | Core | Model decoding restricted to a declared output schema. It eliminates a class of parsing failures and lets downstream verification operate over explicit claims and citations. |
 | core3B preference alias | Historical | A compatibility value that now means on-device execution, not selection of an observable three-billion-parameter model. Older settings and UI values must continue to resolve without claiming an API capability Apple does not… |
 | Deterministic execution target | Core | A plan target that returns an extractive or otherwise code-produced answer without generative synthesis. When source structure already yields the answer, generation adds risk and latency without value. |
@@ -1014,19 +1035,19 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 | Local OpenAI-compatible server backend | Conditional | A developer or alternative backend that calls a user-specified local OpenAI-compatible server rather than Apple Foundation Models. It can support testing or external local inference without changing the RAG retrieval contract. |
 | Matched terms | Support | The query concepts the model reports finding in the supplied sources. They provide an additional diagnostic signal about whether generation used the intended evidence. |
 | Maximum generation tokens | Core | The cap on how many output tokens a model call may produce. It bounds latency and prevents output from consuming capacity needed by later chained calls or UI. |
-| Minimized cloud payload | Dormant | Only the selected evidence and prompt material required for the question, rather than the whole library. Late routing and data minimization reduce exposure and make consent concrete. |
+| Minimized cloud payload | Conditional | Only the selected evidence and prompt material required for the question, rather than the whole library. Late routing and data minimization reduce exposure and make consent concrete. |
 | Model availability state | Core | The resolved condition available, simulator unsupported, unsupported device, Apple Intelligence disabled, model preparing, or another unavailable reason. Model execution must fail explicitly and intelligibly rather than enter a… |
 | ModelExecutionPlan | Core | The immutable post-retrieval plan naming the intended synthesis target, reason, token estimates, fallback target, and policy version. Routing should be a checkable decision based on the exact minimized evidence payload, not a… |
 | ModelExecutionReceipt | Core | The immutable record of intended, actual, and completed targets, attempts, quota, fallback reason, policy, and timing for one answer. It proves how the answer was produced and prevents UI route claims from being inferred from… |
 | ModelResolutionService | Support | The observable single source of truth for what the user selected, what is actually active, the execution path, fallback reason, status, parameters, and history. A model picker label is not proof of the model or route that… |
-| On-device execution target | Core | A plan target that invokes the local SystemLanguageModel. It preserves the local-first guarantee and is the only generative target in shipping App Store builds. |
+| On-device execution target | Core | A plan target that invokes the local SystemLanguageModel. It preserves the local-first guarantee and was the only generative target in shipping App Store builds until 5.2 added Private Cloud Compute on iOS and macOS 27. |
 | Partial stream completion | Core | A route outcome in which meaningful output was delivered before the stream failed or ended prematurely. Discarding all partial text can be worse than preserving an explicitly marked incomplete answer. |
-| PCC quota state | Dormant | The framework-reported or normalized condition available, limit reached, unsupported, or unknown. Cloud execution must not be attempted when authorization or capacity is uncertain. |
-| PCC reasoning level | Dormant | The none, moderate, or deep reasoning request associated with a Private Cloud Compute route. Cloud execution could allocate more reasoning effort according to query mode. |
+| PCC quota state | Conditional | The framework-reported or normalized condition available, limit reached, unsupported, or unknown. Cloud execution must not be attempted when authorization or capacity is uncertain. |
+| PCC reasoning level | Conditional | The none, moderate, or deep reasoning request associated with a Private Cloud Compute route. Cloud execution could allocate more reasoning effort according to query mode. |
 | PCC suppression cooldown | Support | A temporary period after route failure during which the engine avoids retrying PCC and forces local execution. Repeatedly attempting an unavailable route wastes latency and can create loops. |
 | Policy version | Support | A version identifier attached to route plans and receipts. Routing logic evolves, and historical results need to be interpreted under the policy that produced them. |
 | Post-retrieval routing | Core | Choosing deterministic, on-device, abstain, or potential cloud synthesis only after evidence size and quality are known. Before retrieval, the engine does not know whether the answer fits locally or what exact content would leave… |
-| Private Cloud Compute target | Dormant | The source-level route for Apple Private Cloud Compute on compatible compiler, OS, entitlement, availability, quota, foreground, network, and consent conditions. It is designed to handle evidence packets that exceed the on-device… |
+| Private Cloud Compute target | Conditional | The source-level route for Apple Private Cloud Compute on compatible compiler, OS, entitlement, availability, quota, foreground, network, and consent conditions. It is designed to handle evidence packets that exceed the on-device… |
 | Prompt compiler | Core | The component that turns query intent, evidence excerpts, source labels, grounding rules, answer format, and route constraints into model instructions and prompt content. Prompt text is an executable interface to the model and… |
 | RAGAnswer | Core | The structured model output containing reasoning, direct answer, confidence, citations, atomic claims, and matched terms. It carries the information needed to render, audit, and verify a model response. |
 | Reasoning-first field order | Conditional | Placing a reasoning or analysis field before the final answer in a generable type. Field order can encourage the model to identify supporting facts before committing to the answer. |
@@ -1070,7 +1091,7 @@ Capability allows PCC, the network is available, the app is foreground-interacti
 
 <details><summary><strong>What is the minimised cloud payload?</strong></summary>
 
-The retrieved chunks in rank order, each cut to a character allowance of at least 240 and at most an even share of the maximum, with document name and page. It is built before consent so the prompt can show what would be sent.
+The retrieved chunks in rank order, each cut to a character allowance of at least 240 and at most an even share of the maximum, with document name and page. It is built before consent so the prompt can show how much would be sent and why.
 
 </details>
 
@@ -1240,7 +1261,7 @@ It carries source-backed facts between sessions so each new 4,096-token window s
 | Scientific-domain claim check | Conditional | Special handling for research claims, statistical language, methods, results, and citation sections. Scientific text has recurring structures where bibliography or background language can be mistaken for study findings. |
 | Source-Locked | Core | The UI state indicating all material claims passed source grounding at the required fidelity threshold. It gives the user a stronger and more specific trust signal than a generic confidence number. |
 | Source-only verification | Core | Checking that the final answer can be reconstructed or supported from source passages without relying on model memory. Citations are meaningful only when the cited text actually entails the claim. |
-| SourceOnlyAnswerService | Core | A fallback and verification service that constructs or validates an answer exclusively from retrieved source sentences. When generative grounding is uncertain, the safest useful result may be a concise extractive answer rather… |
+| SourceOnlyAnswerService | Core | A fallback and verification service in which, for lookup and table-lookup answers, one on-device session drafts claims from the candidate answer and the evidence and a second rates them against the evidence, and the checked result can replace the generated answer. When generative grounding is uncertain, the safest useful result may be a concise extractive answer rather… |
 | Supported claim | Core | A claim whose meaning and material details are directly justified by mapped evidence. It is eligible to remain in a source-locked answer. |
 | Unsupported claim | Core | A claim with no adequate evidence mapping or a contradiction with supplied evidence. It must not survive merely because the overall answer sounds plausible. |
 | Verification configuration | Core | The threshold bundle for normal, touchy, margin, semantic grounding, and critical-category behavior. One centralized configuration prevents separate answer paths from using contradictory safety standards. |
@@ -1290,11 +1311,11 @@ It has no citation, so it is marked unsupported and removed or the answer is dow
 
 ## Module 13. Response structure, provenance, rendering, and observability
 
-**What it is.** What comes back and how you can inspect it. Typed answers, citations to byte offsets, the route badge, and the trace that records every stage.
+**What it is.** What comes back and how you can inspect it. Typed answers, chunk-level citations with page and quote, the route badge, and the trace that records every stage.
 
 **In the bank's words.** The final report includes the answer, the receipts, the source labels, and clues showing how the machine got there.
 
-**Why it exists.** An answer you cannot audit is a guess with good typography. So the response is a `StructuredAnswer` of claims with evidence IDs, citations map to character ranges in the source (the tokenizer pass in ingestion is what makes that exact), the route badge says which model **completed**, the retrieval diagnostics show what was dropped, and the pipeline trace log records every stage with timings. Evidence threads persist so a conversation's sources survive relaunch.
+**Why it exists.** An answer you cannot audit is a guess with good typography. So the response is a `StructuredAnswer` of claims with evidence IDs, each evidence ID is a chunk ID whose record carries the page, a quote of at most 240 characters, the document name and the section path, the route badge says which model **completed**, the retrieval diagnostics show what was dropped, and the pipeline trace log records every stage with timings. Evidence threads persist so a conversation's sources survive relaunch.
 
 **Where it runs.** CPU. The trace file is `pipeline_trace.log` in the app container's Documents folder; it rotates, so long captures use `tail -F` into an archive. The hardware HUD's Neural Engine pulse is synthetic: no public API reports Neural Engine occupancy.
 
@@ -1340,7 +1361,7 @@ It has no citation, so it is marked unsupported and removed or the answer is dow
 
 ### Can you explain it?
 
-1. Explain how a citation reaches a character range.
+1. Explain how a citation reaches its chunk, page and quote.
 2. Say what the route badge reads and why it reflects the receipt, not the selection.
 3. Name three things the retrieval diagnostics sheet shows.
 4. Say where the pipeline trace lives and why it needs an archive tail.
@@ -1348,9 +1369,9 @@ It has no citation, so it is marked unsupported and removed or the answer is dow
 
 ### Quiz
 
-<details><summary><strong>Why can citations point at a sentence rather than a page?</strong></summary>
+<details><summary><strong>Can citations point at a sentence rather than a page?</strong></summary>
 
-Because the tokenizer validation pass at ingestion records exact byte offsets for each chunk, and claims carry evidence IDs that map back to those offsets.
+No. They point at a chunk. The model cites labels such as S1, each claim carries evidence IDs that are chunk IDs, and each evidence record keeps the page, a quote of at most 240 characters, the document name and the section path. Chunks store character positions, but no citation carries them.
 
 </details>
 
@@ -1517,7 +1538,7 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 
 ### Corrections
 
-- OI-0558 GPU execution profile: it governs Core ML units, ingestion embedding units, the MMR matrix and concurrency ceilings. It does not govern the vector-search GPU path.
+- OI-0558 GPU execution profile: it governs Core ML units, ingestion embedding units, the MMR matrix and concurrency ceilings. It also governs the vector-search GPU path: only Performance and Maximum let it use Metal.
 
 ### Can you explain it?
 
@@ -1531,7 +1552,7 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 
 <details><summary><strong>What does the device capability ladder scale?</strong></summary>
 
-Agentic step concurrency (3 to 32), step cooldown (100 ms to 0), vector batch size (128 to 16,384), embedding batch (8 to 512), the matrix-multiply threshold, Vision concurrency (2 to 64), PDF render concurrency (1 to 64, capped by memory), embedding concurrency (2 to 64).
+Agentic step concurrency (3 to 32), step cooldown (100 ms to 0), vector batch size (128 to 16,384), embedding batch (8 to 512), the matrix-multiply threshold, Vision concurrency (2 to 64), PDF render concurrency (1 to 64, capped by memory), embedding concurrency (2 to 128).
 
 </details>
 
@@ -1584,17 +1605,17 @@ Continued ingestion and continued query (system-scheduled), index maintenance no
 | AutoTuneService | Support | The service intended to update selected retrieval thresholds or policies from measured evaluation data under explicit constraints. Tuning should be evidence-driven and bounded rather than silently self-modifying from user answers. |
 | Bundled Core ML generative backend | Historical | A removed custom local generative model path distinct from Apple Foundation Models. The current product relies on the system language model and deterministic analysis paths. |
 | Default HNSW architecture | Historical | The incorrect generalization that OpenIntelligence always uses an approximate HNSW vector index. The default current store is BNNSVectorDatabase exact scan; HNSW belongs only to the optional Vectura path. |
-| Dynamic Foundation Model profiles | Dormant | A registry intended to describe runtime Foundation Model capability profiles. It anticipated a more observable model-tier API. |
+| Dynamic Foundation Model profiles | Conditional | A registry that maps the question's answer intent to a temperature and a length, applied only when Adaptive Profiles is turned on in Model Parameters. Until 5.3 it was a placeholder with zero call sites. |
 | Embedding-based chunk boundary detection | Dormant | The implemented path that would compare adjacent sentence embeddings and split where semantic similarity falls. It could add language-independent topical boundaries beyond headings and transition phrases. |
 | Fixed 384-dimensional architecture | Historical | The oversimplified claim that all OpenIntelligence embeddings are 384-dimensional. 384 is the default MiniLM space, while configured Natural Language providers use 512 and the dormant AppleFM scaffold declares 1,024. |
 | Late chunking | Historical | A research technique that embeds a long document jointly and pools token states for each later chunk span. It could preserve cross-chunk context, but that is not what the current SemanticChunker does. |
 | Live Neural Engine utilization | Future | A hypothetical percentage or occupancy metric for the Apple Neural Engine. No public API currently supplies live ANE utilization to this app. |
 | Local GGUF backend | Historical | A previously supported or considered local generative model format removed from the current architecture. The app consolidated on Apple Intelligence and On-Device Analysis rather than maintaining bundled third-party generative… |
 | Local MLX generative backend | Historical | A removed local generative model path based on MLX-style execution. Maintaining several model runtimes increased complexity and fragmented routing. |
-| Model judges | Historical | The withdrawn claim that a separate model grades answer correctness. No implemented model-as-judge service exists in the active engine; deterministic verification and benchmark ground truth serve different roles. |
+| Model judges | Historical | The withdrawn claim that a separate model grades answer correctness. No separate judge model exists; the source-only claim review, listed under Corrections below, is a different and Conditional mechanism, and deterministic verification and benchmark ground truth serve different roles. |
 | Neural extractive QA model | Dormant | The planned Core ML start/end-span model represented by a stub protocol implementation. The design is present, but the active answer path uses heuristic extraction and specification logic. |
 | PCC simulation | Historical | The withdrawn description that older OS versions simulate Private Cloud Compute. A simulation would misstate privacy and route behavior. |
-| Production PCC | Dormant | The source architecture for live Private Cloud Compute completion. The route is intended for oversized evidence and deeper reasoning, but current App Store binaries were built without the required SDK path. |
+| Production PCC | Conditional | The source architecture for live Private Cloud Compute completion. The route is intended for oversized evidence and deeper reasoning, and App Store binaries have carried it since 5.2 (build 451, 2026-09-10), used on iOS and macOS 27 after consent. |
 | RAPTOR L2/L3 hierarchy | Future | Section- and corpus-level abstraction layers above current document summaries. They could support hierarchical retrieval across very large libraries. |
 | Single 29-step pipeline | Historical | The older documentation shorthand that represented the engine as one fixed numbered sequence. Current execution branches by file type, intent, quality mode, evidence, device state, and route, so no one number captures every path. |
 | Single recursive thought loop | Historical | The oversimplified label for several distinct mechanisms: execution planning, iterative retrieval, recursive multi-session RAG, Self-RAG, critique/refinement, and deterministic verification. Collapsing them hides which component… |
@@ -1605,6 +1626,7 @@ Continued ingestion and continued query (system-scheduled), index maintenance no
 
 - Add to the dormant list: the `SpeechAnalyzer` transcription branch (guarded by a module that does not exist; never compiles).
 - Add to the historical list: the `.cpuAndGPU` Maximum profile (removed the Neural Engine; fixed 2026-08-26) and the `NSImage.lockFocus` macOS render path (4× oversize, 370 MB per page; replaced by a `CGBitmapContext`).
+- Add as Conditional: source-only claim review. In `SourceOnlyAnswerService`, for lookup and table-lookup answers, one on-device session drafts claims and a second rates them against the evidence as supported, contradicted, ambiguous or unsupported, and the result can replace the answer. In Standard it runs only when the gates flag the answer.
 
 ### Can you explain it?
 
@@ -1636,7 +1658,7 @@ The `SpeechAnalyzer` branch. `SFSpeechRecognizer` with on-device recognition run
 
 <details><summary><strong>What is the difference between PCC existing in source and PCC being in production?</strong></summary>
 
-The route compiles under Swift 6.4 and iOS 27, but a given App Store build may carry zero PCC symbols and iOS 26 users always get the on-device route. Say which build you mean.
+The route compiles under Swift 6.4 and iOS 27, but a given App Store build may carry zero PCC symbols: builds before 5.2 carried none, and from 5.2 (2026-09-10) the release guard fails any build that has none. iOS 26 users always get the on-device route. Say which build you mean.
 
 </details>
 
@@ -1656,11 +1678,11 @@ words and one for meaning. A question is searched both ways in parallel, fused, 
 cross-encoder, and packed under a hard token budget. Apple's on-device model writes a typed answer
 with citations, and nine deterministic gates decide what is allowed to stand. Only the final answer
 may leave the device, to Private Cloud Compute, and only after the app shows you how much would
-be sent and why, and you agree."
+be sent and why, and you agree; Always Allow stops it asking."
 
 **Five minutes.** The twelve sentences above, each expanded with one number: 310 words, 510
-tokens, 384 dimensions, 1,000 vectors, k = 60, 0.7 and 0.3, 4,096 and 3,200, 0.40 and 0.55, nine
-gates, 180 seconds.
+tokens, 384 dimensions, 1,000 vectors, k = 60, 0.50 and 0.50 on the first pass, 4,096 and 3,200,
+0.40 and 0.55, nine gates, 180 seconds.
 
 **At the whiteboard.** Draw the two indexes, the parallel search, the fusion, the shortlist, the
 budget, the plan, the model, the gates. Then be asked "where does the Neural Engine run?" and answer
@@ -1672,7 +1694,7 @@ honestly: the code requests it on five lines and Apple decides; nothing in the a
 |---|---|
 | Audio goes through `SpeechAnalyzer` | The branch never compiles. `SFSpeechRecognizer`, on device, in 600-second segments. |
 | Embeddings run on the Neural Engine | Requested, not placed. Efficiency and Balanced request CPU + Neural Engine; Performance and Maximum request all units; Core ML decides. Core AI exposes nothing. |
-| The GPU profile decides whether vector search uses Metal | It does not. The switch is 1,000 vectors and a Metal device. The profile gates Core ML units and the MMR matrix. |
+| The GPU profile decides whether vector search uses Metal | It does, with two other conditions: 1,000 vectors and a Metal device. Efficiency and Balanced keep vector search on the CPU. The profile also gates Core ML units and the MMR matrix. |
 | `RecognizeDocumentsRequest` does OCR | It parses structure and tables. `VNRecognizeTextRequest` does OCR. |
 | Page rendering is zero-copy | The PNG round trip is skipped; a full-page bitmap is still allocated per page. |
 | Maximum verification bar is 0.98 | 0.80. The 0.98 target lives in the agentic loop, not the gate. |

@@ -10,7 +10,8 @@
 # anyone who lapsed. Published guidance on discounting is consistent that the cohort worth a
 # discount is the one that already paid and left, not new installs; a win-back offer is exactly
 # that cohort, and Apple presents it itself, on the App Store and in the app on launch, with no
-# code in the app. See Docs/Release/CONVERSION_AND_REVIEWS_2026-09.md, sections 3 and 5.
+# code in the app. See CONVERSION_AND_REVIEWS_2026-09.md, sections 3 and 5, which moved on 2026-09-29
+# from Docs/Release/ to ~/ASC/ on the owner's Mac.
 #
 # THE OFFERS
 #

@@ -264,7 +264,7 @@ Line numbers are in `RAGService.swift` unless a path is given.
 | 0 | Corpus vocabulary | Build or fetch the container's vocabulary (`:9449`) | CPU | | code_verified / exact |
 | 1 | Query understanding | Optional LLM rewrite when `enableQueryRewriting` (`:9513`, reader at `:9508`), then corpus-aware expansion (`:9628-9687`) and answer-intent classification (`:9741`) | FoundationModels, framework-decided | | code_verified / exact |
 | 2 | Query embedding | Same provider as ingestion, one text (`:9776-9800`) | Core ML or Core AI, as §3.4 | 1 vector | code_verified / exact |
-| 3 | Hybrid search | `HybridSearchService.searchWithFTS5` (`Services/RAG/Retrieval/HybridSearchService.swift:1007-1060`): `async let` vector search and FTS5 search **in parallel**. Vector side asks for `topK × 3` (`× 2` when `topK > 50`, `:250`); FTS5 side `min(topK × 3, 60)` (`:1030`); structured rows `min(topK × 3, 36)` (`:1036`). Fusion is Reciprocal Rank Fusion with `k = 60` and weights vector 0.7, keyword 0.3 (`:208-211, 293-299`). Keyword hits that would fall below the cut are re-attached up to `max(4, topK / 6)` survivors (`:377`). Section-title and path boosts are applied afterwards (`:10453`) | See 4.3 | `initialTopK` is 30 in Standard (`Core/Models/RAGQualityMode.swift:74-80`), so 90 vector + up to 60 lexical candidates in, a fused ranked list out | code_verified / exact |
+| 3 | Hybrid search | `HybridSearchService.searchWithFTS5` (`Services/RAG/Retrieval/HybridSearchService.swift:1007-1060`): `async let` vector search and FTS5 search **in parallel**. Vector side asks for `topK × 3` (`× 2` when `topK > 50`, `:250`); FTS5 side `min(topK × 3, 60)` (`:1030`); structured rows `min(topK × 3, 36)` (`:1036`). Fusion is Reciprocal Rank Fusion with `k = 60` (`:293-299`) and the weights the caller passes; on the first pass, vector 0.50 and keyword 0.50 in a default library, moved by the query's intent to 0.45 and 0.55 for keyword questions or 0.60 and 0.40 for conceptual ones, each clamped to 0.35 to 0.65 (corrected 2026-09-29: this said "weights vector 0.7, keyword 0.3", which is only the initialiser's default at `:208`; every `RAGService` construction passes explicit weights, e.g. `RAGService.swift:10490, 10562`, from `QueryProfileService.swift:39-52` over `RetrievalConfig.default` at `KnowledgeContainer.swift:266-273`, with the intent deltas at `QueryEnhancementService.swift:37-50`, all read at `8be003a`). Two later Standard searches re-fuse leaning keyword: the retrieval cascade (`RAGService.swift:11051-11067`, weights from `RetrievalPolicyService.swift:119-130`: lexical = min(0.65, lexicalWeight + 0.20 or 0.12), vector = max(0.35, 1 - lexical), so 0.35 and 0.65 or 0.38 and 0.62 in a default library) when retrieval looks weak, and a keyword retry at vector 0.3, keyword 0.7 (`RAGService.swift:11145-11166`) when the top reranked score is below 0.45 and the cleaned keyword query differs from the question. No path fuses at vector 0.7, keyword 0.3; only `HybridSearchServiceTests.swift:70` uses the initialiser's default. The FTS5 path fuses at `:1186-1192` with the same caller weights. Keyword hits that would fall below the cut are re-attached up to `max(4, topK / 6)` survivors (`:377`). Section-title and path boosts are applied afterwards (`:10453`) | See 4.3 | `initialTopK` is 30 in Standard (`Core/Models/RAGQualityMode.swift:74-80`), so 90 vector + up to 60 lexical candidates in, a fused ranked list out | code_verified / exact |
 | 4 | Rerank | `RAGEngine.rerank` (`Services/RAG/Orchestration/RAGEngine.swift:294`) → `rerankWithCrossEncoder` (`:1404`): query and passage tokenised together to 512 tokens (`:1412`), `MLModel.prediction` per pair, concurrent via `withTaskGroup` (`:1516`). Called with `topK: effectiveTopK × 3` and trimmed to that (`:10502, 10535`) | Core ML, `computeUnits = .all`, low-precision GPU accumulation allowed (`RAGEngine.swift:86-87`) | Up to 90 pairs scored | code_verified / exact |
 | 4.3 | Confidence filter | Drop below the mode's `minSimilarity`: 0.28 Standard, 0.25 Deep Think, 0.20 Maximum (`RAGQualityMode.swift:85-92`); procedural queries raise the bar (`:10822`); lenient mode lowers it (`:10784`) | CPU | | code_verified / exact |
 | 4.4 | Document spread | Ensure more than one document is represented before diversifying (`:11018`) | CPU | | code_verified / exact |
@@ -272,17 +272,20 @@ Line numbers are in `RAGService.swift` unless a path is given.
 | 4.6 | Expansion | Parent document retrieval when enabled (`:11548`, reader `:11551`), cross-reference resolution (`:11606`), targeted spec retrieval (`:11629`) | CPU + SQLite | | code_verified / exact |
 | 4.7 | Contextual compression | Optional extractive sentence filtering (`:11659`, reader `:11668`), followed by a one-second cooldown to protect the Foundation Models rate budget (`:11828-11830`) | FoundationModels when enabled | | code_verified / exact |
 | 4.9 | Graph-based packing | `ContextPackingService` (`:11861`; `Services/RAG/Retrieval/ContextPackingService.swift`) | CPU | | code_verified / exact |
-| 5 | Context assembly | Off-main string build (`:12066`); extractive summarisation (`:12650`); extractive QA is disabled, generation always runs (`:12731`) | CPU | Chunks that do not fit the token budget are trimmed and their IDs recorded (`ContextPackingService.swift:208-218`) | code_verified / exact |
+| 5 | Context assembly | Off-main string build (`:12066`); extractive summarisation (`:12650`); step 5.10's extractive QA block is commented out (`:12731`) (corrected 2026-09-29: this said "extractive QA is disabled, generation always runs"; the same extractor answers value questions without generation through `highPrecisionLookupOverrideAnswer`, live at `RAGService.swift:8705, 8734, 9199, 14383, 15192` at `8be003a`) | CPU | Chunks that do not fit the token budget are trimmed and their IDs recorded (`ContextPackingService.swift:208-218`) | code_verified / exact |
 | Plan | Post-retrieval model plan | `makePostRetrievalModelPlan` (`:13038`, defined `:15439`) → `ModelExecutionPlanner.makePlan` (§4.4) | CPU | | code_verified / exact |
 | 6 | Generation | `switch plan.synthesisTarget` (`:13050`): `.privateCloudCompute` (`:13051`), `.onDevice` and `.deterministic` (`:13120`), `.abstain` (`:13146`). Local generation goes through `LLMService` (§4.5) | FoundationModels, framework-decided; or PCC | | code_verified / exact |
 | Gates | Verification | `VerificationGateService` (§4.6) | CPU, plus one embedding call for Gate E | Claims in, supported and unsupported claims out | code_verified / exact |
-| Render | Structured answer | `StructuredAnswer` and citations mapped back to chunk offsets; route badge in `ResponseDetailsView` reads the completed route label (`Features/Chat/Response/ResponseDetailsView.swift:314-322`) | CPU | | code_verified / exact |
+| Render | Structured answer | `StructuredAnswer` and citations mapped back to chunk IDs, each with page, a quote of at most 240 characters, document name and section path (corrected 2026-09-29: this said "chunk offsets"; no citation type carries an offset, `StructuredAnswer.swift:65-117, 436-440` at `8be003a`); route badge in `ResponseDetailsView` reads the completed route label (`Features/Chat/Response/ResponseDetailsView.swift:314-322`) | CPU | | code_verified / exact |
 
 ### 4.3 The vector search, exactly
 
 `BNNSVectorDatabase.search(embedding:topK:)` (`Services/VectorStore/BNNSVectorDatabase.swift:486`):
 
-1. `gpuThreshold = 1000` (`:501`). If the container holds at least 1,000 vectors **and**
+1. `gpuThreshold = 1000` (`:501`). If the container holds at least 1,000 vectors,
+   `DeviceCapabilityService.useMetalForVectorOps` is true (`:503`; true only on the Performance and
+   Maximum profiles and never during background CPU-only ingestion,
+   `DeviceCapabilityService.swift:923-934`), **and**
    `GPUComputeService.isGPUAvailable` (`:505-507`; `isGPUAvailable` is "a Metal device and a
    command queue exist", `GPUComputeService.swift:196`), the whole memory-mapped buffer is handed
    to `batchCosineSimilarityFlatBuffer` (`:515`) with no heap copy. Inside, the threadgroup kernel
@@ -296,10 +299,14 @@ Line numbers are in `RAGService.swift` unless a path is given.
    buffer (`:536`), else one `vDSP_dotpr` per vector against the mapped pointer (`:365`).
 3. Scores are normalised by the stored norms and the top `min(topK, count)` are selected.
 
-So the sentence "GPU above a thousand chunks" has two hidden conditions (a Metal device, and a
-successful kernel compile) and the CPU path has its own two-tier switch. Note that the user's GPU
-execution profile does **not** gate this path; it gates MMR (`useMetalForVectorOps`) and Core ML
-compute units. `[evidence_level: code_verified, confidence: exact]`
+So the sentence "GPU above a thousand chunks" has three hidden conditions (the Performance or
+Maximum GPU profile, a Metal device, and a successful kernel compile) and the CPU path has its own
+two-tier switch. The user's GPU execution profile gates this path through `useMetalForVectorOps`,
+the same flag that gates MMR (`RAGEngine.swift:155-160`), and it also sets Core ML compute units;
+on the default Balanced profile (`DeviceCapabilityService.swift:950`) vector search stays on the
+CPU (corrected 2026-09-29: this said the profile does **not** gate this path and left
+`useMetalForVectorOps` out of step 1; the check was added in `fcb61d2` on 2026-07-15 and was
+already at `:503-507` in `4840078`). `[evidence_level: code_verified, confidence: exact]`
 
 ### 4.4 Where the answer is allowed to run
 
@@ -347,8 +354,9 @@ payload (`RAGService.swift:11833-11834`). A denied consent forces `executionCont
   reused, or `LanguageModelSession(model:tools:instructions:)` (`:46-54`).
 - `.onDeviceAdvanced` executes the **same default model**; the comment says no advanced on-device
   model exists in the SDK and telemetry is corrected to `.onDevice` (`:57-62`).
-- `.privateCloudCompute`: `PrivateCloudComputeLanguageModel()` under iOS 27 with the same
-  entitlement and quota guards (`:87-101`).
+- `.privateCloudCompute`: `PrivateCloudComputeLanguageModel()` under iOS 27 or macOS 27 with the
+  same entitlement and quota guards (`:87-101`; corrected 2026-09-29 from "under iOS 27": the check
+  is `#available(iOS 27.0, macOS 27.0, *)` at `:88`, the same in `4840078` and `8be003a`).
 
 `LLMService` calls `determineRoute` at `:601` and `:1095`, creates the session at `:517`, builds
 `GenerationOptions(temperature:maximumResponseTokens:)` (`:750-759`), and streams with
@@ -454,7 +462,7 @@ dangling citations from a shorter re-ordered list (`:758`).
 | `Services/Document/Classification/YOLODetectionService.swift:80` | `.all` | Object detection on images | Any | |
 | `Services/Document/Classification/CoreMLRegionDetector.swift:177` | `.all` | Region detection | Any | |
 | `Services/Document/Classification/CoreMLDocumentClassifier.swift:223` | `.cpuAndNeuralEngine` | Document classification | CPU or ANE | |
-| `Services/RAG/Extraction/ExtractiveQAService.swift:139` | `.cpuAndNeuralEngine` | Span model, **dormant**: the placeholder returns nil and generation always runs (`RAGService.swift:12731`) | | |
+| `Services/RAG/Extraction/ExtractiveQAService.swift:139` | `.cpuAndNeuralEngine` | Span model, **dormant**: the placeholder returns nil, and step 5.10's extractive block is commented out (`RAGService.swift:12731`) (corrected 2026-09-29: this said "generation always runs"; the heuristic extractor still answers value questions without generation, §4.2 step 5) | | |
 | `Services/Infrastructure/Compute/GPUComputeService.swift:258-280, 701, 764` | Metal kernels `batchCosineSimilarity`, `…SIMD`, `…Threadgroup`, `batchNormalize`, `mmrDiversityMatrix` | Vector similarity, normalisation, MMR matrix | GPU | CPU `vDSP` (`:26` in `batchCosineSimilarity`) |
 | `Services/VectorStore/BNNSVectorDatabase.swift:365, 536` | `vDSP_dotpr`, `vDSP_mmul` | Similarity below 1,000 vectors | CPU SIMD | |
 | `Services/Infrastructure/Compute/BNNSGraphService.swift` | Accelerate BNNS and vDSP | Batch normalisation, cosine matrices, softmax, fusion arithmetic | CPU SIMD | |
@@ -473,8 +481,9 @@ dangling citations from a shorter re-ordered list (`:758`).
 (`DeviceCapabilityService.swift:26-30`), each with an `Engagement` of `usesCPU`, `usesNeuralEngine`,
 `usesGPU` and a list of effects (`:49-110`). Concretely it drives: Core ML compute units for the
 query-side models (`:812-821`), embedding units during ingestion (`:844-851`), `useMetalForVectorOps`
-for the MMR matrix, and the concurrency ceilings below. It does not gate the vector-search GPU
-path (§4.3). The ladder bug fixed 2026-08-26 was that Maximum removed the Neural Engine while
+for the MMR matrix and for vector search, and the concurrency ceilings below. Only Performance and
+Maximum let either use Metal (§4.3; corrected 2026-09-29 from "It does not gate the vector-search
+GPU path", `BNNSVectorDatabase.swift:503-507` with `DeviceCapabilityService.swift:923-934`). The ladder bug fixed 2026-08-26 was that Maximum removed the Neural Engine while
 claiming to add hardware. `[evidence_level: code_verified, confidence: exact]`
 
 ### 6.3 The device capability ladder
@@ -493,7 +502,7 @@ was fixed 2026-08-26 after a new Mac was tiered as M3-era.
 | `batchMatrixMultiplyThreshold` | `Int.max` → 16 | `:619` |
 | `visionParsingConcurrency` | 2 → 64, RAM-scaled on Mac | `:675` |
 | `pdfRenderingConcurrency` | 1 → 64, capped by a per-page memory estimate | `:739` |
-| `embeddingConcurrency` | 2 → 64 | `:778` |
+| `embeddingConcurrency` | 2 → 128. 2 during background CPU-only ingestion and on an unsupported iPhone or iPad; `.baseline` 12, `.enhanced` 16, `.advanced` 20; an `.ultraAdvanced` (M-series) iPad 16 × (memory ÷ 8 GB, at least 1), capped at 64; a Mac 12, or 16 from M3 and 24 from M4, times the same memory factor, capped at 128, or 4 when unsupported (corrected 2026-09-29 from "2 → 64", which is the iPad cap; the Mac cap is `min(128, …)` at `:766`, the same in `4840078` and `8be003a`) | `:778` |
 
 `[evidence_level: code_verified, confidence: high for ranges, exact for lines]`
 
@@ -566,7 +575,7 @@ the source disagrees or adds a condition.
 |---|---|
 | "Audio and video go through SpeechAnalyzer" | **Wrong in every build.** The branch is behind `#if canImport(SpeechAnalyzer)`, a module that does not exist, and calls an API shape the SDK does not declare. Transcription runs on `SFSpeechRecognizer` with on-device recognition required (§3.2). |
 | "384-dimensional sentence embeddings, generated on the Neural Engine through Apple's newer on-device inference path where available, falling back to Core ML" | The Core AI path exists and is the default on iOS 27 and macOS 27, so "where available" is right. "On the Neural Engine" is a request, and only on the Core ML path: the lower two GPU profiles request `.cpuAndNeuralEngine`, the upper two `.all`, and Core ML decides. Core AI exposes no placement at all. |
-| "Below 1,000 chunks vDSP_dotpr; at or above 1,000 a Metal compute shader" | Right, with two conditions omitted: a Metal device must exist, and the CPU path itself switches to `vDSP_mmul` above the device's batch threshold (§4.3). |
+| "Below 1,000 chunks vDSP_dotpr; at or above 1,000 a Metal compute shader" | Right, with three conditions omitted: the GPU profile must be Performance or Maximum, a Metal device must exist, and the CPU path itself switches to `vDSP_mmul` above the device's batch threshold (§4.3; corrected 2026-09-29 from "two conditions", which left out the profile). |
 | "Vision's RecognizeDocumentsRequest handles scans, photos and camera captures" | OCR is `VNRecognizeTextRequest`; `RecognizeDocumentsRequest` is the structure and table parser used on pages the complexity triage selects. Both exist; the roles are split. |
 | "the nine SQLite tables" | Confirmed, nine (§3.6). |
 | "Page rendering is zero-copy, converting CIImage straight to CGImage without a PNG round trip" | The render itself is a Quartz raster into a bitmap context at 360 DPI; there is no PNG step, but a full-page bitmap is allocated per page. "Zero-copy" describes the vector store's mmap, not page rendering. |
@@ -579,7 +588,7 @@ the source disagrees or adds a condition.
 | All 153 cited source paths | Exist (`git ls-files` check, 0 missing). |
 | OI-0035, OI-0055 audio transcription anchored to `AudioTranscriptionService` | **Correct**, and more accurate than the Opus page: it names the path that actually runs. |
 | OI-0126 Core AI provider, "Conditional", "selected conditionally before falling back to Core ML" | Correct, with one addition: on iOS 27 and macOS 27 `SettingsStore` makes it the default and migrates saved Core ML defaults (`:531-544`), so on those OS versions it is the primary path, not a conditional one. |
-| OI-0155 1,000-chunk GPU threshold, caveat "the actual route also depends on device and user GPU policy" | Half right. Device, yes (`isGPUAvailable`). The user GPU profile does **not** gate this path; it gates MMR and Core ML units (§4.3, §6.2). |
+| OI-0155 1,000-chunk GPU threshold, caveat "the actual route also depends on device and user GPU policy" | Correct. Device, yes (`isGPUAvailable`), and the user GPU profile, yes (`useMetalForVectorOps`, true only for Performance and Maximum); the profile also gates MMR and Core ML units (§4.3, §6.2; corrected 2026-09-29 from "Half right" and "does **not** gate this path", `BNNSVectorDatabase.swift:503-507`). |
 | OI-0551 Core ML compute units "derived from GPU execution profile and provider policy" | Correct (§3.4). |
 | OI-0570 Neural Engine, status "Core" | The status is a category claim. No line in the app places work on the Neural Engine; five lines permit it (§6.1). "Core" is defensible only as "requested on the default path". |
 | OI-0601 live Neural Engine utilisation, "Future" | Correct; the HUD pulse is synthetic. |

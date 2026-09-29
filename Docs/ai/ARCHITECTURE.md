@@ -142,5 +142,12 @@ in the path, which is a product guarantee rather than a current state.
   `BenchmarkRuns/LEDGER.md` carries nDCG and MRR@10 figures — so the older claim that it never had
   is withdrawn as of 2026-09-01. The live problem is different and worse: retrieval is
   **nondeterministic**, two runs of one build returning different evidence for one question, so no
-  A/B between components is trustworthy, including judgements about what already shipped. That is
-  the current work. See `Docs/ai/STATE.md`.
+  A/B between components is trustworthy, including judgements about what already shipped. It is a
+  Future Backlog item, not the current work: the roadmap rows "Retrieval is nondeterministic, which
+  makes every quality change in the stack unfalsifiable"
+  (https://app.notion.com/3cc49a74d54f81d7a88dffe679ce9bb1) and "Two runs of one build return
+  different evidence for the same question" (https://app.notion.com/3bf49a74d54f81189046d2f007f68272)
+  are both To Do in Future Backlog, and `Docs/ai/STATE.md` has 5.5 as the open release.
+  (Corrected 2026-09-29: this line used to call it the
+  current work.) `[evidence_level: artifact_derived, confidence: high, evidence_source: Notion
+  roadmap data source queried 2026-09-29; Docs/ai/STATE.md Objective]`

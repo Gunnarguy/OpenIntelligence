@@ -3,6 +3,9 @@
 #
 # List and revoke Apple development certificates, for CI cleanup.
 #
+# Unused since 2026-08-28: its only callers were the GitHub Actions workflows that 546df1f retired, and
+# Xcode Cloud signs on its own runners. It can revoke certificates, so run it only on purpose.
+#
 # Why this exists: automatic signing provisions a development certificate on every
 # fresh runner. The archive phase signs for development and `-exportArchive` re-signs
 # for distribution afterwards, which is correct behaviour and cannot be pinned away —

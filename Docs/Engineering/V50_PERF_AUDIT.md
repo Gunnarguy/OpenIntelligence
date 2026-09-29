@@ -7,6 +7,41 @@ A companion flow/responsiveness audit was **stopped early** to conserve session 
 completed probes are in `flow_audit_partial.json` and are **unverified** — the refutation stage
 never ran. Do not act on those without re-running verification.
 
+> **Status, 2026-09-29.** Each commit below was read with `git show` and each open item re-found in
+> the current tree; line numbers in the body are from 2026-08-18 and have moved. The companion flow
+> audit was finished the same day as `V50_FLOW_AUDIT.md` (`b87123d`), which replaced
+> `flow_audit_partial.json`. No commit message below records a device check of its fix.
+>
+> **Landed, by item in §1:**
+> - #1 (B1), the streaming bubble renders plain `Text` until the stream closes: `dc097cc` (2026-08-18).
+> - #3 (C1), the Core ML model loads on first use, with a lock so concurrent first callers share one
+>   load: `5e81abd` (2026-08-18). It answers `isAvailable` with `model != nil` or the bundled
+>   resource being present (`CoreMLSentenceEmbeddingProvider.swift:253`), the bundle-presence form
+>   §5 argues against; the commit message gives the case for it.
+> - #4 (D1), the duplicate Atlas `.task`: `dc097cc`.
+> - #6 (A3), `synchronizeVectorStore` skips a write whose destination already holds the same
+>   content: `72b5c8b` (2026-08-18). `025b912` (2026-08-19) compares cheap keys first, and `771461c`
+>   (2026-08-25) skips both loads when a signature of sizes, dates, documents, aliases and strategy
+>   matches the last pass that found nothing to write.
+> - #7 (A2), the `coordinatedMergeData` byte-equality guard, which also gates the
+>   `.localWorkspaceDidChange` post: `72b5c8b`.
+>
+> **Later work in the same area, not items above:** `f0ed8c0` (2026-08-26) found a cause for the
+> Documents half of §8's tab-switch cost, a `DocumentationCacheService` count the tab awaited on
+> entry (29 to 393 ms on device), and stopped awaiting it. `46aa57e` (2026-08-29) makes
+> `VectorStoreRouter.clearAll()` reload only stores whose files changed, after the Mac was measured
+> reloading 11 stores every idle tick.
+>
+> **Still open:** #2 (A1; `ContentView.swift:448` still awaits `reconfigureIfNeeded()` before the
+> guard, deferred in `dc097cc` for a two-device iCloud check), #5 (D2; `profileCache` is written at
+> `LibraryVisualizationEngine.swift:381` and still read nowhere), #8 (E; no freshness guard in front
+> of `loadAllData()`, called from the `.task` at `DatabaseDashboardView.swift:184`), #9 (F;
+> `RAGService` is still an `ObservableObject`, `RAGService.swift:333`), B2 and B3
+> (`MarkdownRenderer.swift` has no `NSRegularExpression` and no `NSCache`). **Not re-checked:** A0
+> and A4.
+>
+> `[evidence_level: code_verified+grep_verified, confidence: high, evidence_source: git show dc097cc, 5e81abd, 72b5c8b, 025b912, 771461c, f0ed8c0, 46aa57e, b87123d; WorkspaceSyncService.swift:2559, :2571 and the guard in coordinatedMergeData; grep and read of each file:line named above, 2026-09-29]`
+
 ---
 
 # OpenIntelligence performance audit: work plan

@@ -67,11 +67,13 @@ asserted.
 ```
 
 - `role`: `primary` (the feature owns the file), `shared` (a file several features use, such as
-  `ChatViewModel.swift`), `test`.
+  `RAGService.swift`, shared by four slices here), `test`.
 - Node `kind`: `view`, `view_model`, `service`, `model`, `function`, `state`, `persistence`,
   `integration`, `config`, `test`, `util`, `intent`, `resource`, `entry`. Large shared files get
   `function` nodes for the functions that implement this feature, so an agent can jump to them.
-- Node ids are short and unique within the slice, usually the Swift symbol (`ChatViewModel.sendMessage`).
+- Node ids are short and unique within the slice, usually the Swift symbol (`RAGService.createNewThread`
+  in the `evidence-threads` slice). This repository has no `ChatViewModel`; the examples named one
+  until 2026-09-29, carried over from the codemap skill's template, which was written for another app.
   State and storage use a prefix: `defaults:<key>`, `keychain:<service>`, `file:<name>`,
   `openai:<endpoint>`. An edge can point at another feature as `feature:<id>`, or at a node in
   another slice as `<feature-id>#<node-id>`.

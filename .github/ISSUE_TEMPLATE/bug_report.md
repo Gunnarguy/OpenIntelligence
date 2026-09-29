@@ -26,10 +26,10 @@ If applicable, add screenshots to help explain your problem.
 
 **Environment (please complete the following information):**
 
-- Device: [e.g. iPhone 17 Pro Max Simulator]
-- OS: [e.g. iOS 26.0]
-- Xcode Version: [e.g. 26.0]
-- App Version: [e.g. 1.0.0]
+- Device: [e.g. iPhone 17 Pro, or MacBook Air]
+- OS: [e.g. iOS 27.0, or macOS 27.0]
+- App Version: [e.g. 5.4 (Build 478), shown in Settings > About]
+- Xcode Version: [only if you built the app from source, e.g. 27.0]
 
 **Additional context**
 Add any other context about the problem here.

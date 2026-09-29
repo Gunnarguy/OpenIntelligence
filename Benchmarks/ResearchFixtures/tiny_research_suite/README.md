@@ -13,10 +13,15 @@
 
 > Note: `scripts/run_rag_benchmarks.py` was removed in `abd1e3b`. Use
 > `python3 scripts/run_quality_matrix.py --app <path>` or the in-app validation
-> dashboard. The command below is retained for reference only.
+> dashboard. Until 2026-09-29 the command below still named the removed script; it now matches
+> what `scripts/prepare_rag_research_fixtures.py` writes.
+
+        The runner writes into the app's real library: back it up first and restore it afterwards, as
+        `Benchmarks/baselines/README.md` describes under "Before you run anything".
 
         ```bash
-        python3 scripts/run_rag_benchmarks.py Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json --open-dashboard
+        cp -a ~/Library/"Application Support"/OpenIntelligence /private/tmp/oi-library-backup
+        python3 scripts/run_quality_matrix.py --app <path/to/OpenIntelligence.app> --manifest Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json
         ```
 
         Case counts:

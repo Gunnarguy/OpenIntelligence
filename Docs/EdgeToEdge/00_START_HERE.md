@@ -6,6 +6,15 @@
 > cites its line, or from a grep run while writing the module. Where the 612-term word bank or the
 > Opus walkthrough disagrees with source, the module says so and source wins.
 > `[evidence_level: code_verified_for_symbols_and_constants, confidence: high; status_labels: artifact_derived, confidence: medium]`
+>
+> **Corrected 2026-09-29** against the code at `8be003a`. Sentence 12 and the paragraph after the
+> twelve sentences said citations carry byte offsets and character ranges, and that the cloud
+> payload is shown before consent. Citations carry a chunk, its page and a quote of at most 240
+> characters, and the consent sheet shows how much would be sent and why. Sentence 10 now says
+> that Always Allow stops the asking. The GPU-profile row in the corrections table is corrected in
+> place. The same pass corrected modules 00, 02, 05, 06, 08, 10, 13, 15 and 16; each records what
+> changed, with its code lines, in a dated evidence tag.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGStructuredResponse.swift:28-29, 49-50; StructuredAnswer.swift:65-117, 436-440; CloudConsentPromptView.swift:162-184, 199-203; RAGService.swift:2065-2067, 3729-3733]`
 
 This is every one of the 612 concepts in the word bank, in pipeline order, explained at more than one level, with what was verified and what was corrected. It is the document you asked for so you never have to do this again. You will turn it into audio; it is written to be read aloud, so identifiers are kept to the expert rungs and every module opens with plain language.
 
@@ -38,13 +47,13 @@ The status labels are the word bank's audit vocabulary, not a runtime type: **Co
 7. Vector search and BM25 run in parallel and are fused with reciprocal rank fusion at k = 60.
 8. A cross-encoder reranks the shortlist; a similarity floor and maximal marginal relevance cut it; neighbours are added.
 9. Evidence is packed under the real token budget, strongest first and last.
-10. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and only then asks for consent.
+10. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and only then asks for consent, unless Always Allow has already given it.
 11. The model streams a typed answer with citations; nine deterministic gates decide what survives.
-12. What comes back is inspectable: claims, byte-offset citations, the completed route, and a trace.
+12. What comes back is inspectable: claims, chunk-level citations with page and quote, the completed route, and a trace.
 
 ## The thread through all of it
 
-Every mechanism in this app is one of two things. It keeps the promise, that your documents stay yours: container isolation, local-first, on-device everything, memory-mapped vectors so a phone can hold a library, one outside room used only after retrieval with a shown payload and your consent. Or it defends against the danger, that a language model invents: two indexes, a cross-encoder second opinion, a similarity floor, diversity, a recorded budget, exactly two generative stages with nine deterministic gates aimed at them, citations to character ranges, and a badge that reports what completed rather than what was requested. If you cannot say which of the two a piece serves, you do not understand that piece yet.
+Every mechanism in this app is one of two things. It keeps the promise, that your documents stay yours: container isolation, local-first, on-device everything, memory-mapped vectors so a phone can hold a library, one outside room used only after retrieval and only with your consent, given on a sheet that shows how much would be sent and why. Or it defends against the danger, that a language model invents: two indexes, a cross-encoder second opinion, a similarity floor, diversity, a recorded budget, exactly two generative stages with nine deterministic gates aimed at them, citations to a chunk, its page and a quote, and a badge that reports what completed rather than what was requested. If you cannot say which of the two a piece serves, you do not understand that piece yet.
 
 ## Corrections to the earlier documents, in one place
 
@@ -52,13 +61,13 @@ Every mechanism in this app is one of two things. It keeps the promise, that you
 |---|---|---|
 | Audio goes through `SpeechAnalyzer` | The branch never compiles. `SFSpeechRecognizer`, on device, 600-second segments. | 02, 16 |
 | Embeddings run on the Neural Engine | Requested, not placed. Efficiency and Balanced request CPU + Neural Engine; Performance and Maximum request all units; Core ML decides; Core AI exposes nothing. | 05, 15 |
-| The GPU profile decides whether vector search uses Metal | It does not. The switch is 1,000 vectors and a Metal device. The profile gates Core ML units and the MMR matrix. | 06, 15 |
+| The GPU profile decides whether vector search uses Metal | It does, with two other conditions: 1,000 vectors and a Metal device. Efficiency and Balanced, the default, keep vector search on the CPU. The profile also gates Core ML units and the MMR matrix. Until 2026-09-29 this row said it does not. | 06, 15 |
 | `RecognizeDocumentsRequest` does OCR | It parses structure and tables. `VNRecognizeTextRequest` does OCR. | 02 |
 | Page rendering is zero-copy | The PNG round trip is skipped; a full-page bitmap is still allocated. | 02 |
 | Maximum's verification bar is 0.98 | 0.80. The 0.98 is the agentic loop's stopping target. | 00, 11, 12 |
 | The advanced on-device model | Executes the default model. No advanced model exists in the SDK. | 10 |
 | Core AI is a fallback | On iOS 27 and macOS 27 it is the default and saved Core ML defaults are migrated. | 05 |
-| About six registered tools | Ten. | 10 |
+| About six registered tools | Six registered, of twelve defined. This row said ten until 2026-09-29. | 10 |
 | `NO_RELEVANT_CONTENT` triggers rescue or passthrough | Inside the compressor, yes; the caller in `RAGService` removes the chunk entirely. | 09 |
 | Weighted progress has no named constant | It does: `pipelineStageWeights`, extraction 0.52. | 01 |
 | TinyBERT reranker name is unverified | It is documented provenance: `cross-encoder/ms-marco-TinyBERT-L2-v2` in the notices file. | 08 |

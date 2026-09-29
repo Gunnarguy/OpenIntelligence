@@ -14,7 +14,7 @@ Thirty-three concepts. Turning meaning into coordinates: the one genuinely stran
 
 **Dot-connector.** The provider is a protocol, and the fingerprint is the contract. Four providers exist: Core ML MiniLM (default), Core AI MiniLM (default on iOS 27 and macOS 27, same vector space, and saved Core ML defaults are migrated to it), NLContextualEmbedding and NLEmbedding (512-dimension compatibility options, different spaces), and an Apple Foundation Models provider that is a 1,024-dimension placeholder and does nothing. Switching a library between spaces means re-embedding everything, which is blocked while ingestion runs. The model is not loaded at launch; it loads on the first embed. The query is embedded with the same provider as the documents, and a semantic query cache can skip that step for a repeated question.
 
-**Expert.** `CoreMLSentenceEmbeddingProvider`: tokenise, fill three pre-allocated `MLMultiArray` inputs of length 512 (ids, mask, type), predict, `meanPool` under the attention mask, L2 normalise; validate dimension, finite values, non-empty. `makeModel(computeUnits:)` takes the unit set from `DeviceCapabilityService`'s GPU execution profile: Efficiency and Balanced request `.cpuAndNeuralEngine`; Performance and Maximum request `.all`. Batches over four texts run in a task group of width `embeddingConcurrency` (2 to 64 by tier). `EmbeddingService` is the actor that owns provider selection, loading, validation, batching, caching and errors. `EmbeddingFingerprint` pins provider, model, dimension, tokenizer, pooling. `CoreAISentenceEmbeddingProvider` uses Apple's Core AI compilation path and exposes no compute-unit control. The 2026-08-26 fix corrected Maximum from `.cpuAndGPU` (which excluded the Neural Engine) to `.all`.
+**Expert.** `CoreMLSentenceEmbeddingProvider`: tokenise, fill three pre-allocated `MLMultiArray` inputs of length 512 (ids, mask, type), predict, `meanPool` under the attention mask, L2 normalise; validate dimension, finite values, non-empty. `makeModel(computeUnits:)` takes the unit set from `DeviceCapabilityService`'s GPU execution profile: Efficiency and Balanced request `.cpuAndNeuralEngine`; Performance and Maximum request `.all`. Batches over four texts run in a task group of width `embeddingConcurrency` (2 to 64 on iPhone and iPad, up to 128 on a Mac). `EmbeddingService` is the actor that owns provider selection, loading, validation, batching, caching and errors. `EmbeddingFingerprint` pins provider, model, dimension, tokenizer, pooling. `CoreAISentenceEmbeddingProvider` uses Apple's Core AI compilation path and exposes no compute-unit control. The 2026-08-26 fix corrected Maximum from `.cpuAndGPU` (which excluded the Neural Engine) to `.all`. `[evidence_level: code_verified, confidence: exact, evidence_source: CoreMLSentenceEmbeddingProvider.swift:448, 459; DeviceCapabilityService.swift:749-781; corrected 2026-09-29 from "2 to 64 by tier"]`
 
 **Expert's expert.** Three corrections to the word bank. "Neural Engine, status Core" overstates: five lines in the app permit it, none place work there, and Core AI exposes nothing; say "requested." "Core AI, Conditional" understates: on the 27 systems `SettingsStore` makes it the default and migrates. And the Opus page's "generated on the Neural Engine through Apple's newer on-device inference path" collapses two different providers into one sentence. Also worth knowing: the zero-vector fallback exists so a provider failure doesn't corrupt array shape, which means a zero vector can be persisted and will simply never match anything; validation is what should catch it.
 
@@ -68,7 +68,7 @@ Thirty-three concepts. Turning meaning into coordinates: the one genuinely stran
 ### Dot product (Core, verified)
 - **Idiot:** multiply matching numbers and add them up.
 - **Dot-connector:** with normalised vectors it is cosine similarity, and it maps directly onto Accelerate, BNNS and Metal.
-- **Expert:** `vDSP_dotpr` per vector, `vDSP_mmul` for the batch path, Metal kernel above 1,000.
+- **Expert:** `vDSP_dotpr` per vector, `vDSP_mmul` for the batch path, Metal kernel at 1,000 or more under the Performance or Maximum GPU profile. `[evidence_level: code_verified, confidence: exact, evidence_source: BNNSVectorDatabase.swift:501-507; corrected 2026-09-29 from "Metal kernel above 1,000", which left out the profile]`
 
 ### Embedding (Core, verified)
 - **Idiot:** the pin.
@@ -83,7 +83,7 @@ Thirty-three concepts. Turning meaning into coordinates: the one genuinely stran
 ### Embedding concurrency (Support, verified)
 - **Idiot:** how many batches run at the same time.
 - **Dot-connector:** too few underuses hardware; too many fights Vision for memory.
-- **Expert:** `embeddingConcurrency` from `DeviceCapabilityService`, 2 to 64 by tier.
+- **Expert:** `embeddingConcurrency` from `DeviceCapabilityService`: 2 to 64 on iPhone and iPad, 4 to 128 on a Mac, by chip and memory, and 2 during CPU-only background ingestion. `[evidence_level: code_verified, confidence: exact, evidence_source: DeviceCapabilityService.swift:749-781; corrected 2026-09-29 from "2 to 64 by tier"]`
 
 ### Embedding dimension (Core, verified)
 - **Idiot:** how many numbers are in a pin: 384.

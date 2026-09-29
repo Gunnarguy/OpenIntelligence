@@ -47,8 +47,8 @@ This document is the exhaustive engineering-academic bibliography for **OpenInte
 *   **Link**: [arXiv:1908.10084](https://arxiv.org/abs/1908.10084)
 *   **Core Concept**: Fine-tunes BERT-style transformers in a Siamese network structure to generate dense vectors where cosine similarity maps semantic closeness, making large-scale semantic search computationally feasible.
 *   **Literal Codebase Mapping**:
-    - [EmbeddingService.swift](COREML_METAL_ON_DEVICE_AI.md): Generates 384-dimensional dense vectors.
-    - [CoreMLSentenceEmbeddingProvider.swift](../../OpenIntelligence/Services/Embedding/Providers/CoreAISentenceEmbeddingProvider.swift): Runs the local Sentence-Transformer model (`EmbeddingModel.mlpackage`) on older OS configurations.
+    - [EmbeddingService.swift](../../OpenIntelligence/Services/Embedding/EmbeddingService.swift): Generates 384-dimensional dense vectors.
+    - [CoreMLSentenceEmbeddingProvider.swift](../../OpenIntelligence/Services/Embedding/Providers/CoreMLSentenceEmbeddingProvider.swift): Runs the local Sentence-Transformer model (`EmbeddingModel.mlpackage`). It is the model-level default provider (`KnowledgeContainer.swift:168`), the app's default on iOS 26 and macOS 26, and the fallback when Core AI is unavailable; on iOS 27 and macOS 27 the app's default for new libraries is `CoreAISentenceEmbeddingProvider`, and any library whose provider is Core ML still runs here. Corrected 2026-09-29 from "on older OS configurations". `[evidence_level: code_verified, confidence: exact, evidence_source: KnowledgeContainer.swift:168; SettingsStore.swift:530-548; ContainerService.swift:305-315; DocumentLibraryView.swift:1669-1680; EmbeddingService.swift:126-155]`
 
 ---
 
@@ -106,7 +106,7 @@ This document is the exhaustive engineering-academic bibliography for **OpenInte
 *   **Link**: [arXiv:2401.15884](https://arxiv.org/abs/2401.15884)
 *   **Core Concept**: Uses a retrieval quality evaluator to determine if retrieved vector segments are relevant, executing corrective actions (such as abstractive summaries or fallback modes) if similarity bounds fail.
 *   **Literal Codebase Mapping**:
-    - [VerificationGateService.swift (in target/targets)](../../OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift): Runs domain checks to abort or trigger corrective fallbacks.
+    - [VerificationGateService.swift (in target/targets)](../../OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift): Runs domain checks to abort or trigger corrective fallbacks.
 
 ### 14. FaithfulRAG: Fact-Level Conflict Modeling
 *   **Paper**: *FaithfulRAG: Fact-Level Conflict Modeling for Context-Faithful RAG* (2025)
@@ -149,7 +149,7 @@ This document is the exhaustive engineering-academic bibliography for **OpenInte
 *   **Link**: [arXiv:2507.13575](https://arxiv.org/abs/2507.13575)
 *   **Core Concept**: Apple's 3B and larger server-based models using quantization-aware training, low-latency NAND Flash paging, and secured cloud enclaves.
 *   **Literal Codebase Mapping**:
-    - [FoundationModelSessionFactory.swift (in target/targets)](../Engineering/APPLE_MODELS.md): Sets up model session configurations.
+    - [FoundationModelSessionFactory.swift (in target/targets)](../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift): Sets up model session configurations.
     - [CoreAISentenceEmbeddingProvider.swift](../../OpenIntelligence/Services/Embedding/Providers/CoreAISentenceEmbeddingProvider.swift): Coordinates embedding execution targets on local Neural Engines.
 
 ### **19. Apple Silicon Unified Memory Acceleration & BNNS (Accelerate)**
@@ -157,7 +157,7 @@ This document is the exhaustive engineering-academic bibliography for **OpenInte
 *   **Link**: [Apple Developer - BNNS](https://developer.apple.com/documentation/accelerate/bnns)
 *   **Core Concept**: Zero-copy matrix multiplication and SIMD operations on unified memory architectures.
 *   **Literal Codebase Mapping**:
-    - [EmbeddingService.swift](COREML_METAL_ON_DEVICE_AI.md): Resolves local sentence embedding targets.
+    - [EmbeddingService.swift](../../OpenIntelligence/Services/Embedding/EmbeddingService.swift): Resolves local sentence embedding targets.
     - [BNNSVectorDatabase.swift](../../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift): Leverages memory-mapped vectors and Accelerate vDSP dot products.
 
 ### 20. Apple Developer Technote TN3193
@@ -165,15 +165,15 @@ This document is the exhaustive engineering-academic bibliography for **OpenInte
 *   **Link**: [TN3193 Technote](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
 *   **Core Concept**: Hard bounds for 4K on-device token context budgets, and why tool schema sizes must be strictly budgeted.
 *   **Literal Codebase Mapping**:
-    - [LLMService.swift](../Engineering/RAG_TECHNICAL.md): Enforces 4096-token session budgets.
-    - [FoundationModelPromptCompiler.swift](../Engineering/RAG_TECHNICAL.md): Compresses prompt structures to fit context limits.
+    - [LLMService.swift](../../OpenIntelligence/Services/LLM/LLMService.swift): Enforces 4096-token session budgets.
+    - [FoundationModelPromptCompiler.swift](../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelPromptCompiler.swift): Compresses prompt structures to fit context limits.
 
 ### 21. Private Cloud Compute (PCC) Security
 *   **Technical Resource**: *Private Cloud Compute security and privacy architecture* (Apple Security, 2024-2026)
 *   **Link**: [Apple Security - PCC](https://security.apple.com/blog/private-cloud-compute/)
 *   **Core Concept**: Secure, stateless enclaved processing for LLM workloads exceeding local ANE limits, with end-to-end encryption.
 *   **Literal Codebase Mapping**:
-    - [FoundationModelRoutePolicy.swift](../Engineering/PRIVATE_CLOUD_COMPUTE.md): Routes queries to PCC enclaves (`.privateCloudCompute`) during Maximum mode.
+    - [FoundationModelRoutePolicy.swift](../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift): Routes queries to PCC enclaves (`.privateCloudCompute`) during Maximum mode.
 
 ### 22. Siri App Intents SSU (Semantic Schema Understanding)
 *   **Technical Resource**: *App Intents and Siri semantic layers* (Apple Developer Documentation, 2025-2026)
@@ -187,7 +187,7 @@ This document is the exhaustive engineering-academic bibliography for **OpenInte
 *   **Link**: [arXiv:2408.08067](https://arxiv.org/abs/2408.08067)
 *   **Core Concept**: Evaluation loops for measuring RAG pipeline accuracy using citation precision and hallucination rates.
 *   **Literal Codebase Mapping**:
-    - [RAGEvalRunner.swift](../../OpenIntelligence/Services/RAG/Evaluations/RAGEvalRunner.swift): Evaluates dataset scores dynamically.
+    - [RAGEvalRunner.swift](../../OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift): Evaluates dataset scores dynamically.
 
 ---
 
@@ -449,7 +449,7 @@ addition for the BM25 arm — neither requires re-embedding. Ordering is correct
 **F-3 — RETRACTED 2026-08-10. The figure was enumerated, and it is correct.**
 
 > The original finding read: *"The '23-step query loop' figure is unenumerated.
-> `Docs/ARCHITECTURE.md` and `Docs/README.md` both cite a 23-step query loop, and
+> `Docs/Archive/ARCHITECTURE_v4.1.md` (archived 2026-09-29) and `Docs/README.md` both cite a 23-step query loop, and
 > `README.md` cites 29 steps total. `Docs/RETRIEVAL_PIPELINE.md`, labelled the
 > active specification, enumerates 11. Device traces show roughly 23 distinct
 > stage events, so the figure is plausible, but no document lists them."*

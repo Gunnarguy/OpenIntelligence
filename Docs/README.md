@@ -16,11 +16,14 @@ The active source of truth for architecture, modules, and namespaces.
 | :--- | :--- | :--- |
 | [CANONICAL_SOURCE_OF_TRUTH.md](CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md) | **Canonical Ground Truth** | Absolute reference for product definitions, sync limits, routing consent, and implementation rules. Outranks every other document here, including this index. |
 | [OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md](OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md) | **Active Reference** — generated from the July 2026 audit, not regenerated since | Subsystem map, execution flows, system boundaries. Its component count predates the current tree; see its header. |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | *Superseded* — historical, written at v4.1 | Kept for history. Superseded by the Atlas, and below that by the canonical document. Do not use as source of truth for any version. |
-| [ROADMAP.md](ROADMAP.md) | *Mirror, header reconciled 2026-09-20* | **Notion is authoritative for the roadmap, not this file**, and it has been the stale side before. Body still predates v5.0 and is kept as record. Reach the database with the `notion-roadmap` skill. |
+| [ARCHITECTURE_v4.1.md](Archive/ARCHITECTURE_v4.1.md) | *Archived 2026-09-29*, historical, written at v4.1 | Formerly `Docs/ARCHITECTURE.md`, renamed on archiving because that name matched the live `Docs/ai/ARCHITECTURE.md`. Superseded by that file, the Atlas and the codemap. |
+| [ROADMAP.md](ROADMAP.md) | *Pointer to Notion since 2026-09-29* | **Notion is authoritative for the roadmap.** This file says only where releases stand; its pre-5.0 body is kept at `Archive/ROADMAP_record_through_2026-09-29.md`. Reach the database with the `notion-roadmap` skill. |
 | [LIMITATIONS.md](LIMITATIONS.md) | **Active Reference** | Product, safety, and technical boundaries, including which quality modes have a measured accuracy baseline and which do not. |
 | [RELEASE_NOTES.md](RELEASE_NOTES.md) | **Active Changelog** | Version release summaries and breaking dependency changes. |
-| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.4. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
+| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.5 (unreleased). Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
+| [HOW_IT_WORKS.md](HOW_IT_WORKS.md) | **Active Reference** | The step-by-step walkthrough of how a document is read and a question answered; `README.md` sends readers here. The short root overview that shared its name moved to `Archive/HOW_IT_WORKS_root_overview_v2.0.md` on 2026-09-29. |
+| [AppleIntelligenceTransitionPlan.md](AppleIntelligenceTransitionPlan.md) | *Historical plan, still on `AGENTS.md` rule 14's update list* | Its own banner says the phase plan is finished. App code comments in `ContainerSettingsSheet.swift` cite it by line, so it stays in place until an app release can update them. |
+| [DEMO.md](DEMO.md) | *Historical reference* | The demo walkthrough and the list of material never to use on camera. |
 
 ---
 
@@ -34,10 +37,10 @@ Step-by-step execution mechanics for ingestion and query retrieval.
 | [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) | **Active Specification** — source-verified at v4.6; shipped version in `SHIPPED_VERSION.json` | Vision OCR preprocessing, semantic chunking, subword validation, SQLite/BNNS storage. Header lists the 4.9 atomic-write changes not yet described. |
 | [RAG_TECHNICAL.md](Engineering/RAG_TECHNICAL.md) | **Deep-Dive Specification** | Code examples, class interfaces, parameters, algorithms (MMR, TinyBERT cross-encoders). |
 | [FULL_SYSTEM_TRACE.md](Engineering/FULL_SYSTEM_TRACE.md) | **Active Reference** — source-verified 2026-09-01 at `4840078` | **The execution trace**: launch, navigation, ingestion, a Standard query, the agentic modes, every hardware-unit request and the concurrency map, the iOS/macOS split, and a claims audit of the two earlier walkthroughs. Read this for *which unit runs what and how the code decides*. |
-| [STUDY_GUIDE.md](STUDY_GUIDE.md) | **Active Reference** — written 2026-09-02 at `273b007` | **The course.** Seventeen modules in pipeline order: what each part is, why it exists, where it runs, its share of the 612-concept word bank, corrections, an explain-it checklist and a quiz. Sources: the Terra word bank and Opus walkthrough under `Research/`, numbers from `Engineering/FULL_SYSTEM_TRACE.md`. |
+| [STUDY_GUIDE.md](STUDY_GUIDE.md) | **Active Reference** — written 2026-09-02 at `273b007`, facts corrected 2026-09-29 | **The course.** Seventeen modules in pipeline order: what each part is, why it exists, where it runs, its share of the 612-concept word bank, corrections, an explain-it checklist and a quiz. Sources: the Terra word bank and Opus walkthrough under `Research/`, numbers from `Engineering/FULL_SYSTEM_TRACE.md`. |
 | [EdgeToEdge/00_START_HERE.md](EdgeToEdge/00_START_HERE.md) | **Active Reference** — written 2026-09-02 at `9c6fcbc` | **Every one of the 612 concepts, edge to edge.** Seventeen modules; each has a seven-rung ladder (five-year-old to expert's expert) and every concept at three rungs with its status and a verification note. Identifier-like names grepped against the tree; numbers from the trace; thirteen corrections to the earlier documents in one table. `EdgeToEdge/EDGE_TO_EDGE_FULL.md` is the one-paste version. |
-| [Audio/STUDY_GUIDE_AUDIO_FULL.txt](Audio/STUDY_GUIDE_AUDIO_FULL.txt) | **Active Reference** — rewritten 2026-09-02 | The study guide as a spoken course: five passes over the whole machine, each one deeper (explained like you're five, beginner, engineer, researcher, tie-together), about 76 minutes. `Audio/Reference_word_bank/` is the 612-term glossary read aloud, for lookup only. |
-| [STORAGE_AND_PIPELINE_TRACE.md](Engineering/STORAGE_AND_PIPELINE_TRACE.md) | *Historical Reference* | Prototype data flows, relational schema, legacy iCloud Drive sync boundaries. |
+| [Audio/STUDY_GUIDE_AUDIO_FULL.txt](Audio/STUDY_GUIDE_AUDIO_FULL.txt) | **Active Reference** — rewritten 2026-09-02, facts corrected 2026-09-29 | The study guide as a spoken course: five passes over the whole machine, each one deeper (explained like you're five, beginner, engineer, researcher, tie-together), about 80 minutes. `Audio/Reference_word_bank/` is the 612-term glossary read aloud, for lookup only. |
+| [STORAGE_AND_PIPELINE_TRACE.md](Archive/STORAGE_AND_PIPELINE_TRACE.md) | *Archived 2026-09-29*, self-labelled superseded April trace | Prototype data flows, relational schema, legacy iCloud Drive sync boundaries. |
 
 ---
 
@@ -51,7 +54,7 @@ StoreKit boundaries, private routing enclaves, and local capability checks.
 | [BILLING_AND_LIMITS.md](BILLING_AND_LIMITS.md) | **Active Reference** — product IDs re-checked 2026-08-05 | StoreKit 2 product registry, quota policies (`QuotaPolicy.swift`), legacy subscription protections. Notes the discontinued Document Pack. |
 | [PRIVATE_CLOUD_COMPUTE.md](Engineering/PRIVATE_CLOUD_COMPUTE.md) | **Active Reference** | Security properties, stateless enclaves, and verification tooling for Apple's PCC architecture. |
 | [APPLE_MODELS.md](Engineering/APPLE_MODELS.md) | **Active Reference** | Foundation Models framework details (`LanguageModelSession`), prompt compilation, token budgets. |
-| [HARD_LIMITS.md](Engineering/HARD_LIMITS.md) | **Active Reference** — partially re-verified 2026-08-05 | **Token boundaries and the public-claim constraints they create**, plus measured device throughput. Read this before writing any performance or capability claim. |
+| [HARD_LIMITS.md](Engineering/HARD_LIMITS.md) | **Active Reference** — LLM-constraints table re-verified 2026-09-29; other sections as dated in the file | **Token boundaries and the public-claim constraints they create**, plus measured device throughput. Read this before writing any performance or capability claim. |
 
 ---
 
@@ -66,7 +69,7 @@ Research grounding the implementation.
 | [HOW_OPENINTELLIGENCE_WORKS_OPUS_2026-08-22.txt](Research/HOW_OPENINTELLIGENCE_WORKS_OPUS_2026-08-22.txt) | *Source material* — plain-text export of the Claude Opus 5 walkthrough artifact, republished 2026-08-22 | The reasons behind each part, written for a walkthrough. One claim is wrong (audio transcription); see `Engineering/FULL_SYSTEM_TRACE.md` §9.1. |
 | [RAG_AND_RETRIEVAL_2024_2026.md](Research/RAG_AND_RETRIEVAL_2024_2026.md) | **Active Reference** | Retrieval literature underpinning the upgrade plan. |
 | [EMBEDDING_AND_INGESTION_UPGRADE_2026-08.md](Research/EMBEDDING_AND_INGESTION_UPGRADE_2026-08.md) | **Active Research** | The survey behind the post-4.9 retrieval arc. Paired with the engineering plan in Category 5. |
-| [APPLE_DOCUMENT_INTELLIGENCE.md](Engineering/APPLE_DOCUMENT_INTELLIGENCE.md) | **Active Reference** | Document layout analysis, OCR confidence, column extraction. |
+| [APPLE_DOCUMENT_INTELLIGENCE.md](Archive/APPLE_DOCUMENT_INTELLIGENCE.md) | *Archived 2026-09-29* | A pre-WWDC 2026 copy of Apple's document APIs; the `apple-api-truth` skill holds the maintained facts, and `Research/DOCUMENT_INTELLIGENCE_AND_OCR.md` the sources. |
 | [APPLE_FM_TECH_REPORT_2025.md](Engineering/APPLE_FM_TECH_REPORT_2025.md) | **Active Reference** | Apple's pre-trained SLM specs: quantization schedules, palettization. |
 | [COREML_METAL_ON_DEVICE_AI.md](Research/COREML_METAL_ON_DEVICE_AI.md) | **Active Reference** | Core ML loading parameters, `MLComputeUnits` selection, Metal performance shaders. |
 | [DOCUMENT_INTELLIGENCE_AND_OCR.md](Research/DOCUMENT_INTELLIGENCE_AND_OCR.md) | **Active Reference** | `RecognizeDocumentsRequest` vs. `VNRecognizeTextRequest` configuration. |
@@ -90,7 +93,7 @@ and nothing caught it. Update the marker before the copy, never after.
 
 | Document | Lifecycle State | Purpose & Code Subsystems |
 | :--- | :--- | :--- |
-| [RETRIEVAL_UPGRADE_PLAN_2026-08.md](Engineering/RETRIEVAL_UPGRADE_PLAN_2026-08.md) | **Active Plan** — plan only, nothing implemented | The sequenced post-4.9 retrieval and ingestion work. Item 2A (benchmark harness) comes first because everything else is unfalsifiable without it. |
+| [RETRIEVAL_UPGRADE_PLAN_2026-08.md](Engineering/RETRIEVAL_UPGRADE_PLAN_2026-08.md) | **Active Plan** — partly implemented (1B done, 2A's metrics done); per-item status dated 2026-09-29 in the file | The sequenced post-4.9 retrieval and ingestion work. Item 2A (benchmark harness) comes first because everything else is unfalsifiable without it. |
 | [EVALS.md](EVALS.md) | **Active Reference** — verified at v4.4 | Quality gate targets, `.jsonl` dataset examples, CI test execution. Its header explains why no Deep Think or Maximum score is currently valid. |
 
 > A previous version of this index listed an `EVALS_ATLAS.md` entry that pointed at `EVALS.md`, the same file as the row above it. There is no separate atlas; the duplicate has been removed.
@@ -104,8 +107,8 @@ Operating protocol for any agent or engineer modifying the codebase.
 | Document | Lifecycle State | Purpose & Code Subsystems |
 | :--- | :--- | :--- |
 | [SUPERSEDING_EVIDENCE_PROTOCOL.md](AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md) | **Active Directive** | Resolving architectural contradictions and scoring codebase claims. Evidence tagging is mandatory. |
-| [TASK_ROUTER_AND_CHANGE_CONTROL.md](AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md) | **Active Directive** | Coordinating file changes, task allocation, and roadmap updates. |
-| [PHASE_1A_IMPLEMENTATION_PLAN.md](AgentPlaybooks/06_PHASE_1A_IMPLEMENTATION_PLAN.md) | **Active Directive** | Evidence threads implementation tasks. |
+| [TASK_ROUTER_AND_CHANGE_CONTROL.md](AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md) | **Superseded**, kept as history | The router's first version; the RepoOS preflight and its change-impact matrix route tasks now (`AGENTS.md` rule 11, and the file's own status line). |
+| [PHASE_1A_IMPLEMENTATION_PLAN.md](Archive/06_PHASE_1A_IMPLEMENTATION_PLAN.md) | *Archived 2026-09-29* | Evidence Threads Phase 1A tasks; Phases 1A to 1D are complete (`AGENTS.md` rule 13). |
 | [RepoOS Command Center](RepoOS/00_REPO_COMMAND_CENTER.md) | **Active Directive** | One-page entry point: document authority order (a ranking, not a reading list), edit boundaries, required tests. |
 | [Docs/ai/INDEX.md](ai/INDEX.md) | **Agent entry point** | Where an agent session starts. Every task reads `ai/STATE.md` (current objective and next action), the superseding protocol and `ai/ARCHITECTURE.md` (component map), then only what the preflight's route names (`AGENTS.md` rule 15). `ai/PROJECT.md`, `ai/DECISIONS.md` and `ai/RUNBOOK.md` are read on demand. |
 
@@ -117,7 +120,7 @@ Inventories and maps compiled during audit checkpoints. Per the RepoOS Command C
 
 | Document | Path | Purpose |
 | :--- | :--- | :--- |
-| Phase Ledger | [PHASE_LEDGER.md](AuditArtifacts/ArchitectureAtlas/PHASE_LEDGER.md) | Completion status of repository audits (Phases 0–10). |
+| Phase Ledger | [PHASE_LEDGER.md](AuditArtifacts/ArchitectureAtlas/PHASE_LEDGER.md) | Completion status of repository audits (Phases 0 to 9B, plus the final review). |
 | Component Inventory | [component_inventory.csv](AuditArtifacts/ArchitectureAtlas/component_inventory.csv) | Swift components, method hashes, database triggers, metrics. |
 | Subsystem Map | [subsystem_map.md](AuditArtifacts/ArchitectureAtlas/subsystem_map.md) | Subsystem divisions mapping features back to files. |
 | Verification Matrix | [document_claim_matrix.csv](AuditArtifacts/Verification/document_claim_matrix.csv) | Maps public claims to codebase logic, to prevent false claims. |
@@ -131,19 +134,23 @@ source of truth.**
 
 They are deliberately **not** relocated. A move was scoped on 2026-08-17 and rejected: the seven
 carry **48 inbound references** between them, `PCC_Dynamic_Routing_Audit_Spec.md` is cited from
-`CHANGELOG.md` which is history and must not be rewritten, and one of them is load-bearing for the
+the changelog history (now `Archive/CHANGELOG_2.0_to_5.2.md`), which must not be rewritten, and one of them is load-bearing for the
 live routing system. Listing them here costs nothing and breaks nothing; moving them breaks the
 RepoOS.
 
+**Re-examined 2026-09-29 and kept.** A cleanup pass proposed archiving the four June audits; its own final check
+refused. All four already open with an [Archived] banner, gunnarguy.me already files them under Historical,
+and moving them would break 71 working links inside the three `FULL_REPO_*` files.
+
 | Document | Lifecycle State | Note |
 | :--- | :--- | :--- |
-| [DOCUMENTATION_CONSISTENCY_AUDIT.md](DOCUMENTATION_CONSISTENCY_AUDIT.md) | **Active Directive, not a snapshot** | The exception. Referenced by 20 files including `RepoOS/01_TASK_ROUTER.md`, `02_AGENT_PROMPT_COMPILER.md`, `03_FORBIDDEN_EDIT_BOUNDARIES.md`, `04_RELEASE_READINESS_DASHBOARD.md` and the Atlas. Live governance depends on it. Do not move or delete. |
+| [DOCUMENTATION_CONSISTENCY_AUDIT.md](DOCUMENTATION_CONSISTENCY_AUDIT.md) | **Active Directive, not a snapshot** | The exception. Referenced by 29 files (counted 2026-09-29) including `RepoOS/01_TASK_ROUTER.md`, `02_AGENT_PROMPT_COMPILER.md` (archived 2026-09-29), `03_FORBIDDEN_EDIT_BOUNDARIES.md`, `04_RELEASE_READINESS_DASHBOARD.md` and the Atlas. Live governance depends on it. Do not move or delete. |
 | [FULL_REPO_LINE_BY_LINE_AUDIT.md](FULL_REPO_LINE_BY_LINE_AUDIT.md) | *Dated snapshot* | Referenced only from within `AuditArtifacts/` phase documents. |
 | [FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md](FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md) | *Dated snapshot* | Paired with its verification document below. |
 | [FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md](FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md) | *Dated snapshot* | Verifies the document above. |
 | [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md](PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md) | *Dated snapshot, superseded by V2* | Read V2 instead. |
 | [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md](PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md) | *Dated snapshot* | Positioning as understood at the time of writing. |
-| [PCC_Dynamic_Routing_Audit_Spec.md](PCC_Dynamic_Routing_Audit_Spec.md) | *Dated spec* | Cited from `CHANGELOG.md`. |
+| [PCC_Dynamic_Routing_Audit_Spec.md](PCC_Dynamic_Routing_Audit_Spec.md) | *Dated spec* | Cited from `Archive/CHANGELOG_2.0_to_5.2.md`; still the only spec of the open PCC test matrix. |
 
 **Why dated audits are kept rather than deleted.** They record what was believed and when, which is
 load-bearing more often than it looks. On 2026-08-17 the note in

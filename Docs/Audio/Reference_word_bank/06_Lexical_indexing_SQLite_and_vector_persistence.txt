@@ -6,10 +6,10 @@ In the word bank's own words. The app keeps several filing systems. One remember
 
 Why it exists. Neither index is enough alone. Exact identifiers, part numbers and rare words are B M twenty-five's territory; paraphrase is the vector's. F T S five keeps nine tables, and the chunks table weights section title at 10, section path at 5 and content at 1 so a match in a heading outranks the same word in prose. Vectors live in the vectors dot bin file, memory-mapped so a library's embeddings cost no heap; norms are in the norms dot bin file. Writes are atomic file swaps. write-ahead logging lets reads continue during a write.
 
-Where it runs. F T S five is C P U and disk, inside an actor, with a 3 second busy timeout. Vector similarity has a two-level switch: at 1,000 or more vectors and a Metal device present, the mapped buffer goes to a Metal kernel with no copy; below that, C P U Accelerate, using one V D S P matrix multiply when the count exceeds the device's batch threshold (16 on M-series) and per-vector V D S P dot product otherwise. The user's G P U profile does not gate this path.
+Where it runs. F T S five is C P U and disk, inside an actor, with a 3 second busy timeout. Vector similarity has a two-level switch: at 1,000 or more vectors, the Performance or Maximum G P U profile, and a Metal device present, the mapped buffer goes to a Metal kernel with no copy; without all three, C P U Accelerate, using one V D S P matrix multiply when the count exceeds the device's batch threshold (16 on M-series) and per-vector V D S P dot product otherwise. The user's G P U profile gates this path: Efficiency and Balanced, the default, keep vector search on the C P U, and so does a background ingestion running C P U only.
 
 Corrections to the earlier documents.
-OI-0155 caveat says the route also depends on the user G P U policy. It does not; the conditions are the 1,000 count and is GPU Available. The profile gates Core M L units and the maximal marginal relevance matrix.
+OI-0155 caveat says the route also depends on the user G P U policy. It does: the conditions are the 1,000 count, use Metal for vector ops, which is true only for Performance and Maximum, and is GPU Available. The profile also gates Core M L units and the maximal marginal relevance matrix.
 
 The word bank for this module. 49 concepts. For each one you will hear the term, its status, and one plain description.
 
@@ -67,11 +67,11 @@ Can you explain it? Say each of these out loud. If you cannot, go back.
 1. List the nine tables.
 2. Give the three F T S column weights and the tokenizer.
 3. Explain memory mapping and what it saves.
-4. State both conditions for the G P U path and both tiers of the C P U path.
+4. State all three conditions for the G P U path and both tiers of the C P U path.
 5. Explain why two live instances must never map one file.
 
 Quiz.
-Question 1. What are the two conditions for vector search to use the G P U? Pause here if you want to answer first. ... The answer. At least 1,000 vectors in the container, and a Metal device with a command queue. The G P U execution profile is not consulted on this path.
+Question 1. What are the three conditions for vector search to use the G P U? Pause here if you want to answer first. ... The answer. At least 1,000 vectors in the container, the Performance or Maximum G P U execution profile, and a Metal device with a command queue. Efficiency and Balanced keep vector search on the C P U.
 Question 2. What does the C P U path do above the batch threshold? Pause here if you want to answer first. ... The answer. One V D S P matrix multiply over the whole mapped buffer, then normalisation by the stored norms. Below the threshold it loops V D S P dot product per vector. The threshold is 16 on M-series and Int.max on unsupported devices.
 Question 3. Which F T S five columns are indexed and how are they weighted? Pause here if you want to answer first. ... The answer. section title (10), section path (5) and content (1), tokenised with porter unicode61. IDs, page number and structure type are UNINDEXED.
 Question 4. How many SQLite tables are there and name three? Pause here if you want to answer first. ... The answer. Nine: documents, chunks, document pages, documents vocab, chunk structured, chunk table rows, document content, document meta, semantic query cache.

@@ -6,9 +6,9 @@ The thread.
 
 Everything in this app comes from one promise and one danger.
 
-The promise is that your documents stay yours. So: one private container per library, all reading and filing on the device, memory-mapped vectors so a phone can hold a library, and a single outside room, Apple's Private Cloud Compute, used only after retrieval, only after the app has built and shown you the exact payload, only with your consent, and always with an on-device fallback.
+The promise is that your documents stay yours. So: one private container per library, all reading and filing on the device, memory-mapped vectors so a phone can hold a library, and a single outside room, Apple's Private Cloud Compute, used only after retrieval, only after the app has built the exact payload and shown you how much would be sent and why, only with your consent, and always with an on-device fallback. Choose Always Allow and it stops asking.
 
-The danger is that a language model invents. So: two indexes instead of one, so the right evidence is found more often. A cross-encoder second opinion. A similarity floor and diversity so the desk is not filled with the wrong or the same thing. A hard token budget so nothing is silently dropped without being recorded. Only two generative stages, and nine deterministic gates aimed at them. Citations to character ranges, so every claim can be checked. And an honest label of which model actually completed the answer.
+The danger is that a language model invents. So: two indexes instead of one, so the right evidence is found more often. A cross-encoder second opinion. A similarity floor and diversity so the desk is not filled with the wrong or the same thing. A hard token budget so nothing is silently dropped without being recorded. Two generative stages, and nine deterministic gates aimed at them. For lookup answers, a source-only check: two more on-device sessions, one drafting claims and one rating them, and its result can replace the answer. Citations to the exact chunk, with its page and a quote, so every claim can be checked. And an honest label of which model actually completed the answer.
 
 If you remember nothing else, remember that every part of the app is one of those two things: keeping the promise, or defending against the danger.
 
@@ -25,13 +25,13 @@ Eight. A cross-encoder reranks the shortlist; a similarity floor and maximal mar
 Nine. Evidence is packed under the real token budget, strongest first and last.
 Ten. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and only then asks for consent.
 Eleven. The model streams a typed answer with citations; nine deterministic gates decide what survives.
-Twelve. What comes back is inspectable: claims, byte-offset citations, the completed route, and a trace.
+Twelve. What comes back is inspectable: claims, chunk-level citations with page and quote, the completed route, and a trace.
 
 The ninety-second version. Say this one from memory.
 
-OpenIntelligence turns your files into a private, searchable knowledge base on the device. Ingestion extracts, chunks and embeds every document into two indexes, one for exact words and one for meaning. A question is searched both ways in parallel, fused, reranked by a cross-encoder, and packed under a hard token budget. Apple's on-device model writes a typed answer with citations, and nine deterministic gates decide what is allowed to stand. Only the final answer may leave the device, to Private Cloud Compute, and only after the app shows you exactly what would be sent and you agree.
+OpenIntelligence turns your files into a private, searchable knowledge base on the device. Ingestion extracts, chunks and embeds every document into two indexes, one for exact words and one for meaning. A question is searched both ways in parallel, fused, reranked by a cross-encoder, and packed under a hard token budget. Apple's on-device model writes a typed answer with citations, and nine deterministic gates decide what is allowed to stand. Only the final answer may leave the device, to Private Cloud Compute, and only after the app shows you how much would be sent and why, and you agree; Always Allow stops it asking.
 
-The five-minute version. The twelve sentences, each expanded with one number. Three hundred and ten words. Five hundred and ten tokens. Three hundred and eighty-four dimensions. One thousand vectors. K equals sixty. Zero point seven and zero point three. Four thousand and ninety-six and three thousand two hundred. Zero point four zero and zero point five five. Nine gates. One hundred and eighty seconds.
+The five-minute version. The twelve sentences, each expanded with one number. Three hundred and ten words. Five hundred and ten tokens. Three hundred and eighty-four dimensions. One thousand vectors. K equals sixty. Zero point five zero and zero point five zero on the first pass. Four thousand and ninety-six and three thousand two hundred. Zero point four zero and zero point five five. Nine gates. One hundred and eighty seconds.
 
 At the whiteboard. Draw two indexes. Draw the parallel search and the merge. Draw the shortlist and the second reader. Draw the desk with its budget. Draw the plan with its four outcomes. Draw the model. Draw the gates. Then, when someone asks where the Neural Engine runs, say: the code requests it on five lines, Apple decides, and nothing in the app can measure it. That answer is more impressive than a confident wrong one.
 
@@ -43,9 +43,9 @@ Two. How does the app decide a P D F needs O C R? Pause. It samples the page wit
 
 Three. Why three hundred and ten words? Pause. Five hundred and ten usable tokens at about one and a half tokens per word is about three hundred and forty words, minus thirty for the contextual prefix.
 
-Four. What are the two conditions for vector search to use the G P U? Pause. At least one thousand vectors, and a Metal device with a command queue. The G P U profile is not consulted.
+Four. What are the three conditions for vector search to use the G P U? Pause. At least one thousand vectors, the performance or maximum G P U profile, and a Metal device with a command queue. Efficiency and balanced keep vector search on the C P U.
 
-Five. What are the fusion constants? Pause. Reciprocal rank fusion with k sixty, vector weight zero point seven, keyword weight zero point three.
+Five. What are the fusion constants? Pause. Reciprocal rank fusion with k sixty, vector weight zero point five zero, keyword weight zero point five zero in a default library, moved by the question's intent and clamped between zero point three five and zero point six five on the first pass. In Standard, when retrieval looks weak, a cascade leans keyword, zero point three five and zero point six five, or zero point three eight and zero point six two; and when the top match scores below zero point four five, a keyword retry can fuse at zero point three vector and zero point seven keyword.
 
 Six. Why run the cross-encoder only on a shortlist? Pause. It reads question and passage together, so it cannot precompute anything and costs one inference per pair. Accurate on ninety, impossible on a library.
 

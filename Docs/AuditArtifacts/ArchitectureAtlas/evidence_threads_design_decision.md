@@ -1,5 +1,13 @@
 # Evidence Threads Design Decision
 
+> **Superseded in part (2026-09-29).** Phase 1B (`b661aab`, 2026-06-28) changed what sections 5, 8 and 10 decided, and Phase 1C replaced section 12's message type:
+> - **Section 5.** Threads are stored in `Application Support/EvidenceThreads/<containerId>/` (`EvidenceThreadStore.swift:60`), not under `LocalCache/`. The store copies old `LocalCache/EvidenceThreads/` files across at launch (`migrateLegacyThreadsIfNeeded`, `EvidenceThreadStore.swift:19-23`).
+> - **Section 8.** iCloud sync shipped, through `WorkspaceSyncService.synchronizeEvidenceThreads` (called at `WorkspaceSyncService.swift:2331`, defined at `:2732`). Whether it reaches the store's folder is an open Unknown in the Evidence Threads row of `Docs/ai/ARCHITECTURE.md`.
+> - **Section 10.** App Intents shipped: `ListEvidenceThreadsIntent` (`RAGAppIntents.swift:795`) and `CreateNewEvidenceThreadIntent` (`:843`).
+> - **Section 12.** Phase 1A (`f977849`, 2026-06-27) defined `EvidenceThreadMessage` inside `EvidenceThread.swift` rather than in a file of its own, with `messages: [EvidenceThreadMessage]`. Phase 1C (`5e5f1b9`, the same day) deleted the type and made `messages` `[ChatMessage]` (`EvidenceThread.swift:16`), which is why every thread file stores `ChatMessage`'s Codable shape and why `ChatMessage.swift` stays a hard boundary.
+>
+> The same Phase 1B commit added per-tier thread limits (`QuotaPolicy.evidenceThreadLimit`), which qualifies section 9, and Phases 1B and 1C (`5e5f1b9`) edited `WorkspaceSyncService.swift` and `ChatScreen.swift`, two files section 14 prohibited in Phase 1. Still standing: the comparison of Designs A to D (sections 2 to 4), the choice of one JSON file per thread, and section 6, since `ChatMessage.swift` has not changed since `fca838e` (2026-06-09) and is a hard-boundary file in `CLAUDE.md`. For the current state read canonical doc section 11 and the Evidence Threads row of `Docs/ai/ARCHITECTURE.md`. `[evidence_level: code_verified, confidence: high, evidence_source: EvidenceThreadStore.swift:19-23,60; WorkspaceSyncService.swift:2331,2732; RAGAppIntents.swift:795,843; EvidenceThread.swift:16; git show --stat b661aab; git show f977849 and 5e5f1b9 (the EvidenceThreadMessage struct added, then removed); git log on ChatMessage.swift; read 2026-09-29]`
+
 ## 1. Decision Summary
 We will implement Evidence Threads using isolated JSON files per thread (Design B). This ensures zero blast radius to the legacy chat system, provides high performance for individual thread operations, and aligns perfectly with the existing iCloud Drive (Ubiquity) sync mechanism without requiring complex SQLite or CoreData migrations.
 

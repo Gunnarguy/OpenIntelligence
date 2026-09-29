@@ -17,4 +17,4 @@ Eight. A cross-encoder reranks the shortlist; a similarity floor and maximal mar
 Nine. Evidence is packed under the real token budget, strongest first and last.
 Ten. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and only then asks for consent.
 Eleven. The model streams a typed answer with citations; nine deterministic gates decide what survives.
-Twelve. What comes back is inspectable: claims, byte-offset citations, the completed route, and a trace.
+Twelve. What comes back is inspectable: claims, chunk-level citations with page and quote, the completed route, and a trace.

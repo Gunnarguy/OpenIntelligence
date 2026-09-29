@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare small local RAG benchmark fixture packs.
 
-The generated manifests are consumed by scripts/run_rag_benchmarks.py. This
+The generated manifests are read by scripts/run_quality_matrix.py --manifest. This
 script does not execute app code and does not change RAG behavior.
 """
 
@@ -798,10 +798,12 @@ def write_pack_readme(pack_dir: Path, manifest_path: Path, cases: list[PreparedC
         {rel(manifest_path)}
         ```
 
-        Run:
+        Run (the runner writes into the app's real library, so back it up first and restore it
+        afterwards, as `Benchmarks/baselines/README.md` describes under "Before you run anything"):
 
         ```bash
-        python3 scripts/run_rag_benchmarks.py {rel(manifest_path)} --open-dashboard
+        cp -a ~/Library/"Application Support"/OpenIntelligence /private/tmp/oi-library-backup
+        python3 scripts/run_quality_matrix.py --app <path/to/OpenIntelligence.app> --manifest {rel(manifest_path)}
         ```
 
         Case counts:
@@ -869,7 +871,9 @@ def main() -> int:
     print(f"Fixture pack: {pack_dir}")
     print(f"Manifest: {manifest_path}")
     print(f"Cases: {len(cases)}")
-    print(f"Run: python3 scripts/run_rag_benchmarks.py {rel(manifest_path)} --open-dashboard")
+    print("Run: back up the app library first; the runner writes into it (Benchmarks/baselines/README.md,"
+          " \"Before you run anything\"). Then:")
+    print(f"  python3 scripts/run_quality_matrix.py --app <path/to/OpenIntelligence.app> --manifest {rel(manifest_path)}")
     return 0
 
 

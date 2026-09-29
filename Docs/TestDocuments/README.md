@@ -12,7 +12,7 @@ This directory contains test files for validating the core RAG pipeline function
 ### Edge Case Tests
 - `sample_empty.txt` - Empty document
 - `sample_special_chars.txt` - Only special characters
-- `sample_long.txt` - Very long document (>10,000 words)
+- 2026-09-29: this list used to name `sample_long.txt`, a very long document (over 10,000 words). No such file is in this folder or in any commit (`git log --all -- '*sample_long.txt'` is empty), so the long-document case has no fixture here.
 - `sample_whitespace.txt` - Excessive whitespace and formatting
 
 ### Real-World Tests

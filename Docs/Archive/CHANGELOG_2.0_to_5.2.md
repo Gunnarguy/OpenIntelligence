@@ -864,3 +864,14 @@ OpenIntelligence version 4.0 & 4.1 is a milestone upgrade that integrates Apple 
 - Native iPhone experience for asking questions about personal documents
 - Multi-format import, local organization, and cited answers
 - Subscription and purchase support for product access tiers
+
+## Notes moved from CHANGELOG.md on 2026-09-29
+
+Undated; they sat under `## Notes` in `CHANGELOG.md` with no version heading. Verbatim:
+
+- [Orchestration] Added FoundationModelPreference override to allow manual selection of 3B Core, 20B Advanced, or Private Cloud Compute tiers in ChatScreen.
+- [Orchestration] Fixed InferenceConfig argument order in ChatScreen to resolve compilation failure.
+- [Orchestration] Dynamically hide 20B Advanced preference from UI on older OS versions.
+- [Orchestration] Resolved duplicated text rendering in manual model selector pill.
+- [Orchestration] Fixed bug causing Gate I to falsely fail during Verification Pipeline execution.
+- [UI] Cleaned up manual model selector pill layout.

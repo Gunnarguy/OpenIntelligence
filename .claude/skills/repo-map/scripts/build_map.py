@@ -419,7 +419,7 @@ TEST_DATA_DIRS = {"fixtures", "testdata", "testdocuments", "testresources", "__s
 PRODUCT = {"README.md", "CHANGELOG.md", "WHATS_NEW.md", "PRIVACY.md", "HOW_IT_WORKS.md", "LICENSE",
            "THIRD_PARTY_NOTICES.md", "Docs/RELEASE_NOTES.md", "Docs/USER_CHANGELOG.md", "Docs/ROADMAP.md",
            "Docs/DEMO.md", "Docs/LIMITATIONS.md", "Docs/HOW_IT_WORKS.md", "Docs/README.md",
-           "Docs/RELEASE_NOTES_4.8_DRAFT.md", "Docs/STUDY_GUIDE.md"}
+           "Docs/STUDY_GUIDE.md"}
 HIST_MARK = re.compile(
     r"(?i)(\bthis (?:document|doc|file|page|report|audit|plan|ledger|guide) (?:is|was) (?:now |kept as |retained as )?(?:a )?"
     r"(?:historical|superseded|archived|deprecated|obsolete|frozen|record|snapshot)"

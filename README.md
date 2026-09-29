@@ -138,7 +138,7 @@ physical device. Where something is unproven, it says so.
 
 **Apple platform specifics**
 - [Apple Foundation Models](Docs/Engineering/APPLE_MODELS.md) — token budgets, guided generation
-- [Apple Document Intelligence](Docs/Engineering/APPLE_DOCUMENT_INTELLIGENCE.md) — Vision, PDFKit, Speech
+- [Document Intelligence and OCR sources](Docs/Research/DOCUMENT_INTELLIGENCE_AND_OCR.md) — Apple's Vision and PDFKit documentation, as researched
 - [Private Cloud Compute](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md) — enclave constraints, native integration
 
 **Honest limits**

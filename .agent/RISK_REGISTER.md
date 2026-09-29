@@ -11,6 +11,7 @@
 *   **Description:** The active `.entitlements` file intentionally omits `com.apple.developer.private-cloud-compute` to prevent CI/CD signing errors. The app runs PCC routes by simulating them locally on `SystemLanguageModel.default` via a compatibility shim.
 *   **Impact:** Medium (app does not execute on remote secure enclaves; behaves as standard on-device execution).
 *   **Mitigation:** Ensure the fallback logic remains intact and does not crash when the entitlement is absent. `[evidence_level: code_verified, confidence: exact]`
+*   **Corrected 2026-09-29:** both premises stopped holding. `OpenIntelligence/OpenIntelligence.entitlements:19-20` carries `com.apple.developer.private-cloud-compute`, and the local stand-in that ran PCC routes on `SystemLanguageModel.default` was removed in `c6052df` (2026-07-15). Since 5.2 (build 451, 2026-09-10) PCC runs through `PrivateCloudComputeLanguageModel` on iOS and macOS 27; on 26 the session factory throws instead of simulating (`FoundationModelSessionFactory.swift:86-110`). `[evidence_level: code_verified, confidence: exact]`
 
 ### RISK-03: Lack of Unit Testing Framework
 *   **Description:** PR #3 deleted the Xcode unit testing targets and all associated tests. Currently, there are no compiled unit tests running.

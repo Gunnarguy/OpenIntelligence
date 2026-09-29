@@ -10,7 +10,7 @@ The second half is called the query pipeline. That is everything that happens wh
 
 The app as a whole is a kind of system called retrieval-augmented generation, usually shortened to RAG. The name means exactly what it says. Retrieval first: go and find the relevant pieces of your own documents. Then generation: have a language model write an answer using only those pieces. The retrieval part is what makes the answer about your documents. The generation part is what makes it readable. Keep those two words apart in your head, because almost every design decision in the app comes from keeping them apart.
 
-One more idea before we walk. Some stages in this app are deterministic, meaning the same input always produces the same output, like a calculator. Cutting text, searching, ranking, checking citations, all deterministic. Other stages are generative, meaning a language model is asked to produce text, and it could produce something that is not true. There are only two generative stages in the whole app: rewriting your question, and writing the answer. Everything else is a calculator. That matters because a calculator cannot hallucinate. Only the two generative stages can, and so the checking is aimed at them.
+One more idea before we walk. Some stages in this app are deterministic, meaning the same input always produces the same output, like a calculator. Cutting text, searching, ranking, checking citations, all deterministic. Other stages are generative, meaning a language model is asked to produce text, and it could produce something that is not true. There are two generative stages: rewriting your question, and writing the answer. For a lookup question, a source-only check can add two more model sessions, one drafting claims and one rating them against the evidence, and its result can replace the answer. Everything else is a calculator. That matters because a calculator cannot hallucinate. Only the generative steps can, and so the checking is aimed at them.
 
 Now the tour.
 
@@ -78,7 +78,7 @@ The language model on the device has a fixed window of about four thousand token
 
 Query, step six. Deciding where to write.
 
-Only now, after retrieval, does the app decide which model writes the answer. It builds an execution plan with four possible outcomes. Abstain, if there is not enough evidence. Deterministic, if a rule can extract the answer directly, say a single value from a table. On device, which is the normal case. Or Private Cloud Compute, which is Apple's outside room. The outside room is chosen only when the evidence does not fit the local window or the question is complex enough to need it, and only if the network is up and you have consented. Before it asks you, it builds the exact trimmed set of chunks that would be sent and shows you that. If you decline, it writes on the device. Every cloud plan has an on-device fallback.
+Only now, after retrieval, does the app decide which model writes the answer. It builds an execution plan with four possible outcomes. Abstain, if there is not enough evidence. Deterministic, if a rule can extract the answer directly, say a single value from a table. On device, which is the normal case. Or Private Cloud Compute, which is Apple's outside room. The outside room is chosen only when the evidence does not fit the local window or the question is complex enough to need it, and only if the network is up and you have consented. Before it asks you, it builds the exact trimmed set of chunks that would be sent and shows you how much that is and why. If you decline, it writes on the device, and if you chose Always Allow, it stops asking. Every cloud plan has an on-device fallback.
 
 Query, step seven. Generation.
 
@@ -90,7 +90,7 @@ Nine checks, called gates, lettered A to I, run in order. They are all determini
 
 Query, step nine. What you get.
 
-A typed answer with citations that jump to the exact character range in the source. A label saying which model actually completed the answer, on device or cloud, based on what ran rather than what was requested. A diagnostics view showing how many chunks were found, kept, dropped and packed. And a trace log on disk recording every stage with timings, for when something goes wrong.
+A typed answer with citations that point to the exact chunk in the source, with its page and a short quote. A label saying which model actually completed the answer, on device or cloud, based on what ran rather than what was requested. A diagnostics view showing how many chunks were found, kept, dropped and packed. And a trace log on disk recording every stage with timings, for when something goes wrong.
 
 Now the word agentic.
 
@@ -98,7 +98,7 @@ In Standard mode, the pipeline runs once. In Deep Think and Maximum, an orchestr
 
 Last thing for this pass. The hardware.
 
-Your phone has three kinds of processor: the C P U, the G P U, and the Neural Engine. People love to say which one runs what, and most of what gets said is not something the app can know. Here is what is actually true. The app can explicitly use the G P U for one thing: comparing your question's coordinates against a very large library, using a small program called a Metal kernel. It does that when the library has a thousand or more chunks. For the embedding model and the reranker, the app can only ask Apple's Core M L framework which processors it is allowed to use, and Core M L decides. For O C R, speech, and the language model itself, the app has no say at all; Apple's frameworks decide and do not report back. So when someone asks where the Neural Engine runs, the honest answer is: the app requests it in a few places, and Apple decides.
+Your phone has three kinds of processor: the C P U, the G P U, and the Neural Engine. People love to say which one runs what, and most of what gets said is not something the app can know. Here is what is actually true. The app can explicitly use the G P U for one thing: comparing your question's coordinates against a very large library, using a small program called a Metal kernel. It does that when the library has a thousand or more chunks and the G P U profile is set to performance or maximum. For the embedding model and the reranker, the app can only ask Apple's Core M L framework which processors it is allowed to use, and Core M L decides. For O C R, speech, and the language model itself, the app has no say at all; Apple's frameworks decide and do not report back. So when someone asks where the Neural Engine runs, the honest answer is: the app requests it in a few places, and Apple decides.
 
 That is the beginner's tour. You now know the real names: ingestion and query, deterministic and generative, chunk, embedding, vector, F T S five and B M twenty-five, reciprocal rank fusion, cross-encoder, M M R, token budget, execution plan, Private Cloud Compute, Foundation Models, structured answer, the nine gates, and agentic.
 

@@ -1,4 +1,4 @@
-> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+> **Documentation status:** Apple-platform reference, last updated June 14, 2026, with its Private Cloud Compute availability and context-size lines corrected 2026-09-29. Its June 2026 repo notes are not a record of what the app does now: for routing read [`Docs/PRIVACY_AND_ROUTING.md`](../PRIVACY_AND_ROUTING.md), for limits [`HARD_LIMITS.md`](./HARD_LIMITS.md). The iOS/macOS 27 "Beta" labels below date from June; Apple's reference now lists 27.0 without a beta flag. Corrected 2026-09-29: this line called the file a historical reference not to be used as the source of truth for OpenIntelligence v4.1, which contradicted the June 14, 2026 update date below. `[evidence_level: documented, confidence: high, evidence_source: https://developer.apple.com/documentation/foundationmodels/privatecloudcomputelanguagemodel platform list (introducedAt 27.0, beta false), fetched 2026-09-29]`
 
 # Apple Intelligence Models & Specs
 
@@ -15,7 +15,7 @@ Current source code reflects Apple's modern platform context limits and models a
 
 - `LLMService.swift` manages dynamic model routes via `SystemLanguageModel.default` and `PrivateCloudComputeLanguageModel()`.
 - `ModelResolutionService.swift` monitors the query execution pathway in real-time, resolving whether On-Device or PCC is actively serving queries.
-- `RAGService.swift` delegates context size bounds based on the active model's routing window (4K for On-Device vs. 32K for PCC).
+- `RAGService.swift` delegates context size bounds based on the active model's routing window (4K for On-Device vs. 32K for PCC). Corrected 2026-09-29: those are Apple's documented figures, not constants in `RAGService.swift`, which sizes the plan's on-device and PCC budgets from the context sizes the SDK reports at runtime through `LiveFoundationModelCapabilityProvider`. Context assembly for a PCC-eligible question still sizes its evidence from the `32768` fallback in `FoundationModelTokenBudget.swift:39` (`RAGService.swift:12674`). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:16288-16310, 12674; FoundationModelCapabilityProvider.swift:26,74; FoundationModelTokenBudget.swift:28-39]`
 - `AppleFMEmbeddingProvider.swift` is not an active embedding provider. Current embeddings come from Core ML/Natural Language paths.
 
 ### API Differences: WWDC25 (iOS 26.x) vs. WWDC26 (iOS 27.0 Beta)
@@ -56,10 +56,12 @@ Related docs:
 
 ### On-Device vs. Private Cloud Compute (PCC)
 
-Apple's Foundation Models framework under macOS 26+ and iOS 26+ defines two distinct execution paths:
+Apple's Foundation Models framework defines two distinct execution paths, the second only on macOS 27+ and iOS 27+:
 
-*   **On-Device (`SystemLanguageModel.default`)**: Features a **4,096-token** context window limit. Ideal for standard queries and fast offline processing.
-*   **Private Cloud Compute (`PrivateCloudComputeLanguageModel`)**: Exposes a **32,768-token** context window. Queries are dynamically routed to PCC secure server enclaves for deep reasoning or when the context/chat history overflows the on-device 4K ceiling.
+*   **On-Device (`SystemLanguageModel.default`)**: Its window is what the SDK reports (`SystemLanguageModel.default.contextSize`), with **4,096 tokens** as the fallback (corrected 2026-09-29; `FoundationModelTokenBudget.swift:28-35`). Ideal for standard queries and fast offline processing.
+*   **Private Cloud Compute (`PrivateCloudComputeLanguageModel`, iOS/macOS 27+ only)**: Apple documents a **32K-token** context window, and the sample code in WWDC26 session 319 gives `contextSize` as 32768. The SDK reports the window only through an async `contextSize`; the `32768` in `FoundationModelTokenBudget.swift:39` is the app's synchronous fallback, not a value it measured. Queries are dynamically routed to PCC secure server enclaves for deep reasoning or when the context/chat history overflows the on-device 4K ceiling.
+
+Corrected 2026-09-29: this section placed both paths under macOS 26+ and iOS 26+ and gave PCC a flat **32,768-token** window as fact. `PrivateCloudComputeLanguageModel` is `@available(iOS 27.0, macOS 27.0, visionOS 27.0, watchOS 27.0, *)`, and the 32,768 figure is Apple's documentation, not the app's measurement. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModels.swiftinterface:43-45,131-137 in the iPhoneOS SDK of Xcode 27.0 (27A266a); FoundationModelTokenBudget.swift:37-39]` `[evidence_level: documented, confidence: high, evidence_source: https://developer.apple.com/documentation/foundationmodels/adding-server-side-intelligence-with-private-cloud-compute and https://developer.apple.com/videos/play/wwdc2026/319/ (code at 5:58), both fetched 2026-09-29]` For the value the app receives on a device: `[evidence_level: unverified, confidence: low, evidence_source: HARD_LIMITS.md records the figure as not measured, and no device reading of PrivateCloudComputeLanguageModel.contextSize is recorded there]`
 
 Everything in a session contributes to the token budget:
 

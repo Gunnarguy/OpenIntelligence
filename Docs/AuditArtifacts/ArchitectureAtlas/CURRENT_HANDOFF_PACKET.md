@@ -1,5 +1,7 @@
 # Current Handoff Packet
 
+> **Superseded (2026-09-29): a record of the 2026-07-01 governance pass (`7358afe`), not the current handoff.** The current objective and next action are in `Docs/ai/STATE.md`, the tool-neutral reading order is `HANDOFF.md`, and what a task may read and edit comes from the RepoOS preflight (`python3 .codex/skills/route-openintelligence-work/scripts/repoos_router.py preflight --task "..." --path <path>`).
+
 **Current Task Name**: RepoOS Governance Layer — Verification and Commit
 **Current Status**: Evidence Threads implementation COMPLETE (Phases 1A–1D). Docs reconciliation pass applied 2026-07-01.
 

@@ -4,6 +4,8 @@
 > 2. Until 4.9 the post-retrieval planner read `chunks.first`'s similarity score rather than the maximum over the set, which triggered abstentions from a number that never described the evidence (fixed in `acfbfbd`).
 >
 > No dataset score for Deep Think or Maximum exists that postdates both fixes. Extending this harness to report retrieval-stage metrics — recall@k, MRR, nDCG — is item 2A in `Docs/Engineering/RETRIEVAL_UPGRADE_PLAN_2026-08.md` and is the next planned work.
+>
+> **2026-09-29: the paragraph above (written 2026-08-05) and the "Start here" table below (2026-08-13) predate every later result.** Later results live in `BenchmarkRuns/LEDGER.md`; `BenchmarkRuns/PROGRESSION.md` indexes runs up to its last change on 2026-08-24 (`5f30a37`). They include Deep Think runs made after both fixes (the first, `paired-retry` at `1b700ed` on 2026-08-19; the largest, `overnight-25case-nodeadlock` at `73fff4f` on 2026-08-20, Deep Think 9/25 against Standard 10/25) and per-stage retrieval metrics (MRR, r@1, r@10 and nDCG@10 by stage), measured with the instrument item 2A called for, which landed in `cb82471` and was wired in by `493d577` (2026-08-07 and 2026-08-08). Neither file records a Maximum run after 2026-07-30, so the Maximum half of the sentence above still holds as far as they show. `[evidence_level: artifact_derived, confidence: high, evidence_source: BenchmarkRuns/LEDGER.md sections paired-retry and overnight-25case-nodeadlock; BenchmarkRuns/PROGRESSION.md, whose only maximum row is 20260730-091821-matrix; git merge-base --is-ancestor shows 665da0a and acfbfbd in the history of 1b700ed and 73fff4f; git show cb82471 and 493d577; git blame of the paragraph (cd72250) and the table (253450e)]`
 > **Source of truth:** The code. The codebase audit this line cited in `Docs/AUDIT/` is not in the repository: `Docs/AUDIT/` is gitignored and holds only `QUALITY_MODE_VERIFICATION_2026-07-30.md`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
@@ -24,6 +26,11 @@ The short version as of 2026-08-13:
 | Where does it lose? | Retrieval truncation. The right document reaches final ranking on **75% of missed cases** |
 | What is the biggest lever? | Final retrieval breadth (`--top-k`), then RRF fusion weighting, then the embedder |
 | What is untested? | Deep Think, Maximum, iPhone, real user documents, 7 shipping pipeline stages |
+
+**2026-09-29:** this table is the 2026-08-13 picture and has not been re-derived. Results after that
+date, including Deep Think runs made after both fixes in the banner and per-stage retrieval metrics,
+live in `BenchmarkRuns/LEDGER.md`; the banner's dated note names the runs. Deep Think has been
+benchmarked since; Maximum has no run recorded after 2026-07-30.
 
 ### Where everything lives
 
@@ -255,7 +262,7 @@ engine" had nothing to read. These are the real numbers with what each one is wo
 | Measurement | Result | n | What it actually measures |
 | :--- | :--- | ---: | :--- |
 | Synthetic pack, 2026-08-11, standard | 18/20 correct, 0 hallucinated **(withdrawn 2026-08-21, see below)** | 20 | reading one correct document and restating it |
-| QASPER external, 2026-08-19, standard | 0.410 exact-match, 77 of 83 scored | 83 | real research papers this project did not write |
+| QASPER external, 2026-08-12, standard (the next row's run, `qasper-overnight`, summarised in `20260812-215108-matrix.md`: 34 correct over all 83 attempted; this row said 2026-08-19 until 2026-09-29) | 0.410 exact-match, 77 of 83 scored | 83 | real research papers this project did not write |
 | **QASPER external, 2026-08-12, standard, complete** | **34/77 correct (44%)**, 40 miss, 3 hallucinated, 6 error | 83 attempted | answering externally-authored questions against 9 distractor papers |
 | Unit suite | 236 pass, 0 fail | 236 | that units behave; no end-to-end coverage of routing, gates, sync or retrieval |
 

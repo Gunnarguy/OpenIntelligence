@@ -790,6 +790,13 @@ change did within twenty seconds. To build after a pin change, push a source cha
 in App Store Connect.
 `[evidence_level: measured, confidence: high, evidence_source: GitHub check-runs per head commit, 2026-09-05]`
 
+**`[ci skip]` stops a push that touches built paths.** Xcode Cloud skips the build when the title or
+message of the latest commit in the push contains `[ci skip]`. It is the latest commit that counts, so a
+push whose last commit lacks it builds even if an earlier one has it. Use it for pushes that touch
+`scripts/` or other paths outside the filter when no build is wanted, and confirm afterwards that the
+head commit has no GitHub check.
+`[evidence_level: documented, confidence: exact, evidence_source: developer.apple.com/documentation/xcode/configuring-start-conditions, section "Skip a build", read 2026-09-29]`
+
 **Xcode 27 cannot be submitted regardless.** As of 2026-08-25 Xcode 27 is at beta 6 (27A5252f) with
 no Release Candidate. Beta Xcode and beta SDKs are accepted for **TestFlight only**; App Store
 submission requires a release or RC toolchain and otherwise fails `ITMS-90111`.
@@ -937,6 +944,35 @@ CI is `.github/workflows/ci.yml`, building on `macos-26` on push and PR to `main
 highest installed Xcode.
 
 
+## Building to the owner's iPhone
+
+*Verified 2026-09-23, and again 2026-09-24 and 2026-09-28.* A Debug build installs over Wi-Fi with no cable;
+the "USB only" note elsewhere applies to tests, which need the developer disk image.
+
+```bash
+# 1. Mirror the repo out of iCloud (the unanchored '.build' exclude keeps the 150 MB
+#    swift-transformers/.build out of the bundle)
+rsync -a --delete --exclude 'BenchmarkRuns/' --exclude '.build' --exclude '/build/' \
+  ~/Documents/GitHub/OpenIntelligence/ /private/tmp/oi-src/
+# 2. Build for any iOS device, with the version the first numbered CHANGELOG heading names
+#    (the project file says 5.3 and Xcode Cloud stamps the real one; the override edits no file)
+cd /private/tmp/oi-src && xcodebuild build -project OpenIntelligence.xcodeproj -scheme OpenIntelligence \
+  -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/oi-build \
+  -jobs 2 -allowProvisioningUpdates MARKETING_VERSION=<X.Y>
+# 3. Install and launch; take the CoreDevice identifier from
+#    `xcrun devicectl list devices --json-output <file>` (result.devices[].identifier)
+xcrun devicectl device install app --device <CoreDevice id> \
+  /private/tmp/oi-build/Build/Products/Debug-iphoneos/OpenIntelligence.app
+xcrun devicectl device process launch --device <CoreDevice id> --terminate-existing Gunndamental.OpenIntelligence
+```
+
+A launch that fails with `BSErrorCodeDescription = Locked` after a clean install means installed but not
+launched: the phone was locked. Guard memory as the Test section says; a build reusing the simulator's DerivedData took 175 s and an
+incremental one 15 s. A development build replaces the App Store or TestFlight copy until the next store
+update and leaves the libraries alone.
+
+`[evidence_level: measured, confidence: exact, evidence_source: devicectl install and launch output on 2026-09-23, 2026-09-24 and 2026-09-28]`
+
 ## Staging a release without submitting it
 
 *Verified 2026-09-02, both platforms.*
@@ -959,6 +995,14 @@ same-numbered builds is iOS and which is macOS. Both must be `processingState: V
 `submit_latest` picks the newest processed build for the version on its own, so a staged build
 needs no extra argument at submission time; the attach step exists so that the App Store Connect UI
 shows the release complete while it waits.
+
+The two scripts that do this now, on both platforms, and never submit anything:
+`zsh -ic 'ruby scripts/asc_prepare_release.rb <X.Y> <build>'` attaches the build and writes What's New,
+the description and the keywords from `fastlane/metadata/en-US/` (a dry run until `--apply`), and
+`zsh -ic 'ruby scripts/asc_listing_extras.rb <X.Y> --apply'` (a dry run without `--apply`) appends `fastlane/review_notes/<X.Y>.txt` to the App
+Review notes and handles the rest of the listing (its sale step stops applying after `SALE_LAST_DAY`,
+2026-09-29). Promotional text is a separate PATCH on the version's `appStoreVersionLocalizations`.
+`[evidence_level: code_verified, confidence: high, evidence_source: usage headers and APPLY flags of scripts/asc_prepare_release.rb and scripts/asc_listing_extras.rb, read 2026-09-29; asc_prepare_release.rb 5.5 481 --apply run on 2026-09-28]`
 
 `[evidence_level: measured, confidence: exact, evidence_source: PATCH returned 204 for both 5.1 records on 2026-09-02; GET read back the attached ids]`
 

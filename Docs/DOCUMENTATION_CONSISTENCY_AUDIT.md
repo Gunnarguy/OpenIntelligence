@@ -1,16 +1,16 @@
 # Documentation Consistency Audit
 
-> **Documentation status:** Point-in-time findings from Phase 8 of the July 2026 Architecture Atlas audit (`Docs/AuditArtifacts/ArchitectureAtlas/PHASE_LEDGER.md`, Phase 8), with one dated resolution (2026-07-01, §2). Not re-audited as a whole since. It is still a read-first document for documentation-governance routes (`Docs/RepoOS/01_TASK_ROUTER.md:94`), so treat each finding as a lead to re-check against the code, not as current fact. Re-checked 2026-09-24, code side only: the Sync, SQLite and Billing findings in §3 still hold; the PCC finding does not (see §3 and §8). `[evidence_level: code_verified, confidence: high, evidence_source: WorkspaceSyncService.swift:3479-3480 (NSMetadataQuery over the ubiquitous documents scope; no `import CloudKit` under OpenIntelligence/); SQLiteFullTextService.swift:87,189-195 (one fulltext.sqlite with a container_id column); EntitlementStore.swift:96,107 (UserDefaults); FoundationModelSessionFactory.swift:86-92 (native PCC model)]`
+> **Documentation status:** Point-in-time findings from Phase 8 of the July 2026 Architecture Atlas audit (`Docs/AuditArtifacts/ArchitectureAtlas/PHASE_LEDGER.md`, Phase 8), with dated resolutions of 2026-07-01 (§2) and 2026-09-29 (§2, §3, §8), and two paths repointed to `Docs/Archive/` on 2026-09-29 (§1, §9). Not re-audited as a whole since. It is still a read-first document for documentation-governance routes (`Docs/RepoOS/01_TASK_ROUTER.md:94`), so treat each finding as a lead to re-check against the code, not as current fact. Re-checked 2026-09-24, code side only: the Sync, SQLite and Billing findings in §3 still hold; the PCC finding does not (see §3 and §8). `[evidence_level: code_verified, confidence: high, evidence_source: WorkspaceSyncService.swift:3479-3480 (NSMetadataQuery over the ubiquitous documents scope; no `import CloudKit` under OpenIntelligence/); SQLiteFullTextService.swift:87,189-195 (one fulltext.sqlite with a container_id column); EntitlementStore.swift:96,107 (UserDefaults); FoundationModelSessionFactory.swift:86-92 (native PCC model)]`
 
 ## 1. Docs Inspected
-- `Docs/ARCHITECTURE.md`
+- `Docs/Archive/ARCHITECTURE_v4.1.md` (archived 2026-09-29)
 - `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`
 - `Docs/BILLING_AND_LIMITS.md`
 - `Docs/INGESTION_PIPELINE.md`
 - `Docs/PRIVACY_AND_ROUTING.md`
 - `Docs/RETRIEVAL_PIPELINE.md`
 - `Docs/Engineering/RAG_TECHNICAL.md`
-- `Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md`
+- `Docs/Archive/STORAGE_AND_PIPELINE_TRACE.md` (archived 2026-09-29)
 - `Docs/LIMITATIONS.md`
 - `Docs/RELEASE_NOTES.md`
 - `Docs/ROADMAP.md`
@@ -19,11 +19,11 @@
 
 ## 2. Stale Docs
 - ~~`Docs/RELEASE_NOTES.md` (claims Core AI sentence embeddings are active).~~ **RESOLVED 2026-07-01**: superseded — Core AI sentence embeddings ARE in production with Core ML fallback per `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` §3; the release-notes claim is accurate. `[evidence: artifact_derived, high, CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md]`
-- `Docs/ARCHITECTURE.md` (violates objective tone rules).
+- ~~`Docs/ARCHITECTURE.md` (violates objective tone rules).~~ **RESOLVED 2026-09-29**: archived as `Docs/Archive/ARCHITECTURE_v4.1.md`; the current component map is `Docs/ai/ARCHITECTURE.md`.
 
 ## 3. Contradictory Docs
 - **Sync**: Docs claim CloudKit; Code uses iCloud Drive Ubiquity.
-- **PCC**: Docs claim remote enclave; Code uses local simulation.
+- ~~**PCC**: Docs claim remote enclave; Code uses local simulation.~~ **CORRECTED 2026-09-29: no longer holds.** It was accurate when this audit was written on 2026-06-26: `EngineSDKCompatibility.swift` then defined a local `PrivateCloudComputeLanguageModel` stand-in whose session initializers built the session on `SystemLanguageModel.default`, and commit `c6052df` removed it on 2026-07-15. PCC is not simulated now. On iOS/macOS 27 the session factory builds the session on `FoundationModels.PrivateCloudComputeLanguageModel`; on 26, or in a build without Swift 6.4, it throws `LLMError.modelUnavailable` instead. A planned PCC answer that fails before any text streams is retried on device, and when that succeeds its execution receipt records on-device as the completed target. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift:86-110; RAGService.swift:16693-16757; git show c6052df -- OpenIntelligence/Core/Support/EngineSDKCompatibility.swift; git blame of this line (added in 538b3e2, 2026-06-26)]`
 - **SQLite**: Docs claim isolated files; Code uses shared file with column isolation.
 - **Billing**: Docs claim Keychain; Code uses UserDefaults.
 
@@ -42,12 +42,12 @@ Apply the Documentation Reconciliation Workflow (`Docs/AgentPlaybooks/02_DOCUMEN
 
 ## 8. Docs that should be updated
 - `Docs/BILLING_AND_LIMITS.md` (Update to UserDefaults)
-- `Docs/PRIVACY_AND_ROUTING.md` (Update to local simulation, remove pronouns)
+- `Docs/PRIVACY_AND_ROUTING.md` (~~Update to local simulation,~~ remove pronouns). **CORRECTED 2026-09-29**: do not apply the local-simulation half. PCC is not simulated (see §3), and `Docs/PRIVACY_AND_ROUTING.md` already states that iOS/macOS 26 is local-only and that local generation is never labeled or simulated as PCC. The pronoun half was not re-checked. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift:103-110; Docs/PRIVACY_AND_ROUTING.md:14]`
 - `Docs/RETRIEVAL_PIPELINE.md` (Remove pronouns)
 - `Docs/INGESTION_PIPELINE.md` (Remove pronouns)
 
 ## 9. Docs that should be merged
-- `Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md` into `OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`.
+- `Docs/Archive/STORAGE_AND_PIPELINE_TRACE.md` (archived 2026-09-29) into `OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`.
 
 ## 10. Docs that should be superseded
 - Old canonical docs replaced by `CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`.

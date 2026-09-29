@@ -5,8 +5,10 @@ description: Read or update the OpenIntelligence roadmap in Notion, which is the
 
 # Notion roadmap
 
-The Notion database is authoritative for plans. `Docs/ROADMAP.md` is a mirror and has been the stale
-side before. Never answer a roadmap question from memory or from the markdown.
+The Notion database is authoritative for plans. `Docs/ROADMAP.md` was a mirror and was the stale side
+more than once; since 2026-09-29 it is a pointer here with a short dated status, and its old body is in
+`Docs/Archive/ROADMAP_record_through_2026-09-29.md`. Never answer a roadmap question from memory or
+from the markdown.
 
 `.agents/workflows/sync-notion.md` describes the same job for Antigravity. Claude Code does not load
 `.agents/`, which is why this skill exists. If the two disagree, whichever was verified more recently

@@ -54,7 +54,7 @@ If no matrix row matches, do not improvise an edit boundary. Treat the task as c
 
 ## Target release documentation every time
 
-- Every preflight identifies the active release from current repository artifacts, with `Docs/ROADMAP.md`'s `working on vX.Y` marker taking precedence.
+- Every preflight identifies the active release from `CHANGELOG.md`, the only version marker the build reads (`ci_scripts/ci_post_clone.sh`); `repoos_router.py` stopped reading `Docs/ROADMAP.md` for it after the roadmap's outline numbering was taken for a version, and since 2026-09-29 that file is a pointer to the Notion roadmap.
 - For durable implementation work, update the `CHANGELOG.md` section the preflight names in `documentation_targets.changelog_section` (not always `[Unreleased]`; see AGENTS.md rule 18) and the active version section reported for `Docs/RELEASE_NOTES.md`, plus the full AGENTS.md rule 14 document set and route-specific docs. Edit the affected section of each; none needs reading whole.
 - Use the same active version for the Notion `Target Release` property.
 - For read-only, diagnosis-only, pure-docs, or tests-only tasks, still report the targets but do not manufacture empty release-note, changelog, or roadmap edits.

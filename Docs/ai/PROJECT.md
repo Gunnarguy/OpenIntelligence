@@ -80,9 +80,15 @@ Xcode Cloud (release; as recorded 2026-09-22 it archives and has no test action,
    live behavior and has repeatedly described features with no call sites and figures with no
    measurement. Verify before adding, and verify harder before removing.
 4. **`RAGAppIntents.swift` uses 9 of 10 Siri shortcut slots.**
-5. **The suite is 173 tests across 22 files, and none of them cover routing, gates, sync, or
-   end-to-end retrieval.** The seams between subsystems are where the real defects have been found.
-   `[evidence_level: test_verified_by_prior_session, confidence: high, evidence_source: CHANGELOG.md "suite 173/173" recorded 2026-08-07, file count verified 2026-08-07, verify: run the suite command in RUNBOOK.md]`
+5. **The suite is 504 tests in 65 files as of 2026-09-28, and it tests components, not the seams
+   between them.** The 65 are 63 test files and two ingestion fixture builders. Some pieces now
+   have unit tests: `ModelExecutionPlannerTests` covers the routing decision
+   `ModelExecutionPlanner.makePlan` (9 of its 13 tests; the other 4 cover the route badge and the receipt's Codable round trip), and `SourceOnlyStandardGateTests` covers
+   `RAGService.standardSkipsSourceOnlyCheck`, the rule that lets Standard skip the source-only check
+   once the gates pass. No test calls the gates in `VerificationGateService`, `FoundationModelRoutePolicy.determineRoute`
+   or `WorkspaceSyncService`, and none runs a question end to end from retrieval to answer. The seams
+   between subsystems are where the real defects have been found.
+   `[evidence_level: test_verified_by_prior_session, confidence: high, evidence_source: full iOS suite on the merged tree, 504 tests, 4 skipped, 0 failures (Docs/ai/STATE.md, Verification 2026-09-28); git ls-files OpenIntelligenceTests (65 Swift files, 63 declaring an XCTestCase, 504 func test declarations) and a grep of that folder for each named symbol, 2026-09-29. Superseded figure: 173 tests across 22 files, recorded 2026-08-07]`
 
 ## Source-of-truth locations
 

@@ -800,6 +800,9 @@ in-development entry back.
 
 `[evidence_source: owner's messages 2026-09-24; App Store Connect read 17:00 PT, both 5.4 records READY_FOR_SALE; git show 006f6a3 -- CHANGELOG.md]`
 
+**Superseded in part by 2026-09-28.** The no-version-open state ended when the extractor-fix branch merged and 5.5
+opened; the pause itself still holds for anything beyond that fix.
+
 ## 2026-09-28 - A codemap for agents, whose links are VERIFIED only where the Swift syntax states them
 
 **Context.** A fresh agent session starts from the owner's words and 299 app Swift files.
@@ -861,4 +864,59 @@ where the lease says 60, and marked it Verified. Fascinaiting's in-development e
 until more 5.5 work is planned.
 
 `[evidence_source: git merge-tree origin/main origin/claude/determined-ritchie-7y60am (two conflicts, both documentation); App Store Connect read 2026-09-28, iOS and macOS 5.5 PREPARE_FOR_SUBMISSION, created 2026-09-25; memory extractor-fix-device-check]`
+
+## 2026-09-29 - DEC-35 was reversed in code without being amended; the reversal stands until the owner says otherwise
+
+**Context.** The July PR audit's decision log (now `Docs/Archive/ZeroRegressionAudit_2026-07/DECISION_LOG.md`)
+records DEC-35 (2026-07-14): a capitalized-word entity fallback in `SemanticChunker` was rejected as a
+regression, because sentence-initial words such as "However" and "Should" become entities that feed the
+entity index and two-hop graph expansion, and the log said any such fallback must be display-time only,
+never persisted at ingest. The fallback came back the next day in `9d819a5` ("add fallback entity
+extraction") and became unconditional in `f962e03` (2026-07-28), whose code comment gives the reason:
+Natural Language tagging on iOS 27 did not classify "Apple" consistently. Nobody amended DEC-35.
+
+**Decision.** Record the reversal here so it is not lost when the log is archived. The shipped behaviour
+stands: `SemanticChunker.swift:1634` runs the deterministic supplement on every chunk, and the
+single-word pattern at `:1673` with its stoplist at `:1681` still lets "However" and "Should" through.
+
+**Alternatives.** Leave DEC-35 only in the archived log, where a later session would read a rejected
+design as the current one; or revert the supplement, which is an app change and not this cleanup's call.
+
+**Consequences.** Whether sentence-initial capitals create false cross-document links is an open
+retrieval-quality question for the owner. It is filed as Future Backlog, not 5.5 work:
+https://app.notion.com/p/3ea49a74d54f81059b20e8bda0663798 (To Do, Chunking, Low, 2026-09-29).
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift:1634, :1673, :1681; git log -S 'ALWAYS runs' and -S 'singleWordPattern' on that file -> f962e03, 9d819a5; DEC-35 at Docs/Archive/ZeroRegressionAudit_2026-07/DECISION_LOG.md]`
+
+## 2026-09-29 - The engine SDK stays; its private snapshot lives only in history
+
+**Decision.** `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` and its library product stay until the
+owner says the SDK plan is over. The private engine snapshot taken before the public handoff, with the
+SDK file, the `SourceSDKHost` demo app and `MISSIONFORTODAY.md`, is at `54b0a50` (2026-05-12, "Preserve
+private engine snapshot before public handoff"); `git show 54b0a50` recovers it.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: git show --stat 54b0a50]`
+
+## 2026-09-29 - The repository cleanup archives only what nothing live needs, and leaves the app alone
+
+**Context.** A read-only pass judged 460 files against the code, put every "can go" call to a dependency
+skeptic and a value skeptic (38 of 76 survived), and a final check refuted one more step. The owner
+said to carry out the recommendations as long as nothing fundamental breaks.
+
+**Decision.** Archive only files no live tool, route, site or rule needs, repointing every live
+reference in the same change and fixing relative links inside moved files: the July `.agent/` bundle
+except `RISK_REGISTER.md`, `Docs/ARCHITECTURE.md` (as `ARCHITECTURE_v4.1.md`), the root
+`HOW_IT_WORKS.md`, two superseded engineering references, the 4.8 release-notes draft, playbook 06, three
+playbook aliases and RepoOS 02. Delete 14 scripts nothing runs and one unreferenced screenshot, all kept in git history. Move `Docs/Release/CONVERSION_AND_REVIEWS_2026-09.md` out of the repository into the owner's private workspace (`~/ASC/`), after copying it there and comparing the copy byte for byte; the plan named this move and the owner approved the plan. Correct wrong claims in place under `oi-claim-audit`. Leave alone:
+anything compiled into the app (5.5 build 481 is staged), the four June audits (2026-08-17 decision
+re-examined and kept: they carry [Archived] banners and moving them breaks 71 links),
+`Docs/AppleIntelligenceTransitionPlan.md` (app code comments cite it by line), the CI scripts, the
+Fastfile, the secret scanner and the store listing.
+
+**Consequences.** `Docs/Archive/README.md` maps every old path to its new one, so citations inside
+archived documents resolve without editing history. gunnarguy.me drops two pages on its next sync
+(`ARCHITECTURE.md` and `RELEASE_NOTES_4.8_DRAFT.md`). Dead Swift, bundle strays and the eval types wait
+for a release the owner opens for them.
+
+`[evidence_source: the cleanup workflow's classifications and verdicts, 2026-09-29; owner's message 2026-09-29]`
 
