@@ -117,17 +117,29 @@ undoes it). Before the next sale, set `REGULAR_PRICE` in `scripts/schedule_sale.
 single-amount-per-currency property below has not been re-checked for the new price point.
 `[evidence_level: measured, confidence: exact, evidence_source: POST /v1/inAppPurchasePriceSchedules and GET .../manualPrices, 2026-09-29 12:25 PT; /v1/inAppPurchasePricePoints/<49.99 USA>/equalizations]`
 
-| Currency | Lifetime Cohort | Pro Annual |
-|---|---|---|
-| USD | 49.99 | 29.99 |
-| GBP | 49.99 | 29.99 |
-| EUR | 59.99 | 34.99 |
-| CAD | 69.99 | 39.99 |
-| AUD | 79.99 | 49.99 |
-| INR | 4999 | 2999 |
-| JPY | 8000 | 5000 |
-| BRL | 299.90 | 199.90 |
-| MXN | 999 | 599 |
+**Changed 2026-10-01, subscriptions.** On 2026-09-29 the owner scheduled Pro Annual at $24.99 (was $29.99) and Pro
+Monthly at $4.99 (was $5.99) from 2026-10-01, in App Store Connect's price editor, which recalculated every storefront
+from the US price: Annual goes down in 161 storefronts and Monthly in 166, none goes up, and the rest keep their current
+price. Existing subscribers renew at the lower price; Apple offers no way to preserve a higher one. The columns below
+are the scheduled 2026-10-01 prices read back from the API. At these prices Annual is 5.0 times Monthly, as before, so
+the paywall's hardcoded "Save 58% vs monthly" (`PlanUpgradeSheet.swift:54`) stays exact where both prices moved
+together; it is not computed per storefront. The annual win-back offer is now $14.99 for the first year
+(`winback_annual_2026_1499`, 2026-10-01 to 2027-10-01, every storefront). The $19.99 offer it replaces cannot be ended
+through the API while live (HTTP 409) and stays until 2027-09-24; App Store Connect states that where offers overlap
+"the best offer will be shown". The monthly win-back ($2.99 a month for three months) is unchanged.
+`[evidence_level: measured, confidence: exact, evidence_source: GET /v1/subscriptions/{id}/prices per territory and /v1/subscriptions/6756638919/winBackOffers, read 2026-09-29 after the changes; App Store Connect price-change confirmation screens]`
+
+| Currency | Lifetime Cohort | Pro Annual | Pro Monthly |
+|---|---|---|---|
+| USD | 49.99 | 24.99 | 4.99 |
+| GBP | 49.99 | 24.99 | 4.99 |
+| EUR (Germany) | 59.99 | 29.99 | 5.99 |
+| CAD | 69.99 | 34.99 | 6.99 |
+| AUD | 79.99 | 39.99 | 7.99 |
+| INR | 4999 | 2499 | 499 |
+| JPY | 8000 | 4000 | 800 |
+| BRL | 299.90 | 149.90 | 29.90 |
+| MXN | 999 | 499 | 99 |
 
 Across all 177 generated Lifetime territory prices, every currency resolves to exactly one
 amount, which is what makes `LaunchSale` safe to key by currency rather than territory. That is

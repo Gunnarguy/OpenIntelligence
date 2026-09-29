@@ -943,3 +943,15 @@ for a release the owner opens for them.
 **Consequences.** US proceeds per Lifetime sale are $42.49 instead of $50.99, so Lifetime needs about 20% more sales to earn the same; at about two a month, telling whether it does will take months of daily reports. `Docs/BILLING_AND_LIMITS.md` section 5 has the prices and the undo snapshot. The next sale needs `schedule_sale.py`'s `REGULAR_PRICE` and `LaunchSale.regularLifetimePrices` updated first.
 
 `[evidence_level: measured, confidence: exact, evidence_source: GET manualPrices after the write, 2026-09-29 12:25 PT; sales table in ~/ASC/data/asc.sqlite3 read 2026-09-29; owner's messages 2026-09-29]`
+
+## 2026-09-29 - Pro Annual $24.99 and Pro Monthly $4.99 from 2026-10-01; the annual win-back is $14.99
+
+**Context.** With Lifetime at $49.99 (entry above), Annual at $29.99 made Lifetime only 1.67 times Annual. Research read the same day put the app already below market: RevenueCat's 2026 report gives median prices of $8 a month and $34.80 a year (North America $9.99 and $39.99); productivity apps keep monthly subscribers worst of any category and cite cost most in cancellations. Sales are too few to test anything: about one subscription purchase a week, 3 active monthly subscribers and about 1 annual. The research recommended keeping Monthly at $5.99 and making one move, Annual to $24.99, timed with 5.5.
+
+**Decision.** The owner chose Annual $24.99, Monthly $4.99 and an annual win-back of $14.99, all from 2026-10-01, the earliest start App Store Connect allowed. Lifetime is now 2.0 times Annual, and Annual stays 5.0 times Monthly, a 58% saving against twelve months.
+
+**Alternatives.** Keep Monthly at $5.99 (the research's recommendation); hold Annual at $29.99 until 5.5 has run 60 to 90 days; Annual at $19.99, rejected in the research as the lowest category median and the old win-back price.
+
+**Consequences.** Existing subscribers renew at the lower prices, and Apple offers no way to keep them higher. Raising a price later needs Apple's notice (60 days for annual, 27 for monthly) and, above certain thresholds or within 12 months of a previous increase, each subscriber's consent. The $19.99 win-back offer stays live until 2027-09-24 because a live offer's dates cannot be changed through the API; App Store Connect shows the better offer where they overlap. The paywall's "Save 58% vs monthly" is hardcoded and should be computed from each storefront's prices in the next build. Judge the change on proceeds per download over months, not on conversion counts. `Docs/BILLING_AND_LIMITS.md` section 5 has the verified prices.
+
+`[evidence_level: measured, confidence: exact, evidence_source: subscription prices and win-back offers read back from the App Store Connect API 2026-09-29; RevenueCat State of Subscription Apps 2026 and Adapty 2026 benchmarks, read 2026-09-29; owner's messages 2026-09-29]`

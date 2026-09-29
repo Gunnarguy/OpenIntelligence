@@ -18,6 +18,11 @@
 #   Pro Monthly  $2.99 a month for the first 3 months, then $5.99   (PAY_AS_YOU_GO, ONE_MONTH x 3)
 #   Pro Annual   $19.99 for the first year, then $29.99             (PAY_UP_FRONT, ONE_YEAR x 1)
 #
+# 2026-09-29: Pro Monthly and Pro Annual drop to $4.99 and $24.99 on 2026-10-01, so the monthly offer then renews at
+# $4.99, and a third offer, winback_annual_2026_1499 ($14.99 for the first year), starts the same day. The $19.99
+# offer cannot be ended through the API while it is live (HTTP 409); App Store Connect shows the better offer where
+# two overlap. See Docs/BILLING_AND_LIMITS.md section 5.
+#
 # Eligibility, both: paid for at least 1 month; lapsed between 1 and 12 months; at most one such
 # offer every 12 months. Runs from two days after the script is run, for one year. Priority NORMAL (Apple accepts only HIGH or NORMAL; the docs summary that said MEDIUM was wrong, 409 on 2026-09-22). Apple generates the
 # promotional assets. Prices are the USA price point plus every territory Apple equalizes it to,
@@ -105,6 +110,10 @@ OFFERS = [
   { subscription: '6756638919', name: 'Pro Annual', reference: 'Win-back Annual 2026',
     offer_id: 'winback_annual_2026',
     usa_point: 'eyJzIjoiNjc1NjYzODkxOSIsInQiOiJVU0EiLCJwIjoiMTAxNzcifQ', usa_price: '$19.99 (regular $29.99)',
+    duration: 'ONE_YEAR', mode: 'PAY_UP_FRONT', periods: 1 },
+  { subscription: '6756638919', name: 'Pro Annual', reference: 'Win-back Annual 2026 (14.99)',
+    offer_id: 'winback_annual_2026_1499',
+    usa_point: 'eyJzIjoiNjc1NjYzODkxOSIsInQiOiJVU0EiLCJwIjoiMTAxNTIifQ', usa_price: '$14.99 (regular $24.99 from 2026-10-01)',
     duration: 'ONE_YEAR', mode: 'PAY_UP_FRONT', periods: 1 }
 ].freeze
 
