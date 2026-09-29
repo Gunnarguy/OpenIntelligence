@@ -131,6 +131,11 @@ left needs his word or an app release (Blockers).
   `IngestionFormatCoverageTests` (silent audio) and one `LayoutReadingOrderTests`. None of them touch
   the extractor. `codemap.py check` -> 0 errors and 0 warnings after the restamp. `verify_doc_claims.py`
   -> 757 claims, all match. The router reports `v5.5` in development, and the secret scan is clean.
+- **Pushed and built:** `87cddef..206e044` (the merge) at the owner's word. Xcode Cloud #480 from
+  `206e044` -> COMPLETE/SUCCEEDED: both archives, then TestFlight Internal Testing on iOS and macOS.
+  App Store Connect reads build 480 as 5.5 and `VALID` on both platforms (uploaded 19:42 PT). Both
+  cloud branches were deleted after `git merge-base --is-ancestor` showed each fully in `main`, so
+  `origin` has only `main`.
 
 - `test_build_map.py` against all four repositories (`REPO_MAP_ROOT=... REPO_MAP_NAME=...`) -> 9
   tests OK in each, 2026-09-28, after the builder was generalized.
@@ -200,8 +205,6 @@ left needs his word or an app release (Blockers).
 
 ## Exact Next Action
 
-Read the Xcode Cloud run that the merge push started
-(`ciWorkflows/E6B22BA8-D5A5-4664-941A-3EC1C3F50910/buildRuns?sort=-number`, through `zsh -ic`). It
-should stamp 5.5 and upload to TestFlight on both platforms; if it failed, read its actions' issues.
-After that, no work is planned: the next 5.5 work, Deep Think's wrong notice answer and the audit's
-Future Backlog rows, starts only when the owner says so.
+None. The merge is pushed, build 480 (5.5) is in TestFlight on both platforms, and no cloud branch is
+left. The next 5.5 work, Deep Think's wrong notice answer and the audit's Future Backlog rows, starts
+only when the owner says so. Nothing is submitted for review until he says so either.
