@@ -139,7 +139,9 @@ submitted on both platforms; both are done (Status).
     `AGENTS.md` rule 11 supersedes; changing them is a governance edit.
 - **Carried:** six `v5.4` rows close on the owner's device check (URLs in `git show 8be003a:Docs/ai/STATE.md`);
   Evidence Threads sync may copy nothing (`EvidenceThreadStore.swift:60` against `WorkspaceSyncService.swift:2739`);
-  the three subscription descriptions in App Store Connect are a web-page edit (the API returns 409).
+  the three product descriptions (Pro Annual, Pro Monthly: "1,000 documents and 10 libraries"; Lifetime: "20 Libraries")
+  went to App Review on 2026-09-29 12:58 PT as their own iOS submission (3 items; the Pro texts set by API, Lifetime's in
+  the website because the API refuses an approved purchase's text with 409 UNMODIFIABLE). Price changes need no review.
 
 ## Exact Next Action
 
