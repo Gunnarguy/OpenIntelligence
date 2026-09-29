@@ -2,8 +2,8 @@
 //  LaunchSaleTests.swift
 //  OpenIntelligenceTests
 //
-//  `LaunchSale.percentOff` is the only arithmetic in this app that turns into a public claim
-//  about money, so it is pinned here rather than trusted.
+//  `LaunchSale.percentOff` turns into a public claim about money, so it is pinned here rather
+//  than trusted. The plans screen's other comparisons are pinned in `PlanPriceComparisonTests`.
 //
 //  The `Product`-taking entry point cannot be reached from a unit test, because StoreKit
 //  products cannot be constructed outside a StoreKitTest session. The percentage maths and the
@@ -24,8 +24,8 @@ final class LaunchSaleTests: XCTestCase {
         XCTAssertEqual(LaunchSale.percentOff(regular: 100, live: 67.99), 32)
     }
 
-    func testTheShippingPriceReportsThirtyThreePercent() {
-        // The pair this release actually plans to run.
+    func testTheLaunchSalePairReportsThirtyThreePercent() {
+        // The launch sale, 2026-09-15 to 2026-09-29: $59.99 regular, $39.99 on sale.
         XCTAssertEqual(LaunchSale.percentOff(regular: 59.99, live: 39.99), 33)
     }
 
@@ -119,7 +119,8 @@ final class LaunchSaleTests: XCTestCase {
         XCTAssertEqual(LaunchSale.monthsOfAnnual(lifetimePrice: 39.99, annualPricePerYear: 29.99), 16)
     }
 
-    func testMonthsOfAnnual_atTheRegularPrice_isTwentyFour() {
+    func testMonthsOfAnnual_atThePricesBeforeTheSale_isTwentyFour() {
+        // $59.99 Lifetime against $29.99 Annual, the regular prices before the launch sale.
         XCTAssertEqual(LaunchSale.monthsOfAnnual(lifetimePrice: 59.99, annualPricePerYear: 29.99), 24)
     }
 

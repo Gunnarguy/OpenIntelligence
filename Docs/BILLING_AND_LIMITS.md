@@ -121,8 +121,9 @@ pre-selected plan: the discount is real and the copy says the real number and th
 
 The Lifetime card also states its price in months of Pro Annual (`LaunchSale.monthsOfAnnual`,
 2026-09-18): StoreKit's live prices for the customer's storefront, never the hardcoded US
-fallbacks, rounded down, nil until both products have loaded. At the sale price that reads 16
-months; at the regular price, 24. It is the comparison a buyer is already making, done with the
+fallbacks, rounded down, nil until both products have loaded. At the sale price ($39.99 against
+$29.99) that reads 16 months; on 2026-09-30 ($49.99 against $29.99), 20; from 2026-10-01 ($49.99
+against $24.99), 24. It is the comparison a buyer is already making, done with the
 store's own numbers.
 
 ### Regular prices, as App Store Connect holds them
@@ -142,7 +143,13 @@ undoes it). Before the next sale, set `REGULAR_PRICE` in `scripts/schedule_sale.
 single-amount-per-currency property below has not been re-checked for the new price point. **Done 2026-09-29 for
 5.5:** both now hold these prices (`REGULAR_PRICE = 49.99`), and `scripts/verify_sale_prices.py` reported every
 recorded currency matching the schedule's open-ended $49.99 interval, with no currency carrying two prices across the
-28 territories it checks.
+28 territories it checks. **That was not enough.** Read across all 175 territories the same day, the
+$49.99 point does not resolve to one price per currency: USD is 49.99 in 87 territories and 59.99 in 22 (ALB ARM AZE BEN BLR BRB CIV CMR COG GEO GHA ISL KEN MAR MDA MUS NPL SEN UGA UKR ZMB ZWE),
+and EUR is 59.99 in 24 and 49.99 in one (MNE). `LaunchSale` keys by currency, so in a future sale window Montenegro
+would be told its regular EUR 49.99 was reduced from EUR 59.99. No build is exposed, because the only window closed on
+2026-09-30 and a new sale needs a new build. Before the next sale, key the table by territory or leave USD and EUR out,
+and make `scripts/verify_sale_prices.py` read every territory rather than its 28.
+`[evidence_level: measured, confidence: exact, evidence_source: open-ended rows of /v1/inAppPurchasePriceSchedules/6756638872/automaticPrices and manualPrices, 175 territories, grouped by /v1/territories currency, 2026-09-29]`
 `[evidence_level: measured, confidence: exact, evidence_source: POST /v1/inAppPurchasePriceSchedules and GET .../manualPrices, 2026-09-29 12:25 PT; /v1/inAppPurchasePricePoints/<49.99 USA>/equalizations]`
 
 **Changed 2026-10-01, subscriptions.** On 2026-09-29 the owner scheduled Pro Annual at $24.99 (was $29.99) and Pro
@@ -169,7 +176,8 @@ through the API while live (HTTP 409) and stays until 2027-09-24; App Store Conn
 | BRL | 299.90 | 149.90 | 29.90 |
 | MXN | 999 | 499 | 99 |
 
-Across all 177 generated Lifetime territory prices, every currency resolves to exactly one
+For the $59.99 schedule (corrected 2026-09-29: not for the $49.99 one, see above): across all 177 generated Lifetime
+territory prices, every currency resolves to exactly one
 amount, which is what makes `LaunchSale` safe to key by currency rather than territory. That is
 a property of this price schedule and not a guarantee from Apple, so
 `scripts/verify_sale_prices.py` re-checks it and reports drift.

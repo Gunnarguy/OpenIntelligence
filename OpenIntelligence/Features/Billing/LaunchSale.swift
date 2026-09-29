@@ -36,8 +36,8 @@
 //    - `EntitlementStore` caches its `Product` list, so a price change cancelled mid-session is
 //      not seen until the products are refreshed. `PlanUpgradeSheet` refreshes on appear.
 //    - The percentage is computed per storefront from the two real numbers and rounded down,
-//      because Apple rounds each territory to its own price point. A German customer may
-//      genuinely see 28% where a US customer sees 33%, and each is told their own number.
+//      because Apple rounds each territory to its own price point. In the launch sale a German
+//      customer genuinely saw 28% where a US customer saw 33%, and each was told their own number.
 //
 //  WHY LIFETIME ONLY
 //
@@ -60,7 +60,7 @@ import StoreKit
 
 /// A discount the app is prepared to state, in the customer's own currency.
 struct LaunchSaleOffer: Equatable {
-    /// The pre-sale price, formatted in the customer's currency, e.g. "$59.99".
+    /// The pre-sale price, formatted in the customer's currency, e.g. "$49.99".
     let regularDisplayPrice: String
     /// Whole percent off, computed from the live and regular prices and rounded down.
     let percentOff: Int
@@ -121,17 +121,24 @@ enum LaunchSale {
     /// by hand; Apple generates the other 174 storefronts, and those generated figures are what
     /// customers actually pay.
     ///
-    /// Keying by currency rather than territory is safe **because it was checked**: across all
-    /// 177 generated territory prices, every currency resolves to exactly one amount. That is a
-    /// property of this price schedule, not a guarantee from Apple, and
-    /// `scripts/verify_sale_prices.py` re-checks it.
+    /// Keying by currency rather than territory was safe for the $59.99 schedule **because it was
+    /// checked**: on 2026-09-09 all 177 generated territory prices resolved to one amount per
+    /// currency. **It is not safe for this one.** Read across all 175 territories on 2026-09-29,
+    /// the $49.99 point's regular price is USD 49.99 in 87 territories and USD 59.99 in 22
+    /// (ALB ARM AZE BEN BLR BRB CIV CMR COG GEO GHA ISL KEN MAR MDA MUS NPL SEN UGA UKR ZMB ZWE), and EUR 59.99 in 24 territories and EUR 49.99 in one (MNE). Inside a
+    /// sale window a customer in Montenegro paying the regular EUR 49.99 would be told it was
+    /// reduced from EUR 59.99, and the 22 would be shown a "was" price below the one they paid.
+    /// Nothing is claimed outside a window, and the window above closed on 2026-09-30, so no build
+    /// is exposed. Before the next sale, key this table by territory (or leave USD and EUR out),
+    /// and make `scripts/verify_sale_prices.py` read every territory, not the 28 it maps.
     ///
     /// A currency absent from this table yields no offer and no banner, which is the correct
     /// failure: silence rather than a figure converted at a rate Apple did not use.
     ///
     /// [evidence_level: measured, confidence: exact, evidence_source:
-    /// /v1/inAppPurchasePriceSchedules/6756638872/automaticPrices, 177 territory rows grouped by
-    /// currency, 2026-09-09; USA base price from the same schedule's manualPrices]
+    /// /v1/inAppPurchasePriceSchedules/6756638872/automaticPrices and manualPrices, the open-ended
+    /// rows of all 175 territories grouped by /v1/territories currency, read 2026-09-29; the
+    /// 177-row check of the $59.99 schedule, 2026-09-09]
     static let regularLifetimePrices: [String: Decimal] = [
         "USD": 49.99, "GBP": 49.99, "EUR": 59.99, "CAD": 69.99, "AUD": 79.99,
         "INR": 4999, "JPY": 8000, "BRL": 299.90, "MXN": 999,

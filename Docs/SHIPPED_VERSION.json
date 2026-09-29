@@ -1,5 +1,6 @@
 {
   "_comment": [
+    "2026-09-29 (latest, 14:52 PT): 5.5 IS BACK IN REVIEW ON BOTH PLATFORMS WITH BUILD 483. The owner pulled build 482 out of review that afternoon while it was still waiting (the three submissions were cancelled through the API and both records read DEVELOPER_REJECTED), to carry the plans screen's price comparisons from 81b66a8. Build 483 (Xcode Cloud #483 from 81b66a8) was submitted at 14:52 PT: iOS submission 861f9fe2-45f2-429d-a423-0bbaeead72a6, which also holds the Pro Annual, Pro Monthly and Lifetime drafts, and macOS submission 9691fad8-8026-4ed5-b348-37886c00ab84; both records read WAITING_FOR_REVIEW, release MANUAL. app_store stays 5.4 on both platforms until 5.5 is released.",
     "2026-09-29 (latest): 5.5 IS IN REVIEW ON BOTH PLATFORMS. At the owner's word it was submitted through the API at 11:31 PT (reviewSubmissions, one per platform), with build 482 from 55b283e, which adds the subscription fix to the 'how much' extractor fix; both records read WAITING_FOR_REVIEW, release MANUAL, afterwards. app_store stays 5.4 on both platforms until 5.5 is released.",
     "2026-09-28: preparing MOVES TO 5.5. The branch claude/determined-ritchie-7y60am, which opened '## 5.5 <!-- unreleased -->' in CHANGELOG.md for the 'how much' extractor fix, merged into main at the owner's go. The owner created the 5.5 records in App Store Connect on 2026-09-25 (both PREPARE_FOR_SUBMISSION, read back 2026-09-28). app_store stays 5.4 on both platforms and in_review stays empty. Fascinaiting's page has no in-development entry, so its version job does not compare preparing with app_store.",
     "",
@@ -68,7 +69,10 @@
     "macos": "5.4"
   },
   "preparing": "5.5",
-  "in_review": {"ios": "5.5 (build 482)", "macos": "5.5 (build 482)"},
+  "in_review": {
+    "ios": "5.5 (build 483)",
+    "macos": "5.5 (build 483)"
+  },
   "updated": "2026-09-29",
-  "verified_against": "Read from App Store Connect 2026-09-29 11:31 PT via the API: iOS 5.5 and macOS 5.5 both WAITING_FOR_REVIEW with build 482, release MANUAL; iOS 5.4 and macOS 5.4 both READY_FOR_DISTRIBUTION with build 478."
+  "verified_against": "Read from App Store Connect 2026-09-29 14:52 PT via the API: iOS 5.5 and macOS 5.5 both WAITING_FOR_REVIEW with build 483, release MANUAL; iOS 5.4 and macOS 5.4 both READY_FOR_DISTRIBUTION with build 478."
 }
