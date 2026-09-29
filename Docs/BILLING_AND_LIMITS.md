@@ -158,7 +158,11 @@ from the US price: Annual goes down in 161 storefronts and Monthly in 166, none 
 price. Existing subscribers renew at the lower price; Apple offers no way to preserve a higher one. The columns below
 are the scheduled 2026-10-01 prices read back from the API. At these prices Annual is 5.0 times Monthly, as before, so
 the saving stays 58% where both prices moved together. Through 5.4 the paywall hardcoded that figure as a bullet; from
-5.5 it is computed per storefront (§2, "What each plan says against the others"). The annual win-back offer is now $14.99 for the first year
+5.5 it is computed per storefront (§2, "What each plan says against the others"). The local
+`StoreKitConfiguration.storekit`, which only Xcode and the simulator read, carries the same US prices from 2026-09-29
+at the owner's word: $4.99, $24.99 and $49.99, Lifetime named "Lifetime", the product descriptions App Store Connect
+has in review, and no introductory offer (App Store Connect lists none on either subscription, read the same day).
+Loaded in a StoreKit test session on the iOS 27 simulator, it returned exactly those three prices. The annual win-back offer is now $14.99 for the first year
 (`winback_annual_2026_1499`, 2026-10-01 to 2027-10-01, every storefront). The $19.99 offer it replaces cannot be ended
 through the API while live (HTTP 409) and stays until 2027-09-24; App Store Connect states that where offers overlap
 "the best offer will be shown". The monthly win-back ($2.99 a month for three months) is unchanged.
@@ -245,7 +249,7 @@ Pro Annual and Pro Monthly are deliberately excluded, for two independent reason
 
 Lifetime is a non-consumable, so it reverts with no consequence for anyone who already bought.
 It is also 83% of revenue, so restricting the sale to it costs almost nothing.
-`[evidence_level: documented+code_verified, confidence: exact, evidence_source: StoreKitConfiguration.storekit pro_annual introductoryOffer; https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/ and .../set-up-introductory-offers-for-auto-renewable-subscriptions/, fetched 2026-09-09; store_purchases revenue share]`
+`[evidence_level: documented+measured, confidence: exact, evidence_source: GET /v1/subscriptions/{id}/introductoryOffers, 0 rows for pro_annual and pro_monthly, 2026-09-29 (the trial was withdrawn 2026-09-18; the local StoreKitConfiguration.storekit carried it until 2026-09-29); https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/ and .../set-up-introductory-offers-for-auto-renewable-subscriptions/, fetched 2026-09-09; store_purchases revenue share]`
 
 ### One US price change is a different discount in every storefront
 

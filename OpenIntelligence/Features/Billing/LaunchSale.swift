@@ -45,13 +45,15 @@
 //  introductory offer, and a customer may redeem only one per subscription group, so a discount
 //  offer would have displaced the trial. The trial was withdrawn on 2026-09-18 (five starts in
 //  ninety days, one paid, two stuck in billing retry); the app stopped advertising it the same day,
-//  and the App Store Connect offer is removed by the owner. What still keeps Annual out of a sale is
-//  the second reason: a temporary price change on a subscription is worse still, because the revert is
+//  and App Store Connect lists no introductory offer on either subscription (read 2026-09-29). What
+//  still keeps Annual out of a sale is the second reason: a temporary price change on a
+//  subscription is worse still, because the revert is
 //  a price increase for everyone who subscribed at the sale price, which Apple surfaces through
 //  consent prompts and, where consent is required and not given, ends the subscription. Lifetime
 //  is a non-consumable, so it reverts with no consequence for anyone who already bought.
-//  [evidence_level: code_verified, confidence: exact, evidence_source: StoreKitConfiguration.storekit
-//  pro_annual introductoryOffer; https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/
+//  [evidence_level: measured, confidence: exact, evidence_source: GET /v1/subscriptions/{id}/introductoryOffers
+//  for pro_annual and pro_monthly, 0 rows each, 2026-09-29 (the local StoreKitConfiguration.storekit carried the
+//  trial until the same day); https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions/
 //  and .../set-up-introductory-offers-for-auto-renewable-subscriptions/, fetched 2026-09-09]
 //
 

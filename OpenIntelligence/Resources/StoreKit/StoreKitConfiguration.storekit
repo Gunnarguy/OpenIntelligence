@@ -15,13 +15,13 @@
   ],
   "products" : [
     {
-      "displayPrice" : "59.99",
+      "displayPrice" : "49.99",
       "familyShareable" : true,
       "internalID" : "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
       "localizations" : [
         {
-          "description" : "One-time unlock for unlimited documents, 20 libraries, and all Pro features forever.",
-          "displayName" : "Lifetime Cohort",
+          "description" : "Permanent Pro - 20 Libraries + Unlimited Documents",
+          "displayName" : "Lifetime",
           "locale" : "en_US"
         }
       ],
@@ -99,14 +99,14 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "5.99",
+          "displayPrice" : "4.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "C3D4E5F6-A7B8-9012-CDEF-345678901234",
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Up to 1,000 documents, 10 libraries, and premium retrieval controls.",
+              "description" : "Monthly billing for 1,000 documents and 10 libraries.",
               "displayName" : "Pro Monthly",
               "locale" : "en_US"
             }
@@ -127,20 +127,14 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "29.99",
+          "displayPrice" : "24.99",
           "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "D4E5F6A7-B8C9-0123-DEFA-456789012345",
-          "introductoryOffer" : {
-            "internalID" : "A2B3C4D5-E6F7-8901-BCDE-345678901234",
-            "numberOfPeriods" : 1,
-            "paymentMode" : "free",
-            "referenceName" : "7 Day Free Trial",
-            "subscriptionPeriod" : "P1W"
-          },
+          "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Annual billing for up to 1,000 documents and 10 libraries. Save 58% (7-day free trial).",
+              "description" : "Annual billing for 1,000 documents and 10 libraries.",
               "displayName" : "Pro Annual",
               "locale" : "en_US"
             }

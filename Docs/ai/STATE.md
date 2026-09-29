@@ -66,12 +66,14 @@ and means to request an expedited review. Release is manual and his call. New wo
   `** TEST SUCCEEDED **`, 521 tests, 3 skipped, 0 failures.
 - The plans screen rendered in that simulator with `StoreKitConfiguration.storekit`'s products (a throwaway test in the
   copy only, never committed), light, dark and XXXL text: badges and captions under the billed price as specified.
-  That file still holds $5.99, $29.99 and a 7-day trial; it is a hard-boundary file and only local.
-- `scripts/verify_sale_prices.py` -> every recorded currency matches App Store Connect's $49.99 schedule.
+  At the owner's word that file now holds the October prices ($4.99, $24.99, $49.99, "Lifetime", no trial); loaded in
+  a StoreKit test session it returned those three prices, and the screen rendered $2.09, 58% and 24 months.
+- `scripts/verify_sale_prices.py` -> every recorded currency matches App Store Connect's $49.99 schedule across its 28
+  territories; a read of all 175 found two USD and two EUR prices (Blockers).
 - `verify_doc_claims.py` -> all 778 claims match; secret scan clean; codemap 0 errors, 0 warnings.
 - Xcode Cloud #483 -> `COMPLETE/SUCCEEDED`, both archives; builds 483 VALID on iOS and macOS.
 - Accessibility sizes 1, 3 and 5 rendered the same way: "Pro (Monthly)" wraps at the space beside its label, no word
-  breaks. The renders show the test file's old prices, so the new ones ($2.09; 24 months) are unit-tested only.
+  breaks. Those renders used the test file's old prices; the October prices were rendered after the file changed (above).
 - An adversarial review of `81b66a8` found no blocker; its accuracy fixes are in the commit after it (`[ci skip]`),
   and the two billing test classes pass after it (23 tests, 0 failures).
 - Not run: the route's manual purchase and restore in the `OpenIntelligence-StoreKitTesting` scheme.
@@ -107,7 +109,7 @@ and means to request an expedited review. Release is manual and his call. New wo
   `RAGService.swift:17623`, `GroundedAnswerView.swift:31-35`).
 - **Owner decisions left open:** six Google Ads scripts with no copy elsewhere; the 28 Swift files no other file
   names; `THIRD_PARTY_NOTICES.md` lacks the Rust crates swift-tokenizers links; `Docs/RepoOS/01_TASK_ROUTER.md:9`
-  cites playbook 07; whether to bring the local StoreKit test file to the new prices (hard boundary).
+  cites playbook 07.
 
 ## Exact Next Action
 
