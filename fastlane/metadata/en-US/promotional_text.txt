@@ -1,1 +1,1 @@
-The sample library's questions are back, the welcome screens follow light and dark, and a new off-by-default setting adapts each answer to the question you asked.
+You can type again the moment an answer's written, most Deep Think and Maximum answers stream, and "how much" questions stop grabbing numbers from the wrong document.

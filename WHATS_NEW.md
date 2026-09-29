@@ -1,8 +1,16 @@
-> **Documentation status:** Current through OpenIntelligence v5.4, live on both platforms since September 24, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Current through OpenIntelligence v5.5, in development; v5.4 has been live on both platforms since September 24, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 5.5
+One fix so far.  A "how much" question could get answered with a number from a totally different
+document, with a Verified badge on it.
+
+### Answers
+- **"How much" questions stop grabbing numbers from the wrong document.** Any "how much" made the app treat every measurement it found as a possible answer, so on my Mac "How much notice do I have to give before I move out?" came back "1 lb." from an air fryer manual.  Now it only looks for a volume when you ask about fuel, gas, oil, coolant or a tank, or what something holds.  The model still got that question wrong afterward (it said at least 30 days, the lease says 60), so I'm not done with it.
+- **"4.5L" counts as liters** when you ask how much something holds, same as "4.5 L".
 
 ## 5.4
 This one's all about answers.  They're done when the last word shows up, most Deep Think and Maximum

@@ -4,15 +4,15 @@
   "name": "What's New and Version History",
   "aliases": ["What's New", "version history", "in-app update notes", "release highlights"],
   "purpose": "Shows what changed after an update and the full version history in Settings.",
-  "revision": "0e9728e",
+  "revision": "6ec11a4",
   "verified_on": "2026-09-28",
   "entry_points": ["WhatsNewStore.evaluateOnLaunch", "WhatsNewStore.releases", "WhatsNewView", "VersionHistoryLoader", "VersionHistoryView"],
   "files": [
-    {"path": "OpenIntelligence/Features/Onboarding/WhatsNewStore.swift", "role": "primary", "blob": "53152de312270d5b876ad053f112669ad4fd3c47"},
+    {"path": "OpenIntelligence/Features/Onboarding/WhatsNewStore.swift", "role": "primary", "blob": "68839b0bf029ce7fc15fae3251300b28fdcc60d5"},
     {"path": "OpenIntelligence/Features/Onboarding/WhatsNewView.swift", "role": "primary", "blob": "92541a5365532957b6286ce8c822b5fc97f11476"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistory.swift", "role": "primary", "blob": "03572f299ce17218afd5b2ff3c91d21ca5053b37"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistoryView.swift", "role": "primary", "blob": "8703818923e30f494f615abc0ae5511a18063779"},
-    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "4822a210c8d07009c37cf20ebfc915492c921dcf"},
+    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "c46623b8f7d9ac3848a25d4b738310de84b42065"},
     {"path": "OpenIntelligenceTests/Features/Onboarding/WhatsNewCoverageTests.swift", "role": "test", "blob": "e8235b85cafaf1cd22edbf959d0ba893c4c25553"},
     {"path": "OpenIntelligenceTests/Features/Settings/VersionHistoryTests.swift", "role": "test", "blob": "447bee2122be22aaf29b918ba1d1db938786f788"}
   ],

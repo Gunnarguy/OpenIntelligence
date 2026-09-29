@@ -7,6 +7,16 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
+## v5.5 - unreleased
+
+One fix so far.  A "how much" question could get answered with a number from a totally different document, with a Verified badge on it.
+
+### Answers
+- **"How much" questions stop grabbing numbers from the wrong document.** On my Mac, "How much notice do I have to give before I move out?" came back "1 lb." from an air fryer manual's cooking chart, marked Verified.  Any "how much" or "how many" made the app treat every measurement it found as a possible answer, and a weight like "1 lb" could pass for a liquid.  Now it only goes looking for a volume when you ask about fuel, gas, oil, coolant or a tank, or what something holds, so a question like the notice one goes to the model instead.  The model still got that one wrong on my Mac (it said at least 30 days, the lease says 60) and still marked it Verified, so I'm not done with it.
+- **Capacities like "4.5L" count as liters.** When you ask how much something holds, "4.5L" counts the same as "4.5 L" now.
+
+---
+
 ## v5.4 - September 24, 2026
 
 ### Answers

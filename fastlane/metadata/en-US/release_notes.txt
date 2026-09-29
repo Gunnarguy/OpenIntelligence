@@ -1,27 +1,13 @@
-This one's all about answers.  They're done when the last word shows up, most Deep Think and Maximum answers write out in front of you now, and on iPhone the app tells you when one finishes while you're off doing something else.
+One fix this time.  A "how much" question could get answered with a number from a totally different document, with a Verified badge on it.
 
 
-FASTER ANSWERS
+ANSWERS
 
-• Standard was sitting on answers that were already done.  If you asked for one specific fact, it ran a second check after the answer was written, and the cursor kept blinking with the text box locked (19 seconds to almost three minutes on my Mac).  That check didn't change a single answer I measured, so now it only runs when the app's own verification flags something.
+• On my Mac, "How much notice do I have to give before I move out?" came back "1 lb." from an air fryer manual, marked Verified.  Any "how much" made the app treat every measurement it found as a possible answer, and a weight like "1 lb" could pass for a liquid.  Now it only goes looking for a volume when you ask about fuel, gas, oil, coolant or a tank, or what something holds, so that question goes to the model instead.
 
-• You can type while an answer gets checked.  Send your next question or hit Stop and the answer stays, sources and all.
+• The model still got that one wrong on my Mac (it said at least 30 days, the lease says 60) and still marked it Verified, so I'm not done with it.
 
-
-ANSWERS AS THEY'RE WRITTEN
-
-• Deep Think and Maximum used to show nothing until every single step was done, then dump the whole answer at once.  Now you watch the final answer get written for most questions, with "Refining…" while a later step might still improve it.
-
-• Short Standard answers stream too.  They used to get written in one piece and then played back.
+• When you ask how much something holds, a capacity written without a space, like "4.5L", counts as liters now.
 
 
-WHEN YOU LOOK AWAY
-
-• On iPhone you get a light tap when an answer's done, plus a badge on the Chat tab if you were somewhere else.
-
-• The timer keeps running when you come back to an answer that's still going.  It used to freeze at the moment you left.
-
-• If iOS cuts off the app's background time before an answer finishes, whatever it already wrote stays in the chat with a note saying why.  Before, it just disappeared.
-
-
-Everything except that one writing step still runs on your device.
+Everything still runs on your device, unless you okay sending the final writing step to Apple's Private Cloud Compute.

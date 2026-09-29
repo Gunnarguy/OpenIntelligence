@@ -164,6 +164,37 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 ## Versions, newest first
 
+### 5.5
+
+- **Platforms:** iOS, macOS
+- **Live:** not yet; records in PREPARE_FOR_SUBMISSION on both platforms (iOS `d7b9bb32-0694-41fc-9692-75cc63cb4a7f`, macOS `73bc0eaa-c670-479c-941e-b75998ac0142`, created by the owner 2026-09-25)
+- **Final release notes commit:** the 2026-09-28 commit that adds this entry; revise if 5.5 gains more user-facing changes before it ships
+- **Notes:** one user-facing fix so far, the "how much" extractor change. Written in the owner's voice, and it says what the fix does not do: re-asked on the Mac on 2026-09-26, Deep Think still answered the notice question "at least 30 days" where the lease says 60, marked Verified. The closing line is rewritten, because "that one writing step" had pointed at nothing since 5.3. The promotional text replaces 5.4's, which described 5.3's changes; the live 5.4 records carry the sale line until `openintelligence-end-lifetime-sale` runs on 2026-09-30.
+
+**Release notes (`fastlane/metadata/`, both platforms):**
+
+```text
+One fix this time.  A "how much" question could get answered with a number from a totally different document, with a Verified badge on it.
+
+
+ANSWERS
+
+• On my Mac, "How much notice do I have to give before I move out?" came back "1 lb." from an air fryer manual, marked Verified.  Any "how much" made the app treat every measurement it found as a possible answer, and a weight like "1 lb" could pass for a liquid.  Now it only goes looking for a volume when you ask about fuel, gas, oil, coolant or a tank, or what something holds, so that question goes to the model instead.
+
+• The model still got that one wrong on my Mac (it said at least 30 days, the lease says 60) and still marked it Verified, so I'm not done with it.
+
+• When you ask how much something holds, a capacity written without a space, like "4.5L", counts as liters now.
+
+
+Everything still runs on your device, unless you okay sending the final writing step to Apple's Private Cloud Compute.
+```
+
+**Promotional text** (2026-09-28):
+
+```text
+You can type again the moment an answer's written, most Deep Think and Maximum answers stream, and "how much" questions stop grabbing numbers from the wrong document.
+```
+
 ### 5.4
 
 - **Platforms:** iOS, macOS

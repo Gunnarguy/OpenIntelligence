@@ -28,6 +28,77 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v5.5 - unreleased
+
+Not released. The first 5.5 change is one retrieval fix, and builds 480 and later carry it in
+TestFlight.
+
+- **A "how much" question could be answered with an unrelated measurement from another document,
+  marked Verified.** On 2026-09-25, on the macOS Debug build of 5.4 in Deep Think, "How much notice
+  do I have to give before I move out?" was answered "1 lb." from an air fryer manual's cooking
+  chart. Two rules in `SpecificationExtractor` stacked to score "1 lb" 0.85 against the 0.82
+  precision lock: "much" or "many" appended volume words to any question, which made every
+  measurement in the retrieved evidence a candidate worth +0.12, and the liquid-unit check found the
+  substring " l" inside "1 lb", worth +0.22. A span at or above the lock becomes the answer: Deep
+  Think and Maximum return it before the model runs, and Standard swaps it in after generation.
+  "Much" and "many" now add the volume words only when the question also names one of the
+  extractor's anchors (gas, gasoline, fuel, tank, capacity, volume, coolant, oil), "capacity" and
+  "hold" add them as before, and the liquid-unit check compares the measurement's unit exactly,
+  which also recognises "4.5L" written without a space. Four regression tests pin it: the incident,
+  the same question against a liquid capacity, a fuel question against weights, and a capacity
+  question that must still lock "5.8 qt". On an 18-question probe over fictional passages (the
+  extractor built from source with Swift 6.4, outside the app), the change removes three wrong
+  locks, gains one right one ("4.5L") and loses one right one: "How much water does the reservoir
+  take?" now goes to the model instead of locking "1.2 L". Re-asked on the Mac on 2026-09-26, the
+  notice question no longer locks, but Deep Think then answered it from the model with "at least 30
+  days" where the lease says 60, again marked Verified, so the roadmap row stays open. Volumes that
+  tie within one passage still resolve to the first one, so a fuel-tank question on a car manual's
+  capacities list still locks the engine oil's 4.5 L.
+
+Verification: the four tests passed in Xcode on an iOS 27 simulator on 2026-09-28, in the full suite
+on the merged tree (504 tests, 4 skipped, 0 failures); Xcode Cloud #480 built it for TestFlight on
+iOS and macOS.
+
+---
+
+## v5.4 - September 24, 2026
+
+Build 478, live on iOS at 14:32 PT and on macOS at 17:00 PT on 2026-09-24, both released through the
+App Store Connect API after approval. This release is about when an answer is done and whether you
+can watch it being written.
+
+- **Standard held a finished lookup answer behind a blinking cursor and a locked composer.** After
+  the last streamed word, a Standard answer to a specific-fact question ran a second source-only
+  check before the composer unlocked: 163.8 s and 19.4 s for one question, 58.3 s and 37.6 s for two
+  others, measured on an M3 Pro Mac with the on-device model. The check replaced no answer in any
+  run measured, so it now runs only when the verification gates flag the answer, and the same
+  questions finish 0.15 to 0.33 s after the last word. The check's draft call is also capped at
+  1,024 tokens; uncapped, one run spent 163.5 s writing until the context overflowed.
+- **The composer unlocks when the text is complete.** While the sources are checked, the answer says
+  so, you can send the next question, and Stop keeps the answer with its sources.
+- **Deep Think and Maximum stream their final answer for most questions.** They showed nothing until
+  every step finished. Measured on the same Mac, a Deep Think answer's text now appears from 50.0 s
+  of a 67.7 s run and a Maximum answer's from 34.6 s of 44.5 s, with "Refining…" while a later step
+  can still revise it. Precision lookups, speculative and decomposed answers, the no-retrieval
+  direct answer and Go Deeper still arrive whole. Short Standard answers that fit the
+  structured-generation budget stream too, instead of being written in one piece and replayed
+  (verified against the framework in a probe; not yet observed in the app).
+- **The app says when an answer finishes off screen.** On iPhone, a success haptic, and a badge on
+  the Chat tab when the answer finished on another tab. The elapsed clock keeps running when you
+  return, and when iOS ends the background time before an answer finishes, the text already written
+  stays with a note saying why. The haptic, the clock restart and the expiry note are code-verified,
+  not yet observed.
+- **The docs stopped overstating the consent sheet.** The in-app Product Guide, the README,
+  `HOW_IT_WORKS.md` and the study guide said the Private Cloud Compute sheet shows exactly what
+  would be sent. Under Show Details it shows the provider, the model, how many passages, how large,
+  and why.
+
+Verification: the full iOS suite ran 500 tests, 0 failures, 3 skipped on the final 5.4 code
+(2026-09-23). The timings above come from the macOS Debug build; nothing here was re-measured on the
+Release build.
+
+---
+
 ## v5.3 - September 18, 2026
 
 Build 464, live on both platforms on 2026-09-18, released manually after approval. Most of this
