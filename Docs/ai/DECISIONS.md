@@ -920,3 +920,14 @@ for a release the owner opens for them.
 
 `[evidence_source: the cleanup workflow's classifications and verdicts, 2026-09-29; owner's message 2026-09-29]`
 
+## 2026-09-29 - Only a Lifetime purchase earns permanent protection; everyone who already has it keeps it
+
+**Context.** Through 5.4, `EntitlementStore` promoted every verified paid purchase to `.historicalPaidPurchase` at launch, on purchase and from StoreKit history, and that state resolves to Lifetime whatever StoreKit says (`EntitlementStore.swift:205`, `:267`). A Pro subscription, including an annual free trial, therefore became Lifetime for good; the design dates from `6dc093c` (2026-05-12), whose comment called it grandfathering, and `Docs/BILLING_AND_LIMITS.md` described it. The owner learned of it on 2026-09-29 and asked for it fixed.
+
+**Decision.** From 5.5 only `lifetime_cohort` earns the protection, plus any subscription whose original purchase date is before 2026-09-30 00:00 UTC, and a refunded transaction earns nothing (`EntitlementStore.protectionEarned`). Protection already stored on a device is never lowered. The owner's reasoning, paraphrased: the mistake was the app's, the people who got it should keep it, and taking it away would invite angry reviews.
+
+**Alternatives.** Take it back at launch wherever StoreKit shows a subscription and no Lifetime purchase, leaving it alone when StoreKit cannot answer; proposed first, and set aside at the owner's word. Leave the bug in place; rejected, because every new trial kept adding permanent Lifetime users.
+
+**Consequences.** Anyone who starts a subscription or trial on 5.4 still gets the stored protection until they update, so the leak closes when 5.5 is live and installed. A lapsed subscription now drops the person to Free for the first time: iCloud library sync switches off and the libraries stay on the device, since both workspace modes work from the local folder (`WorkspaceSyncService.swift:411-434`, `:883-905`). A refund still does not clear stored protection (`handleRevocation`). Whether a lapsed subscription that is bought again keeps its first original purchase date is not verified.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: EntitlementStore.swift:205, 235-258, 267, 384-425, 441-464, 575-590; EntitlementProtectionTests; owner's messages 2026-09-29]`

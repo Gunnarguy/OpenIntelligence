@@ -228,6 +228,33 @@ final class EntitlementStore: ObservableObject {
         )
     }
 
+    /// Subscriptions that began before this instant, 2026-09-30 00:00 UTC, keep the permanent
+    /// protection that builds through 5.4 granted to every paid purchase, a free trial included.
+    /// The owner decided on 2026-09-29 that people who got it that way keep it; from then on only
+    /// a Lifetime purchase earns it, and a subscription gives Pro while it is active.
+    nonisolated static let subscriptionProtectionCutoff = Date(timeIntervalSince1970: 1_790_726_400)
+
+    /// The sticky protection a verified transaction earns, if any. `.historicalPaidPurchase`
+    /// resolves to Lifetime everywhere (`buildSnapshot`, `currentEffectiveTier`), so only a
+    /// Lifetime purchase, or a subscription that began before `subscriptionProtectionCutoff`,
+    /// may earn it. A refunded transaction earns nothing. Document packs are grandfathered
+    /// separately, through `.legacyDocumentPackOwner`.
+    nonisolated static func protectionEarned(
+        by product: BillingProduct,
+        originalPurchaseDate: Date,
+        isRevoked: Bool
+    ) -> LegacyProtectionState? {
+        guard !isRevoked else { return nil }
+        switch product {
+        case .lifetimeCohort:
+            return .historicalPaidPurchase
+        case .proMonthly, .proAnnual:
+            return originalPurchaseDate < subscriptionProtectionCutoff ? .historicalPaidPurchase : nil
+        case .documentPackAddOn:
+            return nil
+        }
+    }
+
     nonisolated static func currentEffectiveTier(defaults: UserDefaults = .standard) -> WorkspaceTier {
         let tierKey = "entitlement.activeTier"
         let legacyProtectionKey = "entitlement.legacyProtectionState"
@@ -350,9 +377,10 @@ final class EntitlementStore: ObservableObject {
     }
 
     /// Reconciles entitlements from StoreKit on launch.
-    /// This rebuilds the active StoreKit tier, then layers in sticky paid-history
-    /// protection. Any verified past paid purchase is treated as effective
-    /// Lifetime access for app gating, even if the active StoreKit tier is free.
+    /// This rebuilds the active StoreKit tier, then layers in sticky paid-history protection,
+    /// which is treated as effective Lifetime access for app gating. Only a transaction that
+    /// `protectionEarned(by:originalPurchaseDate:isRevoked:)` accepts earns it. Protection already
+    /// stored on the device is never lowered here.
     func reconcileEntitlementsOnLaunch() async {
         isLoading = true
         defer { isLoading = false }
@@ -360,6 +388,7 @@ final class EntitlementStore: ObservableObject {
         pruneExpiredDocumentPacksIfNeeded()
 
         var resolvedTier: WorkspaceTier = .free
+        var earnedProtection: LegacyProtectionState?
         var reconciledCount = 0
 
         for await result in Transaction.currentEntitlements {
@@ -372,6 +401,13 @@ final class EntitlementStore: ObservableObject {
                     reconciledCount += 1
                     Log.info("✅ Reconciled entitlement: \(billingProduct.rawValue)", category: .billing)
                 }
+                if let earned = Self.protectionEarned(
+                    by: billingProduct,
+                    originalPurchaseDate: transaction.originalPurchaseDate,
+                    isRevoked: false
+                ) {
+                    earnedProtection = earned
+                }
             case .unverified(_, let error):
                 Log.warning("Entitlement reconciliation skipped unverified transaction: \(error.localizedDescription)", category: .billing)
             }
@@ -379,8 +415,8 @@ final class EntitlementStore: ObservableObject {
 
         activeTier = resolvedTier
 
-        if resolvedTier != .free {
-            promoteLegacyProtection(to: .historicalPaidPurchase)
+        if let earnedProtection {
+            promoteLegacyProtection(to: earnedProtection)
         } else if legacyProtectionState == .none,
                   let historicalProtection = await detectHistoricalProtectionFromStoreKit()
         {
@@ -404,14 +440,20 @@ final class EntitlementStore: ObservableObject {
 
     private func detectHistoricalProtectionFromStoreKit() async -> LegacyProtectionState? {
         // AppTransaction is useful when migrating a paid app to freemium, but it doesn't
-        // identify past IAP purchases. Here we intentionally inspect restorable paid SKUs
-        // and grandfather them into effective Lifetime access.
-        for product in [BillingProduct.proMonthly, .proAnnual, .lifetimeCohort] {
+        // identify past IAP purchases. Here we inspect restorable paid SKUs and grandfather the
+        // ones `protectionEarned` accepts: a Lifetime purchase, or a subscription that began
+        // before `subscriptionProtectionCutoff`. Until 2026-09-29 every paid SKU qualified.
+        for product in [BillingProduct.lifetimeCohort, .proMonthly, .proAnnual] {
             guard let result = await Transaction.latest(for: product.rawValue) else { continue }
             switch result {
             case .verified(let transaction):
-                guard transaction.revocationDate == nil else { continue }
-                return .historicalPaidPurchase
+                if let earned = Self.protectionEarned(
+                    by: product,
+                    originalPurchaseDate: transaction.originalPurchaseDate,
+                    isRevoked: transaction.revocationDate != nil
+                ) {
+                    return earned
+                }
             case .unverified:
                 continue
             }
@@ -495,7 +537,7 @@ final class EntitlementStore: ObservableObject {
         /// Used by local purchase simulation and developer tooling.
         func setDebugTier(_ tier: WorkspaceTier) {
             activeTier = tier
-            if tier != .free {
+            if tier == .lifetime {
                 promoteLegacyProtection(to: .historicalPaidPurchase)
             }
             persistState()
@@ -533,7 +575,13 @@ final class EntitlementStore: ObservableObject {
     private func applyPurchase(for product: BillingProduct, transaction: Transaction) {
         if let tier = product.associatedTier {
             upgradeTierIfNeeded(to: tier)
-            promoteLegacyProtection(to: .historicalPaidPurchase)
+        }
+        if let earned = Self.protectionEarned(
+            by: product,
+            originalPurchaseDate: transaction.originalPurchaseDate,
+            isRevoked: transaction.revocationDate != nil
+        ) {
+            promoteLegacyProtection(to: earned)
         }
         if product == .documentPackAddOn {
             appendDocumentPack(for: transaction)

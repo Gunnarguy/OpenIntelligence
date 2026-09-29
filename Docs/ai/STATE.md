@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-29, 10:20 PT (cleanup pushed as `35024f0`; an entitlement fix is planned and waits on approval)
+Updated: 2026-09-29, 10:40 PT (entitlement fix committed and pushed for a new 5.5 build; attaching it waits on Xcode Cloud)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 35024f0
+Last verified commit: a747ece
 
 ## Objective
 
@@ -11,11 +11,19 @@ both platforms with build 481, and nothing submitted. Submitting is the owner's 
 starts only when he says to (`Docs/ai/DECISIONS.md`, 2026-09-24).
 
 On 2026-09-29 he said to carry out the cleanup plan's recommendations as long as nothing fundamental
-breaks. That is done and pushed (Status). He then asked for the entitlement defect under Blockers to be
-fixed; the plan there waits on `PROCEED: IMPLEMENT` naming `EntitlementStore.swift`, a hard-boundary file.
+breaks. That is done and pushed (Status). He then asked for the entitlement defect to be fixed and approved
+the plan that named `EntitlementStore.swift` ("yep, go for it"), with everyone who already has the protection
+keeping it. The fix is committed and pushed; the next 5.5 build carries it (Blockers).
 
 ## Status
 
+- **Entitlement fix, 2026-09-29, at the owner's word**, in the commit after `a747ece`. Through 5.4 every paid
+  purchase, a free trial included, became permanent protection that resolves to Lifetime. Now only a Lifetime
+  purchase, or a subscription that began before 2026-09-30 00:00 UTC, earns it, through one rule,
+  `EntitlementStore.protectionEarned` (`EntitlementStore.swift:242`); stored protection is never lowered.
+  `EntitlementProtectionTests` (8), `Docs/BILLING_AND_LIMITS.md` section 4, `CHANGELOG.md` 5.5 Fixed, the
+  2026-09-29 entry in `Docs/ai/DECISIONS.md`, and the restamped `billing-and-quotas` codemap slice. Roadmap row
+  https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6 (In Progress, v5.5).
 - **Cleanup, done 2026-09-29, pushed as `35024f0` with `[ci skip]` at the owner's word.** GitHub showed 0
   checks and 0 statuses on it 3.5 minutes later, so no Xcode Cloud build started. Documentation and tooling only; no file
   Xcode compiles changed. The two 2026-09-29 `[General]` entries under `## 5.5` in `CHANGELOG.md` list it:
@@ -73,41 +81,25 @@ fixed; the plan there waits on `PROCEED: IMPLEMENT` naming `EntitlementStore.swi
 
 ## Verification (2026-09-29, output read)
 
-- `python3 scripts/verify_doc_claims.py` -> 764 claims checked, all match (the old `STATE.md:186` failure
-  is gone with the rewrite). `bash scripts/test_verify_doc_claims.sh` -> 8 passed, 0 failed.
-- `bash scripts/test_enforce_docs_hook.sh` -> 18 passed, 0 failed. `bash scripts/test_stop_handoff.sh` ->
-  11 passed, 0 failed. `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py`
-  -> 31 OK.
-- `python3 .claude/codemap/codemap.py check` -> 46 slices, 0 errors, 0 warnings.
-  `python3 .claude/skills/repo-map/scripts/test_build_map.py` -> 10 tests OK.
-  `python3 scripts/secret_scan.py` -> no sensitive tokens.
-- Scripts whose text changed still parse: `ruby -c` on `asc_winback_offers.rb` and `asc_certificates.rb`,
-  `xcrun swiftc -parse scripts/screenshots/winlist.swift`, and `ast.parse` on the three Python files;
-  `prepare_rag_research_fixtures.py --help` and `benchmark_progression.py --help` run.
-- `cat Docs/Audio/PASS_1..5 | cmp - Docs/Audio/STUDY_GUIDE_AUDIO_FULL.txt` -> identical; 12,043 words.
-- `tar -tzf ~/OpenIntelligence-BenchmarkArchive/BenchmarkRuns-2026-09-01.tar.gz` -> 1,628 members; with
-  the two `--exclude` flags the ledger header gives -> 1,626, dropping exactly its `LEDGER.md` and
-  `PROGRESSION.md`. Listed only, never extracted.
-- `{ git diff --name-only HEAD; git ls-files --others --exclude-standard; } | bash scripts/required_docs.sh`
-  -> no required document for any changed path.
-- Not run: `bash scripts/build_simulator_smoke.sh`, which the `repoos_workspace_automation` route lists.
-  No file Xcode compiles changed, so it would be a cold build that tests nothing new. The route's
-  `quick_validate.py` lives under `~/.codex`, which the machine map says not to read; the one skill file
-  edited under `.codex/` changed a sentence, not its structure.
+- Entitlement fix: guarded `xcodebuild test -scheme OpenIntelligence` on simulator
+  `244AA789-A9EA-403B-A922-F12083D14495` (iOS 27), `-jobs 2`, DerivedData `/private/tmp/oi-build`, built from the
+  `/private/tmp/oi-src` copy -> `** TEST SUCCEEDED **`, 512 tests, 4 skipped, 0 failures, 262 s, lowest free
+  memory 24%. All 8 `EntitlementProtectionTests` passed. Not run yet: the route's manual StoreKit check.
+- Cleanup, 2026-09-29: `verify_doc_claims.py` -> all claims match; `test_verify_doc_claims.sh` 8/8;
+  `test_enforce_docs_hook.sh` 18/18; `test_stop_handoff.sh` 11/11; router tests 31 OK; codemap 0 errors;
+  `test_build_map.py` 10 OK; secret scan clean; changed scripts parse (`ruby -c`, `swiftc -parse`, `ast.parse`);
+  full audio text equals passes 1-5 (12,043 words); the ledger's tar `--exclude` flags drop exactly its two
+  files (1,628 members to 1,626, listed only). Not run: `build_simulator_smoke.sh` (nothing compiled changed).
 
 ## Blockers / Unknowns
 
-- **Entitlements, the owner asked for a fix on 2026-09-29.** Any Pro purchase, a free-trial start included, is
-  stored as permanent paid history, and that resolves to Lifetime everywhere (`EntitlementStore.swift:205`;
-  granted at `:381-383` on launch, `:533-537` on purchase and `:405-418` from StoreKit history; a refund does
-  not clear it, `:552-569`). No test covers the store. Plan, waiting on `PROCEED: IMPLEMENT` naming the file:
-  only `lifetime_cohort` earns the permanent state; on launch, clear it where StoreKit shows a subscription
-  and no unrefunded Lifetime purchase, and change nothing when StoreKit cannot answer; a refunded Lifetime
-  loses it; the document-pack grandfathering stays. Pure functions for both decisions with unit tests, the
-  guarded iOS suite, `Docs/BILLING_AND_LIMITS.md` section 4 and `CHANGELOG.md` in the same change; then a
-  push without `[ci skip]` builds 5.5 again, and the new build replaces 481 on both records. A downgraded
-  user keeps every library on the device: both workspace modes work from the local folder
-  (`WorkspaceSyncService.swift:883-905`) and synced libraries become local-only (`:411-434`).
+- **New 5.5 build with the entitlement fix.** The push of the fix starts Xcode Cloud. When the build is `VALID`
+  on iOS and macOS (the dry run `zsh -ic 'ruby scripts/asc_prepare_release.rb 5.5 <build>'` finds it, or
+  App Store Connect's TestFlight tab shows it), attach it in place of 481 with the same command plus `--apply`;
+  the owner approved that swap on 2026-09-29, and nothing is submitted. Then the route's manual check, in the
+  `OpenIntelligence-StoreKitTesting` scheme or TestFlight sandbox: buy Pro Monthly, Settings shows Pro, not
+  Lifetime; expire it and relaunch, Free. That check closes https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6.
+  Anyone who starts a subscription or trial on 5.4 still gets the old stored protection until they update.
 - **Privacy row stays open:** https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 has a dated note of
   2026-09-29. The new `PRIVACY.md` is pushed; the published policy still says Private Cloud Compute gets data
   for final synthesis only (see the next item), so the row closes when that page or the code changes.
@@ -144,7 +136,7 @@ fixed; the plan there waits on `PROCEED: IMPLEMENT` naming `EntitlementStore.swi
 
 ## Exact Next Action
 
-Wait for the owner's `PROCEED: IMPLEMENT` naming `EntitlementStore.swift`, then carry out the entitlement plan
-under Blockers, starting with pure decision functions and their tests in `OpenIntelligenceTests/Services/Billing/`.
-If he also asks for the Just Once consent fix, it belongs in the same 5.5 build (row
-https://app.notion.com/p/3ea49a74d54f81fd814ae82ce9449e41).
+Wait for Xcode Cloud to build 5.5 from the entitlement-fix commit (the first after `a747ece`). When the build is
+`VALID` on iOS and macOS, attach it in place of 481 with
+`zsh -ic 'ruby scripts/asc_prepare_release.rb 5.5 <build> --apply'` (approved by the owner on 2026-09-29;
+nothing is submitted), then do the manual StoreKit check under Blockers.

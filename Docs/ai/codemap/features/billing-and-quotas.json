@@ -4,8 +4,8 @@
   "name": "Billing and Quotas",
   "aliases": ["plans screen", "plan upgrade sheet", "subscription paywall", "StoreKit entitlements", "launch sale banner", "lifetime sale", "Maximum mode quota", "document limit", "imports left", "paywall", "pricing"],
   "purpose": "Sells the plans through StoreKit 2, records entitlements, and enforces each tier's document and Maximum mode limits.",
-  "revision": "0e9728e",
-  "verified_on": "2026-09-28",
+  "revision": "a747ece",
+  "verified_on": "2026-09-29",
   "entry_points": ["PlanUpgradeSheet", "StoreKitBillingService", "EntitlementStore", "QuotaPolicy", "MaximumModeQuotaStore", "LaunchSaleBanner", "PlanAskService"],
   "files": [
     {"path": "OpenIntelligence/App/PlanAskService.swift", "role": "primary", "blob": "87d4aa5618edc2eeb73ce4136c00a24ae52b818c"},
@@ -22,7 +22,7 @@
     {"path": "OpenIntelligence/Services/Billing/BillingEvent.swift", "role": "primary", "blob": "744284ebe6b4f56be89c545584f92b106a99b387"},
     {"path": "OpenIntelligence/Services/Billing/BillingProduct.swift", "role": "primary", "blob": "65905f982cda51e38e5b33392d793b2232066216"},
     {"path": "OpenIntelligence/Services/Billing/BillingService.swift", "role": "primary", "blob": "dae511f985c3c4b791f13b38d009056b3052e4e7"},
-    {"path": "OpenIntelligence/Services/Billing/EntitlementStore.swift", "role": "primary", "blob": "02000fad9bfbaee9e2e047273bc960e59fe9b5a2"},
+    {"path": "OpenIntelligence/Services/Billing/EntitlementStore.swift", "role": "primary", "blob": "873e92890c385f1077f6d43d44c1c5bb559fe5b5"},
     {"path": "OpenIntelligence/Services/Billing/MaximumModeQuotaStore.swift", "role": "primary", "blob": "4f2adbce2392d6f80fce26072db2e19bbcd439ac"},
     {"path": "OpenIntelligence/Services/Billing/MonetizationPolicy.swift", "role": "primary", "blob": "a1b1c3f18ebd85f3d2f9e7c32029de44a319929e"},
     {"path": "OpenIntelligence/Services/Billing/StoreKitBillingService.swift", "role": "primary", "blob": "2ce6590432cb7747140192dd0f7cbbb742f69c2c"},
@@ -30,7 +30,8 @@
     {"path": "OpenIntelligenceTests/App/PlanAskServiceTests.swift", "role": "test", "blob": "17712022bc4f076f35e75158320c0289883b713e"},
     {"path": "OpenIntelligenceTests/Core/Models/WorkspaceTierTests.swift", "role": "test", "blob": "4e83bf1e102d6787ea8e7a35096247e9e739d72e"},
     {"path": "OpenIntelligenceTests/Features/Billing/LaunchSaleTests.swift", "role": "test", "blob": "4932c084ac0b9aee368817967b26e3cb52da7755"},
-    {"path": "OpenIntelligenceTests/Services/Billing/MaximumModeQuotaStoreTests.swift", "role": "test", "blob": "3bf2bd74ceb03e4c6f57561c72fa13c8323d555e"}
+    {"path": "OpenIntelligenceTests/Services/Billing/MaximumModeQuotaStoreTests.swift", "role": "test", "blob": "3bf2bd74ceb03e4c6f57561c72fa13c8323d555e"},
+    {"path": "OpenIntelligenceTests/Services/Billing/EntitlementProtectionTests.swift", "role": "test", "blob": "4c440d751fbe215dc8eec59db9e57b5afab65fb3"}
   ],
   "nodes": [
     {"id": "PlanUpgradeSheet", "kind": "view", "path": "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "line": 9, "match": "struct PlanUpgradeSheet: View {", "status": "VERIFIED", "by": "build"},
@@ -66,12 +67,14 @@
     {"id": "LaunchSaleBanner", "kind": "view", "path": "OpenIntelligence/Features/Billing/LaunchSaleBanner.swift", "line": 15, "match": "struct LaunchSaleBanner: View {", "status": "VERIFIED", "by": "build"},
     {"id": "LaunchSale.offer", "kind": "function", "path": "OpenIntelligence/Features/Billing/LaunchSale.swift", "line": 164, "match": "static func offer(", "status": "VERIFIED", "by": "build"},
     {"id": "WorkspaceTier.isAtLeast", "kind": "function", "path": "OpenIntelligence/Core/Models/WorkspaceTier.swift", "line": 29, "match": "func isAtLeast(_ tier: WorkspaceTier) -> Bool {", "status": "VERIFIED", "by": "build"},
-    {"id": "EntitlementStore.product", "kind": "function", "path": "OpenIntelligence/Services/Billing/EntitlementStore.swift", "line": 426, "match": "func product(for product: BillingProduct) -> Product? {", "status": "VERIFIED", "by": "build"},
+    {"id": "EntitlementStore.product", "kind": "function", "path": "OpenIntelligence/Services/Billing/EntitlementStore.swift", "line": 468, "match": "func product(for product: BillingProduct) -> Product? {", "status": "VERIFIED", "by": "build"},
     {"id": "ContentView.tabViewContent", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 303, "match": "private var tabViewContent: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "PlanAskService", "kind": "service", "path": "OpenIntelligence/App/PlanAskService.swift", "line": 27, "match": "final class PlanAskService: ObservableObject {", "status": "VERIFIED", "by": "build"},
     {"id": "ReviewPromptService.isVerified", "kind": "function", "path": "OpenIntelligence/App/ReviewPromptService.swift", "line": 68, "match": "nonisolated static func isVerified(_ gatingDecision: String?, retrievedSourceCount: Int) -> Bool {", "status": "VERIFIED", "by": "build"},
     {"id": "test:PlanAskServiceTests.swift", "kind": "test", "path": "OpenIntelligenceTests/App/PlanAskServiceTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
-    {"id": "test:MaximumModeQuotaStoreTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Billing/MaximumModeQuotaStoreTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
+    {"id": "test:MaximumModeQuotaStoreTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Billing/MaximumModeQuotaStoreTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
+    {"id": "EntitlementStore.protectionEarned", "kind": "function", "path": "OpenIntelligence/Services/Billing/EntitlementStore.swift", "line": 242, "match": "nonisolated static func protectionEarned(", "status": "VERIFIED", "by": "build"},
+    {"id": "test:EntitlementProtectionTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Billing/EntitlementProtectionTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "PlanUpgradeSheet", "type": "depends_on", "to": "PlanTierOption", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "line": 27, "match": "PlanTierOption("}], "by": "build", "note": "constructs it"},
@@ -109,13 +112,14 @@
     {"from": "ContentView.body", "type": "depends_on", "to": "PlanAskService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 175, "match": "guard PlanAskService.shared.noteOnboardingCompleted(isFreeTier: isFree) else { return }"}], "by": "build", "note": "named there"},
     {"from": "ChatScreen.chatPresentationLayer", "type": "depends_on", "to": "PlanAskService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 907, "match": ".onReceive(PlanAskService.shared.$wantsAsk) { wants in"}], "by": "build", "note": "named there"},
     {"from": "PlanAskService", "type": "tested_by", "to": "test:PlanAskServiceTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/App/PlanAskServiceTests.swift", "line": 13, "match": "PlanAskService.shouldAsk(verifiedAnswers: 4, isFreeTier: true, alreadyShown: false, isTesting: false))"}], "by": "build", "note": "the test names it"},
-    {"from": "MaximumModeQuotaStore", "type": "tested_by", "to": "test:MaximumModeQuotaStoreTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Billing/MaximumModeQuotaStoreTests.swift", "line": 13, "match": "private var store: MaximumModeQuotaStore!"}], "by": "build", "note": "the test names it"}
+    {"from": "MaximumModeQuotaStore", "type": "tested_by", "to": "test:MaximumModeQuotaStoreTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Billing/MaximumModeQuotaStoreTests.swift", "line": 13, "match": "private var store: MaximumModeQuotaStore!"}], "by": "build", "note": "the test names it"},
+    {"from": "EntitlementStore.protectionEarned", "type": "tested_by", "to": "test:EntitlementProtectionTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Billing/EntitlementProtectionTests.swift", "line": 39, "match": "EntitlementStore.protectionEarned(by: .lifetimeCohort, originalPurchaseDate: date, isRevoked: false),"}], "by": "build", "note": "the test names it; added by hand with the 2026-09-29 entitlement fix"}
   ],
   "docs": [],
   "unknowns": [],
   "related": ["app-lifecycle", "app-store-rating-prompt", "apple-foundation-models", "chat-conversation-view", "container-settings-and-customization", "document-library-and-containers", "rag-orchestration-core", "rag-validation-and-diagnostics"],
-  "entries": ["OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift::PlanUpgradeSheet", "OpenIntelligence/Services/Billing/StoreKitBillingService.swift::StoreKitBillingService", "OpenIntelligence/Services/Billing/EntitlementStore.swift::EntitlementStore", "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift::QuotaPolicy", "OpenIntelligence/Services/Billing/MaximumModeQuotaStore.swift::MaximumModeQuotaStore", "OpenIntelligence/Features/Billing/LaunchSaleBanner.swift::LaunchSaleBanner", "OpenIntelligence/App/PlanAskService.swift::PlanAskService"],
+  "entries": ["OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift::PlanUpgradeSheet", "OpenIntelligence/Services/Billing/StoreKitBillingService.swift::StoreKitBillingService", "OpenIntelligence/Services/Billing/EntitlementStore.swift::EntitlementStore", "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift::QuotaPolicy", "OpenIntelligence/Services/Billing/MaximumModeQuotaStore.swift::MaximumModeQuotaStore", "OpenIntelligence/Features/Billing/LaunchSaleBanner.swift::LaunchSaleBanner", "OpenIntelligence/App/PlanAskService.swift::PlanAskService", "OpenIntelligence/Services/Billing/EntitlementStore.swift::EntitlementStore.protectionEarned"],
   "owns": ["OpenIntelligence/Features/Billing/LaunchSale.swift", "OpenIntelligence/Features/Billing/LaunchSaleBanner.swift", "OpenIntelligence/Features/Billing/PlanUpgradeEntryPoint.swift", "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "OpenIntelligence/Features/Billing/PrivacyPolicyView.swift", "OpenIntelligence/Features/Billing/TermsOfServiceView.swift", "OpenIntelligence/Services/Billing/**", "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "OpenIntelligence/App/PlanAskService.swift", "OpenIntelligence/Resources/StoreKit/StoreKitTestHarness.swift", "OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit", "OpenIntelligence/Core/Models/WorkspaceTier.swift"],
   "decisions": [],
-  "traps": ["StoreKitConfiguration.storekit is Tier 1 and EntitlementStore.swift, StoreKitBillingService.swift and QuotaPolicy.swift are Tier 2 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md: Tier 1 needs the owner's named authorization, Tier 2 his approval, a plan and tests.", "Entitlements live in UserDefaults, not the Keychain, on purpose (canonical §9); moving them strands paying users' entitlement state."]
+  "traps": ["StoreKitConfiguration.storekit is Tier 1 and EntitlementStore.swift, StoreKitBillingService.swift and QuotaPolicy.swift are Tier 2 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md: Tier 1 needs the owner's named authorization, Tier 2 his approval, a plan and tests.", "Entitlements live in UserDefaults, not the Keychain, on purpose (canonical §9); moving them strands paying users' entitlement state.", "Only a Lifetime purchase, or a subscription that began before 2026-09-30 00:00 UTC, may earn `.historicalPaidPurchase`, and that state resolves to Lifetime everywhere: every path goes through `EntitlementStore.protectionEarned`. Stored protection is never lowered, by the owner's decision of 2026-09-29 (Docs/ai/DECISIONS.md)."]
 }
