@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-09-28 (latest): preparing MOVES TO 5.5. The branch claude/determined-ritchie-7y60am, which opened '## 5.5 <!-- unreleased -->' in CHANGELOG.md for the 'how much' extractor fix, merged into main at the owner's go. The owner created the 5.5 records in App Store Connect on 2026-09-25 (both PREPARE_FOR_SUBMISSION, read back 2026-09-28). app_store stays 5.4 on both platforms and in_review stays empty. Fascinaiting's page has no in-development entry, so its version job does not compare preparing with app_store.",
+    "",
     "2026-09-24 (latest, 17:00 PT): 5.4 IS LIVE ON BOTH PLATFORMS. Apple approved macOS 5.4 that afternoon, and at the owner's request it was released through the API at 17:00 PT (POST /v1/appStoreVersionReleaseRequests, HTTP 201; the record read READY_FOR_SALE with build 478 seconds later), as iOS was at 14:32 PT. app_store and both per-platform values move to 5.4 together, and in_review is empty. preparing stays 5.4 because no next version is open (the owner's decision that day); he picked 5.5 as the next number. Fascinaiting's page drops its in-development entry, so its version job has no preparing span to compare with app_store.",
     "",
     "2026-09-24 (latest): iOS 5.4 IS LIVE. Apple approved it (PENDING_DEVELOPER_RELEASE, release MANUAL), and at the owner's request it was released through the API at 14:32 PT, because the Release button in App Store Connect would not work for him: POST /v1/appStoreVersionReleaseRequests returned 201 and the record read READY_FOR_SALE with build 478 five seconds later. macOS 5.4 is IN_REVIEW with the same build. app_store stays 5.3, the value that does not overclaim to a Mac visitor, and preparing stays 5.4, so the sites' rule that preparing never equals app_store holds; both move to 5.4 when macOS 5.4 goes live. Gunzino's App Store Versions check reads the iPhone version from the iTunes lookup, so a run before then reports drift (page 5.3, store 5.4).",
@@ -64,8 +66,8 @@
     "ios": "5.4",
     "macos": "5.4"
   },
-  "preparing": "5.4",
+  "preparing": "5.5",
   "in_review": {},
-  "updated": "2026-09-24",
+  "updated": "2026-09-28",
   "verified_against": "Read from App Store Connect 2026-09-24 17:00 PT via the API: iOS 5.4 and macOS 5.4 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 478; iOS released 14:32 PT and macOS 17:00 PT through release requests."
 }

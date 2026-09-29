@@ -4,7 +4,7 @@
   "name": "Query Understanding and Rewriting",
   "aliases": ["query rewriter", "HyDE service", "query complexity analyzer", "query router service", "contextual compression"],
   "purpose": "Rewrites and classifies a question before retrieval, including HyDE hypothetical answers and entity extraction.",
-  "revision": "0e9728e",
+  "revision": "87cddef",
   "verified_on": "2026-09-28",
   "entry_points": ["QueryRewriterService", "HyDEService", "QueryComplexityAnalyzer", "QueryExecutionPlannerService", "QueryRouterService", "QueryEnhancementService"],
   "files": [
@@ -12,13 +12,14 @@
     {"path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "role": "primary", "blob": "7424e5795011c9924f68e909ea872bffffaf9e94"},
     {"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "role": "primary", "blob": "211c5b8cba480480fa6453ed094e14580c1dad7d"},
     {"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "role": "primary", "blob": "64185644c8896c2f39d88b08239d21fb7fca7fdc"},
-    {"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "role": "primary", "blob": "1c52a37a099b1c99f0f6f1d10f539ddd725dd587"},
+    {"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "role": "primary", "blob": "db81cb7730af8d8ba4819b2169cd0a5fdf2736f9"},
     {"path": "OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift", "role": "primary", "blob": "f94c467d44dc0290c8a337e1d5302cf94bffc5a4"},
     {"path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "role": "primary", "blob": "f52ca7e84d6dbf053fc16826621d74903e575b96"},
     {"path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift", "role": "primary", "blob": "2fa314ee3c1a8aa8b8989ce35019be1a406a8c9b"},
     {"path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "role": "primary", "blob": "a485a2edb7c2059fc79dee29e9aa2b7046d30245"},
     {"path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "role": "primary", "blob": "7d9e46cab3791cbbc77f4daa0af659ae544a480c"},
-    {"path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "role": "test", "blob": "c34f88b4617ed5d606c15eec1f01ba3e04a81867"}
+    {"path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "role": "test", "blob": "c34f88b4617ed5d606c15eec1f01ba3e04a81867"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift", "role": "test", "blob": "d4e2ff8b1663847f56a1cdd5c5dc7fdb9f5f7d2d"}
   ],
   "nodes": [
     {"id": "QueryRewriterService", "kind": "service", "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "line": 57, "match": "final class QueryRewriterService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},

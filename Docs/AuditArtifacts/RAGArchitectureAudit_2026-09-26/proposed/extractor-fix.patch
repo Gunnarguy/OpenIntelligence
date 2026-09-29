@@ -1,0 +1,223 @@
+diff --git a/OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift b/OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift
+--- a/OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift
++++ b/OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift
+@@ -133,7 +133,7 @@
+         }
+ 
+         Log.debug("[ExtractiveQA] Primary entities: \(queryEntities.primaryEntities)", category: .retrieval)
+-        Log.debug("[ExtractiveQA] Descriptive keywords: \(queryEntities.descriptiveKeywords.prefix(5))", category: .retrieval)
++        Log.debug("[ExtractiveQA] Descriptive keywords: \(queryEntities.descriptiveKeywords)", category: .retrieval)
+ 
+         if let explicitStateResult = extractFromExplicitStateStructures(
+             chunks: chunks,
+@@ -584,8 +584,13 @@
+         let loweredValue = value.lowercased()
+ 
+         if queryEntities.descriptiveKeywords.contains(where: { ["gallons", "gallon", "capacity", "volume", "liters", "liter", "quarts", "quart"].contains($0) }) {
+-            let liquidUnits = ["us gal", "gal", "gallon", "gallons", "l)", " l", "liter", "liters", "qt", "quarts", "quart"]
+-            if liquidUnits.contains(where: { loweredValue.contains($0) }) {
++            // The unit itself, not a substring of the value. The substring " l" was there for
++            // "4.5 L" and also matched "1 lb", so a weight took the liquid-unit bonus (+0.22) on
++            // 2026-09-25; it also missed "4.5L", written without a space.
++            let liquidUnits: Set<String> = [
++                "l", "liter", "liters", "gal", "gals", "gallon", "gallons", "qt", "qts", "quart", "quarts",
++            ]
++            if liquidUnits.contains(measurementUnit(of: value)) {
+                 return true
+             }
+         }
+@@ -614,6 +619,15 @@
+         return false
+     }
+ 
++    /// The unit of a detected measurement, lowercased, with any "US" qualifier dropped:
++    /// "1 lb" → "lb", "14.3 US gal" → "gal", "4.5L" → "l". Values come from
++    /// `SpecificationDetector`'s measurement pattern, so the number always comes first.
++    private func measurementUnit(of value: String) -> String {
++        value.lowercased()
++            .replacingOccurrences(of: #"^\s*\d+(?:[.,]\d+)?\s*(?:u\.?s\.?\s*)?"#, with: "", options: .regularExpression)
++            .trimmingCharacters(in: .whitespaces)
++    }
++
+     private func looksLikeIndexReference(_ value: String) -> Bool {
+         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+         if normalized.contains("\n") {
+@@ -1478,8 +1492,15 @@
+             }
+         }
+ 
+-        // Add domain-aware expansions to descriptive keywords based on context
+-        if tokens.contains("capacity") || tokens.contains("much") || tokens.contains("many") {
++        // Add domain-aware expansions to descriptive keywords based on context.
++        //
++        // "How much" and "how many" quantify anything: notice, rent, time, people. They ask for a
++        // volume only when the question names something measured as one, which is what the anchor
++        // list holds (oil, fuel, coolant, tank). Expanding on "much" alone made every measurement in
++        // the evidence a candidate answer to "How much notice do I have to give before I move out?",
++        // and on 2026-09-25 Deep Think locked "1 lb" from an air fryer's cooking chart for it.
++        let asksForQuantity = tokens.contains("much") || tokens.contains("many")
++        if tokens.contains("capacity") || (asksForQuantity && tokens.contains(where: isMeasurementAnchorKeyword(_:))) {
+             descriptiveKeywords.append(contentsOf: ["liters", "quarts", "gallons", "capacity", "volume"])
+         }
+         if tokens.contains("gas") {
+@@ -1498,15 +1519,22 @@
+         // All keywords = entities + descriptive (for backwards compatibility)
+         let allKeywords = Array(Set(primaryEntities + descriptiveKeywords))
+ 
++        // Deduplicated in the order the words arrived, question words first and expansions after.
++        // `Array(Set(...))` shuffled them per process, and the line at the top of `extract` printed
++        // five of the shuffled twelve, which on 2026-09-25 read as the expansion having replaced the
++        // question's words. It had only been appended.
++        var seenDescriptive = Set<String>()
++        let orderedDescriptive = descriptiveKeywords.filter { seenDescriptive.insert($0).inserted }
++
+         Log.debug(
+-            "[ExtractiveQA] Query parsing - Entities: \(primaryEntities), Descriptive: \(descriptiveKeywords.prefix(5))",
++            "[ExtractiveQA] Query parsing - Entities: \(primaryEntities), Descriptive: \(orderedDescriptive)",
+             category: .retrieval
+         )
+ 
+         return QueryEntities(
+             keywords: allKeywords,
+             primaryEntities: primaryEntities,
+-            descriptiveKeywords: Array(Set(descriptiveKeywords))
++            descriptiveKeywords: orderedDescriptive
+         )
+     }
+ 
+diff --git a/OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift b/OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift
+new file mode 100644
+--- /dev/null
++++ b/OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift
+@@ -0,0 +1,131 @@
++import XCTest
++@testable import OpenIntelligenceEngine
++
++/// Pins what the extractive lookup may put in place of a generated answer.
++///
++/// `SpecificationExtractor.extract` feeds `RAGService.highPrecisionLookupOverrideAnswer`, and a
++/// result at or above `EvidenceScoringPolicyService.precisionLockThreshold` becomes the answer.
++/// Deep Think and Maximum return it before the orchestrator runs; Standard swaps it in after
++/// generation. Either way the source-only check declines it as "source-locked".
++///
++/// Device evidence 2026-09-25, macOS Debug build of 5.4, Deep Think: "How much notice do I have to
++/// give before I move out?" over a library holding a lease (60 days' written notice, section 16) and
++/// an air fryer manual with a cooking chart. The answer was "1 lb." cited to the manual and marked
++/// Verified, and the model never ran. Two rules stacked to put "1 lb" at 0.85 against the 0.82 lock:
++/// "much" appended liters, quarts, gallons, capacity and volume to the question, which made it a
++/// measurement query worth +0.12 to every measurement, and the liquid-unit test found " l" inside
++/// "1 lb", worth +0.22.
++///
++/// The documents are fictional stand-ins for the owner's sample library.
++final class PrecisionLockAnswerTypeTests: XCTestCase {
++
++    private let lockThreshold = EvidenceScoringPolicyService.precisionLockThreshold(forceExtractiveAttempt: false)
++
++    private let noticeQuestion = "How much notice do I have to give before I move out?"
++
++    private let leaseSection16 = """
++        16. NOTICE TO VACATE. Tenant must give Landlord written notice at least sixty (60) days \
++        before the end of the Term if Tenant intends to move out. If Tenant does not give timely \
++        notice, this Lease continues month to month and either party may end it with 60 days' \
++        written notice. Notice must be delivered to Landlord at the address in Section 2.
++        """
++
++    private let airFryerCookingChart = """
++        Kestrel AF-620 Air Fryer - Cooking Chart
++        Food | Amount | Temp | Time
++        Frozen fries | 1 lb | 400°F | 15-18 min
++        Chicken wings | 1 lb | 380°F | 22-25 min
++        Brussels sprouts | 1 lb | 375°F | 12-15 min
++        Salmon fillets | 2 fillets | 390°F | 8-10 min
++        Pull the basket out and shake it halfway through. Remove food with tongs; do not overfill the basket.
++        """
++
++    private let airFryerSpecifications = """
++        SPECIFICATIONS
++        Basket capacity: 5.8 qt
++        Power: 1700 W
++        Voltage: 120 V
++        Before first use, remove all packaging and wash the basket. Never pull the basket out while \
++        the fryer is running.
++        """
++
++    private let truckSpecifications = """
++        SPECIFICATIONS. Curb weight: 3,200 lb. Payload capacity: 1,500 lb. Tank size is on the fuel door.
++        """
++
++    private func chunk(_ content: String, document: String, page: Int) -> RetrievedChunk {
++        let metadata = ChunkMetadata(
++            chunkIndex: 0,
++            startPosition: 0,
++            endPosition: content.count,
++            pageNumber: page,
++            sectionTitle: nil,
++            keywords: [],
++            semanticDensity: nil,
++            hasNumericData: true,
++            hasListStructure: false,
++            wordCount: content.split(separator: " ").count,
++            characterCount: content.count,
++            createdAt: Date()
++        )
++        return RetrievedChunk(
++            chunk: DocumentChunk(
++                id: UUID(),
++                documentId: UUID(),
++                content: content,
++                parentContent: nil,
++                contextualPrefix: nil,
++                embedding: [],
++                metadata: metadata
++            ),
++            similarityScore: 0.70,
++            rank: 0,
++            sourceDocument: document,
++            pageNumber: page
++        )
++    }
++
++    /// The span `highPrecisionLookupOverrideAnswer` would lock for these chunks, or nil when the
++    /// question goes to the model.
++    private func lockedSpan(_ question: String, _ chunks: [RetrievedChunk]) async -> String? {
++        let result = await SpecificationExtractor().extract(query: question, chunks: chunks, answerIntent: .lookup)
++        guard case .success(let extraction) = result, extraction.confidence >= lockThreshold else { return nil }
++        return extraction.answerSpan
++    }
++
++    /// The reported case: a notice question, a lease clause, and a chart of weights.
++    func testNoticeQuestionDoesNotLockAWeightFromACookingChart() async {
++        let span = await lockedSpan(noticeQuestion, [
++            chunk(leaseSection16, document: "Maple Court Lease.pdf", page: 4),
++            chunk(airFryerCookingChart, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 1),
++        ])
++        XCTAssertNil(span, "A notice question locked '\(span ?? "")'; it must go to the model")
++    }
++
++    /// The same question against a genuine liquid capacity. Fixing the unit test alone leaves this
++    /// locking "5.8 qt": only the expansion rule decides whether a notice question is about volume.
++    func testNoticeQuestionDoesNotLockALiquidCapacity() async {
++        let span = await lockedSpan(noticeQuestion, [
++            chunk(leaseSection16, document: "Maple Court Lease.pdf", page: 4),
++            chunk(airFryerSpecifications, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 2),
++        ])
++        XCTAssertNil(span, "A notice question locked '\(span ?? "")'; it must go to the model")
++    }
++
++    /// A pound is not a liquid unit, whatever the question. "Fuel" keeps the question a volume
++    /// question, so this is the unit test's own case, independent of the expansion rule.
++    func testFuelQuestionDoesNotLockAWeight() async {
++        let span = await lockedSpan("How much fuel does the tank hold?", [
++            chunk(truckSpecifications, document: "Truck Manual.pdf", page: 9),
++        ])
++        XCTAssertNil(span, "A fuel question locked the weight '\(span ?? "")'")
++    }
++
++    /// The case the extractor exists for must keep working.
++    func testCapacityQuestionStillLocksItsLiquidValue() async {
++        let span = await lockedSpan("How much food does the basket hold?", [
++            chunk(airFryerSpecifications, document: "Kestrel AF-620 Air Fryer Manual.pdf", page: 2),
++        ])
++        XCTAssertEqual(span, "5.8 qt")
++    }
++}

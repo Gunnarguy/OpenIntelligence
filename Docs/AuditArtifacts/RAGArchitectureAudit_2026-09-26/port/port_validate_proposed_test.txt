@@ -1,0 +1,30 @@
+== CURRENT code
+   FAIL  testNoticeQuestionDoesNotLockAWeightFromACookingChart: locked='1 lb' (extractor: '1 lb' 0.8525)
+   FAIL  testNoticeQuestionDoesNotLockALiquidCapacity: locked='5.8 qt' (extractor: '5.8 qt' 0.8775)
+   FAIL  testFuelQuestionDoesNotLockAWeight: locked='3,200 lb' (extractor: '3,200 lb' 0.8850)
+   PASS  testCapacityQuestionStillLocksItsLiquidValue: locked='5.8 qt' (extractor: '5.8 qt' 0.8733)
+== A1 only
+   PASS  testNoticeQuestionDoesNotLockAWeightFromACookingChart: locked=None (extractor: None failure)
+   PASS  testNoticeQuestionDoesNotLockALiquidCapacity: locked=None (extractor: None failure)
+   FAIL  testFuelQuestionDoesNotLockAWeight: locked='3,200 lb' (extractor: '3,200 lb' 0.8850)
+   PASS  testCapacityQuestionStillLocksItsLiquidValue: locked='5.8 qt' (extractor: '5.8 qt' 0.8900)
+== A2 only
+   PASS  testNoticeQuestionDoesNotLockAWeightFromACookingChart: locked=None (extractor: None failure)
+   FAIL  testNoticeQuestionDoesNotLockALiquidCapacity: locked='5.8 qt' (extractor: '5.8 qt' 0.8775)
+   PASS  testFuelQuestionDoesNotLockAWeight: locked=None (extractor: '3,200 lb' 0.6650)
+   PASS  testCapacityQuestionStillLocksItsLiquidValue: locked='5.8 qt' (extractor: '5.8 qt' 0.8733)
+== PROPOSED A1+A2
+   PASS  testNoticeQuestionDoesNotLockAWeightFromACookingChart: locked=None (extractor: None failure)
+   PASS  testNoticeQuestionDoesNotLockALiquidCapacity: locked=None (extractor: None failure)
+   PASS  testFuelQuestionDoesNotLockAWeight: locked=None (extractor: '3,200 lb' 0.6650)
+   PASS  testCapacityQuestionStillLocksItsLiquidValue: locked='5.8 qt' (extractor: '5.8 qt' 0.8900)
+   unit('1 lb') = 'lb'  liquid=False
+   unit('3,200 lb') = 'lb'  liquid=False
+   unit('14.3 US gal') = 'gal'  liquid=True
+   unit('14.3 U.S. gal') = 'gal'  liquid=True
+   unit('4.5L') = 'l'  liquid=True
+   unit('4.5 L') = 'l'  liquid=True
+   unit('5.8 qt') = 'qt'  liquid=True
+   unit('2 fl oz') = 'fl oz'  liquid=False
+   unit('25 lb-ft') = 'lb-ft'  liquid=False
+   unit('5 mL') = 'ml'  liquid=False

@@ -1,14 +1,15 @@
 # Current State
 
-Updated: 2026-09-28 (Repo Map built; safe cleanup done: 19 stale docs down to 7; codemap installed; development still paused after 5.4)
+Updated: 2026-09-28, evening (5.5 opened: the cloud extractor-fix branch merged into main after the full suite passed in Xcode; development otherwise still paused)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 9789510
+Last verified commit: 87cddef
 
 ## Objective
 
-None active for the app. 5.4 shipped on both platforms on 2026-09-24, and the owner paused
-development after it (`Docs/ai/DECISIONS.md`, 2026-09-24). The next version is 5.5, his pick; open it
-only when he says to.
+5.5 is the open release. The owner created its App Store Connect records on 2026-09-25, and on
+2026-09-28 the cloud branch `claude/determined-ritchie-7y60am` (the "how much" extractor fix and the RAG
+architecture audit) merged into `main` at his word (`Docs/ai/DECISIONS.md`, 2026-09-28). Otherwise
+development stays paused after 5.4, as decided on 2026-09-24. Start further 5.5 work only when he says to.
 
 On 2026-09-28 he asked for the repository to be easy to navigate and to show which of its files are
 still accurate, then to do the cleanup "that won't break anything". Both are done (Status). What is
@@ -73,6 +74,17 @@ left needs his word or an app release (Blockers).
   with the slice found the live model picker, which all three sessions without it missed. Roadmap row:
   https://app.notion.com/p/3e949a74d54f81cca68ed0f314c2353b. `Docs/ai/ARCHITECTURE.md` is free to edit
   again.
+- **5.5 opened by merging the cloud branch, 2026-09-28.** `claude/determined-ritchie-7y60am` was 5
+  commits ahead of `main` (+6,198/-132, 33 files). About 5,500 lines are the audit under
+  `Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/`, whose fixture documents are fictional. The app
+  change is `SpecificationExtractor.swift`, with `PrecisionLockAnswerTypeTests.swift` (4 tests), and
+  the branch opened `## 5.5 <!-- unreleased -->`. Two documentation conflicts were resolved: `STATE.md`,
+  where this file is kept, and the `DocOverhaul_2026-09-24` README. The three 2026-09-28 tooling
+  entries are filed under `## 5.5`; `preparing` is 5.5; the codemap slice
+  `query-understanding-and-rewriting` claims the new test file and is restamped. Roadmap row, still In
+  Progress for `v5.5`: https://app.notion.com/p/3e749a74d54f8115a76ad5b06b196956. The fix removes the
+  "1 lb." lock, but on 2026-09-26 Deep Think still answered "at least 30 days" where the lease says 60,
+  marked Verified (memory `extractor-fix-device-check`), so the row stays open.
 - **5.4 is live on iOS and macOS**, build 478 (Xcode Cloud #478 from `c276b9a`), and closed out in
   this repository, on GitHub (`v5.4.0` is Latest), on all three websites and in Notion. The release
   procedure used is in `Docs/ai/RUNBOOK.md`, "Releasing an approved version through the API".
@@ -84,14 +96,14 @@ left needs his word or an app release (Blockers).
 
 ## Active Constraints
 
-- **No version is open in `CHANGELOG.md`.** Before any app-change push, open
-  `## 5.5 <!-- unreleased -->` above `## 5.4` with `<!-- next-version: 5.5 -->`, and create the 5.5
-  records in App Store Connect. Xcode Cloud's filter skips only `*.md`, `Docs/`, `.claude/`,
-  `.agents/`, `.codex/`, `fastlane/metadata/` and `.github/`.
-- `[General]` changelog entries for post-5.4 tooling wait in
-  `Docs/AuditArtifacts/DocOverhaul_2026-09-24/README.md`, "CHANGELOG entries, to file when 5.5
-  opens" (five entries, the repo-map, the doc cleanup and the codemap included). Copy them under 5.5
-  when it opens.
+- **5.5 is open** (`## 5.5 <!-- unreleased -->`, `preparing` 5.5), and its App Store Connect records
+  exist on both platforms: iOS `d7b9bb32-0694-41fc-9692-75cc63cb4a7f`, macOS
+  `73bc0eaa-c670-479c-941e-b75998ac0142`, both `PREPARE_FOR_SUBMISSION`. Every push that touches a path
+  outside Xcode Cloud's filter builds 5.5 for TestFlight. The filter skips only `*.md`, `Docs/`,
+  `.claude/`, `.agents/`, `.codex/`, `fastlane/metadata/` and `.github/`. Nothing is submitted without
+  the owner's word.
+- The five `[General]` post-5.4 tooling entries from `Docs/AuditArtifacts/DocOverhaul_2026-09-24/README.md`
+  are filed under `## 5.5`: two on 2026-09-26 and three on 2026-09-28.
 - `CLAUDE.md` forbids deleting docs. Removing a doc means moving it (`git mv`) into `Docs/Archive/`
   unless the owner lifts that rule in so many words.
 - App Store Connect writes happen only at the owner's word. Guard memory on builds (18 GB Mac):
@@ -110,6 +122,15 @@ left needs his word or an app release (Blockers).
   `OpenIntelligence/Resources/VersionHistory.md`: the release records.
 
 ## Verification (2026-09-28, output read)
+
+- **The merged tree, before the merge commit:** full iOS suite on the new simulator
+  `F80F4025-4DC7-4666-9942-60F80AEF08AB` (iPhone 18 Pro, iOS 27.0; every simulator was deleted at
+  10:41 that morning), guarded xcodebuild with `-jobs 2` and DerivedData `/private/tmp/oi-build` ->
+  `** TEST SUCCEEDED **`, 504 tests, 4 skipped, 0 failures, 381 s, lowest free memory 28%. All four
+  `PrecisionLockAnswerTypeTests` passed. Skipped: two `EmbeddingProviderAgreementTests`, one
+  `IngestionFormatCoverageTests` (silent audio) and one `LayoutReadingOrderTests`. None of them touch
+  the extractor. `codemap.py check` -> 0 errors and 0 warnings after the restamp. `verify_doc_claims.py`
+  -> 757 claims, all match. The router reports `v5.5` in development, and the secret scan is clean.
 
 - `test_build_map.py` against all four repositories (`REPO_MAP_ROOT=... REPO_MAP_NAME=...`) -> 9
   tests OK in each, 2026-09-28, after the builder was generalized.
@@ -179,5 +200,8 @@ left needs his word or an app release (Blockers).
 
 ## Exact Next Action
 
-None. The codemap is pushed (`0e9728e..9789510`, no Xcode Cloud build). There is no active
-objective; ask the owner what to pick up next, or take a row from the Notion roadmap.
+Read the Xcode Cloud run that the merge push started
+(`ciWorkflows/E6B22BA8-D5A5-4664-941A-3EC1C3F50910/buildRuns?sort=-number`, through `zsh -ic`). It
+should stamp 5.5 and upload to TestFlight on both platforms; if it failed, read its actions' issues.
+After that, no work is planned: the next 5.5 work, Deep Think's wrong notice answer and the audit's
+Future Backlog rows, starts only when the owner says so.

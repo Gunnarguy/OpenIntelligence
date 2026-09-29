@@ -37,3 +37,16 @@ repo-relative links. Relocating these files would break that work for no gain. T
 directory is marked instead.
 
 `[evidence_level: file_dates_verified, confidence: exact]`
+
+## Added after this index was written
+
+The description at the top covers the original fifty-eight files. These folders were
+added later. The same rule applies to them: they are a historical record, not live
+documentation.
+
+| Folder | Date | Contents |
+|---|---|---|
+| [`DocOverhaul_2026-09-24/`](DocOverhaul_2026-09-24/README.md) | 2026-09-24 | Unapplied edit proposals and suspected code defects from the documentation overhaul |
+| [`RAGArchitectureAudit_2026-09-26/`](RAGArchitectureAudit_2026-09-26/README.md) | 2026-09-26 | The diagnosis of the "1 lb" wrong answer, with a proposed fix that is not applied. Also an audit of ingestion, SQLite and vector storage, retrieval, generation and verification against Apple's iOS 27 frameworks and current practice |
+
+`[evidence_level: file_existence_verified, confidence: exact]`

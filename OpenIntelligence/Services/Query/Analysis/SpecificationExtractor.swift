@@ -133,7 +133,7 @@ actor SpecificationExtractor {
         }
 
         Log.debug("[ExtractiveQA] Primary entities: \(queryEntities.primaryEntities)", category: .retrieval)
-        Log.debug("[ExtractiveQA] Descriptive keywords: \(queryEntities.descriptiveKeywords.prefix(5))", category: .retrieval)
+        Log.debug("[ExtractiveQA] Descriptive keywords: \(queryEntities.descriptiveKeywords)", category: .retrieval)
 
         if let explicitStateResult = extractFromExplicitStateStructures(
             chunks: chunks,
@@ -584,8 +584,13 @@ actor SpecificationExtractor {
         let loweredValue = value.lowercased()
 
         if queryEntities.descriptiveKeywords.contains(where: { ["gallons", "gallon", "capacity", "volume", "liters", "liter", "quarts", "quart"].contains($0) }) {
-            let liquidUnits = ["us gal", "gal", "gallon", "gallons", "l)", " l", "liter", "liters", "qt", "quarts", "quart"]
-            if liquidUnits.contains(where: { loweredValue.contains($0) }) {
+            // The unit itself, not a substring of the value. The substring " l" was there for
+            // "4.5 L" and also matched "1 lb", so a weight took the liquid-unit bonus (+0.22) on
+            // 2026-09-25; it also missed "4.5L", written without a space.
+            let liquidUnits: Set<String> = [
+                "l", "liter", "liters", "gal", "gals", "gallon", "gallons", "qt", "qts", "quart", "quarts",
+            ]
+            if liquidUnits.contains(measurementUnit(of: value)) {
                 return true
             }
         }
@@ -612,6 +617,15 @@ actor SpecificationExtractor {
         }
 
         return false
+    }
+
+    /// The unit of a detected measurement, lowercased, with any "US" qualifier dropped:
+    /// "1 lb" → "lb", "14.3 US gal" → "gal", "4.5L" → "l". Values come from
+    /// `SpecificationDetector`'s measurement pattern, so the number always comes first.
+    private func measurementUnit(of value: String) -> String {
+        value.lowercased()
+            .replacingOccurrences(of: #"^\s*\d+(?:[.,]\d+)?\s*(?:u\.?s\.?\s*)?"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
     }
 
     private func looksLikeIndexReference(_ value: String) -> Bool {
@@ -1478,8 +1492,15 @@ actor SpecificationExtractor {
             }
         }
 
-        // Add domain-aware expansions to descriptive keywords based on context
-        if tokens.contains("capacity") || tokens.contains("much") || tokens.contains("many") {
+        // Add domain-aware expansions to descriptive keywords based on context.
+        //
+        // "How much" and "how many" quantify anything: notice, rent, time, people. They ask for a
+        // volume only when the question names something measured as one, which is what the anchor
+        // list holds (oil, fuel, coolant, tank). Expanding on "much" alone made every measurement in
+        // the evidence a candidate answer to "How much notice do I have to give before I move out?",
+        // and on 2026-09-25 Deep Think locked "1 lb" from an air fryer's cooking chart for it.
+        let asksForQuantity = tokens.contains("much") || tokens.contains("many")
+        if tokens.contains("capacity") || (asksForQuantity && tokens.contains(where: isMeasurementAnchorKeyword(_:))) {
             descriptiveKeywords.append(contentsOf: ["liters", "quarts", "gallons", "capacity", "volume"])
         }
         if tokens.contains("gas") {
@@ -1498,15 +1519,22 @@ actor SpecificationExtractor {
         // All keywords = entities + descriptive (for backwards compatibility)
         let allKeywords = Array(Set(primaryEntities + descriptiveKeywords))
 
+        // Deduplicated in the order the words arrived, question words first and expansions after.
+        // `Array(Set(...))` shuffled them per process, and the line at the top of `extract` printed
+        // five of the shuffled twelve, which on 2026-09-25 read as the expansion having replaced the
+        // question's words. It had only been appended.
+        var seenDescriptive = Set<String>()
+        let orderedDescriptive = descriptiveKeywords.filter { seenDescriptive.insert($0).inserted }
+
         Log.debug(
-            "[ExtractiveQA] Query parsing - Entities: \(primaryEntities), Descriptive: \(descriptiveKeywords.prefix(5))",
+            "[ExtractiveQA] Query parsing - Entities: \(primaryEntities), Descriptive: \(orderedDescriptive)",
             category: .retrieval
         )
 
         return QueryEntities(
             keywords: allKeywords,
             primaryEntities: primaryEntities,
-            descriptiveKeywords: Array(Set(descriptiveKeywords))
+            descriptiveKeywords: orderedDescriptive
         )
     }
 

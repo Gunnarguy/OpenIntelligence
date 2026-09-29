@@ -833,3 +833,32 @@ builder rule. A second sample of 40 on the fixed build held 20 of 20 VERIFIED an
 and its two failures (a private member of another file, SwiftUI's `dismiss()`) became rules too.
 
 `[evidence_source: codemap.py check 0 errors at 0e9728e; review samples and verdicts, and the A/B, in ~/.agents/featuremap/ab/2026-09-28-OpenIntelligence/ on the owner's Mac; build.py and its README]`
+
+## 2026-09-28 - The cloud extractor-fix branch merges into main, and 5.5 is the open release
+
+**Context.** A cloud session left `claude/determined-ritchie-7y60am` five commits ahead of `main`
+(2026-09-26): 6,198 added lines, about 5,500 of them the RAG architecture audit under
+`Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/`. The app change is 42 lines in
+`SpecificationExtractor.swift` plus four regression tests, and the branch opened
+`## 5.5 <!-- unreleased -->`. Its own handoff left the Xcode test run on the Mac and the owner's merge
+call open. On 2026-09-28 the owner asked to close the loop, and said App Store Connect already had
+5.5; he had created both records on 2026-09-25.
+
+**Decision.** Merge the whole branch, audit included, and make 5.5 the open release: `preparing` 5.5.
+Resolve the two conflicts, which were both documentation, and file the three 2026-09-28 doc and tooling
+entries under `## 5.5` as well. Push only after the full suite passes in Xcode on the merged tree, then
+delete both cloud branches (`claude/feature-knowledge-graph-fhu4mc` was already fully in `main`).
+
+**Alternatives.** Keep the branch parked until 5.5 work resumes. That leaves a branch against the
+owner's rule of 2026-09-14 ("everything on their mains with no branches"). Merging the audit without
+the code would split one piece of work across two places.
+
+**Consequences.** This supersedes the "no next version is open" part of the 2026-09-24 decision. The
+push starts an Xcode Cloud build that stamps 5.5 and uploads to the 5.5 records for TestFlight.
+Nothing is submitted. The row "Deep Think answered a lease-notice question with '1 lb'" stays In
+Progress: on 2026-09-26 the fix removed the lock, but Deep Think still answered "at least 30 days"
+where the lease says 60, and marked it Verified. Fascinaiting's in-development entry stays off
+until more 5.5 work is planned.
+
+`[evidence_source: git merge-tree origin/main origin/claude/determined-ritchie-7y60am (two conflicts, both documentation); App Store Connect read 2026-09-28, iOS and macOS 5.5 PREPARE_FOR_SUBMISSION, created 2026-09-25; memory extractor-fix-device-check]`
+

@@ -1,0 +1,20 @@
+# question | documents | locks or goes to the model | span | confidence or failure
+# source: b37ab4c
+How much notice do I have to give before I move out?|Lease.pdf + Air Fryer.pdf|LOCKS|1 lb|0.85
+How much notice do I have to give before I move out?|Lease.pdf + Air Fryer.pdf|LOCKS|5.8 qt|0.88
+How many days notice do I need to give?|Lease.pdf + Air Fryer.pdf|model|-|noSpecsFound
+How much rent is due?|Lease.pdf + Air Fryer.pdf|model|-|noSpecsFound
+How much power does it use?|Air Fryer.pdf|LOCKS|5.8 qt|0.88
+How much does the basket hold?|Air Fryer.pdf|LOCKS|5.8 qt|0.88
+What is the basket capacity?|Air Fryer.pdf|LOCKS|5.8 qt|0.89
+How much oil does the engine take?|Car Manual.pdf|LOCKS|4.5 L|0.88
+How much oil does the engine take?|Mower Manual.pdf|model|4.5L|0.68
+How many quarts of oil does it need?|Car Manual.pdf|LOCKS|4.5 L|0.86
+What oil does the car take?|Car Manual.pdf|model|-|ambiguousMultiple(candidates: ["4.8 US qt", "4.5 L", "54 L", "0W-20", "14.3 US gal", "7.2 L", "0W"])
+How much fuel does the tank hold?|Car Manual.pdf|LOCKS|4.5 L|0.87
+What is the fuel tank capacity?|Car Manual.pdf|LOCKS|4.5 L|0.88
+How much coolant does it need?|Car Manual.pdf|LOCKS|4.8 US qt|0.86
+How much water does the reservoir take?|Coffee Maker.pdf|LOCKS|1.2 L|0.90
+How much water does it hold?|Coffee Maker.pdf|LOCKS|1.2 L|0.90
+How much does it weigh?|Stand Mixer.pdf|model|11.2 lb|0.76
+What is the product weight?|Stand Mixer.pdf|LOCKS|11.2 lb|0.89
