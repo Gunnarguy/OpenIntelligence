@@ -1006,6 +1006,28 @@ Review notes and handles the rest of the listing (its sale step stops applying a
 
 `[evidence_level: measured, confidence: exact, evidence_source: PATCH returned 204 for both 5.1 records on 2026-09-02; GET read back the attached ids]`
 
+## Submitting for review through the API
+
+Only at the owner's word; `scripts/asc_prepare_release.rb` stages a version and never submits. The order that worked
+on 2026-09-29 for 5.5, one pass per platform (`IOS`, `MAC_OS`):
+
+1. `scripts/asc_prepare_release.rb <X.Y> <build> --apply` attaches the build and writes What's New, the description
+   and keywords. Read back each record: `appStoreState` `PREPARE_FOR_SUBMISSION` and the expected build.
+2. App Review notes: GET `/v1/appStoreVersions/{id}/appStoreReviewDetail`, append `fastlane/review_notes/<X.Y>.txt`
+   unless the notes already hold it, PATCH `/v1/appStoreReviewDetails/{id}`. `scripts/asc_listing_extras.rb` does
+   this as its step 1, but through `SALE_LAST_DAY` its step 2 also copies the live sale line onto the new version's
+   promotional text, which would outlive the sale; run only the notes step on or before that day.
+3. POST `/v1/reviewSubmissions` with `platform` and the `app` relationship (or reuse one already in
+   `READY_FOR_REVIEW`), POST `/v1/reviewSubmissionItems` linking that submission to the `appStoreVersion`, then PATCH
+   `/v1/reviewSubmissions/{id}` with `submitted: true`. Refuse to start if a submission for the platform is already
+   `WAITING_FOR_REVIEW`, `IN_REVIEW` or `UNRESOLVED_ISSUES`.
+
+Each PATCH returned 200 with state `WAITING_FOR_REVIEW`, and both version records then read `WAITING_FOR_REVIEW` with
+the build attached. Record it in `Docs/SHIPPED_VERSION.json` `in_review` and the version's entry in
+`Docs/Release/APP_STORE_METADATA_HISTORY.md`.
+
+`[evidence_level: measured, confidence: exact, evidence_source: 5.5 submissions 409aead4-0890-4184-9b2d-95f65d29a33a (iOS) and 6d81ae2c-2408-45f6-9c95-99544f147aa6 (macOS), 2026-09-29 11:31 PT, read back with GET appStoreVersions]`
+
 ## Releasing an approved version through the API
 
 *Verified 2026-09-24, both platforms.*

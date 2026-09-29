@@ -1,19 +1,20 @@
 # Current State
 
-Updated: 2026-09-29, 10:40 PT (entitlement fix committed and pushed for a new 5.5 build; attaching it waits on Xcode Cloud)
+Updated: 2026-09-29, 11:35 PT (5.5 submitted for App Review on iOS and macOS with build 482)
 Branch/worktree: `main`, primary checkout
-Last verified commit: a747ece
+Last verified commit: 71b76ce
 
 ## Objective
 
-5.5 is the open release: one app change (the "how much" extractor fix), staged in App Store Connect on
-both platforms with build 481, and nothing submitted. Submitting is the owner's call, and new work
-starts only when he says to (`Docs/ai/DECISIONS.md`, 2026-09-24).
+5.5 is in App Review on both platforms with build 482, submitted at the owner's word on 2026-09-29: the
+"how much" extractor fix and the subscription fix. Release is manual and his call. New work starts only when
+he says to (`Docs/ai/DECISIONS.md`, 2026-09-24).
 
 On 2026-09-29 he said to carry out the cleanup plan's recommendations as long as nothing fundamental
 breaks. That is done and pushed (Status). He then asked for the entitlement defect to be fixed and approved
 the plan that named `EntitlementStore.swift` ("yep, go for it"), with everyone who already has the protection
-keeping it. The fix is committed and pushed; the next 5.5 build carries it (Blockers).
+keeping it. The fix is in build 482. He then asked for the 5.5 store copy to be updated in his voice and
+submitted on both platforms; both are done (Status).
 
 ## Status
 
@@ -49,9 +50,12 @@ keeping it. The fix is committed and pushed; the next 5.5 build carries it (Bloc
   - https://app.notion.com/p/3ea49a74d54f81059b20e8bda0663798: sentence-opening words become entities.
   - Corrected in place: https://app.notion.com/p/38049a74d54f81dcae32fce70ba7751b (View Entity
     Annotations) is To Do, Future Backlog; the feature has no call sites.
-- **5.5 in App Store Connect:** both records (iOS `d7b9bb32-0694-41fc-9692-75cc63cb4a7f`, macOS
-  `73bc0eaa-c670-479c-941e-b75998ac0142`) are `PREPARE_FOR_SUBMISSION` with build 481, notes, promo,
-  description and keywords (read back 2026-09-28 22:00 PT). The extractor row stays In Progress:
+- **5.5 in App Review, 2026-09-29 11:31 PT:** both records (iOS `d7b9bb32-0694-41fc-9692-75cc63cb4a7f`, macOS
+  `73bc0eaa-c670-479c-941e-b75998ac0142`) read `WAITING_FOR_REVIEW`, release MANUAL, build 482 (Xcode Cloud #482
+  from `55b283e`). Store copy from `71b76ce`: the notes' closing line now says "unless you okay Apple's Private
+  Cloud Compute", and the description offers iCloud Drive to paid plans only and says PCC can "do the writing";
+  both platforms read back identical to the repo. App Review note appended (`fastlane/review_notes/5.5.txt`).
+  Recorded in `Docs/SHIPPED_VERSION.json` `in_review`; the procedure is in `Docs/ai/RUNBOOK.md`. The extractor row stays In Progress:
   https://app.notion.com/p/3e749a74d54f8115a76ad5b06b196956 (on 2026-09-26 Deep Think still answered
   "at least 30 days" where the lease says 60, marked Verified).
 - **5.4 is live** on iOS and macOS, build 478, closed out on GitHub (`v5.4.0` Latest), the three websites
@@ -93,13 +97,13 @@ keeping it. The fix is committed and pushed; the next 5.5 build carries it (Bloc
 
 ## Blockers / Unknowns
 
-- **New 5.5 build with the entitlement fix.** The push of the fix starts Xcode Cloud. When the build is `VALID`
-  on iOS and macOS (the dry run `zsh -ic 'ruby scripts/asc_prepare_release.rb 5.5 <build>'` finds it, or
-  App Store Connect's TestFlight tab shows it), attach it in place of 481 with the same command plus `--apply`;
-  the owner approved that swap on 2026-09-29, and nothing is submitted. Then the route's manual check, in the
-  `OpenIntelligence-StoreKitTesting` scheme or TestFlight sandbox: buy Pro Monthly, Settings shows Pro, not
-  Lifetime; expire it and relaunch, Free. That check closes https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6.
-  Anyone who starts a subscription or trial on 5.4 still gets the old stored protection until they update.
+- **After App Review.** When a record reads `PENDING_DEVELOPER_RELEASE`, release it only at the owner's word
+  (`Docs/ai/RUNBOOK.md`, "Releasing an approved version through the API"), then close 5.5 out as 5.4 was:
+  `SHIPPED_VERSION.json`, the `CHANGELOG.md` heading's unreleased marker, the GitHub release, the three sites, and
+  the Notion rows: https://app.notion.com/p/3e949a74d54f817f8933e538845009c6 (description) closes on release;
+  https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6 (subscriptions) closes after a sandbox check on build
+  482: buy Pro Monthly, Settings shows Pro, not Lifetime; let it expire and relaunch, Free. Until 5.5 is
+  installed, anyone who starts a subscription or trial on 5.4 still gets the old stored protection.
 - **Privacy row stays open:** https://app.notion.com/p/3e949a74d54f81b79775e99953132f98 has a dated note of
   2026-09-29. The new `PRIVACY.md` is pushed; the published policy still says Private Cloud Compute gets data
   for final synthesis only (see the next item), so the row closes when that page or the code changes.
@@ -136,7 +140,6 @@ keeping it. The fix is committed and pushed; the next 5.5 build carries it (Bloc
 
 ## Exact Next Action
 
-Wait for Xcode Cloud to build 5.5 from the entitlement-fix commit (the first after `a747ece`). When the build is
-`VALID` on iOS and macOS, attach it in place of 481 with
-`zsh -ic 'ruby scripts/asc_prepare_release.rb 5.5 <build> --apply'` (approved by the owner on 2026-09-29;
-nothing is submitted), then do the manual StoreKit check under Blockers.
+Wait for App Review. Read both records with GET `/v1/apps/6756559175/appStoreVersions?filter[versionString]=5.5`
+(or App Store Connect). On `PENDING_DEVELOPER_RELEASE`, ask the owner whether to release; on `REJECTED` or
+`UNRESOLVED_ISSUES`, read the review message and bring it to him with a proposed fix.
