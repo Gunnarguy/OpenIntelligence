@@ -10,4 +10,4 @@ ANSWERS
 • When you ask how much something holds, a capacity written without a space, like "4.5L", counts as liters now.
 
 
-Everything still runs on your device, unless you okay sending the final writing step to Apple's Private Cloud Compute.
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.

@@ -168,8 +168,8 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 - **Platforms:** iOS, macOS
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION on both platforms (iOS `d7b9bb32-0694-41fc-9692-75cc63cb4a7f`, macOS `73bc0eaa-c670-479c-941e-b75998ac0142`, created by the owner 2026-09-25)
-- **Final release notes commit:** the 2026-09-28 commit that adds this entry; revise if 5.5 gains more user-facing changes before it ships
-- **Notes:** one user-facing fix so far, the "how much" extractor change. Written in the owner's voice, and it says what the fix does not do: re-asked on the Mac on 2026-09-26, Deep Think still answered the notice question "at least 30 days" where the lease says 60, marked Verified. The closing line is rewritten, because "that one writing step" had pointed at nothing since 5.3. The promotional text replaces 5.4's, which described 5.3's changes; the live 5.4 records carry the sale line until `openintelligence-end-lifetime-sale` runs on 2026-09-30.
+- **Final release notes commit:** the 2026-09-29 commit that changes the closing line and the description; the 2026-09-28 commit wrote the rest
+- **Notes:** one user-facing fix so far, the "how much" extractor change. Written in the owner's voice, and it says what the fix does not do: re-asked on the Mac on 2026-09-26, Deep Think still answered the notice question "at least 30 days" where the lease says 60, marked Verified. The closing line is rewritten, because "that one writing step" had pointed at nothing since 5.3. The promotional text replaces 5.4's, which described 5.3's changes; the live 5.4 records carry the sale line until `openintelligence-end-lifetime-sale` runs on 2026-09-30. On 2026-09-29 the closing line became "unless you okay Apple's Private Cloud Compute", because with Private Cloud Compute chosen in the model picker, Deep Think and Maximum send their reasoning passes there too, not only the final writing step (`AgenticOrchestrator.swift:9000-9014`). The description stopped offering iCloud Drive sync to every plan (it is Pro and Lifetime, `WorkspaceSyncService.swift:411-413`) and says Private Cloud Compute can "do the writing" for the same reason as the closing line. Build 482 adds a subscription fix with no store note: a Pro subscription gives Pro while it is active, and nobody who already had Lifetime loses it.
 
 **Release notes (`fastlane/metadata/`, both platforms):**
 
@@ -186,13 +186,63 @@ ANSWERS
 • When you ask how much something holds, a capacity written without a space, like "4.5L", counts as liters now.
 
 
-Everything still runs on your device, unless you okay sending the final writing step to Apple's Private Cloud Compute.
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
 ```
 
 **Promotional text** (2026-09-28):
 
 ```text
 You can type again the moment an answer's written, most Deep Think and Maximum answers stream, and "how much" questions stop grabbing numbers from the wrong document.
+```
+
+**Description** (`fastlane/metadata/en-US/description.txt`, 2026-09-29):
+
+```text
+Ask a question about your own PDFs, contracts, lecture recordings or code, and get an answer with the exact passage it came from. Nothing you import leaves your device unless you allow it. Free to start, no account, no API key.
+
+OpenIntelligence reads what you import and answers in plain language, with citations you can tap to see where each claim came from. When your files don't contain the answer, it says so instead of guessing.
+
+ANSWERS START IN YOUR FILES
+
+Not in a chatbot's imagination. OpenIntelligence searches your library first, pulls the exact passages that matter, and only then writes, using Apple's on-device Apple Intelligence models. Requires an Apple Intelligence-capable device: iPhone 15 Pro or later, or an M1-or-later iPad or Mac, on iOS/iPadOS/macOS 26. Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
+
+WHAT YOU CAN DO
+
+- Summarize long documents, recordings, or entire libraries.
+- Compare claims and details across multiple sources.
+- Find exact facts, dates, specifications, measurements, and table values.
+- Ask follow-up questions without losing the sources or the thread.
+- Choose Standard for quick factual work, Deep Think for multi-step questions, or Maximum for broader evidence synthesis.
+
+BRING YOUR OWN MATERIAL
+
+Import PDFs, Office documents, text and Markdown files, CSVs, code, images and scans, audio, or video. Pages, Numbers and Keynote files need to be exported to PDF first. OpenIntelligence extracts text, uses Vision OCR where needed, transcribes speech, and builds a searchable index for each library.
+
+HOW ANSWERS ARE BUILT
+
+Exact keyword matching and semantic search work together to retrieve the passages that matter. Apple Foundation Models turn those passages into a natural-language response. Then the app checks its own answer against the passages it actually used, so you can inspect what it's standing on instead of taking its word.
+
+If the sources do not establish an answer, the app flags weak support or abstains. No confident filler.
+
+WHERE YOUR FILES GO (AND DON'T)
+
+Reading your files, searching them, and choosing what to cite all happen on your device, start to finish, before anything is written. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can optionally allow Apple Private Cloud Compute to do the writing. The app shows you how much would be sent and why, and asks you first. Apple says its servers keep nothing afterwards. Your material is never sent to a third-party AI provider.
+
+ANSWERS YOU CAN INSPECT
+
+Inline citations connect answers to their supporting pages and passages, one tap from claim to source. If you want more, response details go deeper: source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer. The optional telemetry interface goes deeper when you want it and stays out of the way when you don't.
+
+LIBRARIES THAT FIT YOUR WORK
+
+Keep different subjects, projects, or clients in separate libraries. Choose Local Only or iCloud Drive (paid plans) for each library, and organize ongoing research in saved conversation threads. Siri and Shortcuts actions are available for common document and library workflows.
+
+PLANS
+
+Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Free: 5 documents, one library, Maximum mode three times a day. Pro lifts that cap and grows to 1,000 documents and 10 libraries, monthly or yearly. Lifetime: one payment, unlimited documents, 20 libraries, Maximum every day, no renewal.
+
+OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
+
+Privacy Policy: https://gunzino.me/openintelligence/privacy
 ```
 
 ### 5.4
