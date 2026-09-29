@@ -23,13 +23,17 @@ struct PlanUpgradeSheet: View {
     /// Sorted top-to-bottom by level and billing period to match the release catalog.
     /// The UI intentionally surfaces every SKU so we can spot missing App Store Connect
     /// configuration early (and avoid "only 3 products show up" surprises).
+    ///
+    /// No saving is written here as fixed text. Until 5.5 the Annual card carried a hardcoded
+    /// "Save 58% vs monthly" bullet, true only where both prices moved together; the savings now
+    /// come from `dealBadge(for:)`, per storefront, from StoreKit's live prices.
     private let planOptions: [PlanTierOption] = [
         PlanTierOption(
             tier: .pro,
             planName: "Pro (Monthly)",
             product: .proMonthly,
-            tagline: "Maximum mode every day, month to month",
-            badgeText: "Flexible",
+            tagline: "Maximum mode every day, billed monthly",
+            badgeText: "Month to month",
             tint: .purple,
             isFeatured: false,
             features: [
@@ -44,29 +48,29 @@ struct PlanUpgradeSheet: View {
             planName: "Pro (Annual)",
             product: .proAnnual,
             tagline: "Maximum mode every day, one payment a year",
-            badgeText: "Best Value",
+            badgeText: nil,
             tint: .purple,
             isFeatured: true,
             features: [
                 "Maximum mode with no daily cap",
                 "Up to 1,000 documents",
                 "10 libraries",
-                "Save 58% vs monthly",
+                "Cancel anytime",
             ]
         ),
         PlanTierOption(
             tier: .lifetime,
-            planName: "Lifetime Cohort",
+            planName: "Lifetime",
             product: .lifetimeCohort,
             tagline: "Everything, once, for good",
-            badgeText: "One-Time",
+            badgeText: "Pay once",
             tint: .orange,
             isFeatured: false,
             features: [
                 "Maximum mode with no daily cap",
                 "Unlimited documents",
                 "20 libraries",
-                "One payment, no renewal",
+                "Never expires",
             ]
         ),
     ]
@@ -275,7 +279,8 @@ extension PlanUpgradeSheet {
             price: priceLabel(for: option.product),
             priceSuffix: priceSuffix(for: option.product),
             saleOffer: saleOffer(for: option.product),
-            monthsOfAnnual: option.product == .lifetimeCohort ? monthsOfAnnualForLifetime : nil,
+            dealBadge: dealBadge(for: option.product),
+            comparisons: comparisons(for: option.product),
             hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
             // "canPurchase" here means StoreKit metadata has been loaded.
             // We still allow tapping the CTA while loading; the tap will refresh and retry.
@@ -401,16 +406,79 @@ extension PlanUpgradeSheet {
         entitlementStore.product(for: product) != nil
     }
 
+    /// StoreKit's price for this storefront, or a US fallback until StoreKit answers.
+    ///
+    /// The fallbacks are the US prices from 2026-10-01 (Lifetime from 2026-09-30). They only
+    /// fill the card while products load, and nothing is computed from them: every badge and
+    /// caption below waits for the live price.
     fileprivate func priceLabel(for product: BillingProduct) -> String {
         if let storeProduct = entitlementStore.product(for: product) {
             return storeProduct.displayPrice
         }
         switch product {
-        case .proMonthly: return "$5.99"
-        case .proAnnual: return "$29.99"
-        case .lifetimeCohort: return "$59.99"
+        case .proMonthly: return "$4.99"
+        case .proAnnual: return "$24.99"
+        case .lifetimeCohort: return "$49.99"
         case .documentPackAddOn: return "$2.99"
         }
+    }
+
+    /// Two live StoreKit products priced in the same currency, or nil. Every comparison on a card
+    /// needs both sides from the customer's own storefront; a US fallback on either side would
+    /// make it a guess.
+    fileprivate func livePrices(_ first: BillingProduct, _ second: BillingProduct) -> (Product, Product)? {
+        guard let a = entitlementStore.product(for: first),
+            let b = entitlementStore.product(for: second),
+            a.priceFormatStyle.currencyCode == b.priceFormatStyle.currencyCode
+        else { return nil }
+        return (a, b)
+    }
+
+    /// The saving against another plan, drawn as a small capsule under the price, or nil when
+    /// there is nothing true to say: Annual against twelve months of Monthly, and Lifetime when
+    /// it costs less than a year of Monthly. Monthly is what the others are measured against, so
+    /// it has none.
+    fileprivate func dealBadge(for product: BillingProduct) -> String? {
+        switch product {
+        case .proAnnual:
+            guard let pair = livePrices(.proMonthly, .proAnnual),
+                let percent = PlanPriceComparison.annualSavingsPercent(
+                    monthlyPrice: pair.0.price, annualPrice: pair.1.price)
+            else { return nil }
+            return "Save \(percent)% vs Monthly"
+        case .lifetimeCohort:
+            guard let pair = livePrices(.proMonthly, .lifetimeCohort),
+                PlanPriceComparison.lifetimeCostsLessThanAYearOfMonthly(
+                    lifetimePrice: pair.1.price, monthlyPrice: pair.0.price)
+            else { return nil }
+            return "Less than a year of Monthly"
+        case .proMonthly, .documentPackAddOn:
+            return nil
+        }
+    }
+
+    /// The caption lines under a card's price, live prices only, like `dealBadge(for:)`.
+    fileprivate func comparisons(for product: BillingProduct) -> [String] {
+        switch product {
+        case .proAnnual:
+            guard let annual = entitlementStore.product(for: .proAnnual),
+                let perMonth = PlanPriceComparison.perMonthText(
+                    annualPrice: annual.price, style: annual.priceFormatStyle)
+            else { return [] }
+            return ["\(perMonth) a month, billed yearly"]
+        case .lifetimeCohort:
+            guard let months = monthsOfAnnualForLifetime else { return [] }
+            return ["Pays for itself against Pro Annual in \(months) months"]
+        case .proMonthly, .documentPackAddOn:
+            return []
+        }
+    }
+
+    /// Lifetime's price in months of Pro Annual, from StoreKit's live prices for this storefront,
+    /// or nil until both have loaded. Never from the hardcoded fallbacks: those are US numbers.
+    fileprivate var monthsOfAnnualForLifetime: Int? {
+        guard let pair = livePrices(.lifetimeCohort, .proAnnual) else { return nil }
+        return LaunchSale.monthsOfAnnual(lifetimePrice: pair.0.price, annualPricePerYear: pair.1.price)
     }
 
     /// The discount to advertise for this product, or `nil` to say nothing.
@@ -419,14 +487,6 @@ extension PlanUpgradeSheet {
     /// StoreKit's live price is genuinely below the recorded regular price in the customer's
     /// own currency. When StoreKit metadata has not loaded there is no live price to compare,
     /// so no claim is made.
-    /// Lifetime's price in months of Pro Annual, from StoreKit's live prices for this storefront,
-    /// or nil until both have loaded. Never from the hardcoded fallbacks: those are US numbers.
-    fileprivate var monthsOfAnnualForLifetime: Int? {
-        guard let lifetime = entitlementStore.product(for: .lifetimeCohort),
-              let annual = entitlementStore.product(for: .proAnnual) else { return nil }
-        return LaunchSale.monthsOfAnnual(lifetimePrice: lifetime.price, annualPricePerYear: annual.price)
-    }
-
     fileprivate func saleOffer(for product: BillingProduct) -> LaunchSaleOffer? {
         guard let storeProduct = entitlementStore.product(for: product) else { return nil }
         return LaunchSale.offer(for: product, storeProduct: storeProduct)
@@ -619,7 +679,9 @@ private struct PlanTierOption: Identifiable {
     let planName: String
     let product: BillingProduct
     let tagline: String
-    let badgeText: String
+    /// A plain label beside the plan's name ("Month to month", "Pay once"), or nil. Never a
+    /// saving: savings are computed per storefront and drawn under the price.
+    let badgeText: String?
     let tint: Color
     let isFeatured: Bool
     let features: [String]
@@ -632,8 +694,10 @@ private struct PlanTierCard: View {
     /// Non-nil only when `LaunchSale` has confirmed the live price is genuinely below the
     /// regular one in this customer's currency. See `LaunchSale` for why that is guarded.
     let saleOffer: LaunchSaleOffer?
-    /// Lifetime's price in months of Pro Annual, live prices only; nil for the other cards.
-    let monthsOfAnnual: Int?
+    /// The saving against another plan, live prices only; nil when there is none to state.
+    let dealBadge: String?
+    /// Caption lines under the price, live prices only.
+    let comparisons: [String]
     let hasAccess: Bool
     let canPurchase: Bool
     let isProcessing: Bool
@@ -652,9 +716,13 @@ private struct PlanTierCard: View {
                         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                 }
                 Spacer()
-                if option.isFeatured {
-                    Text(option.badgeText)
+                // Until 5.5 only the featured card drew its label, so "Flexible" and "One-Time"
+                // were written for Monthly and Lifetime and never shown.
+                if let badgeText = option.badgeText {
+                    Text(badgeText)
                         .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(option.tint.opacity(0.15))
@@ -690,7 +758,7 @@ private struct PlanTierCard: View {
                     }
                 }
 
-                PlanPriceCaptions(saleOffer: saleOffer, monthsOfAnnual: monthsOfAnnual)
+                PlanPriceCaptions(saleOffer: saleOffer, dealBadge: dealBadge, lines: comparisons)
             }
             // Deliberately no accessibility modifiers here. The whole card is a single element
             // (see the bottom of this view), and a label applied inside it would be discarded.
@@ -737,10 +805,21 @@ private struct PlanTierCard: View {
     /// The card is a single accessibility element, so this is the only place the discount can
     /// be spoken. A label applied to the price row inside would be discarded.
     private var accessibilityValueText: String {
-        guard let saleOffer else { return "\(price). \(option.tagline)" }
-        return "\(price), reduced from \(saleOffer.regularDisplayPrice), "
-            + "\(saleOffer.percentOff) percent off until "
-            + "\(LaunchSale.deadlineText(for: saleOffer.endDate)). \(option.tagline)"
+        var parts: [String] = []
+        if let saleOffer {
+            parts.append(
+                "\(price), reduced from \(saleOffer.regularDisplayPrice), "
+                    + "\(saleOffer.percentOff) percent off until "
+                    + "\(LaunchSale.deadlineText(for: saleOffer.endDate))"
+            )
+        } else {
+            parts.append(price)
+        }
+        if let dealBadge { parts.append(dealBadge) }
+        parts += comparisons
+        if let badgeText = option.badgeText { parts.append(badgeText) }
+        parts.append(option.tagline)
+        return parts.joined(separator: ". ")
     }
 }
 
@@ -778,12 +857,16 @@ extension PlanTierCard {
     }
 }
 
-/// The one or two lines under a card's price: the sale's last day, and for Lifetime the
-/// arithmetic against Pro Annual. A separate view because the card body is already at the edge
-/// of what the type checker will accept in one expression.
+/// Everything under a card's price: the sale's last day, the saving against another plan as a
+/// small capsule, and the arithmetic lines. All of it sits below the price and is smaller than
+/// it, because Apple requires the billed amount to be the most prominent pricing element and a
+/// per-month figure or a saving to be "displayed in a subordinate position and size" (see
+/// `PlanPriceComparison`). A separate view because the card body is already at the edge of what
+/// the type checker will accept in one expression.
 private struct PlanPriceCaptions: View {
     let saleOffer: LaunchSaleOffer?
-    let monthsOfAnnual: Int?
+    let dealBadge: String?
+    let lines: [String]
 
     var body: some View {
         if let saleOffer {
@@ -792,8 +875,17 @@ private struct PlanPriceCaptions: View {
                 .foregroundStyle(.secondary)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
-        if let monthsOfAnnual {
-            Text("Pays for itself against Pro Annual in \(monthsOfAnnual) months.")
+        if let dealBadge {
+            Text(dealBadge)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color.green.opacity(0.18)))
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        }
+        ForEach(lines, id: \.self) { line in
+            Text(line)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)

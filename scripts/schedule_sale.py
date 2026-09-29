@@ -73,7 +73,7 @@ SNAPSHOT_DIR = ROOT / ".sale-snapshots"
 
 LIFETIME_IAP = "6756638872"
 BASE_TERRITORY = "USA"
-REGULAR_PRICE = 59.99
+REGULAR_PRICE = 49.99  # the standing US price from 2026-09-30; it was 59.99 before the launch sale
 SALE_PRICE = 39.99
 
 # `LaunchSaleTests.testWindowIsOrderedAndNotOpenForever` asserts the compiled window is under 90

@@ -86,8 +86,9 @@ final class LaunchSaleTests: XCTestCase {
     func testUSDRegularPriceMatchesTheListedPrice() {
         // If this ever fails, either the App Store price changed permanently or the table is
         // stale. Both mean the banner is about to misstate a saving. Re-run
-        // scripts/verify_sale_prices.py before changing this number.
-        XCTAssertEqual(LaunchSale.regularLifetimePrices["USD"], 59.99)
+        // scripts/verify_sale_prices.py before changing this number. $59.99 until the launch
+        // sale; $49.99 from 2026-09-30.
+        XCTAssertEqual(LaunchSale.regularLifetimePrices["USD"], 49.99)
     }
 
     // MARK: - The window
@@ -120,6 +121,11 @@ final class LaunchSaleTests: XCTestCase {
 
     func testMonthsOfAnnual_atTheRegularPrice_isTwentyFour() {
         XCTAssertEqual(LaunchSale.monthsOfAnnual(lifetimePrice: 59.99, annualPricePerYear: 29.99), 24)
+    }
+
+    func testMonthsOfAnnual_atThePricesFromOctober_isStillTwentyFour() {
+        // $49.99 Lifetime against $24.99 Annual, the US prices from 2026-10-01.
+        XCTAssertEqual(LaunchSale.monthsOfAnnual(lifetimePrice: 49.99, annualPricePerYear: 24.99), 24)
     }
 
     func testMonthsOfAnnual_roundsDown_andRefusesNonsense() {

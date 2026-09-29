@@ -1028,6 +1028,16 @@ the build attached. Record it in `Docs/SHIPPED_VERSION.json` `in_review` and the
 
 `[evidence_level: measured, confidence: exact, evidence_source: 5.5 submissions 409aead4-0890-4184-9b2d-95f65d29a33a (iOS) and 6d81ae2c-2408-45f6-9c95-99544f147aa6 (macOS), 2026-09-29 11:31 PT, read back with GET appStoreVersions]`
 
+**Pulling a submission back** (the owner's call, as on 2026-09-29): PATCH `/v1/reviewSubmissions/{id}` with
+`{"data": {"type": "reviewSubmissions", "id": "<id>", "attributes": {"canceled": true}}}`. It answers 200 with state
+`CANCELING`, and within a minute the submission reads `COMPLETE` and each version it held reads `DEVELOPER_REJECTED`.
+A developer-rejected version takes a new build and new copy like one in preparation, so the three steps above apply
+unchanged, except that a script checking for `PREPARE_FOR_SUBMISSION` must also accept `DEVELOPER_REJECTED`. Cancelling
+a product submission returns its subscription and in-app purchase localizations to `PREPARE_FOR_SUBMISSION`, where the
+API can edit them; the subscription images stayed `WAITING_FOR_REVIEW`. Put the products back as items in the iOS
+version's submission so they are reviewed with it.
+`[evidence_level: measured, confidence: exact, evidence_source: cancellation of 409aead4, 6d81ae2c and 00242f20 on 2026-09-29, each read back COMPLETE; the 5.5 records read DEVELOPER_REJECTED; localizations read PREPARE_FOR_SUBMISSION the same afternoon. The attributes are documented in ReviewSubmissionUpdateRequest.Data.Attributes (canceled, platform, submitted), fetched from developer.apple.com 2026-09-29]`
+
 ## Releasing an approved version through the API
 
 *Verified 2026-09-24, both platforms.*

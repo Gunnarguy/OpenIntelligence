@@ -30,8 +30,8 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v5.5 - unreleased
 
-Not released. The first 5.5 change is one retrieval fix, and builds 480 and later carry it in
-TestFlight.
+Not released. 5.5 carries one retrieval fix, in TestFlight since build 480, and the plans screen's
+price comparisons for the prices that take effect on 2026-09-30 and 2026-10-01.
 
 - **A "how much" question could be answered with an unrelated measurement from another document,
   marked Verified.** On 2026-09-25, on the macOS Debug build of 5.4 in Deep Think, "How much notice
@@ -54,6 +54,20 @@ TestFlight.
   days" where the lease says 60, again marked Verified, so the roadmap row stays open. Volumes that
   tie within one passage still resolve to the first one, so a fuel-tank question on a car manual's
   capacities list still locks the engine oil's 4.5 L.
+- **The plans screen compares each plan with the others, from the storefront's own prices.** Pro
+  Annual's card shows its saving against twelve months of Pro Monthly ("Save 58% vs Monthly" at
+  $4.99 and $24.99, rounded down, 57 in Mexico) and its price over twelve months ("$2.09 a month,
+  billed yearly", rounded up in the currency's smallest unit). The Lifetime card says "Less than a
+  year of Monthly" when its price is below twelve Monthly payments, above the existing line that
+  prices it in months of Pro Annual. Each figure comes from StoreKit's live prices in one currency
+  and is absent until both products load; the hardcoded "Save 58% vs monthly" bullet it replaces
+  was true only where both prices moved together. Every card shows its label ("Month to month",
+  "Pay once"), where only the featured card did, and all of it sits under the billed price, smaller,
+  as Apple requires of subscription sign-up screens. "Lifetime Cohort" is "Lifetime" in the app and
+  on the App Store. The prices shown while products load are the US prices from 2026-10-01, and the
+  regular Lifetime prices a future sale is measured against are the $49.99 price point.
+  Verification: the full suite passed on an iOS 27 simulator on 2026-09-29 (521 tests, 3 skipped,
+  0 failures), and the screen was rendered there with the local StoreKit configuration's products.
 
 Verification: the four tests passed in Xcode on an iOS 27 simulator on 2026-09-28, in the full suite
 on the merged tree (504 tests, 4 skipped, 0 failures); Xcode Cloud #480 built it for TestFlight on

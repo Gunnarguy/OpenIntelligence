@@ -794,7 +794,7 @@ Text(label)
             HStack(spacing: 8) {
                 Image(systemName: "heart.text.square.fill")
                     .foregroundStyle(.orange)
-                Text("Lifetime Cohort")
+                Text("Lifetime")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("Forever unlocked")

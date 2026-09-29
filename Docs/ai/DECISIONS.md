@@ -955,3 +955,28 @@ for a release the owner opens for them.
 **Consequences.** Existing subscribers renew at the lower prices, and Apple offers no way to keep them higher. Raising a price later needs Apple's notice (60 days for annual, 27 for monthly) and, above certain thresholds or within 12 months of a previous increase, each subscriber's consent. The $19.99 win-back offer stays live until 2027-09-24 because a live offer's dates cannot be changed through the API; App Store Connect shows the better offer where they overlap. The paywall's "Save 58% vs monthly" is hardcoded and should be computed from each storefront's prices in the next build. Judge the change on proceeds per download over months, not on conversion counts. `Docs/BILLING_AND_LIMITS.md` section 5 has the verified prices.
 
 `[evidence_level: measured, confidence: exact, evidence_source: subscription prices and win-back offers read back from the App Store Connect API 2026-09-29; RevenueCat State of Subscription Apps 2026 and Adapty 2026 benchmarks, read 2026-09-29; owner's messages 2026-09-29]`
+
+## 2026-09-29 - 5.5 comes back out of App Review to carry the plans screen's comparisons; win-backs stay off that screen
+
+**Context.** 5.5 (build 482) and the product-description submission were waiting for review, not in it, when the owner
+asked for the plans screen to show what each plan saves against the others. The prices change on 2026-09-30 and
+2026-10-01, and the paywall's only saving was a hardcoded "Save 58% vs monthly" bullet. Proposed first as 5.6, after
+5.5 released.
+
+**Decision.** The owner rejected the 5.6 route: "Just reject it for now and make ALLLL the proper changes, then get it
+back into review." All three submissions were cancelled through the API the same afternoon and 5.5 carries the change:
+comparisons computed per storefront from live prices and placed under the billed price (`Docs/BILLING_AND_LIMITS.md`
+section 2), every card's label shown, "Lifetime Cohort" renamed "Lifetime" in the app and in App Store Connect, the
+fallback prices and the sale's regular-price table moved to the new prices. Win-back offers on the plans screen were
+offered and declined ("Skip it"): showing and charging them there needs `StoreKitBillingService.swift`, which the billing
+route forbids without the owner naming it, and StoreKit already merchandises the three offers itself.
+
+**Alternatives.** Ship 5.5 as submitted and the comparisons in 5.6 (declined); edit `StoreKitBillingService.swift` to
+apply `.winBackOffer` from the plans screen (declined, purchase path untouched before an expedited review).
+
+**Consequences.** 5.5 lost its place in the review queue, which the owner means to recover with an expedited-review
+request. Subscribers who lapse see the win-back offer through StoreKit's sheet on iPhone and iPad, the App Store and
+Subscription settings, not on the plans screen; a lapsed subscriber who buys from the plans screen pays the regular
+price. Revisit in-app win-backs if lapsed subscribers become a meaningful number.
+
+`[evidence_level: measured, confidence: exact, evidence_source: PATCH /v1/reviewSubmissions {canceled: true} for 409aead4 (iOS), 6d81ae2c (macOS) and 00242f20 (products), 2026-09-29, read back COMPLETE with both 5.5 records DEVELOPER_REJECTED; owner's messages 2026-09-29]`

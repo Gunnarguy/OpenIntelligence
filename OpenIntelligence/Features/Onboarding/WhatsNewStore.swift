@@ -111,7 +111,7 @@ final class WhatsNewStore: ObservableObject {
         "5.5": WhatsNewRelease(
             version: "5.5",
             headline:
-                "One fix this time.  A \"how much\" question could get answered with a number from a totally different document, with a Verified badge on it.",
+                "One fix and lower prices this time.  A \"how much\" question could get answered with a number from a totally different document, with a Verified badge on it.",
             items: [
                 .init(
                     symbol: "scalemass",
@@ -124,6 +124,18 @@ final class WhatsNewStore: ObservableObject {
                     title: "Capacities like \"4.5L\" count as liters",
                     detail:
                         "When you ask how much something holds, \"4.5L\" counts the same as \"4.5 L\" now."
+                ),
+                .init(
+                    symbol: "tag",
+                    title: "Pro costs less from October 1",
+                    detail:
+                        "Pro is $4.99 a month or $24.99 a year in the US, down from $5.99 and $29.99, and it's lower in most other countries too.  If you're already subscribed, you renew at the lower price automatically.  Lifetime is $49.99 now, down from its $59.99 regular price, and it's just called Lifetime."
+                ),
+                .init(
+                    symbol: "percent",
+                    title: "Each plan does the math for you",
+                    detail:
+                        "The plans screen shows what Annual saves over twelve months of Monthly and what it works out to per month, and it says when Lifetime costs less than a year of Monthly.  Every number comes from your own App Store's prices, so it's right in your currency."
                 ),
             ]
         ),

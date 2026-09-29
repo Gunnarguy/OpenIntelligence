@@ -5,12 +5,16 @@
 Public release highlights for OpenIntelligence.
 
 ## 5.5
-One fix so far.  A "how much" question could get answered with a number from a totally different
+One fix and lower prices so far.  A "how much" question could get answered with a number from a totally different
 document, with a Verified badge on it.
 
 ### Answers
 - **"How much" questions stop grabbing numbers from the wrong document.** Any "how much" made the app treat every measurement it found as a possible answer, so on my Mac "How much notice do I have to give before I move out?" came back "1 lb." from an air fryer manual.  Now it only looks for a volume when you ask about fuel, gas, oil, coolant or a tank, or what something holds.  The model still got that question wrong afterward (it said at least 30 days, the lease says 60), so I'm not done with it.
 - **"4.5L" counts as liters** when you ask how much something holds, same as "4.5 L".
+
+### Plans
+- **Pro costs less from October 1.** $4.99 a month or $24.99 a year in the US, down from $5.99 and $29.99, and lower in most other countries too.  Subscribers renew at the lower price automatically.  Lifetime is $49.99, down from its $59.99 regular price, and it's just called Lifetime.
+- **Each plan does the math.** The plans screen shows what Annual saves over twelve months of Monthly, what it works out to per month, and when Lifetime costs less than a year of Monthly, all from your own App Store's prices.
 
 ## 5.4
 This one's all about answers.  They're done when the last word shows up, most Deep Think and Maximum

@@ -21,7 +21,7 @@ These StoreKit product IDs are defined centrally in [BillingProduct.swift](../Op
 |---|---|---|---|---|
 | Pro Monthly | `"pro_monthly"` | Subscription | Pro | Grants monthly access to Pro features. |
 | Pro Annual | `"pro_annual"` | Subscription | Pro | Grants annual access to Pro features. |
-| Lifetime Cohort | `"lifetime_cohort"` | Non-Consumable | Lifetime | One-time purchase for permanent Lifetime access. |
+| Lifetime (reference name Lifetime Cohort) | `"lifetime_cohort"` | Non-Consumable | Lifetime | One-time purchase for permanent Lifetime access. Customers see "Lifetime" from 5.5 (2026-09-29); the product identifier is unchanged. |
 | Document Pack Add-On | `"doc_pack_addon"` | Consumable | None | **Discontinued — not sold.** Granted 10 extra document slots per pack. Enum case and entitlement logic retained for existing owners only. |
 
 ---
@@ -58,6 +58,31 @@ Pro and Lifetime, so that is the first bullet of every paid plan. Capacity follo
 never hardcoded in a tagline, because each storefront has its own and `displayPrice` is the source.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: PlanUpgradeSheet.swift planOptions and storySlides; QuotaPolicy.swift; EntitlementStore.swift maximumModePolicy; ~/ASC store_purchases and sub_state_analytics through 2026-09-14]`
+
+### What each plan says against the others (5.5)
+
+Added 2026-09-29, with the prices that take effect on 2026-09-30 and 2026-10-01. Each card compares
+itself with the others in the customer's own currency, from StoreKit's live prices, and says nothing
+until both products it compares have loaded in one currency; the US fallback prices never feed a
+comparison.
+
+| Card | Label beside the name | Under the price |
+|---|---|---|
+| Pro (Monthly) | Month to month | nothing; it is what the others are measured against |
+| Pro (Annual) | none | "Save N% vs Monthly", N rounded down (58 at $4.99 and $24.99, 57 in Mexico); "$X a month, billed yearly", rounded up in the currency's smallest unit ($2.09, ¥334) |
+| Lifetime | Pay once | "Less than a year of Monthly" when its price is below twelve Monthly payments; "Pays for itself against Pro Annual in N months" |
+
+Everything computed sits below the billed price and is smaller than it. Apple: "the amount that will
+be billed must be the most prominent pricing element in the layout", and a per-month breakdown or a
+saving against another plan "should be displayed in a subordinate position and size to the annual
+price". The arithmetic is `PlanPriceComparison`, pinned by `PlanPriceComparisonTests`.
+
+Win-back offers are not shown on this screen. Showing and charging them there needs
+`StoreKitBillingService.swift`, which this route forbids without the owner naming it, and on
+2026-09-29 he chose to leave it: StoreKit shows its own win-back sheet in the iPhone and iPad app by
+default when the App Store sends a win-back message (`Message` is unavailable on macOS), and the
+offers can be redeemed in the App Store and in Subscription settings on every platform.
+`[evidence_level: code_verified, confidence: exact, evidence_source: PlanUpgradeSheet.swift dealBadge(for:), comparisons(for:), livePrices; PlanPriceComparison.swift; https://developer.apple.com/app-store/subscriptions/ "Billing amount" and https://developer.apple.com/documentation/storekit/supporting-win-back-offers-in-your-app, both fetched 2026-09-29; StoreKit.swiftinterface in the macOS 27 SDK, Message marked unavailable on macOS]`
 
 ---
 
@@ -114,7 +139,10 @@ equalization of the $49.99 price point, read before the write; Pro Annual is unc
 `.sale-snapshots/20260929T192514Z-pre-lifetime-4999.json` (`scripts/schedule_sale.py --restore <that file> --confirm`
 undoes it). Before the next sale, set `REGULAR_PRICE` in `scripts/schedule_sale.py` and
 `LaunchSale.regularLifetimePrices` to these prices; the script refuses to write while its constant says 59.99, and the
-single-amount-per-currency property below has not been re-checked for the new price point.
+single-amount-per-currency property below has not been re-checked for the new price point. **Done 2026-09-29 for
+5.5:** both now hold these prices (`REGULAR_PRICE = 49.99`), and `scripts/verify_sale_prices.py` reported every
+recorded currency matching the schedule's open-ended $49.99 interval, with no currency carrying two prices across the
+28 territories it checks.
 `[evidence_level: measured, confidence: exact, evidence_source: POST /v1/inAppPurchasePriceSchedules and GET .../manualPrices, 2026-09-29 12:25 PT; /v1/inAppPurchasePricePoints/<49.99 USA>/equalizations]`
 
 **Changed 2026-10-01, subscriptions.** On 2026-09-29 the owner scheduled Pro Annual at $24.99 (was $29.99) and Pro
@@ -122,14 +150,14 @@ Monthly at $4.99 (was $5.99) from 2026-10-01, in App Store Connect's price edito
 from the US price: Annual goes down in 161 storefronts and Monthly in 166, none goes up, and the rest keep their current
 price. Existing subscribers renew at the lower price; Apple offers no way to preserve a higher one. The columns below
 are the scheduled 2026-10-01 prices read back from the API. At these prices Annual is 5.0 times Monthly, as before, so
-the paywall's hardcoded "Save 58% vs monthly" (`PlanUpgradeSheet.swift:54`) stays exact where both prices moved
-together; it is not computed per storefront. The annual win-back offer is now $14.99 for the first year
+the saving stays 58% where both prices moved together. Through 5.4 the paywall hardcoded that figure as a bullet; from
+5.5 it is computed per storefront (§2, "What each plan says against the others"). The annual win-back offer is now $14.99 for the first year
 (`winback_annual_2026_1499`, 2026-10-01 to 2027-10-01, every storefront). The $19.99 offer it replaces cannot be ended
 through the API while live (HTTP 409) and stays until 2027-09-24; App Store Connect states that where offers overlap
 "the best offer will be shown". The monthly win-back ($2.99 a month for three months) is unchanged.
 `[evidence_level: measured, confidence: exact, evidence_source: GET /v1/subscriptions/{id}/prices per territory and /v1/subscriptions/6756638919/winBackOffers, read 2026-09-29 after the changes; App Store Connect price-change confirmation screens]`
 
-| Currency | Lifetime Cohort | Pro Annual | Pro Monthly |
+| Currency | Lifetime | Pro Annual | Pro Monthly |
 |---|---|---|---|
 | USD | 49.99 | 24.99 | 4.99 |
 | GBP | 49.99 | 24.99 | 4.99 |

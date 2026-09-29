@@ -111,9 +111,13 @@ enum LaunchSale {
 
     // MARK: - Regular prices, per currency
 
-    /// Pre-sale customer prices for Lifetime Cohort, keyed by ISO currency code.
+    /// Regular customer prices for Lifetime, the figure a sale is measured against, keyed by ISO
+    /// currency code.
     ///
-    /// Read from App Store Connect on **2026-09-09**, not converted. Only the USA price is set
+    /// The $49.99 price point that took effect on 2026-09-30, read from App Store Connect on
+    /// **2026-09-29**, not converted. It was $59.99 (59.99 GBP, 69.99 EUR, 79.99 CAD, 99.99 AUD,
+    /// 5900 INR, 10000 JPY, 399.90 BRL, 1299 MXN) until the launch sale; a table left at those
+    /// figures would advertise a discount the next time any sale ran. Only the USA price is set
     /// by hand; Apple generates the other 174 storefronts, and those generated figures are what
     /// customers actually pay.
     ///
@@ -129,12 +133,12 @@ enum LaunchSale {
     /// /v1/inAppPurchasePriceSchedules/6756638872/automaticPrices, 177 territory rows grouped by
     /// currency, 2026-09-09; USA base price from the same schedule's manualPrices]
     static let regularLifetimePrices: [String: Decimal] = [
-        "USD": 59.99, "GBP": 59.99, "EUR": 69.99, "CAD": 79.99, "AUD": 99.99,
-        "INR": 5900, "JPY": 10000, "BRL": 399.90, "MXN": 1299,
+        "USD": 49.99, "GBP": 49.99, "EUR": 59.99, "CAD": 69.99, "AUD": 79.99,
+        "INR": 4999, "JPY": 8000, "BRL": 299.90, "MXN": 999,
     ]
 
     /// The date the price table above was read from App Store Connect, for the drift check.
-    static let pricesVerifiedOn = "2026-09-09"
+    static let pricesVerifiedOn = "2026-09-29"
 
     // MARK: - The money math, isolated so it can be tested
 
@@ -181,10 +185,6 @@ enum LaunchSale {
         )
     }
 
-    /// The deadline for the banner, e.g. "September 30".
-    ///
-    /// Rendered in the window's own timezone rather than the device's, so a customer in Hawaii
-    /// is not told the sale ends a day earlier than everyone else is told.
     /// How many months of Pro Annual the Lifetime price buys, rounded down, or nil when the
     /// arithmetic has nothing to stand on. True at the sale price and at the regular one; the
     /// paywall shows it under the Lifetime card so the comparison a buyer is already making in
@@ -196,6 +196,10 @@ enum LaunchSale {
         return n >= 1 ? n : nil
     }
 
+    /// The deadline for the banner: "September 29" for a window whose `end` is September 30.
+    ///
+    /// Rendered in the window's own timezone rather than the device's, so a customer in Hawaii
+    /// is not told the sale ends a day earlier than everyone else is told.
     static func deadlineText(for endDate: Date) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .gmt
