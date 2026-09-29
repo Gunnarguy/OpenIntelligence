@@ -106,17 +106,28 @@ Only the USA price is set by hand. Apple generates the other 174 storefronts fro
 generated figures are what customers actually pay, so they are read from the API rather than
 converted.
 
+**Changed 2026-09-30.** The owner set the standing Lifetime price to $49.99 on 2026-09-29, effective the day the
+launch sale ended, so the price went from the $39.99 sale straight to $49.99. It was $59.99 before the sale (59.99 GBP,
+69.99 EUR, 79.99 CAD, 99.99 AUD, 5900 INR, 10000 JPY, 399.90 BRL, 1299 MXN). The Lifetime column below is Apple's
+equalization of the $49.99 price point, read before the write; Pro Annual is unchanged. The schedule written was
+`[null to 2026-09-30] 39.99` and `[2026-09-30 to null] 49.99`, read back identical, and the schedule it replaced is
+`.sale-snapshots/20260929T192514Z-pre-lifetime-4999.json` (`scripts/schedule_sale.py --restore <that file> --confirm`
+undoes it). Before the next sale, set `REGULAR_PRICE` in `scripts/schedule_sale.py` and
+`LaunchSale.regularLifetimePrices` to these prices; the script refuses to write while its constant says 59.99, and the
+single-amount-per-currency property below has not been re-checked for the new price point.
+`[evidence_level: measured, confidence: exact, evidence_source: POST /v1/inAppPurchasePriceSchedules and GET .../manualPrices, 2026-09-29 12:25 PT; /v1/inAppPurchasePricePoints/<49.99 USA>/equalizations]`
+
 | Currency | Lifetime Cohort | Pro Annual |
 |---|---|---|
-| USD | 59.99 | 29.99 |
-| GBP | 59.99 | 29.99 |
-| EUR | 69.99 | 34.99 |
-| CAD | 79.99 | 39.99 |
-| AUD | 99.99 | 49.99 |
-| INR | 5900 | 2999 |
-| JPY | 10000 | 5000 |
-| BRL | 399.90 | 199.90 |
-| MXN | 1299 | 599 |
+| USD | 49.99 | 29.99 |
+| GBP | 49.99 | 29.99 |
+| EUR | 59.99 | 34.99 |
+| CAD | 69.99 | 39.99 |
+| AUD | 79.99 | 49.99 |
+| INR | 4999 | 2999 |
+| JPY | 8000 | 5000 |
+| BRL | 299.90 | 199.90 |
+| MXN | 999 | 599 |
 
 Across all 177 generated Lifetime territory prices, every currency resolves to exactly one
 amount, which is what makes `LaunchSale` safe to key by currency rather than territory. That is

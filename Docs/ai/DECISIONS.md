@@ -931,3 +931,15 @@ for a release the owner opens for them.
 **Consequences.** Anyone who starts a subscription or trial on 5.4 still gets the stored protection until they update, so the leak closes when 5.5 is live and installed. A lapsed subscription now drops the person to Free for the first time: iCloud library sync switches off and the libraries stay on the device, since both workspace modes work from the local folder (`WorkspaceSyncService.swift:411-434`, `:883-905`). A refund still does not clear stored protection (`handleRevocation`). Whether a lapsed subscription that is bought again keeps its first original purchase date is not verified.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: EntitlementStore.swift:205, 235-258, 267, 384-425, 441-464, 575-590; EntitlementProtectionTests; owner's messages 2026-09-29]`
+
+## 2026-09-29 - Lifetime's standing price is $49.99 from 2026-09-30
+
+**Context.** Lifetime was $59.99 until the launch sale, $39.99 from 2026-09-15 through 2026-09-29, and was scheduled to revert to $59.99. Daily sales reports (`~/ASC/data/asc.sqlite3`, through 2026-09-27) show 9 paid Lifetime purchases at full price from 2026-02-23 to 2026-08-09, about 1.6 a month, and 2 during the sale in 13 days. Two is too few to separate the price from the iOS 27 launch and the posting that ran at the same time. Pro Annual is $29.99, and from 5.5 a Pro subscription stops at its end date instead of becoming Lifetime (the entry above).
+
+**Decision.** The owner chose $49.99, set through the API on 2026-09-29 to start 2026-09-30, so the price goes from $39.99 straight to $49.99. Other storefronts follow Apple's equalization of the US price point.
+
+**Alternatives.** Revert to $59.99: two years of Pro Annual, and the price that sold about 1.6 a month. Keep $39.99: about 16 months of Pro Annual, which would pull buyers off the annual plan now that Pro really lapses.
+
+**Consequences.** US proceeds per Lifetime sale are $42.49 instead of $50.99, so Lifetime needs about 20% more sales to earn the same; at about two a month, telling whether it does will take months of daily reports. `Docs/BILLING_AND_LIMITS.md` section 5 has the prices and the undo snapshot. The next sale needs `schedule_sale.py`'s `REGULAR_PRICE` and `LaunchSale.regularLifetimePrices` updated first.
+
+`[evidence_level: measured, confidence: exact, evidence_source: GET manualPrices after the write, 2026-09-29 12:25 PT; sales table in ~/ASC/data/asc.sqlite3 read 2026-09-29; owner's messages 2026-09-29]`

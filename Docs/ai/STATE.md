@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-29, 11:35 PT (5.5 submitted for App Review on iOS and macOS with build 482)
+Updated: 2026-09-29, 12:30 PT (5.5 in App Review with build 482; Lifetime is $49.99 from 2026-09-30)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 71b76ce
+Last verified commit: e2adefd
 
 ## Objective
 
@@ -60,7 +60,10 @@ submitted on both platforms; both are done (Status).
   "at least 30 days" where the lease says 60, marked Verified).
 - **5.4 is live** on iOS and macOS, build 478, closed out on GitHub (`v5.4.0` Latest), the three websites
   and Notion.
-- Scheduled: 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`. Still needed.
+- **Lifetime price, 2026-09-29:** $49.99 from 2026-09-30 at the owner's word, not the $59.99 it was set to revert
+  to; read back from App Store Connect (`Docs/BILLING_AND_LIMITS.md` section 5, `Docs/ai/DECISIONS.md`). Scheduled:
+  2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`, which takes the sale line off the live listing's
+  promo text and the three sites; it names no price, so the change does not affect it. Still needed.
 
 ## Active Constraints
 
