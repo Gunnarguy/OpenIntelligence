@@ -66,9 +66,10 @@ says to (`Docs/ai/DECISIONS.md`, 2026-09-24); the next source change needs a `##
 
 ## Blockers / Unknowns
 
-- **Rows that close on a device check, all Shipped On iOS and macOS:** the plans screen
-  (https://app.notion.com/p/3ea49a74d54f817abddae36a4fcc527d) when its three cards read right on a device on the App
-  Store build; the subscription fix (https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6) after a sandbox check
+- **Rows that close on a device check, all Shipped On iOS and macOS.** The plans-screen row
+  (https://app.notion.com/p/3ea49a74d54f817abddae36a4fcc527d) closed 2026-09-30 on the owner's iPhone screenshots of
+  the App Store build ($5.99, $29.99 with $2.50 a month and 58%, $49.99 with 20 months, the prices in force that
+  day). Still open: the subscription fix (https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6) after a sandbox check
   (buy Pro Monthly, Settings shows Pro, not Lifetime; let it expire and relaunch, Free); the "how much" row
   (https://app.notion.com/p/3e749a74d54f8115a76ad5b06b196956) stays open because the model still answers the lease
   question wrong.
