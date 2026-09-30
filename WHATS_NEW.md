@@ -5,7 +5,7 @@
 Public release highlights for OpenIntelligence.
 
 ## 5.5
-One fix and lower prices so far.  A "how much" question could get answered with a number from a totally different
+One fix and lower prices this time.  A "how much" question could get answered with a number from a totally different
 document, with a Verified badge on it.
 
 ### Answers

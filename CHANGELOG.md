@@ -2,7 +2,7 @@
 
 <!-- next-version: 5.5 -->
 
-## 5.5 <!-- unreleased -->
+## 5.5
 
 <!-- Opened 2026-09-26 for the first source change after 5.4 went live on both platforms with
      build 478. ci_post_clone.sh stamps MARKETING_VERSION from the FIRST "## <number>" heading, so

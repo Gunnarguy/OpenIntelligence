@@ -1,20 +1,26 @@
 # Current State
 
-Updated: 2026-09-29, 14:52 PT (5.5 back in App Review with build 483, carrying the plans screen's comparisons)
+Updated: 2026-09-30, 06:40 PT (iOS 5.5 is live with build 483; the Mac record is still in review)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 81b66a8
+Last verified commit: 16c4805
 
 ## Objective
 
-5.5 is in App Review on both platforms with build 483: the "how much" extractor fix, the subscription fix and the plans
-screen's price comparisons. The owner pulled build 482 back out of review on 2026-09-29, while it was still waiting,
+iOS 5.5 is live (build 483, released through the API at the owner's word, 2026-09-30 06:31 PT); the Mac record is in
+App Review with the same build. 5.5 carries the "how much" extractor fix, the subscription fix and the plans screen's
+price comparisons. The owner pulled build 482 back out of review on 2026-09-29, while it was still waiting,
 to carry the comparisons ("Just reject it for now and make ALLLL the proper changes, then get it back into review"),
 and means to request an expedited review. Release is manual and his call. New work starts only when he says to
 (`Docs/ai/DECISIONS.md`, 2026-09-24).
 
 ## Status
 
-- **5.5 resubmitted 14:52 PT** with build 483 (Xcode Cloud #483 from `81b66a8`): iOS submission `861f9fe2-45f2-429d-a423-0bbaeead72a6` holds
+- **iOS 5.5 released 2026-09-30 06:31 PT:** POST `/v1/appStoreVersionReleaseRequests` -> 201, record READY_FOR_SALE
+  with build 483. Recorded as on 2026-09-24 for 5.4: `## 5.5` lost its unreleased marker, `SHIPPED_VERSION.json` has
+  iOS 5.5 and `app_store` still 5.4, the user changelog is dated. The Pro Annual, Pro Monthly and Lifetime versions
+  read ACCEPTED right after the release, not yet APPROVED; the description row closed with Shipped On iOS, and the
+  three In Progress v5.5 rows carry Shipped On iOS.
+- **5.5 resubmitted 2026-09-29 14:52 PT** with build 483 (Xcode Cloud #483 from `81b66a8`): iOS submission `861f9fe2-45f2-429d-a423-0bbaeead72a6` holds
   the version plus the three product drafts (Pro Annual and Pro Monthly subscription versions, the Lifetime purchase
   version, whose display name is now "Lifetime"); macOS submission `9691fad8-8026-4ed5-b348-37886c00ab84` holds the version. Records: iOS
   `d7b9bb32-0694-41fc-9692-75cc63cb4a7f`, macOS `73bc0eaa-c670-479c-941e-b75998ac0142`, release MANUAL. What's New,
@@ -42,8 +48,9 @@ and means to request an expedited review. Release is manual and his call. New wo
 
 ## Active Constraints
 
-- **5.5 is open** (`## 5.5 <!-- unreleased -->`). A push whose latest commit touches a path outside Xcode Cloud's
-  filter builds 5.5 for TestFlight unless that commit says `[ci skip]` (`Docs/ai/RUNBOOK.md`). The filter skips only
+- **No version is open.** `## 5.5` lost its unreleased marker when iOS shipped, so a build would stamp 5.5, which App
+  Store Connect rejects for iOS. Any source change needs the owner's say and a new `## 5.6 <!-- unreleased -->` heading
+  first. Until then every push says `[ci skip]` (`Docs/ai/RUNBOOK.md`). The filter skips only
   `*.md`, `Docs/`, `.claude/`, `.agents/`, `.codex/`, `fastlane/metadata/`, `.github/`.
 - Pushing publishes to a public repository and to gunnarguy.me. Ask before pushing. Keep the owner's personal plans
   out of public files. `CLAUDE.md` forbids deleting docs: removing one means `git mv` into `Docs/Archive/`.
@@ -80,12 +87,12 @@ and means to request an expedited review. Release is manual and his call. New wo
 
 ## Blockers / Unknowns
 
-- **After App Review.** On `PENDING_DEVELOPER_RELEASE`, release only at the owner's word (`Docs/ai/RUNBOOK.md`,
-  "Releasing an approved version through the API"), ideally on or after 2026-10-01, because the What's New states the
-  October 1 prices. Then close 5.5 out as 5.4 was: `SHIPPED_VERSION.json`, the `CHANGELOG.md` unreleased marker, the
-  GitHub release, the three sites, and the Notion rows. The description row
-  https://app.notion.com/p/3e949a74d54f817f8933e538845009c6 closes on release; the subscriptions row closes after a
-  sandbox check (buy Pro Monthly, Settings shows Pro, not Lifetime; let it expire and relaunch, Free); the plans-screen
+- **macOS 5.5 after App Review.** On `PENDING_DEVELOPER_RELEASE`, release only at the owner's word (`Docs/ai/RUNBOOK.md`,
+  "Releasing an approved version through the API"). Then close 5.5 out as 5.4 was in `5b1c378`: `SHIPPED_VERSION.json`
+  `app_store` and macOS to 5.5 and `in_review` empty, READMEs and doc headers, the GitHub release `v5.5.0` as Latest,
+  the three sites, and Shipped On macOS on the description row https://app.notion.com/p/3e949a74d54f817f8933e538845009c6
+  and the three v5.5 rows. The subscriptions row https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6 closes after
+  a sandbox check (buy Pro Monthly, Settings shows Pro, not Lifetime; let it expire and relaunch, Free); the plans-screen
   row closes when the three cards read right on a device on the App Store build.
 - **Before the next Lifetime sale:** the $49.99 price has two USD prices (49.99 in 87 territories, 59.99 in 22) and two
   EUR prices (59.99 in 24, 49.99 in Montenegro), and `LaunchSale` keys by currency, so a sale window would show
@@ -113,6 +120,7 @@ and means to request an expedited review. Release is manual and his call. New wo
 
 ## Exact Next Action
 
-Wait for App Review. Read both records with GET `/v1/apps/6756559175/appStoreVersions?filter[versionString]=5.5`.
+Wait for macOS App Review. Read the record with GET `/v1/apps/6756559175/appStoreVersions?filter[versionString]=5.5`.
 On `PENDING_DEVELOPER_RELEASE`, ask the owner whether to release; on `REJECTED` or `UNRESOLVED_ISSUES`, read the
-review message and bring it to him with a proposed fix.
+review message and bring it to him with a proposed fix. Also re-read the three product versions: ACCEPTED should
+become APPROVED now that iOS 5.5 is out, and the Lifetime name then reads "Lifetime" on the store.
