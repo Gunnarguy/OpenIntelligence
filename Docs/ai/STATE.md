@@ -18,8 +18,9 @@ and means to request an expedited review. Release is manual and his call. New wo
 - **iOS 5.5 released 2026-09-30 06:31 PT:** POST `/v1/appStoreVersionReleaseRequests` -> 201, record READY_FOR_SALE
   with build 483. Recorded as on 2026-09-24 for 5.4: `## 5.5` lost its unreleased marker, `SHIPPED_VERSION.json` has
   iOS 5.5 and `app_store` still 5.4, the user changelog is dated. The Pro Annual, Pro Monthly and Lifetime versions
-  read ACCEPTED right after the release, not yet APPROVED; the description row closed with Shipped On iOS, and the
-  three In Progress v5.5 rows carry Shipped On iOS.
+  read ACCEPTED, which Apple's "Working with In-App Purchase versions" defines, with APPROVED, as passed review; no
+  release endpoint exists for them. The description row closed with Shipped On iOS, and the three In Progress v5.5
+  rows carry Shipped On iOS.
 - **5.5 resubmitted 2026-09-29 14:52 PT** with build 483 (Xcode Cloud #483 from `81b66a8`): iOS submission `861f9fe2-45f2-429d-a423-0bbaeead72a6` holds
   the version plus the three product drafts (Pro Annual and Pro Monthly subscription versions, the Lifetime purchase
   version, whose display name is now "Lifetime"); macOS submission `9691fad8-8026-4ed5-b348-37886c00ab84` holds the version. Records: iOS
@@ -122,5 +123,5 @@ and means to request an expedited review. Release is manual and his call. New wo
 
 Wait for macOS App Review. Read the record with GET `/v1/apps/6756559175/appStoreVersions?filter[versionString]=5.5`.
 On `PENDING_DEVELOPER_RELEASE`, ask the owner whether to release; on `REJECTED` or `UNRESOLVED_ISSUES`, read the
-review message and bring it to him with a proposed fix. Also re-read the three product versions: ACCEPTED should
-become APPROVED now that iOS 5.5 is out, and the Lifetime name then reads "Lifetime" on the store.
+review message and bring it to him with a proposed fix. Also confirm the store shows the Lifetime purchase as
+"Lifetime": its v2 passed review (ACCEPTED), and the v1 localization still read "Lifetime Cohort" at 06:40 PT.

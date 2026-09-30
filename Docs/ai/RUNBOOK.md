@@ -1036,6 +1036,10 @@ unchanged, except that a script checking for `PREPARE_FOR_SUBMISSION` must also 
 a product submission returns its subscription and in-app purchase localizations to `PREPARE_FOR_SUBMISSION`, where the
 API can edit them; the subscription images stayed `WAITING_FOR_REVIEW`. Put the products back as items in the iOS
 version's submission so they are reviewed with it.
+After approval the product versions read `ACCEPTED`, not `APPROVED`, even once the app version is released (5.5 on
+iOS, 2026-09-30). Apple's article "Working with In-App Purchase versions" defines `ACCEPTED` or `APPROVED` as "The
+version passed review", and neither product versions nor subscription versions have a release endpoint, so there is
+nothing to trigger.
 `[evidence_level: measured, confidence: exact, evidence_source: cancellation of 409aead4, 6d81ae2c and 00242f20 on 2026-09-29, each read back COMPLETE; the 5.5 records read DEVELOPER_REJECTED; localizations read PREPARE_FOR_SUBMISSION the same afternoon. The attributes are documented in ReviewSubmissionUpdateRequest.Data.Attributes (canceled, platform, submitted), fetched from developer.apple.com 2026-09-29]`
 
 ## Releasing an approved version through the API
