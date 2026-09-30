@@ -41,8 +41,11 @@ and means to request an expedited review. Release is manual and his call. New wo
   never lowered. Row https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6 (In Progress, v5.5).
 - **Prices, set 2026-09-29 at the owner's word:** Lifetime $49.99 from 2026-09-30; Pro Annual $24.99 and Pro Monthly
   $4.99 from 2026-10-01; annual win-back $14.99 from 2026-10-01. All read back from the API (`Docs/BILLING_AND_LIMITS.md`
-  section 5). Scheduled 2026-09-30 09:00 PT: `openintelligence-end-lifetime-sale` takes the sale line off the live
-  promo text and the three sites; it names no price. Still needed.
+  section 5). The sale came down on 2026-09-30 at about 08:00 PT, at the owner's word, ahead of the 09:00 routine: promo
+  text replaced on six records by `scripts/asc_end_sale.rb` (the live macOS 5.4 listing among them), and the sale line
+  removed from Fascinaiting `2825951d`, Gunnarguy-Portfolio `6e106c5` and Gunzino `bfd41af`. The routine
+  `openintelligence-end-lifetime-sale` could not be paused from this session (auto mode refused); if it runs, each step
+  should find nothing left to change.
 - **5.4 is live** on iOS and macOS, build 478.
 - **Cleanup, 2026-09-29, `35024f0`:** 27 files archived, two pointers, 86 documents corrected; details in the two
   2026-09-29 `[General]` entries under `## 5.5` in `CHANGELOG.md` and in `Docs/Archive/README.md`.
