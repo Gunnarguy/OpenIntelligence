@@ -22,7 +22,9 @@ says to (`Docs/ai/DECISIONS.md`, 2026-09-24); the next source change needs a `##
   `WHATS_NEW.md`, `Docs/RELEASE_NOTES.md` and the metadata history say 5.5; the GitHub release `v5.5.0` is Latest
   (https://github.com/Gunnarguy/OpenIntelligence/releases/tag/v5.5.0, at `81b66a8`, 44 commits since `v5.4.0`); the
   description row https://app.notion.com/p/3e949a74d54f817f8933e538845009c6 is Completed with Shipped On iOS and
-  macOS, verified on both live descriptions; the three v5.5 rows carry Shipped On iOS and macOS.
+  macOS, verified on both live descriptions; the three v5.5 rows carry Shipped On iOS and macOS. The three sites showed 5.5 by 10:32 PT: gunnarguy.me and
+  gunzino.me through their version jobs (dispatched after the push), fascinaiting.me through Fascinaiting `0fea4d85`
+  (the timeline entry its version check asks for, not made by this session); that check then passed.
 - **Prices, set 2026-09-29 at the owner's word:** Lifetime $49.99 from 2026-09-30; Pro Annual $24.99 and Pro Monthly
   $4.99 from 2026-10-01; annual win-back $14.99 from 2026-10-01. All read back from the API (`Docs/BILLING_AND_LIMITS.md`
   section 5). The US App Store page read $49.99, $29.99 and $5.99 at 10:20 PT on 2026-09-30.
