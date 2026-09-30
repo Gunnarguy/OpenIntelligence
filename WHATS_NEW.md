@@ -1,4 +1,4 @@
-> **Documentation status:** Current through OpenIntelligence v5.5, in development; v5.4 has been live on both platforms since September 24, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Current through OpenIntelligence v5.5, live on both platforms since September 30, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 

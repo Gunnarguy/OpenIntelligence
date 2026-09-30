@@ -28,10 +28,10 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
-## v5.5 - unreleased
+## v5.5 - September 30, 2026
 
-Not released. 5.5 carries one retrieval fix, in TestFlight since build 480, and the plans screen's
-price comparisons for the prices that take effect on 2026-09-30 and 2026-10-01.
+Live on iPhone, iPad and Mac since 2026-09-30, build 483. 5.5 carries one retrieval fix and the plans
+screen's price comparisons for the prices that take effect on 2026-09-30 and 2026-10-01.
 
 - **A "how much" question could be answered with an unrelated measurement from another document,
   marked Verified.** On 2026-09-25, on the macOS Debug build of 5.4 in Deep Think, "How much notice

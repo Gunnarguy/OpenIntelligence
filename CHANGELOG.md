@@ -2,7 +2,12 @@
 
 <!-- next-version: 5.5 -->
 
-## 5.5
+## 5.5 - September 30, 2026
+<!-- Shipped on both platforms with build 483 (Xcode Cloud #483 from 81b66a8): iOS at 06:31 PT and
+     macOS at 10:14 PT on 2026-09-30, each released through the App Store Connect API at the owner's
+     word after approval. No next version is open. Open a 5.6 heading, with its unreleased marker,
+     above this one before the next source push, or ci_post_clone.sh stamps the released 5.5 and App
+     Store Connect rejects the build. -->
 
 <!-- Opened 2026-09-26 for the first source change after 5.4 went live on both platforms with
      build 478. ci_post_clone.sh stamps MARKETING_VERSION from the FIRST "## <number>" heading, so
