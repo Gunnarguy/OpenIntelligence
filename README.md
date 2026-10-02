@@ -217,11 +217,13 @@ build, from 5.2 zero PCC symbols fails it, so the binary cannot silently contrad
 either direction. Edge cases, quota exhaustion, mid-stream network transitions and background
 consent, are still unverified and tracked as open items rather than quietly assumed.
 
-Releases are produced by **Xcode Cloud**, never from the maintainer's Mac. This is not a
-preference. That Mac runs a beta macOS, every local archive stamps a prerelease
-`BuildMachineOSBuild` into `Info.plist`, and App Store *ingestion* rejects that with ITMS-90111 even
-though `altool --validate-app` returns VERIFY SUCCEEDED and processing reaches `VALID`. Validation
-is not ingestion. Xcode Cloud builds on Apple's released images, so the stamp comes out clean.
+Releases are produced by **Xcode Cloud**, never from the maintainer's Mac. This was not a
+preference. That Mac ran a beta macOS, every local archive stamped a prerelease
+`BuildMachineOSBuild` into `Info.plist`, and App Store *ingestion* rejected that with ITMS-90111 even
+though `altool --validate-app` returned VERIFY SUCCEEDED and processing reached `VALID`. Validation
+is not ingestion. Xcode Cloud builds on Apple's released images, so the stamp comes out clean. The
+Mac now runs the macOS 27.0 release, build 26A428.
+<!-- [evidence_level: measured, confidence: exact, evidence_source: sw_vers on the maintainer's Mac 2026-10-01 read ProductVersion 27.0, BuildVersion 26A428, with no trailing lowercase letter, the prerelease mark per Docs/ai/RUNBOOK.md "Do not build a release on this Mac"] -->
 
 That is also where the toolchain question above is settled. Xcode Cloud runs one workflow,
 `Default`, pinned to the **Xcode 27 release**, build `27A266a`, on macOS `Latest Release`, with two
