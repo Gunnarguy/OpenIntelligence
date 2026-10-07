@@ -118,7 +118,8 @@ of which model writes the answer.
 
 There is no separately selectable "3B" or "20B" on-device model here, because the
 public SDK exposes no such selector. Apple's larger on-device model is real and
-managed by the OS; no app can choose or observe it.
+managed by the OS; no app can choose it. From iOS and macOS 27 an app can read
+which one it has (`SystemLanguageModel.variant`).
 
 ## Documentation
 

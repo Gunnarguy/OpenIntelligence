@@ -999,7 +999,7 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 
 **Why it exists.** Where the answer runs is a decision with privacy, cost and quality consequences, so it is made explicitly and after retrieval by `ModelExecutionPlanner`: abstain if the evidence is insufficient, deterministic if a rule-based extractor can answer, Private Cloud Compute only if the capability exists, the network is up, the user is present or has consented, **and** either the local budget does not fit or the query complexity asks for it. Every PCC plan carries an on-device fallback. The **minimised payload** is built before consent is requested, so the user is asked about the exact text that would leave; after Always Allow, it stops asking. Structured generation with `@Generable` exists so the answer arrives as typed claims with citations, not prose to be parsed.
 
-**Where it runs.** Planning is CPU. Generation is `LanguageModelSession.streamResponse` on `SystemLanguageModel.default`; Apple places the on-device model and the app cannot move it. PCC needs iOS 27 or macOS 27, the entitlement, availability and quota, and is built with Swift 6.4. The advanced on-device route executes the same default model; no advanced model exists in the SDK.
+**Where it runs.** Planning is CPU. Generation is `LanguageModelSession.streamResponse` on `SystemLanguageModel.default`; Apple places the on-device model and the app cannot move it. PCC needs iOS 27 or macOS 27, the entitlement, availability and quota, and is built with Swift 6.4. The advanced on-device route executes the same default model; the SDK offers no way to select an advanced model. (Corrected 2026-10-05: this read "no advanced model exists in the SDK". The release SDK, Xcode 27.0 `27A266a`, names the on-device model through `SystemLanguageModel.variant`, `.core3` or `.coreAdvanced3`. The operating system decides which one `default` is, and the app does not read it. `[evidence_level: sdk_verified, confidence: exact_for_installed_sdk, evidence_source: FoundationModels.swiftinterface in Xcode 27.0 27A266a read 2026-10-05; Docs/LIMITATIONS.md, Technical Limits]`)
 
 ### The word bank (62 concepts)
 
@@ -1070,7 +1070,7 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 
 ### Corrections
 
-- OI-0341 `advanced20B` alias: selecting it runs the default model and telemetry reports `.onDevice`. The bank's status labels are right; do not describe a 20B on-device model as real.
+- OI-0341 `advanced20B` alias: selecting it runs the default model and telemetry reports `.onDevice`. The bank's status labels are right; do not describe a 20B on-device model as real. (Corrected 2026-10-05: read that as "do not describe it as something the app selects". Apple's larger on-device model is real, and on the owner's Mac it is what `SystemLanguageModel.default` runs, because `variant` reads `.coreAdvanced3`. See `Docs/LIMITATIONS.md`, Technical Limits. `[evidence_level: sdk_verified+measured, confidence: exact_for_installed_sdk_and_one_mac, evidence_source: SystemLanguageModel.default.variant printed on macOS 27.0 26A428 on 2026-10-05]`)
 - OI-0378 PCC target: the code path exists and compiles with Swift 6.4, but whether a given App Store build carries PCC symbols is a build fact, not a source fact. The ledger records builds with zero PCC symbols.
 
 ### Can you explain it?
@@ -1103,7 +1103,7 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 
 <details><summary><strong>What does choosing the advanced on-device model actually run?</strong></summary>
 
-`SystemLanguageModel.default`. The SDK exposes no advanced model, so the session factory runs the default and reports the route as on-device so telemetry does not claim a tier that never ran.
+`SystemLanguageModel.default`. The SDK offers no way to select an advanced model, so the session factory runs the default and reports the route as on-device so telemetry does not claim a tier the app did not choose. (Corrected 2026-10-05: this read "The SDK exposes no advanced model" and "a tier that never ran". The release SDK names the on-device model through `SystemLanguageModel.variant`, and on the owner's Mac the default reads `.coreAdvanced3`, so the larger model can be what ran. The app does not read `variant`. `[evidence_level: sdk_verified+measured, confidence: exact_for_installed_sdk_and_one_mac, evidence_source: FoundationModels.swiftinterface in Xcode 27.0 27A266a read 2026-10-05; SystemLanguageModel.default.variant printed on macOS 27.0 26A428 on 2026-10-05; Docs/LIMITATIONS.md, Technical Limits]`)
 
 </details>
 
