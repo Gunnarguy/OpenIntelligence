@@ -4,15 +4,15 @@
   "name": "What's New and Version History",
   "aliases": ["What's New", "version history", "in-app update notes", "release highlights"],
   "purpose": "Shows what changed after an update and the full version history in Settings.",
-  "revision": "962a8b8",
-  "verified_on": "2026-09-29",
+  "revision": "7236c8a",
+  "verified_on": "2026-10-07",
   "entry_points": ["WhatsNewStore.evaluateOnLaunch", "WhatsNewStore.releases", "WhatsNewView", "VersionHistoryLoader", "VersionHistoryView"],
   "files": [
-    {"path": "OpenIntelligence/Features/Onboarding/WhatsNewStore.swift", "role": "primary", "blob": "0350263b46dd3ed103b7aa932962106e859d563f"},
+    {"path": "OpenIntelligence/Features/Onboarding/WhatsNewStore.swift", "role": "primary", "blob": "ad41d1550a9ed6d4824c0926a40de38bea0c5cb4"},
     {"path": "OpenIntelligence/Features/Onboarding/WhatsNewView.swift", "role": "primary", "blob": "92541a5365532957b6286ce8c822b5fc97f11476"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistory.swift", "role": "primary", "blob": "03572f299ce17218afd5b2ff3c91d21ca5053b37"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistoryView.swift", "role": "primary", "blob": "8703818923e30f494f615abc0ae5511a18063779"},
-    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "69ccb24ddf40b25c4daff1b72c046ea1b05a7643"},
+    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "4b0c6ca27b942ee1198d63967e36d7b4e6f3c082"},
     {"path": "OpenIntelligenceTests/Features/Onboarding/WhatsNewCoverageTests.swift", "role": "test", "blob": "e8235b85cafaf1cd22edbf959d0ba893c4c25553"},
     {"path": "OpenIntelligenceTests/Features/Settings/VersionHistoryTests.swift", "role": "test", "blob": "447bee2122be22aaf29b918ba1d1db938786f788"}
   ],
@@ -34,11 +34,11 @@
     {"id": "test:VersionHistoryTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Features/Settings/VersionHistoryTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
-    {"from": "ContentView.body", "type": "renders", "to": "WhatsNewView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 201, "match": "WhatsNewView(release: release)"}], "by": "build", "note": "constructs it"},
+    {"from": "ContentView.body", "type": "renders", "to": "WhatsNewView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 208, "match": "WhatsNewView(release: release)"}], "by": "build", "note": "constructs it"},
     {"from": "VersionHistoryView", "type": "calls", "to": "VersionHistoryLoader.load", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/VersionHistoryView.swift", "line": 64, "match": "let loaded = VersionHistoryLoader.load()"}], "by": "build", "note": "the call names the type"},
     {"from": "AboutView.body", "type": "renders", "to": "VersionHistoryView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/AboutView.swift", "line": 108, "match": "VersionHistoryView()"}], "by": "build", "note": "constructs it"},
     {"from": "SettingsView.destination", "type": "renders", "to": "VersionHistoryView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 564, "match": "VersionHistoryView()"}], "by": "build", "note": "constructs it"},
-    {"from": "ContentView.body", "type": "calls", "to": "WhatsNewStore.evaluateOnLaunch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 207, "match": "whatsNewStore.evaluateOnLaunch()"}], "by": "build", "note": "named there"},
+    {"from": "ContentView.body", "type": "calls", "to": "WhatsNewStore.evaluateOnLaunch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 214, "match": "whatsNewStore.evaluateOnLaunch()"}], "by": "build", "note": "named there"},
     {"from": "VersionHistoryLoader.parse", "type": "depends_on", "to": "WhatsNewStore.releases", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/VersionHistory.swift", "line": 63, "match": "var releases: [VersionHistoryRelease] = []"}], "by": "build", "note": "named there"},
     {"from": "VersionHistoryView.releases", "type": "depends_on", "to": "WhatsNewStore.releases", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/VersionHistoryView.swift", "line": 21, "match": "@State private var releases: [VersionHistoryRelease] = []"}], "by": "build", "note": "named there"},
     {"from": "WhatsNewView", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/WhatsNewView.swift", "line": 39, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},

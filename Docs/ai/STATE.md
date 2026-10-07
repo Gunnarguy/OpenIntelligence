@@ -2,7 +2,7 @@
 
 Updated: 2026-10-07 (5.6 is open and committed at the owner's word: ten fixes, the suite passes, nothing seen on a device; the promotional text is live; eleven roadmap rows are on `v5.6`, In Progress)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 9def410
+Last verified commit: 7236c8a
 
 ## Objective
 
@@ -34,12 +34,21 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   `In Progress` (URLs under Blockers). None is `Completed`: each closes on a device. The verified-badge row and the
   wrong-answers row each carry a dated note saying what 5.6 does and does not do for them. The empty-library fix
   has no row.
-- **App Store creative assets, drafted 2026-10-07, nothing uploaded.** Apple opened product page headers
-  (3840x1646) and search result assets (3:2, up to 3840x2560) on 2026-10-05, for iOS and iPadOS 27, attached to a
-  version in Prepare for Submission. Three candidates of each are in `Growth/store-assets-5.6/` (local, git-ignored)
-  with `contact-sheet.png`, the five raw captures and `compose_wide.py`, which rebuilds them from the listing's
-  own compositor. The captures are the 5.6 test build's staged scenes on the `OI 5.6 tests` simulator. Apple's
-  template safe areas were not checked. The owner has not picked one.
+- **Pushed 2026-10-07 10:10 PT:** `b453ab8` (the three doc corrections of 2026-10-05 and the README's routing
+  sentence) and `7236c8a` (5.6). Xcode Cloud build #484 started from `7236c8a` at 10:10 PT; read its result with
+  the build-list recipe in session memory (`websites-read-shipped-version-from-origin`).
+- **App Store creative assets: the owner picked A for both on 2026-10-07, and nothing is uploaded.** Apple opened
+  product page headers (3840x1646) and search result images (3:2, up to 3840x2560) on 2026-10-05, for iOS and
+  iPadOS 27, as placements on a version in Prepare for Submission. The files are in `Growth/store-assets-5.6/`
+  (local, git-ignored): `search-A-answer.png` and `header-A-answer-centered.png`, the picked header with its
+  headline and card moved inside the middle of the frame, because Apple's one layout rule is to keep the focal
+  point centred and its template safe areas were not read. The agent session's permission check refused the
+  upload as a production deploy, so `asc_assets_upload.rb` in that folder is for the owner to run (dry run by
+  default, `--apply` to send). Its upload and placement calls have never run; the reads it starts with have
+  (asset library 6756559175, 5.6 iOS en-US localization `916b39be-9547-48bc-8a15-342de0a03250`, no header or
+  search placement on it yet).
+- **The owner's iPhone was unreachable from this Mac at 10:15 PT on 2026-10-07** (`xcrun devicectl list devices`:
+  "unavailable"), so 5.6 was not installed on it.
 - **The token-budget work has a roadmap row, Future Backlog:**
   https://app.notion.com/p/3f249a74d54f815cbbd3c2e1c492dfd7 (filed 2026-10-07). The preflight routes it as
   `core_ai_ios27_change`, risk high, and `OpenIntelligence/Services/AIPlatform/**` (where
@@ -192,7 +201,6 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   library's prompts. Each is read, compiled and in a passing suite, and none is exercised.
 - **Left on the Mac by the test runs:** the simulator `OI 5.6 tests` (`0C3BBD22-E7FD-400D-8E71-6C6EDA985C4C`, shut
   down, no keys in it; `xcrun simctl delete` it to remove), `/private/tmp/oi-src` and `/private/tmp/oi-build`.
-- **Codemap:** the five new source files are in no feature slice (29 warnings). Stamp after the commit.
 - **Measured 2026-10-07, the 8,192 window on the raw model** (this Mac only; logs and the probe are in
   `BenchmarkRuns/2026-10-07-context-window-probe/`, git-ignored, with a README). Time to first token grows faster
   than the prompt: 0.8 s at 935 input tokens, 2.3 s at 2,574, 5.9 s at 5,105, 10.7 s at 7,608. A second question in
@@ -268,10 +276,12 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Exact Next Action
 
-Waiting on the owner for three words, asked 2026-10-07: (1) "commit" for the 5.6 work (source, tests, docs;
-explicit paths, no `git add .`; the push starts an Xcode Cloud build stamped 5.6); (2) which header and search
-result candidate in `Growth/store-assets-5.6/contact-sheet.png` to put on the 5.6 record, or what to change;
-(3) for the token budget, `PROCEED: IMPLEMENT` naming `FoundationModelTokenBudget.swift`, and whether it joins 5.6
-or the release after. After the commit: build to his iPhone (`building-to-gunnars-iphone` in session memory; pass
-`MARKETING_VERSION=5.6`), run `Growth/campaign/sample-package/RUN_SHEET.md` plus the closing condition of each of
-the eleven rows, and read the window in Settings, "On this device". Nothing closes on the suite alone.
+1. Read Xcode Cloud build #484's result. If it failed, read its actions before anything else.
+2. The owner runs the asset upload from the repository root, or says how else he wants it done:
+   `ruby Growth/store-assets-5.6/asc_assets_upload.rb Growth/store-assets-5.6/header-A-answer-centered.png Growth/store-assets-5.6/search-A-answer.png --apply`
+3. 5.6 goes on his iPhone, from TestFlight if build #484 lands there, or as a development build when the phone
+   is reachable (`building-to-gunnars-iphone` in session memory; pass `MARKETING_VERSION=5.6`). He runs
+   `Growth/campaign/sample-package/RUN_SHEET.md` plus the closing condition of each of the eleven rows, and reads
+   the window in Settings, "On this device". Nothing closes on the suite alone.
+4. Still unanswered: for the token budget, `PROCEED: IMPLEMENT` naming `FoundationModelTokenBudget.swift`, and
+   whether it joins 5.6 or the release after.
