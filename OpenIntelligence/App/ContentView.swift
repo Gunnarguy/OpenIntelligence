@@ -139,6 +139,13 @@ struct ContentView: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.isChecklistVisible)
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.hasDismissedPermanently)
+        #if canImport(UIKit)
+            // The hardware legend floats in its own window above everything. It waits for the
+            // welcome screen to close before it first shows up.
+            .onChange(of: onboardingStore.isChecklistVisible && !screenshotMode.isEnabled, initial: true) { _, visible in
+                FloatingLegendWindowManager.shared.setWelcomeScreenVisible(visible)
+            }
+        #endif
         .environmentObject(onboardingStore)
         .environmentObject(entitlementStore)
         .environmentObject(workspaceSyncService)

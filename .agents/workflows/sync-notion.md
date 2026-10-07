@@ -50,7 +50,8 @@ than assuming.
    - Status: `To Do`, `In Progress`, `Completed` (never "Shipped" — it does not exist)
    - Component: `Ingestion`, `Chunking`, `Indexing`, `Retrieval`, `Orchestration`, `Shortcuts`, `General`, `UI`, `Infrastructure`
    - Priority: `High`, `Medium`, `Low`
-   - Target Release: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.0.1`, `v5.0.2`, `v5.1`, `v5.2`, `v5.3`, `v5.4`, `v5.5`, `Future Backlog`
+   - Target Release: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.0.1`, `v5.0.2`, `v5.1`, `v5.2`, `v5.3`, `v5.4`, `v5.5`, `v5.6`, `Future Backlog`
+     `v5.6` was added 2026-10-07. `[evidence_level: measured, confidence: high, evidence_source: the data source's schema as returned by the ALTER COLUMN call, and a count of rows per release before and after, 2026-10-07]`
      This list previously stopped at `v4.6`, which combined with the rule below meant an agent
      targeting v5.0 work would "round down" to a two-release-old label. The two split-numbering
      options are historical: from 4.9 onward both platforms share one version, so new rows use

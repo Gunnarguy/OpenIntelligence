@@ -242,16 +242,7 @@ struct ChatResponseDetailsView: View {
     // MARK: - Verification Hero
 
     private var verificationStatus: VerificationInfo {
-        guard let decision = metadata.gatingDecision else {
-            return VerificationInfo(
-                title: "Verified Response",
-                subtitle: "Answer passed all quality checks",
-                icon: "checkmark.shield.fill",
-                color: .green,
-                level: .verified
-            )
-        }
-        return VerificationInfo.from(gatingDecision: decision)
+        VerificationInfo.from(gatingDecision: metadata.gatingDecision)
     }
 
     private var verificationHero: some View {
@@ -457,7 +448,7 @@ struct ChatResponseDetailsView: View {
                                     Text("Claim \(index + 1)")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundStyle(.tertiary)
-                                    Text(claim.claim)
+                                    Text(GroundedAnswerView.inlineMarkdown(claim.claim))
                                         .font(.system(size: 13))
                                         .foregroundStyle(DSColors.primaryText)
                                     HStack(spacing: 6) {
@@ -739,13 +730,15 @@ private struct VerificationInfo {
     let level: VerificationLevel
 
     enum VerificationLevel {
-        case verified, partial, lowConfidence, unverified, noSources
+        case verified, partial, lowConfidence, unverified, noSources, notChecked
     }
 
-    static func from(gatingDecision: String) -> VerificationInfo {
-        let lower = gatingDecision.lowercased()
-
-        if lower.contains("no_sources") || lower.contains("no_documents") || lower.contains("context_empty") {
+    /// One reading of the gating string for the bubble and this sheet (`VerificationOutcome`).
+    /// Before 5.6 a missing string read "Verified Response: Answer passed all quality checks", and
+    /// so did `unverified:<gates>` and `verification_skipped`.
+    static func from(gatingDecision: String?) -> VerificationInfo {
+        switch VerificationOutcome.from(gatingDecision: gatingDecision) {
+        case .noSources:
             return VerificationInfo(
                 title: "No Sources Available",
                 subtitle: "No matching documents were found for this question. The response may use general knowledge.",
@@ -753,9 +746,7 @@ private struct VerificationInfo {
                 color: .secondary,
                 level: .noSources
             )
-        }
-
-        if lower.contains("verification_gates_failed") || lower.contains("missing_citations") {
+        case .notSupported:
             return VerificationInfo(
                 title: "Could Not Verify",
                 subtitle: "The response couldn't be fully verified against your documents. Take it with a grain of salt.",
@@ -763,9 +754,7 @@ private struct VerificationInfo {
                 color: .red,
                 level: .unverified
             )
-        }
-
-        if lower.contains("low_confidence") || lower.contains("rerank_empty") || lower.contains("mmr_empty") || lower.contains("relevance_gate_failed") {
+        case .lowConfidence:
             return VerificationInfo(
                 title: "Low Confidence",
                 subtitle: "The source documents had limited relevance. The answer may be incomplete or approximate.",
@@ -773,9 +762,7 @@ private struct VerificationInfo {
                 color: .orange,
                 level: .lowConfidence
             )
-        }
-
-        if lower.contains("reliability_fallback") || lower.contains("high_accuracy_blocked") {
+        case .partial:
             return VerificationInfo(
                 title: "Partially Verified",
                 subtitle: "Some parts of this answer are well-supported by your documents, but not all claims could be verified.",
@@ -783,16 +770,23 @@ private struct VerificationInfo {
                 color: .yellow,
                 level: .partial
             )
+        case .supported:
+            return VerificationInfo(
+                title: "Verified Response",
+                subtitle: "This answer is well-supported by your documents and passed quality verification.",
+                icon: "checkmark.shield.fill",
+                color: .green,
+                level: .verified
+            )
+        case .notChecked:
+            return VerificationInfo(
+                title: "Not Checked",
+                subtitle: "No verification check ran on this answer. Open the sources below to check it against your documents.",
+                icon: "shield.slash",
+                color: .secondary,
+                level: .notChecked
+            )
         }
-
-        // Default: verified
-        return VerificationInfo(
-            title: "Verified Response",
-            subtitle: "This answer is well-supported by your documents and passed quality verification.",
-            icon: "checkmark.shield.fill",
-            color: .green,
-            level: .verified
-        )
     }
 }
 

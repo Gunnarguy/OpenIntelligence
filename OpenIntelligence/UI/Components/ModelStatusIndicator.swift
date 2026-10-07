@@ -265,7 +265,8 @@ struct ModelQuickSelector: View {
     private var statusText: String {
         switch settings.selectedModel {
         case .appleIntelligence:
-            return deviceCapabilities.supportsFoundationModels ? "Ready" : "Preparing..."
+            return deviceCapabilities.supportsFoundationModels
+                ? "Ready" : AppleIntelligenceCopy.status(for: deviceCapabilities.foundationModelUnavailability)
         case .onDeviceAnalysis:
             return "Ready"
         }

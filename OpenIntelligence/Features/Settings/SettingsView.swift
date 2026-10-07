@@ -663,7 +663,9 @@ struct SettingsView: View {
         if deviceCapabilities.supportsFoundationModels {
             return "Apple Intelligence Ready"
         } else {
-            return "Preparing AI Models..."
+            // "Preparing AI Models..." was shown for every reason, so it never ended on a device
+            // that cannot run Apple Intelligence or has it switched off.
+            return AppleIntelligenceCopy.status(for: deviceCapabilities.foundationModelUnavailability)
         }
     }
 

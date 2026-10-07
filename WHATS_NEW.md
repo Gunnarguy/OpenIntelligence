@@ -1,8 +1,30 @@
-> **Documentation status:** Current through OpenIntelligence v5.5, live on both platforms since September 30, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Current through OpenIntelligence v5.5, live on both platforms since September 30, 2026; the 5.6 section is the release in preparation. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 5.6
+This one's about your first few answers.  The citations in an answer open now, numbers and times come through the way your document wrote them, and the Verified badge only shows when a check actually ran and passed.
+
+### Answers
+- **Citations open.** An answer cites its sources as [S1], [S2] and so on, and tapping one did nothing, because the app only made a link out of a bare [3].  Now each one opens the passage it came from.
+- **Numbers and times stay the way your document wrote them.** After the model wrote an answer, a cleanup step that's there to remove repeated sentences rebuilt every answer, repeats or not, and it split the text at every period, so "$300.00" came out with a space in the middle and "10:00 p.m." lost its "m."  Now it leaves an answer alone unless it finds a real repeat.
+- **Two facts don't get merged into one.** That same cleanup could treat "E1 is an open circuit" and "E2 is a short circuit" as one sentence said twice and drop one of them.  Sentences with different numbers or codes are never treated as repeats now.
+- **Answers stop ending with my own prompt.** When the app wasn't confident in what it found, some answers ended with a line like "What sources show, What's missing, Confidence note", which was part of my own prompt.  That line's gone, and the app asks for one plain sentence about what your documents don't cover instead.
+- **No more asterisks.** The Fact Check rows showed bold text with its asterisks, and an answer showed "###" and "**" while it was being written.  Both are cleaned up.
+
+### The Verified badge
+- **Verified means a check ran and passed.** The badge showed Verified for any answer that wasn't on a short list of failures, so an answer whose checks failed, or never ran, still said Verified.  Now it says Verified, Unverified or Not Checked, and Fact Check counts the claims it actually supported.
+- **A right answer doesn't get "Verification failed" under it.** One check compares the whole answer against a single passage, and it was failing answers whose every sentence the claim check had already supported.  When that's the only check that fails, the claim check decides.
+
+### Private Cloud Compute
+- **"Just Once" means once.** In Deep Think and Maximum, choosing Just Once on the consent sheet carried over, so the next Deep Think or Maximum question could go to Private Cloud Compute without asking.  Now Just Once covers one question.
+
+### Getting started
+- **It tells you when your device can't run Apple Intelligence.** Chat used to say "Enable it in Settings" even on a device that can't turn Apple Intelligence on, and Settings said "Preparing AI Models..." forever.  Now the app tells you which (not supported on this device, turned off, or still downloading) and what still works without it.
+- **An empty library doesn't suggest questions it can't answer.** With no documents in a library, the chat suggested four prompts and every one of them came back "No documents yet."  An empty library doesn't suggest anything now.
+- **The hardware readout waits for the welcome screen.** On a first launch it sat on top of the welcome screen.  Now it shows up once you're in the app.
 
 ## 5.5
 One fix and lower prices this time.  A "how much" question could get answered with a number from a totally different

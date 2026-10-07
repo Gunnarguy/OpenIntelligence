@@ -22,16 +22,13 @@ struct GroundedAnswerView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Main answer text with interactive citations
-            // `$1`, not `$$1`. In an ICU replacement template the escape for a literal dollar is
-            // `\$`, so `$$1` emits a literal `$` followed by capture group 1: a citation `[3]`
-            // became the link `citation://$3`, which LaunchServices cannot open. Device logs show
-            // it as `Failed to open URL citation://$3` with
-            // `LSApplicationWorkspaceErrorDomain Code=115`, so every citation tap has been a no-op.
-            let linkedAnswer = answer.answer.replacingOccurrences(
-                of: "\\[(\\d+)\\]",
-                with: "[[$1]](citation://$1)",
-                options: .regularExpression
+            // Main answer text with interactive citations. `CitationLinker` resolves each label
+            // to a chunk when it builds the link: before 5.6 only a bare `[3]` became a link, and
+            // the answer prompt asks for `[S3]`, so no citation in a real answer could be tapped.
+            let linkedAnswer = CitationLinker.linkedMarkdown(
+                answer.answer,
+                evidence: answer.evidence,
+                retrievedChunks: retrievedChunks
             )
             
             MarkdownText(
@@ -40,14 +37,13 @@ struct GroundedAnswerView: View {
                 foregroundColor: DSColors.primaryText
             )
             .environment(\.openURL, OpenURLAction { url in
-                if url.scheme == "citation", let host = url.host, let idx = Int(host) {
-                    let arrayIdx = idx - 1
-                    if arrayIdx >= 0 && arrayIdx < retrievedChunks.count {
-                        selectedCitationChunk = retrievedChunks[arrayIdx]
-                        return .handled
-                    }
+                if let chunk = CitationLinker.chunk(for: url, in: retrievedChunks) {
+                    selectedCitationChunk = chunk
+                    return .handled
                 }
-                return .systemAction
+                // A citation link that resolves to nothing is ours to swallow: handing it to the
+                // system logs "Failed to open URL citation://..." and does nothing.
+                return url.scheme == CitationLinker.scheme ? .handled : .systemAction
             })
             .sheet(item: Binding(
                 get: { selectedCitationChunk.map { IdentifiableChunk(chunk: $0) } },
@@ -81,7 +77,7 @@ struct GroundedAnswerView: View {
                         HStack(spacing: 3) {
                             Image(systemName: "shield.checkered")
                                 .font(.system(size: 9))
-                            Text("\(answer.claims.count) Verified")
+                            Text(Self.factCheckSummary(for: answer.claims))
                                 .font(.system(size: 9, weight: .medium))
                         }
                         .foregroundStyle(modeColor)
@@ -139,6 +135,26 @@ struct GroundedAnswerView: View {
     }
 }
 
+extension GroundedAnswerView {
+    /// "3 Verified" was printed for any three claims. Count the verdicts instead.
+    nonisolated static func factCheckSummary(for claims: [StructuredAnswer.Claim]) -> String {
+        let supported = claims.filter { $0.verificationVerdict == .supported }.count
+        let checked = claims.filter { $0.verificationVerdict != nil }.count
+        if checked == 0 { return "\(claims.count) Not Checked" }
+        if supported == claims.count { return "\(supported) Verified" }
+        return "\(supported) of \(claims.count) Verified"
+    }
+
+    /// A claim's text can carry the model's inline markdown (`**350°F**`). `Text` made from a
+    /// String shows the asterisks, so parse the inline syntax and fall back to the plain string.
+    nonisolated static func inlineMarkdown(_ text: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace
+        )
+        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+    }
+}
+
 private struct ClaimCard: View {
     let claim: StructuredAnswer.Claim
     let evidence: [StructuredAnswer.Evidence]
@@ -161,7 +177,7 @@ private struct ClaimCard: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(claim.claim)
+                        Text(GroundedAnswerView.inlineMarkdown(claim.claim))
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(DSColors.primaryText)
                             .lineLimit(isExpanded ? nil : 2)
@@ -312,7 +328,9 @@ private struct ClaimCard: View {
         case .supported: return "SUPPORTED"
         case .partial: return "PARTIAL"
         case .unsupported: return "UNSUPPORTED"
-        case nil: return "VERIFYING"
+        // A claim with no verdict was never checked. The answer is attached after generation
+        // and nothing fills the verdict in later, so "VERIFYING" never finished.
+        case nil: return "NOT CHECKED"
         }
     }
 }

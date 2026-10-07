@@ -100,7 +100,7 @@ Quota is rechecked immediately before the model is constructed. A quota failure 
 
 PCC consent happens only after the route and cloud evidence envelope are final. `CloudEvidenceMinimizer` selects a bounded set of source IDs, names, page numbers, and text. The consent sheet displays provider/model, prompt size, context size, chunk count, total estimated bytes, and the machine-readable route reason.
 
-- **Allow once:** grants the current in-process PCC provider session.
+- **Allow once ("Just Once"):** grants one question. The grant is cleared when the next question starts, in every mode, and one question can make several model calls under it. **Corrected in 5.6 (2026-10-07):** through 5.5 only a Standard question cleared it (`RAGService.queryInternal`, where the query's container is set), and Deep Think and Maximum return before that line, so after Just Once the next Deep Think or Maximum question that routed to Private Cloud Compute was sent without the sheet. The grant is now also cleared before `executeAgenticQuery`. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift queryInternal, ensureCloudConsentIfNeeded and rememberTransientGrant, read 2026-10-07; not exercised on a device, and no test reaches this path]`
 - **Always allow:** persists provider consent; each transmission still produces a local record.
 - **Deny:** blocks PCC. Hybrid and explicit PCC policy use the on-device fallback and label the answer accordingly.
 
@@ -128,6 +128,21 @@ generation. `LanguageModelSession.Response` declares `content`, `rawContent`, `t
 and `usage`, and **nothing naming the backend**, so there is no way to ask Apple which model
 served a request. `actualRoute` remains the app's own record of what it selected, which is a
 statement of intent.
+
+**Corrected 2026-10-05.** Two things do name the model, and the paragraph above missed both. The
+release SDK (Xcode 27.0, `27A266a`) has `SystemLanguageModel.variant`, which reads `.core3` or
+`.coreAdvanced3` for the on-device model backing the instance. And each `Transcript.Response` inside
+a response's `transcriptEntries` carries `assetIDs`, public since iOS 26.0 and documented as
+"Version-aware identifiers for all assets used to generate this response"; on the owner's Mac one
+on-device response listed three `com.apple.fm.language.instruct_3b` assets. The app reads neither,
+so `actualRoute` is still its only record of the route. **Measured 2026-10-06:** a Private Cloud
+Compute response's `assetIDs` read `com.apple.fm.language.instruct_server_v2.fm_api.generic_11.110003.18`
+and `com.apple.fm.language.instruct_server_v2.base_zap.generic_11.3.0` in each of five runs of a
+development-signed probe that carried the PCC entitlement (51 requests on the owner's Mac), against
+the three `instruct_3b` assets of an on-device response. So on that Mac the field told the two
+routes apart, and reading it would give the app outcome-based evidence of the route. Not
+established: whether the identifiers keep that shape on an iPhone or across OS releases.
+`Docs/LIMITATIONS.md` (Technical Limits) has what was measured. `[evidence_level: sdk_verified+documented+measured+code_verified, confidence: exact_for_installed_sdk_and_one_mac, evidence_source: FoundationModels.swiftinterface in Xcode 27.0 27A266a read 2026-10-05; developer.apple.com/documentation/foundationmodels/systemlanguagemodel/variant-swift.property and transcript/response/assetids fetched 2026-10-05; a command-line probe on macOS 27.0 26A428 printing one response's assetIDs; grep -E for \.variant\b, coreAdvanced3 and assetIDs across app, engine and test Swift (no match); a development-signed probe carrying the PCC entitlement, run on the same Mac on 2026-10-06, printing the first response's assetIDs in each of five runs (51 requests)]`
 
 `usage.output.reasoningTokenCount` is the useful counterpart. Apple's capability table lists
 reasoning as unsupported on-device and available in multiple levels on Private Cloud Compute, so a

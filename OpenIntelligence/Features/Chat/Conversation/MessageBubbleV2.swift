@@ -654,6 +654,7 @@ private struct VerificationBadge: View {
         case lowConfidence
         case unverified
         case noSources
+        case notChecked
 
         var icon: String {
             switch self {
@@ -662,6 +663,7 @@ private struct VerificationBadge: View {
             case .lowConfidence: return "exclamationmark.triangle.fill"
             case .unverified: return "xmark.shield.fill"
             case .noSources: return "questionmark.circle"
+            case .notChecked: return "shield.slash"
             }
         }
 
@@ -672,6 +674,7 @@ private struct VerificationBadge: View {
             case .lowConfidence: return "Low Confidence"
             case .unverified: return "Unverified"
             case .noSources: return "No Sources"
+            case .notChecked: return "Not Checked"
             }
         }
 
@@ -682,24 +685,22 @@ private struct VerificationBadge: View {
             case .lowConfidence: return .orange
             case .unverified: return .red
             case .noSources: return .secondary
+            case .notChecked: return .secondary
             }
         }
 
+        /// Verified only when the gating string says a check ran and passed. Before 5.6 anything
+        /// outside a short list of failure words read Verified, including `unverified:<gates>` and
+        /// `verification_skipped`.
         static func from(gatingDecision: String) -> VerificationStatus {
-            let lower = gatingDecision.lowercased()
-            if lower.contains("no_sources") || lower.contains("no_documents") || lower.contains("context_empty") {
-                return .noSources
+            switch VerificationOutcome.from(gatingDecision: gatingDecision) {
+            case .supported: return .verified
+            case .notSupported: return .unverified
+            case .lowConfidence: return .lowConfidence
+            case .partial: return .partiallyVerified
+            case .noSources: return .noSources
+            case .notChecked: return .notChecked
             }
-            if lower.contains("verification_gates_failed") || lower.contains("missing_citations") {
-                return .unverified
-            }
-            if lower.contains("low_confidence") || lower.contains("rerank_empty") || lower.contains("mmr_empty") || lower.contains("relevance_gate_failed") {
-                return .lowConfidence
-            }
-            if lower.contains("reliability_fallback") || lower.contains("high_accuracy_blocked") {
-                return .partiallyVerified
-            }
-            return .verified
         }
     }
 }

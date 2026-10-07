@@ -108,6 +108,55 @@ final class WhatsNewStore: ObservableObject {
         // who updated to it was recorded as seen and shown nothing. The gap is only visible
         // from a later build, which is why `WhatsNewCoverageTests` now fails the build when
         // the newest version in the bundled VersionHistory.md has no entry below.
+        "5.6": WhatsNewRelease(
+            version: "5.6",
+            headline:
+                "This one's about your first few answers.  The citations in an answer open now, numbers and times come through the way your document wrote them, and the Verified badge only shows when a check actually ran and passed.",
+            items: [
+                .init(
+                    symbol: "link",
+                    title: "Citations open",
+                    detail:
+                        "An answer cites its sources as [S1], [S2] and so on, and tapping one did nothing, because the app only made a link out of a bare [3].  Now each one opens the passage it came from."
+                ),
+                .init(
+                    symbol: "number",
+                    title: "Numbers and times stay the way your document wrote them",
+                    detail:
+                        "After the model wrote an answer, a cleanup step that's there to remove repeated sentences rebuilt every answer, repeats or not, and it split the text at every period, so \"$300.00\" came out with a space in the middle and \"10:00 p.m.\" lost its \"m.\"  Now it leaves an answer alone unless it finds a real repeat."
+                ),
+                .init(
+                    symbol: "rectangle.2.swap",
+                    title: "Two facts don't get merged into one",
+                    detail:
+                        "That same cleanup could treat \"E1 is an open circuit\" and \"E2 is a short circuit\" as one sentence said twice and drop one of them.  Sentences with different numbers or codes are never treated as repeats now."
+                ),
+                .init(
+                    symbol: "text.badge.minus",
+                    title: "Answers stop ending with my own prompt",
+                    detail:
+                        "When the app wasn't confident in what it found, some answers ended with a line like \"What sources show, What's missing, Confidence note\", which was part of my own prompt.  That line's gone, and the app asks for one plain sentence about what your documents don't cover instead."
+                ),
+                .init(
+                    symbol: "checkmark.shield",
+                    title: "Verified means a check ran and passed",
+                    detail:
+                        "The badge showed Verified for any answer that wasn't on a short list of failures, so an answer whose checks failed, or never ran, still said Verified.  Now it says Verified, Unverified or Not Checked, and Fact Check counts the claims it actually supported."
+                ),
+                .init(
+                    symbol: "hand.raised",
+                    title: "\"Just Once\" means once",
+                    detail:
+                        "In Deep Think and Maximum, choosing Just Once on the consent sheet carried over, so the next Deep Think or Maximum question could go to Private Cloud Compute without asking.  Now Just Once covers one question."
+                ),
+                .init(
+                    symbol: "iphone.slash",
+                    title: "It tells you when your device can't run Apple Intelligence",
+                    detail:
+                        "Chat used to say \"Enable it in Settings\" even on a device that can't turn Apple Intelligence on, and Settings said \"Preparing AI Models...\" forever.  Now the app tells you which (not supported on this device, turned off, or still downloading) and what still works without it."
+                ),
+            ]
+        ),
         "5.5": WhatsNewRelease(
             version: "5.5",
             headline:

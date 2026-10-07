@@ -143,6 +143,8 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **BNNS Vector Store**: Persisted vector database files (`_meta.json`, `_vectors.bin`, `_norms.bin`) are stored locally. Loading new or empty databases is gated to skip memory-mapping operations on 0-byte vectors files, resolving startup POSIX/Cocoa Code 260 errors. `[evidence: code_verified, exact, BNNSVectorDatabase.swift]`
 
 ## 10. Routing/PCC Boundaries
+
+> **5.6, 2026-10-07.** A "Just Once" consent grant now ends with the question it was given for in every mode. `RAGService.queryInternal` clears `transientConsentGrants` before `executeAgenticQuery`, as it already did for Standard further down. Detail and evidence: `Docs/PRIVACY_AND_ROUTING.md`, "Evidence minimization and consent". `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, read 2026-10-07]`
 - **Public Model Targets**: On-device execution uses `SystemLanguageModel.default`. Native PCC uses `PrivateCloudComputeLanguageModel` on iOS/macOS 27+ only. The app makes no 3B, 20B, Advanced, or server parameter-count claim because the public SDK does not expose those identities. iOS/macOS 26 stays local; it is never labeled simulated PCC. `[evidence_level: compile_verified+code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift, LLMModel.swift]`
 - **Post-Retrieval Plan**: Local retrieval produces `PostRetrievalEvidence`; `ModelExecutionPlanner` combines it with user/privacy/network/foreground constraints, exact-or-labeled-fallback token budgets, signed entitlement, live PCC availability, and quota. Only the synthesis stage may target PCC; verification stays deterministic/local. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift]`
 - **Picker Policy vs. Actual Route**: `SettingsStore.fmPreference` persists the user policy independently of runtime notifications. Chat captures Hybrid as post-retrieval choice, On-Device as `onDeviceOnly`, and PCC as `cloudOnly`; the picker label always renders that policy. `ModelExecutionReceipt.completedTarget` drives a separate per-answer route badge, including planner-time and runtime PCC-to-local fallback. `[evidence_level: build_verified+code_verified, confidence: high_pending_ui_runtime_validation, evidence_source: ChatScreen.swift, ModelStatusIndicator.swift, ModelExecutionPlan.swift, LLMService.swift, MessageBubbleV2.swift and generic iOS 27 simulator build 2026-07-16]`
@@ -209,6 +211,8 @@ graph TD
 ```
 
 ### Query Answering Flow
+
+> **5.6, 2026-10-07: three changes after generation.** (1) The answer cleanup in `LLMService` (`deduplicateProseBlock`, `collapseFuzzySimilarSentences`, `collapseRepetitiveTemplates`) splits with `AnswerSentenceSplitter` and returns the text untouched unless it removes a repeat; sentences whose numbers or codes differ are never repeats. (2) `VerificationGateService.runGateE` passes on Gate B's claims when its similarity ratio is the only condition that failed and every claim is supported. (3) The bubble and the response details read the gating string through one classifier, `VerificationOutcome`, with a Not Checked state; inline citations are linked by chunk id through `CitationLinker`. Entries and evidence: `CHANGELOG.md`, 5.6. `[evidence_level: code_verified, confidence: high for what the code does, unverified on device]`
 ```mermaid
 sequenceDiagram
   participant User

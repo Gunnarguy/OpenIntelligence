@@ -1,22 +1,38 @@
-One fix and lower prices this time.  A "how much" question could get answered with a number from a totally different document, with a Verified badge on it.
+This one's about your first few answers.  The citations open now, numbers and times come through the way your document wrote them, and the Verified badge only shows when a check actually ran and passed.
 
 
 ANSWERS
 
-• On my Mac, "How much notice do I have to give before I move out?" came back "1 lb." from an air fryer manual, marked Verified.  Any "how much" made the app treat every measurement it found as a possible answer, and a weight like "1 lb" could pass for a liquid.  Now it only goes looking for a volume when you ask about fuel, gas, oil, coolant or a tank, or what something holds, so that question goes to the model instead.
+• The citations in an answer open now.  An answer cites its sources as [S1], [S2] and so on, and tapping one did nothing.
 
-• The model still got that one wrong on my Mac (it said at least 30 days, the lease says 60) and still marked it Verified, so I'm not done with it.
+• Numbers and times stay the way your document wrote them.  A cleanup step rebuilt every answer and split it at every period, so "$300.00" came out with a space in the middle and "10:00 p.m." lost its "m."
 
-• When you ask how much something holds, a capacity written without a space, like "4.5L", counts as liters now.
+• Two facts don't get merged into one.  That same cleanup could treat "E1 is an open circuit" and "E2 is a short circuit" as one sentence said twice and drop one of them.
+
+• Answers stop ending with a line from my own prompt.
+
+• No more asterisks in Fact Check, or "###" and "**" while an answer's being written.
 
 
-PLANS
+THE VERIFIED BADGE
 
-• From October 1, Pro is $4.99 a month or $24.99 a year in the US, down from $5.99 and $29.99, and it's lower in most other countries too.  If you're already subscribed, you renew at the lower price automatically.
+• Verified means a check ran and passed.  It used to show on answers whose checks failed or never ran.  Now an answer says Verified, Unverified or Not Checked.
 
-• Lifetime is $49.99, down from its $59.99 regular price, and it's just called Lifetime now.
+• A right answer doesn't get "Verification failed" under it when the claim check already supported every sentence.
 
-• The plans screen shows what Annual saves over twelve months of Monthly and what it works out to per month, and it says when Lifetime costs less than a year of Monthly, all from your own App Store's prices.
+
+PRIVATE CLOUD COMPUTE
+
+• In Deep Think and Maximum, "Just Once" on the consent sheet carried over to your next question.  Now it covers one question.
+
+
+GETTING STARTED
+
+• The app tells you when your device can't run Apple Intelligence, or when it's turned off or still downloading, and what still works without it.
+
+• An empty library doesn't suggest questions it can't answer.
+
+• On iPhone and iPad, the hardware readout waits until you're past the welcome screen.
 
 
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.

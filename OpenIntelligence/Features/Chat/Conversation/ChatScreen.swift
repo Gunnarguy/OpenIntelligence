@@ -1876,16 +1876,9 @@ struct ChatScreen: View {
             return dynamicSuggestedQuestions
         }
 
-        // If no documents, show onboarding prompts
-        if activeDocCount == 0 {
-            return [
-                "Import a document from the Documents tab to get started.",
-                "What file types does OpenIntelligence handle best?",
-                "How do answers stay tied to the source?",
-                "When does processing stay on-device?",
-            ]
-        }
-
+        // An empty library offers nothing to tap. Until 5.6 it offered four lines, the first an
+        // instruction ("Import a document from the Documents tab to get started."), and a tap sent
+        // any of them as a question, which an empty library answers with "No documents yet."
         return []
     }
 
@@ -2365,11 +2358,22 @@ struct ChatScreen: View {
         }
     }
 
+    /// Set when Apple's model can't be used, so the first thing an empty chat says is why written
+    /// answers won't come and what still works. nil on a device where the model is available.
+    private var appleIntelligenceNotice: String? {
+        let capabilities = RAGService.checkDeviceCapabilities()
+        return AppleIntelligenceCopy.notice(
+            for: capabilities.foundationModelUnavailability,
+            isAvailable: capabilities.supportsFoundationModels
+        )
+    }
+
     @ViewBuilder private var chatContentArea: some View {
         if shouldShowFirstQueryHero {
             ScrollView {
                 FirstQueryPromptView(
                     hasDocuments: activeDocCount > 0,
+                    modelNotice: appleIntelligenceNotice,
                     prompts: starterPrompts,
                     categories: dynamicQuestionCategories,
                     questionDetails: dynamicQuestionDetails,
@@ -3662,7 +3666,10 @@ struct ChatScreen: View {
                 }
                 return message
             case .modelUnavailable:
-                return "Apple Intelligence isn't available. Enable it in Settings."
+                // Says which of Apple's reasons applies. Until 5.6 every reason read "Enable it in
+                // Settings.", including a device that cannot run Apple Intelligence at all.
+                return AppleIntelligenceCopy.chatMessage(
+                    for: RAGService.checkDeviceCapabilities().foundationModelUnavailability)
             case .notImplemented:
                 return "This feature isn't available yet."
             case .rateLimited:
@@ -4126,6 +4133,7 @@ struct MessageListEmptyContent: View {
 
 private struct FirstQueryPromptView: View {
     let hasDocuments: Bool
+    var modelNotice: String? = nil
     let prompts: [String]
     let categories: [String: SuggestedQuestionsService.QuestionCategory]
     let questionDetails: [String: SuggestedQuestionsService.SuggestedQuestion]
@@ -4144,7 +4152,7 @@ private struct FirstQueryPromptView: View {
 
     private var supportingText: String {
         guard hasDocuments else {
-            return "Import documents from the Documents tab, then try one of these prompts."
+            return "Import documents from the Documents tab, then ask about them here."
         }
 
         guard !prompts.isEmpty else {
@@ -4235,6 +4243,22 @@ private struct FirstQueryPromptView: View {
                     .disabled(isRefreshing)
                     .accessibilityLabel("Refresh suggestions")
                 }
+            }
+
+            if let modelNotice {
+                HStack(alignment: .top, spacing: DSSpacing.sm) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.orange)
+                    Text(modelNotice)
+                        .font(DSTypography.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(DSSpacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .accessibilityElement(children: .combine)
             }
 
             if !prompts.isEmpty {

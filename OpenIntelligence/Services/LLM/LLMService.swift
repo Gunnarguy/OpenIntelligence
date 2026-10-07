@@ -1796,15 +1796,19 @@ struct LLMResponse {
         /// "X is A. X is B. X is C." → "X is A, B, or C."
         /// Catches owner-manual boilerplate where the same sentence frame is copied with different values.
         private func collapseRepetitiveTemplates(in text: String) -> String {
-            let rawSentences = text.components(separatedBy: ".")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty && $0.count >= 15 }
+            // Sentences keep their own text and punctuation (`AnswerSentenceSplitter`). Until 5.6
+            // this split on every "." and joined with ". ", which cut "$300.00" into "$300. 00",
+            // and it dropped any sentence under 15 characters from the rebuilt answer.
+            let allSentences = AnswerSentenceSplitter.sentences(in: text)
+            let closingPunctuation = CharacterSet(charactersIn: ".!?").union(.whitespacesAndNewlines)
+            // Without closing punctuation, for comparing and merging only.
+            let rawSentences = allSentences.map { $0.trimmingCharacters(in: closingPunctuation) }
 
-            guard rawSentences.count >= 4 else { return text }
+            guard rawSentences.filter({ $0.count >= 15 }).count >= 4 else { return text }
 
             // Group sentences by their first 5 lowercased words
             var prefixGroups: [String: [Int]] = [:]
-            for (i, sentence) in rawSentences.enumerated() {
+            for (i, sentence) in rawSentences.enumerated() where sentence.count >= 15 {
                 let words = sentence.lowercased()
                     .split(separator: " ")
                     .map(String.init)
@@ -1817,6 +1821,12 @@ struct LLMResponse {
             var replacements: [Int: String] = [:]
 
             for (_, indices) in prefixGroups where indices.count >= 3 {
+                // Merging "X is A. X is B. X is C." into "X is A, B, or C" turns three statements
+                // into one alternative. When the sentences carry numbers or codes that is a change
+                // of meaning, so those groups are left as written.
+                guard indices.allSatisfy({ AnswerSentenceSplitter.identifierTokens(in: rawSentences[$0]).isEmpty }) else {
+                    continue
+                }
                 // Compute exact shared prefix across all sentences
                 let wordArrays = indices.map { idx in
                     rawSentences[idx].split(separator: " ").map(String.init)
@@ -1857,15 +1867,16 @@ struct LLMResponse {
             guard !replacements.isEmpty else { return text }
 
             var result: [String] = []
-            for (i, sentence) in rawSentences.enumerated() {
+            for (i, sentence) in allSentences.enumerated() {
                 if let merged = replacements[i] {
-                    result.append(merged)
+                    result.append(merged + ".")
                 } else if !mergedIndices.contains(i) {
+                    // Untouched sentences go back exactly as written, punctuation included.
                     result.append(sentence)
                 }
             }
 
-            return result.joined(separator: ". ") + "."
+            return result.joined(separator: " ")
         }
 
         /// Collapses contiguous repeated sentence runs (e.g., same sentence repeated 10x).
@@ -1906,23 +1917,17 @@ struct LLMResponse {
 
         /// Dedup only within a prose block — never across markdown structural elements
         private func deduplicateProseBlock(_ text: String) -> String {
-            let sentenceRegex = try? NSRegularExpression(pattern: #"[^.!?\n]+[.!?]?"#)
-            guard let sentenceRegex else { return text }
-
-            let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
-            let matches = sentenceRegex.matches(in: text, options: [], range: fullRange)
+            // Until 5.6 this matched `[^.!?\n]+[.!?]?` and joined every match with a space, repeats
+            // or not, so every answer had "$300.00" rewritten as "$300. 00".
+            let sentences = AnswerSentenceSplitter.sentences(in: text)
 
             var rebuilt: [String] = []
-            rebuilt.reserveCapacity(matches.count)
+            rebuilt.reserveCapacity(sentences.count)
 
             var seenKeys: Set<String> = []
-            for match in matches {
-                guard let range = Range(match.range, in: text) else { continue }
-                let sentence = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !sentence.isEmpty else { continue }
-
+            for sentence in sentences {
                 let key = normalizedSentenceKey(sentence)
-                if seenKeys.contains(key) {
+                if !key.isEmpty, seenKeys.contains(key) {
                     continue
                 }
 
@@ -1930,7 +1935,8 @@ struct LLMResponse {
                 rebuilt.append(sentence)
             }
 
-            guard !rebuilt.isEmpty else { return text }
+            // Nothing repeated: the block goes back exactly as it was written.
+            guard !rebuilt.isEmpty, rebuilt.count < sentences.count else { return text }
             return rebuilt.joined(separator: " ")
         }
 
@@ -1956,10 +1962,11 @@ struct LLMResponse {
 
             func flushProse() {
                 guard !proseBuffer.isEmpty else { return }
-                let prose = proseBuffer.joined(separator: " ")
-                let sentences = prose.components(separatedBy: CharacterSet(charactersIn: ".!?"))
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { $0.count >= 15 }
+                // Sentences keep their own text and punctuation, and the block is rebuilt only when a
+                // near-duplicate is dropped. Until 5.6 every block of three or more pieces was
+                // rebuilt from a split on ".!?", which lost "m" from "10:00 p.m." and every sentence
+                // under 15 characters.
+                let sentences = AnswerSentenceSplitter.sentences(in: proseBuffer.joined(separator: " "))
 
                 if sentences.count < 3 {
                     resultParts.append(proseBuffer.joined(separator: "\n"))
@@ -1975,6 +1982,10 @@ struct LLMResponse {
                     )
                 }
 
+                // Sentences that name different numbers or codes state different facts and are
+                // never near-duplicates, whatever their word overlap.
+                let identifiers = sentences.map { AnswerSentenceSplitter.identifierTokens(in: $0) }
+
                 var kept: [Int] = []
                 for (i, words) in wordSets.enumerated() {
                     guard words.count >= 3 else {
@@ -1985,6 +1996,7 @@ struct LLMResponse {
                     for j in kept {
                         let keptWords = wordSets[j]
                         guard keptWords.count >= 3 else { continue }
+                        guard identifiers[i] == identifiers[j] else { continue }
                         let intersection = words.intersection(keptWords).count
                         let union = words.union(keptWords).count
                         let jaccard = Double(intersection) / Double(max(1, union))
@@ -2004,12 +2016,11 @@ struct LLMResponse {
                 }
 
                 let fuzzyRemoved = sentences.count - kept.count
-                if fuzzyRemoved > 0 {
+                if fuzzyRemoved > 0, !kept.isEmpty {
                     Log.info("[FM] Fuzzy dedup removed \(fuzzyRemoved) near-duplicate sentences", category: .llm)
-                }
-
-                if !kept.isEmpty {
-                    resultParts.append(kept.map { sentences[$0] }.joined(separator: ". ") + ".")
+                    resultParts.append(kept.map { sentences[$0] }.joined(separator: " "))
+                } else {
+                    resultParts.append(proseBuffer.joined(separator: "\n"))
                 }
                 proseBuffer.removeAll()
             }

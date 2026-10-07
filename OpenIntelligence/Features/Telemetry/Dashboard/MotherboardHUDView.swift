@@ -956,6 +956,21 @@ private struct SiliconLegend: View {
         private var isDragging = false
         private var lastContentSize = CGSize(width: 220, height: 140)
         private let margin: CGFloat = 16
+        /// True while the welcome screen is up. The legend and its "Drag me" hint wait for it to
+        /// close, so the first place they show up is the app itself. Until 5.6 a first launch drew
+        /// them on top of the welcome screen, where they read as a debug overlay.
+        private var isWelcomeScreenVisible = false
+        private var hudEnabled = true
+
+        /// Called by the root view whenever the welcome screen appears or closes.
+        func setWelcomeScreenVisible(_ visible: Bool) {
+            isWelcomeScreenVisible = visible
+            applyVisibility()
+        }
+
+        private func applyVisibility() {
+            window?.isHidden = !hudEnabled || isWelcomeScreenVisible
+        }
 
         func ensureVisible(settings: SettingsStore) {
             guard window == nil else { return }
@@ -972,8 +987,9 @@ private struct SiliconLegend: View {
             w.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue + 1)
             w.backgroundColor = .clear
             w.frame = initialFrame(in: scene)
-            w.isHidden = !settings.showSiliconHUD
+            hudEnabled = settings.showSiliconHUD
             window = w
+            applyVisibility()
 
             let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
             host.view.addGestureRecognizer(pan)
@@ -982,7 +998,10 @@ private struct SiliconLegend: View {
             // (not from inside the window) so it works even while hidden.
             settings.$showSiliconHUD
                 .receive(on: RunLoop.main)
-                .sink { [weak self] on in self?.window?.isHidden = !on }
+                .sink { [weak self] on in
+                    self?.hudEnabled = on
+                    self?.applyVisibility()
+                }
                 .store(in: &cancellables)
 
             // UIKit can stomp custom window frames to full-screen bounds during

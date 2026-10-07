@@ -164,6 +164,62 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 ## Versions, newest first
 
+### 5.6
+
+- **Platforms:** iOS, macOS
+- **Live:** not yet; records in PREPARE_FOR_SUBMISSION (created by the owner 2026-10-01, read back through the API 2026-10-07)
+- **Final release notes commit:** not committed yet (written 2026-10-07 in the working tree)
+- **Notes:** the promotional text is the first to say who the app is for and what it needs, and it replaced a release note. It was set through the App Store Connect API at the owner's word on 2026-10-07 at 08:13 PT, on the live 5.5 records and the 5.6 records, both platforms, each PATCH returning 200 and read back equal. The release notes were written before any device check of the fixes they describe; they are to be re-read against the owner's phone run before anything is pushed or submitted. One text for both platforms: the last bullet names iPhone and iPad because the Mac draws the hardware readout inside its window.
+
+**Release notes (`fastlane/metadata/`, both platforms):**
+
+```text
+This one's about your first few answers.  The citations open now, numbers and times come through the way your document wrote them, and the Verified badge only shows when a check actually ran and passed.
+
+
+ANSWERS
+
+• The citations in an answer open now.  An answer cites its sources as [S1], [S2] and so on, and tapping one did nothing.
+
+• Numbers and times stay the way your document wrote them.  A cleanup step rebuilt every answer and split it at every period, so "$300.00" came out with a space in the middle and "10:00 p.m." lost its "m."
+
+• Two facts don't get merged into one.  That same cleanup could treat "E1 is an open circuit" and "E2 is a short circuit" as one sentence said twice and drop one of them.
+
+• Answers stop ending with a line from my own prompt.
+
+• No more asterisks in Fact Check, or "###" and "**" while an answer's being written.
+
+
+THE VERIFIED BADGE
+
+• Verified means a check ran and passed.  It used to show on answers whose checks failed or never ran.  Now an answer says Verified, Unverified or Not Checked.
+
+• A right answer doesn't get "Verification failed" under it when the claim check already supported every sentence.
+
+
+PRIVATE CLOUD COMPUTE
+
+• In Deep Think and Maximum, "Just Once" on the consent sheet carried over to your next question.  Now it covers one question.
+
+
+GETTING STARTED
+
+• The app tells you when your device can't run Apple Intelligence, or when it's turned off or still downloading, and what still works without it.
+
+• An empty library doesn't suggest questions it can't answer.
+
+• On iPhone and iPad, the hardware readout waits until you're past the welcome screen.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+**Promotional text** (not committed yet; live in App Store Connect since 2026-10-07 08:13 PT):
+
+```text
+Ask your own PDFs, contracts and notes, and see the passage each answer came from.  It needs Apple Intelligence: iPhone 15 Pro, iPhone 16 or later, or an M1 iPad or Mac.
+```
+
 ### 5.5
 
 - **Platforms:** iOS, macOS

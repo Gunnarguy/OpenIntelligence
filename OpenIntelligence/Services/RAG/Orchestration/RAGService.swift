@@ -9542,6 +9542,14 @@ class RAGService: ObservableObject {
         // AGENTIC MODE: Use multi-session orchestrator for Deep Think mode
         // Triggered by user selecting Deep Think mode, or via "Go Deeper" re-query
         if useAgentic {
+            // A "Just Once" consent for Private Cloud Compute covers one question. Standard clears
+            // the grant further down, where it sets the query's container. Deep Think and Maximum
+            // return here, so until 5.6 the grant outlived the question it was given for, and the
+            // next Deep Think or Maximum question was sent without the sheet. One question still
+            // makes several model calls under one grant: this runs once, before the first of them.
+            await MainActor.run {
+                self.transientConsentGrants.removeAll()
+            }
             return try await executeAgenticQuery(
                 question: question,
                 containerId: selectedId,
@@ -13546,7 +13554,7 @@ class RAGService: ObservableObject {
                         For procedures: preserve exact order, never omit steps, include feedback indicators.
                         Format: Write naturally. Use ### headers only for multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations and direct factual answers. Merge overlapping excerpts into unified sentences. For direct factual questions, stay concise but include all materially supported details. Do not force a one-line answer when the evidence supports a fuller grounded explanation.
                         \(contextIsHomogeneous ? "IMPORTANT: Excerpts contain repetitive entries. SYNTHESIZE into ONE answer. Mention each fact ONCE." : "")
-                        End with: What sources show → What's missing → Confidence note.
+                        If the excerpts leave part of the question unanswered, end with one plain sentence saying what they do not cover. Do not name source ids in that sentence, and do not add a heading, a summary or a confidence note.
                         """
                     // Lower temperature for more conservative output
                     genConfig.temperature = min(genConfig.temperature, 0.2)
@@ -18844,6 +18852,7 @@ extension RAGService {
                         capabilities.foundationModelUnavailableReason = nil
                         capabilities.supportsAppleIntelligence = true
                         capabilities.appleIntelligenceUnavailableReason = nil
+                        capabilities.foundationModelUnavailability = nil
                         Log.info(" Foundation Models available on device")
 
                     case .unavailable(let reason):
@@ -18855,6 +18864,7 @@ extension RAGService {
                             let message = "Device not eligible (requires A17 Pro+ or M-series)"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
+                            capabilities.foundationModelUnavailability = .deviceNotEligible
                             Log.error(" Device not eligible for Foundation Models")
 
                         case .appleIntelligenceNotEnabled:
@@ -18862,6 +18872,7 @@ extension RAGService {
                                 "Apple Intelligence not enabled - go to Settings > Apple Intelligence & Siri"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
+                            capabilities.foundationModelUnavailability = .notEnabled
                             Log.warning("  Apple Intelligence not enabled in Settings")
                             Log.info("   💡 Go to Settings > Apple Intelligence & Siri to enable")
 
@@ -18869,6 +18880,7 @@ extension RAGService {
                             let message = "Model downloading or initializing - check iPhone Storage"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
+                            capabilities.foundationModelUnavailability = .modelNotReady
                             Log.info(" Foundation Models not ready (downloading or initializing)")
                             Log.info("   💡 Check Settings > General > iPhone Storage for download progress")
 
@@ -18876,6 +18888,7 @@ extension RAGService {
                             let message = "Foundation Models unavailable (unknown reason)"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
+                            capabilities.foundationModelUnavailability = .unknown
                             Log.error(" Foundation Models unavailable (unknown reason)")
                         }
                     }
@@ -19179,6 +19192,9 @@ struct DeviceCapabilities {
     // Foundation Models (iOS 26.0+)
     var supportsFoundationModels = false
     var foundationModelUnavailableReason: String? = nil
+    /// The same reason as a value, so chat, Settings and the empty-chat notice can each say the
+    /// right thing. nil when the model is available or the reason was never read.
+    var foundationModelUnavailability: AppleIntelligenceUnavailability? = nil
 
     // Core AI Frameworks
     var supportsEmbeddings = false

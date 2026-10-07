@@ -351,7 +351,11 @@ private struct StreamingBubbleV2: View {
             // The per-parse cost is unmeasured; the log this came from carries no
             // timings. Confirm with the SwiftUI instrument's Long View Body Updates lane
             // on a Release device build before assuming a magnitude.
-            Text(text)
+            //
+            // 5.6: still plain `Text`, with the markdown markers filtered out in one pass
+            // (`StreamingMarkdown`), so "### Heading" and "**bold**" no longer show as typed
+            // while the answer arrives.
+            Text(StreamingMarkdown.withoutMarkers(text))
                 .font(.system(size: 15))
                 .foregroundStyle(DSColors.primaryText)
                 .textSelection(.enabled)

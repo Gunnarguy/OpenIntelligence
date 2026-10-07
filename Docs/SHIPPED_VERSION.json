@@ -1,5 +1,6 @@
 {
   "_comment": [
+    "2026-10-07: preparing MOVES TO 5.6. The owner created the 5.6 records in App Store Connect on 2026-10-01 (both PREPARE_FOR_SUBMISSION, release MANUAL, read back through the API on 2026-10-07) and said PROCEED: IMPLEMENT that day, so CHANGELOG.md now carries '## 5.6 <!-- unreleased -->'. app_store stays 5.5 on both platforms and in_review stays empty. Nothing is committed or pushed yet.",
     "2026-09-30 (latest, 10:14 PT): 5.5 IS LIVE ON BOTH PLATFORMS. Apple approved macOS 5.5 that morning, and at the owner's word it was released through the API at 10:14 PT (POST /v1/appStoreVersionReleaseRequests, HTTP 201; the record read READY_FOR_SALE with build 483 seconds later), as iOS was at 06:31 PT. app_store and both per-platform values move to 5.5 together, and in_review is empty. preparing stays 5.5 because no next version is open; the next source change needs a 5.6 heading in CHANGELOG.md first. Fascinaiting's page has no in-development entry, so its version job does not compare preparing with app_store.",
     "2026-09-30 (latest, 06:31 PT): iOS 5.5 IS LIVE. Apple approved it overnight (PENDING_DEVELOPER_RELEASE, release MANUAL), and at the owner's word it was released through the API at 06:31 PT: POST /v1/appStoreVersionReleaseRequests returned 201 and the record read READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 483 seconds later. macOS 5.5 is IN_REVIEW with the same build. app_store stays 5.4, the value that does not overclaim to a Mac visitor, and preparing stays 5.5; both move when macOS 5.5 goes live, as on 2026-09-24 for 5.4.",
     "2026-09-29 (latest, 14:52 PT): 5.5 IS BACK IN REVIEW ON BOTH PLATFORMS WITH BUILD 483. The owner pulled build 482 out of review that afternoon while it was still waiting (the three submissions were cancelled through the API and both records read DEVELOPER_REJECTED), to carry the plans screen's price comparisons from 81b66a8. Build 483 (Xcode Cloud #483 from 81b66a8) was submitted at 14:52 PT: iOS submission 861f9fe2-45f2-429d-a423-0bbaeead72a6, which also holds the Pro Annual, Pro Monthly and Lifetime drafts, and macOS submission 9691fad8-8026-4ed5-b348-37886c00ab84; both records read WAITING_FOR_REVIEW, release MANUAL. app_store stays 5.4 on both platforms until 5.5 is released.",
@@ -70,7 +71,7 @@
     "ios": "5.5",
     "macos": "5.5"
   },
-  "preparing": "5.5",
+  "preparing": "5.6",
   "in_review": {},
   "updated": "2026-09-30",
   "verified_against": "Read from App Store Connect 2026-09-30 10:14 PT via the API: iOS 5.5 and macOS 5.5 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 483, release MANUAL, each released through the API at the owner's word (iOS 06:31 PT, macOS 10:14 PT)."

@@ -203,6 +203,12 @@ actor VerificationGateService {
            let chunkVecs = chunkEmbeddings,
            !responseVec.isEmpty,
            !chunkVecs.isEmpty {
+            // Gate B checked each claim against the sources. When it supports every one of them,
+            // Gate E's similarity ratio is the weaker signal of the two (see runGateE).
+            let claimResults = gateB.claimResults
+            let fullySupportedClaimCount: Int? =
+                !claimResults.isEmpty && claimResults.allSatisfy { $0.verdict == .supported }
+                ? claimResults.count : nil
             let gateE = runGateE(
                 responseEmbedding: responseVec,
                 queryEmbedding: queryEmbedding,
@@ -210,7 +216,8 @@ actor VerificationGateService {
                 response: response,
                 query: query,
                 chunks: retrievedChunks,
-                answerIntent: answerIntent
+                answerIntent: answerIntent,
+                fullySupportedClaimCount: fullySupportedClaimCount
             )
             gateResults.append(gateE)
         }
@@ -551,7 +558,8 @@ actor VerificationGateService {
         response: String,
         query: String,
         chunks: [RetrievedChunk],
-        answerIntent: AnswerIntent?
+        answerIntent: AnswerIntent?,
+        fullySupportedClaimCount: Int? = nil
     ) -> RAGVerificationResult.GateResult {
 
         guard !chunkEmbeddings.isEmpty else {
@@ -608,7 +616,32 @@ actor VerificationGateService {
             let relativeThreshold: Float = 0.80  // Response should be ≥80% as similar as query
             let sameTopicMismatch = topicalAlignment.isMismatch && responseMaxSim >= absoluteFloor
 
-            let passed = ratio >= relativeThreshold && responseMaxSim >= absoluteFloor && !sameTopicMismatch
+            let ratioPassed = ratio >= relativeThreshold && responseMaxSim >= absoluteFloor && !sameTopicMismatch
+
+            // The ratio asks whether the whole answer sits as close to one chunk as the question
+            // did. A correct answer of several sentences, with citations and formatting, can sit
+            // further from any single chunk than a short question does. On 2026-10-02 this gate
+            // failed nine of nine right, cited answers to two sample questions while the claim
+            // check supported every sentence in seven of them. So when the ratio is the only thing
+            // that failed, and Gate B supported every claim, the claims decide. The absolute floor
+            // and the topical check still fail the gate on their own.
+            let ratioIsTheOnlyFailure =
+                ratio < relativeThreshold && responseMaxSim >= absoluteFloor && !sameTopicMismatch
+            if !ratioPassed, ratioIsTheOnlyFailure, let supported = fullySupportedClaimCount {
+                Log.info(
+                    "[VerificationGates] Gate E: ratio \(formatFloat3(ratio)) below \(formatFloat2(relativeThreshold)), "
+                        + "passed on claims (\(supported) of \(supported) supported)",
+                    category: .pipeline)
+                return RAGVerificationResult.GateResult(
+                    gate: .semanticGrounding,
+                    passed: true,
+                    confidence: responseMaxSim,
+                    details:
+                        "Grounded by claims (\(supported) of \(supported) supported; ratio=\(formatFloat3(ratio)), respMax=\(formatFloat3(responseMaxSim)), qryMax=\(formatFloat3(queryMaxSim)))"
+                )
+            }
+
+            let passed = ratioPassed
 
             let details: String
             if passed {
