@@ -2,7 +2,7 @@
 
 Updated: 2026-10-07 (5.6 is open and committed at the owner's word: ten fixes, the suite passes, nothing seen on a device; the promotional text is live; eleven roadmap rows are on `v5.6`, In Progress)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 7236c8a
+Last verified commit: 9999659
 
 ## Objective
 
@@ -35,8 +35,9 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   wrong-answers row each carry a dated note saying what 5.6 does and does not do for them. The empty-library fix
   has no row.
 - **Pushed 2026-10-07 10:10 PT:** `b453ab8` (the three doc corrections of 2026-10-05 and the README's routing
-  sentence) and `7236c8a` (5.6). Xcode Cloud build #484 started from `7236c8a` at 10:10 PT; read its result with
-  the build-list recipe in session memory (`websites-read-shipped-version-from-origin`).
+  sentence) and `7236c8a` (5.6). Xcode Cloud build #484 from `7236c8a` succeeded (10:10 to 10:28 PT). Build 484
+  is in App Store Connect as 5.6 for iOS and macOS, processing VALID, internal testing state IN_BETA_TESTING
+  (read 10:35 PT), so internal testers can install it from TestFlight.
 - **App Store creative assets: the owner picked A for both on 2026-10-07, and nothing is uploaded.** Apple opened
   product page headers (3840x1646) and search result images (3:2, up to 3840x2560) on 2026-10-05, for iOS and
   iPadOS 27, as placements on a version in Prepare for Submission. The files are in `Growth/store-assets-5.6/`
@@ -276,12 +277,10 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Exact Next Action
 
-1. Read Xcode Cloud build #484's result. If it failed, read its actions before anything else.
-2. The owner runs the asset upload from the repository root, or says how else he wants it done:
+1. The owner runs the asset upload from the repository root, or says how else he wants it done:
    `ruby Growth/store-assets-5.6/asc_assets_upload.rb Growth/store-assets-5.6/header-A-answer-centered.png Growth/store-assets-5.6/search-A-answer.png --apply`
-3. 5.6 goes on his iPhone, from TestFlight if build #484 lands there, or as a development build when the phone
-   is reachable (`building-to-gunnars-iphone` in session memory; pass `MARKETING_VERSION=5.6`). He runs
+2. He installs 5.6 (484) on his iPhone from TestFlight. He runs
    `Growth/campaign/sample-package/RUN_SHEET.md` plus the closing condition of each of the eleven rows, and reads
    the window in Settings, "On this device". Nothing closes on the suite alone.
-4. Still unanswered: for the token budget, `PROCEED: IMPLEMENT` naming `FoundationModelTokenBudget.swift`, and
+3. Still unanswered: for the token budget, `PROCEED: IMPLEMENT` naming `FoundationModelTokenBudget.swift`, and
    whether it joins 5.6 or the release after.
