@@ -1,5 +1,6 @@
 {
   "_comment": [
+    "2026-10-08 (latest, 13:18 PT): 5.6 IS LIVE ON BOTH PLATFORMS. Apple approved iOS 5.6 and macOS 5.6 that day (both PENDING_DEVELOPER_RELEASE, release MANUAL, build 485), and at the owner's word (\"go ahead and release them\") both were released through the API: POST /v1/appStoreVersionReleaseRequests returned 201 for macOS at 13:18:29 PT and for iOS at 13:18:35 PT, and both records read READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 485 seconds later. app_store and both per-platform values move to 5.6 together, and in_review is empty. preparing stays 5.6 because no next version is open; the next source change needs a 5.7 heading in CHANGELOG.md first.",
     "2026-10-07 (latest, 21:51 PT): 5.6 IS IN REVIEW ON BOTH PLATFORMS WITH BUILD 485. At the owner's word (\"get it into review for both MacOS and iOS\") it was submitted through the API at 21:51 PT, one reviewSubmission per platform, with build 485 from 2bee971 (Xcode Cloud #485): iOS submission bb5c00b8-1ba3-40f4-859a-e6fb8b449a39 and macOS submission af0c0bb9-5e6d-4c06-a945-fdfd1140cc49. Both records read WAITING_FOR_REVIEW, release MANUAL, afterwards. app_store stays 5.5 on both platforms until 5.6 is released.",
     "2026-10-07: preparing MOVES TO 5.6. The owner created the 5.6 records in App Store Connect on 2026-10-01 (both PREPARE_FOR_SUBMISSION, release MANUAL, read back through the API on 2026-10-07) and said PROCEED: IMPLEMENT that day, so CHANGELOG.md now carries '## 5.6 <!-- unreleased -->'. app_store stays 5.5 on both platforms and in_review stays empty. Nothing is committed or pushed yet.",
     "2026-09-30 (latest, 10:14 PT): 5.5 IS LIVE ON BOTH PLATFORMS. Apple approved macOS 5.5 that morning, and at the owner's word it was released through the API at 10:14 PT (POST /v1/appStoreVersionReleaseRequests, HTTP 201; the record read READY_FOR_SALE with build 483 seconds later), as iOS was at 06:31 PT. app_store and both per-platform values move to 5.5 together, and in_review is empty. preparing stays 5.5 because no next version is open; the next source change needs a 5.6 heading in CHANGELOG.md first. Fascinaiting's page has no in-development entry, so its version job does not compare preparing with app_store.",
@@ -67,16 +68,13 @@
     "at 4.9 on purpose: it is the value that does not overclaim to an iOS visitor, and",
     "understating is the safe direction for the exact failure this file was created to stop."
   ],
-  "app_store": "5.5",
+  "app_store": "5.6",
   "app_store_by_platform": {
-    "ios": "5.5",
-    "macos": "5.5"
+    "ios": "5.6",
+    "macos": "5.6"
   },
   "preparing": "5.6",
-  "in_review": {
-    "ios": "5.6 (build 485)",
-    "macos": "5.6 (build 485)"
-  },
-  "updated": "2026-10-07",
-  "verified_against": "Read from App Store Connect 2026-10-07 21:51 PT via the API: iOS 5.6 and macOS 5.6 both WAITING_FOR_REVIEW with build 485, release MANUAL. iOS 5.5 and macOS 5.5 were last read READY_FOR_SALE with build 483 on 2026-09-30 and were not read again that evening."
+  "in_review": {},
+  "updated": "2026-10-08",
+  "verified_against": "Read from App Store Connect 2026-10-08 13:18 PT via the API: iOS 5.6 and macOS 5.6 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 485, release MANUAL, each released through the API at the owner's word (macOS 13:18:29 PT, iOS 13:18:35 PT)."
 }

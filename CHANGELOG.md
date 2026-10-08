@@ -2,7 +2,12 @@
 
 <!-- next-version: 5.6 -->
 
-## 5.6 <!-- unreleased -->
+## 5.6 - October 8, 2026
+<!-- Shipped on both platforms with build 485 (Xcode Cloud #485 from 2bee971): macOS at 13:18:29 PT and
+     iOS at 13:18:35 PT on 2026-10-08, each released through the App Store Connect API at the owner's
+     word after approval. No next version is open. Open a 5.7 heading, with its unreleased marker,
+     above this one before the next source push, or ci_post_clone.sh stamps the released 5.6 and App
+     Store Connect rejects the build. -->
 
 <!-- Opened 2026-10-07 at the owner's word (PROCEED: IMPLEMENT, ten fixes named C1 to C10 in his
      session). The 5.6 records exist in App Store Connect on both platforms: PREPARE_FOR_SUBMISSION,

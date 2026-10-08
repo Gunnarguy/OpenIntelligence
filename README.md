@@ -204,8 +204,8 @@ of starting over.
 
 ## Status
 
-Shipping on the App Store for iPhone, iPad, and Mac. **5.5 is live on both platforms**, released
-2026-09-30 from build 483. Developed against a
+Shipping on the App Store for iPhone, iPad, and Mac. **5.6 is live on both platforms**, released
+2026-10-08 from build 485. Developed against a
 [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
 synced from the same database the work is planned in.
 

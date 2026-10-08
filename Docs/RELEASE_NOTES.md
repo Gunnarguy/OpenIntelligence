@@ -28,6 +28,36 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v5.6 - October 8, 2026
+
+Live on iPhone, iPad and Mac since 2026-10-08, build 485. 5.6 is about a person's first few answers:
+twelve fixes and one change to how Deep Think reads its evidence. `CHANGELOG.md` has one entry per
+item, each with what was read, compiled or tested.
+
+- **Answers.** Inline citations open their passage. The answer cleanup no longer rewrites numbers and
+  times ("$300.00" came out as "$300. 00") and never treats two sentences that differ in a number or a
+  code as one said twice. The Evidence-First prompt no longer ends with an outline the model printed.
+  Fact Check rows and streaming answers show no markdown markers.
+- **The Verified badge.** It reads one classifier with three states, Verified, Unverified and Not
+  Checked, and shows Verified only for a check that ran and passed. Gate E passes on the claim check's
+  result when its similarity ratio is the only thing that failed.
+- **Private Cloud Compute.** "Just Once" on the consent sheet covers one question in Deep Think and
+  Maximum.
+- **Getting started.** A device that cannot run Apple Intelligence is told so, with one wording per
+  reason. An empty library offers no prompts. The hardware legend waits for the welcome screen.
+- **Libraries.** A healthy library is no longer told its search index needs rebuilding. The banner had
+  three causes, named from the fingerprints in a device log (`CHANGELOG.md`, 5.6, Infrastructure).
+- **Deep Think.** A chain session is planned in tokens against the window the device reports and reads
+  its chunks whole when they fit (`SessionEvidencePlan`).
+
+What was and was not seen before release: the rebuild-banner fix was seen in the owner's iPhone log on
+2026-10-07. The other fixes passed the test suite (578 tests) and had not been run through a device
+check sheet. On 2026-10-08, in the Simulator on the sample library, right answers still read Unverified
+(one through Gate E with two of three claims supported, one through Gate C with four of four) and one
+wrong answer read Verified. Those roadmap rows stay open.
+
+`[evidence_level: release_state_verified, confidence: exact, evidence_source: App Store Connect read 2026-10-08 13:18 PT, iOS 5.6 and macOS 5.6 READY_FOR_SALE with build 485; CHANGELOG.md 5.6; Docs/ai/STATE.md Verification, 2026-10-07 and 2026-10-08]`
+
 ## v5.5 - September 30, 2026
 
 Live on iPhone, iPad and Mac since 2026-09-30, build 483. 5.5 carries one retrieval fix and the plans

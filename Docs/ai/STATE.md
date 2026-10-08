@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-07, 21:55 PT (5.6 build 485 from `2bee971` was submitted for review on iOS and macOS at 21:51 PT at the owner's word, release MANUAL; before that: the ten fixes, the rebuild-banner fix and the token-budget change committed and pushed, and the same tree on the owner's iPhone as a development build)
+Updated: 2026-10-08, 13:30 PT (5.6 is live on iPhone, iPad and Mac since 13:18 PT, build 485 from `2bee971`, released through the API at the owner's word after Apple approved both platforms; before that on 2026-10-08: the Simulator's Gate E failures traced to all-zero vectors, and the sample library re-asked on real vectors)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 8f8eb38
+Last verified commit: 96322d1
 
 ## Objective
 
@@ -28,7 +28,13 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   welcome screen. The suite passes (Verification, 2026-10-07). **None of it has been seen on a device.**
 - **The promotional text is live** since 2026-10-07 08:13 PT on the 5.5 and 5.6 records, both platforms, set through
   the API at the owner's word and read back equal (`Docs/Release/APP_STORE_METADATA_HISTORY.md`, 5.6).
-- **5.6 is in review on both platforms since 2026-10-07 21:51 PT, build 485, release MANUAL.** The owner said, in his
+- **5.6 is live on both platforms since 2026-10-08, 13:18 PT, build 485.** Apple approved both that day
+  (PENDING_DEVELOPER_RELEASE, release MANUAL). The owner said "go ahead and release them"; POST
+  `/v1/appStoreVersionReleaseRequests` returned 201 for macOS at 13:18:29 PT and iOS at 13:18:35 PT, and both
+  records read READY_FOR_SALE with build 485 seconds later. `Docs/SHIPPED_VERSION.json` says `app_store` 5.6.
+  No next version is open: the next source push needs a `## 5.7` heading in `CHANGELOG.md` first, or Xcode Cloud
+  stamps the released 5.6. He released knowing the device checks below are open.
+- **How it got to review (2026-10-07 21:51 PT, build 485, release MANUAL).** The owner said, in his
   Demos session (PostDesk), "update all of the ASC metadata ... and get it into review for both MacOS and iOS", and
   that session did it by the runbook: `asc_prepare_release.rb 5.6 485 --apply` (build attached, What's New,
   description and keywords written), `asc_listing_extras.rb 5.6 --apply` (App Review notes, `fastlane/review_notes/5.6.txt`;
@@ -240,13 +246,21 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - The phone's trace log, copied three times with `xcrun devicectl device copy from`: 18:32:04 recorded, 18:32:42
   flagged (first fix), reloads at 18:48:51, 18:48:53, 19:11:39, 19:11:50 and 19:18:18, question at 19:18:38 with
   no flag.
+- The phone's trace log copied a fourth time, about 21:40 PT (last line 20:55:59), from the build of `2bee971`:
+  20:52:22 "Recorded embedding fingerprint" for a new library, four Standard questions from 20:53:17 to 20:55:54,
+  no "Embedding pipeline changed" line after 18:32:42 in the whole file, and no "whole chunks" line (no Deep Think
+  question was asked). `QUERY COMPLETE: 0 chars` is printed for every answer on both builds; the answer's size is
+  the `Response length:` line above it.
+- A GET-only read of the app's `appStoreVersions` at 21:54 PT -> 5.6 `IOS` and `MAC_OS` both `WAITING_FOR_REVIEW`,
+  release `MANUAL`; 5.5 `READY_FOR_DISTRIBUTION`.
 - A run with `-jobs 2` was killed by the guard when swap took the disk from 11 GB free to 0: `RAGService.swift`
   compiles in both targets. Use `-jobs 1` after any edit to that file.
 
 ## Blockers / Unknowns
 
 - **Rebuild banner on a healthy library ("This library needs its search index rebuilt" after an import and one
-  question, and again after Rebuild): fixed 2026-10-07 at the owner's word, half confirmed on his iPhone.** Row
+  question, and again after Rebuild): fixed 2026-10-07 at the owner's word. Both causes that fired in his iPhone's log are now seen fixed in it; three
+  checks still keep the row open (end of this entry).** Row
   https://app.notion.com/p/3f249a74d54f81069664e9431e2e687e , `v5.6`, In Progress. Three causes, all in code
   unchanged since the live 5.5, named by recomputing the fingerprints in his `Documents/pipeline_trace.log` from the
   bundled tokenizer. (1) `stampEmbeddingFingerprintIfAbsent` recorded a new library from the app's default service
@@ -258,8 +272,60 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   not edited (not named); its `mergeContainer` still does not carry the fingerprint. **On the phone:** the first
   build of this fix (18:27 PT) had (2) and (3) only. A new library was flagged again at 18:32:42, which is how (1)
   was found; the same library's fingerprint then survived three Documents reloads and a relaunch, and a question at
-  19:18:38 raised nothing, so (3) held. (1) has not been seen on a device. The copied phone logs are in a session
+  19:18:38 raised nothing, so (3) held. On the build of `2bee971` (installed 20:00 PT) he made a new library at
+  20:52:22 ("Recorded embedding fingerprint") and asked four Standard questions from 20:53:17 to 20:55:54 with no
+  "Embedding pipeline changed" line, so (1) held (log copied about 21:40 PT, last line 20:55:59). **Not seen yet:**
+  an import into an existing library plus one question; Rebuild on a library that predates the fingerprint, then a
+  reload; and the Documents tab itself without the banner (the log shows the flag was not raised, and nobody has
+  reported the tab). The copied phone logs are in a session
   scratchpad and hold his questions and file names: do not commit them.
+- **The Simulator's Gate E failures are an artifact: the Simulator library holds all-zero vectors (measured
+  2026-10-08, 08:15 PT).** The Demos session's filming takes of a demo build of `2bee971` (iPhone 18 Pro Max
+  Simulator `565CCB67`, a new Home library of the ten sample documents) showed "Verification failed: Gate E:
+  Semantic Grounding" under 9 of 11 Standard answers and Unverified on all 11, right answers with every Fact Check
+  row SUPPORTED included (screen dumps in `/private/tmp/oi56-takes/*.xcodebuild.log`). That library's
+  `vector_database_<id>_vectors.bin` (127 x 384 floats) and `_norms.bin` have no non-zero byte.
+  `EmbeddingService.createFallbackEmbedding` (`EmbeddingService.swift:381`) returns a zero vector when the model
+  fails to embed a text; Gate E's cosine against a zero vector is 0, under its 0.25 floor, which the 5.6 change
+  leaves failing on purpose; and search there is keyword-only. That the Core ML model failed for every chunk in the
+  Simulator is inferred from the zeros (no log). On the owner's iPhone the library of 2026-10-07 has 245 chunk
+  vectors, none zero, no fallback warning, and no Gate E failure in 8 answers. Consequences: (1) Simulator runs of
+  this app say nothing about retrieval, gates or answer quality; check a library's `_norms.bin` for non-zero bytes
+  first. (2) The Gate E row https://app.notion.com/p/3ed49a74d54f8186b358d123b6f22d8b was filed on 2026-10-02 from
+  the same setup, so it has no device evidence; it stays In Progress until the sample library is asked on a device.
+  (3) The wrong-sample-answers row https://app.notion.com/p/3ec49a74d54f813baee7fd58e6484a32 (rent late date, E1,
+  the 401(k) match) is a different case: it was filed on 2026-10-01 from the Mac app, not the Simulator, so the
+  zero vectors do not explain it. (4) New row, Future Backlog: a library built from zero vectors is recorded as healthy,
+  https://app.notion.com/p/3f349a74d54f8134833acf73aac40048 . No source was edited.
+  **Confirmed 10:30 PT:** with the Core ML embedding model limited to the CPU in the Demos session's demo copy
+  (`config.computeUnits = .cpuOnly` under the Simulator condition, not in this repository), a new Simulator library
+  holds 2,375 chunk norms, none zero, and Gate E passes with right answers reading Verified in its takes. The Demos
+  session was asked to re-ask the sample Home questions on real vectors, which is the Gate E row's closing test.
+- **The sample Home library re-asked on real vectors (2026-10-08, 10:56 to 11:12 PT, Simulator, 127 chunk norms,
+  none zero; screen dumps `/private/tmp/oi56-takes/h2-*.mov.xcodebuild.log`). Neither row closes.** Pipe burst:
+  right, Fact Check 2 of 3, "Verification failed: Gate E", Unverified (the 5.6 rule needs every claim supported).
+  Cleaning the basket: right, 4 of 4, "Verification failed: Gate C: Numeric Sanity", Unverified, with citations
+  printed as `[S7]`, `[10]`, `[9]`, `[18]`. Dog: right, 5 of 6 (a heading counted as a claim), Unverified. E1: wrong
+  ("does not provide a specific definition for E1") and **Verified**. 401(k): right figures after "do not address
+  a 401(k) match directly", Unverified. Frozen fries: "The excerpts do not address", Unverified. The stored chunks
+  hold the E1 row and the fries row of the manual's tables, so the import is not the fault; which chunks reached
+  the prompt needs a trace log, which only a development build writes. **The store notes in review say "A right
+  answer doesn't get 'Verification failed' under it when the claim check already supported every sentence"; the
+  cleaning answer is a counter-example through Gate C.** `Docs/USER_CHANGELOG.md` words it more narrowly ("When
+  that's the only check that fails, the claim check decides"). Next evidence: these questions on the owner's
+  iPhone in the sample library, then `Documents/pipeline_trace.log`.
+- **Seen in those real-vector takes (2026-10-08, Simulator, 13 research PDFs), not on a device:** (1) an answer gave
+  "2.5 billion" parameters for Apple's on-device model, a figure that exists in the paper only inside the model
+  name "Qwen-2.5-3B", and its Fact Check row read SUPPORTED with the badge Verified. Row, Future Backlog:
+  https://app.notion.com/p/3f349a74d54f81b1b6c5c9cf7713d3bf . (2) Maths symbols are mangled in stored chunk text:
+  the MMR paper's lambda is stored as "1" and "X", and the RRF formula line is garbled. Whether that is the PDF's
+  own text layer or the app's extraction is not established; no row yet. Verify by reading the same pages with
+  `PDFDocument.string` outside the app and comparing with the library's `_meta.json` content.
+- **Seen in the 20:5x phone log and not traced:** one Standard question asked twice got a 12-word answer each
+  time, with Gate I failing and `[SourceOnly]` finishing `abstain=true, supported=0, unsupported=0`. What the screen
+  showed is not established, nor whether any 5.6 change touches that path. Verify by reading how a `SourceOnly`
+  abstention is consumed for a Standard `lookup` answer (`/usr/bin/grep -n "SourceOnly"
+  OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`) and by asking the owner what he saw.
 - **The eleven 5.6 rows, each open until its closing condition is seen on a device** (`CHANGELOG.md` 5.6 and each
   row's "Closes when"): Just Once consent https://app.notion.com/p/3ea49a74d54f81fd814ae82ce9449e41; inline citations
   https://app.notion.com/p/3ec49a74d54f81d6980ad6deb0dc7744; no Apple Intelligence
@@ -354,12 +420,18 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Exact Next Action
 
-1. The owner checks the build on his iPhone, then read `Documents/pipeline_trace.log` from it. New library: import,
-   ask one question; the log must show "Recorded embedding fingerprint" and no "Embedding pipeline changed" for
-   that library. Older library with no fingerprint: one flag is expected once, then none after reloads. Deep Think:
-   one question; look for "whole chunks, N of B evidence tokens, window W". Keep the copied log out of the
+1. 5.6 is live. The checks still open, on the owner's iPhone (the App Store 5.6, or the development build of
+   `2bee971`, which is the one that writes `Documents/pipeline_trace.log`): three sample-library questions (E1,
+   frozen fries, cleaning the basket) to see what a phone user gets where the Simulator showed Unverified on right
+   answers and Verified on a wrong one; one Deep Think question (look for "whole chunks, N of B evidence tokens,
+   window W"); an import into an existing library plus one question; Rebuild on a library that predates the
+   fingerprint, then a reload. The new-library case is done (2026-10-07, 20:52 PT). Keep copied logs out of the
    repository.
 2. He still has the phone checks for the eleven Fixed rows (`Growth/campaign/sample-package/RUN_SHEET.md`) and the
    window in Settings, "On this device".
 3. The owner runs the asset upload from the repository root, or says how else he wants it done:
    `ruby Growth/store-assets-5.6/asc_assets_upload.rb Growth/store-assets-5.6/header-A-answer-centered.png Growth/store-assets-5.6/search-A-answer.png --apply`
+   It does not have to precede the release: Apple's help page "Manage your App Store assets" (fetched 2026-10-07)
+   says creative assets can be submitted alone through Asset Library, reviewed against the app's latest version, and
+   published on a live version without a new version. The script attaches the placements to the 5.6 iOS en-US
+   localization; whether that is accepted while the version reads WAITING_FOR_REVIEW is not verified.
