@@ -2,7 +2,7 @@
 
 Updated: 2026-10-07, 20:05 PT (5.6: the ten fixes, the rebuild-banner fix and the token-budget change are committed and pushed at `2bee971`; Xcode Cloud #485 is building it; the same tree is on the owner's iPhone as a development build)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 2bee971
+Last verified commit: 8f8eb38
 
 ## Objective
 
@@ -51,7 +51,8 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - **The owner's iPhone was unreachable from this Mac at 10:15 PT on 2026-10-07** (`xcrun devicectl list devices`:
   "unavailable"), so 5.6 was not installed on it.
 - **Committed and pushed 2026-10-07 19:42 PT at the owner's word ("commit and push"): `2bee971`,** the
-  rebuild-banner fix and the token-budget change in one commit. Xcode Cloud #485 started from it at 19:42 PT.
+  rebuild-banner fix and the token-budget change in one commit. Xcode Cloud #485 from it succeeded (19:42 to 19:54 PT);
+  build 485 is in App Store Connect as 5.6 for iOS and macOS, VALID and IN_BETA_TESTING (read 20:02 PT).
 - **The owner's iPhone carries a development build of `2bee971`** (installed 20:00 PT with `devicectl`, Debug,
   `MARKETING_VERSION=5.6`). The build before it (18:27 PT) lacked the fix for a new library's fingerprint.
 - **Token budget, first part: written 2026-10-07 at the owner's word ("proceed implement"), in `2bee971`.** Row
@@ -344,13 +345,12 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Exact Next Action
 
-1. Read Xcode Cloud #485's result (build-list recipe in session memory, `websites-read-shipped-version-from-origin`).
-2. The owner checks the build on his iPhone, then read `Documents/pipeline_trace.log` from it. New library: import,
+1. The owner checks the build on his iPhone, then read `Documents/pipeline_trace.log` from it. New library: import,
    ask one question; the log must show "Recorded embedding fingerprint" and no "Embedding pipeline changed" for
    that library. Older library with no fingerprint: one flag is expected once, then none after reloads. Deep Think:
    one question; look for "whole chunks, N of B evidence tokens, window W". Keep the copied log out of the
    repository.
-3. He still has the phone checks for the eleven Fixed rows (`Growth/campaign/sample-package/RUN_SHEET.md`) and the
+2. He still has the phone checks for the eleven Fixed rows (`Growth/campaign/sample-package/RUN_SHEET.md`) and the
    window in Settings, "On this device".
-4. The owner runs the asset upload from the repository root, or says how else he wants it done:
+3. The owner runs the asset upload from the repository root, or says how else he wants it done:
    `ruby Growth/store-assets-5.6/asc_assets_upload.rb Growth/store-assets-5.6/header-A-answer-centered.png Growth/store-assets-5.6/search-A-answer.png --apply`
