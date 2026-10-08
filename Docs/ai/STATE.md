@@ -34,6 +34,19 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   records read READY_FOR_SALE with build 485 seconds later. `Docs/SHIPPED_VERSION.json` says `app_store` 5.6.
   No next version is open: the next source push needs a `## 5.7` heading in `CHANGELOG.md` first, or Xcode Cloud
   stamps the released 5.6. He released knowing the device checks below are open.
+- **After the release, same afternoon:** the release record is commit `4c139e0` (pushed; no Xcode Cloud run
+  started, #485 is still the newest). GitHub release `v5.6.0` is published as Latest at `2bee971`. `Shipped On`
+  reads iOS and macOS on twelve of the thirteen `v5.6` roadmap rows; the wrong-sample-answers row is left empty
+  because no fix for it is shown. All thirteen stay In Progress. The three websites pick 5.6 up on their next
+  scheduled run; nobody triggered them. The in-app version history inside build 485 still heads the section
+  "v5.6 - unreleased" (`OpenIntelligence/Resources/VersionHistory.md:10`, a byte-identical mirror of
+  `Docs/USER_CHANGELOG.md`); changing it is a source change and needs a 5.7 heading first.
+- **The repository stays public and MIT (owner's decision, 2026-10-08)** after he looked at the numbers: 38 unique
+  page visitors and about 130 outside unique cloners in 14 days, 25 stars and 4 forks in a year, none with work of
+  its own. A daily launchd job on this Mac now saves GitHub's traffic to
+  `~/.agents/data/github-traffic/OpenIntelligence.csv` (`~/.agents/MACHINE-MAP.md`, section 5).
+- **Untracked and not from this session:** `.agents/skills/`, `.codex/hooks.json` and `.codex/hooks/` appeared on
+  2026-10-08 at 09:17. Left alone.
 - **How it got to review (2026-10-07 21:51 PT, build 485, release MANUAL).** The owner said, in his
   Demos session (PostDesk), "update all of the ASC metadata ... and get it into review for both MacOS and iOS", and
   that session did it by the runbook: `asc_prepare_release.rb 5.6 485 --apply` (build attached, What's New,
