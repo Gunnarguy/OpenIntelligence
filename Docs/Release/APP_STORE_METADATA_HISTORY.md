@@ -167,9 +167,9 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 ### 5.6
 
 - **Platforms:** iOS, macOS
-- **Live:** not yet; records in PREPARE_FOR_SUBMISSION (created by the owner 2026-10-01, read back through the API 2026-10-07)
-- **Final release notes commit:** not committed yet (written 2026-10-07 in the working tree)
-- **Notes:** the promotional text is the first to say who the app is for and what it needs, and it replaced a release note. It was set through the App Store Connect API at the owner's word on 2026-10-07 at 08:13 PT, on the live 5.5 records and the 5.6 records, both platforms, each PATCH returning 200 and read back equal. The release notes were written before any device check of the fixes they describe; they are to be re-read against the owner's phone run before anything is pushed or submitted. One text for both platforms: the last bullet names iPhone and iPad because the Mac draws the hardware readout inside its window.
+- **Live:** not yet. Submitted for review on both platforms on 2026-10-07 at 21:51 PT with build 485 (Xcode Cloud #485 from `2bee971`), release MANUAL, at the owner's word ("get it into review for both MacOS and iOS"): iOS submission `bb5c00b8-1ba3-40f4-859a-e6fb8b449a39` on version `cc6721c1-c796-4802-a45b-be1c6deb9616`, macOS submission `af0c0bb9-5e6d-4c06-a945-fdfd1140cc49` on version `7120f818-f7fd-48ad-95f7-8d14d539469c`; both records read WAITING_FOR_REVIEW afterwards (records created by the owner 2026-10-01)
+- **Final release notes commit:** the 2026-10-07 `[ci skip]` commit that adds the YOUR LIBRARY section and `fastlane/review_notes/5.6.txt`; `7236c8a` (2026-10-07) wrote the rest
+- **Notes:** the promotional text is the first to say who the app is for and what it needs, and it replaced a release note. It was set through the App Store Connect API at the owner's word on 2026-10-07 at 08:13 PT, on the live 5.5 records and the 5.6 records, both platforms, each PATCH returning 200 and read back equal. The release notes were written before any device check of the fixes they describe; they are to be re-read against the owner's phone run before anything is pushed or submitted. On 2026-10-07 at 21:47 PT, before the submission, the notes gained one section, YOUR LIBRARY, for the rebuild-banner fix in `2bee971`, which build 485 carries and the first draft predates; it was the one later change seen on a device (the owner's iPhone log, 20:52 to 20:56 PT: a new library recorded its fingerprint and four questions raised no rebuild flag). The Deep Think change in the same commit is left out of store copy because no Deep Think question had run on a device. The ten original fixes had no device run sheet when the owner said to submit; release is MANUAL, so nothing in these notes is public until he releases. `scripts/asc_prepare_release.rb 5.6 485 --apply` attached the build and wrote What's New, the description and the keywords on both platforms, and `scripts/asc_listing_extras.rb 5.6 --apply` appended `fastlane/review_notes/5.6.txt` to the App Review notes (2,183 to 3,042 characters, HTTP 200 on each) and changed nothing else. One text for both platforms: the last bullet names iPhone and iPad because the Mac draws the hardware readout inside its window.
 
 **Release notes (`fastlane/metadata/`, both platforms):**
 
@@ -197,6 +197,11 @@ THE VERIFIED BADGE
 • A right answer doesn't get "Verification failed" under it when the claim check already supported every sentence.
 
 
+YOUR LIBRARY
+
+• A healthy library isn't told to rebuild its search index.  The Documents tab could say "This library needs its search index rebuilt" after you imported a file and asked one question, and say it again after you tapped Rebuild.
+
+
 PRIVATE CLOUD COMPUTE
 
 • In Deep Think and Maximum, "Just Once" on the consent sheet carried over to your next question.  Now it covers one question.
@@ -214,7 +219,7 @@ GETTING STARTED
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
 ```
 
-**Promotional text** (not committed yet; live in App Store Connect since 2026-10-07 08:13 PT):
+**Promotional text** (`7236c8a`; live in App Store Connect since 2026-10-07 08:13 PT):
 
 ```text
 Ask your own PDFs, contracts and notes, and see the passage each answer came from.  It needs Apple Intelligence: iPhone 15 Pro, iPhone 16 or later, or an M1 iPad or Mac.

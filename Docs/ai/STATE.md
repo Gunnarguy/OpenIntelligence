@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-10-07, 20:05 PT (5.6: the ten fixes, the rebuild-banner fix and the token-budget change are committed and pushed at `2bee971`; Xcode Cloud #485 is building it; the same tree is on the owner's iPhone as a development build)
+Updated: 2026-10-07, 21:55 PT (5.6 build 485 from `2bee971` was submitted for review on iOS and macOS at 21:51 PT at the owner's word, release MANUAL; before that: the ten fixes, the rebuild-banner fix and the token-budget change committed and pushed, and the same tree on the owner's iPhone as a development build)
 Branch/worktree: `main`, primary checkout
 Last verified commit: 8f8eb38
 
@@ -28,8 +28,17 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   welcome screen. The suite passes (Verification, 2026-10-07). **None of it has been seen on a device.**
 - **The promotional text is live** since 2026-10-07 08:13 PT on the 5.5 and 5.6 records, both platforms, set through
   the API at the owner's word and read back equal (`Docs/Release/APP_STORE_METADATA_HISTORY.md`, 5.6).
-- **Store notes for 5.6 are written and not pushed** (`fastlane/metadata*/en-US/release_notes.txt`). They describe the
-  fixes before any device check and are to be re-read against the owner's phone run.
+- **5.6 is in review on both platforms since 2026-10-07 21:51 PT, build 485, release MANUAL.** The owner said, in his
+  Demos session (PostDesk), "update all of the ASC metadata ... and get it into review for both MacOS and iOS", and
+  that session did it by the runbook: `asc_prepare_release.rb 5.6 485 --apply` (build attached, What's New,
+  description and keywords written), `asc_listing_extras.rb 5.6 --apply` (App Review notes, `fastlane/review_notes/5.6.txt`;
+  nothing else changed), then one reviewSubmission per platform: iOS `bb5c00b8-1ba3-40f4-859a-e6fb8b449a39`, macOS
+  `af0c0bb9-5e6d-4c06-a945-fdfd1140cc49`, each read back WAITING_FOR_REVIEW. The store notes are the ten-fix draft plus
+  one section, YOUR LIBRARY, for the rebuild-banner fix (seen in the owner's iPhone log that evening). The Deep Think
+  change is not in store copy. **Not done, and his to know before he presses release:** the ten original fixes have
+  no device run sheet, and the in-app What's New compiled into 485 does not mention the rebuild-banner fix or the
+  Deep Think change. Pulling it back is one PATCH per submission with `canceled: true` (RUNBOOK). The picked header
+  and search result images are still not uploaded; Apple's help page says assets can be submitted on their own later.
 - **Roadmap, 2026-10-07:** `Target Release` has a `v5.6` option, and the eleven rows these fixes track are on it as
   `In Progress` (URLs under Blockers). None is `Completed`: each closes on a device. The verified-badge row and the
   wrong-answers row each carry a dated note saying what 5.6 does and does not do for them. The empty-library fix

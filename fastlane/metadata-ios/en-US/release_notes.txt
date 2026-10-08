@@ -21,6 +21,11 @@ THE VERIFIED BADGE
 • A right answer doesn't get "Verification failed" under it when the claim check already supported every sentence.
 
 
+YOUR LIBRARY
+
+• A healthy library isn't told to rebuild its search index.  The Documents tab could say "This library needs its search index rebuilt" after you imported a file and asked one question, and say it again after you tapped Rebuild.
+
+
 PRIVATE CLOUD COMPUTE
 
 • In Deep Think and Maximum, "Just Once" on the consent sheet carried over to your next question.  Now it covers one question.
