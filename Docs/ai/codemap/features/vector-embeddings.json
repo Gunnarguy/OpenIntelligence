@@ -4,12 +4,12 @@
   "name": "Vector Embeddings",
   "aliases": ["embedding service", "embedding provider", "Core ML sentence embeddings", "contextual embeddings", "adaptive embedding optimizer", "embedding model", "embeddings"],
   "purpose": "Turns chunks and queries into vectors with the library's embedding provider (Core ML, Apple Foundation Models or NaturalLanguage).",
-  "revision": "0e9728e",
-  "verified_on": "2026-09-28",
+  "revision": "1fbebfe",
+  "verified_on": "2026-10-07",
   "entry_points": ["EmbeddingService", "LibraryIntelligenceCenter", "CoreAISentenceEmbeddingProvider", "CoreMLSentenceEmbeddingProvider", "NLContextualEmbeddingProvider", "EmbeddingService.generateEmbeddings"],
   "files": [
     {"path": "OpenIntelligence/Services/Embedding/AdaptiveEmbeddingOptimizer.swift", "role": "primary", "blob": "90d9449b7b07bb2eae8f823967d8d455dc512bc7"},
-    {"path": "OpenIntelligence/Services/Embedding/EmbeddingFingerprint.swift", "role": "primary", "blob": "01f7b619a6a4daebc49f164fe8db3c573918bab8"},
+    {"path": "OpenIntelligence/Services/Embedding/EmbeddingFingerprint.swift", "role": "primary", "blob": "bb054395a25cd5932c6162df92fb80ac6063427b"},
     {"path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "role": "primary", "blob": "785c759f2c7c46c4d20c28057c3cb8f57a1123e1"},
     {"path": "OpenIntelligence/Services/Embedding/Providers/AppleFMEmbeddingProvider.swift", "role": "primary", "blob": "f082cab5d270dde5d1a2ea67a904e428599adc51"},
     {"path": "OpenIntelligence/Services/Embedding/Providers/CoreAISentenceEmbeddingProvider.swift", "role": "primary", "blob": "2dfb37ea6c21c80c9f8f5743828e7fc71d195dca"},
@@ -19,7 +19,8 @@
     {"path": "OpenIntelligence/Services/Embedding/Providers/NLEmbeddingProvider.swift", "role": "primary", "blob": "cc64040d6ef1bf77a6a5ab495323688dd2cc4719"},
     {"path": "OpenIntelligenceTests/Services/Embedding/EmbeddingProviderAgreementTests.swift", "role": "test", "blob": "abfc7ab4cd15317ca34dbfde92b198dc25088984"},
     {"path": "OpenIntelligenceTests/Services/Embedding/LibraryIntelligenceCenterVarianceTests.swift", "role": "test", "blob": "cb9fa2f4db7707046bc18456309317dc95927a82"},
-    {"path": "OpenIntelligenceTests/Services/Embedding/Providers/NLEmbeddingProviderTests.swift", "role": "test", "blob": "6481df8125e6c026a4d52797e66b0d7f81a7298b"}
+    {"path": "OpenIntelligenceTests/Services/Embedding/Providers/NLEmbeddingProviderTests.swift", "role": "test", "blob": "6481df8125e6c026a4d52797e66b0d7f81a7298b"},
+    {"path": "OpenIntelligenceTests/Services/Embedding/RebuildFalseAlarmTests.swift", "role": "test", "blob": "4a223e74a28d70ddfbb8bdf0e2c27bb820d05a6f"}
   ],
   "nodes": [
     {"id": "EmbeddingService", "kind": "service", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 13, "match": "class EmbeddingService {", "status": "VERIFIED", "by": "build"},
@@ -48,7 +49,7 @@
     {"id": "HardwareTelemetryReporter.sustain", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 973, "match": "nonisolated static func sustain(", "status": "VERIFIED", "by": "build"},
     {"id": "HardwareTelemetryReporter.reportEmbedding", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 995, "match": "nonisolated static func reportEmbedding(count: Int = 1) {", "status": "VERIFIED", "by": "build"},
     {"id": "SemanticChunker.detectEmbeddingBoundaries", "kind": "function", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 1147, "match": "func detectEmbeddingBoundaries(", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.addDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 5607, "match": "func addDocument(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.addDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 5648, "match": "func addDocument(", "status": "VERIFIED", "by": "build"},
     {"id": "test:EmbeddingProviderAgreementTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Embedding/EmbeddingProviderAgreementTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"},
     {"id": "test:LibraryIntelligenceCenterVarianceTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Embedding/LibraryIntelligenceCenterVarianceTests.swift", "line": 1, "match": "import Foundation", "status": "VERIFIED", "by": "build"}
   ],
@@ -74,7 +75,7 @@
     {"from": "EmbeddingService.generateEmbeddings", "type": "calls", "to": "HardwareTelemetryReporter.reportEmbedding", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 262, "match": "HardwareTelemetryReporter.reportEmbedding(count: texts.count)"}], "by": "build", "note": "named in the body"},
     {"from": "SemanticChunker.detectEmbeddingBoundaries", "type": "calls", "to": "EmbeddingService.generateEmbeddings", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 1179, "match": "embeddings = try await embeddingService.generateEmbeddings(for: sentenceTexts)"}], "by": "build", "note": "named there"},
     {"from": "RAGService.importLargePDFStreamed", "type": "calls", "to": "EmbeddingService.generateEmbeddings", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 138, "match": "let batchEmbeddings = try await containerEmbeddingService.generateEmbeddings(for: textsToEmbed)"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.addDocument", "type": "calls", "to": "EmbeddingService.generateEmbeddings", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 6384, "match": "embeddings = try await containerEmbeddingService.generateEmbeddings("}], "by": "build", "note": "named there"},
+    {"from": "RAGService.addDocument", "type": "calls", "to": "EmbeddingService.generateEmbeddings", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 6425, "match": "embeddings = try await containerEmbeddingService.generateEmbeddings("}], "by": "build", "note": "named there"},
     {"from": "CoreAISentenceEmbeddingProvider", "type": "tested_by", "to": "test:EmbeddingProviderAgreementTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Embedding/EmbeddingProviderAgreementTests.swift", "line": 68, "match": "let coreAI = CoreAISentenceEmbeddingProvider()"}], "by": "build", "note": "the test names it"},
     {"from": "CoreMLSentenceEmbeddingProvider", "type": "tested_by", "to": "test:EmbeddingProviderAgreementTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Embedding/EmbeddingProviderAgreementTests.swift", "line": 65, "match": "let coreML = CoreMLSentenceEmbeddingProvider()"}], "by": "build", "note": "the test names it"},
     {"from": "LibraryIntelligenceCenter", "type": "tested_by", "to": "test:LibraryIntelligenceCenterVarianceTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Embedding/LibraryIntelligenceCenterVarianceTests.swift", "line": 79, "match": "let center = LibraryIntelligenceCenter()"}], "by": "build", "note": "the test names it"}

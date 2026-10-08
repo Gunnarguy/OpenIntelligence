@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-10-07 (5.6 is open and committed at the owner's word: ten fixes, the suite passes, nothing seen on a device; the promotional text is live; eleven roadmap rows are on `v5.6`, In Progress)
+Updated: 2026-10-07, 15:50 PT (5.6: ten fixes committed and in TestFlight as build 484, and on the owner's iPhone as a development build; the token-budget change is written and uncommitted; nothing seen on a device)
 Branch/worktree: `main`, primary checkout
 Last verified commit: 9999659
 
@@ -50,10 +50,29 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   search placement on it yet).
 - **The owner's iPhone was unreachable from this Mac at 10:15 PT on 2026-10-07** (`xcrun devicectl list devices`:
   "unavailable"), so 5.6 was not installed on it.
-- **The token-budget work has a roadmap row, Future Backlog:**
-  https://app.notion.com/p/3f249a74d54f815cbbd3c2e1c492dfd7 (filed 2026-10-07). The preflight routes it as
-  `core_ai_ios27_change`, risk high, and `OpenIntelligence/Services/AIPlatform/**` (where
-  `FoundationModelTokenBudget.swift` lives) is editable only when the owner names the file.
+- **The owner's iPhone carries a development build of the working tree** (installed 2026-10-07 18:27 PT with
+  `devicectl`, Debug, `MARKETING_VERSION=5.6`, built from `1fbebfe` plus the two uncommitted changes below: the
+  rebuild-banner fix and the token-budget change). The build before it, at 15:26 PT, had the ten fixes only.
+- **Token budget, first part: written 2026-10-07 at the owner's word ("proceed implement"), uncommitted.** Row
+  https://app.notion.com/p/3f249a74d54f815cbbd3c2e1c492dfd7 is on `v5.6`, In Progress. He did not say which
+  release; with 5.6 unsubmitted, a commit makes it part of 5.6 (build 485). New
+  `OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift` (budget, chunk cap and window arithmetic; one
+  exact `tokenCount(for:)` a chunk for the first 56) and edits in `AgenticOrchestrator.swift`:
+  `executeReasoningChain` plans each window in tokens against the live window and reads whole chunks when a
+  window holds at least as many chunks as the character-sized one would; `buildChainPrompt` takes
+  `wholeChunkContext` and then skips its 4,000 and 2,200 character cuts; the overflow retry rebuilds a
+  whole-chunk session from sentence extraction. The old path stays for: no exact count, chunks too large, modes
+  other than Deep Think and Maximum's chain, and the picker set to PCC. **Maximum's own loop
+  (`executeTrueUnlimitedReasoning`) is unchanged**; a first draft edited it and a refuting review showed it would
+  have generated for windows the loop skips today. `FoundationModelTokenBudget.swift` was not edited: the owner
+  did not name it and the change did not need it. **Left out on purpose:** the structured-answer limit
+  (`RAGService.swift:16563`) and passage order. Both change every Standard answer on an 8,192 window,
+  `generateStructuredRAGAnswer` throws with no fallback to plain generation, and neither has a measurement.
+- **What the review left open** (its other findings are fixed): the overflow test is a substring match on the
+  error text (`AgenticOrchestrator.swift`, "context overflow, retry"); an error after ten or more streamed
+  characters is returned as a partial answer and never reaches that retry (`RAGService.swift:16649-16688`);
+  neighbouring chunks' parent passages can repeat text that sentence extraction used to remove; the chain's
+  summary log still prints the old chunks-per-session figure.
 - **2026-10-06, local only.** Product facts were checked against the live US store page, Apple's
   device-requirements page and this repository, and a test of five questions over three public federal PDFs was
   written with its answer key before any run of the app. The notes are in `Growth/` (git-ignored). Nothing was
@@ -181,8 +200,55 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - Not run: the app on any device or simulator screen; the Mac benchmark harness; `scripts/build_simulator_smoke.sh`
   (the test run built the same app target); the five-question run in `Growth/campaign/sample-package/RUN_SHEET.md`.
 
+## Verification (2026-10-07, afternoon, output read)
+
+- Full suite on the iOS 27.0 simulator from `/private/tmp/oi-src` with the token-budget change as it stands ->
+  `** TEST SUCCEEDED **`, 568 tests, 0 failures, 3 skipped; `SessionEvidencePlanTests` 17 of 17. Two earlier
+  drafts also passed (565 tests), and one draft failed to compile (`activeUserRoutingPreference` is on
+  `RAGService`).
+- A command-line probe on this Mac -> `tokenCount(for:)` succeeds for one chunk (338 tokens for 1,776
+  characters); 20 chunks at three counts each in parallel took 4.9 s with the test suite running beside it, which
+  is why the plan makes one count a chunk.
+- `xcodebuild build ... -destination 'generic/platform=iOS' ... MARKETING_VERSION=5.6` from `1fbebfe` -> `** BUILD
+  SUCCEEDED **`; `devicectl device install app` -> installed on the iPhone.
+- Xcode Cloud #484 -> SUCCEEDED; build 484 VALID and IN_BETA_TESTING for iOS and macOS.
+- Not run: the token-budget change on any device or in the app at all. The simulator does not generate, so no
+  Deep Think session has executed this code.
+
+## Verification (2026-10-07, evening, output read)
+
+- Full suite with the corrected rebuild-banner fix and the token-budget change, built with `-jobs 1` and run with
+  `xcodebuild test-without-building` on simulator `EA066452-42A3-4B39-8391-2234C4669313` -> `** TEST EXECUTE
+  SUCCEEDED **`, 578 tests, 0 failures, 4 skipped; `RebuildFalseAlarmTests` 10 of 10, `SessionEvidencePlanTests`
+  17 of 17. Two test simulators were deleted from outside this session during the evening, one of them between a
+  build finishing and its tests starting ("No matching device").
+- A Python recomputation of the fingerprint (sha256 of the key, "tokenizer:" and the bundled `tokenizer.json`,
+  16 hex) reproduced all four values in the phone's log: `69f06c6c23035978` = Core ML with `default`,
+  `3236a5aa2cfabb78` = Core AI with `default`, `b8ea469f52cf5f2b` = Core ML with `balanced/300`,
+  `0ca10df0aa1a2d84` = Core AI with `densePrecision/320`.
+- The phone's trace log, copied three times with `xcrun devicectl device copy from`: 18:32:04 recorded, 18:32:42
+  flagged (first fix), reloads at 18:48:51, 18:48:53, 19:11:39, 19:11:50 and 19:18:18, question at 19:18:38 with
+  no flag.
+- A run with `-jobs 2` was killed by the guard when swap took the disk from 11 GB free to 0: `RAGService.swift`
+  compiles in both targets. Use `-jobs 1` after any edit to that file.
+
 ## Blockers / Unknowns
 
+- **Rebuild banner on a healthy library ("This library needs its search index rebuilt" after an import and one
+  question, and again after Rebuild): fixed 2026-10-07 at the owner's word, half confirmed on his iPhone.** Row
+  https://app.notion.com/p/3f249a74d54f81069664e9431e2e687e , `v5.6`, In Progress. Three causes, all in code
+  unchanged since the live 5.5, named by recomputing the fingerprints in his `Documents/pipeline_trace.log` from the
+  bundled tokenizer. (1) `stampEmbeddingFingerprintIfAbsent` recorded a new library from the app's default service
+  (Core ML) while `resolveEmbeddingContext` compares against the library's own (Core AI on iOS 27), so every new
+  Core AI library was flagged on its first question. Both now use `fingerprintService(for:)`. (2) The chunker term
+  held the app's own tuning; `EmbeddingFingerprint.chunkerRecipe` now counts only a manual directive. (3) A stored
+  fingerprint was gone after `ContainerService.reloadFromDisk`; saves of the library list now go through one serial
+  queue and the fingerprint is also kept in a device-local `UserDefaults` record. `WorkspaceSyncService.swift` was
+  not edited (not named); its `mergeContainer` still does not carry the fingerprint. **On the phone:** the first
+  build of this fix (18:27 PT) had (2) and (3) only. A new library was flagged again at 18:32:42, which is how (1)
+  was found; the same library's fingerprint then survived three Documents reloads and a relaunch, and a question at
+  19:18:38 raised nothing, so (3) held. (1) has not been seen on a device. The copied phone logs are in a session
+  scratchpad and hold his questions and file names: do not commit them.
 - **The eleven 5.6 rows, each open until its closing condition is seen on a device** (`CHANGELOG.md` 5.6 and each
   row's "Closes when"): Just Once consent https://app.notion.com/p/3ea49a74d54f81fd814ae82ce9449e41; inline citations
   https://app.notion.com/p/3ec49a74d54f81d6980ad6deb0dc7744; no Apple Intelligence
@@ -277,10 +343,15 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Exact Next Action
 
-1. The owner runs the asset upload from the repository root, or says how else he wants it done:
+1. The owner checks the build on his iPhone. Rebuild banner: import into a new library and an existing one, ask a
+   question in each, open Documents, no banner; rebuild a library that predates the fingerprint, reopen Documents,
+   ask again, no banner. Token budget: one Deep Think question. Then read `Documents/pipeline_trace.log` from the
+   phone (`xcrun devicectl device copy from --device B1483F12-4FFD-5534-BA30-29FF48070549 --domain-type
+   appDataContainer --domain-identifier Gunndamental.OpenIntelligence --source Documents/pipeline_trace.log
+   --destination <scratch file>`) for "Embedding pipeline changed", "no embedding fingerprint", "Restored the
+   embedding fingerprint" and "whole chunks". Keep that file out of the repository.
+2. Both changes wait for his "commit". The push starts Xcode Cloud build 485.
+3. He still has the phone checks for the eleven Fixed rows (`Growth/campaign/sample-package/RUN_SHEET.md`) and the
+   window in Settings, "On this device".
+4. The owner runs the asset upload from the repository root, or says how else he wants it done:
    `ruby Growth/store-assets-5.6/asc_assets_upload.rb Growth/store-assets-5.6/header-A-answer-centered.png Growth/store-assets-5.6/search-A-answer.png --apply`
-2. He installs 5.6 (484) on his iPhone from TestFlight. He runs
-   `Growth/campaign/sample-package/RUN_SHEET.md` plus the closing condition of each of the eleven rows, and reads
-   the window in Settings, "On this device". Nothing closes on the suite alone.
-3. Still unanswered: for the token budget, `PROCEED: IMPLEMENT` naming `FoundationModelTokenBudget.swift`, and
-   whether it joins 5.6 or the release after.

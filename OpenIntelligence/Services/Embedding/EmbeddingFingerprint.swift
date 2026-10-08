@@ -32,6 +32,26 @@ enum EmbeddingFingerprint {
     private static let cacheLock = NSLock()
     private static var cache: [String: String] = [:]
 
+    /// The chunker term for a library's directive.
+    ///
+    /// Only a chunk size the person chose counts. Through 5.5 the term held every directive's
+    /// strategy and window, including the ones the app writes on its own: the pre-scan before each
+    /// import and the self-tuner after it, which logs "No rebuild required" when it changes one.
+    /// The next question then compared fingerprints, called the pipeline changed and asked for a
+    /// rebuild of a library built a minute earlier (owner's iPhone, 2026-10-07: recorded 13:33:41,
+    /// strategy changed 13:34:06, flagged 13:34:41). A library the app tunes holds chunks of
+    /// several sizes by design, so its own tuning says nothing about whether its vectors are stale.
+    static func chunkerRecipe(for directive: ChunkingDirective?) -> String {
+        guard let directive, directive.source == .manual else { return "default" }
+        return "\(directive.strategy)/\(directive.targetWordWindow)"
+    }
+
+    /// The term as it was computed through 5.5, for recognising a fingerprint stored by an earlier
+    /// build as the same pipeline.
+    static func legacyChunkerRecipe(for directive: ChunkingDirective?) -> String {
+        directive.map { "\($0.strategy)/\($0.targetWordWindow)" } ?? "default"
+    }
+
     /// Compute the fingerprint for a given embedding configuration.
     ///
     /// Memoised per input tuple. `resolveEmbeddingContext` runs on every query, and hashing a

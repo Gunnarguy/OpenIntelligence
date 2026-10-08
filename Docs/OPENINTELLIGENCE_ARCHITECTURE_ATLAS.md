@@ -140,6 +140,14 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   into a temporary directory. The pin is only ever engaged by `DebugRAGValidationHarness`, so this
   cannot fire in a shipping app. `[evidence: code_verified, exact, WorkspaceSyncService.swift
   mergeIngestionQueueIfNeeded, OpenIntelligenceRuntimePaths.areOverridesPinned]`
+- **The library list is written in order, and a library's embedding fingerprint is also kept on the device, from 5.6**:
+  `ContainerService.saveContainers` used to start one detached task a save, so an older list could be
+  written after a newer one, and `reloadFromDisk` (called before every `reloadWorkspaceData()`) then
+  replaced the libraries in memory with it. Saves now go through one serial queue. The fingerprint,
+  which says which pipeline wrote this device's vectors, is recorded in `UserDefaults` on every save and
+  restored when a list read from disk lacks it and the provider and dimension still match. The sync
+  merge (`WorkspaceSyncService.mergeContainer`) does not carry the fingerprint and was not changed.
+  `[evidence: code_verified for the mechanism, test_verified for the record, measured on one device for the loss it answers (owner's trace log 2026-10-07); not yet re-run on a device]`
 - **BNNS Vector Store**: Persisted vector database files (`_meta.json`, `_vectors.bin`, `_norms.bin`) are stored locally. Loading new or empty databases is gated to skip memory-mapping operations on 0-byte vectors files, resolving startup POSIX/Cocoa Code 260 errors. `[evidence: code_verified, exact, BNNSVectorDatabase.swift]`
 
 ## 10. Routing/PCC Boundaries
@@ -440,6 +448,14 @@ supposed to be agentic.
   context **upfront**, in a loop that completes before session 1 runs, as fixed windows over a single
   retrieval. Those windows were 50% overlapping until 2026-08-14 and are disjoint now: at a 3500
   character session budget the overlap spent roughly four of eight sessions re-reading.
+  **From 5.6** a window is sized in tokens against the window the device reports and read as whole
+  chunks when the SDK can count them (`SessionEvidencePlan`, iOS and macOS 26.4 on). The budget leaves
+  room for the answer, the question, the earlier findings and the prompt's wording and stops at 3,200
+  tokens of evidence; a 4,096 window keeps four chunks a window and an 8,192 window reads up to seven.
+  A window whose chunks do not fit, and any session that may run on Private Cloud Compute, keeps the
+  character-sized path through sentence extraction, and the chain never plans more windows than
+  before. Maximum's own loop is unchanged. `[evidence: test_verified for the arithmetic,
+  code_verified for the loop, not run on a device]`
   **Partially corrected 2026-08-14:** the chain now opens with a routing turn
   (`routeChunksByTitle`) that shows the model the section titles of everything retrieval found and
   lets it choose what to read. A title costs ~50 characters against several hundred for body text,

@@ -4636,14 +4636,55 @@ class RAGService: ObservableObject {
             maxSequenceLength: service.maxSafeTokens,
             poolingRecipe: service.poolingRecipe,
             modelRevision: service.modelRevision,
-            chunkerRecipe: container.chunkingDirective.map { "\($0.strategy)/\($0.targetWordWindow)" } ?? "default"
+            chunkerRecipe: EmbeddingFingerprint.chunkerRecipe(for: container.chunkingDirective)
         )
 
         if container.embeddingProviderId == actualProviderId,
             container.embeddingDim == actualDimension
         {
             if let stored = container.embeddingFingerprint {
-                if stored != liveFingerprint {
+                // A fingerprint stored by a build through 5.5 carries the app's own tuning in its
+                // chunker term (`EmbeddingFingerprint.chunkerRecipe`). When that is the only
+                // difference the pipeline is the same one: record it under the current term and
+                // say nothing.
+                let legacyFingerprint = EmbeddingFingerprint.compute(
+                    providerId: actualProviderId,
+                    dimension: actualDimension,
+                    maxSequenceLength: service.maxSafeTokens,
+                    poolingRecipe: service.poolingRecipe,
+                    modelRevision: service.modelRevision,
+                    chunkerRecipe: EmbeddingFingerprint.legacyChunkerRecipe(for: container.chunkingDirective)
+                )
+                // Through 5.5 a new library's fingerprint was also recorded from the app's default
+                // service instead of the library's own (`stampEmbeddingFingerprintIfAbsent`). A
+                // stored value that equals what that stamp would have written says nothing about
+                // the vectors, which the library's own service wrote.
+                let misStamped = [
+                    EmbeddingFingerprint.chunkerRecipe(for: container.chunkingDirective),
+                    EmbeddingFingerprint.legacyChunkerRecipe(for: container.chunkingDirective),
+                ].map {
+                    EmbeddingFingerprint.compute(
+                        providerId: embeddingService.actualProviderId,
+                        dimension: embeddingService.outputDimension,
+                        maxSequenceLength: embeddingService.maxSafeTokens,
+                        poolingRecipe: embeddingService.poolingRecipe,
+                        modelRevision: embeddingService.modelRevision,
+                        chunkerRecipe: $0
+                    )
+                }
+                if stored != liveFingerprint, stored == legacyFingerprint || misStamped.contains(stored) {
+                    Log.info(
+                        "[RAGService] Container \(container.id) carries a fingerprint from before 5.6 for the same pipeline; "
+                            + "re-recorded as \(liveFingerprint) without flagging a rebuild.",
+                        category: .embedding
+                    )
+                    await MainActor.run {
+                        guard var current = self.containerService.containers.first(where: { $0.id == container.id })
+                        else { return }
+                        current.embeddingFingerprint = liveFingerprint
+                        self.containerService.updateContainer(current)
+                    }
+                } else if stored != liveFingerprint {
                     Log.warning(
                         "[RAGService] Embedding pipeline changed for container \(container.id): fingerprint \(stored) → \(liveFingerprint). "
                             + "Existing vectors are valid but stale; surfacing a rebuild rather than wiping a working index.",
@@ -4688,9 +4729,9 @@ class RAGService: ObservableObject {
                     if hasDocs {
                         Log.warning(
                             "[RAGService] Container \(container.id) has no embedding fingerprint and "
-                                + "\(self.documentsForContainer(container.id).count) document(s), so it was indexed "
-                                + "before this release's tokenizer and pooling fixes. Surfacing a rebuild rather "
-                                + "than adopting \(liveFingerprint) over stale vectors.",
+                                + "\(self.documentsForContainer(container.id).count) document(s), so its vectors cannot "
+                                + "be shown to come from the current pipeline. Surfacing a rebuild rather "
+                                + "than adopting \(liveFingerprint) over vectors that may be stale.",
                             category: .embedding
                         )
                         self.librariesNeedingIndexRebuild.insert(container.id)
@@ -7032,6 +7073,19 @@ class RAGService: ObservableObject {
         return destinationURL
     }
 
+    /// The embedding service a library's fingerprint describes: the same one
+    /// `resolveEmbeddingContext` embeds and compares with.
+    private func fingerprintService(for container: KnowledgeContainer) -> EmbeddingService {
+        if embeddingServiceWasInjected, embeddingService.outputDimension == container.embeddingDim {
+            return embeddingService
+        }
+        return EmbeddingService.forProvider(
+            id: container.embeddingProviderId,
+            targetDimension: container.embeddingDim,
+            allowFallback: true
+        )
+    }
+
     @MainActor
     /// Records the fingerprint of the pipeline that just wrote a container's vectors.
     ///
@@ -7044,13 +7098,20 @@ class RAGService: ObservableObject {
             container.embeddingFingerprint == nil
         else { return }
 
+        // The fingerprint has to describe the service this library embeds with, the one
+        // `resolveEmbeddingContext` builds from the library's own provider. Through 5.5 this read
+        // the app's default service, which is Core ML, so a library on Core AI was recorded under
+        // the Core ML identity and its first question found a different live fingerprint. On the
+        // owner's iPhone on 2026-10-07 the two values in the log (69f06c6c23035978 recorded,
+        // 3236a5aa2cfabb78 live) are exactly the Core ML and the Core AI fingerprints.
+        let service = fingerprintService(for: container)
         container.embeddingFingerprint = EmbeddingFingerprint.compute(
-            providerId: embeddingService.actualProviderId,
-            dimension: embeddingService.outputDimension,
-            maxSequenceLength: embeddingService.maxSafeTokens,
-            poolingRecipe: embeddingService.poolingRecipe,
-            modelRevision: embeddingService.modelRevision,
-            chunkerRecipe: container.chunkingDirective.map { "\($0.strategy)/\($0.targetWordWindow)" } ?? "default"
+            providerId: service.actualProviderId,
+            dimension: service.outputDimension,
+            maxSequenceLength: service.maxSafeTokens,
+            poolingRecipe: service.poolingRecipe,
+            modelRevision: service.modelRevision,
+            chunkerRecipe: EmbeddingFingerprint.chunkerRecipe(for: container.chunkingDirective)
         )
         containerService.updateContainer(container)
         Log.info(
@@ -7259,13 +7320,14 @@ class RAGService: ObservableObject {
 
         lines.append("  Rebuild flagged:     \(librariesNeedingIndexRebuild.contains(containerId) ? "YES" : "no")")
 
+        let snapshotService = fingerprintService(for: container)
         let liveFingerprint = EmbeddingFingerprint.compute(
-            providerId: embeddingService.actualProviderId,
-            dimension: embeddingService.outputDimension,
-            maxSequenceLength: embeddingService.maxSafeTokens,
-            poolingRecipe: embeddingService.poolingRecipe,
-            modelRevision: embeddingService.modelRevision,
-            chunkerRecipe: container.chunkingDirective.map { "\($0.strategy)/\($0.targetWordWindow)" } ?? "default"
+            providerId: snapshotService.actualProviderId,
+            dimension: snapshotService.outputDimension,
+            maxSequenceLength: snapshotService.maxSafeTokens,
+            poolingRecipe: snapshotService.poolingRecipe,
+            modelRevision: snapshotService.modelRevision,
+            chunkerRecipe: EmbeddingFingerprint.chunkerRecipe(for: container.chunkingDirective)
         )
         lines.append("  Fingerprint stored:  \(container.embeddingFingerprint ?? "none recorded")")
         lines.append("  Fingerprint live:    \(liveFingerprint)")

@@ -25,7 +25,7 @@ final class ContainerService: ObservableObject {
             activeContainerId = def.id
             Self.saveContainers(containers)
         } else {
-            containers = loaded
+            containers = Self.restoringLocalFingerprints(in: loaded)
             // Restore last active container if saved; otherwise use first
             if let savedActive = UserDefaults.standard.string(forKey: "activeContainerId"),
                let uuid = UUID(uuidString: savedActive),
@@ -62,7 +62,7 @@ final class ContainerService: ObservableObject {
             activeContainerId = def.id
             Self.saveContainers(containers)
         } else {
-            containers = loaded
+            containers = Self.restoringLocalFingerprints(in: loaded)
             if !containers.contains(where: { $0.id == activeContainerId }) {
                 if let savedActive = UserDefaults.standard.string(forKey: "activeContainerId"),
                    let uuid = UUID(uuidString: savedActive),
@@ -167,6 +167,7 @@ final class ContainerService: ObservableObject {
             UserDefaults.standard.set(first.id.uuidString, forKey: "activeContainerId")
         }
         Self.saveContainers(containers)
+        Self.forgetLocalFingerprint(for: id)
         // Always deindex on delete regardless of setting
         SpotlightIndexService.shared.deindexAllDocuments(in: id)
         SpotlightIndexService.shared.deindexContainer(id: id)
@@ -222,6 +223,84 @@ final class ContainerService: ObservableObject {
 
     // MARK: - Persistence
 
+    // MARK: - Embedding fingerprints, kept on this device
+
+    /// A library's embedding fingerprint says which pipeline wrote the vectors on this device. It
+    /// lives in the library list, which is rewritten by every save and by workspace sync, and it
+    /// was lost there: on the owner's iPhone on 2026-10-07 a fingerprint recorded at 16:08:32 was
+    /// gone after the list was reloaded at 16:10:02, and the next question flagged a library built
+    /// three minutes earlier for a rebuild. This record is the same value kept where neither a
+    /// stale list nor a merged one can drop it.
+    private static let localFingerprintsKey = "containerEmbeddingFingerprints.v1"
+
+    /// The record's entry for a library: the fingerprint with the provider and dimension it was
+    /// recorded under, so it is never restored onto a library whose embedder has since changed.
+    nonisolated static func localFingerprintEntry(for container: KnowledgeContainer) -> String? {
+        guard let fingerprint = container.embeddingFingerprint, !fingerprint.isEmpty else { return nil }
+        return "\(container.embeddingProviderId)|\(container.embeddingDim)|\(fingerprint)"
+    }
+
+    /// `containers` with a missing fingerprint filled from `record` where the provider and dimension
+    /// still match. A library that has a fingerprint keeps it.
+    nonisolated static func restoringLocalFingerprints(
+        in containers: [KnowledgeContainer], record: [String: String]
+    ) -> [KnowledgeContainer] {
+        containers.map { container in
+            guard container.embeddingFingerprint == nil, let entry = record[container.id.uuidString] else {
+                return container
+            }
+            let parts = entry.split(separator: "|", maxSplits: 2).map(String.init)
+            guard parts.count == 3, parts[0] == container.embeddingProviderId,
+                Int(parts[1]) == container.embeddingDim, !parts[2].isEmpty
+            else { return container }
+            var restored = container
+            restored.embeddingFingerprint = parts[2]
+            return restored
+        }
+    }
+
+    /// `record` with an entry for every library in `containers` that has a fingerprint. Entries of
+    /// libraries without one are kept: keeping them is the point.
+    nonisolated static func updatingLocalFingerprintRecord(
+        _ record: [String: String], with containers: [KnowledgeContainer]
+    ) -> [String: String] {
+        var updated = record
+        for container in containers {
+            if let entry = localFingerprintEntry(for: container) {
+                updated[container.id.uuidString] = entry
+            }
+        }
+        return updated
+    }
+
+    private static func restoringLocalFingerprints(in containers: [KnowledgeContainer]) -> [KnowledgeContainer] {
+        let record = UserDefaults.standard.dictionary(forKey: localFingerprintsKey) as? [String: String] ?? [:]
+        let restored = restoringLocalFingerprints(in: containers, record: record)
+        let count = zip(containers, restored).filter { $0.embeddingFingerprint != $1.embeddingFingerprint }.count
+        if count > 0 {
+            Log.info(
+                "[ContainerService] Restored the embedding fingerprint of \(count) library(ies) from this device's record; "
+                    + "the library list on disk did not carry it.",
+                category: .initialization)
+        }
+        return restored
+    }
+
+    private static func recordLocalFingerprints(of containers: [KnowledgeContainer]) {
+        let record = UserDefaults.standard.dictionary(forKey: localFingerprintsKey) as? [String: String] ?? [:]
+        let updated = updatingLocalFingerprintRecord(record, with: containers)
+        if updated != record {
+            UserDefaults.standard.set(updated, forKey: localFingerprintsKey)
+        }
+    }
+
+    private static func forgetLocalFingerprint(for id: UUID) {
+        var record = UserDefaults.standard.dictionary(forKey: localFingerprintsKey) as? [String: String] ?? [:]
+        if record.removeValue(forKey: id.uuidString) != nil {
+            UserDefaults.standard.set(record, forKey: localFingerprintsKey)
+        }
+    }
+
     private static func loadContainers() -> [KnowledgeContainer] {
         let url = AppSupportPaths.containersListURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
@@ -272,13 +351,23 @@ final class ContainerService: ObservableObject {
         }
     }
 
+    /// Writes of the library list land in the order they were asked for.
+    ///
+    /// Each save used to start its own detached task. An import saves the list many times in a
+    /// few seconds, and nothing ordered those tasks, so an older list could be written after a
+    /// newer one. `reloadFromDisk`, which the Documents tab calls before every workspace reload,
+    /// then replaced the libraries in memory with that older list.
+    private static let listWriteQueue = DispatchQueue(
+        label: "Gunndamental.OpenIntelligence.container-list-write", qos: .utility)
+
     private static func saveContainers(_ containers: [KnowledgeContainer]) {
         let url = AppSupportPaths.containersListURL()
+        recordLocalFingerprints(of: containers)
         do {
             let enc = JSONEncoder()
             enc.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try enc.encode(containers)
-            Task.detached {
+            listWriteQueue.async {
                 do {
                     try WorkspaceSyncService.coordinatedWriteData(data, to: url)
                 } catch {

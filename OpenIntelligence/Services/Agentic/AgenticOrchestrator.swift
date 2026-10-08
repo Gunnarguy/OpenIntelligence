@@ -4837,6 +4837,33 @@ extension AgenticOrchestrator {
         // line used to receive unconditionally.
         let routedChunks = await routeChunksByTitle(query: query, chunks: chunks, onStep: onStep)
 
+        // Whole chunks, counted in tokens against the live window (5.6). When the SDK can count
+        // exactly, a Deep Think or Maximum chain session reads its chunks whole instead of the
+        // sentences extracted below, which keep a sentence only when it, its heading or the line
+        // before it matches a keyword of the question. `nil` keeps the character-sized path: an OS
+        // that cannot count, a failed count, a mode this plan does not cover, or sessions that may
+        // leave the device. 700 is a session's response limit. See `SessionEvidencePlan`.
+        let evidenceWindowTokens = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let firstSessionTokenBudget = SessionEvidencePlan.evidenceTokenBudget(
+            contextSize: evidenceWindowTokens, outputReserve: 700,
+            carriedChars: SessionEvidencePlan.carriedChars(questionLength: query.count, isFirstSession: true))
+        let laterSessionTokenBudget = SessionEvidencePlan.evidenceTokenBudget(
+            contextSize: evidenceWindowTokens, outputReserve: 700,
+            carriedChars: SessionEvidencePlan.carriedChars(questionLength: query.count, isFirstSession: false))
+        let wholeChunkCap = SessionEvidencePlan.chainChunkCap(
+            contextSize: evidenceWindowTokens, poolSize: routedChunks.count, legacyCount: maxChunksPerSession)
+        // With Private Cloud Compute chosen in the picker a chain session is not pinned to the device
+        // (`generateWithProperConsent`, `budgetPin`), and this plan is sized for the on-device window.
+        // Those sessions keep the character-sized path, so this change sends no more text off device.
+        let sessionsMayLeaveDevice = await MainActor.run { ragService.activeUserRoutingPreference.explicitlyPrefersPCC }
+        let chunkTokenCounts: [Int]? =
+            ((reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode) && !sessionsMayLeaveDevice)
+            ? await SessionEvidenceTokenCounter.counts(
+                for: routedChunks.prefix(SessionEvidencePlan.maxPlannedChunks).enumerated().map {
+                    SessionEvidencePlan.block(for: $0.element, label: $0.offset + 1)
+                })
+            : nil
+
         let chunksPerSession = min(maxChunksPerSession, routedChunks.count)
         let stride = max(1, chunksPerSession)
 
@@ -4851,9 +4878,26 @@ extension AgenticOrchestrator {
 
         // Generate enough context windows for all possible sessions
         var sessionSourceSets: [Set<String>] = []
+        var sessionContextIsWhole: [Bool] = []
+        var sessionWindowRanges: [Range<Int>] = []
         while sessionContexts.count < effectiveMaxSessions {
-            let startIdx = min(sessionOffset, max(0, totalAvailableChunks - chunksPerSession))
-            let endIdx = min(startIdx + chunksPerSession, totalAvailableChunks)
+            var startIdx = min(sessionOffset, max(0, totalAvailableChunks - chunksPerSession))
+            var endIdx = min(startIdx + chunksPerSession, totalAvailableChunks)
+            // A whole-chunk window starts where the last one ended and takes as many chunks as fit
+            // the token budget. It is used only when it holds at least as many chunks as the
+            // character-sized window would, so it never adds sessions.
+            var wholeWindowTokens: Int?
+            let evidenceTokenBudget = sessionContexts.isEmpty ? firstSessionTokenBudget : laterSessionTokenBudget
+            if let chunkTokenCounts, sessionOffset < totalAvailableChunks {
+                let planned = SessionEvidencePlan.window(
+                    start: sessionOffset, tokenCounts: chunkTokenCounts, budget: evidenceTokenBudget,
+                    cap: wholeChunkCap, legacyCount: chunksPerSession)
+                if planned.wholeChunks {
+                    startIdx = sessionOffset
+                    endIdx = planned.end
+                    wholeWindowTokens = planned.tokens
+                }
+            }
 
             // SENTENCE-LEVEL EXTRACTION: Instead of packing 3-4 whole chunks per session,
             // extract only query-relevant sentences from the window's chunks.
@@ -4867,14 +4911,21 @@ extension AgenticOrchestrator {
             // `labelOffset` makes the window's labels global positions in `routedChunks` instead of
             // restarting at [S1] every session. Without it, session 2's [S1] and session 1's [S1]
             // name different chunks in the same answer, and `verifyCitations` cannot resolve either.
-            let extraction = await ragService.extractRelevantSentences(
-                from: windowChunks,
-                query: query,
-                maxChars: contextBudget,
-                compact: true,
-                labelOffset: startIdx
-            )
-            var ctx = extraction.context
+            var ctx = ""
+            var extractedSentences = 0
+            var extractedSources = 0
+            if wholeWindowTokens == nil {
+                let extraction = await ragService.extractRelevantSentences(
+                    from: windowChunks,
+                    query: query,
+                    maxChars: contextBudget,
+                    compact: true,
+                    labelOffset: startIdx
+                )
+                ctx = extraction.context
+                extractedSentences = extraction.sentencesIncluded
+                extractedSources = extraction.sourcesUsed
+            }
 
             // FALLBACK: If keyword extraction returned nothing useful (common when cross-reference
             // chunks don't contain the original query's keywords), use raw chunk content.
@@ -4891,7 +4942,7 @@ extension AgenticOrchestrator {
             // be replaced by raw chunk text for the same reason an empty one is.
             let trimmedCtx = ctx.trimmingCharacters(in: .whitespacesAndNewlines)
             let minimumUsefulContext = max(200, contextBudget / 8)
-            if trimmedCtx.count < minimumUsefulContext && !windowChunks.isEmpty {
+            if wholeWindowTokens == nil && trimmedCtx.count < minimumUsefulContext && !windowChunks.isEmpty {
                 var rawContext = ""
                 for (idx, wc) in windowChunks.enumerated() {
                     let content = wc.chunk.parentContent ?? wc.chunk.content
@@ -4906,14 +4957,25 @@ extension AgenticOrchestrator {
                 Log.debug(
                     "[ReasoningChain] Session \(sessionContexts.count + 1): keyword extraction returned \(trimmedCtx.count) chars, below the \(minimumUsefulContext) needed; using raw chunk content (\(ctx.count) chars)",
                     category: .retrieval)
-            } else {
+            } else if wholeWindowTokens == nil {
                 Log.debug(
-                    "[ReasoningChain] Session \(sessionContexts.count + 1): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(ctx.count) chars)",
+                    "[ReasoningChain] Session \(sessionContexts.count + 1): \(extractedSentences) sentences from \(extractedSources) sources (\(ctx.count) chars)",
+                    category: .retrieval)
+            }
+
+            if let wholeWindowTokens {
+                ctx = SessionEvidencePlan.wholeChunkContext(windowChunks, firstLabel: startIdx + 1)
+                Log.debug(
+                    "[ReasoningChain] Session \(sessionContexts.count + 1): \(windowChunks.count) whole chunks, "
+                        + "\(wholeWindowTokens) of \(evidenceTokenBudget) evidence tokens, window \(evidenceWindowTokens) "
+                        + "(\(ctx.count) chars)",
                     category: .retrieval)
             }
 
             sessionContexts.append(ctx)
-            sessionOffset += stride
+            sessionContextIsWhole.append(wholeWindowTokens != nil)
+            sessionWindowRanges.append(startIdx..<endIdx)
+            sessionOffset += wholeWindowTokens != nil ? max(1, endIdx - startIdx) : stride
 
             // Stop when the corpus runs out, instead of wrapping and re-reading it.
             //
@@ -5102,7 +5164,9 @@ extension AgenticOrchestrator {
                 maxInsightLength: reasoningPolicy.isUnlimitedMode
                     ? 600 : (reasoningPolicy.isDeepThinkMode ? 800 : config.maxInsightLength),
                 sessionObjective: sessionObjective,
-                evidenceState: evidenceStateLine(evidenceTracker)
+                evidenceState: evidenceStateLine(evidenceTracker),
+                wholeChunkContext: sessionContextIsWhole.indices.contains(contextIndex)
+                    && sessionContextIsWhole[contextIndex]
             )
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -5175,8 +5239,28 @@ extension AgenticOrchestrator {
                         let reducedInsights = insightsForPrompt.map {
                             String($0.prefix(Int(Double($0.count) * reductionFactor)))
                         }
+                        // A whole-chunk window that overflowed goes back to sentence extraction over
+                        // the same chunks before it is cut. A raw prefix of whole chunks is the first
+                        // chunk and part of the second, and windows are disjoint, so the rest of this
+                        // window would never be read.
+                        var overflowBase = sessionContext
+                        if sessionContextIsWhole.indices.contains(contextIndex), sessionContextIsWhole[contextIndex],
+                            sessionWindowRanges.indices.contains(contextIndex)
+                        {
+                            let windowRange = sessionWindowRanges[contextIndex]
+                            let extraction = await ragService.extractRelevantSentences(
+                                from: Array(routedChunks[windowRange]),
+                                query: query,
+                                maxChars: contextBudget,
+                                compact: true,
+                                labelOffset: windowRange.lowerBound
+                            )
+                            if extraction.context.trimmingCharacters(in: .whitespacesAndNewlines).count >= 200 {
+                                overflowBase = extraction.context
+                            }
+                        }
                         let reducedContext = String(
-                            sessionContext.prefix(Int(Double(sessionContext.count) * reductionFactor)))
+                            overflowBase.prefix(Int(Double(overflowBase.count) * reductionFactor)))
 
                         // Rebuild prompt with reduced content
                         let (reducedPrompt, _) = buildChainPrompt(
@@ -8006,7 +8090,8 @@ extension AgenticOrchestrator {
         previousInsights: [String],
         maxInsightLength: Int,
         sessionObjective: String? = nil,
-        evidenceState: String? = nil
+        evidenceState: String? = nil,
+        wholeChunkContext: Bool = false
     ) -> (prompt: String, systemPrompt: String) {
         // FIXED: Reduced insight budget from 2500 to 1200 chars.
         // With context doubling fix, real budget is:
@@ -8055,11 +8140,13 @@ extension AgenticOrchestrator {
                 """
             } ?? ""
 
-        // Context budget: session 1 gets full context, later sessions share with insights
+        // Context budget: session 1 gets full context, later sessions share with insights.
+        // A whole-chunk context was sized in tokens against the live window before it got here
+        // (`SessionEvidencePlan`), so it is not cut again by characters.
         let contextForPrompt =
-            previousInsights.isEmpty
-            ? String(context.prefix(4000))
-            : String(context.prefix(2200))
+            wholeChunkContext
+            ? context
+            : (previousInsights.isEmpty ? String(context.prefix(4000)) : String(context.prefix(2200)))
 
         switch sessionIndex {
         case 0:
