@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-07, 15:50 PT (5.6: ten fixes committed and in TestFlight as build 484, and on the owner's iPhone as a development build; the token-budget change is written and uncommitted; nothing seen on a device)
+Updated: 2026-10-07, 20:05 PT (5.6: the ten fixes, the rebuild-banner fix and the token-budget change are committed and pushed at `2bee971`; Xcode Cloud #485 is building it; the same tree is on the owner's iPhone as a development build)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 9999659
+Last verified commit: 2bee971
 
 ## Objective
 
@@ -50,12 +50,13 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   search placement on it yet).
 - **The owner's iPhone was unreachable from this Mac at 10:15 PT on 2026-10-07** (`xcrun devicectl list devices`:
   "unavailable"), so 5.6 was not installed on it.
-- **The owner's iPhone carries a development build of the working tree** (installed 2026-10-07 18:27 PT with
-  `devicectl`, Debug, `MARKETING_VERSION=5.6`, built from `1fbebfe` plus the two uncommitted changes below: the
-  rebuild-banner fix and the token-budget change). The build before it, at 15:26 PT, had the ten fixes only.
-- **Token budget, first part: written 2026-10-07 at the owner's word ("proceed implement"), uncommitted.** Row
+- **Committed and pushed 2026-10-07 19:42 PT at the owner's word ("commit and push"): `2bee971`,** the
+  rebuild-banner fix and the token-budget change in one commit. Xcode Cloud #485 started from it at 19:42 PT.
+- **The owner's iPhone carries a development build of `2bee971`** (installed 20:00 PT with `devicectl`, Debug,
+  `MARKETING_VERSION=5.6`). The build before it (18:27 PT) lacked the fix for a new library's fingerprint.
+- **Token budget, first part: written 2026-10-07 at the owner's word ("proceed implement"), in `2bee971`.** Row
   https://app.notion.com/p/3f249a74d54f815cbbd3c2e1c492dfd7 is on `v5.6`, In Progress. He did not say which
-  release; with 5.6 unsubmitted, a commit makes it part of 5.6 (build 485). New
+  release; with 5.6 unsubmitted it is part of 5.6 (build 485). New
   `OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift` (budget, chunk cap and window arithmetic; one
   exact `tokenCount(for:)` a chunk for the first 56) and edits in `AgenticOrchestrator.swift`:
   `executeReasoningChain` plans each window in tokens against the live window and reads whole chunks when a
@@ -343,14 +344,12 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Exact Next Action
 
-1. The owner checks the build on his iPhone. Rebuild banner: import into a new library and an existing one, ask a
-   question in each, open Documents, no banner; rebuild a library that predates the fingerprint, reopen Documents,
-   ask again, no banner. Token budget: one Deep Think question. Then read `Documents/pipeline_trace.log` from the
-   phone (`xcrun devicectl device copy from --device B1483F12-4FFD-5534-BA30-29FF48070549 --domain-type
-   appDataContainer --domain-identifier Gunndamental.OpenIntelligence --source Documents/pipeline_trace.log
-   --destination <scratch file>`) for "Embedding pipeline changed", "no embedding fingerprint", "Restored the
-   embedding fingerprint" and "whole chunks". Keep that file out of the repository.
-2. Both changes wait for his "commit". The push starts Xcode Cloud build 485.
+1. Read Xcode Cloud #485's result (build-list recipe in session memory, `websites-read-shipped-version-from-origin`).
+2. The owner checks the build on his iPhone, then read `Documents/pipeline_trace.log` from it. New library: import,
+   ask one question; the log must show "Recorded embedding fingerprint" and no "Embedding pipeline changed" for
+   that library. Older library with no fingerprint: one flag is expected once, then none after reloads. Deep Think:
+   one question; look for "whole chunks, N of B evidence tokens, window W". Keep the copied log out of the
+   repository.
 3. He still has the phone checks for the eleven Fixed rows (`Growth/campaign/sample-package/RUN_SHEET.md`) and the
    window in Settings, "On this device".
 4. The owner runs the asset upload from the repository root, or says how else he wants it done:
