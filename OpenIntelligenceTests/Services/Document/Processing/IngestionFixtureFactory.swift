@@ -195,6 +195,25 @@ final class IngestionFixtureFactory {
 
     // MARK: - Text-shaped fixtures
 
+    /// Four lines of a chat export as JSON Lines. The third line is not JSON, on purpose: a line
+    /// the parser cannot read has to arrive as its own passage, not vanish.
+    static let chatExportLines = [
+        #"{"role":"user","content":"When is rent late?","timestamp":"2026-10-01T09:00:00Z"}"#,
+        #"{"role":"assistant","content":"Rent is late after 11:59 p.m. on the 5th.","model":"on-device","sources":[{"document":"Lease.pdf","pages":[3]}]}"#,
+        "this line is not JSON",
+        #"{"role":"user","content":"What is the late charge?","nested":{"amount":75.0,"currency":"USD","waived":false}}"#,
+    ]
+
+    func jsonLines(named name: String = "chat_export.jsonl") throws -> URL {
+        try textFile(named: name, contents: Self.chatExportLines.joined(separator: "\n") + "\n")
+    }
+
+    func textFile(named name: String, contents: String) throws -> URL {
+        let destination = fixtureURL(name)
+        try contents.write(to: destination, atomically: true, encoding: .utf8)
+        return destination
+    }
+
     func csv(_ spec: TableSpec = IngestionFixtureFactory.serviceTable) throws -> URL {
         let destination = fixtureURL("torque_specification.csv")
         let body = spec.allRows

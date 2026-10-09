@@ -410,6 +410,8 @@ struct AttachmentMenuButton: View {
                     UTType(filenameExtension: "js") ?? .sourceCode,
                     UTType(filenameExtension: "ts") ?? .sourceCode,
                     UTType(filenameExtension: "json") ?? .json,
+                    UTType(filenameExtension: "jsonl") ?? .json,
+                    UTType(filenameExtension: "ndjson") ?? .json,
                     UTType(filenameExtension: "html") ?? .html,
                     .json,
                     // Audio (for transcription)
@@ -493,6 +495,7 @@ struct AttachmentMenuButton: View {
                 "doc", "docx", "xls", "xlsx", "ppt", "pptx",
                 "pages", "numbers", "key",
                 "swift", "py", "js", "ts",
+                "jsonl", "ndjson",
                 "m4a",
             ]
             types.append(contentsOf: byExtension.compactMap { UTType(filenameExtension: $0) })

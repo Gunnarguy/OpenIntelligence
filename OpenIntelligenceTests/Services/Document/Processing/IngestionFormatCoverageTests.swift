@@ -179,6 +179,106 @@ final class IngestionFormatCoverageTests: XCTestCase {
         }
     }
 
+    // MARK: - JSON records
+
+    /// The claim under test: a JSON Lines file imports as one passage per line, each with its field
+    /// names, and a line that is not JSON is kept. Through 5.6 `.jsonl` had no route and `.json` was
+    /// cut wherever the word window fell.
+    func testJSONLines_GivesOnePassagePerLineWithItsFieldNames() async throws {
+        let url = try factory.jsonLines()
+        let (_, chunks) = try await extract(url)
+        let lines = IngestionFixtureFactory.chatExportLines
+
+        XCTAssertEqual(chunks.count, lines.count, "one passage per line: \(chunks.map(\.text))")
+        guard chunks.count == lines.count else { return }
+
+        for (index, chunk) in chunks.enumerated() {
+            XCTAssertTrue(
+                chunk.text.hasPrefix("Record \(index + 1) of \(lines.count)"),
+                "passage \(index + 1) does not start with its record header: \(chunk.text)")
+            XCTAssertEqual(chunk.metadata.sectionTitle, "Record \(index + 1)")
+            XCTAssertEqual(chunk.metadata.chunkIndex, index)
+        }
+
+        XCTAssertTrue(chunks[0].text.contains("content: When is rent late?"), chunks[0].text)
+        XCTAssertTrue(chunks[0].text.contains("role: user"), chunks[0].text)
+        XCTAssertTrue(chunks[1].text.contains("content: Rent is late after 11:59 p.m. on the 5th."), chunks[1].text)
+        XCTAssertTrue(chunks[1].text.contains("sources[1].document: Lease.pdf"), chunks[1].text)
+        XCTAssertTrue(chunks[1].text.contains("sources[1].pages: 3"), chunks[1].text)
+        XCTAssertTrue(chunks[2].text.contains("this line is not JSON"), chunks[2].text)
+        XCTAssertTrue(chunks[3].text.contains("nested.amount: 75.0"), "a number keeps the file's digits: \(chunks[3].text)")
+        XCTAssertTrue(chunks[3].text.contains("nested.waived: false"), chunks[3].text)
+
+        // No field of one record may sit in another record's passage.
+        XCTAssertFalse(chunks[0].text.contains("late charge"), chunks[0].text)
+        XCTAssertFalse(chunks[3].text.contains("11:59"), chunks[3].text)
+    }
+
+    func testNDJSON_TakesTheSameRoute() async throws {
+        let url = try factory.jsonLines(named: "events.ndjson")
+        let (_, chunks) = try await extract(url)
+        XCTAssertEqual(chunks.count, IngestionFixtureFactory.chatExportLines.count)
+    }
+
+    func testJSONArray_GivesOnePassagePerElement() async throws {
+        let url = try factory.textFile(
+            named: "parts.json",
+            contents: """
+                [
+                  {"part": "Basket", "cleaning": "Hand wash only", "temperature_f": 350},
+                  {"part": "Drip tray", "cleaning": "Dishwasher safe"},
+                  {"part": "Probe", "notes": null, "tags": ["metal", "sharp"]}
+                ]
+                """
+        )
+        let (_, chunks) = try await extract(url)
+        XCTAssertEqual(chunks.count, 3, "\(chunks.map(\.text))")
+        guard chunks.count == 3 else { return }
+        XCTAssertTrue(chunks[0].text.contains("temperature_f: 350"), chunks[0].text)
+        XCTAssertTrue(chunks[1].text.contains("cleaning: Dishwasher safe"), chunks[1].text)
+        XCTAssertTrue(chunks[2].text.contains("tags: metal, sharp"), chunks[2].text)
+        XCTAssertTrue(chunks[2].text.contains("notes: null"), "a null member keeps its name: \(chunks[2].text)")
+    }
+
+    /// One record far over the embedding limit. Through 5.6 an oversized passage was split at every
+    /// period and joined with ". ", which stored "$75. 50" and "Lease. pdf". Every part of the record
+    /// has to keep those as written and say which record it belongs to.
+    func testAJSONRecordOverTheEmbeddingLimit_KeepsItsTextAndItsHeader() async throws {
+        let fields = (1...160).map { #""field_\#($0)": "Line \#($0) says the charge is $75.50 per Lease.pdf page. Is that right?""# }
+        let url = try factory.textFile(named: "long_record.jsonl", contents: "{" + fields.joined(separator: ", ") + "}\n")
+        let (_, chunks) = try await extract(url)
+
+        XCTAssertGreaterThan(chunks.count, 1, "a record this long cannot fit one passage")
+        let text = combinedText(chunks)
+        XCTAssertFalse(text.contains("75. 50"), "an amount was retyped")
+        XCTAssertFalse(text.contains("Lease. pdf"), "a file name was retyped")
+        XCTAssertEqual(text.components(separatedBy: "$75.50 per Lease.pdf page. Is that right?").count - 1, 160)
+        for chunk in chunks {
+            XCTAssertTrue(chunk.text.hasPrefix("Record 1 of 1, part "), "a part lost its record header: \(chunk.text.prefix(60))")
+            XCTAssertEqual(chunk.metadata.sectionTitle, "Record 1")
+        }
+    }
+
+    /// A `.json` file that does not parse still imports, as text, the way every `.json` did before.
+    func testJSONThatDoesNotParse_StillImportsAsText() async throws {
+        let url = try factory.textFile(
+            named: "settings.json",
+            contents: """
+                {
+                  // comments are not JSON
+                  "fan_speed": "high",
+                  "preheat_minutes": 5,
+                }
+                """
+        )
+        let (_, chunks) = try await extract(url)
+        XCTAssertFalse(chunks.isEmpty)
+        let text = combinedText(chunks)
+        XCTAssertTrue(text.contains("fan_speed"), text)
+        XCTAssertTrue(text.contains("preheat_minutes"), text)
+        XCTAssertFalse(text.contains("Record 1 of"), text)
+    }
+
     // MARK: - Office
 
     func testDOCX_PreservesTableRowsAndProse() async throws {

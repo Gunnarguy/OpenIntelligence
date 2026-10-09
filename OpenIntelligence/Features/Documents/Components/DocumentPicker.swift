@@ -103,6 +103,9 @@ struct DocumentPicker: UIViewControllerRepresentable {
             UTType(filenameExtension: "js") ?? .sourceCode,
             UTType(filenameExtension: "ts") ?? .sourceCode,
             UTType(filenameExtension: "json") ?? .json,
+            // JSON Lines has no system type, so it is selectable only when named by extension.
+            UTType(filenameExtension: "jsonl") ?? .json,
+            UTType(filenameExtension: "ndjson") ?? .json,
             UTType(filenameExtension: "html") ?? .html,
             .json,
             // Audio (for transcription)
@@ -227,6 +230,7 @@ enum MacDocumentImportPanel {
             "pages", "numbers", "key",
             "xml", "yaml", "yml", "css", "scss", "sass", "sql", "sh", "zsh",
             "swift", "py", "js", "ts",
+            "jsonl", "ndjson",
             "m4a", "aiff", "caf",
         ]
         types.append(contentsOf: byExtension.compactMap { UTType(filenameExtension: $0) })

@@ -1,8 +1,43 @@
-> **Documentation status:** Current through OpenIntelligence v5.6, live on both platforms since October 8, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Current through OpenIntelligence v5.6, live on both platforms since October 8, 2026; the 5.7 section is the release in preparation. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 5.7
+This one's about getting things in and out of the app.  JSON and JSONL files import as records now, Shortcuts can search your library, add to it and make new libraries, and an answer you share takes its sources with it.
+
+### Your Documents
+- **JSON and JSONL files import as records.** A .json, .jsonl or .ndjson file used to come in as one long run of raw text, and a .jsonl file couldn't even be chosen in the file picker.  Now each record is its own passage, with its field names and its numbers kept exactly as the file has them, so a chat export, a log or a dataset can be searched and cited one record at a time.  A line that isn't valid JSON is kept the way it was written.
+- **OpenIntelligence shows up under "Open in".** A PDF, a text or Markdown file, a CSV, a JSON file, a Word, Excel or PowerPoint file or an image can be sent to the app from Files, Mail or a share sheet, and on the Mac by dropping it on the app's icon.  It goes through the same import check as a file you pick in the app.
+- **Long passages are stored the way your document wrote them.** When a passage was too long to index in one piece, the app split it and re-typed it on the way, so "$75.50" could be stored as "$75. 50" and a question mark could become a period.  Now it's cut at line and sentence ends and nothing is re-typed.  A document you already imported keeps the old text until it's imported again.
+
+### Shortcuts and Siri
+- **Actions hand back what they found.** Asking a question from Shortcuts used to show a card and give the shortcut nothing to work with.  Now the ask actions return the answer with its sources, List Documents returns the documents, and List Conversations returns the conversations, so the next step of a shortcut can use them.  When an action can't do its job it stops the shortcut and says why, where it used to report success with an apology inside.
+- **You can pick the mode.** "Ask My Documents" and "Ask a Library" have a Mode menu: Standard, Deep Think or Maximum.  On the free plan, Maximum from Shortcuts counts against the same daily allowance as Maximum in the app.
+- **"Ask About a Document" only reads that document.** It used to put the file's name in the question and search the whole library, so the answer could come from a different document.  Now it's searched inside the one you picked and nowhere else, and so are Summarize a Document and Compare Two Documents.  These three answer in Standard.
+- **Plainer names.** "Query Documents" is "Ask My Documents", "Search Library" is "Ask a Library", "Ingest Document" is "Add a File" and "Ingest Webpage" is "Save a Web Page".
+- **"Save a Web Page" downloads the page.** It used to say it was extracting the page, and nothing was ever downloaded.  Now it fetches the page, saves its text and imports that.  A link straight to a PDF saves the PDF.  A page that only shows its text after running scripts can't be read this way, and the action says so.
+- **One action adds a file, a link or text.** "Add to Library" takes any of the three, and you can pick which library it goes into.
+- **Find Passages.** A new action that returns the passages matching a search without writing an answer, so the next step of a shortcut can read them.
+- **Create a library and switch libraries.** Two new actions, "Create Library" and "Set Active Library".
+- **Open a library or a document.** Two new actions, "Open Library" and "Open Document", take you straight to a library.
+- **"Add a Document" and "Scan a Document" do what they say.** They used to open the app and stop there.  Now one opens the file picker and the other, on iPhone and iPad, opens the camera.
+- **Documents and libraries carry their details.** A shortcut can read a document's name, type, date added, page count and library, and a library's document count and dates.  Before, it got a title and nothing else.
+- **A button into Shortcuts.** Settings, under Shortcuts, has a button that opens the Shortcuts app on OpenIntelligence's actions, and the list there names every action as Shortcuts shows it.
+- **"Add a File" keeps its file.** It queued the temporary copy that Shortcuts hands over, which the system can remove when the action ends.  Now the file is copied into the app first.
+- **Siri phrases are things you'd say.** "Ask OpenIntelligence a question", "Save this page to OpenIntelligence", "Find passages in OpenIntelligence".
+
+### Spotlight
+- **A Spotlight result opens what you tapped.** Tapping a document or a library in Spotlight used to open the Documents tab of whatever library was active.  Now it switches to the right library.
+
+### Sharing
+- **A shared answer takes its sources with it.** Share used to send the answer's text and nothing else, so the [S1] and [S2] in it pointed at nothing.  Now the documents and pages it cites are listed under it, with the app's name and its App Store link at the end.
+- **Export a conversation.** The chat menu has Export Conversation, as Markdown to read or as JSON Lines for other tools.  Each answer keeps its source list.
+- **Copy works on the Mac.** The Copy button under an answer showed "Copied" on the Mac and copied nothing.  It copies now, and so do the three other copy buttons that had the same problem.
+
+### Answers
+- **Sentences from your documents aren't cut in half.** Before the model writes, the app picks the sentences that match your question, and it was cutting them at every line break and after things like "p.m."  So an answer could be built from "on the 5th" without the first half of the sentence.  They stay whole now.
 
 ## 5.6
 This one's about your first few answers.  The citations in an answer open now, numbers and times come through the way your document wrote them, and the Verified badge only shows when a check actually ran and passed.

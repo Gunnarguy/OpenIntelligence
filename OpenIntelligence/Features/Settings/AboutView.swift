@@ -1,9 +1,17 @@
 import SwiftUI
 
 enum OpenIntelligenceLinks {
-    static let appStoreID = "6756559175"
+    nonisolated static let appStoreID = "6756559175"
     static let githubURL = URL(string: "https://github.com/Gunnarguy/OpenIntelligence")!
     static let appStoreURL = URL(string: "https://apps.apple.com/app/id\(appStoreID)")!
+    /// Campaign tag on every App Store link the app hands to someone else (Share the App, a shared
+    /// answer, an exported conversation). One tag for all of them: App Store Connect shows a tag
+    /// only after first-time downloads from five people, so splitting it would hide the number.
+    nonisolated static let shareCampaignTag = "In_App_Share"
+    /// The App Store link for sharing. `pt` is the provider token, the same public value as in the
+    /// repository README's link; `ct` is the campaign tag App Store Connect reports under Acquisition.
+    nonisolated static let sharedAppStoreURL = URL(
+        string: "https://apps.apple.com/app/apple-store/id\(appStoreID)?pt=127101782&ct=\(shareCampaignTag)&mt=8")!
     static let writeReviewURL = URL(string: "https://apps.apple.com/app/id\(appStoreID)?action=write-review")!
     static let feedbackEmailAddress = "gunnarguy@me.com"
     static let notionRoadmapURL = URL(string: "https://app.notion.com/p/gunzino/37f49a74d54f81b79424dae1288c0043")!

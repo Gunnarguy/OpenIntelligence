@@ -293,6 +293,8 @@ struct ChatScreen: View {
     @State private var writingToolsResult: String = ""
     @State private var writingToolsTitle: String = ""
     @State private var showWritingToolsResult: Bool = false
+    /// The file a conversation export wrote, while its share sheet is up.
+    @State private var conversationExport: ConversationExportFile? = nil
     @State private var writingToolsProcessing: Bool = false
 
     // Vision Capture overlay
@@ -828,6 +830,17 @@ struct ChatScreen: View {
                             }
                             .disabled(messages.isEmpty)
 
+                            Menu {
+                                ForEach(ConversationExporter.Format.allCases, id: \.self) { format in
+                                    Button(format.menuTitle) {
+                                        exportConversation(format)
+                                    }
+                                }
+                            } label: {
+                                Label("Export Conversation", systemImage: "square.and.arrow.up")
+                            }
+                            .disabled(messages.isEmpty || isProcessing)
+
                             Button(role: .destructive) {
                                 guard !isProcessing else { return }
                                 clearChat()
@@ -864,6 +877,17 @@ struct ChatScreen: View {
                                 Label("New Chat", systemImage: "square.and.pencil")
                             }
                             .disabled(messages.isEmpty)
+
+                            Menu {
+                                ForEach(ConversationExporter.Format.allCases, id: \.self) { format in
+                                    Button(format.menuTitle) {
+                                        exportConversation(format)
+                                    }
+                                }
+                            } label: {
+                                Label("Export Conversation", systemImage: "square.and.arrow.up")
+                            }
+                            .disabled(messages.isEmpty || isProcessing)
 
                             Button(role: .destructive) {
                                 guard !isProcessing else { return }
@@ -903,6 +927,9 @@ struct ChatScreen: View {
                     }
                     .padding()
                 }
+            }
+            .onReceive(AppNavigationRequest.shared.changes) { _ in
+                takeNavigationRequest()
             }
             .onReceive(PlanAskService.shared.$wantsAsk) { wants in
                 // Two seconds after the answer has landed, like the rating request, so the
@@ -1055,9 +1082,7 @@ struct ChatScreen: View {
                     title: writingToolsTitle,
                     result: writingToolsResult,
                     onCopy: {
-                        #if canImport(UIKit)
-                            UIPasteboard.general.string = writingToolsResult
-                        #endif
+                        SystemClipboard.copy(writingToolsResult)
                         DSHaptics.success()
                         toastManager.show(
                             ToastItem(title: "Copied to clipboard", icon: "doc.on.doc", tint: .green),
@@ -1090,6 +1115,9 @@ struct ChatScreen: View {
                     }
                 )
                 .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $conversationExport) { file in
+                ActivityView(activityItems: [file.url])
             }
     }
 
@@ -2032,6 +2060,50 @@ struct ChatScreen: View {
         var history = ragService.chatHistory(for: containerId)
         history.append(message)
         ragService.persistChatHistory(history, for: containerId)
+    }
+
+    /// A request that ends in this screen: a new conversation, or the camera.
+    private func takeNavigationRequest() {
+        let request = AppNavigationRequest.shared.take { destination in
+            switch destination {
+            case .newConversation, .scanDocument: return true
+            default: return false
+            }
+        }
+        switch request {
+        case .newConversation:
+            guard !isProcessing, !messages.isEmpty else { return }
+            newChat()
+        case .scanDocument:
+            #if os(iOS)
+                showVisionCapture = true
+            #endif
+        default:
+            break
+        }
+    }
+
+    /// Writes the conversation to a temporary file and opens the share sheet on it. The title is
+    /// the first question, because a chat has no name of its own here.
+    private func exportConversation(_ format: ConversationExporter.Format) {
+        let firstQuestion = messages.first { message in
+            if case .user = message.role { return true }
+            return false
+        }?.content
+        do {
+            let url = try ConversationExporter.writeTemporaryFile(
+                messages: messages,
+                title: firstQuestion,
+                format: format
+            )
+            conversationExport = ConversationExportFile(url: url)
+        } catch {
+            Log.error("[Chat] Conversation export failed: \(error.localizedDescription)", category: .pipeline)
+            toastManager.show(
+                ToastItem(title: "Export failed", icon: "exclamationmark.triangle", tint: .orange),
+                duration: 2.0
+            )
+        }
     }
 
     private func newChat() {

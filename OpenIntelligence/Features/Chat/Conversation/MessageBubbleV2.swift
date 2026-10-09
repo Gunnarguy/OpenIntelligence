@@ -344,7 +344,7 @@ struct MessageBubbleV2: View {
     }
 
     private func shareMessage() {
-        sharePayload = SharePayload(items: [message.content])
+        sharePayload = SharePayload(items: [AnswerShareFormatter.shareText(for: message)])
     }
 
     private func exportPipelineTrace() {
@@ -371,9 +371,7 @@ struct MessageBubbleV2: View {
                     pipelineTrace: message.pipelineTrace ?? [],
                     libraryState: libraryState
                 )
-                #if canImport(UIKit)
-                    UIPasteboard.general.string = traceText
-                #endif
+                SystemClipboard.copy(traceText)
                 DSHaptics.success()
             }
         }
@@ -421,9 +419,7 @@ struct MessageBubbleV2: View {
             includeDebugContext: includeDebugContext
         )
 
-        #if canImport(UIKit)
-            UIPasteboard.general.string = reportText
-        #endif
+        SystemClipboard.copy(reportText)
 
         DSHaptics.success()
         sharePayload = SharePayload(items: [reportText])

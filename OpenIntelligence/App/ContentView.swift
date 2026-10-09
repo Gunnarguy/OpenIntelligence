@@ -5,6 +5,7 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
+import AppIntents
 import Combine
 import CoreSpotlight
 import StoreKit
@@ -46,6 +47,9 @@ struct ContentView: View {
         let billingSvc = StoreKitBillingService()
         let entitlementStore = EntitlementStore(billingService: billingSvc)
         let ragSvc = RAGService(containerService: containerSvc, entitlementStore: entitlementStore)
+        // The app's engine is the one actions reach for imports, lists and conversations. It sets
+        // itself here; an engine an action builds for one question registers only when none is set.
+        RAGService.activePresentedInstance = ragSvc
         _workspaceSyncService = StateObject(wrappedValue: workspaceSyncSvc)
         _containerService = StateObject(wrappedValue: containerSvc)
         _ragService = StateObject(wrappedValue: ragSvc)
@@ -107,19 +111,21 @@ struct ContentView: View {
         }
         .tint(appAccentColor)
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
-            // Handle Spotlight search result tap — navigate to the document's container
-            if activity.userInfo?[CSSearchableItemActivityIdentifier] is String {
-                // The identifier is the document UUID; extract containerId from the activity
-                if let containerIdString = activity.userInfo?["containerId"] as? String,
-                    let containerId = UUID(uuidString: containerIdString)
-                {
-                    containerService.activeContainerId = containerId
-                    selectedTab = .documents
-                } else {
-                    // Fallback: just navigate to documents tab
-                    selectedTab = .documents
-                }
-            }
+            // A Spotlight result: open the library or the document that was tapped. Through 5.6 this
+            // read a "containerId" the index never wrote, so it always fell back to the Documents tab
+            // of whatever library was active.
+            guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
+            AppNavigationRequest.post(AppLink.destination(forSpotlightIdentifier: identifier) ?? .documents)
+        }
+        .onReceive(AppNavigationRequest.shared.changes) { waiting in
+            // One at a time, oldest first. A request this view finishes is removed, which sends the
+            // next one; a request a screen has to finish stays first until that screen takes it.
+            if let destination = waiting.first { route(destination) }
+        }
+        .onChange(of: ragService.documents.count, initial: true) { _, _ in
+            // Siri's phrases that name a document or a library ("Summarize Lease.pdf in ...") are
+            // built from the items that exist. Nothing told the system when they changed.
+            RAGAppShortcutsProvider.updateAppShortcutParameters()
         }
         .onOpenURL { url in
             handleOpenURL(url)
@@ -480,31 +486,77 @@ struct ContentView: View {
 
     @MainActor
     private func handleOpenURL(_ url: URL) {
-        Log.warning("[DeepLink] Received deep link URL: \(url.absoluteString)", category: .ui)
-        Log.warning(
-            "[DeepLink] scheme: \(url.scheme ?? "nil"), host: \(url.host ?? "nil"), path: \(url.path)", category: .ui)
-        guard url.scheme == OpenIntelligenceDeepLink.scheme else {
-            Log.warning(
-                "[DeepLink] URL scheme '\(url.scheme ?? "nil")' does not match expected '\(OpenIntelligenceDeepLink.scheme)'",
-                category: .ui)
+        if url.isFileURL {
+            importOpenedFile(url)
             return
         }
-
-        if url.host == "documents" {
-            Log.warning("[DeepLink] Routing to documents tab. Current tab was: \(selectedTab)", category: .ui)
-            selectedTab = .documents
-            if url.path == "/ingestion" {
-                Log.warning(
-                    "[DeepLink] Path matches '/ingestion'. Posting showIngestionQueue notification", category: .ui)
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("com.openintelligence.showIngestionQueue"), object: nil)
-            }
-        } else if url.host == "chat" {
-            Log.warning("[DeepLink] Routing to chat tab. Current tab was: \(selectedTab)", category: .ui)
-            selectedTab = .chat
-        } else {
-            Log.warning("[DeepLink] Host '\(url.host ?? "nil")' did not match any routing rules", category: .ui)
+        Log.info("[DeepLink] Received \(url.scheme ?? "nil")://\(url.host ?? "nil")\(url.path)", category: .ui)
+        guard let destination = AppLink.destination(for: url) else {
+            Log.warning("[DeepLink] Not one of this app's links; ignored", category: .ui)
+            return
         }
+        AppNavigationRequest.post(destination)
+    }
+
+    /// A file another app handed over: "Open in OpenIntelligence" from Files, Mail or a share
+    /// sheet, a file dropped on the Mac's Dock icon, or an AirDrop. It is copied into the app at
+    /// once, while access to it is certain, and the Documents screen then runs its usual plan
+    /// check and import review on the copy. Through 5.6 the app declared no document types, so it
+    /// was never offered a file, and a file address reaching this handler was discarded.
+    private func importOpenedFile(_ url: URL) {
+        Log.info("[OpenIn] Received a file: \(url.pathExtension.lowercased())", category: .ingestion)
+        let staged = ImportedFileStaging.copyIntoWorkspace([url])
+        // On iPhone and iPad the system leaves its own copy in this app's Documents/Inbox. Ours is
+        // made, so that one would only sit in the Files app. On the Mac the address is the
+        // person's own file, opened in place, and is never removed.
+        #if os(iOS)
+            if let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+                url.deletingLastPathComponent().standardizedFileURL
+                    == documents.appendingPathComponent("Inbox", isDirectory: true).standardizedFileURL
+            {
+                try? FileManager.default.removeItem(at: url)
+            }
+        #endif
+        guard !staged.isEmpty else {
+            Log.error("[OpenIn] The file could not be copied into the app", category: .ingestion)
+            return
+        }
+        AppNavigationRequest.post(.importFiles(staged))
+    }
+
+    /// Acts on the oldest waiting request: the tab and the library here. A request that ends here is
+    /// removed. One whose last step belongs to a screen (the file picker, the camera, a new
+    /// conversation, an import) is left for that screen, which this brings forward.
+    private func route(_ destination: AppDestination) {
+        switch destination {
+        case .chat:
+            selectedTab = .chat
+        case .documents:
+            selectedTab = .documents
+        case .importQueue:
+            selectedTab = .documents
+            NotificationCenter.default.post(
+                name: NSNotification.Name("com.openintelligence.showIngestionQueue"), object: nil)
+        case .library(let id):
+            containerService.setActive(id)
+            selectedTab = .documents
+        case .document(let id):
+            if let libraryId = ragService.documents.first(where: { $0.id == id })?.containerId {
+                containerService.setActive(libraryId)
+            }
+            selectedTab = .documents
+        case .addDocument, .importFiles:
+            selectedTab = .documents
+            return
+        case .scanDocument:
+            selectedTab = .chat
+            return
+        case .newConversation(let libraryId):
+            if let libraryId { containerService.setActive(libraryId) }
+            selectedTab = .chat
+            return
+        }
+        _ = AppNavigationRequest.shared.take { $0 == destination }
     }
 }
 

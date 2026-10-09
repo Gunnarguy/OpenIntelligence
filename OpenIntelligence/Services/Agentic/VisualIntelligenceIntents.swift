@@ -20,7 +20,7 @@ import Vision
 /// Triggered from camera Control Center or share sheet
 @available(iOS 26.0, *)
 struct AnalyzeImageIntent: AppIntent {
-    static var title: LocalizedStringResource = "Analyze Image with RAG"
+    static var title: LocalizedStringResource = "Ask About an Image"
     static var description: IntentDescription = .init(
         "Extract and analyze text from an image using your document library",
         categoryName: "Visual Intelligence",
@@ -134,31 +134,36 @@ struct AnalyzeImageIntent: AppIntent {
 
 // MARK: - Ingest from Camera Intent
 
+// The Mac has no document camera in this app, so the action is not offered there.
+#if os(iOS)
 /// Capture and ingest a document from the camera
 @available(iOS 26.0, *)
 struct IngestFromCameraIntent: AppIntent {
-    static var title: LocalizedStringResource = "Ingest Document from Camera"
+    static var title: LocalizedStringResource = "Scan a Document"
     static var description: IntentDescription = .init(
-        "Capture a document with your camera and add it to your knowledge base",
+        "Opens OpenIntelligence on the camera so you can capture a document and add it to your active library.",
         categoryName: "Visual Intelligence",
-        searchKeywords: ["camera", "capture", "scan", "ingest", "document"]
+        searchKeywords: ["camera", "capture", "scan", "document"]
     )
 
     static var openAppWhenRun: Bool = true  // Need camera UI
 
+    /// Through 5.6 this opened the app and nothing else. It now asks the chat screen for the camera.
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        await MainActor.run { AppNavigationRequest.post(.scanDocument) }
         return .result(
-            dialog: "Opening camera for document capture..."
+            dialog: "Opening the camera in OpenIntelligence."
         )
     }
 }
+#endif
 
 // MARK: - Visual Search Intent
 
 /// Search documents using a photo as context
 @available(iOS 26.0, *)
 struct VisualSearchIntent: AppIntent {
-    static var title: LocalizedStringResource = "Visual Document Search"
+    static var title: LocalizedStringResource = "Search with a Photo"
     static var description: IntentDescription = .init(
         "Search your documents using text from a photo",
         categoryName: "Visual Intelligence",

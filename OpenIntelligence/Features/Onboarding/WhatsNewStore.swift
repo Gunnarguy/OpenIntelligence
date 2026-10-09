@@ -108,6 +108,73 @@ final class WhatsNewStore: ObservableObject {
         // who updated to it was recorded as seen and shown nothing. The gap is only visible
         // from a later build, which is why `WhatsNewCoverageTests` now fails the build when
         // the newest version in the bundled VersionHistory.md has no entry below.
+        "5.7": WhatsNewRelease(
+            version: "5.7",
+            headline:
+                "This one's about getting things in and out of the app.  JSON and JSONL files import as records now, Shortcuts can search your library, add to it and make new libraries, and an answer you share takes its sources with it.",
+            items: [
+                .init(
+                    symbol: "curlybraces",
+                    title: "JSON and JSONL files import as records",
+                    detail:
+                        "A .json, .jsonl or .ndjson file used to come in as one long run of raw text, and a .jsonl file couldn't even be chosen in the file picker.  Now each record is its own passage, with its field names and its numbers kept exactly as the file has them."
+                ),
+                .init(
+                    symbol: "globe",
+                    title: "\"Save a Web Page\" downloads the page",
+                    detail:
+                        "This Shortcuts action was called \"Ingest Webpage\".  It used to say it was extracting the page, and nothing was ever downloaded.  Now it fetches the page, saves its text and imports that."
+                ),
+                .init(
+                    symbol: "arrow.turn.down.right",
+                    title: "Shortcuts actions hand back what they found",
+                    detail:
+                        "Asking a question from Shortcuts used to show a card and give the shortcut nothing to work with.  Now the ask actions return the answer with its sources, and \"Ask My Documents\" lets you pick Standard, Deep Think or Maximum."
+                ),
+                .init(
+                    symbol: "doc.text.magnifyingglass",
+                    title: "\"Ask About a Document\" only reads that document",
+                    detail:
+                        "It used to put the file's name in the question and search the whole library, so the answer could come from a different document.  Now it's searched inside the one you picked and nowhere else."
+                ),
+                .init(
+                    symbol: "plus.rectangle.on.folder",
+                    title: "One action adds a file, a link or text",
+                    detail:
+                        "\"Add to Library\" takes any of the three, and you can pick which library it goes into.  \"Create Library\" and \"Set Active Library\" are new too."
+                ),
+                .init(
+                    symbol: "text.magnifyingglass",
+                    title: "Find Passages",
+                    detail:
+                        "A new action that returns the passages matching a search without writing an answer, so the next step of a shortcut can read them."
+                ),
+                .init(
+                    symbol: "square.and.arrow.up",
+                    title: "A shared answer takes its sources with it",
+                    detail:
+                        "Share used to send the answer's text and nothing else, so the [S1] and [S2] in it pointed at nothing.  Now the documents and pages it cites are listed under it, with the app's name and its App Store link at the end."
+                ),
+                .init(
+                    symbol: "arrow.up.doc",
+                    title: "Export a conversation",
+                    detail:
+                        "The chat menu has Export Conversation, as Markdown to read or as JSON Lines for other tools.  Each answer keeps its source list."
+                ),
+                .init(
+                    symbol: "doc.on.doc",
+                    title: "Copy works on the Mac",
+                    detail:
+                        "The Copy button under an answer showed \"Copied\" on the Mac and copied nothing.  It copies now, and so do the three other copy buttons that had the same problem."
+                ),
+                .init(
+                    symbol: "text.alignleft",
+                    title: "Sentences from your documents aren't cut in half",
+                    detail:
+                        "Before the model writes, the app picks the sentences that match your question, and it was cutting them at every line break and after things like \"p.m.\"  They stay whole now."
+                ),
+            ]
+        ),
         "5.6": WhatsNewRelease(
             version: "5.6",
             headline:

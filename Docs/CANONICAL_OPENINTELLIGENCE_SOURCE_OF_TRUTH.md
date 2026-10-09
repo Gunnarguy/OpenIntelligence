@@ -51,7 +51,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Managed by `EntitlementStore.swift` via `UserDefaults`.
 
 ## 10. App Intents Boundaries
-- `RAGAppIntents` utilizes 9 of the 10 available App Shortcuts limit.
+- `RAGAppIntents` utilizes 10 of the 10 available App Shortcuts limit since 5.7 (9 through 5.6). `[evidence_level: test_verified, confidence: exact, evidence_source: AppShortcutsProviderTests, 2026-10-09]`
 
 ## 11. Evidence Threads Canonical Decision
 - **Design B**: Relocated from `LocalCache` to `Application Support/EvidenceThreads/<containerId>/` to support iCloud Drive synchronization. `[evidence: code_verified, exact, EvidenceThreadStore.swift]`

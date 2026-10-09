@@ -6,6 +6,7 @@
 //  Optimized for Apple Intelligence with Private Cloud Compute.
 //
 
+import AppIntents
 import SwiftUI
 import TipKit
 
@@ -2746,7 +2747,7 @@ Text(deviceService.chipName)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text("9 of 10 Registered")
+                Text("10 of 10 Registered")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
@@ -2765,15 +2766,23 @@ Text(deviceService.chipName)
                     .padding(.top, 12)
 
                 VStack(spacing: 10) {
-                    shortcutCommandRow(title: "Query Active Documents", phrase: "Ask OpenIntelligence about my documents")
-                    shortcutCommandRow(title: "List Loaded Files", phrase: "List my documents in OpenIntelligence")
-                    shortcutCommandRow(title: "Check Import Queue", phrase: "Check document import status in OpenIntelligence")
-                    shortcutCommandRow(title: "Query Specific Document", phrase: "Ask OpenIntelligence about [Document Name]")
-                    shortcutCommandRow(title: "Generate File Summary", phrase: "Summarize [Document Name] in OpenIntelligence")
-                    shortcutCommandRow(title: "Compare Multiple Files", phrase: "Compare documents in OpenIntelligence")
-                    shortcutCommandRow(title: "Search Custom Library", phrase: "Search [Library Name] in OpenIntelligence")
-                    shortcutCommandRow(title: "Ingest Current Screen PDF", phrase: "Add this document to OpenIntelligence")
-                    shortcutCommandRow(title: "Ingest Current Safari URL", phrase: "Extract this webpage into OpenIntelligence")
+                    #if os(iOS)
+                        // Apple's own tip view: it shows the phrase Siri has registered for the
+                        // action, in the person's language, so it cannot drift from the provider.
+                        SiriTipView(intent: QueryDocumentsIntent())
+                    #endif
+                    // One row per App Shortcut, with the first phrase it registers
+                    // (RAGAppShortcutsProvider). Keep the two in step.
+                    shortcutCommandRow(title: "Ask My Documents", phrase: "Ask OpenIntelligence a question")
+                    shortcutCommandRow(title: "List Documents", phrase: "List my documents in OpenIntelligence")
+                    shortcutCommandRow(title: "Import Status", phrase: "Is OpenIntelligence still importing")
+                    shortcutCommandRow(title: "Ask About a Document", phrase: "Ask OpenIntelligence about [Document Name]")
+                    shortcutCommandRow(title: "Summarize a Document", phrase: "Summarize [Document Name] in OpenIntelligence")
+                    shortcutCommandRow(title: "Compare Two Documents", phrase: "Compare documents in OpenIntelligence")
+                    shortcutCommandRow(title: "Ask a Library", phrase: "Ask [Library Name] in OpenIntelligence")
+                    shortcutCommandRow(title: "Add a File", phrase: "Add this document to OpenIntelligence")
+                    shortcutCommandRow(title: "Save a Web Page", phrase: "Save this page to OpenIntelligence")
+                    shortcutCommandRow(title: "Find Passages", phrase: "Find passages in OpenIntelligence")
                 }
 
                 Divider().padding(.horizontal)
@@ -2822,7 +2831,7 @@ Text(deviceService.chipName)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text("16 Actions Available")
+                Text("\(Self.shortcutActionGroups.reduce(0) { $0 + $1.actions.count }) Actions Available")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
@@ -2841,35 +2850,15 @@ Text(deviceService.chipName)
                     .padding(.top, 12)
 
                 VStack(alignment: .leading, spacing: 14) {
-                    shortcutsActionGroup(title: "Document Ingestion", actions: [
-                        "Add Document" : "Ingest a file parameter directly into a selected library.",
-                        "Ingest Current Document" : "Imports the open document from screen context.",
-                        "Ingest Safari URL" : "Extracts and processes the active Safari webpage URL.",
-                        "Ingest From Camera" : "Launch document scanner or camera feed to import."
-                    ])
-
-                    shortcutsActionGroup(title: "Retrieval & QA", actions: [
-                        "Query Documents" : "Hybrid vector/keyword search with RRF over active library.",
-                        "Ask Document" : "Direct QA targeted at a single document entity.",
-                        "Search Library" : "Switches to and searches a designated library container."
-                    ])
-
-                    shortcutsActionGroup(title: "Summarization & Analysis", actions: [
-                        "Summarize Document" : "Generates abstractive summary of document contents.",
-                        "Compare Documents" : "Evaluate differences in facts or metrics across files.",
-                        "Analyze Image" : "Run visual OCR and VLM analysis on a camera photo.",
-                        "Visual Search" : "Queries visual library database index using an image."
-                    ])
-
-                    shortcutsActionGroup(title: "Conversation & History", actions: [
-                        "List Evidence Threads" : "Exposes conversational history and thread properties.",
-                        "Create New Evidence Thread" : "Instantiates a new workspace conversation session."
-                    ])
-
-                    shortcutsActionGroup(title: "Telemetry & System", actions: [
-                        "Get Active Embedding Model" : "Returns active hardware acceleration route (Core AI vs Core ML).",
-                        "Check Import Queue Status" : "Queries background ingestion, OCR, and vector indices."
-                    ])
+                    ForEach(Self.shortcutActionGroups, id: \.title) { group in
+                        shortcutsActionGroup(title: group.title, actions: group.actions)
+                    }
+                    #if os(iOS)
+                        // Opens the Shortcuts app on this app's actions.
+                        ShortcutsLink()
+                            .shortcutsLinkStyle(.automaticOutline)
+                            .frame(maxWidth: .infinity)
+                    #endif
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 16)
@@ -2878,6 +2867,61 @@ Text(deviceService.chipName)
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
+
+    /// Every action the app gives Shortcuts, by the name Shortcuts shows, with what it does. The
+    /// count on the card is the count of this list, and each line is a claim about an action's
+    /// code: change both together. "Scan a Document" exists on iPhone and iPad only.
+    private static var scanActionForThisPlatform: [String: String] {
+        #if os(iOS)
+            return ["Scan a Document": "Opens the app on the camera."]
+        #else
+            return [:]
+        #endif
+    }
+
+    private static let shortcutActionGroups: [(title: String, actions: [String: String])] = [
+        (
+            "Add", [
+                "Add to Library": "Adds a file, a web page or text to a library you choose.",
+                "Add a File": "Adds a file to your active library.",
+                "Save a Web Page": "Downloads a page and adds its text to your active library.",
+                "Add a Document": "Opens the app on the file picker.",
+            ].merging(scanActionForThisPlatform) { current, _ in current }
+        ),
+        (
+            "Ask", [
+                "Ask My Documents": "Answers a question from a library, in the mode you pick, and returns the answer with its sources.",
+                "Ask About a Document": "Answers a question from one document only, in Standard.",
+                "Ask a Library": "Answers a question from one library.",
+                "Summarize a Document": "Writes a summary of one document.",
+                "Compare Two Documents": "Compares what two documents say about a topic.",
+                "Ask About an Image": "Reads the text in an image and answers a question about it.",
+                "Search with a Photo": "Reads the text in a photo and asks your library about it.",
+            ]
+        ),
+        (
+            "Find and Open", [
+                "Find Passages": "Returns the passages that match a search, without writing an answer.",
+                "List Documents": "Returns the documents in your libraries, or in one.",
+                "List Conversations": "Returns the saved conversations in a library.",
+                "Open Library": "Opens the app on a library.",
+                "Open Document": "Opens the app on the library that holds a document.",
+            ]
+        ),
+        (
+            "Libraries and Conversations", [
+                "Create Library": "Creates a library and returns it.",
+                "Set Active Library": "Chooses the library that questions and imports use.",
+                "Start a Conversation": "Opens the app on a new conversation.",
+            ]
+        ),
+        (
+            "Status", [
+                "Check Import Status": "Says whether imports are queued or running.",
+                "Get Embedding Model": "Returns the name of the embedding model the active library uses.",
+            ]
+        ),
+    ]
 
     private func shortcutsActionGroup(title: String, actions: [String: String]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -3259,7 +3303,7 @@ Text(deviceService.chipName)
     private func shareApp() {
         let items: [Any] = [
             "I'm using OpenIntelligence for private, on-device AI and RAG search. Check it out on the App Store!",
-            OpenIntelligenceLinks.appStoreURL
+            OpenIntelligenceLinks.sharedAppStoreURL
         ]
         
         #if canImport(UIKit)

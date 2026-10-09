@@ -1,5 +1,6 @@
 {
   "_comment": [
+    "2026-10-09: preparing MOVES TO 5.7. The owner put 81 rows on v5.7 in the roadmap on 2026-10-08 and gave the go-ahead to build it on 2026-10-09, so CHANGELOG.md now carries '## 5.7 <!-- unreleased -->' and the first batches are committed with [ci skip]. No 5.7 record exists in App Store Connect yet (the owner creates it), and no Xcode Cloud build has run. app_store stays 5.6 on both platforms and in_review stays empty.",
     "2026-10-08 (latest, 13:18 PT): 5.6 IS LIVE ON BOTH PLATFORMS. Apple approved iOS 5.6 and macOS 5.6 that day (both PENDING_DEVELOPER_RELEASE, release MANUAL, build 485), and at the owner's word (\"go ahead and release them\") both were released through the API: POST /v1/appStoreVersionReleaseRequests returned 201 for macOS at 13:18:29 PT and for iOS at 13:18:35 PT, and both records read READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 485 seconds later. app_store and both per-platform values move to 5.6 together, and in_review is empty. preparing stays 5.6 because no next version is open; the next source change needs a 5.7 heading in CHANGELOG.md first.",
     "2026-10-07 (latest, 21:51 PT): 5.6 IS IN REVIEW ON BOTH PLATFORMS WITH BUILD 485. At the owner's word (\"get it into review for both MacOS and iOS\") it was submitted through the API at 21:51 PT, one reviewSubmission per platform, with build 485 from 2bee971 (Xcode Cloud #485): iOS submission bb5c00b8-1ba3-40f4-859a-e6fb8b449a39 and macOS submission af0c0bb9-5e6d-4c06-a945-fdfd1140cc49. Both records read WAITING_FOR_REVIEW, release MANUAL, afterwards. app_store stays 5.5 on both platforms until 5.6 is released.",
     "2026-10-07: preparing MOVES TO 5.6. The owner created the 5.6 records in App Store Connect on 2026-10-01 (both PREPARE_FOR_SUBMISSION, release MANUAL, read back through the API on 2026-10-07) and said PROCEED: IMPLEMENT that day, so CHANGELOG.md now carries '## 5.6 <!-- unreleased -->'. app_store stays 5.5 on both platforms and in_review stays empty. Nothing is committed or pushed yet.",
@@ -73,8 +74,8 @@
     "ios": "5.6",
     "macos": "5.6"
   },
-  "preparing": "5.6",
+  "preparing": "5.7",
   "in_review": {},
-  "updated": "2026-10-08",
+  "updated": "2026-10-09",
   "verified_against": "Read from App Store Connect 2026-10-08 13:18 PT via the API: iOS 5.6 and macOS 5.6 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 485, release MANUAL, each released through the API at the owner's word (macOS 13:18:29 PT, iOS 13:18:35 PT)."
 }

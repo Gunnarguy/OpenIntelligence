@@ -1,22 +1,66 @@
 # Current State
 
-Updated: 2026-10-08, 13:30 PT (5.6 is live on iPhone, iPad and Mac since 13:18 PT, build 485 from `2bee971`, released through the API at the owner's word after Apple approved both platforms; before that on 2026-10-08: the Simulator's Gate E failures traced to all-zero vectors, and the sample library re-asked on real vectors)
+Updated: 2026-10-09 (5.7 is open; four batches of it are written, build for iPhone and Mac, pass the suite, and are committed with `[ci skip]`; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 96322d1
+Last verified commit: 7025657
 
 ## Objective
 
-**5.6, "the first five minutes".** On 2026-10-07 the owner said `PROCEED: IMPLEMENT` for ten fixes (C1 to C10 in
-`Growth/PROPOSAL_5.6.md`, a local file) and said go on a new promotional text. The 5.6 records exist in App Store
-Connect on both platforms (PREPARE_FOR_SUBMISSION, release MANUAL, created by him on 2026-10-01). All ten fixes are
-written, with tests, and were committed and pushed on 2026-10-07 at his word ("commit"). `CHANGELOG.md` carries
-`## 5.6 <!-- unreleased -->`, so that push started an Xcode Cloud build stamped 5.6.
+**5.7: JSON Lines import and the Apple surfaces that carry the app to other apps and people (Share Sheet,
+Shortcuts, App Intents). The owner wants it mainly for iPhone and iPad, and as complete as it can be made.** He named it
+on 2026-10-08 and put 81 rows on `v5.7` in the roadmap that day (82 since a defect found on 10-09 was added). On
+2026-10-09 he said "proceed: implement", then "keep going", and named the protected files (see Active
+Constraints). `CHANGELOG.md` opens with `## 5.7 <!-- unreleased -->`, so the next source push builds 5.7. No 5.7
+record exists in App Store Connect; he creates it.
+
+5.6 ("the first five minutes") is live. Its device checks are still open and are listed under Exact Next Action.
 
 Also local and not started: a small marketing test whose notes are in `Growth/` (git-ignored; start at
-`Growth/CURRENT_EXPERIMENT.md`). It waits for 5.6.
+`Growth/CURRENT_EXPERIMENT.md`).
 
 ## Status
 
+- **2026-10-09, 5.7: four batches written, built, tested and committed with `[ci skip]`; nothing seen on a device.** One
+  entry per change is in `CHANGELOG.md` under 5.7, each with what was read, built or tested. 28 roadmap rows are
+  `In Progress`, none `Completed`. In the working tree:
+  - **Import.** `.json`, `.jsonl` and `.ndjson` import as one passage per record, with the file's order and digits
+    kept (`JSONRecordExtractor`, its own reader). The app is offered files by other apps (`Info.plist` document
+    types and a declared `.jsonl` type; `ContentView.importOpenedFile`). "Save a Web Page" downloads the page
+    (`WebPageFetchService`). A passage over the embedding limit is no longer retyped when cut
+    (`OversizedChunkSplitter`; this defect predates 5.7 and has its own row).
+  - **Shortcuts and Siri.** 22 actions in the built metadata (5.6: 16), 15 returning a value (5.6: 0), 10 App
+    Shortcuts (5.6: 9). `RAGAppIntents.swift` is rewritten around one `AskActionRunner`: an answer item as the
+    result, thrown errors, the engine's default generation settings, and on "Ask My Documents" and "Ask a
+    Library" a mode menu with the free plan's Maximum allowance. "Ask About a Document", Summarize and Compare
+    run in Standard, are searched inside their documents (`RAGQueryScope`, applied in `HybridSearchService.search`
+    and four places in `RAGService.swift`), and the runner refuses an answer whose passages are not all theirs.
+    The ask actions build their own engine per question; the other actions use the app's when it is open. New actions: Find Passages,
+    Add to Library, Create Library, Set Active Library, Open Library, Open Document. Every action takes its engine
+    from `IntentSupport.engine()` unless it asks a question. Items carry properties; answers, passages and conversations are items.
+  - **In the app.** A router (`AppLink`, `AppNavigationRequest`, `ContentView.route`) that links, Spotlight results
+    and actions all go through; a Spotlight result opens the tapped item's library; "Add a Document" opens the
+    picker and "Scan a Document" the camera. A shared answer lists its sources; Export Conversation (Markdown, JSON
+    Lines); Copy works on the Mac; Settings lists the phrases and actions that exist.
+  - **Answers.** Evidence sentences are not cut at a line break or after "p.m." (`EvidenceLineSplitter`).
+  - **`RAGService.swift` is edited in seven places** (14 hunks in `git diff`; the owner did not name this file, and
+    the RepoOS boundaries file lists it as behaviour-critical): the two evidence-splitter calls, the plan lookup in
+    `createNewThread`, the self-registration in its initializer, the library context in `executeAgenticQuery`, the
+    query-cache conditions, the document scope after retrieval, and three candidate lists narrowed to the scope.
+  - **Two reviewing passes found 16 and 24 things; what was confirmed is fixed in the tree.** The first: the
+    retyped passages, the JSON reader's order and digits, the line-join rule, the fetch, Add to Library's failures.
+    The second: the document scope leaked in Standard and did nothing in Deep Think and Maximum (now applied at
+    the search layer, and those actions run in Standard), the request to open a screen could be replayed or lost
+    (now a queue), several files sent together kept only the last, a changelog replacement had damaged three old
+    entries (restored), plus smaller ones. The fixes themselves have had no third pass.
+  - **Not done yet from 5.7:** the background inference entitlement; long-running and cancellable actions;
+    answer cards with buttons; Siri tips in Chat and Documents (Settings has Apple's tip and a Shortcuts button);
+    paste; Mac menus; Home Screen quick
+    actions; notifications; the Share Sheet extension, widgets and controls (new targets); PDF export; return values
+    for the two image actions. The roadmap's `To Do` rows on `v5.7` are the list.
+  - **Open questions:** no scoped question has been run, so the document limit rests on reading the code and on
+    the action's last check; the document limit of an engine built while the app is closed still falls back to the
+    free limit; App Store validation of the new document types is untested; the 16 MB cap on a `.json` file and how
+    often a passage exceeds the embedding limit are unmeasured.
 - **2026-10-07, 5.6 committed, not yet seen on a device.** One entry per fix is in `CHANGELOG.md` under 5.6, each with
   what was read, compiled or tested. In short: inline citations link by chunk id (`CitationLinker`); the answer
   cleanup stops rewriting "$300.00" as "$300. 00" and never merges sentences whose numbers or codes differ
@@ -125,10 +169,16 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Active Constraints
 
-- **5.6 is open in App Store Connect and in this repository** (read 2026-10-07: iOS and macOS records,
-  PREPARE_FOR_SUBMISSION, release MANUAL, created 2026-10-01 by the owner). `CHANGELOG.md` opens with
-  `## 5.6 <!-- unreleased -->`, so the first source push starts an Xcode Cloud build stamped 5.6. All work since 5.5
-  is 5.6.
+- **5.7 is open in this repository and not in App Store Connect.** `CHANGELOG.md` opens with
+  `## 5.7 <!-- unreleased -->`, so the first source push starts an Xcode Cloud build stamped 5.7, and App Store
+  Connect has no 5.7 record for it to attach to until the owner creates one. All work since 5.6 is 5.7.
+- Hard-boundary files are edited only when the owner names the file. **For 5.7 he named these on 2026-10-09**, asked
+  with the four by name and approving all of them on the condition that nothing is left broken: `RAGAppIntents.swift`, `Info.plist`, `OpenIntelligence.entitlements` with
+  `EngineSDKCompatibility.swift`, and `project.pbxproj`. That is for 5.7's roadmap rows and no other work. Not named:
+  `ChatMessage.swift`, `WorkspaceSyncService.swift`, the billing files, the storage formats, anything under
+  `Services/AIPlatform/`. A new file under
+  `Services/Agentic` compiles into the app and into the iOS-only engine, and under the engine it cannot name
+  anything in `RAGAppIntents.swift`, `App/`, `Features/` or `UI/`.
 - Pushing publishes to a public repository and to gunnarguy.me. Keep the owner's personal plans out of public files.
   `CLAUDE.md` forbids deleting docs: removing one means `git mv` into `Docs/Archive/`.
 - App Store Connect writes happen only at the owner's word. Guard memory on builds (18 GB Mac): `-jobs 2`, stop at
@@ -158,6 +208,21 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - `Docs/SHIPPED_VERSION.json`: the release record the three sites read from `origin/main`.
 - `Docs/BILLING_AND_LIMITS.md` sections 2 and 5: what the plans screen says, and the prices.
 - `Docs/ai/RUNBOOK.md`: the three "through the API" sections (submit, pull back, release an approved version).
+
+## Verification (2026-10-09, output read)
+
+All from a copy of the tree at `/private/tmp/oi-src`, DerivedData `/private/tmp/oi-build`, `-jobs 1` (because
+`RAGService.swift` changed), under a guard that stops the build under 15% free memory or 3.5 GB free disk. The
+simulator is `OI 5.7 tests` `55AFFA2C-C616-42A2-8227-2E16792B54DD` (iPhone 18 Pro, iOS 27.0, made that day, no keys
+in it, left shut down).
+
+- `xcodebuild build-for-testing -scheme OpenIntelligence -destination "platform=iOS Simulator,id=55AFFA2C-..."` -> TEST BUILD SUCCEEDED (last run after the `project.pbxproj` edit).
+- `xcodebuild test-without-building`, same destination, `-collect-test-diagnostics never` -> 670 tests, 0 failures, 3 skipped (the two `EmbeddingProviderAgreementTests` and the interleaved-stream case of `LayoutReadingOrderTests`, which skip themselves). This is the run after the second review's fixes.
+- `Metadata.appintents/extract.actionsdata` in the simulator product -> 22 actions (5.6: 16), 15 with an output type (5.6: 0), 5 item types (5.6: 2), 1 enum, 10 App Shortcuts with 27 phrases (5.6: 9 with 23). The Mac product lists 21: "Scan a Document" is iPhone and iPad only.
+- The merged `Info.plist` in the simulator product -> holds `CFBundleDocumentTypes`, `UTImportedTypeDeclarations` and `LSSupportsOpeningDocumentsInPlace` false.
+- `xcodebuild build -scheme OpenIntelligence -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` -> BUILD SUCCEEDED, after two failures on the open-in-place key (see the 5.7 changelog entry on document types); the Mac product's `Info.plist` holds the document types and the key as true.
+- `python3 scripts/verify_doc_claims.py` -> all checked claims match. `python3 scripts/secret_scan.py` -> clean. `python3 .claude/codemap/codemap.py check` -> 0 errors, 0 warnings. `cmp Docs/USER_CHANGELOG.md OpenIntelligence/Resources/VersionHistory.md` -> identical.
+- Not run: any action from Shortcuts or Siri; the web download; "Open in" from another app; the document picker with a `.jsonl` file; Copy on a Mac build; any question, scoped or not, before and after these changes.
 
 ## Verification (2026-09-29 and 2026-09-30, output read)
 
@@ -298,10 +363,14 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   Semantic Grounding" under 9 of 11 Standard answers and Unverified on all 11, right answers with every Fact Check
   row SUPPORTED included (screen dumps in `/private/tmp/oi56-takes/*.xcodebuild.log`). That library's
   `vector_database_<id>_vectors.bin` (127 x 384 floats) and `_norms.bin` have no non-zero byte.
-  `EmbeddingService.createFallbackEmbedding` (`EmbeddingService.swift:381`) returns a zero vector when the model
-  fails to embed a text; Gate E's cosine against a zero vector is 0, under its 0.25 floor, which the 5.6 change
-  leaves failing on purpose; and search there is keyword-only. That the Core ML model failed for every chunk in the
-  Simulator is inferred from the zeros (no log). On the owner's iPhone the library of 2026-10-07 has 245 chunk
+  **Corrected 2026-10-08 evening: I named `EmbeddingService.createFallbackEmbedding` as the source of the zeros, and
+  that function has no caller** (`/usr/bin/grep -rn createFallbackEmbedding OpenIntelligence`: only the two
+  NaturalLanguage providers call their own). What the code allows: imports embed through the batch path
+  (`EmbeddingService.swift:255-305`), which validates nothing; the single path only logs "Near-zero embedding
+  vector" (`:337-340`); and the Core ML provider passes a zero model output through
+  (`CoreMLSentenceEmbeddingProvider.swift:414-423`). So the model returned zeros in the Simulator and nothing
+  rejected them [inferred from the measured zeros and the CPU-only result]. Gate E's cosine against a zero vector
+  is 0, under its 0.25 floor, which the 5.6 change leaves failing on purpose; and search there is keyword-only. On the owner's iPhone the library of 2026-10-07 has 245 chunk
   vectors, none zero, no fallback warning, and no Gate E failure in 8 answers. Consequences: (1) Simulator runs of
   this app say nothing about retrieval, gates or answer quality; check a library's `_norms.bin` for non-zero bytes
   first. (2) The Gate E row https://app.notion.com/p/3ed49a74d54f8186b358d123b6f22d8b was filed on 2026-10-02 from
@@ -314,6 +383,77 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   (`config.computeUnits = .cpuOnly` under the Simulator condition, not in this repository), a new Simulator library
   holds 2,375 chunk norms, none zero, and Gate E passes with right answers reading Verified in its takes. The Demos
   session was asked to re-ask the sample Home questions on real vectors, which is the Gate E row's closing test.
+- **5.7 is on the roadmap: 81 rows on `v5.7` since 2026-10-08 (fifteen of them were moved to `In Progress` on 2026-10-09 and more since; the count is in the entry above).** The owner said "map where each
+  would be integrated, then notion them for 5.7". The `v5.7` option was added to `Target Release` (all 21 other
+  options and their row counts unchanged). 69 rows were created and 12 existing rows were moved onto it (the five
+  action defects, cut sentences, return values, the share extension, export, widgets, view annotations,
+  Evaluations, and the "2.5 billion" row). Priority follows the build order: 24 High (wave 1), 33 Medium (wave
+  2), 24 Low (wave 3). Every row has a "Where it goes" section: the files and lines to change, new files and which
+  target compiles them, protected files, tests, what it depends on, and a closing condition. The map came from
+  three read-only passes over commit `7025657`; nothing was built or run, and line numbers will drift. The same map
+  is in the private catalogue page (114 rows, https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ). **Given on 2026-10-09: "proceed: implement", the `## 5.7` heading, and the protected files by name (Active
+  Constraints). Still not given: the 5.7 records in App Store Connect.** What the map says about order: (1) per-item links come first, because ten rows wait on
+  a router and today it is a private method in `ContentView.swift:482`; (2) the app's services are built inside
+  the main view's initializer (`OpenIntelligence/App/ContentView.swift`, lines 44 to 55), so a menu bar item, a second scene or an extension cannot reach them; (3) the
+  Live Activities extension's folder is a classic Xcode group, so a new file there needs `project.pbxproj`; (4) new
+  files under `Services/Agentic` compile into the app and the iOS-only engine, and under the engine they cannot name
+  anything in `RAGAppIntents.swift`, `App/`, `Features/` or `UI/`. Defects the map found and I verified in code: Gate
+  C counts a number as present when it appears anywhere in the evidence text (`VerificationGateService.swift:433`),
+  which is how "2.5 billion" read Verified; every Shortcuts action builds its own `RAGService()`, which has no
+  entitlement store and replaces the weak shared pointer (`RAGService.swift:1876-1880`); "Ask About a Document"
+  only writes the file name into the prompt (`RAGAppIntents.swift:630-636`); a document's Spotlight entry expires
+  after 30 days and nothing re-indexes (`SpotlightIndexService.swift:115`, `:148`); the 2025 transcriber sits
+  behind `#if canImport(SpeechAnalyzer)`, a module that does not exist, so imports use the older recognizer.
+  Also noted: `Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md` says the Private Cloud Compute entitlement is
+  deliberately omitted, and the entitlements file has it.
+- **Next work the owner named on 2026-10-08, the research behind those rows: JSONL support and "everything Apple
+  related that spreads this app" (Share Sheet, Shortcuts, App Intents).** (Written before the rows above existed; the
+  go-ahead and the heading came on 2026-10-09.) Measured that day: the 5.6 build's `Metadata.appintents/extract.actionsdata` lists 16
+  actions, none with an output type, 9 App Shortcuts (23 phrases, 6 with a parameter), 2 entities (document,
+  library) with no properties, and no schema adoption; the app uses 10 of the 93 public protocols and macros in the
+  iOS 27 SDK's App Intents interface (Xcode 27A266a). `.jsonl` has no system type (`.ndjson` is `public.ndjson`,
+  `.json` is `public.json`); `.json` imports today as raw text, `.jsonl` has no route, and nothing exports a
+  conversation. No share or action extension, no document types in `Info.plist`, no widgets or controls (the
+  `OpenIntelligenceLiveActivities` target is a WidgetKit extension and could hold them), no App Group, no
+  associated domains. Spotlight indexing exists but a result only opens the Documents tab. Five defect rows filed
+  (Future Backlog): no action returns a value https://app.notion.com/p/3f449a74d54f8153bac7f4996d704249 ; the
+  Ingest Webpage action never downloads a page https://app.notion.com/p/3f449a74d54f8152bc4af3b9baa7d8d4 ; Copy does
+  nothing on the Mac https://app.notion.com/p/3f449a74d54f814aa0dbf4632c3db478 ; Spotlight tap
+  https://app.notion.com/p/3f449a74d54f81638f6deb6813c46711 ; two stub actions
+  https://app.notion.com/p/3f449a74d54f8147ac8fc70b43976266 . Apple's 2026 additions that fit, each confirmed in the
+  SDK: `.system.searchInApp` and `.system.open` schemas with the `@AppIntent(schema:)` macro, `LongRunningIntent`
+  (default background limit 30 s), `IndexedEntityQuery`, `SyncableEntity`, `EntityCollection`, `AppUnionValue`,
+  `RunSystemShortcutIntent` for widgets, `SpotlightSearchTool`, and the `AppIntentsTesting` framework. A fetcher
+  for Apple's doc JSON is in this session's scratchpad (`tools/adoc.py`); it will not outlive the session. Hard
+  boundaries the work would need named: `RAGAppIntents.swift`, `Info.plist`, and later `project.pbxproj` and the
+  entitlements file (a share extension and an App Group).
+  **The full catalogue is a private page, 113 rows:** https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ (read it
+  with the Artifact tool; its source was in a session scratchpad). It covers App Intents, Siri, Spotlight, sharing,
+  system surfaces, the Mac, and every June 2025 and June 2026 addition found in Apple's updates pages that fits,
+  with status, Apple's names, limits, needs, wave and source per row. Counts: 5 broken, 59 missing, 21 partial, 4
+  to check, 14 have, 10 set aside; 42 rows new in 2026, 20 new in 2025.
+  **One 2026 finding is a shipping risk, not a feature:** Apple's Background Inference entitlement
+  (`com.apple.developer.background-tasks.continued-processing.inference`, iOS 27) is required "for any Neural Engine
+  access while your app is in the background". The entitlements file lacks it, and the GPU one for continued tasks
+  that `BackgroundTaskService.swift:272` requests. What the app does if the Neural Engine is refused in the background
+  is not established (see the correction below) [not observed]. Verify on the owner's iPhone: start an import, leave
+  the app at once, then read the library's `_norms.bin` for zeros and the trace log for "zero-vector fallback".
+  Noted on https://app.notion.com/p/3f349a74d54f8134833acf73aac40048 . Also from the sweep: 17 references to
+  `LanguageModelSession.GenerationError`, deprecated in 27, and five `BGTaskScheduler.shared.submit` calls,
+  deprecated in 27.
+- **Live in 5.6 and unchanged from 5.5: a lookup answer can repeat a sentence cut at a line break or at "p.m."
+  (found 2026-10-08, cause read and reproduced).** Row, Future Backlog, passes test 2 for the next release:
+  https://app.notion.com/p/3f349a74d54f81748e49d885416a4ced . The Demos session's take of the 5.6 source showed
+  "towed at the owner's [S1]", "from 6:00 [S1]" and "Rent received after 11:59 p.m. [S2]." as whole sentences.
+  `RAGService.extractRelevantSentencesOffMain` (`RAGService.swift:3296-3347`; Standard lookup questions call it at
+  `:12924`, Deep Think and Maximum sessions through the orchestrator) splits each chunk at every line break, then
+  each line at every ". ", and scores each piece alone. A port of those two rules over the lease text stored in
+  the Simulator's Home library gives exactly those three cuts, and also splits "A late charge of $75.00 applies
+  on" from "the 6th, ...", which fits the wrong rent answer of 2026-10-01. `git blame` dates the lines to
+  2026-05-12 at the latest; no 5.6 commit touches the function. **Written 2026-10-09 for 5.7 (`EvidenceLineSplitter`, two call sites in
+  `RAGService.swift`, 12 tests), uncommitted and not seen on a device.** The change in the row: join a wrapped sentence before
+  splitting (headings and table rows stay lines), split with `AnswerSentenceSplitter`, and test with these lease
+  lines. The Demos session took the clip off the 5.6 release post.
 - **The sample Home library re-asked on real vectors (2026-10-08, 10:56 to 11:12 PT, Simulator, 127 chunk norms,
   none zero; screen dumps `/private/tmp/oi56-takes/h2-*.mov.xcodebuild.log`). Neither row closes.** Pipe burst:
   right, Fact Check 2 of 3, "Verification failed: Gate E", Unverified (the 5.6 rule needs every claim supported).
@@ -432,6 +572,26 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   cites playbook 07.
 
 ## Exact Next Action
+
+1. **The 5.7 work so far is committed and pushed** (2026-10-09, at the owner's word, in the commit whose title
+   starts "5.7:", marked `[ci skip]`). No Xcode Cloud build has run for it, and App Store Connect has no 5.7 record.
+   The next push without `[ci skip]` starts a build stamped 5.7 with everything in it; ask him before sending one.
+   `.agents/skills/`, `.codex/hooks.json` and `.codex/hooks/` are untracked files from another tool and are left alone.
+2. **Keep going down the `To Do` rows on `v5.7`** (`SELECT ... WHERE "Target Release" = 'v5.7' AND "Status" = 'To Do'`
+   on the roadmap data source). In order of what unblocks most (the Find actions need no code: the queries are
+   `EnumerableEntityQuery`, and adding `EntityPropertyQuery` to one conflicts with it): paste into
+   a library; Mac menus and keyboard shortcuts through `ContentView.route`; Home Screen quick actions; then the
+   background inference entitlement, which changes signing and has to be proven with a device build before it is
+   pushed; then the extension targets (Share Sheet, widgets, controls), which need `project.pbxproj` targets and an
+   app group on his developer account.
+3. **Device checks for what is written, on his iPhone and Mac:** send a PDF to the app from Files ("Open in");
+   pick a `.jsonl` file in the document picker, import it and ask about one record; run Ask My Documents with each
+   mode, Ask About a Document, Find Passages, Add to Library (a file, a link, text), Create Library and Save a Web
+   Page from Shortcuts; say "Ask OpenIntelligence a question" to Siri; tap a document in Spotlight; share an answer
+   and export a conversation; press Copy on an answer on the Mac; ask one lookup question whose source sentence
+   contains "p.m." or wraps over two lines.
+
+Still open from 5.6:
 
 1. 5.6 is live. The checks still open, on the owner's iPhone (the App Store 5.6, or the development build of
    `2bee971`, which is the one that writes `Documents/pipeline_trace.log`): three sample-library questions (E1,

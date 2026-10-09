@@ -20,17 +20,166 @@ private struct DocumentImportStatusSnapshot: Sendable {
     let spokenResponse: String
 }
 
+// MARK: - What the ask actions share
+
+/// Applies the free plan's daily Maximum allowance to an action, the way the chat applies it.
+///
+/// The chat counts each Maximum answer through `EntitlementStore.consumeMaximumModeUseIfNeeded`.
+/// An action has no entitlement store of its own, so this reads the plan from where the app stores
+/// it and uses the same counter (`MaximumModeQuotaStore` on the standard defaults). The allowance
+/// is checked before the question and counted only after an answer came back, so a question that
+/// fails does not spend one. The app's own remaining-runs display is refreshed the next time the
+/// app recalculates it, not at once.
+@available(iOS 26.0, macOS 26.0, *)
+enum ShortcutsPlanGate {
+    private static var isMetered: Bool { EntitlementStore.currentEffectiveTier() == .free }
+
+    /// Throws when the free plan has no Maximum answer left today.
+    @MainActor
+    static func checkMaximumAvailable() throws {
+        guard isMetered else { return }
+        let limit = QuotaPolicy.freeMaximumModeDailyLimit
+        if MaximumModeQuotaStore().currentState(limit: limit).remainingUses <= 0 {
+            throw OIIntentError(
+                "Today's \(limit) free Maximum answers are used. Choose Standard or Deep Think, or try again tomorrow.")
+        }
+    }
+
+    /// Counts one Maximum answer.
+    @MainActor
+    static func countMaximumAnswer() {
+        guard isMetered else { return }
+        _ = MaximumModeQuotaStore().consumeIfAllowed(limit: QuotaPolicy.freeMaximumModeDailyLimit)
+    }
+}
+
+/// Runs one question for an action and hands back the answer as an item.
+///
+/// Every ask action goes through here, so they share a mode, the engine's default generation
+/// settings (through 5.6 each action cut its answer at 300 or 400 tokens and set its own
+/// temperature), and one way of failing: a thrown error, which stops a shortcut, instead of a
+/// successful result that carries an apology.
+///
+/// The question runs on an engine of its own, as it did through 5.6. An answer generating in the
+/// app keeps its engine to itself: a second question on that engine would cancel it. The engine
+/// built here does not take the app engine's place (`RAGService.init` registers itself only when
+/// no engine is registered).
+@available(iOS 26.0, macOS 26.0, *)
+enum AskActionRunner {
+    struct Outcome {
+        let answer: OIAnswerEntity
+        let response: RAGResponse
+    }
+
+    /// - Parameters:
+    ///   - question: what the engine is asked.
+    ///   - shownQuestion: what the answer item records as the question, when it differs.
+    ///   - documentIds: when set, only these documents' passages are used (`RAGQueryScope`), and
+    ///     the question runs in Standard whatever `mode` says: the limit is enforced and checked
+    ///     on that path.
+    static func ask(
+        _ question: String,
+        shownAs shownQuestion: String? = nil,
+        mode: OIAnswerMode,
+        topK: Int = 3,
+        libraryId: UUID? = nil,
+        documentIds: Set<UUID>? = nil
+    ) async throws -> Outcome {
+        let wanted = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !wanted.isEmpty else { throw OIIntentError("There was no question to ask.") }
+
+        let engine = await MainActor.run { RAGService() }
+        let (documents, defaultLibraryId) = await MainActor.run {
+            (engine.documents, engine.containerService.containers.first?.id)
+        }
+        guard !documents.isEmpty else {
+            throw OIIntentError("There are no documents yet. Add one first.")
+        }
+
+        var container = libraryId
+        var effectiveMode = mode
+        if let documentIds {
+            let named = documents.filter { documentIds.contains($0.id) }
+            guard named.count == documentIds.count else {
+                throw OIIntentError("That document is no longer in your libraries.")
+            }
+            // A document stored before libraries existed has no library id and lives in the first one.
+            let homes = Set(named.compactMap { $0.containerId ?? defaultLibraryId })
+            guard homes.count == 1 else {
+                throw OIIntentError("Those documents are in different libraries. Choose documents from one library.")
+            }
+            container = homes.first
+            effectiveMode = .standard
+        }
+
+        if effectiveMode == .maximum {
+            try await MainActor.run { try ShortcutsPlanGate.checkMaximumAvailable() }
+        }
+
+        let response: RAGResponse
+        do {
+            response = try await RAGQueryScope.$documentIds.withValue(documentIds) {
+                try await engine.query(
+                    wanted, topK: min(max(topK, 1), 12), containerId: container,
+                    qualityModeOverride: effectiveMode.qualityMode)
+            }
+        } catch {
+            Log.error("[Shortcuts] Ask failed: \(error.localizedDescription)", category: .pipeline)
+            throw OIIntentError("The question could not be answered. \(error.localizedDescription)")
+        }
+
+        // The last check on a question that named documents: the answer must rest on their
+        // passages and on nothing else. If the engine answered from other passages, or from none,
+        // the action fails; it does not hand back an answer that is not what was asked for.
+        if let documentIds {
+            let sources = response.retrievedChunks.map(\.chunk.documentId)
+            guard !sources.isEmpty, sources.allSatisfy(documentIds.contains) else {
+                Log.error(
+                    "[Shortcuts] Ask refused: \(sources.filter { !documentIds.contains($0) }.count) of \(sources.count) passages were outside the named document(s)",
+                    category: .pipeline)
+                throw OIIntentError(
+                    sources.isEmpty
+                        ? "Nothing in the chosen document matched the question."
+                        : "The answer could not be kept to the chosen document, so it was not returned.")
+            }
+        }
+
+        if effectiveMode == .maximum {
+            await MainActor.run { ShortcutsPlanGate.countMaximumAnswer() }
+        }
+        Log.info(
+            "[Shortcuts] Ask complete (mode=\(effectiveMode.rawValue), answerChars=\(response.generatedResponse.count), passages=\(response.retrievedChunks.count), scoped=\(documentIds?.count ?? 0))",
+            category: .pipeline)
+        return Outcome(
+            answer: OIAnswerEntity(question: shownQuestion ?? wanted, response: response, mode: effectiveMode),
+            response: response)
+    }
+
+    /// The answer as Siri speaks it: markdown marks removed, and cut at 500 characters with a note
+    /// that the full answer is on screen. The value an action returns is never cut.
+    static func spoken(_ text: String) -> String {
+        var formatted = text
+        formatted = formatted.replacingOccurrences(of: "**", with: "")
+        formatted = formatted.replacingOccurrences(of: "*", with: "")
+        formatted = formatted.replacingOccurrences(of: "#", with: "")
+        if formatted.count > 500 {
+            formatted = String(formatted.prefix(500)) + "... The full answer is on screen."
+        }
+        return formatted
+    }
+}
+
 // MARK: - Query Documents Intent (Siri Integration)
 
-/// Allows users to query their document library via Siri
-/// Usage: "Hey Siri, ask my documents about quarterly revenue"
+/// Asks a question of the active library, or of a chosen one.
+/// Usage: "Ask OpenIntelligence a question"
 @available(iOS 26.0, macOS 26.0, *)
 struct QueryDocumentsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Query Documents"
+    static var title: LocalizedStringResource = "Ask My Documents"
     static var description: IntentDescription = .init(
-        "Ask a question about your documents using RAG",
-        categoryName: "Documents",
-        searchKeywords: ["search", "query", "ask", "document", "rag"]
+        "Asks a question and answers it from your documents, with the passages the answer used.",
+        categoryName: "Ask",
+        searchKeywords: ["ask", "question", "answer", "search", "documents"]
     )
 
     static var openAppWhenRun: Bool = false // Can run in background
@@ -38,159 +187,112 @@ struct QueryDocumentsIntent: AppIntent {
     @Parameter(title: "Question", description: "What would you like to know?")
     var question: String
 
+    @Parameter(title: "Mode", description: "How much work goes into the answer", default: .standard)
+    var mode: OIAnswerMode
+
+    @Parameter(title: "Library", description: "Leave empty to use the active library")
+    var library: OILibraryEntity?
+
+    /// No range on purpose: a shortcut saved on 5.6 can hold a larger number, and a range would
+    /// refuse it. The runner keeps the value between 1 and 12.
     @Parameter(
-        title: "Number of chunks",
-        description: "How many document chunks to retrieve",
+        title: "Passages",
+        description: "How many passages to retrieve, from 1 to 12",
         default: 3
     )
     var topK: Int
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Query documents with \(\.$question)") {
+        Summary("Ask \(\.$question)") {
+            \.$mode
+            \.$library
             \.$topK
         }
     }
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
         // Avoid logging user content; keep logs metadata-only.
-        Log.info("[Siri] Query Documents intent invoked (questionChars=\(question.count), topK=\(topK))", category: .pipeline)
+        Log.info("[Siri] Ask My Documents invoked (questionChars=\(question.count), topK=\(topK))", category: .pipeline)
 
-        // Create RAG service instance on main actor
-        let ragService = await MainActor.run {
-            RAGService()
-        }
-
-        // Check if documents are available
-        let documentCount = await MainActor.run {
-            ragService.documents.count
-        }
-
-        guard documentCount > 0 else {
-            Log.warning("[Siri] Query blocked: no documents loaded", category: .pipeline)
-            return .result(
-                dialog: IntentDialog(stringLiteral: "You don't have any documents loaded yet. Add some documents first."),
-                view: ErrorSnippetView(message: "No documents available")
+        let outcome = try await AskActionRunner.ask(question, mode: mode, topK: topK, libraryId: library?.id)
+        let documentCount = OIDocumentEntityQuery.loadAllDocuments().count
+        return .result(
+            value: outcome.answer,
+            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+            view: RAGResponseSnippetView(
+                question: question,
+                answer: outcome.response.generatedResponse,
+                chunkCount: outcome.response.retrievedChunks.count,
+                documentCount: documentCount
             )
-        }
-
-        do {
-            // Execute RAG query
-            let config = InferenceConfig(
-                maxTokens: 300, // Shorter for Siri responses
-                temperature: 0.7
-            )
-
-            let response = try await ragService.query(question, topK: topK, config: config)
-
-            Log.info("[Siri] Query complete (answerChars=\(response.generatedResponse.count), chunks=\(response.retrievedChunks.count))", category: .pipeline)
-
-            // Format response for Siri
-            let spokenResponse = formatForSiri(response.generatedResponse)
-
-            // Get final document count for view
-            let finalDocCount = await MainActor.run {
-                ragService.documents.count
-            }
-
-            return .result(
-                dialog: IntentDialog(stringLiteral: spokenResponse),
-                view: RAGResponseSnippetView(
-                    question: question,
-                    answer: response.generatedResponse,
-                    chunkCount: response.retrievedChunks.count,
-                    documentCount: finalDocCount
-                )
-            )
-
-        } catch {
-            Log.error("[Siri] Query failed: \(error.localizedDescription)", category: .pipeline)
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Sorry, I couldn't answer that question. \(error.localizedDescription)"),
-                view: ErrorSnippetView(message: error.localizedDescription)
-            )
-        }
-    }
-
-    /// Format response for Siri speech (remove markdown, shorten if needed)
-    private func formatForSiri(_ text: String) -> String {
-        var formatted = text
-
-        // Remove markdown
-        formatted = formatted.replacingOccurrences(of: "**", with: "")
-        formatted = formatted.replacingOccurrences(of: "*", with: "")
-        formatted = formatted.replacingOccurrences(of: "#", with: "")
-
-        // Limit length for speech (Siri works best with shorter responses)
-        if formatted.count > 500 {
-            let truncated = String(formatted.prefix(500))
-            formatted = truncated + "... I've shown you the full answer on screen."
-        }
-
-        return formatted
+        )
     }
 }
 
 // MARK: - Add Document Intent
 
-/// Allows users to add documents via Siri
-/// Usage: "Hey Siri, add a document to my RAG library"
+/// Opens the app so a document can be chosen.
 @available(iOS 26.0, macOS 26.0, *)
 struct AddDocumentIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add Document"
+    static var title: LocalizedStringResource = "Add a Document"
     static var description: IntentDescription = .init(
-        "Add a document to your RAG knowledge base",
+        "Opens OpenIntelligence so you can choose a document to add. To add a file without opening the app, use Add to Library.",
         categoryName: "Documents"
     )
 
     static var openAppWhenRun: Bool = true // Need UI for file picker
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        // This would open the app to the document picker
-        // The actual adding happens in the UI
-
+        await MainActor.run { AppNavigationRequest.post(.addDocument) }
         return .result(
-            dialog: IntentDialog(stringLiteral: "Opening RAG app to add a document...")
+            dialog: IntentDialog(stringLiteral: "Opening OpenIntelligence to add a document.")
         )
     }
 }
 
 // MARK: - List Documents Intent
 
-/// Lists all documents in the RAG library
-/// Usage: "Hey Siri, what documents do I have in RAG?"
+/// Lists the documents in every library, or in one.
+/// Usage: "What documents do I have in OpenIntelligence?"
 @available(iOS 26.0, macOS 26.0, *)
 struct ListDocumentsIntent: AppIntent {
     static var title: LocalizedStringResource = "List Documents"
     static var description: IntentDescription = .init(
-        "Show all documents in your RAG library",
+        "Returns the documents in your libraries, or in one library.",
         categoryName: "Documents"
     )
 
     static var openAppWhenRun: Bool = false
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+    @Parameter(title: "Library", description: "Leave empty to list every library's documents")
+    var library: OILibraryEntity?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("List the documents in \(\.$library)")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<[OIDocumentEntity]> & ProvidesDialog & ShowsSnippetView {
         Log.info("[Siri] List Documents intent invoked", category: .pipeline)
 
-        let ragService = await MainActor.run {
-            RAGService()
-        }
-
-        let documents = await MainActor.run {
-            ragService.documents
-        }
+        let all = await MainActor.run { IntentSupport.engine().documents }
+        let documents = library.map { chosen in all.filter { $0.containerId == chosen.id } } ?? all
+        let libraryNames = Dictionary(
+            OILibraryEntityQuery.loadContainers().map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let items = documents.map { OIDocumentEntityQuery.entity(for: $0, libraryNames: libraryNames) }
 
         guard !documents.isEmpty else {
             return .result(
-                dialog: IntentDialog(stringLiteral: "You don't have any documents loaded yet."),
-                view: ErrorSnippetView(message: "No documents")
+                value: items,
+                dialog: IntentDialog(stringLiteral: "There are no documents there yet."),
+                view: DocumentListSnippetView(documents: documents)
             )
         }
 
-        // Format document list for Siri
         let documentNames = documents.map { $0.filename }.joined(separator: ", ")
         let spokenResponse = "You have \(documents.count) document\(documents.count == 1 ? "" : "s"): \(documentNames)"
 
         return .result(
+            value: items,
             dialog: IntentDialog(stringLiteral: spokenResponse),
             view: DocumentListSnippetView(documents: documents)
         )
@@ -202,7 +304,7 @@ struct ListDocumentsIntent: AppIntent {
 /// Reports the status of any pending or active document imports.
 @available(iOS 26.0, macOS 26.0, *)
 struct DocumentImportStatusIntent: AppIntent {
-    static var title: LocalizedStringResource = "Check Document Import Status"
+    static var title: LocalizedStringResource = "Check Import Status"
     static var description: IntentDescription = .init(
         "See whether document imports are queued or running",
         categoryName: "Documents",
@@ -211,12 +313,11 @@ struct DocumentImportStatusIntent: AppIntent {
 
     static var openAppWhenRun: Bool = false
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+    /// Returns the sentence it speaks, so a shortcut can branch on it or show it.
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
         Log.info("[Siri] Document Import Status intent invoked", category: .ingestion)
 
-        let ragService = await MainActor.run {
-            RAGService()
-        }
+        let ragService = await MainActor.run { IntentSupport.engine() }
         await ragService.restoreIngestionQueueIfNeeded()
 
         let snapshot = await MainActor.run { () -> DocumentImportStatusSnapshot? in
@@ -242,12 +343,14 @@ struct DocumentImportStatusIntent: AppIntent {
 
         guard let snapshot else {
             return .result(
+                value: "No document imports are pending right now.",
                 dialog: IntentDialog(stringLiteral: "No document imports are pending right now."),
                 view: ErrorSnippetView(message: "No pending imports")
             )
         }
 
         return .result(
+            value: snapshot.spokenResponse,
             dialog: IntentDialog(stringLiteral: snapshot.spokenResponse),
             view: DocumentImportStatusSnippetView(
                 activeCount: snapshot.activeCount,
@@ -261,18 +364,21 @@ struct DocumentImportStatusIntent: AppIntent {
 
 // MARK: - App Shortcuts Provider
 
-/// Provides suggested shortcuts for the Shortcuts app
+/// The actions Siri and Spotlight offer without any setup. Apple allows ten, and this is ten:
+/// an eleventh makes the whole set fail to register, with no error. `AppShortcutsProviderTests`
+/// counts them. Every phrase has to contain the app's name, and may take one parameter.
 @available(iOS 26.0, macOS 26.0, *)
 struct RAGAppShortcutsProvider: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: QueryDocumentsIntent(),
             phrases: [
-                "Query my documents in \(.applicationName)",
-                "Ask \(.applicationName) about my documents",
+                "Ask \(.applicationName)",
+                "Ask \(.applicationName) a question",
+                "Ask my documents in \(.applicationName)",
                 "Search my documents with \(.applicationName)",
             ],
-            shortTitle: "Query Documents",
+            shortTitle: "Ask My Documents",
             systemImageName: "doc.text.magnifyingglass"
         )
 
@@ -290,9 +396,9 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
         AppShortcut(
             intent: DocumentImportStatusIntent(),
             phrases: [
-                "Check document import status in \(.applicationName)",
-                "Show import queue in \(.applicationName)",
-                "Is \(.applicationName) still importing documents"
+                "Is \(.applicationName) still importing",
+                "Check import status in \(.applicationName)",
+                "Show the import queue in \(.applicationName)",
             ],
             shortTitle: "Import Status",
             systemImageName: "arrow.down.doc.fill"
@@ -302,9 +408,9 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
             intent: AskDocumentIntent(),
             phrases: [
                 "Ask \(.applicationName) about \(\.$document)",
-                "Query \(\.$document) in \(.applicationName)"
+                "Ask about \(\.$document) in \(.applicationName)",
             ],
-            shortTitle: "Ask About Document",
+            shortTitle: "Ask About a Document",
             systemImageName: "doc.text.fill"
         )
 
@@ -312,9 +418,9 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
             intent: SummarizeDocumentIntent(),
             phrases: [
                 "Summarize \(\.$document) in \(.applicationName)",
-                "Show summary of \(\.$document) in \(.applicationName)"
+                "Summarize \(\.$document) with \(.applicationName)",
             ],
-            shortTitle: "Summarize Document",
+            shortTitle: "Summarize a Document",
             systemImageName: "text.justify.left"
         )
 
@@ -322,84 +428,83 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
             intent: CompareDocumentsIntent(),
             phrases: [
                 "Compare documents in \(.applicationName)",
-                "Show comparison of documents in \(.applicationName)"
+                "Compare two documents with \(.applicationName)",
             ],
-            shortTitle: "Compare Documents",
+            shortTitle: "Compare Two Documents",
             systemImageName: "arrow.2.squarepath"
         )
 
         AppShortcut(
             intent: SearchLibraryIntent(),
             phrases: [
+                "Ask \(\.$library) in \(.applicationName)",
                 "Search \(\.$library) in \(.applicationName)",
-                "Query \(\.$library) in \(.applicationName)"
             ],
-            shortTitle: "Search Library",
+            shortTitle: "Ask a Library",
             systemImageName: "magnifyingglass.circle.fill"
         )
 
+        AppShortcut(
+            intent: IngestDocumentIntent(),
+            phrases: [
+                "Add this document to \(.applicationName)",
+                "Save this file to \(.applicationName)",
+                "Add a file to \(.applicationName)",
+            ],
+            shortTitle: "Add a File",
+            systemImageName: "doc.badge.plus"
+        )
 
-        if #available(iOS 26.0, macOS 26.0, *) {
-            AppShortcut(
-                intent: IngestDocumentIntent(),
-                phrases: [
-                    "Add this document to \(.applicationName)",
-                    "Save this file to my \(.applicationName) library",
-                    "Ingest document into \(.applicationName)"
-                ],
-                shortTitle: "Ingest Document",
-                systemImageName: "doc.badge.plus"
-            )
+        AppShortcut(
+            intent: IngestURLIntent(),
+            phrases: [
+                "Save this page to \(.applicationName)",
+                "Add this link to \(.applicationName)",
+                "Save a web page to \(.applicationName)",
+            ],
+            shortTitle: "Save a Web Page",
+            systemImageName: "link.badge.plus"
+        )
 
-            AppShortcut(
-                intent: IngestURLIntent(),
-                phrases: [
-                    "Extract this webpage into \(.applicationName)",
-                    "Save this URL to my \(.applicationName) library",
-                    "Ingest link into \(.applicationName)"
-                ],
-                shortTitle: "Ingest Webpage",
-                systemImageName: "link.badge.plus"
-            )
-        }
-
-        // if #available(iOS 27.0, *) {
-        //     ... iOS 27 intents temporarily removed to comply with Apple's 10 App Shortcut limit
-        // }
+        AppShortcut(
+            intent: SearchPassagesIntent(),
+            phrases: [
+                "Find passages in \(.applicationName)",
+                "Find passages with \(.applicationName)",
+                "Search passages in \(.applicationName)",
+            ],
+            shortTitle: "Find Passages",
+            systemImageName: "text.magnifyingglass"
+        )
     }
 }
 
 // MARK: - Get Embedding Provider Intent
 
-/// Tells user which embedding provider is active
-/// Usage: "Hey Siri, what embedding model is RAG using?"
+/// Tells the person which embedding model the active library uses.
 @available(iOS 26.0, macOS 26.0, *)
 struct GetEmbeddingProviderIntent: AppIntent {
-    static var title: LocalizedStringResource = "Check Embedding Provider"
+    static var title: LocalizedStringResource = "Get Embedding Model"
     static var description: IntentDescription = .init(
-        "See which embedding model is powering your searches",
+        "Returns the name of the embedding model the active library is searched with.",
         categoryName: "Settings",
-        searchKeywords: ["embedding", "provider", "accuracy", "contextual", "model"]
+        searchKeywords: ["embedding", "provider", "contextual", "model"]
     )
 
     static var openAppWhenRun: Bool = false
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        Log.info("[Siri] Get Embedding Provider intent invoked", category: .embedding)
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
+        Log.info("[Siri] Get Embedding Model intent invoked", category: .embedding)
 
-        // Read from container settings
-        let containerService = await MainActor.run { ContainerService() }
-        let activeContainer = await MainActor.run { containerService.activeContainer }
-        let providerId = activeContainer?.embeddingProviderId ?? "coreml_sentence_embedding"
-
+        let providerId = await MainActor.run {
+            IntentSupport.libraries().activeContainer?.embeddingProviderId ?? "coreml_sentence_embedding"
+        }
         let (name, description, isHighAccuracy) = describeProvider(providerId)
 
-        let spokenResponse = isHighAccuracy
-            ? "You're using \(name), which provides up to 25% better accuracy for complex documents."
-            : "You're using \(name), which is fast and efficient for most documents."
-
+        // No accuracy figure is spoken: none of these models has a measured one in this repository.
         return .result(
-            dialog: IntentDialog(stringLiteral: spokenResponse),
+            value: name,
+            dialog: IntentDialog(stringLiteral: "The active library uses \(name)."),
             view: EmbeddingProviderSnippetView(
                 providerName: name,
                 description: description,
@@ -411,7 +516,7 @@ struct GetEmbeddingProviderIntent: AppIntent {
     private func describeProvider(_ id: String) -> (name: String, description: String, isHighAccuracy: Bool) {
         switch id {
         case "nl_contextual_embedding":
-            return ("Contextual Embedding", "BERT-style model with 15-25% accuracy boost", true)
+            return ("Contextual Embedding", "BERT-style contextual model", true)
         case "nl_embedding":
             return ("Standard NL Embedding", "Fast and efficient word2vec-style model", false)
         case "coreml_sentence_embedding":
@@ -612,8 +717,8 @@ struct ErrorSnippetView: View {
 struct AskDocumentIntent: AppIntent {
     static var title: LocalizedStringResource = "Ask About a Document"
     static var description: IntentDescription = .init(
-        "Ask a question about a specific document",
-        categoryName: "Documents"
+        "Asks a question and answers it from one document only.",
+        categoryName: "Ask"
     )
 
     static var openAppWhenRun: Bool = false
@@ -628,38 +733,30 @@ struct AskDocumentIntent: AppIntent {
         Summary("Ask \(\.$document) about \(\.$question)")
     }
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let ragService = await MainActor.run { RAGService() }
-        do {
-            let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
-            let prompt = "Using ONLY the document '\(document.filename)', answer: \(question)"
-            let response = try await ragService.query(prompt, config: config)
-            let spokenResponse = response.generatedResponse
-            
-            return .result(
-                dialog: IntentDialog(stringLiteral: spokenResponse),
-                view: RAGResponseSnippetView(
-                    question: question,
-                    answer: response.generatedResponse,
-                    chunkCount: response.retrievedChunks.count,
-                    documentCount: 1
-                )
+    /// Through 5.6 this wrote the file name into the question and searched the whole library, so
+    /// the answer could come from any document. The search now runs inside the document, in
+    /// Standard, and the runner refuses an answer that rests on any other document's passage.
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+        let outcome = try await AskActionRunner.ask(question, mode: .standard, topK: 6, documentIds: [document.id])
+        return .result(
+            value: outcome.answer,
+            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+            view: RAGResponseSnippetView(
+                question: question,
+                answer: outcome.response.generatedResponse,
+                chunkCount: outcome.response.retrievedChunks.count,
+                documentCount: 1
             )
-        } catch {
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Failed to query the document: \(error.localizedDescription)"),
-                view: ErrorSnippetView(message: error.localizedDescription)
-            )
-        }
+        )
     }
 }
 
 @available(iOS 26.0, macOS 26.0, *)
 struct SummarizeDocumentIntent: AppIntent {
-    static var title: LocalizedStringResource = "Summarize Document"
+    static var title: LocalizedStringResource = "Summarize a Document"
     static var description: IntentDescription = .init(
-        "Generate a summary for a specific document",
-        categoryName: "Documents"
+        "Writes a summary of one document, from that document only.",
+        categoryName: "Ask"
     )
 
     static var openAppWhenRun: Bool = false
@@ -671,38 +768,31 @@ struct SummarizeDocumentIntent: AppIntent {
         Summary("Summarize \(\.$document)")
     }
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let ragService = await MainActor.run { RAGService() }
-        do {
-            let config = InferenceConfig(maxTokens: 400, temperature: 0.5)
-            let prompt = "Provide a concise summary of the main points and key information in the document '\(document.filename)'."
-            let response = try await ragService.query(prompt, config: config)
-            let spokenResponse = "Here is a summary of \(document.filename): \(response.generatedResponse)"
-            
-            return .result(
-                dialog: IntentDialog(stringLiteral: spokenResponse),
-                view: RAGResponseSnippetView(
-                    question: "Summarize \(document.filename)",
-                    answer: response.generatedResponse,
-                    chunkCount: response.retrievedChunks.count,
-                    documentCount: 1
-                )
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+        let prompt = "Provide a concise summary of the main points and key information in the document '\(document.filename)'."
+        let outcome = try await AskActionRunner.ask(
+            prompt, shownAs: "Summarize \(document.filename)", mode: .standard, topK: 8, documentIds: [document.id])
+        return .result(
+            value: outcome.answer,
+            dialog: IntentDialog(
+                stringLiteral: AskActionRunner.spoken(
+                    "Here is a summary of \(document.filename): \(outcome.response.generatedResponse)")),
+            view: RAGResponseSnippetView(
+                question: "Summarize \(document.filename)",
+                answer: outcome.response.generatedResponse,
+                chunkCount: outcome.response.retrievedChunks.count,
+                documentCount: 1
             )
-        } catch {
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Failed to summarize the document: \(error.localizedDescription)"),
-                view: ErrorSnippetView(message: error.localizedDescription)
-            )
-        }
+        )
     }
 }
 
 @available(iOS 26.0, macOS 26.0, *)
 struct CompareDocumentsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Compare Documents"
+    static var title: LocalizedStringResource = "Compare Two Documents"
     static var description: IntentDescription = .init(
-        "Compare two documents on a specific topic",
-        categoryName: "Documents"
+        "Compares what two documents in one library say about a topic, from those two documents only.",
+        categoryName: "Ask"
     )
 
     static var openAppWhenRun: Bool = false
@@ -720,37 +810,33 @@ struct CompareDocumentsIntent: AppIntent {
         Summary("Compare \(\.$document1) and \(\.$document2) on \(\.$topic)")
     }
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let ragService = await MainActor.run { RAGService() }
-        do {
-            let config = InferenceConfig(maxTokens: 400, temperature: 0.6)
-            let prompt = "Compare what is stated in '\(document1.filename)' versus what is stated in '\(document2.filename)' on the topic: \(topic)."
-            let response = try await ragService.query(prompt, config: config)
-            
-            return .result(
-                dialog: IntentDialog(stringLiteral: response.generatedResponse),
-                view: RAGResponseSnippetView(
-                    question: "Comparison of \(document1.filename) and \(document2.filename) on \(topic)",
-                    answer: response.generatedResponse,
-                    chunkCount: response.retrievedChunks.count,
-                    documentCount: 2
-                )
-            )
-        } catch {
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Failed to compare the documents: \(error.localizedDescription)"),
-                view: ErrorSnippetView(message: error.localizedDescription)
-            )
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+        guard document1.id != document2.id else {
+            throw OIIntentError("Choose two different documents to compare.")
         }
+        let prompt = "Compare what is stated in '\(document1.filename)' versus what is stated in '\(document2.filename)' on the topic: \(topic)."
+        let shown = "Comparison of \(document1.filename) and \(document2.filename) on \(topic)"
+        let outcome = try await AskActionRunner.ask(
+            prompt, shownAs: shown, mode: .standard, topK: 8, documentIds: [document1.id, document2.id])
+        return .result(
+            value: outcome.answer,
+            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+            view: RAGResponseSnippetView(
+                question: shown,
+                answer: outcome.response.generatedResponse,
+                chunkCount: outcome.response.retrievedChunks.count,
+                documentCount: 2
+            )
+        )
     }
 }
 
 @available(iOS 26.0, macOS 26.0, *)
 struct SearchLibraryIntent: AppIntent {
-    static var title: LocalizedStringResource = "Search Library"
+    static var title: LocalizedStringResource = "Ask a Library"
     static var description: IntentDescription = .init(
-        "Search within a specific document library",
-        categoryName: "Documents"
+        "Asks a question and answers it from one library. To get the matching passages without an answer, use Find Passages.",
+        categoryName: "Ask"
     )
 
     static var openAppWhenRun: Bool = false
@@ -758,34 +844,30 @@ struct SearchLibraryIntent: AppIntent {
     @Parameter(title: "Library")
     var library: OILibraryEntity
 
-    @Parameter(title: "Query")
+    @Parameter(title: "Question")
     var query: String
 
+    @Parameter(title: "Mode", description: "How much work goes into the answer", default: .standard)
+    var mode: OIAnswerMode
+
     static var parameterSummary: some ParameterSummary {
-        Summary("Search \(\.$library) for \(\.$query)")
+        Summary("Ask \(\.$library) \(\.$query)") {
+            \.$mode
+        }
     }
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        let ragService = await MainActor.run { RAGService() }
-        do {
-            let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
-            let response = try await ragService.query(query, config: config, containerId: library.id)
-            
-            return .result(
-                dialog: IntentDialog(stringLiteral: response.generatedResponse),
-                view: RAGResponseSnippetView(
-                    question: query,
-                    answer: response.generatedResponse,
-                    chunkCount: response.retrievedChunks.count,
-                    documentCount: library.totalDocuments
-                )
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+        let outcome = try await AskActionRunner.ask(query, mode: mode, libraryId: library.id)
+        return .result(
+            value: outcome.answer,
+            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+            view: RAGResponseSnippetView(
+                question: query,
+                answer: outcome.response.generatedResponse,
+                chunkCount: outcome.response.retrievedChunks.count,
+                documentCount: library.totalDocuments
             )
-        } catch {
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Failed to search the library: \(error.localizedDescription)"),
-                view: ErrorSnippetView(message: error.localizedDescription)
-            )
-        }
+        )
     }
 }
 
@@ -793,44 +875,50 @@ struct SearchLibraryIntent: AppIntent {
 
 @available(iOS 26.0, macOS 26.0, *)
 struct ListEvidenceThreadsIntent: AppIntent {
-    static var title: LocalizedStringResource = "List Evidence Threads"
+    static var title: LocalizedStringResource = "List Conversations"
     static var description: IntentDescription = .init(
-        "Show all conversation threads in your library",
+        "Returns the saved conversations in a library.",
         categoryName: "Chat",
         searchKeywords: ["threads", "history", "conversations", "chats"]
     )
 
     static var openAppWhenRun: Bool = false
 
-    @Parameter(title: "Library", description: "The library to list threads from", default: nil)
+    @Parameter(title: "Library", description: "Leave empty to use the active library", default: nil)
     var library: OILibraryEntity?
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        Log.info("[Siri] List Evidence Threads intent invoked", category: .pipeline)
+    static var parameterSummary: some ParameterSummary {
+        Summary("List the conversations in \(\.$library)")
+    }
 
-        let ragService = await MainActor.run {
-            RAGService.activePresentedInstance ?? RAGService()
-        }
+    func perform() async throws -> some IntentResult & ReturnsValue<[OIThreadEntity]> & ProvidesDialog & ShowsSnippetView {
+        Log.info("[Siri] List Conversations intent invoked", category: .pipeline)
 
+        let ragService = await MainActor.run { IntentSupport.engine() }
         let containerId = await MainActor.run {
             library?.id ?? ragService.containerService.activeContainerId
         }
-
+        let libraryName = await MainActor.run {
+            ragService.containerService.containers.first { $0.id == containerId }?.name
+        }
         let threads = await MainActor.run {
             ragService.listThreads(for: containerId)
         }
+        let items = threads.map { OIThreadEntity($0, libraryName: libraryName) }
 
         guard !threads.isEmpty else {
             return .result(
-                dialog: IntentDialog(stringLiteral: "You don't have any threads in this library yet."),
-                view: ErrorSnippetView(message: "No threads available")
+                value: items,
+                dialog: IntentDialog(stringLiteral: "There are no conversations in this library yet."),
+                view: ThreadListSnippetView(threads: threads)
             )
         }
 
         let threadTitles = threads.map { $0.title }.joined(separator: ", ")
-        let spokenResponse = "You have \(threads.count) thread\(threads.count == 1 ? "" : "s"): \(threadTitles)"
+        let spokenResponse = "You have \(threads.count) conversation\(threads.count == 1 ? "" : "s"): \(threadTitles)"
 
         return .result(
+            value: items,
             dialog: IntentDialog(stringLiteral: spokenResponse),
             view: ThreadListSnippetView(threads: threads)
         )
@@ -841,25 +929,26 @@ struct ListEvidenceThreadsIntent: AppIntent {
 
 @available(iOS 26.0, macOS 26.0, *)
 struct CreateNewEvidenceThreadIntent: AppIntent {
-    static var title: LocalizedStringResource = "Create New Thread"
+    static var title: LocalizedStringResource = "Start a Conversation"
     static var description: IntentDescription = .init(
-        "Start a new conversation thread in your library",
+        "Opens OpenIntelligence on a new conversation in a library.",
         categoryName: "Chat",
-        searchKeywords: ["new thread", "new chat", "start chat"]
+        searchKeywords: ["new thread", "new chat", "start chat", "conversation"]
     )
 
     static var openAppWhenRun: Bool = true // Open app to show new chat screen
 
-    @Parameter(title: "Library", description: "The library to create a thread in", default: nil)
+    @Parameter(title: "Library", description: "Leave empty to use the active library", default: nil)
     var library: OILibraryEntity?
 
+    static var parameterSummary: some ParameterSummary {
+        Summary("Start a conversation in \(\.$library)")
+    }
+
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        Log.info("[Siri] Create New Thread intent invoked", category: .pipeline)
+        Log.info("[Siri] Start a Conversation intent invoked", category: .pipeline)
 
-        let ragService = await MainActor.run {
-            RAGService.activePresentedInstance ?? RAGService()
-        }
-
+        let ragService = await MainActor.run { IntentSupport.engine() }
         let containerId = await MainActor.run {
             library?.id ?? ragService.containerService.activeContainerId
         }
@@ -867,19 +956,14 @@ struct CreateNewEvidenceThreadIntent: AppIntent {
         do {
             try await MainActor.run {
                 try ragService.createNewThread(for: containerId)
+                AppNavigationRequest.post(.newConversation(libraryId: containerId))
             }
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Started a new thread in your library.")
-            )
-        } catch let quotaError as EvidenceThreadQuotaError {
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Could not create thread: \(quotaError.localizedDescription)")
-            )
         } catch {
-            return .result(
-                dialog: IntentDialog(stringLiteral: "Failed to create thread: \(error.localizedDescription)")
-            )
+            throw OIIntentError("A new conversation could not be started. \(error.localizedDescription)")
         }
+        return .result(
+            dialog: IntentDialog(stringLiteral: "Started a new conversation.")
+        )
     }
 }
 
@@ -891,7 +975,7 @@ struct ThreadListSnippetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Evidence Threads")
+            Text("Conversations")
                 .font(.headline)
 
             ForEach(threads.prefix(10)) { thread in

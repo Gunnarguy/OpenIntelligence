@@ -35,6 +35,7 @@ flowchart TD
     B -- Text/Markdown --> F[Direct Text Read]
     B -- Image --> IMG[Structured parse, then OCR + classification]
     B -- CSV --> CSVL[RFC 4180 parse to pipe rows]
+    B -- JSON / JSON Lines --> JSONR[Parse records to field: value lines]
     B -- Office XML --> OFF[ZIP + XML: docx/xlsx/pptx]
     B -- iWork --> IWORK[Always throws; see 2.6]
     B -- Audio/Video --> AV[SpeechAnalyzer transcription]
@@ -43,9 +44,12 @@ flowchart TD
     F --> G
     IMG --> G
     CSVL --> G
+    JSONR --> G
     OFF --> G
     AV --> G
     G --> H[Semantic / Structure-aware Chunking]
+    G -- JSON records --> HREC[One passage per record]
+    HREC --> I
     H --> I[Token Boundary Enforcer]
     I --> J[SQLite FTS5 Storage]
     I --> K[Core ML Embedding Generation]
@@ -109,6 +113,10 @@ drop that would exceed the document limit raises the paywall instead of half-imp
 
 ---
 
+### Files handed over by another app *(added 2026-10-09, for 5.7)*
+
+Through 5.6 the app declared no document types, so Files, Mail and share sheets never offered it a file, and the main view's URL handler discarded any address that was not `openintelligence://`. `Info.plist` now declares `CFBundleDocumentTypes` for the formats the import path reads (role Viewer, rank Alternate). On iPhone and iPad `LSSupportsOpeningDocumentsInPlace` is NO, so the system hands the app a copy; that key is a build setting in `project.pbxproj`, NO for the iOS SDKs and YES for macOS, because the Mac build refuses NO (a Mac always opens a file in place, and the handler copies it into the app either way). `ContentView.importOpenedFile` copies that file into the imported-documents folder at once (`ImportedFileStaging.copyIntoWorkspace`), removes the system's copy from the app's own `Documents/Inbox` (iPhone and iPad only; on the Mac the address is the person's own file, opened in place, and is left alone), and posts `.importFiles` to `AppNavigationRequest`, where several files sent together all wait; `DocumentLibraryView.importOpenedFiles` then applies the plan's document limit and the import review exactly as it does for a picked or dropped file, and deletes the copy when the plan has no room. `[evidence_level: build_verified, confidence: high, evidence_source: Info.plist; ContentView.swift importOpenedFile; DocumentLibraryView.swift importOpenedFiles; project.pbxproj; the merged Info.plist in the simulator product of 2026-10-09]` Not exercised on a device or a Mac.
+
 ## 2. Text Extraction Lanes
 
 ### PDF Ingestion
@@ -129,6 +137,36 @@ drop that would exceed the document limit raises the paywall instead of half-imp
 - Text files, markdown notes, and source code are ingested directly. Markdown structures (headers, code blocks) are parsed to preserve hierarchical section paths.
 
 ---
+
+### JSON and JSON Lines *(added 2026-10-09, for 5.7)*
+
+Through 5.6 a `.json` file took the code-file lane (`extractTextFromCode`, the file's text as written), and `.jsonl` and `.ndjson`, which `detectDocumentType` did not know, took the plain-text lane. Each was cut wherever the chunker's word window fell. `.jsonl` was not listed in either picker; `.ndjson` could be chosen, because its system type conforms to `public.text`, which both pickers list. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift detectDocumentType and extractTextWithPageInfo at commit 7025657; DocumentPicker.swift and AttachmentPicker.swift type lists at the same commit]`
+
+`JSONRecordExtractor` (`Services/Document/Processing/JSONRecordExtractor.swift`) reads these files as records, and `processDocument` gives each record its own passage:
+
+- **What a record is.** One line of a `.jsonl` or `.ndjson` file; one element of a top-level array in a `.json` file; for a top-level object, one record holding its plain values, then one per member that is a non-empty object or list, and a list of objects gives one record per element (`messages[1]`, `messages[2]`).
+- **What a record's text is.** A header line, `Record N of T`, then one `path: value` line per value. Nested objects extend the path with a dot (`owner.name`), a list of plain values shares one line, a list that holds objects or lists is numbered from 1. A string value keeps its own line breaks, and its lines after the first are indented by two spaces, so no line of a value starts in the first column, where a header does.
+- **The file's own text is kept.** The extractor has its own reader, `JSONValue.parse`, because `JSONSerialization` loses three things a stored passage should keep. Members are written in the file's order. A number is written with the digits the file has: `12.50` stays `12.50` and `75.0` stays `75.0`. Members with the same name are all written. A null or empty member is written `null`, `""`, `[]` or `{}`, so its name is not lost. The reader refuses anything that is not valid JSON (a trailing comma, a comment, a leading zero, an unknown escape, a lone surrogate, text after the value) and nests no deeper than 200 levels.
+- **Nothing is dropped.** A line of a JSON Lines file that does not parse is kept as a record holding the line as written, and the count is logged. A file that does not parse at all (comments in a `.jsonc`, a trailing comma) returns nil from the extractor and takes the text lane, as before; so does a JSON Lines file over 64 MB, because its records are held in memory next to the file's own text, and a `.json` file over 16 MB, because the whole file becomes one parsed tree several times its size (16 MB is a guess at what a phone can hold; it has not been measured on one). A leading byte-order mark is taken off first, and JSON Lines is split at line feeds only: JSON allows U+2028, U+2029 and U+0085 raw inside a string, and a general line reader would cut a record in two at them. That fallback is written to the log and is not shown to the person.
+- **How the passages are cut.** The records are joined with a blank line into the document's text, which goes through the same cleanup and is stored for full-text search like any other document. `JSONRecordExtractor.passages(in:expectedCount:)` then cuts that text at the record headers, taking a header only in the first column and only as the next one due, and returns nil unless it finds exactly the number of records that were read. On nil, `processDocument` logs a warning and chunks the text as prose, so a header damaged by cleanup costs the record boundaries and no text. Each passage's `sectionTitle` is `Record N` and its positions are character offsets into the document's text.
+- **A record over the embedding limit.** `JSONRecordExtractor.parts(of:maxTokens:countTokens:)` cuts it at its own lines before the general token enforcer sees it. Every part starts with `Record N of T, part K of M`, a single line longer than a part is cut between words, a run with no space longer than a part is cut by characters, and no character is retyped. A part still over the limit is logged.
+- **The stored type is unchanged.** `.jsonl` and `.ndjson` map to `DocumentType.json`. The type is stored in each document record, and a new case would not decode on an older build reading the same library. `[evidence_level: inferred, confidence: medium, evidence_source: DocumentType is a String-raw Codable enum with no unknown-case fallback, Core/Models/DocumentChunk.swift]`
+- **The pickers.** `.jsonl` has no system type on macOS 27 (`UTType(filenameExtension: "jsonl")` is dynamic and conforms only to `public.data`), so both pickers name it by extension; `.ndjson` is `public.ndjson` and conforms to `public.text`. `[evidence_level: measured, confidence: exact, evidence_source: a Swift script printing UTType(filenameExtension:) on macOS 27.0, 2026-10-09]` Since the same day `Info.plist` declares the type itself (`org.jsonlines.jsonl`, conforming to `public.text`), which is the supported way to make an extension the system does not know selectable. Whether a `.jsonl` file can now be chosen in the iOS document picker has not been tried on a device.
+- **The import review.** `DocumentImportReadiness` lists `.json`, `.jsonl` and `.ndjson` with the formats that import without a warning. `.jsonc` keeps the "reduced-fidelity parsing" note, because comments make it take the text lane.
+
+`[evidence_level: test_verified, confidence: high, evidence_source: JSONRecordExtractorTests (records, order, digits, empty members, escapes, cutting, oversized records) and IngestionFormatCoverageTests testJSONLines_GivesOnePassagePerLineWithItsFieldNames, testNDJSON_TakesTheSameRoute, testJSONArray_GivesOnePassagePerElement, testAJSONRecordOverTheEmbeddingLimit_KeepsItsTextAndItsHeader and testJSONThatDoesNotParse_StillImportsAsText, which drive real files through processDocument; run on an iOS 27.0 simulator on 2026-10-09]` Not seen on a device, and no question has been asked against an imported record there.
+
+### Web pages *(added 2026-10-09, for 5.7)*
+
+The "Ingest Webpage" action (`IngestURLIntent`) handed its web address to `enqueueDocuments` as if it were a file on disk and answered "Extracting webpage in the background". No code in the import path downloaded anything. `[evidence_level: code_verified, confidence: exact, evidence_source: ScreenAwarenessIntents.swift lines 99 to 114 at commit 7025657]`
+
+`WebPageFetchService` (`Services/Document/Extraction/WebPageFetchService.swift`) is the download. It makes a GET to the address, following the site's own redirects (so the request can end at another host than the one typed), on an ephemeral `URLSession` that accepts no cookies and uses no cache. It accepts only `http` and `https`, and asks for an `http` address as `https`, because the app has no transport-security exception and plain `http` would be refused before reaching the site. The status is checked before the body is read, the read stops at 20 MB, a web page's markup is held to 5 MB (its text is found with regular expressions over the whole page), and the whole request is given 25 seconds, since a background action has about 30. What comes back becomes a file in the imported-documents folder, which is then queued like a picked file:
+
+- **A web page** (`text/html` or `application/xhtml+xml`) becomes a Markdown file named by the page's title, with `Source:` and `Saved:` lines under the title. `readableText(fromHTML:)` removes comments and the `script`, `style`, `noscript`, `svg`, `template`, `iframe`, `head`, `nav`, `footer`, `button` and `select` elements, writes headings as `#` lines, list items as `- ` lines and table rows as cells joined by ` | `, strips the remaining tags (only what starts like a tag, so "p < 0.05" keeps its "<"), and decodes numeric entities and the named ones in its table (the markup five, punctuation, currency, common symbols, the Latin-1 letters and a few Greek letters; HTML defines about 2,200, and one it does not know is left as written). The page is read with the character set the response names, or the one its own `<meta>` tag names, or UTF-8; bytes that fit none are replaced and that is logged. Scripts are not run, so a page that draws its text with JavaScript yields little or nothing: under 40 characters of text the fetch fails with "The page has no readable text without running its scripts."
+- **A link straight to a file** the import path reads (PDF, plain text, Markdown, CSV, JSON, JSON Lines, by the response's type) is saved as that file.
+- **Anything else**, a status outside 200 to 299, or a body over 20 MB fails with a message that names the reason, and the action throws it instead of reporting success.
+
+`[evidence_level: test_verified, confidence: high, evidence_source: WebPageFetchServiceTests, which covers reading a page, a "<" in text, self-closed elements, a title over two lines, a character set named only in a meta tag, entity decoding, a page becoming Markdown, a PDF link, an error status, a body over the limit, a script-only page, an unsupported type and a non-web address; run on an iOS 27.0 simulator on 2026-10-09]` The network call itself is not covered by a test and has not been run from the action on a device.
 
 ## 2.5 Failure modes fixed on 2026-08-08
 
@@ -454,6 +492,8 @@ unreached. That is tracked separately as a product decision, not a defect.
 - Before indexing, `DocumentProcessor.enforceTokenLimitOnChunks` counts each chunk with the embedding model's own tokenizer (`embeddingTokenizer`, loaded by `AutoTokenizer.from(directory:)` from the `swift-tokenizers` package) and splits any chunk over `safeTokenLimit`: 430 tokens, the model's 510-token limit less 80 reserved for the contextual prefix. Without the tokenizer it estimates 3 characters per token. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift:416,486,6434-6440,6450-6462; corrected 2026-09-28, the line named BertTokenizer, which left the code on 2026-07-01 in 8bc68d3]`
 
 ---
+
+**A cut passage keeps its own text, corrected 2026-10-09 for 5.7.** `splitOversizedChunkByTokens` split a passage over the limit at every ".", "!", "?" and line break and joined the pieces with ". ". The stored passage then read "$75. 50" for "$75.50" and "Lease. pdf" for "Lease.pdf", every "?" and "!" became ".", and every line break became ". ", in every format. `OversizedChunkSplitter` (`Services/Document/Chunking/OversizedChunkSplitter.swift`) now builds each part from the passage's own lines, cuts a line that is too long at its sentence ends with `AnswerSentenceSplitter`, a sentence that is still too long between words, and a run with no space that is too long by itself (Chinese or Japanese prose, a base64 block) by characters. The one change to the text is that the whitespace between two sentences of a line that had to be cut becomes one space. Parts are still marked `[Part N]`. A document imported before this keeps its stored text until it is imported again. `[evidence_level: test_verified, confidence: high, evidence_source: OversizedChunkSplitterTests on an iOS 27.0 simulator, 2026-10-09; DocumentProcessor.swift splitOversizedChunkByTokens]` How often a chunk exceeds the limit in real documents has not been counted.
 
 ## 3.5 Stage conservation, added 2026-08-28
 

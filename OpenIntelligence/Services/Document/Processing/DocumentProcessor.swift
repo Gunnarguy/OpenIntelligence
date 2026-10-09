@@ -694,6 +694,8 @@ class DocumentProcessor {
         // Track structured elements for structure-aware chunking (iOS 26+ PDFs)
         var structuredElements: [StructuredElementWrapper] = []
         var usedStructuredParsing = false
+        /// Set when a JSON or JSON Lines file was read as records; chunking then gives each its own passage.
+        var jsonRecordCount: Int? = nil
 
         // Extract text based on document type
         progressHandler?("reading file")
@@ -717,7 +719,13 @@ class DocumentProcessor {
                 Log.info("[DocumentProcessor] Structured parsing: \(tableCount) tables, \(listCount) lists extracted", category: .ingestion)
             }
         } else {
-            let result = try await extractTextWithPageInfo(from: url, type: documentType)
+            let result: (text: String, pageInfo: PageInfo)
+            if documentType == .json, let records = try extractJSONRecords(url: url) {
+                result = (records.text, PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1]))
+                jsonRecordCount = records.records.count
+            } else {
+                result = try await extractTextWithPageInfo(from: url, type: documentType)
+            }
             extractedText = result.text
             pageInfo = result.pageInfo
 
@@ -890,8 +898,29 @@ class DocumentProcessor {
 
         var processedChunks: [ProcessedChunk]
 
+        // JSON records: each record is cut from the cleaned text as its own passage. When the
+        // headers did not survive the cleanup intact, nothing is cut and the text is chunked as prose.
+        let jsonRecordPassages = jsonRecordCount.flatMap {
+            JSONRecordExtractor.passages(in: chunkableText, expectedCount: $0)
+        }
+        if let jsonRecordCount, jsonRecordPassages == nil {
+            Log.warning(
+                "[DocumentProcessor] JSON records: \(jsonRecordCount) were read from \(filename) but their headers "
+                    + "did not all survive text cleanup; chunking the text as prose instead",
+                category: .ingestion
+            )
+        }
+
         // Structure-aware chunking: Tables and lists become atomic chunks, paragraphs get semantic chunking
-        if usedStructuredParsing && !structuredElements.isEmpty {
+        if let jsonRecordPassages {
+            processedChunks = makeJSONRecordChunks(
+                jsonRecordPassages, in: chunkableText, documentCategory: documentCategory)
+            emitProgress(
+                stage: "chunking", detail: "✅ Created \(processedChunks.count) record passages", page: nil,
+                totalPages: nil)
+            Log.info(
+                "[DocumentProcessor] Created \(processedChunks.count) JSON record passages", category: .ingestion)
+        } else if usedStructuredParsing && !structuredElements.isEmpty {
             // HUD telemetry: Chunking is CPU-intensive NaturalLanguage processing
             Task { @MainActor in
                 HardwareTelemetryState.shared.pulse(.textChunking, intensity: 0.75, duration: 0.4)
@@ -6595,79 +6624,24 @@ class DocumentProcessor {
     /// Split a chunk using ACTUAL token counting (not word estimation)
     /// This is critical for technical content with abbreviations, codes, special chars
     private func splitOversizedChunkByTokens(_ chunk: ProcessedChunk) -> [ProcessedChunk] {
-        var subChunks: [ProcessedChunk] = []
-        let text = chunk.text
         let maxTokens = Self.safeTokenLimit - 10  // Leave margin for part markers
 
-        // Try to split on sentence boundaries for coherence
-        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n")).filter { !$0.isEmpty }
-
-        var currentText = ""
-        var currentTokens = 0
-        var partNumber = 0
-
-        for sentence in sentences {
-            let sentenceTokens = countTokens(sentence)
-
-            // If adding this sentence would exceed limit, flush current buffer
-            if currentTokens + sentenceTokens > maxTokens && !currentText.isEmpty {
-                partNumber += 1
-                let partText = "[Part \(partNumber)]\n" + currentText.trimmingCharacters(in: .whitespacesAndNewlines)
-                subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
-                currentText = ""
-                currentTokens = 0
-            }
-
-            // Handle case where a single sentence is too large
-            if sentenceTokens > maxTokens {
-                // Force-split by progressively adding words until token limit reached
-                let words = sentence.split(separator: " ").map(String.init)
-                var wordBuffer: [String] = []
-                var bufferTokens = 0
-
-                for word in words {
-                    let wordTokens = countTokens(word)
-                    if bufferTokens + wordTokens > maxTokens && !wordBuffer.isEmpty {
-                        partNumber += 1
-                        let partText = "[Part \(partNumber)]\n" + wordBuffer.joined(separator: " ")
-                        subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
-                        wordBuffer = []
-                        bufferTokens = 0
-                    }
-                    wordBuffer.append(word)
-                    bufferTokens += wordTokens + 1  // +1 for whitespace token
-                }
-
-                // Flush remaining words from sentence
-                if !wordBuffer.isEmpty {
-                    currentText += wordBuffer.joined(separator: " ") + ". "
-                    currentTokens += bufferTokens
-                }
-            } else {
-                currentText += sentence + ". "
-                currentTokens += sentenceTokens
-            }
-        }
-
-        // Flush remaining content
-        if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            partNumber += 1
-            let partText = partNumber > 1
-                ? "[Part \(partNumber)]\n" + currentText.trimmingCharacters(in: .whitespacesAndNewlines)
-                : currentText.trimmingCharacters(in: .whitespacesAndNewlines)
-            subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
-        }
-
-        // Edge case: if no sub-chunks were created, return original
-        if subChunks.isEmpty {
+        // The parts are runs of the chunk's own text. Through 5.6 this split at every ".", "!", "?"
+        // and line break and joined the pieces with ". ", which stored "$75. 50" for "$75.50".
+        let parts = OversizedChunkSplitter.parts(of: chunk.text, maxTokens: maxTokens, countTokens: countTokens)
+        guard parts.count > 1 else {
             Log.warning("[DocumentProcessor] Token-based split produced no sub-chunks, returning original", category: .ingestion)
             return [chunk]
+        }
+
+        let subChunks = parts.enumerated().map { index, part in
+            createSubChunk(from: chunk, text: "[Part \(index + 1)]\n" + part, index: index)
         }
 
         // Final validation: ensure all sub-chunks are within limit
         let stillOversized = subChunks.filter { countTokens($0.text) > Self.safeTokenLimit }
         if !stillOversized.isEmpty {
-            Log.warning("[DocumentProcessor] \(stillOversized.count) sub-chunks still oversized after token split, will be truncated at embedding", category: .ingestion)
+            Log.warning("[DocumentProcessor] \(stillOversized.count) sub-chunks still oversized after token split, will be truncated at embedding time", category: .ingestion)
         }
 
         return subChunks
@@ -8592,6 +8566,81 @@ class DocumentProcessor {
         throw DocumentProcessingError.unsupportedEncoding
     }
 
+    /// Reads a `.json`, `.jsonl` or `.ndjson` file as records. Returns nil when the file is not
+    /// JSON records (comments in a `.jsonc`, a broken file), and the caller imports it as text.
+    private func extractJSONRecords(url: URL) throws -> JSONRecordExtractor.Extraction? {
+        let contents = try readTextFileWithFallbackEncodings(url: url, purpose: "JSON file")
+        guard
+            let extraction = JSONRecordExtractor.extract(
+                from: contents, fileExtension: url.pathExtension.lowercased())
+        else {
+            Log.info(
+                "[DocumentProcessor] \(url.lastPathComponent) did not parse as JSON records; importing it as text",
+                category: .ingestion)
+            return nil
+        }
+        Log.info(
+            "[DocumentProcessor] JSON records: \(extraction.records.count) from \(url.lastPathComponent)"
+                + (extraction.unparsedLineCount > 0
+                    ? ", \(extraction.unparsedLineCount) line(s) were not valid JSON and are kept as written" : ""),
+            category: .ingestion)
+        return extraction
+    }
+
+    /// One chunk per JSON record. The passages are cut from `text`, so positions are character
+    /// offsets into it, as the semantic chunker's are.
+    private func makeJSONRecordChunks(
+        _ passages: [(range: Range<String.Index>, text: String)],
+        in text: String,
+        documentCategory: DocumentSemanticCategory?
+    ) -> [ProcessedChunk] {
+        var chunks: [ProcessedChunk] = []
+        chunks.reserveCapacity(passages.count)
+        var cursor = text.startIndex
+        var offset = 0
+        for (index, passage) in passages.enumerated() {
+            offset += text.distance(from: cursor, to: passage.range.lowerBound)
+            let start = offset
+            offset += text.distance(from: passage.range.lowerBound, to: passage.range.upperBound)
+            cursor = passage.range.upperBound
+
+            let title = "Record \(index + 1)"
+            // A record over the embedding limit is cut here, at its own field lines, so the generic
+            // splitter never sees it and every part keeps the record's header.
+            let parts = JSONRecordExtractor.parts(
+                of: passage.text, maxTokens: Self.safeTokenLimit - 10, countTokens: countTokens)
+            if parts.count > 1 {
+                Log.info(
+                    "[DocumentProcessor] JSON record \(index + 1) is over the embedding limit; stored as \(parts.count) parts",
+                    category: .ingestion)
+            }
+            let overLimit = parts.filter { countTokens($0) > Self.safeTokenLimit }.count
+            if overLimit > 0 {
+                Log.warning(
+                    "[DocumentProcessor] JSON record \(index + 1): \(overLimit) part(s) are still over the embedding limit and will be cut by the general splitter",
+                    category: .ingestion)
+            }
+            for part in parts {
+                // The header line always holds digits, so it says nothing about the record's own data.
+                let body = part.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).dropFirst().first ?? ""
+                let metadata = ChunkMetadata(
+                    chunkIndex: chunks.count,
+                    startPosition: start,
+                    endPosition: offset,
+                    pageNumber: nil,
+                    sectionTitle: title,
+                    hasNumericData: body.contains(where: \.isNumber),
+                    wordCount: countWords(part),
+                    characterCount: part.count,
+                    sectionPath: [title],
+                    documentCategory: documentCategory
+                )
+                chunks.append(ProcessedChunk(text: part, parentText: nil, metadata: metadata))
+            }
+        }
+        return chunks
+    }
+
     /// Extract text from code files - preserve syntax and structure
     private func extractTextFromCode(url: URL) throws -> String {
         try readTextFileWithFallbackEncodings(url: url, purpose: "code file")
@@ -9479,7 +9528,9 @@ class DocumentProcessor {
             return .html
         case "css", "scss", "sass", "less":
             return .css
-        case "json", "jsonc":
+        case "json", "jsonc", "jsonl", "ndjson":
+            // JSON Lines shares `.json`: the type is stored in each document record, and a new case
+            // would not decode on an older build reading the same library.
             return .json
         case "xml":
             return .xml

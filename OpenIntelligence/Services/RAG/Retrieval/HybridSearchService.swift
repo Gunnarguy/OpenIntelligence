@@ -237,6 +237,15 @@ class HybridSearchService {
     ///   for why this is a parameter rather than a wider return type or a shared sink.
     func search(query: String, originalQuery: String? = nil, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil, isOverviewQuery: Bool = false, trace: RetrievalTraceCollector? = nil) async throws -> [RetrievedChunk] {
         let boostQuery = originalQuery ?? query
+        // A question limited to named documents is searched inside them and nowhere else. Every
+        // other path below starts from the whole library (the vector index and FTS5 both ignore
+        // `cachedChunks`), so filtering their result afterwards can leave nothing when a small
+        // document shares a library with a large one.
+        if let scope = RAGQueryScope.documentIds, !scope.isEmpty {
+            return try await searchInsideScope(
+                scope, query: query, boostQuery: boostQuery, embedding: embedding, topK: topK,
+                cachedChunks: cachedChunks)
+        }
         // Auto-select FTS5 path if containerId provided and FTS5 data available
         if let cid = containerId, await isFTS5Available(containerId: cid) {
             Log.debug("[Hybrid] Using FTS5-accelerated BM25 for container \(cid)", category: .pipeline)
@@ -803,6 +812,56 @@ class HybridSearchService {
     private func computeNorm(_ vector: [Float]) -> Float {
         // Modern Accelerate API: vDSP.sumOfSquares + sqrt (replaces deprecated cblas_snrm2)
         sqrt(vDSP.sumOfSquares(vector))
+    }
+
+    /// Scores every passage of the named documents against the question and returns the best.
+    /// A document is a few thousand passages at most, so this reads them all: cosine similarity
+    /// with the question's embedding, weighted with the share of the question's words the passage
+    /// holds, by the same two weights the library-wide search uses.
+    private func searchInsideScope(
+        _ scope: Set<UUID>,
+        query: String,
+        boostQuery: String,
+        embedding: [Float],
+        topK: Int,
+        cachedChunks: [DocumentChunk]?
+    ) async throws -> [RetrievedChunk] {
+        let all: [DocumentChunk]
+        if let cachedChunks {
+            all = cachedChunks
+        } else {
+            all = try await vectorDatabase.allChunks()
+        }
+        let candidates = all.filter { scope.contains($0.documentId) }
+        guard !candidates.isEmpty, topK > 0 else {
+            Log.info("[Hybrid] Document scope: no passages stored for the \(scope.count) named document(s)", category: .pipeline)
+            return []
+        }
+
+        let terms = Set((tokenize(query) + tokenize(boostQuery)).filter { $0.count > 2 })
+        let queryNorm = computeNorm(embedding)
+        var scored: [RetrievedChunk] = []
+        scored.reserveCapacity(candidates.count)
+        for chunk in candidates {
+            let similarity =
+                chunk.embedding.count == embedding.count
+                ? cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm) : 0
+            var keyword: Float = 0
+            if !terms.isEmpty {
+                let content = chunk.content.lowercased()
+                keyword = Float(terms.reduce(0) { $0 + (content.contains($1) ? 1 : 0) }) / Float(terms.count)
+            }
+            scored.append(
+                RetrievedChunk(
+                    chunk: chunk,
+                    similarityScore: vectorWeight * max(0, similarity) + keywordWeight * keyword,
+                    rank: 0))
+        }
+        scored.sort { $0.similarityScore > $1.similarityScore }
+        Log.info(
+            "[Hybrid] Document scope: scored \(candidates.count) passages of \(scope.count) named document(s), returning \(min(topK, scored.count))",
+            category: .pipeline)
+        return reindex(Array(scored.prefix(topK)))
     }
 
     private func cosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float) -> Float {

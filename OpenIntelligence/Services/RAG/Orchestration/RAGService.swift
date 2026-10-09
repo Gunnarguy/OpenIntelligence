@@ -876,7 +876,9 @@ class RAGService: ObservableObject {
 
     @MainActor
     func createNewThread(for containerId: UUID) throws {
-        let tier = entitlementStore?.effectiveTier ?? .free
+        // An engine built by an action while the app is closed has no entitlement store. The plan is
+        // kept in UserDefaults, so read it from there instead of treating a paying person as free.
+        let tier = entitlementStore?.effectiveTier ?? EntitlementStore.currentEffectiveTier()
         let limit = QuotaPolicy.evidenceThreadLimit(for: tier)
         let currentCount = listThreads(for: containerId).count
 
@@ -1874,9 +1876,13 @@ class RAGService: ObservableObject {
         }
 
         // Register active presented instance now that all properties are initialized
+        // Only when no engine holds the place: an engine an action builds for one question must
+        // not take over from the app's own. `ContentView` sets the app's engine itself.
         let currentInstance = self
         Task { @MainActor in
-            RAGService.activePresentedInstance = currentInstance
+            if RAGService.activePresentedInstance == nil {
+                RAGService.activePresentedInstance = currentInstance
+            }
         }
     }
 
@@ -3292,12 +3298,9 @@ class RAGService: ObservableObject {
             let source = candidate.sourceDocument
             let page = candidate.pageNumber
 
-            // Split into individual lines first (preserve line order for heading tracking)
-            let rawLines =
-                content
-                .components(separatedBy: CharacterSet.newlines)
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { $0.count > 3 }
+            // Split into individual lines first (preserve line order for heading tracking). A
+            // sentence wrapped over two lines is joined back so it is scored and kept whole.
+            let rawLines = EvidenceLineSplitter.lines(in: content)
 
             // Track the most recent heading-like line for context inheritance.
             // A "heading" is a short line (≤80 chars) without numbers that acts
@@ -3336,16 +3339,9 @@ class RAGService: ObservableObject {
                     currentHeading = rawLine
                 }
 
-                // Split line into sub-sentences if it's prose (not table/spec data)
-                let subLines: [String]
-                if rawLine.contains("\t") || rawLine.contains("  ") || rawLine.contains("|") {
-                    subLines = [rawLine]  // Table row — keep whole
-                } else {
-                    let parts = rawLine.components(separatedBy: ". ")
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .filter { $0.count > 5 }
-                    subLines = parts.isEmpty ? [rawLine] : parts
-                }
+                // Split line into sub-sentences if it's prose (not table/spec data). Table rows stay
+                // whole, and a sentence is never cut inside "p.m." or an amount.
+                let subLines = EvidenceLineSplitter.units(in: rawLine)
 
                 for subLine in subLines {
                     if Task.isCancelled {
@@ -8758,7 +8754,7 @@ class RAGService: ObservableObject {
 
         let embeddingContext = await resolveEmbeddingContext()
         let db = await dbFor(embeddingContext.containerId)
-        let allChunks = try await db.allChunks()
+        let allChunks = RAGQueryScope.apply(to: try await db.allChunks())  // narrowed when the question names documents
         let sniperChunks = specTableSniper(
             query: question,
             allChunks: allChunks,
@@ -8853,6 +8849,15 @@ class RAGService: ObservableObject {
         qualityMode: RAGQualityMode,
         runtimeContext: QueryRuntimeContext
     ) async throws -> RAGResponse {
+        // Deep Think and Maximum search through `resolveEmbeddingContext()`, which reads this and
+        // falls back to the active library. Standard sets it further down; this path returned
+        // before that line, so a question aimed at another library searched the active one. Only
+        // the chat reached this path through 5.6, always with the active library.
+        await MainActor.run { self.currentQueryContainerId = containerId }
+        defer {
+            Task { await MainActor.run { self.currentQueryContainerId = nil } }
+        }
+
         // Capture the user's routing choice for the whole query. Every generation
         // in the agentic path reads this back; without it the model picker has no
         // effect on Deep Think or Maximum at all.
@@ -9907,7 +9912,10 @@ class RAGService: ObservableObject {
                 var similarityCacheHit = false
 
                 let normalizedQueryText = SQLiteFullTextService.normalizeQuery(question)
-                if let cached = await SQLiteFullTextService.shared.getCachedQuery(
+                // A question limited to named documents is searched inside them, so its result is
+                // not the library's result for the same words: it skips the cache both ways.
+                let isDocumentScoped = !(RAGQueryScope.documentIds ?? []).isEmpty
+                if !isDocumentScoped, let cached = await SQLiteFullTextService.shared.getCachedQuery(
                     normalizedQuery: normalizedQueryText,
                     containerId: selectedId
                 ) {
@@ -10419,7 +10427,7 @@ class RAGService: ObservableObject {
                     }
 
                     // Similarity cache lookup — bypass Step 3 if a near-identical query was cached
-                    if let simCached = await SQLiteFullTextService.shared.getCachedQueryBySimilarity(
+                    if !isDocumentScoped, let simCached = await SQLiteFullTextService.shared.getCachedQueryBySimilarity(
                         embedding: queryEmbedding,
                         containerId: selectedId,
                         threshold: 0.95
@@ -10718,7 +10726,7 @@ class RAGService: ObservableObject {
 
                 // ─ Write to Semantic Cache ─────────────────────────────────────────────────────
                 // Only persist when we actually ran the live search (not on cache hits)
-                if !exactCacheHit && !similarityCacheHit && !retrievedChunks.isEmpty {
+                if !exactCacheHit && !similarityCacheHit && !retrievedChunks.isEmpty && !isDocumentScoped {
                     await SQLiteFullTextService.shared.cacheQuery(
                         normalizedQuery: normalizedQueryText,
                         containerId: selectedId,
@@ -10730,6 +10738,25 @@ class RAGService: ObservableObject {
                         category: .pipeline)
                 }
                 // ────────────────────────────────────────────────────────────────────────────
+
+                // Document scope (set by the Shortcuts actions that name a document). Every search
+                // above went through `HybridSearchService.search`, which searches inside the named
+                // documents when a scope is set. This narrows what did not: passages added by a
+                // direct vector search, and the two candidate lists the later stages (parent
+                // expansion, summaries, enumeration, multi-hop) draw on. A scoped question with no
+                // passage is an error; the general fallback would answer it from the model alone.
+                if let scope = RAGQueryScope.documentIds, !scope.isEmpty {
+                    let before = retrievedChunks.count
+                    retrievedChunks = RAGQueryScope.apply(to: retrievedChunks)
+                    cachedAllChunks = cachedAllChunks.map { RAGQueryScope.apply(to: $0) }
+                    filteredCachedChunks = filteredCachedChunks.map { RAGQueryScope.apply(to: $0) }
+                    Log.info(
+                        "[RAGService] Document scope: \(retrievedChunks.count) of \(before) retrieved passages are in the \(scope.count) named document(s)",
+                        category: .retrieval)
+                    if retrievedChunks.isEmpty {
+                        throw RAGQueryScopeEmptyError()
+                    }
+                }
 
                 // Measure retrieval time before any MainActor work
                 var retrievalTime = Date().timeIntervalSince(retrievalStartTime)
@@ -19533,7 +19560,7 @@ extension RAGService: RAGToolHandler {
         }
         let effectiveMinSimilarity = minSimilarity ?? resolvedRetrievalConfig.minSimilarity
         let db = await dbFor(embeddingContext.containerId)
-        let allChunks = try await db.allChunks()
+        let allChunks = RAGQueryScope.apply(to: try await db.allChunks())  // narrowed when the question names documents
 
         // Skip if no chunks
         guard !allChunks.isEmpty else { return [] }
@@ -19889,7 +19916,7 @@ extension RAGService: RAGToolHandler {
             keywordWeight: adjustedWeights.keywordWeight
         )
 
-        let allChunks = try await db.allChunks()
+        let allChunks = RAGQueryScope.apply(to: try await db.allChunks())  // narrowed when the question names documents
 
         // RAPTOR-lite: Query routing for summary-first retrieval
         var effectiveChunks = allChunks
@@ -19905,6 +19932,9 @@ extension RAGService: RAGToolHandler {
             }
         }
 
+        // A document scope narrows the candidates before the search and the result after it.
+        effectiveChunks = RAGQueryScope.apply(to: effectiveChunks)
+
         // Request more candidates for better coverage
         let effectiveTopK = max(topK, 15)
         var retrievedChunks = try await hybridSearch.search(
@@ -19915,6 +19945,7 @@ extension RAGService: RAGToolHandler {
             cachedChunks: effectiveChunks,
             containerId: embeddingContext.containerId  // Enable SQLite FTS5 acceleration
         )
+        retrievedChunks = RAGQueryScope.apply(to: retrievedChunks)
 
         let engine = RAGEngine.shared
         retrievedChunks = await engine.filterBySimilarity(

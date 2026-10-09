@@ -1325,6 +1325,24 @@ struct DocumentLibraryView: View {
 
     private var librarySheetView: some View {
         libraryChromeView
+            .onReceive(AppNavigationRequest.shared.changes) { _ in
+                // Files other apps handed over: every waiting batch at once, so several files sent
+                // together get one plan check and one import review.
+                let handedOver = AppNavigationRequest.shared.takeAll { destination in
+                    if case .importFiles = destination { return true }
+                    return false
+                }
+                let staged = handedOver.flatMap { destination -> [URL] in
+                    if case .importFiles(let urls) = destination { return urls }
+                    return []
+                }
+                if !staged.isEmpty { importOpenedFiles(staged) }
+
+                // "Add a Document" from Siri, Shortcuts or a link ends here, at the file picker.
+                if AppNavigationRequest.shared.take(where: { $0 == .addDocument }) != nil {
+                    presentDocumentPickerOrUpgrade()
+                }
+            }
             .sheet(isPresented: $showingFilePicker) {
                 DocumentPicker { urls in
                     reviewAndEnqueueDocuments(urls)
@@ -1553,6 +1571,20 @@ struct DocumentLibraryView: View {
 
         reviewAndEnqueueDocuments(staged)
         return true
+    }
+
+    /// Files another app handed over, already copied into the app. They get the same plan check
+    /// and import review as a picked or dropped file. When the plan has no room, the copies are
+    /// removed so they do not stay in the app's storage unimported.
+    @MainActor
+    private func importOpenedFiles(_ staged: [URL]) {
+        guard !staged.isEmpty else { return }
+        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
+            staged.forEach { try? FileManager.default.removeItem(at: $0) }
+            presentPlanSheet(for: .documentLimit)
+            return
+        }
+        reviewAndEnqueueDocuments(staged)
     }
 
     /// Ingests a picked document and unlocks the onboarding step once any content exists.
@@ -2038,6 +2070,7 @@ private enum DocumentImportReadiness {
     static func classify(url: URL) -> Self {
         switch url.pathExtension.lowercased() {
         case "pdf", "txt", "md", "markdown", "mdown", "rtf", "csv",
+             "json", "jsonl", "ndjson",
              "docx", "xlsx", "pptx",
              "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "bmp", "webp":
             return .strong
@@ -2045,7 +2078,7 @@ private enum DocumentImportReadiness {
             return .transcriptOnly
         case "doc", "xls", "ppt", "pages", "numbers", "key":
             return .convertFirst
-        case "xml", "json", "jsonc", "html", "htm", "yaml", "yml", "css", "scss", "sass", "less",
+        case "xml", "jsonc", "html", "htm", "yaml", "yml", "css", "scss", "sass", "less",
              "sql", "sh", "bash", "zsh", "fish",
              "swift", "py", "pyw", "pyx", "js", "mjs", "cjs", "ts", "tsx", "java", "class",
              "cpp", "cc", "cxx", "c++", "c", "h", "m", "mm", "go", "rs", "rb", "php",

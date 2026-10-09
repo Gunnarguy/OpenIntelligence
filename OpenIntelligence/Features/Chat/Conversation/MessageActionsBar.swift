@@ -174,9 +174,7 @@ struct MessageActionsBar: View {
     }
 
     private func copyToClipboard() {
-        #if canImport(UIKit)
-            UIPasteboard.general.string = message.content
-        #endif
+        SystemClipboard.copy(message.content)
 
         copiedFeedback = true
         DSHaptics.success()
