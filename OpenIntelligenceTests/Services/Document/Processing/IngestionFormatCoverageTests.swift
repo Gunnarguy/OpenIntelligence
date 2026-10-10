@@ -179,6 +179,21 @@ final class IngestionFormatCoverageTests: XCTestCase {
         }
     }
 
+    /// A cell that holds only a number or a code survives. Through 5.6 each cell went alone through
+    /// the page-text cleanup, whose last step deletes a line that is only a page number or a figure
+    /// code, so "34", "2024" and "SKU10293" came out empty and were in no passage, vector or index.
+    func testCSV_KeepsCellsThatAreOnlyANumberOrACode() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("cells-\(UUID().uuidString).csv")
+        try "Item,Quantity,Year,Code\nWidget,34,2024,SKU10293\nGasket,7,1999,INV2024001\n"
+            .write(to: url, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let (_, chunks) = try await extract(url)
+        let text = combinedText(chunks)
+        XCTAssertTrue(lineContainsAll(["Widget", "34", "2024", "SKU10293"], in: text), text)
+        XCTAssertTrue(lineContainsAll(["Gasket", "7", "1999", "INV2024001"], in: text), text)
+    }
+
     // MARK: - JSON records
 
     /// The claim under test: a JSON Lines file imports as one passage per line, each with its field

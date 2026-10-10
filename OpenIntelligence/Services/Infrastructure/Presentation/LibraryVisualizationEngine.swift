@@ -22,7 +22,12 @@ struct LibraryProfile: Equatable {
 
     // Content metrics
     let documentCount: Int
+    /// The passages this profile was built from.
     let chunkCount: Int
+    /// The passages the library holds. More than `chunkCount` when the library is larger than a
+    /// map reads at once and the profile was built from an even sample of it.
+    let libraryPassageCount: Int
+    /// Counted when `chunkCount` is the whole library, and scaled up from the sample otherwise.
     let totalWords: Int
     let avgChunkSize: Int
 
@@ -51,6 +56,10 @@ struct LibraryProfile: Equatable {
         case 51 ... 200: return .large
         default: return .massive
         }
+    }
+
+    var isSampled: Bool {
+        libraryPassageCount > chunkCount
     }
 
     var isHighlyActive: Bool {
@@ -346,12 +355,15 @@ final class LibraryVisualizationEngine: ObservableObject {
 
     // MARK: - Analysis
 
-    /// Analyze a library and generate profile + insights
+    /// Analyze a library and generate profile + insights.
+    /// `libraryPassageCount` is how many passages the library holds when `chunks` is a sample of
+    /// it (`RAGService.allChunksForActiveContainer()` returns one for a very large library).
     func analyze(
         containerId: UUID,
         documents: [Document],
         chunks: [DocumentChunk],
-        retrievalHistory: [RetrievalLogEntry]
+        retrievalHistory: [RetrievalLogEntry],
+        libraryPassageCount: Int? = nil
     ) async {
         analysisTask?.cancel()
 
@@ -363,7 +375,8 @@ final class LibraryVisualizationEngine: ObservableObject {
                 containerId: containerId,
                 documents: documents,
                 chunks: chunks,
-                retrievalHistory: retrievalHistory
+                retrievalHistory: retrievalHistory,
+                libraryPassageCount: libraryPassageCount
             )
 
             if Task.isCancelled { return }
@@ -391,13 +404,19 @@ final class LibraryVisualizationEngine: ObservableObject {
         containerId: UUID,
         documents: [Document],
         chunks: [DocumentChunk],
-        retrievalHistory: [RetrievalLogEntry]
+        retrievalHistory: [RetrievalLogEntry],
+        libraryPassageCount: Int? = nil
     ) async -> LibraryProfile {
         // Basic metrics
         let docCount = documents.count
         let chunkCount = chunks.count
-        let totalWords = chunks.reduce(0) { $0 + $1.metadata.wordCount }
-        let avgChunkSize = chunkCount > 0 ? totalWords / chunkCount : 0
+        let libraryCount = max(libraryPassageCount ?? chunkCount, chunkCount)
+        let countedWords = chunks.reduce(0) { $0 + $1.metadata.wordCount }
+        let avgChunkSize = chunkCount > 0 ? countedWords / chunkCount : 0
+        // The same number when every passage was read; an estimate when `chunks` is a sample.
+        let totalWords =
+            libraryCount > chunkCount
+            ? Int(Double(countedWords) * Double(libraryCount) / Double(chunkCount)) : countedWords
 
         // Topic analysis
         let (topics, diversity) = await analyzeTopics(chunks: chunks)
@@ -430,6 +449,7 @@ final class LibraryVisualizationEngine: ObservableObject {
             timestamp: Date(),
             documentCount: docCount,
             chunkCount: chunkCount,
+            libraryPassageCount: libraryCount,
             totalWords: totalWords,
             avgChunkSize: avgChunkSize,
             topicDiversity: diversity,
@@ -1101,6 +1121,24 @@ final class LibraryVisualizationEngine: ObservableObject {
                 metrics: []
             ))
             return insights
+        }
+
+        // A library larger than a map reads at once is drawn from an even sample. Say so first.
+        if profile.isSampled {
+            insights.append(VisualizationInsight(
+                type: .coverageGaps,
+                priority: .critical,
+                title: "Mapped from a sample",
+                subtitle:
+                    "This library holds \(profile.libraryPassageCount.formatted()) passages. The map is drawn from \(profile.chunkCount.formatted()) of them, taken evenly across the library, and its word count is an estimate.",
+                icon: "square.stack.3d.up",
+                color: .secondary,
+                action: .expandDetail,
+                metrics: [
+                    .init(label: "In the library", value: profile.libraryPassageCount.formatted(), trend: nil),
+                    .init(label: "On the map", value: profile.chunkCount.formatted(), trend: nil),
+                ]
+            ))
         }
 
         // Recent additions - high priority if present

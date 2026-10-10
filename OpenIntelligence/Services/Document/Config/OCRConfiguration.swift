@@ -44,6 +44,12 @@ enum OCRConfiguration {
     enum TextNormalizationProfile {
         case extractedDocument
         case authoredText
+        /// One cell of a table, or one side of a key and value pair, from an extracted document.
+        /// Every repair `extractedDocument` makes, without its last step, which removes a line
+        /// that is only a page number, a figure code or a page-reference cluster. That step is
+        /// for a page's lines. A cell that holds only "34", "2024" or "SKU10293" is the cell's
+        /// content, and through 5.6 it was emptied (measured 2026-10-10).
+        case tableCell
     }
 
     // MARK: - Genuinely Universal Custom Words
@@ -316,16 +322,27 @@ enum OCRConfiguration {
     private static let cyrillicRange: ClosedRange<UInt32> = 0x0400...0x04FF
     private static let cyrillicSupplementRange: ClosedRange<UInt32> = 0x0500...0x052F
 
+    nonisolated(unsafe) private static let languageRecognizer = NLLanguageRecognizer()
+    nonisolated private static let languageRecognizerLock = NSLock()
+
     /// Detect document language using NLLanguageRecognizer.
     /// Returns whether the document is primarily a Latin-script language.
     /// This prevents garbage filters from destroying legitimate non-Latin documents.
     private static func detectDocumentLanguage(_ text: String) -> (isLatinScript: Bool, dominantLanguage: NLLanguage?) {
-        let recognizer = NLLanguageRecognizer()
         // Use a sample to avoid processing huge texts
         let sample = String(text.prefix(2000))
-        recognizer.processString(sample)
+        // One recognizer, reset for each text. A recognizer builds its language model the first
+        // time it is given a string, which a sample of an import on 2026-10-09 put at about
+        // 2.4 ms, and this is called for every label of every chunk: a new recognizer each time
+        // was 14 s on the main actor for one 2 MB piece of a JSON Lines file. The lock is because
+        // this is called from the main actor and from the concurrent pool.
+        languageRecognizerLock.lock()
+        languageRecognizer.reset()
+        languageRecognizer.processString(sample)
+        let detected = languageRecognizer.dominantLanguage
+        languageRecognizerLock.unlock()
 
-        guard let dominant = recognizer.dominantLanguage else {
+        guard let dominant = detected else {
             // Can't detect → assume Latin to enable garbage filtering (conservative)
             return (true, nil)
         }
@@ -369,9 +386,17 @@ enum OCRConfiguration {
         var digitCount = 0
         var asciiCount = 0
         var totalLetters = 0
+        // Letters and numbers of every script, for rule 5. `totalLetters` counts ASCII and
+        // Cyrillic letters only, which the script-mixing and vowel rules need. Rule 5 used it as
+        // "alphanumeric", so a line of Greek, Chinese or Arabic counted as all symbols and was
+        // deleted (measured 2026-10-10: four of four lines of a Greek page).
+        var anyScriptAlphanumericCount = 0
 
         for scalar in scalars {
             let value = scalar.value
+            if scalar.properties.isAlphabetic || scalar.properties.numericType != nil {
+                anyScriptAlphanumericCount += 1
+            }
             if (0x0041...0x005A).contains(value) || (0x0061...0x007A).contains(value) {
                 latinCount += 1
                 asciiCount += 1
@@ -434,7 +459,7 @@ enum OCRConfiguration {
         }
 
         // Rule 5: Excessive punctuation/symbols (>60% non-alphanumeric in a long string)
-        let alphanumCount = totalLetters + digitCount
+        let alphanumCount = max(totalLetters + digitCount, anyScriptAlphanumericCount)
         if totalChars > 10 && Double(alphanumCount) / Double(totalChars) < 0.35 {
             return true
         }
@@ -546,6 +571,20 @@ enum OCRConfiguration {
     ) -> String {
         guard !text.isEmpty else { return text }
 
+        let repairsExtraction: Bool
+        let stripsPageNoise: Bool
+        switch profile {
+        case .extractedDocument:
+            repairsExtraction = true
+            stripsPageNoise = true
+        case .tableCell:
+            repairsExtraction = true
+            stripsPageNoise = false
+        case .authoredText:
+            repairsExtraction = false
+            stripsPageNoise = false
+        }
+
         // 1. Unicode NFKC: decomposes compatibility forms + recomposes canonical.
         //    Fixes ligatures (ﬁ→fi), fullwidth chars (Ａ→A), superscripts, etc.
         var result = text.precomposedStringWithCompatibilityMapping  // NFKC
@@ -598,7 +637,7 @@ enum OCRConfiguration {
             options: .regularExpression
         )
 
-        if case .extractedDocument = profile {
+        if repairsExtraction {
             // 6. Collapse multi-space runs (from column alignment, OCR spacing)
             //    but preserve single newlines (paragraph structure)
             result = result.replacingOccurrences(
@@ -612,7 +651,7 @@ enum OCRConfiguration {
         result = result.replacingOccurrences(of: "\r\n", with: "\n")
         result = result.replacingOccurrences(of: "\r", with: "\n")
 
-        if case .extractedDocument = profile {
+        if repairsExtraction {
             // 8. Collapse 3+ consecutive blank lines into 2 (preserve paragraph gaps)
             result = result.replacingOccurrences(
                 of: #"\n{3,}"#,
@@ -630,7 +669,7 @@ enum OCRConfiguration {
             return true
         }.map { Character($0) })
 
-        if case .extractedDocument = profile {
+        if repairsExtraction {
             // 10. Replace CJK bullet artifacts in Latin-dominant text
             //     Many PDFs from Asian publishers (Kia, Hyundai, etc.) encode bullet
             //     point glyphs as CJK ideographs in the text layer. PDFKit faithfully
@@ -662,7 +701,9 @@ enum OCRConfiguration {
             //     Removes lines that are ONLY internal asset codes, orphan page numbers,
             //     or cross-reference page clusters. These are structural PDF artifacts
             //     that waste chunk token budget and pollute BM25/vector search.
-            result = stripDocumentNoise(result)
+            if stripsPageNoise {
+                result = stripDocumentNoise(result)
+            }
         }
 
         return result

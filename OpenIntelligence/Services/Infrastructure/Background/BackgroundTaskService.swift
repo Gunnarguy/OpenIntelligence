@@ -170,9 +170,58 @@ final class BackgroundTaskService: Sendable {
 
     private init() {}
 
-    private static func continuedIngestionRequestIdentifier() -> String {
-        continuedIngestionIdentifier
+    /// The start of every name an import's continued-processing task is submitted under. The
+    /// Info.plist lists it with a trailing "*".
+    ///
+    /// Apple's rule for these tasks (the comments in BGTaskRequest.h of the iOS 27 SDK, and
+    /// "Performing long-running tasks on iOS and iPadOS" on developer.apple.com, both read
+    /// 2026-10-09): the name starts with the app's bundle ID, the permitted identifier ends in
+    /// ".*", each job is submitted under a name of its own, and its handler is registered under
+    /// that name when it is submitted. Until this change the app submitted the fixed name
+    /// "com.openintelligence.document-ingestion", which is neither. The system accepted the
+    /// request and never started the task: on an iPhone on 2026-10-09 the status stayed
+    /// "submitted" through four imports, so leaving the app left them the half minute of the
+    /// fallback below and nothing else.
+    static var continuedIngestionIdentifierStem: String {
+        "\(Bundle.main.bundleIdentifier ?? "Gunndamental.OpenIntelligence").document-ingestion."
     }
+
+    private static func continuedIngestionRequestIdentifier() -> String {
+        continuedIngestionIdentifierStem + UUID().uuidString
+    }
+
+    /// One line on the device's state, for the record of an expired task.
+    @MainActor
+    private static func expiryConditions(startedAt: Date?) -> String {
+        let thermal: String
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: thermal = "nominal"
+        case .fair: thermal = "fair"
+        case .serious: thermal = "serious"
+        case .critical: thermal = "critical"
+        @unknown default: thermal = "unknown"
+        }
+        #if canImport(UIKit)
+            let appState: String
+            switch UIApplication.shared.applicationState {
+            case .active: appState = "in front"
+            case .inactive: appState = "inactive"
+            case .background: appState = "in the background"
+            @unknown default: appState = "unknown"
+            }
+        #else
+            let appState = "unknown"
+        #endif
+        let running = startedAt.map { "\(Int(Date().timeIntervalSince($0))) s after it started" } ?? "start time unknown"
+        return "Thermal state \(thermal), low power mode \(ProcessInfo.processInfo.isLowPowerModeEnabled ? "on" : "off"), "
+            + "system asked for reduced use: \(SystemResourceAdvice.prefersReducedUsage ? "yes" : "no"), app \(appState), \(running)."
+    }
+
+    /// The units the system's task counts an import's progress in. The system expires a task
+    /// that shows no progress (on an iPhone on 2026-10-09, thirty seconds after the app left the
+    /// front with the count unchanged). In thousandths, a step of a large import was too small to
+    /// change the count: one sixteenth of a piece of a 45-piece file is about one part in 10,000.
+    static let continuedIngestionProgressUnits: Int64 = 100_000
 
     private static func continuedQueryRequestIdentifier() -> String {
         continuedQueryIdentifier
@@ -271,6 +320,25 @@ final class BackgroundTaskService: Sendable {
         request.strategy = preferredSubmissionStrategy()
         if policy.backgroundGPURequested {
             request.requiredResources = .gpu
+        }
+
+        // The handler for this job, under this job's name. On the main queue, because the handler
+        // is main-actor code.
+        let registered = BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: requestIdentifier, using: DispatchQueue.main
+        ) { task in
+            guard let continuedTask = task as? BGContinuedProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            MainActor.assumeIsolated {
+                BackgroundTaskService.shared.handleContinuedIngestion(task: continuedTask)
+            }
+        }
+        if !registered {
+            Log.warning(
+                "[BackgroundTasks] The system refused a handler for \(requestIdentifier); the import has no background task",
+                category: .initialization)
         }
 
         do {
@@ -561,13 +629,11 @@ final class BackgroundTaskService: Sendable {
     func handleContinuedIngestion(task: BGContinuedProcessingTask) {
         Log.info("[BackgroundTasks] Starting continued ingestion task", category: .initialization)
 
-        let policy = activeContinuedIngestionRequestContext?.policy ?? continuedProcessingPolicy()
-        applyIngestionExecutionProfile(policy: policy)
-
         endForegroundFallbackIngestionExtension()
         continuedIngestionRequestSubmitted = false
         activeContinuedIngestionTask = task
-        task.progress.totalUnitCount = 1000
+        applyIngestionExecutionProfileForCurrentState()
+        task.progress.totalUnitCount = Self.continuedIngestionProgressUnits
         task.progress.completedUnitCount = 0
         let context = activeContinuedIngestionRequestContext
         recordContinuedIngestionStatus(
@@ -594,14 +660,20 @@ final class BackgroundTaskService: Sendable {
         task.expirationHandler = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                // What the device was like when the system took the task back, kept with the
+                // status and in the trace. The scheduler has a highest thermal pressure it lets
+                // this kind of task run at, lower while the device is in use (the names are in
+                // its daemon), and on 2026-10-09 it expired three imports within a minute of the
+                // app leaving the front. This is the evidence for or against that being why.
+                let conditions = Self.expiryConditions(startedAt: self.continuedIngestionStatus.startedAt)
                 self.activeContinuedIngestionWorker?.cancel()
                 self.continuedIngestionExpirationHandler?()
                 self.finishContinuedIngestion(
                     success: false,
                     phase: .expired,
-                    errorMessage: "The system expired the continued ingestion task before completion."
+                    errorMessage: "The system expired the continued ingestion task before completion. \(conditions)"
                 )
-                Log.warning("[BackgroundTasks] Continued ingestion task expired", category: .initialization)
+                Log.warning("[BackgroundTasks] The system expired the import's background task. \(conditions)", category: .ingestion)
             }
         }
 
@@ -629,6 +701,23 @@ final class BackgroundTaskService: Sendable {
             DeviceCapabilityService.shared.setIngestionExecutionProfile(.interactive)
         #else
             guard #available(iOS 26.0, *) else {
+                DeviceCapabilityService.shared.setIngestionExecutionProfile(.interactive)
+                return
+            }
+
+            // The reduced profile (embedding on the CPU alone, half the concurrency, no Metal)
+            // is for work the system is running while the app is in the background. It used to
+            // be applied when the system started the task, which happens with the app still in
+            // front, and it stayed until the import ended: on an iPhone on 2026-10-09 embedding
+            // went from 96 passages in 2 s to 96 in about 5 s a minute into an import the owner
+            // was watching. Now it follows where the app is, and `ContentView` calls this on
+            // every change of scene phase.
+            #if canImport(UIKit)
+                let inBackground = UIApplication.shared.applicationState == .background
+            #else
+                let inBackground = false
+            #endif
+            guard activeContinuedIngestionTask != nil, inBackground else {
                 DeviceCapabilityService.shared.setIngestionExecutionProfile(.interactive)
                 return
             }
@@ -718,8 +807,9 @@ final class BackgroundTaskService: Sendable {
             let clampedFraction = max(0, min(1, fraction))
             let displayTitle = tunedTitle(base: title)
             let displaySubtitle = tunedSubtitle(base: subtitle)
-            task.progress.totalUnitCount = 1000
-            task.progress.completedUnitCount = Int64((clampedFraction * 1000).rounded())
+            task.progress.totalUnitCount = Self.continuedIngestionProgressUnits
+            task.progress.completedUnitCount = Int64(
+                (clampedFraction * Double(Self.continuedIngestionProgressUnits)).rounded())
             task.updateTitle(displayTitle, subtitle: displaySubtitle)
             persistContinuedIngestionProgress(
                 title: displayTitle,

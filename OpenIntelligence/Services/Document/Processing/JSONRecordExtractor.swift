@@ -39,6 +39,17 @@ nonisolated enum JSONRecordExtractor {
     /// guess at what a phone can hold; it has not been measured on one.
     static let maxWholeFileBytes = 16 * 1_048_576
 
+    /// Where a piece of a file sits in the whole file. A JSON Lines file over the size the import
+    /// reads in one go is read in pieces of whole lines, and each piece's records carry the
+    /// numbers they have in the file: the 2,000th line is "Record 2000 of 189579" whichever
+    /// piece it came in.
+    struct Numbering: Sendable, Equatable {
+        /// The number of the first record being read. 1 for a whole file.
+        var first = 1
+        /// Records in the whole file. nil when the records being read are all of them.
+        var total: Int?
+    }
+
     /// Lines of a multi-line value after the first are indented by this, so no line of a value can
     /// be mistaken for a record header, which always starts in the first column.
     static let continuationIndent = "  "
@@ -47,7 +58,9 @@ nonisolated enum JSONRecordExtractor {
 
     /// Records for a file's contents, or nil when the contents are not JSON records.
     /// - Parameter fileExtension: lowercased, without the dot.
-    static func extract(from contents: String, fileExtension: String) -> Extraction? {
+    static func extract(
+        from contents: String, fileExtension: String, numbering: Numbering = Numbering()
+    ) -> Extraction? {
         // A byte-order mark (Windows and PowerShell exports write one) is not JSON and is not
         // whitespace to Foundation, so it is taken off here.
         var text = contents
@@ -56,22 +69,24 @@ nonisolated enum JSONRecordExtractor {
         guard !trimmed.isEmpty, trimmed.utf8.count <= maxFileBytes else { return nil }
 
         if isLineDelimited(fileExtension) {
-            return extractLines(from: trimmed)
+            return extractLines(from: trimmed, numbering: numbering)
         }
 
         if trimmed.utf8.count <= maxWholeFileBytes, let value = JSONValue.parse(trimmed) {
             let entries = recordEntries(of: value)
             guard !entries.isEmpty else { return nil }
-            let total = entries.count
+            let total = numbering.total ?? entries.count
             let records = entries.enumerated().map { offset, entry in
-                render(entry.value, key: entry.key, index: offset + 1, total: total)
+                render(entry.value, key: entry.key, index: numbering.first + offset, total: total)
             }
             return Extraction(records: records, unparsedLineCount: 0)
         }
 
         // A file named .json that holds one object per line is JSON Lines under another name. It
         // counts only when every line parses, so ordinary broken JSON still goes the text route.
-        if let lines = extractLines(from: trimmed), lines.records.count > 1, lines.unparsedLineCount == 0 {
+        if let lines = extractLines(from: trimmed, numbering: numbering), lines.records.count > 1,
+            lines.unparsedLineCount == 0
+        {
             return lines
         }
         return nil
@@ -83,7 +98,7 @@ nonisolated enum JSONRecordExtractor {
 
     /// One record per non-blank line. Each line is parsed and written out before the next is read,
     /// so no parsed tree outlives its line.
-    private static func extractLines(from contents: String) -> Extraction? {
+    private static func extractLines(from contents: String, numbering: Numbering) -> Extraction? {
         // Lines end at a line feed and nowhere else. JSON allows U+2028, U+2029 and U+0085 raw
         // inside a string, and Foundation's line enumeration would cut a record in two at them.
         // The split is on the line-feed scalar: "\r\n" is one Character to Swift, so a split on
@@ -93,19 +108,20 @@ nonisolated enum JSONRecordExtractor {
             .filter { !$0.isEmpty }
         guard !lines.isEmpty else { return nil }
 
-        let total = lines.count
+        let total = numbering.total ?? lines.count
         var records: [String] = []
-        records.reserveCapacity(total)
+        records.reserveCapacity(lines.count)
         var unparsed = 0
         for (offset, line) in lines.enumerated() {
+            let index = numbering.first + offset
             if let value = JSONValue.parse(line) {
-                records.append(render(value, key: nil, index: offset + 1, total: total))
+                records.append(render(value, key: nil, index: index, total: total))
             } else {
                 unparsed += 1
-                records.append(header(index: offset + 1, total: total) + "\n" + line)
+                records.append(header(index: index, total: total) + "\n" + line)
             }
         }
-        guard unparsed < total else { return nil }
+        guard unparsed < lines.count else { return nil }
         return Extraction(records: records, unparsedLineCount: unparsed)
     }
 
@@ -214,23 +230,26 @@ nonisolated enum JSONRecordExtractor {
     /// One passage per record, cut from the document's text after it has been through the import's
     /// cleanup. A header counts only in the first column and only as the next one due. Returns nil
     /// unless the text holds exactly `expectedCount` headers in order, so the caller can fall back
-    /// to ordinary chunking and lose nothing.
-    static func passages(in text: String, expectedCount: Int) -> [(range: Range<String.Index>, text: String)]? {
+    /// to ordinary chunking and lose nothing. `numbering` is the one the records were read with.
+    static func passages(
+        in text: String, expectedCount: Int, numbering: Numbering = Numbering()
+    ) -> [(range: Range<String.Index>, text: String)]? {
         guard expectedCount > 0 else { return nil }
 
+        let total = numbering.total ?? expectedCount
         var starts: [String.Index] = []
-        var next = 1
-        var wanted = header(index: next, total: expectedCount)
+        var next = numbering.first
+        var wanted = header(index: next, total: total)
         var lineStart = text.startIndex
         while lineStart < text.endIndex {
             let lineEnd = text[lineStart...].firstIndex(where: \.isNewline) ?? text.endIndex
             let line = text[lineStart..<lineEnd]
-            if next <= expectedCount, line.hasPrefix(wanted),
+            if starts.count < expectedCount, line.hasPrefix(wanted),
                 line.dropFirst(wanted.count).allSatisfy({ $0 == " " || $0 == "\t" })
             {
                 starts.append(lineStart)
                 next += 1
-                wanted = header(index: next, total: expectedCount)
+                wanted = header(index: next, total: total)
             }
             lineStart = lineEnd < text.endIndex ? text.index(after: lineEnd) : text.endIndex
         }
@@ -245,6 +264,36 @@ nonisolated enum JSONRecordExtractor {
             let passage = text[start..<end].trimmingCharacters(in: .whitespacesAndNewlines)
             return (start..<end, passage)
         }
+    }
+
+    /// Which consecutive records share a passage when a large file's records are packed.
+    ///
+    /// A file read whole gives every record its own passage. A file read in pieces can hold a
+    /// couple of hundred thousand short records, and that many passages is more than a library's
+    /// stores are built for, so its records are packed: a passage takes whole records, in order,
+    /// while their tokens stay within `maxTokens`. A record that is over the limit alone gets a
+    /// range to itself, and the caller cuts it with `parts`. Every index is in exactly one range.
+    /// - Parameter joinTokens: what joining two records costs (the blank line between them).
+    static func packedRanges(tokenCounts: [Int], maxTokens: Int, joinTokens: Int = 2) -> [Range<Int>] {
+        var ranges: [Range<Int>] = []
+        var start = 0
+        var used = 0
+        for (index, count) in tokenCounts.enumerated() {
+            if index == start {
+                used = count
+                continue
+            }
+            let withThis = used + joinTokens + count
+            if used > maxTokens || withThis > maxTokens {
+                ranges.append(start..<index)
+                start = index
+                used = count
+            } else {
+                used = withThis
+            }
+        }
+        if start < tokenCounts.count { ranges.append(start..<tokenCounts.count) }
+        return ranges
     }
 
     /// Cuts one record's passage into parts that each fit `maxTokens`, at line ends. A part after

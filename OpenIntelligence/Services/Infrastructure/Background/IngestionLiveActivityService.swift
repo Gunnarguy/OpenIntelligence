@@ -264,7 +264,7 @@ final class IngestionLiveActivityService {
             totalCount: totalCount,
             activeCount: activeCount,
             currentFilename: trimmed(currentItem.filename, maxLength: filenameLimit(for: device)),
-            currentStage: currentItem.stage.displayName,
+            currentStage: IngestionLiveActivityStageText.text(for: currentItem),
             remainingDocuments: remainingDocuments,
             deviceSummary: trimmed(deviceSummary(for: device), maxLength: 32),
             performanceSummary: trimmed(performanceSummary(for: device, thermalBucket: thermalBucket), maxLength: 40),

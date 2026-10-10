@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-09, night (5.7 is open; batches one to four are `af7aaf9`; the fifth, sixth and seventh, two controls rebuilt as the app's own, and the fix for a large text import that froze the owner's iPhone until iOS ended the app are in the commit after it, pushed with `[ci skip]`; that tree is on his iPhone as a development build; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
+Updated: 2026-10-10, morning (5.7 is open; `55af072` is the last commit and is pushed with `[ci skip]`; the working tree after it is not committed and holds the import in pieces, the fixes from the night of 10-09 and the morning of 10-10, and three import-accuracy fixes; the owner's 88.50 MB file finished importing on his iPhone at 02:20 PT on 10-10; a development (Debug) build of the whole working tree is on his iPhone since 10:19 PT on 10-10; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: af7aaf9
+Last verified commit: 55af072
 
 ## Objective
 
@@ -18,6 +18,16 @@ On 2026-10-09, shown the list of what was next, he said the work was not done wh
 sweep had found were untouched. So the rows about the on-device model, speech, image input, Core AI and
 Evaluations are part of 5.7 too, and the sixth batch below is the first pass over them.
 
+On 2026-10-10, about 01:00 PT, he widened it in two messages. First: take the approach that found the
+night's fixes (measure the path that ran, read Apple's interface for it, change the largest cost) "across the
+board for the entire ingestion process that makes it better, faster, more accurate, full unlocking and
+utilization of the hardware and Apple frameworks". Second: the app feels "slightly buggy,
+jittery/laggy/sluggish", and to "go deep into the apple foundations and other frameworks" for what is being
+missed. Both are 5.7 work in his words. Four read-only passes were made that night and their reports are in
+`BenchmarkRuns/2026-10-10-ingestion-and-ui-audit/` (local): A the import pipeline's costs and silent losses,
+B the iOS 27 SDK, C the embedding path, D the interface. The roadmap row that lists what is still to verify is
+https://app.notion.com/p/3f549a74d54f81f4931bd35e661177ae .
+
 5.6 ("the first five minutes") is live. Its device checks are still open and are listed under Exact Next Action.
 
 Also local and not started: a small marketing test whose notes are in `Growth/` (git-ignored; start at
@@ -25,6 +35,70 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Status
 
+- **2026-10-10, 00:10 to 10:20 PT: the 88.50 MB file is in, and the night found five more defects, all changed in
+  the working tree, none committed.** The session was idle from about 01:27 to 10:02 PT (cause not established);
+  the import and the installer below ran through it.
+  1. *The import finished.* On the build installed 23:29 PT on 10-09, in one run with the app in front:
+     `imported 144247 chunks from 45 parts in 4601s` at 02:20:37 PT (76.7 minutes). Embedding ran at 46.6 passages a
+     second in part 1 and 32 to 35 in the last parts (36.4 on average over the parts logged). A part's two saves took
+     about 0.25 s at the start and 2 to 4.5 s at the end.
+  2. *The Atlas ended the app.* At 00:42 PT iOS ended the app with `0x8BADF00D` (scene-update watchdog, 10 s), the
+     main thread in `LibraryVisualizationEngine.detectCategory`, at about 63,000 passages. The maps now read at most
+     6,000 passages, an even sample (`RAGService.visualizationPassageLimit`, `evenSampleIndices`), and the Atlas shows
+     a "Mapped from a sample" card. Row https://app.notion.com/p/3f549a74d54f81d5a5e5e38b9631ff74 .
+  3. *The import started over once.* At 01:03 PT, after the app was ended in the background, the restart found the
+     vector store holding part 17 and the search index not, and the recovery written on 10-09 removed all 16
+     committed parts. That state now finishes the part from the stored chunks (`Recovery.finishIndex`), the two saves
+     run in a task of their own, and a part's passages are numbered by place (`RAGService.documentNumbered`).
+  4. *Three silent losses in import, from audit A, each confirmed in code and by a test:* a table cell that holds only
+     a number or a code was emptied (a CSV row `Widget,34,2024,SKU10293` was stored as `ROW 1: Widget |  |  | `); a
+     line in Greek, Chinese or Arabic was deleted from a page as garbage; a recording's language was read from two
+     letters anywhere in its file name. Rows https://app.notion.com/p/3f549a74d54f819d968fd8d35b9e3595 ,
+     https://app.notion.com/p/3f549a74d54f8151a9fefb4f1fc5ea2e , https://app.notion.com/p/3f549a74d54f81b0bdf0cddeac841def .
+  5. *`BackgroundTaskService` records the conditions at each expiry* (thermal state, low power, the reduced-usage
+     signal, app state, seconds since start) in the status file's error text and the trace.
+  6. *Why iOS takes the background task back within seconds: a likely cause, not measured.* Apple's entitlement page
+     for `com.apple.developer.background-tasks.continued-processing.inference` (iOS 27, read 2026-10-10) says it is
+     required for any Neural Engine access in the background. The app does not have it. On the Mac the Core AI model
+     on CPU alone took 181 ms a passage against 7 ms by default, and the Core ML copy of the same model took 8.5 ms
+     on CPU alone (audit B, one run each). The phone's status file also read thermal state "Serious" during the import.
+  7. *The build on his phone is a Debug build:* `-Onone`, verbose logging, and a synchronous file write per log line
+     (`LoggingConfiguration.swift`). The App Store build does none of that. How the app feels has to be judged on a
+     Release build; none has been made.
+  The Native Surfaces Catalogue artifact (https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ) was updated at his word
+  with where 5.7 stands on each row: 41 built, 9 partly, 37 not started, 7 waiting on him, 2 checked, of 118.
+
+- **2026-10-09, late night: the working tree is ahead of `55af072` and is not committed. It makes a large text
+  or JSON Lines file import a piece at a time.** The owner tried the 88.50 MB `.jsonl` (189,579 records) on the
+  build of `55af072` and it did not finish: two runs were ended for memory near chunk 19,750 with no crash report,
+  one was cancelled when background time ran out and started over when resumed. He then said the file has to
+  import, not be refused, by the best method available. What the tree now does, one `CHANGELOG.md` entry each:
+  a text, Markdown or JSON Lines file over 8 MB goes through `RAGService.importLargeTextStreamed`
+  (`RAGService+TextStreaming.swift`, new) in pieces of about 2 MB cut by `TextPieceReader` (new), with a
+  checkpoint after each piece; JSON Lines records keep their numbers across pieces and short records share a
+  passage; `SemanticChunker` drains an autorelease pool for each chunk (392 MB to 47 MB on 4 million characters,
+  same output); an import that background time stopped continues when the app is in front, the screen stays on
+  during an import, and a cancelled queue loop is waited for before another starts; the import's background task
+  is submitted under a name of the form Apple documents (`Info.plist` and `BackgroundTaskService.swift`);
+  `BNNSVectorDatabase.saveToDisk` writes vectors before metadata and the loader trims unlisted vectors, so a save
+  that is cut off no longer deletes a library's vector store. Files the owner did not name and that the boundaries
+  file lists as behaviour-critical are edited: `RAGService.swift` and `BNNSVectorDatabase.swift` (stored form
+  unchanged). Both edits are described in the changelog. **On the device so far (22:37 to 22:41 PT, on an
+  earlier build of this tree): the import started in pieces ("in 45 parts (189579 records)"), the first piece came
+  out as 3,850 passages, iOS started the background task for the first time, and then expired it thirty seconds
+  after the owner left the app, because one piece's embedding is a single call of over two minutes that reported
+  no progress; the cancel that followed was recorded as a failure (the embedder wrapped the cancellation as a
+  provider error) and the file was dropped from the queue. The tree now holds the fixes for each of those, plus a
+  14 s main-actor hold per piece that a timing probe found (cleanup of chunk titles), and the build with all of it
+  is the one installed last (time in the Verification block).** A second run (22:59 to 23:02 PT) showed the
+  fixes working (parts, progress every 96 passages, a cancel in 1.2 s that was not recorded as a failure) and two
+  more things: embedding ran at 48 passages a second for a minute and then at about 21, cause not established,
+  and iOS expired the background task within seconds of the owner leaving the app, cause not established, so
+  every time he switched apps the first part started over. The tree now also keeps a part's vectors as they are
+  made, so a part goes on from where it stopped. The owner's words that night: it has to import, by the best
+  method there is; it is "ridiculously slow"; the Dynamic Island and background processing have to be right.
+  No import has finished on a device. At 48 passages a second the file is about an hour of embedding. Roadmap: the import row and the streaming row are `v5.7`, In Progress; two new `v5.7` rows (the vector
+  store, the background task) and four new backlog rows are listed under Blockers.
 - **2026-10-09, 5.7: seven batches written, built, tested and committed with `[ci skip]`. One thing has been seen
   on a device, and it was a crash: an 88.50 MB `.jsonl` froze the app during import and iOS ended it (below).** One
   entry per change is in `CHANGELOG.md` under 5.7, each with what was read, built or tested. Of the 83 rows on
@@ -265,6 +339,24 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Working Set
 
+- **Uncommitted, new files (add by name):** `OpenIntelligence/Services/Document/Processing/TextPieceReader.swift`,
+  `OpenIntelligence/Services/RAG/Orchestration/RAGService+TextStreaming.swift`,
+  `OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityStageText.swift`, and five test files:
+  `OpenIntelligenceTests/Services/Document/Processing/TextPieceImportTests.swift` (21 tests) and
+  `IngestionAccuracyTests.swift` (8), `OpenIntelligenceTests/Services/Storage/BNNSVectorDatabasePersistenceTests.swift` (4),
+  `OpenIntelligenceTests/Services/Infrastructure/IngestionLiveActivityStageTextTests.swift` (3) and
+  `LibraryMapSampleTests.swift` (4).
+- **Uncommitted, edited on 2026-10-10:** `RAGService.swift` (`visualizationPassageLimit`, `evenSampleIndices`,
+  `passageCountForActiveContainer`, `allChunksForActiveContainer`; Tier 2, not named),
+  `Services/Infrastructure/Presentation/LibraryVisualizationEngine.swift` and
+  `Features/Telemetry/Visualizations/AdaptiveVisualizationsView.swift` (the sample and its card),
+  `Services/Document/Config/OCRConfiguration.swift` (`TextNormalizationProfile.tableCell`, rule 5 of `isGarbageText`),
+  `Services/Document/Processing/DocumentProcessor.swift` (ten cell call sites, `speechLanguage(forFilename:)`),
+  `Services/Infrastructure/Background/BackgroundTaskService.swift` (`expiryConditions`),
+  `IngestionFormatCoverageTests.swift` (one CSV test). The files edited on 10-09 are listed in the 10-09 Status bullet.
+- `BenchmarkRuns/2026-10-10-ingestion-and-ui-audit/` (local, git-ignored): the four audit reports. Read A and D
+  before choosing what to fix next; every item in them is a reading of code until someone measures it.
+- `BenchmarkRuns/2026-10-10-embedding-model-throughput/` (local): the Mac probe of the embedding model.
 - The 5.6 change (`git show --stat` on the commit titled "5.6:" lists it). New source:
   `OpenIntelligence/Features/Chat/Response/CitationLinker.swift`, `OpenIntelligence/Core/Models/VerificationOutcome.swift`,
   `OpenIntelligence/Core/Models/AppleIntelligenceAvailability.swift`, `OpenIntelligence/Core/Extensions/StreamingMarkdown.swift`,
@@ -285,6 +377,37 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - `Docs/SHIPPED_VERSION.json`: the release record the three sites read from `origin/main`.
 - `Docs/BILLING_AND_LIMITS.md` sections 2 and 5: what the plans screen says, and the prices.
 - `Docs/ai/RUNBOOK.md`: the three "through the API" sections (submit, pull back, release an approved version).
+
+## Verification (2026-10-10, 10:14 PT, the uncommitted working tree, output read)
+
+Same method as the blocks below. After the 10:14 run only `Docs/USER_CHANGELOG.md`, its mirror `VersionHistory.md`,
+`WHATS_NEW.md`, `CHANGELOG.md`, the code map and this file changed, and the suite was run once more with those:
+777 tests, 0 failures, 3 skipped (`/private/tmp/oi-57-test17.log`, about 10:17 PT). No Swift file changed after it.
+
+- `xcodebuild build-for-testing` then `test-without-building`, simulator `55AFFA2C-...` -> 777 XCTest tests, 0 failures, 3 skipped (`/private/tmp/oi-57-test16.log`). The run before it (`oi-57-test15.log`) had 2 failures, both in the new CSV test, which is how the CSV call site in `formattedPipeTableText` was found. New since the 10-09 block: `LibraryMapSampleTests` (4), `IngestionAccuracyTests` (8), three more in `TextPieceImportTests`, one in `IngestionFormatCoverageTests`.
+- No warning names a line changed on 10-10. `OCRConfiguration.swift:153` and `:158` carry an isolation warning that the committed file has at `:147` and `:152` (17 earlier build logs).
+- `xcodebuild build ... -destination 'generic/platform=iOS' -jobs 1 -allowProvisioningUpdates MARKETING_VERSION=5.7` at 01:22 PT -> BUILD SUCCEEDED (`/private/tmp/oi-57-device10.log`). That build holds the Atlas sample, the recovery change, numbering by place and `expiryConditions`, and `xcrun devicectl device install app` put it on the phone at 02:32:02 PT, when the app was not running there. A second build of the whole tree, with the three accuracy fixes (`/private/tmp/oi-57-device11.log`, BUILD SUCCEEDED), was installed the same way at 10:19:41 PT (`scratchpad/install_when_idle.out`: INSTALLED).
+- From the phone: `pipeline_trace.log` lines `Part 45 of 45 committed, 748 chunks (144247 in all)` at 02:20:02 and `imported 144247 chunks from 45 parts in 4601s` at 02:20:37; `the app stopped while part 17 was being stored (vector store 59292, search index 55592, committed 55592): startOver` at 01:03:57; crash report `OpenIntelligence-2026-10-10-004222.ips` (termination `0x8BADF00D`, scene-update watchdog, main thread in `LibraryVisualizationEngine.detectCategory`). 0 lines of "SPLIT OVERSIZED CHUNK" in that trace.
+- `python3 .claude/codemap/codemap.py check` at 10:18 PT -> 0 errors (14 "changed since stamped" warnings, expected before a commit). `python3 scripts/secret_scan.py` -> clean. `python3 scripts/verify_doc_claims.py` -> all 887 checked claims match. `scripts/check_icloud_conflicts.sh` -> no damage. `cmp Docs/USER_CHANGELOG.md OpenIntelligence/Resources/VersionHistory.md` -> identical at 10:20 PT.
+- Not verified: anything in this block on a device except the import finishing; a question asked of the imported file; the Atlas on the 144,247-passage library; `Recovery.finishIndex` on a device; anything on a Mac beyond the build below.
+- `xcodebuild build -scheme OpenIntelligence -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` at 10:23 PT -> BUILD SUCCEEDED (`/private/tmp/oi-57-mac.log`), no warning in a line changed on 10-10, no deprecation warning.
+
+## Verification (2026-10-09, late night, the uncommitted working tree after `55af072`, output read)
+
+Same method as the blocks below (a copy of the tree in `/private/tmp/oi-src`, DerivedData in `/private/tmp/oi-build`,
+one job). No Swift file or bundled resource changed after these ran; `CHANGELOG.md`, the code map and this file did.
+
+- `xcodebuild build-for-testing -scheme OpenIntelligence -destination "platform=iOS Simulator,id=55AFFA2C-..."` -> TEST BUILD SUCCEEDED. No warning names a file changed that night.
+- `xcodebuild test-without-building`, same destination -> 761 XCTest tests, 0 failures, 3 skipped (the same three). Swift Testing, same run: 1 test in 1 suite passed. New that night: `TextPieceImportTests` (18), `BNNSVectorDatabasePersistenceTests` (4) and `IngestionLiveActivityStageTextTests` (3). Earlier runs that night as the tree grew: 754, 758, 757 and 760, each with 0 failures.
+- A one-off test (not in the suite, deleted after) put a real 2 MB piece of the owner's file through `processDocument` on the simulator with a 10 ms heartbeat task on the main actor: 21.1 s and a longest hold of 14.0 s before, 5.4 s and 0.39 s after; `sample` on the test host put the whole hold in `sanitizeProcessedChunkMetadata`.
+- `xcodebuild build -scheme OpenIntelligence -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` -> BUILD SUCCEEDED, no warning in a file changed that night, no deprecation warning.
+- `xcodebuild build ... -configuration Debug -destination 'generic/platform=iOS' -jobs 1 -allowProvisioningUpdates MARKETING_VERSION=5.7` -> BUILD SUCCEEDED; the built `Info.plist` lists `Gunndamental.OpenIntelligence.document-ingestion.*`; `xcrun devicectl device install app` at 23:29 PT, and `devicectl device info apps` lists OpenIntelligence 5.7 (150). Earlier builds of the tree were installed at 21:21, 22:01 and 22:57 PT; the imports the owner ran at 22:37 and 22:59 PT were on the 22:01 and 22:57 builds.
+- The chunker alone, in the harness (`BenchmarkRuns/2026-10-09-chunker-large-text/`, local; README section "memory per chunk"): `SWIFT_DETERMINISTIC_HASHING=1 ./final/harness golden` -> 75 runs, 7,719 chunks, identical to the committed chunker's (`cmp`); `/usr/bin/time -l ./<variant>/harness time jsonl <characters>` peak footprint, committed against repository file: 107.4 and 22.1 MB at 1 million characters, 391.7 and 46.8 MB at 4 million.
+- From the phone, with `xcrun devicectl` (the commands are in the memory note on building to his iPhone): `pipeline_trace.log` ending at chunk 19,734 (18:50:31 PT) and 19,755 (20:16:47 PT) with the app's process gone and no report in the crash logs; "Continued ingestion expired" at 19:28:12 PT followed by the cancel; `continued_ingestion_status.json` reading "submitted" every 20 s from 20:13 to 20:17 PT; `ingestion_queue.json` reading "Chunking 22% (19,725 passages)"; CPU reports of 18:47, 19:09 and 19:27 PT (footprint up to 2,830.73 MB, action taken: none); `LocalCache/FTS5/fulltext.sqlite` at 1,019.5 MB. A copy of the file itself was taken to count it (189,579 lines, all valid JSON, median 251 bytes, longest 476,262) and is in the session's scratch folder, not in the repository.
+- `python3 scripts/verify_doc_claims.py` -> all 867 checked claims match. `python3 scripts/secret_scan.py` -> clean. `python3 .claude/codemap/codemap.py check` -> 0 errors, 0 warnings. `cmp Docs/USER_CHANGELOG.md OpenIntelligence/Resources/VersionHistory.md` -> identical. `scripts/check_icloud_conflicts.sh` -> no damage.
+- From the phone at 22:37 to 22:41 PT, on the 22:01 build: trace lines "in 45 parts (189579 records)", "Created 3850 JSON record passages", "Created 3850 semantic chunks in 7.608s", "Continued ingestion expired" at 22:38:17, "Back in front: continuing 1 import(s)" at 22:39:13; `continued_ingestion_status.json` reading "expired" with "The system expired the continued ingestion task before completion."; `ingestion_queue.json` with the item "failed" and "[coreai_sentence_embedding] The operation couldn't be completed. (Swift.CancellationError error 1.)", then empty.
+- From the phone at 22:59 to 23:02 PT, on the 22:57 build: the owner's screenshot of the processing log (96 passages every 2 s, then every 4 to 5 s from about 67 s in); trace lines "Created 3850 semantic chunks in 4.904s", "Continued ingestion expired" at 23:01:42 and the cancel 1.2 s later; `continued_ingestion_status.json`: started 22:59:53, "expired" at 23:01:42, thermal state nominal, low power off, battery 30%.
+- Not verified: an import in pieces finishing on a device, a part going on from its kept vectors on a device, why the background task is expired when the app leaves the front, why embedding slows after a minute, and the Live Activity's new line on a screen. No test runs `importLargeTextStreamed` or the queue.
 
 ## Verification (2026-10-09, night, the committed tree, output read)
 
@@ -440,14 +563,53 @@ in it, left shut down).
 
 ## Blockers / Unknowns
 
-- **The large-text import change has not been seen on a device.** Row
-  https://app.notion.com/p/3f549a74d54f8154b822e4eee927a961 . What would close it: on his iPhone, a text or `.jsonl`
-  file of 1 to 20 MB imports with the status moving ("Chunking N%"), the screen responding and Cancel stopping it;
-  and the 88.50 MB file ends in the "too long" message instead of a freeze. Read the stage times afterwards from
-  `Documents/pipeline_trace.log` (the devicectl commands are in the memory note on building to his iPhone).
-  Known to remain: the heading, topic and table passes are as slow as before (30 s, 17 s and 4.6 s on that file),
-  now off the main thread; the token-limit and coverage checks are still whole passes on the main actor; a cancel
-  after chunking still leaves the stored text.
+- **Background imports stop within seconds of leaving the app.** Likely cause and the two ways forward are in Status
+  item 6 and in row https://app.notion.com/p/3f549a74d54f81ecb6ecd600e800db07 . The entitlement is a provisioning
+  change on his developer account, which this session's permission check refused to make; do not try another route.
+  The other way (embed with the Core ML copy of the model on the CPU while in the background) touches
+  `CoreAISentenceEmbeddingProvider.swift` or `EmbeddingService.swift`; the provider file is out of bounds until he
+  names it. Verify first: read the expiry line the new build writes (`expired ... thermal=..., lowPower=...`) from
+  `LocalCache/continued_ingestion_status.json` after he leaves the app during an import.
+- **Embedding speed on the phone is unmeasured beyond the default.** 21 to 31 ms a passage on the phone (46 falling to
+  32 a second). On the Mac: preferring the GPU 5.4 ms, 267 a second with four calls in flight; default 7.0 ms.
+  Whether the A18 Pro ranks the same is unknown. `xcrun xctrace record --device 00008140-001130DA1863C01C --template
+  'Core AI' --attach OpenIntelligence --time-limit 60s --output <file>` during an import would show it (the phone
+  is listed by `xctrace list devices`); nothing has been recorded.
+- **`WorkspaceSyncService.swift` (protected) opens a fresh `BNNSVectorDatabase` to count a library** (lines 1882, 1901,
+  2667). On the 144,247-passage library each open took 1.9 to 2.8 s, five times between 02:20:09 and 02:20:46 PT,
+  and one read 0 chunks at 02:20:25 while the import's own store was saving. Nothing was deleted (the log line
+  says "refusing to delete"). Not read further.
+- **The interface findings (audit D) are readings, not measurements.** To measure on the phone: `xcrun xctrace record
+  --device <UDID> --template SwiftUI --attach OpenIntelligence --time-limit 60s` while he streams one answer, and the
+  same with `Animation Hitches` while he scrolls Documents. It needs him using the app, and a Release build on the
+  phone first (`builddevice.sh` builds Debug; a Release device build has not been tried).
+- **The passages of the 88.50 MB file were stored by the 23:29 build.** No passage of that file was split, so its
+  numbers are sound. A table imported before the cell fix keeps its empty cells until it is imported again.
+
+- **The import in pieces has not been seen on a device, and the tree that holds it is not committed.** Rows
+  https://app.notion.com/p/3f549a74d54f8154b822e4eee927a961 and
+  https://app.notion.com/p/3f549a74d54f81998d02e74ec246580e , both `v5.7`, In Progress. What closes them: on his
+  iPhone the 88.50 MB file finishes importing, the document appears in the library, and a question finds one of
+  its records. Not known until it runs: how long a piece takes (embedding is the unknown; the file is estimated at
+  62,000 to 84,000 passages), how much memory the vector store holds by the end, and how long the library takes to
+  load afterwards. Known to remain: whole-piece passes on the main actor (about 15,000 tokenizer calls for a 2 MB
+  piece of short records, not timed); a CSV, HTML, RTF or Office file of that size still imports in one go.
+- **Whether iOS now starts the import's background task is not known.** Row
+  https://app.notion.com/p/3f549a74d54f81ecb6ecd600e800db07 , `v5.7`, In Progress. The app's
+  `LocalCache/continued_ingestion_status.json` read "submitted" through every import on 2026-10-09; the name the
+  task is submitted under was changed to the form Apple documents. What closes it: that file reads "running"
+  during an import, and an import goes on with the app in the background. The question-answering task has the
+  same old name and is not changed: https://app.notion.com/p/3f549a74d54f81d1b0c2c7159e127e07 , backlog.
+- **The vector store can still be cleared by an app ended in the middle of deleting a document.** Row
+  https://app.notion.com/p/3f549a74d54f81daaa2be972ed4d2f56 , `v5.7`, In Progress. The save path is changed and
+  tested (`BNNSVectorDatabasePersistenceTests`); `deleteChunks(forDocument:)` rewrites the vectors before the
+  metadata and is not. `BNNSVectorDatabase.swift` was edited without the owner naming it; say so to him.
+- **About 1 GB of text from the ended imports is in the search database on his iPhone and nothing removes it.**
+  Row https://app.notion.com/p/3f549a74d54f8196958ace859be0d768 , backlog. No cleanup was written: a wrong one
+  deletes real documents' text. Two more backlog rows from that night: passages of text with few spaces overlap
+  far more than configured (https://app.notion.com/p/3f549a74d54f81d69ccdc2152074b520 ), and the vector store
+  rewrites all of itself at every save and keeps every passage's text in memory
+  (https://app.notion.com/p/3f549a74d54f81fd99f8dcd2997dc34e ).
 - **The background inference entitlement cannot be proved from this session.** The device build that would change
   provisioning for the new key was refused by the session's permission check on 2026-10-09 ("Protected-Scope IaC
   Apply"). `OpenIntelligence.entitlements` is as at `af7aaf9`. The owner runs that build himself or says how he
@@ -692,23 +854,27 @@ in it, left shut down).
 
 ## Exact Next Action
 
-1. **Read what the new build does with a large text file on his iPhone.** The development build of the committed
-   tree is installed. The import queue still holds the 88.50 MB `.jsonl` and asks whether to resume. When he has
-   resumed it (expected: "Measuring a very large text...", then the "too long" message; not seen), copy the trace
-   with `xcrun devicectl device copy from --device 00008140-001130DA1863C01C --domain-type appDataContainer
-   --domain-identifier Gunndamental.OpenIntelligence --source Documents/pipeline_trace.log --destination <file>`
-   and grep it for `DocumentProcessor` and `SemanticChunker` lines after the last `Processing` line: the stage
-   times and the refusal are there. Then the same for a text or `.jsonl` file of 1 to 20 MB, which should import
-   with "Chunking N%" moving. If either freezes or crashes, the crash report is in the crash logs domain
-   (`devicectl device info files --domain-type systemCrashLogs`). That closes or reopens row
-   `3f549a74d54f8154b822e4eee927a961`.
+1. **Check the imported file on his iPhone, then commit at his word.** The file is in (144,247 passages). On the
+   build now on the phone: open the library, note how long it takes to load; ask one question about a record; open the
+   Atlas tab and confirm the "Mapped from a sample" card and that leaving and returning does not end the app (rows
+   https://app.notion.com/p/3f549a74d54f8154b822e4eee927a961 , https://app.notion.com/p/3f549a74d54f81998d02e74ec246580e ,
+   https://app.notion.com/p/3f549a74d54f81d5a5e5e38b9631ff74 ). The build on the phone since 10:19 PT on 10-10 holds everything in the working
+   tree. He has not asked for a commit of any of this. When he does:
+   add the eight new files by name (Working Set), `[ci skip]` unless he wants a TestFlight build.
+1a. **Then the two measurements that decide the next changes, both needing him at the phone.** (a) Leave the app
+   during an import and read the expiry line (Blockers, first item). (b) Record `xctrace` with the `Core AI` template
+   during an import and the `SwiftUI` template during one streamed answer. Before either, put a Release build on the
+   phone or say plainly that the numbers are from a Debug build.
+1b. **Then the audit list**, row https://app.notion.com/p/3f549a74d54f81f4931bd35e661177ae , in this order: re-read
+   each item against the code, write the failing test, fix, file its own row. Start with the streamed PDF path's
+   repeated passage numbers (`RAGService+Streaming.swift`), the 1,500-character cut before embedding in both
+   streamed paths, and the Latin-1 fallback in `readTextFileWithFallbackEncodings`.
 2. **Keep going down the `To Do` rows on `v5.7`** (`SELECT ... WHERE "Target Release" = 'v5.7' AND "Status" = 'To Do'`
    on the roadmap data source). Next, in the order that needs least from him: PDF export of a conversation; a Live
    Activity for a Deep Think answer (`QueryLiveActivityAttributes` exists, the widget target is a synchronized
    folder); Spotlight entries as app items. Then what needs him: the background inference entitlement (see
    Blockers), `FoundationModelSessionFactory.swift` named for the model-profile and OCR-tool rows, an app group on
-   his developer account for the Share Sheet extension, widgets and controls, and his choice for text files over
-   the limits (split, stream, or keep the refusal). A TestFlight build of 5.7 is one push without `[ci skip]` away
+   his developer account for the Share Sheet extension, and widgets and controls. A TestFlight build of 5.7 is one push without `[ci skip]` away
    and has not been sent; send it when he says.
 3. **Device checks for what is written, on his iPhone and Mac.** From `af7aaf9`: send a PDF to the app from Files
    ("Open in"); pick a `.jsonl` file, import it and ask about one record; run Ask My Documents with each mode,

@@ -290,6 +290,46 @@ struct ChunkMetadata: Codable, Sendable {
         self.resolvedReferences = resolvedReferences
     }
 
+    /// The same metadata moved along in its document. A piece of a file that is imported in
+    /// pieces numbers its chunks and positions from zero; the document needs them from where the
+    /// piece before it ended. Every field is carried over: a field added to this type has to be
+    /// added here too.
+    func moved(chunkIndexBy indexOffset: Int, positionBy positionOffset: Int) -> ChunkMetadata {
+        ChunkMetadata(
+            chunkIndex: chunkIndex + indexOffset,
+            startPosition: startPosition + positionOffset,
+            endPosition: endPosition + positionOffset,
+            pageNumber: pageNumber,
+            sectionTitle: sectionTitle,
+            keywords: keywords,
+            semanticDensity: semanticDensity,
+            hasNumericData: hasNumericData,
+            hasListStructure: hasListStructure,
+            wordCount: wordCount,
+            characterCount: characterCount,
+            createdAt: createdAt,
+            structureType: structureType,
+            siblingGroupId: siblingGroupId,
+            siblingCount: siblingCount,
+            entities: entities,
+            abbreviations: abbreviations,
+            abstractionLevel: abstractionLevel,
+            sectionPath: sectionPath,
+            bboxArray: bboxArray,
+            documentCategory: documentCategory,
+            chunkType: chunkType,
+            tableTitle: tableTitle,
+            imageContentType: imageContentType,
+            mediaReferenceId: mediaReferenceId,
+            imageCaption: imageCaption,
+            imageDescription: imageDescription,
+            imageExtractedText: imageExtractedText,
+            imageClassifications: imageClassifications,
+            hasCrossReferences: hasCrossReferences,
+            resolvedReferences: resolvedReferences
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case chunkIndex
         case startPosition

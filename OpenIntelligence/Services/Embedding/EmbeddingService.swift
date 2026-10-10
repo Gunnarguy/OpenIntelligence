@@ -246,6 +246,10 @@ class EmbeddingService {
             let adjusted = adjustDimension(vec)
             try validateEmbedding(adjusted)
             return adjusted
+        } catch is CancellationError {
+            // A cancelled task is not a provider that failed. Wrapped as one, a cancellation
+            // reached the import queue as an error and the import was recorded as failed.
+            throw CancellationError()
         } catch {
             throw EmbeddingError.wrap(error, provider: providerIdentifier)
         }
@@ -303,6 +307,10 @@ class EmbeddingService {
             let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
             Log.info("Embedded \(texts.count) chunks in \(String(format: "%.2f", totalTime))s (avg: \(String(format: "%.0f", avgTime * 1000))ms)", category: .embedding)
             return allEmbeddings
+        } catch is CancellationError {
+            // A cancelled task is not a provider that failed. Wrapped as one, a cancellation
+            // reached the import queue as an error and the import was recorded as failed.
+            throw CancellationError()
         } catch {
             throw EmbeddingError.wrap(error, provider: providerIdentifier)
         }

@@ -639,7 +639,41 @@ class DocumentProcessor {
     /// Also stores the full original text for exact queries:
     /// - SQLiteFullTextService (FTS5) when containerId is provided (10-100X faster search)
     /// - FullTextStorageService (file-based) as fallback when containerId is nil
-    func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil, pageRange: ClosedRange<Int>? = nil, documentId: UUID? = nil) async throws -> (Document, [ProcessedChunk]) {
+    /// A text file over this many bytes is imported in pieces of whole lines
+    /// (`RAGService.importLargeTextStreamed`) instead of being read, cleaned and chunked in one
+    /// go. In one go the cost is many times the file: 88 MB held 2.8 GB on an iPhone on
+    /// 2026-10-09 and the import never finished.
+    nonisolated static let piecewiseTextBytes = 8 * 1_048_576
+
+    /// Whether a file is imported in pieces. JSON Lines by its extension, plain text and Markdown;
+    /// a `.json` file only above the size at which it is read as text already, because below it
+    /// the whole file is one parsed value and a piece of that is not JSON.
+    nonisolated static func importsInPieces(fileExtension: String, documentType: DocumentType, fileBytes: Int) -> Bool {
+        guard fileBytes > piecewiseTextBytes else { return false }
+        if JSONRecordExtractor.isLineDelimited(fileExtension.lowercased()) { return true }
+        switch documentType {
+        case .text, .markdown:
+            return true
+        case .json:
+            return fileBytes > JSONRecordExtractor.maxFileBytes
+        default:
+            return false
+        }
+    }
+
+    /// One piece of a large text or JSON Lines file that is imported in pieces
+    /// (`RAGService.importLargeTextStreamed`). The piece is a file of its own that holds whole
+    /// lines of the original and has the original's name.
+    struct TextPiece {
+        /// JSON Lines: the number of this piece's first record and the records in the whole file.
+        var numbering = JSONRecordExtractor.Numbering()
+        /// Takes the piece's cleaned text. The processor stores no document text for a piece: the
+        /// caller keeps each piece's text and stores the document's once, when the last piece is
+        /// in. Appending to the stored text piece by piece would rewrite all of it every time.
+        var keepText: (String) throws -> Void = { _ in }
+    }
+
+    func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil, pageRange: ClosedRange<Int>? = nil, documentId: UUID? = nil, textPiece: TextPiece? = nil) async throws -> (Document, [ProcessedChunk]) {
         let __spProcessDocument = PipelineSignposts.ingestion.beginInterval("ProcessDocument")
         defer { PipelineSignposts.ingestion.endInterval("ProcessDocument", __spProcessDocument) }
         try Task.checkCancellation()
@@ -793,7 +827,9 @@ class DocumentProcessor {
             }
         } else {
             let result: (text: String, pageInfo: PageInfo)
-            if documentType == .json, let records = try extractJSONRecords(url: url) {
+            if documentType == .json,
+                let records = try extractJSONRecords(url: url, numbering: textPiece?.numbering ?? .init())
+            {
                 result = (records.text, PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1]))
                 jsonRecordCount = records.records.count
             } else {
@@ -913,7 +949,10 @@ class DocumentProcessor {
         }
         let storedCharCount = storedText.count
 
-        if let containerId = containerId {
+        if let textPiece {
+            // A piece of a file imported in pieces: its text is the caller's to keep.
+            try textPiece.keepText(storedText)
+        } else if let containerId = containerId {
             try Task.checkCancellation()
             // Primary path: SQLite FTS5 with container isolation (v1.1.0+)
             let shouldAppend = pageRange != nil
@@ -1004,7 +1043,8 @@ class DocumentProcessor {
         // JSON records: each record is cut from the cleaned text as its own passage. When the
         // headers did not survive the cleanup intact, nothing is cut and the text is chunked as prose.
         let jsonRecordPassages = jsonRecordCount.flatMap {
-            JSONRecordExtractor.passages(in: chunkableText, expectedCount: $0)
+            JSONRecordExtractor.passages(
+                in: chunkableText, expectedCount: $0, numbering: textPiece?.numbering ?? .init())
         }
         if let jsonRecordCount, jsonRecordPassages == nil {
             Log.warning(
@@ -1016,8 +1056,9 @@ class DocumentProcessor {
 
         // Structure-aware chunking: Tables and lists become atomic chunks, paragraphs get semantic chunking
         if let jsonRecordPassages {
-            processedChunks = makeJSONRecordChunks(
-                jsonRecordPassages, in: chunkableText, documentCategory: documentCategory)
+            processedChunks = await makeJSONRecordChunks(
+                jsonRecordPassages, in: chunkableText, documentCategory: documentCategory,
+                firstRecordNumber: textPiece?.numbering.first ?? 1, packsRecords: textPiece != nil)
             emitProgress(
                 stage: "chunking", detail: "✅ Created \(processedChunks.count) record passages", page: nil,
                 totalPages: nil)
@@ -1069,12 +1110,12 @@ class DocumentProcessor {
                 // Chunking did not finish: the text is over the limit, or the import was
                 // cancelled, which can be tapped during chunking now that the screen is live. The
                 // full text stored above is removed, so it is not left under an id that no
-                // document will have. Not when this call was adding pages to a document that
-                // already has some: with no page range the id is always a new one (the three
-                // callers were read on 2026-10-09).
+                // document will have. Not when this call was adding pages or a piece to a
+                // document that already has some: with no page range and no piece the id is
+                // always a new one (the callers were read on 2026-10-09).
                 var limitReached: Int?
                 if case SemanticChunker.ChunkingError.tooManyChunks(let limit) = error { limitReached = limit }
-                if pageRange == nil, limitReached != nil || error is CancellationError {
+                if pageRange == nil, textPiece == nil, limitReached != nil || error is CancellationError {
                     if containerId != nil {
                         await SQLiteFullTextService.shared.delete(for: documentId)
                     } else {
@@ -1125,7 +1166,12 @@ class DocumentProcessor {
 
         stageLedger.record(.chunked, chunkTexts: processedChunks.map(\.text))
 
-        processedChunks = sanitizeProcessedChunkMetadata(processedChunks)
+        // A JSON record's title and path are written by `makeJSONRecordChunks` ("Record 12",
+        // "Records 12 to 19"), so there is nothing in them to clean, and cleaning a label is not
+        // cheap: a piece of a large file holds thousands of record chunks.
+        if jsonRecordPassages == nil {
+            processedChunks = await sanitizeProcessedChunkMetadata(processedChunks)
+        }
         stageLedger.record(.sanitized, chunkTexts: processedChunks.map(\.text))
 
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
@@ -1135,7 +1181,7 @@ class DocumentProcessor {
         emitProgress(stage: "validate", detail: "🔐 Validating token limits...", page: nil, totalPages: nil)
         await Task.yield()
         try Task.checkCancellation()
-        processedChunks = enforceTokenLimitOnChunks(processedChunks)
+        processedChunks = await enforceTokenLimitOnChunks(processedChunks)
         stageLedger.record(.tokenLimited, chunkTexts: processedChunks.map(\.text))
         stageLedger.emit()
 
@@ -1598,7 +1644,7 @@ class DocumentProcessor {
     ) -> [StructuredElementWrapper] {
         layoutTables.compactMap { layoutTable in
             let normalizedRows = layoutTable.rows.map { row in
-                row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                row.map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
             }
 
             guard normalizedRows.count >= 2 else { return nil }
@@ -1653,7 +1699,7 @@ class DocumentProcessor {
 
     private nonisolated func tableQualityScore(rows: [[String]]) -> Double {
         let normalizedRows = rows.map { row in
-            row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            row.map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
         }
         let nonEmptyCells = normalizedRows.flatMap { $0 }.filter { !$0.isEmpty }
         guard !nonEmptyCells.isEmpty else { return 0 }
@@ -1711,7 +1757,7 @@ class DocumentProcessor {
 
     private nonisolated func tableRowQualityScore(headers: [String], row: [String]) -> Double {
         let normalizedCells = row.map {
-            OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines)
+            OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         let visibleCells = normalizedCells.filter { !$0.isEmpty }
         guard !visibleCells.isEmpty else { return 0 }
@@ -1767,7 +1813,7 @@ class DocumentProcessor {
 
         for table in rescue.content.tables {
             let normalizedRows = table.rows.map { row in
-                row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                row.map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
             }
 
             guard normalizedRows.count >= 2 else { continue }
@@ -2017,7 +2063,7 @@ class DocumentProcessor {
 
         return trimmed
             .components(separatedBy: "|")
-            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 
     private nonisolated func parseMarkdownTable(lines: [String], pageNumber: Int, caption: String?) -> TableData? {
@@ -2108,7 +2154,7 @@ class DocumentProcessor {
         if trimmed.contains("\t") {
             let cells = trimmed
                 .components(separatedBy: "\t")
-                .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
             guard cells.count >= 2 else { return nil }
             return (cells[0], cells.dropFirst().joined(separator: " | "))
@@ -2119,8 +2165,8 @@ class DocumentProcessor {
             let parts = trimmed.components(separatedBy: separator)
             guard parts.count >= 2 else { continue }
 
-            let key = OCRConfiguration.normalizeExtractedText(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = OCRConfiguration.normalizeExtractedText(parts.dropFirst().joined(separator: separator)).trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = OCRConfiguration.normalizeExtractedText(parts[0], profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = OCRConfiguration.normalizeExtractedText(parts.dropFirst().joined(separator: separator), profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !key.isEmpty, !value.isEmpty else { continue }
             return (key, value)
         }
@@ -5946,7 +5992,7 @@ class DocumentProcessor {
     private func normalizedListItems(from element: StructuredElementWrapper) -> [String] {
         if let listItems = element.listItems, !listItems.isEmpty {
             return listItems
-                .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         }
 
@@ -6179,58 +6225,85 @@ class DocumentProcessor {
         }
     }
 
-    private func sanitizeProcessedChunkMetadata(_ chunks: [ProcessedChunk]) -> [ProcessedChunk] {
-        chunks.map { chunk in
-            let cleanedSectionTitle = chunk.metadata.sectionTitle.flatMap { sanitizeStructuredLabel($0) }
-            let cleanedSectionPath = sanitizedSectionPath(chunk.metadata.sectionPath ?? [])
-
-            guard cleanedSectionTitle != chunk.metadata.sectionTitle
-                || cleanedSectionPath != (chunk.metadata.sectionPath ?? [])
-            else {
-                return chunk
-            }
-
-            let base = chunk.metadata
-            let metadata = ChunkMetadata(
-                chunkIndex: base.chunkIndex,
-                startPosition: base.startPosition,
-                endPosition: base.endPosition,
-                pageNumber: base.pageNumber,
-                sectionTitle: cleanedSectionTitle,
-                keywords: base.keywords,
-                semanticDensity: base.semanticDensity,
-                hasNumericData: base.hasNumericData,
-                hasListStructure: base.hasListStructure,
-                wordCount: base.wordCount,
-                characterCount: base.characterCount,
-                createdAt: base.createdAt,
-                structureType: base.structureType,
-                siblingGroupId: base.siblingGroupId,
-                siblingCount: base.siblingCount,
-                entities: base.entities,
-                abbreviations: base.abbreviations,
-                abstractionLevel: base.abstractionLevel,
-                sectionPath: cleanedSectionPath.isEmpty ? nil : cleanedSectionPath,
-                bboxArray: base.bboxArray,
-                documentCategory: base.documentCategory,
-                chunkType: base.chunkType,
-                tableTitle: base.tableTitle,
-                imageContentType: base.imageContentType,
-                imageCaption: base.imageCaption,
-                imageDescription: base.imageDescription,
-                imageExtractedText: base.imageExtractedText,
-                imageClassifications: base.imageClassifications,
-                hasCrossReferences: base.hasCrossReferences,
-                resolvedReferences: base.resolvedReferences
-            )
-
-            return ProcessedChunk(
-                text: chunk.text,
-                parentText: chunk.parentText,
-                metadata: metadata,
-                structuredTable: chunk.structuredTable
-            )
+    /// Cleans each chunk's section title and path. A label is cleaned once and remembered for
+    /// the rest of the call: the chunks of one section carry the same title and path, and
+    /// cleaning one runs text cleanup, language detection and the heading test. The loop lets
+    /// the main actor go every 50 chunks. As one uninterrupted `map`, with a new language
+    /// recognizer for every label, this held the main actor for 14 s on a 2 MB piece of a JSON
+    /// Lines file (3,019 chunks; a sample of the run on 2026-10-09 showed all of it here).
+    private func sanitizeProcessedChunkMetadata(_ chunks: [ProcessedChunk]) async -> [ProcessedChunk] {
+        var cleanedLabels: [String: String?] = [:]
+        func cleanedLabel(_ raw: String) -> String? {
+            if let known = cleanedLabels[raw] { return known }
+            let cleaned = sanitizeStructuredLabel(raw)
+            cleanedLabels[raw] = cleaned
+            return cleaned
         }
+
+        var result: [ProcessedChunk] = []
+        result.reserveCapacity(chunks.count)
+        for (offset, chunk) in chunks.enumerated() {
+            if offset > 0, offset % 50 == 0 { await Task.yield() }
+            result.append(sanitizedChunk(chunk, cleanedLabel: cleanedLabel))
+        }
+        return result
+    }
+
+    private func sanitizedChunk(_ chunk: ProcessedChunk, cleanedLabel: (String) -> String?) -> ProcessedChunk {
+        let cleanedSectionTitle = chunk.metadata.sectionTitle.flatMap { cleanedLabel($0) }
+        // As `sanitizedSectionPath`, with the remembered labels.
+        let cleanedSectionPath = (chunk.metadata.sectionPath ?? []).reduce(into: [String]()) { path, component in
+            guard let cleaned = cleanedLabel(component) else { return }
+            guard path.last?.caseInsensitiveCompare(cleaned) != .orderedSame else { return }
+            path.append(cleaned)
+        }
+
+        guard cleanedSectionTitle != chunk.metadata.sectionTitle
+            || cleanedSectionPath != (chunk.metadata.sectionPath ?? [])
+        else {
+            return chunk
+        }
+
+        let base = chunk.metadata
+        let metadata = ChunkMetadata(
+            chunkIndex: base.chunkIndex,
+            startPosition: base.startPosition,
+            endPosition: base.endPosition,
+            pageNumber: base.pageNumber,
+            sectionTitle: cleanedSectionTitle,
+            keywords: base.keywords,
+            semanticDensity: base.semanticDensity,
+            hasNumericData: base.hasNumericData,
+            hasListStructure: base.hasListStructure,
+            wordCount: base.wordCount,
+            characterCount: base.characterCount,
+            createdAt: base.createdAt,
+            structureType: base.structureType,
+            siblingGroupId: base.siblingGroupId,
+            siblingCount: base.siblingCount,
+            entities: base.entities,
+            abbreviations: base.abbreviations,
+            abstractionLevel: base.abstractionLevel,
+            sectionPath: cleanedSectionPath.isEmpty ? nil : cleanedSectionPath,
+            bboxArray: base.bboxArray,
+            documentCategory: base.documentCategory,
+            chunkType: base.chunkType,
+            tableTitle: base.tableTitle,
+            imageContentType: base.imageContentType,
+            imageCaption: base.imageCaption,
+            imageDescription: base.imageDescription,
+            imageExtractedText: base.imageExtractedText,
+            imageClassifications: base.imageClassifications,
+            hasCrossReferences: base.hasCrossReferences,
+            resolvedReferences: base.resolvedReferences
+        )
+
+        return ProcessedChunk(
+            text: chunk.text,
+            parentText: chunk.parentText,
+            metadata: metadata,
+            structuredTable: chunk.structuredTable
+        )
     }
 
     /// Keep retrieval metadata conservative: a bad heading hurts ranking more than a missing one.
@@ -6648,11 +6721,19 @@ class DocumentProcessor {
     /// Post-processing validation that ensures NO chunk exceeds embedding token limit
     /// Uses ACTUAL BertTokenizer counting, not word estimation
     /// This is critical for technical content with abbreviations, codes, special chars
-    private func enforceTokenLimitOnChunks(_ chunks: [ProcessedChunk]) -> [ProcessedChunk] {
+    ///
+    /// Each chunk is counted once. Until 2026-10-09 it was counted three times (the check, a
+    /// second pass to verify, a third for the log's maximum), in one stretch on the main actor.
+    /// The loop lets the main actor go every `tokenizerCallsBetweenYields` chunks.
+    private func enforceTokenLimitOnChunks(_ chunks: [ProcessedChunk]) async -> [ProcessedChunk] {
         var validatedChunks: [ProcessedChunk] = []
+        validatedChunks.reserveCapacity(chunks.count)
         var splitCount = 0
+        var maxTokenCount = 0
+        var stillTooLarge: [(chunk: ProcessedChunk, tokens: Int)] = []
 
-        for chunk in chunks {
+        for (offset, chunk) in chunks.enumerated() {
+            if offset > 0, offset % Self.tokenizerCallsBetweenYields == 0 { await Task.yield() }
             let tokenCount = countTokens(chunk.text)
 
             if tokenCount > Self.safeTokenLimit {
@@ -6662,12 +6743,20 @@ class DocumentProcessor {
                 splitCount += 1
 
                 Log.warning(
-                    "[DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: \(tokenCount)t/\(countWords(chunk.text))w → \(splitChunks.count) sub-chunks " +
-                    "(section: \(chunk.metadata.sectionTitle ?? "none"), type: \(chunk.metadata.structureType ?? "paragraph"))",
+                    "[DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: \(tokenCount)t/\(countWords(chunk.text))w → \(splitChunks.count) sub-chunks "
+                    + "(section: \(chunk.metadata.sectionTitle ?? "none"), type: \(chunk.metadata.structureType ?? "paragraph"))",
                     category: .ingestion
                 )
+
+                // VERIFICATION: no part should exceed the limit now
+                for part in splitChunks {
+                    let partTokens = countTokens(part.text)
+                    maxTokenCount = max(maxTokenCount, partTokens)
+                    if partTokens > Self.safeTokenLimit { stillTooLarge.append((part, partTokens)) }
+                }
             } else {
                 validatedChunks.append(chunk)
+                maxTokenCount = max(maxTokenCount, tokenCount)
             }
         }
 
@@ -6679,21 +6768,20 @@ class DocumentProcessor {
             )
         }
 
-        // VERIFICATION: No chunk should exceed limit now
-        let stillTooLarge = validatedChunks.filter { countTokens($0.text) > Self.safeTokenLimit }
         if !stillTooLarge.isEmpty {
             Log.error(
                 "[DocumentProcessor] ❌ CRITICAL: \(stillTooLarge.count) chunks STILL exceed token limit after split!",
                 category: .ingestion
             )
             // Log details of problematic chunks for debugging
-            for (idx, chunk) in stillTooLarge.prefix(3).enumerated() {
-                Log.error("[DocumentProcessor] Oversized chunk \(idx+1): \(countTokens(chunk.text))t, preview: \(String(chunk.text.prefix(100)))...", category: .ingestion)
+            for (idx, entry) in stillTooLarge.prefix(3).enumerated() {
+                Log.error(
+                    "[DocumentProcessor] Oversized chunk \(idx+1): \(entry.tokens)t, preview: \(String(entry.chunk.text.prefix(100)))...",
+                    category: .ingestion)
             }
         }
 
         // Always log enforcement stats for visibility
-        let maxTokenCount = validatedChunks.map { countTokens($0.text) }.max() ?? 0
         Log.debug(
             "[DocumentProcessor] Token limit enforcement complete: \(chunks.count)→\(validatedChunks.count) chunks, " +
             "split=\(splitCount), maxTokens=\(maxTokenCount)/\(Self.safeTokenLimit)",
@@ -8711,11 +8799,13 @@ class DocumentProcessor {
 
     /// Reads a `.json`, `.jsonl` or `.ndjson` file as records. Returns nil when the file is not
     /// JSON records (comments in a `.jsonc`, a broken file), and the caller imports it as text.
-    private func extractJSONRecords(url: URL) throws -> JSONRecordExtractor.Extraction? {
+    private func extractJSONRecords(
+        url: URL, numbering: JSONRecordExtractor.Numbering = .init()
+    ) throws -> JSONRecordExtractor.Extraction? {
         let contents = try readTextFileWithFallbackEncodings(url: url, purpose: "JSON file")
         guard
             let extraction = JSONRecordExtractor.extract(
-                from: contents, fileExtension: url.pathExtension.lowercased())
+                from: contents, fileExtension: url.pathExtension.lowercased(), numbering: numbering)
         else {
             Log.info(
                 "[DocumentProcessor] \(url.lastPathComponent) did not parse as JSON records; importing it as text",
@@ -8730,49 +8820,105 @@ class DocumentProcessor {
         return extraction
     }
 
-    /// One chunk per JSON record. The passages are cut from `text`, so positions are character
-    /// offsets into it, as the semantic chunker's are.
+    /// One chunk per JSON record, or per run of short records when `packsRecords` is set. The
+    /// passages are cut from `text`, so positions are character offsets into it, as the semantic
+    /// chunker's are.
+    ///
+    /// A file read whole gives each record its own chunk. A file read in pieces is packed
+    /// (`JSONRecordExtractor.packedRanges`): one measured on 2026-10-09 held 189,579 records with
+    /// a median of 251 bytes. Each record in a packed chunk keeps its own header line.
+    ///
+    /// Each record's tokens are counted once, here, and the count is what packs it and what
+    /// decides whether it needs cutting. A packed chunk is not counted again: its records' counts
+    /// each include the tokenizer's own start and end marks and two more are allowed for every
+    /// join, so the joined text cannot count more than the sum, and `enforceTokenLimitOnChunks`
+    /// checks every chunk afterwards in any case. A 2 MB piece of that file is 4,610 records, so
+    /// the loops let the main actor go every `tokenizerCallsBetweenYields` records.
     private func makeJSONRecordChunks(
         _ passages: [(range: Range<String.Index>, text: String)],
         in text: String,
-        documentCategory: DocumentSemanticCategory?
-    ) -> [ProcessedChunk] {
+        documentCategory: DocumentSemanticCategory?,
+        firstRecordNumber: Int = 1,
+        packsRecords: Bool = false
+    ) async -> [ProcessedChunk] {
+        let partLimit = Self.safeTokenLimit - 10
+
+        var tokenCounts: [Int] = []
+        tokenCounts.reserveCapacity(passages.count)
+        for (index, passage) in passages.enumerated() {
+            if index > 0, index % Self.tokenizerCallsBetweenYields == 0 { await Task.yield() }
+            tokenCounts.append(countTokens(passage.text))
+        }
+
+        let groups: [Range<Int>]
+        if packsRecords {
+            groups = JSONRecordExtractor.packedRanges(tokenCounts: tokenCounts, maxTokens: partLimit)
+        } else {
+            groups = passages.indices.map { $0..<($0 + 1) }
+        }
+
         var chunks: [ProcessedChunk] = []
-        chunks.reserveCapacity(passages.count)
+        chunks.reserveCapacity(groups.count)
         var cursor = text.startIndex
         var offset = 0
-        for (index, passage) in passages.enumerated() {
-            offset += text.distance(from: cursor, to: passage.range.lowerBound)
+        for (groupNumber, group) in groups.enumerated() {
+            guard let firstPassage = passages[group].first, let lastPassage = passages[group].last else { continue }
+            if groupNumber > 0, groupNumber % Self.tokenizerCallsBetweenYields == 0 { await Task.yield() }
+            offset += text.distance(from: cursor, to: firstPassage.range.lowerBound)
             let start = offset
-            offset += text.distance(from: passage.range.lowerBound, to: passage.range.upperBound)
-            cursor = passage.range.upperBound
+            offset += text.distance(from: firstPassage.range.lowerBound, to: lastPassage.range.upperBound)
+            cursor = lastPassage.range.upperBound
 
-            let title = "Record \(index + 1)"
-            // A record over the embedding limit is cut here, at its own field lines, so the generic
-            // splitter never sees it and every part keeps the record's header.
-            let parts = JSONRecordExtractor.parts(
-                of: passage.text, maxTokens: Self.safeTokenLimit - 10, countTokens: countTokens)
-            if parts.count > 1 {
-                Log.info(
-                    "[DocumentProcessor] JSON record \(index + 1) is over the embedding limit; stored as \(parts.count) parts",
-                    category: .ingestion)
-            }
-            let overLimit = parts.filter { countTokens($0) > Self.safeTokenLimit }.count
-            if overLimit > 0 {
-                Log.warning(
-                    "[DocumentProcessor] JSON record \(index + 1): \(overLimit) part(s) are still over the embedding limit and will be cut by the general splitter",
-                    category: .ingestion)
-            }
-            for part in parts {
-                // The header line always holds digits, so it says nothing about the record's own data.
-                let body = part.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).dropFirst().first ?? ""
+            let firstNumber = firstRecordNumber + group.lowerBound
+            if group.count > 1 {
+                let lastNumber = firstRecordNumber + group.upperBound - 1
+                let title = "Records \(firstNumber) to \(lastNumber)"
+                let joined = passages[group].map(\.text).joined(separator: "\n\n")
                 let metadata = ChunkMetadata(
                     chunkIndex: chunks.count,
                     startPosition: start,
                     endPosition: offset,
                     pageNumber: nil,
                     sectionTitle: title,
-                    hasNumericData: body.contains(where: \.isNumber),
+                    hasNumericData: passages[group].contains { Self.recordBodyHoldsNumbers($0.text) },
+                    wordCount: countWords(joined),
+                    characterCount: joined.count,
+                    sectionPath: [title],
+                    documentCategory: documentCategory
+                )
+                chunks.append(ProcessedChunk(text: joined, parentText: nil, metadata: metadata))
+                continue
+            }
+
+            let title = "Record \(firstNumber)"
+            // A record over the embedding limit is cut here, at its own field lines, so the generic
+            // splitter never sees it and every part keeps the record's header.
+            let parts: [String]
+            if tokenCounts[group.lowerBound] <= partLimit {
+                parts = [firstPassage.text]
+            } else {
+                parts = JSONRecordExtractor.parts(
+                    of: firstPassage.text, maxTokens: partLimit, countTokens: countTokens)
+                if parts.count > 1, !packsRecords {
+                    Log.info(
+                        "[DocumentProcessor] JSON record \(firstNumber) is over the embedding limit; stored as \(parts.count) parts",
+                        category: .ingestion)
+                }
+                let overLimit = parts.filter { countTokens($0) > Self.safeTokenLimit }.count
+                if overLimit > 0 {
+                    Log.warning(
+                        "[DocumentProcessor] JSON record \(firstNumber): \(overLimit) part(s) are still over the embedding limit and will be cut by the general splitter",
+                        category: .ingestion)
+                }
+            }
+            for part in parts {
+                let metadata = ChunkMetadata(
+                    chunkIndex: chunks.count,
+                    startPosition: start,
+                    endPosition: offset,
+                    pageNumber: nil,
+                    sectionTitle: title,
+                    hasNumericData: Self.recordBodyHoldsNumbers(part),
                     wordCount: countWords(part),
                     characterCount: part.count,
                     sectionPath: [title],
@@ -8782,6 +8928,17 @@ class DocumentProcessor {
             }
         }
         return chunks
+    }
+
+    /// Tokenizer calls a loop makes before it lets the main actor go. A call on a full passage
+    /// is on the order of a millisecond, so this is a hold of a fraction of a second.
+    private static let tokenizerCallsBetweenYields = 100
+
+    /// Whether a record, or one part of a record, holds a digit in its own data. Its first line
+    /// is the header, which always holds digits ("Record 12 of 400") and says nothing about that.
+    nonisolated static func recordBodyHoldsNumbers(_ record: String) -> Bool {
+        let body = record.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).dropFirst().first ?? ""
+        return body.contains(where: \.isNumber)
     }
 
     /// Extract text from code files - preserve syntax and structure
@@ -8971,22 +9128,8 @@ class DocumentProcessor {
             throw DocumentProcessingError.audioTranscriptionFailed("Unsupported audio/video format")
         }
 
-        // Detect language from filename or default to English
-        let filename = url.lastPathComponent.lowercased()
-        var language = "en-US"
-
-        // Simple language hints from filename
-        if filename.contains("_es") || filename.contains("spanish") {
-            language = "es-ES"
-        } else if filename.contains("_fr") || filename.contains("french") {
-            language = "fr-FR"
-        } else if filename.contains("_de") || filename.contains("german") {
-            language = "de-DE"
-        } else if filename.contains("_zh") || filename.contains("chinese") {
-            language = "zh-CN"
-        } else if filename.contains("_ja") || filename.contains("japanese") {
-            language = "ja-JP"
-        }
+        // The language the file's name states, or English
+        let language = Self.speechLanguage(forFilename: url.lastPathComponent)
 
         progressHandler?("transcribing audio")
 
@@ -9006,6 +9149,25 @@ class DocumentProcessor {
             Log.error("[DocumentProcessor] Transcription failed: \(error.localizedDescription)", category: .ingestion)
             throw DocumentProcessingError.audioTranscriptionFailed(error.localizedDescription)
         }
+    }
+
+    /// The language a recording is transcribed in: the one its name states, and "en-US" when it
+    /// states none. A name states a language with the language's English name ("lecture
+    /// spanish.m4a") or with its two-letter code as the last word before the extension
+    /// ("lecture_fr.m4a", "talk-de.mp3"). Through 5.6 the code was matched anywhere after an
+    /// underscore, so "notes_friday.m4a" was transcribed as French, "plans_december.m4a" as
+    /// German and "taxes_january.m4a" as Japanese.
+    nonisolated static func speechLanguage(forFilename name: String) -> String {
+        let stem = (name as NSString).deletingPathExtension.lowercased()
+        let lastWord = stem.split(whereSeparator: { !($0.isLetter || $0.isNumber) }).last.map(String.init)
+        let hints: [(code: String, word: String, locale: String)] = [
+            ("es", "spanish", "es-ES"), ("fr", "french", "fr-FR"), ("de", "german", "de-DE"),
+            ("zh", "chinese", "zh-CN"), ("ja", "japanese", "ja-JP"),
+        ]
+        for hint in hints where lastWord == hint.code || stem.contains(hint.word) {
+            return hint.locale
+        }
+        return "en-US"
     }
 
     /// Extract text from Office documents (Word, Excel, PowerPoint, iWork)
@@ -9437,7 +9599,7 @@ class DocumentProcessor {
         let columnCount = rows.map(\ .count).max() ?? 0
 
         func normalizedRow(_ row: [String]) -> [String] {
-            var cells = row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            var cells = row.map { OCRConfiguration.normalizeExtractedText($0, profile: .tableCell).trimmingCharacters(in: .whitespacesAndNewlines) }
             if cells.count < columnCount {
                 cells.append(contentsOf: Array(repeating: "", count: columnCount - cells.count))
             }
@@ -10039,6 +10201,9 @@ extension DocumentProcessor {
         /// `nil` when the document could not be opened to count its pages.
         let totalPages: Int?
         let chunksIndexed: Int
+        /// True for a text or JSON Lines file imported in pieces: the two counts are then pieces
+        /// of the file, and the total is exact.
+        var countsPieces = false
 
         /// `nil` rather than a guess when the page total is unknown; the caller should leave the
         /// progress bar indeterminate instead of inventing a fraction.
@@ -10048,6 +10213,9 @@ extension DocumentProcessor {
         }
 
         var detail: String {
+            if countsPieces, let totalPages, totalPages > 0 {
+                return "Paused after app restart. \(pagesCompleted) of \(totalPages) parts are already indexed, and it resumes from there"
+            }
             if let totalPages, totalPages > 0 {
                 return "Paused after app restart — \(pagesCompleted) of \(totalPages) pages already indexed, resuming from there"
             }
@@ -10093,6 +10261,24 @@ extension DocumentProcessor {
     func restoredIngestionProgress(for url: URL, knownPageCount: Int? = nil) -> RestoredIngestionProgress? {
         let fingerprint = computeDocumentFingerprint(at: url)
         guard let checkpointDir = existingCheckpointDirectoryURL(for: fingerprint) else { return nil }
+
+        // A text or JSON Lines file imported in pieces keeps its own state file.
+        let textStateURL = checkpointDir.appendingPathComponent(TextStreamingIngestionState.fileName)
+        if let textData = try? Data(contentsOf: textStateURL) {
+            guard let textState = try? JSONDecoder().decode(TextStreamingIngestionState.self, from: textData) else {
+                Log.warning(
+                    "[Checkpoint] Found an unreadable \(TextStreamingIngestionState.fileName) for \(url.lastPathComponent); the resume will restart this document",
+                    category: .ingestion)
+                return nil
+            }
+            guard textState.committed.completedPieces > 0 else { return nil }
+            return RestoredIngestionProgress(
+                pagesCompleted: textState.committed.completedPieces,
+                totalPages: textState.totalPieces,
+                chunksIndexed: textState.committed.totalChunks,
+                countsPieces: true
+            )
+        }
 
         let stateURL = checkpointDir.appendingPathComponent("ingestion_state.json")
         guard let data = try? Data(contentsOf: stateURL) else { return nil }

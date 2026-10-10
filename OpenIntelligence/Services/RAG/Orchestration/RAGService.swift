@@ -425,6 +425,17 @@ class RAGService: ObservableObject {
     }
     @MainActor private var suppressProcessingSummary: Bool = false
     @MainActor private var ingestionTask: Task<Void, Never>?
+    /// Set when a background window ran out and the queue was stopped for it. The person did not
+    /// stop the import, so the queue starts again by itself when the app is next in front
+    /// (`resumeIngestionStoppedInBackgroundIfNeeded`).
+    @MainActor private var ingestionStoppedByBackgroundExpiry = false
+    /// A queue task that was cancelled and set aside. It is still unwinding for a moment after
+    /// it is cancelled (an import checks for cancellation between steps, not inside one), and the
+    /// next queue task waits for it to end before it runs, so two loops are never on one file.
+    @MainActor private var ingestionTaskUnwinding: Task<Void, Never>?
+    /// Counts the queue loops started. A loop that finds a later one has been started leaves the
+    /// queue's task and its items alone on its way out: they are the later loop's by then.
+    @MainActor private var ingestionLoopID = 0
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
     @MainActor private var ingestionQueueTombstones: [IngestionQueueTombstone] = []
     @MainActor private var selfHealingRebuildTask: Task<Void, Never>?
@@ -1400,8 +1411,15 @@ class RAGService: ObservableObject {
                 discardedItems.compactMap { item in
                     Self.isAutomaticSelfHealingItem(item) ? item.containerId : nil
                 }))
-        ingestionTask?.cancel()
-        ingestionTask = nil
+        if ingestionTask != nil {
+            // The import that is running sees these and removes what it had stored.
+            requestedIngestionCancellationIds.formUnion(
+                discardedItems.filter { !$0.stage.isTerminal && $0.stage != .queued && $0.stage != .paused }.map(\.id))
+        }
+        for item in discardedItems where item.stage == .queued || item.stage == .paused {
+            purgeStreamedTextImport(for: item.url, containerId: item.containerId ?? containerService.containers.first?.id)
+        }
+        cancelIngestionTaskAndSetItAside()
         isProcessing = false
         ingestionItems.removeAll()
         ingestionContexts.removeAll()
@@ -1411,22 +1429,44 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
-    private func handleContinuedIngestionExpiration() {
+    private func handleContinuedIngestionExpiration(backgroundTimeRanOut: Bool = false) {
         let activeIndices = ingestionItems.indices.filter { !ingestionItems[$0].stage.isTerminal }
         guard !activeIndices.isEmpty else {
             savePersistedIngestionQueueState()
             return
         }
 
-        ingestionTask?.cancel()
-        ingestionTask = nil
+        #if canImport(UIKit)
+            // The system can take its background task back while the app is in front (it does
+            // when the task shows no progress, and for reasons of its own). An import does not
+            // need background time while the person is looking at it, so it goes on.
+            if backgroundTimeRanOut, UIApplication.shared.applicationState == .active {
+                Log.info(
+                    "[RAGService] The system ended the import's background task with the app in front; the import goes on",
+                    category: .ingestion)
+                return
+            }
+        #endif
+
+        // Only the call that finds a task running is the system stopping the queue. The loop's
+        // own catch calls this again on its way out, and that call must not set the flag a
+        // second time: the queue may already have been started again by then.
+        if ingestionTask != nil {
+            cancelIngestionTaskAndSetItAside()
+            ingestionStoppedByBackgroundExpiry = true
+        }
         isProcessing = false
         processingStatus = ""
 
         for index in activeIndices {
             ingestionItems[index].stage = .queued
-            ingestionItems[index].detail = "Queued for resume"
-            ingestionItems[index].progress = nil
+            ingestionItems[index].detail = IngestionItem.queuedForResumeDetail
+            // A file imported in pieces, or a streamed PDF, keeps what its checkpoint holds, so
+            // the bar stays where the import stands instead of going back to nothing.
+            ingestionItems[index].progress =
+                documentProcessor.restoredIngestionProgress(
+                    for: ingestionItems[index].url, knownPageCount: ingestionItems[index].metrics.pageCount
+                )?.fraction
             ingestionItems[index].startedAt = nil
             ingestionItems[index].finishedAt = nil
             ingestionItems[index].errorMessage = nil
@@ -1439,6 +1479,50 @@ class RAGService: ObservableObject {
             category: .ingestion)
         savePersistedIngestionQueueState()
         syncIngestionLiveActivity()
+    }
+
+    /// Starts the queue again after a background window ran out. Called when the app comes back
+    /// to the front. Through 5.6 an import stopped this way sat at "Queued for resume" until the
+    /// person noticed and started it again. A file imported in pieces goes on from its last
+    /// committed piece; any other import starts over, as it did when started by hand.
+    @MainActor
+    func resumeIngestionStoppedInBackgroundIfNeeded() {
+        guard ingestionStoppedByBackgroundExpiry else { return }
+        ingestionStoppedByBackgroundExpiry = false
+        guard ingestionTask == nil else { return }
+        let waiting = ingestionItems.filter { $0.stage == .queued }
+        guard !waiting.isEmpty, !ingestionItems.contains(where: { $0.stage == .paused }) else { return }
+        Log.info(
+            "[RAGService] Back in front: continuing \(waiting.count) import(s) that a background limit stopped",
+            category: .ingestion)
+        resumeUserInitiatedIngestionBackgroundSupportIfNeeded(
+            restoredItems: ingestionItems.filter { !$0.stage.isTerminal })
+        syncIngestionLiveActivity()
+        // The new task waits for the cancelled one to end (`startIngestionTaskIfNeeded`).
+        startIngestionTaskIfNeeded()
+    }
+
+    /// Cancels the queue's task and sets it aside, so the next one can wait for it to end.
+    @MainActor
+    private func cancelIngestionTaskAndSetItAside() {
+        guard let task = ingestionTask else { return }
+        task.cancel()
+        ingestionTaskUnwinding = task
+        ingestionTask = nil
+    }
+
+    /// Whether the person asked for this queue item to be cancelled, as opposed to the system
+    /// stopping the queue.
+    @MainActor
+    func isIngestionCancellationRequested(_ id: UUID) -> Bool {
+        requestedIngestionCancellationIds.contains(id)
+    }
+
+    /// The bookkeeping a finished import in pieces shares with any other: the time is noted so
+    /// that self-tuning does not answer a large new document by re-embedding the whole library.
+    @MainActor
+    func noteStreamedImportFinished(in containerId: UUID) {
+        lastIngestionCompletionTime[containerId] = Date()
     }
 
     @MainActor
@@ -1808,7 +1892,7 @@ class RAGService: ObservableObject {
                     return await self.runPendingIngestionQueue()
                 },
                 expiration: { [weak self] in
-                    self?.handleContinuedIngestionExpiration()
+                    self?.handleContinuedIngestionExpiration(backgroundTimeRanOut: true)
                 }
             )
             IngestionRuntimeBridge.shared.restoreLiveActivityIfNeeded()
@@ -4182,21 +4266,49 @@ class RAGService: ObservableObject {
         }
     }
 
-    /// Return all chunks stored for the active container.
+    /// The most passages the Atlas and the other library maps read at once. Their analysis and
+    /// their projections run on the main thread and take time in proportion to this, and through
+    /// 5.6 they read every passage: on a library of 63,000 passages the Atlas held the main thread
+    /// for more than ten seconds and iOS ended the app (watchdog `0x8BADF00D`, 2026-10-10, in the
+    /// middle of an import). A sample this size puts a share within about 1.3 points of the
+    /// library's (95%, at a share of one half).
+    nonisolated static let visualizationPassageLimit = 6_000
+
+    /// Which of `count` passages a map reads when it reads at most `limit`: all of them when they
+    /// fit, and otherwise `limit` positions spread evenly from the first passage to the last, in
+    /// order, the same ones on every call.
+    nonisolated static func evenSampleIndices(count: Int, limit: Int) -> [Int] {
+        guard count > 0, limit > 0 else { return [] }
+        guard count > limit else { return Array(0..<count) }
+        return (0..<limit).map { Int((Int64($0) * Int64(count)) / Int64(limit)) }
+    }
+
+    /// How many passages the active container holds, whatever `allChunksForActiveContainer()`
+    /// returns of them.
+    func passageCountForActiveContainer() async -> Int {
+        let db = await dbForActiveContainer()
+        return (try? await db.count()) ?? 0
+    }
+
+    /// Return the active container's chunks for the visualization views: every chunk when the
+    /// library holds no more than `visualizationPassageLimit`, and past that an even sample of
+    /// that many (`evenSampleIndices`). Only the returned chunks get their embeddings loaded.
     /// Used by visualization views to render embedding spaces and statistics.
     func allChunksForActiveContainer() async -> [DocumentChunk] {
         let db = await dbForActiveContainer()
         do {
-            let chunks = try await db.allChunks()
-            guard !chunks.isEmpty else { return [] }
+            let stored = try await db.allChunks()
+            guard !stored.isEmpty else { return [] }
+            let keptIndices = Self.evenSampleIndices(
+                count: stored.count, limit: Self.visualizationPassageLimit)
+            let chunks = keptIndices.count == stored.count ? stored : keptIndices.map { stored[$0] }
 
             // Compatibility hydration for mmap-backed stores:
             // BNNSVectorDatabase intentionally stores metadata-only chunks (embedding: [])
             // to keep memory low during retrieval. Visualization views require embeddings,
             // so we fetch them explicitly for this call.
             if chunks.allSatisfy({ $0.embedding.isEmpty }) {
-                let indices = Array(0..<chunks.count)
-                let embeddings = await db.getEmbeddings(forIndices: indices)
+                let embeddings = await db.getEmbeddings(forIndices: keptIndices)
 
                 guard embeddings.count == chunks.count else {
                     Log.warning(
@@ -4983,9 +5095,16 @@ class RAGService: ObservableObject {
     @MainActor
     private func startIngestionTaskIfNeeded() {
         guard ingestionTask == nil else { return }
+        ingestionLoopID += 1
+        let loopID = ingestionLoopID
+        let unwinding = ingestionTaskUnwinding
+        ingestionTaskUnwinding = nil
         ingestionTask = Task.detached(priority: .userInitiated) { [weak self] in
+            // A cancelled loop is still inside its import until the next cancellation check.
+            // Starting before it has ended would put two loops on the same queued file.
+            await unwinding?.value
             guard let self else { return }
-            await self.runIngestionLoop()
+            await self.runIngestionLoop(loopID: loopID)
         }
     }
 
@@ -5020,6 +5139,8 @@ class RAGService: ObservableObject {
         }
 
         if item.stage == .queued || item.stage == .paused {
+            // A file that was part-way through an import in pieces: its committed pieces go.
+            purgeStreamedTextImport(for: item.url, containerId: item.containerId ?? containerService.containers.first?.id)
             updateIngestionItem(
                 id: id,
                 filename: item.filename,
@@ -5051,6 +5172,7 @@ class RAGService: ObservableObject {
                 }))
 
         for item in ingestionItems where item.stage == .queued || item.stage == .paused {
+            purgeStreamedTextImport(for: item.url, containerId: item.containerId ?? containerService.containers.first?.id)
             updateIngestionItem(
                 id: item.id,
                 filename: item.filename,
@@ -5132,14 +5254,18 @@ class RAGService: ObservableObject {
                 item.containerId ?? self.containerService.containers.first?.id
                 ?? self.containerService.activeContainerId
 
-            // 1. Delete physical file if it's in our internal storage
+            // 1. Clean up temporary page checkpoints, and for a file that was being imported in
+            // pieces the chunks its committed pieces already stored. Before the file is deleted:
+            // the checkpoint folder is named from the file's path, size and date, and with the
+            // file gone that name comes out different, so nothing was found and nothing removed.
             let fileURL = item.url
+            purgeStreamedTextImport(for: fileURL, containerId: resolvedContainerId)
+            documentProcessor.cleanCheckpoints(for: fileURL)
+
+            // 1.5 Delete physical file if it's in our internal storage
             if fileURL.path.contains("ImportedDocuments") {
                 try? FileManager.default.removeItem(at: fileURL)
             }
-
-            // 1.5 Clean up temporary page checkpoints
-            documentProcessor.cleanCheckpoints(for: fileURL)
 
             // 2. Remove document record from the catalog if it exists
             if let existingDoc = existingImportedDocument(
@@ -5184,11 +5310,14 @@ class RAGService: ObservableObject {
             })
         recordIngestionQueueTombstones(for: activeItems)
         suppressSelfHealing(for: selfHealingContainerIds)
-        requestedIngestionCancellationIds.formUnion(activeIds)
-        ingestionTask?.cancel()
-        ingestionTask = nil
+        if ingestionTask != nil {
+            requestedIngestionCancellationIds.formUnion(activeIds)
+        }
+        cancelIngestionTaskAndSetItAside()
 
         for item in activeItems where item.stage == .queued || item.stage == .paused {
+            purgeStreamedTextImport(
+                for: item.url, containerId: item.containerId ?? containerService.containers.first?.id)
             documentProcessor.cleanCheckpoints(for: item.url)
         }
 
@@ -5249,7 +5378,7 @@ class RAGService: ObservableObject {
         syncIngestionLiveActivity()
     }
 
-    private func runIngestionLoop() async {
+    private func runIngestionLoop(loopID: Int) async {
         await MainActor.run { self.isProcessing = true }
 
         var shouldRestartQueueAfterUserCancellation = false
@@ -5265,7 +5394,9 @@ class RAGService: ObservableObject {
                     manageProcessingState: false
                 )
                 if Task.isCancelled { break }
-            } catch is CancellationError {
+            } catch let error where error is CancellationError || Task.isCancelled {
+                // Any error thrown once the task is cancelled is the cancellation, whatever a
+                // layer below has dressed it as. An import that was stopped is never "failed".
                 let userInitiatedCancellation = await MainActor.run {
                     self.handleUserRequestedIngestionCancellation(activeItemId: next.id)
                 }
@@ -5274,7 +5405,10 @@ class RAGService: ObservableObject {
                     break
                 } else {
                     await MainActor.run {
-                        self.handleContinuedIngestionExpiration()
+                        // Not when a later loop has been started: the items are queued for it.
+                        if self.ingestionLoopID == loopID {
+                            self.handleContinuedIngestionExpiration()
+                        }
                     }
                     break
                 }
@@ -5286,15 +5420,18 @@ class RAGService: ObservableObject {
         }
 
         await MainActor.run {
+            // A loop that was cancelled and set aside may end after a later one was started.
+            // The queue's task is the later loop's then, and this one must not clear it.
+            let isLatestLoop = self.ingestionLoopID == loopID
             self.isProcessing = false
             self.processingStatus = ""
-            self.ingestionTask = nil
+            if isLatestLoop { self.ingestionTask = nil }
             self.suppressProcessingSummary = false
             self.savePersistedIngestionQueueState()
             self.syncIngestionLiveActivity()
             self.pruneCompletedIngestionItems()
             self.kickPendingReembedIfNeeded()
-            if shouldRestartQueueAfterUserCancellation,
+            if isLatestLoop, shouldRestartQueueAfterUserCancellation,
                 self.ingestionItems.contains(where: { $0.stage == .queued })
             {
                 self.startIngestionTaskIfNeeded()
@@ -5390,6 +5527,7 @@ class RAGService: ObservableObject {
         detail: String,
         progress: Double? = nil,
         errorMessage: String? = nil,
+        savesQueue: Bool = true,
         metricsUpdate: ((inout PipelineMetrics) -> Void)? = nil
     ) {
         processingStatus = "\(filename) • \(detail)"
@@ -5444,7 +5582,13 @@ class RAGService: ObservableObject {
             metricsUpdate(&item.metrics)
         }
         ingestionItems[index] = item
-        savePersistedIngestionQueueState()
+        // The queue file is in the workspace, which iCloud may be syncing, and it is written with
+        // file coordination on the main actor. A caller that reports progress every few seconds
+        // (the passages of a piece as they are embedded) leaves the file alone; what it reports
+        // is not needed to continue.
+        if savesQueue {
+            savePersistedIngestionQueueState()
+        }
         IngestionRuntimeBridge.shared.updateContinuedIngestionProgress(
             title: "Importing documents",
             subtitle: "\(filename) • \(stage.displayName)",
@@ -5986,6 +6130,26 @@ class RAGService: ObservableObject {
                     containerEmbeddingService: containerEmbeddingService
                 )
                 return  // Streaming method handles the full end-to-end pipeline
+            }
+
+            // A large text or JSON Lines file, a piece at a time. Read whole, an 88 MB file held
+            // 2.8 GB on an iPhone and never finished (2026-10-09).
+            let fileBytes = (fileAttrs?[.size] as? Int64).map { Int($0) } ?? 0
+            if DocumentProcessor.importsInPieces(
+                fileExtension: managedURL.pathExtension, documentType: documentType, fileBytes: fileBytes),
+                (try? TextPieceReader(url: managedURL))?.canBeCutAtLineFeeds == true
+            {
+                try await importLargeTextStreamed(
+                    at: managedURL,
+                    trackingId: trackingId ?? UUID(),
+                    filename: filename,
+                    activeContainerId: activeContainerId,
+                    documentType: documentType,
+                    chunkOverride: activeChunkOverride,
+                    providerId: providerId,
+                    containerEmbeddingService: containerEmbeddingService
+                )
+                return  // It handles the whole import, like the streamed PDF above.
             }
 
             let extractionStartTime = Date()

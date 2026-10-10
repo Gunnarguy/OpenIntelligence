@@ -125,6 +125,15 @@ nonisolated class SemanticChunker {
     /// True when the last run left text unchunked because it reached `chunkLimit`.
     private(set) var stoppedAtChunkLimit = false
 
+    /// How many chunks at the start of a text are logged one by one. After these the trace gets
+    /// one line a thousand chunks: four lines for every chunk of a long text turned the trace
+    /// file over every ten seconds, and the lines that named the file were gone before anyone
+    /// could read them (an iPhone, 2026-10-09).
+    static let chunksLoggedOneByOne = 40
+    private var logsEachChunk = true
+    /// Chunks of this run that were cut down to `maxSize` words, for the one line at the end.
+    private var chunksCutToMaxSize = 0
+
     /// Whether a text of `wordCount` words is certain to need more than `chunkLimit` chunks. A
     /// chunk holds at most `maxSize` words, so more words than that many chunks can hold cannot
     /// fit. False says nothing: overlap makes the real number of chunks higher than this floor.
@@ -502,8 +511,14 @@ nonisolated class SemanticChunker {
         var chunkIndex = 0
         let maxChunks = chunkLimit
 
+        chunksCutToMaxSize = 0
         while currentPosition < text.endIndex && chunkIndex < maxChunks {
-            Log.verbose("[SemanticChunker] Processing chunk \(chunkIndex + 1)", category: .ingestion)
+            logsEachChunk = chunkIndex < Self.chunksLoggedOneByOne
+            if logsEachChunk {
+                Log.verbose("[SemanticChunker] Processing chunk \(chunkIndex + 1)", category: .ingestion)
+            } else if chunkIndex % 1_000 == 0 {
+                Log.info("[SemanticChunker] \(chunkIndex) chunks cut so far", category: .ingestion)
+            }
 
             if failFast, Task.isCancelled { return [] }
             if let progress, chunkIndex % 25 == 0 {
@@ -511,137 +526,156 @@ nonisolated class SemanticChunker {
                 progress(ChunkingProgress(phase: .cuttingChunks, chunksCreated: chunkIndex, fractionOfText: fraction))
             }
 
-            // Safety check: if we're too close to the end, create final chunk and stop.
-            // Asked as a walk of at most ten characters. Measuring the distance to the end of the
-            // text here cost one pass over the rest of the document for every chunk.
-            if text.index(currentPosition, offsetBy: 10, limitedBy: text.endIndex) == nil {
-                // Less than 10 characters remaining - create final micro-chunk if needed
-                if currentPosition < text.endIndex {
-                    let finalText = String(text[currentPosition..<text.endIndex])
-                    let wordCount = tokenWordCount(finalText)
-                    if wordCount > 0 {
-                        Log.verbose("[SemanticChunker] Final chunk \(chunkIndex + 1): \(wordCount) words", category: .ingestion)
-                        let metadata = extractMetadata(
-                            chunkText: finalText,
-                            chunkIndex: chunkIndex,
-                            documentId: documentId,
-                            range: currentPosition..<text.endIndex,
-                            startOffset: positionOffset,
-                            in: text,
-                            sections: sections,
-                            pageNumbers: pageNumbers,
-                            documentCategory: documentCategory
-                        )
-                        let parentContent = buildParentContent(
-                            for: currentPosition ..< text.endIndex,
-                            in: text,
-                            windowChars: config.parentWindowChars
-                        )
-                        chunks.append(EnhancedChunk(
-                            content: finalText,
-                            parentContent: parentContent,
-                            metadata: metadata,
-                            embedding: nil
-                        ))
+            // One autorelease pool for each chunk. Cutting a chunk hands its text to Foundation
+            // and NaturalLanguage several times, and what they leave behind is released only
+            // when a pool drains. With no pool inside the loop that was about 123 KB a chunk,
+            // held until the whole text was cut: 392 MB for 4 MB of JSON Lines against 47 MB
+            // with the pool (measured 2026-10-09), and an iPhone ended the app for memory near
+            // chunk 19,750 of one long text, twice.
+            let reachedTheEnd: Bool = autoreleasepool {
+                // Safety check: if we're too close to the end, create final chunk and stop.
+                // Asked as a walk of at most ten characters. Measuring the distance to the end of the
+                // text here cost one pass over the rest of the document for every chunk.
+                if text.index(currentPosition, offsetBy: 10, limitedBy: text.endIndex) == nil {
+                    // Less than 10 characters remaining - create final micro-chunk if needed
+                    if currentPosition < text.endIndex {
+                        let finalText = String(text[currentPosition..<text.endIndex])
+                        let wordCount = tokenWordCount(finalText)
+                        if wordCount > 0 {
+                            if logsEachChunk {
+                                Log.verbose("[SemanticChunker] Final chunk \(chunkIndex + 1): \(wordCount) words", category: .ingestion)
+                            }
+                            let metadata = extractMetadata(
+                                chunkText: finalText,
+                                chunkIndex: chunkIndex,
+                                documentId: documentId,
+                                range: currentPosition..<text.endIndex,
+                                startOffset: positionOffset,
+                                in: text,
+                                sections: sections,
+                                pageNumbers: pageNumbers,
+                                documentCategory: documentCategory
+                            )
+                            let parentContent = buildParentContent(
+                                for: currentPosition ..< text.endIndex,
+                                in: text,
+                                windowChars: config.parentWindowChars
+                            )
+                            chunks.append(EnhancedChunk(
+                                content: finalText,
+                                parentContent: parentContent,
+                                metadata: metadata,
+                                embedding: nil
+                            ))
+                        }
+                    }
+                    return true
+                }
+
+                // Find optimal chunk end
+                var chunkRange = findOptimalChunkRange(
+                    in: text,
+                    from: currentPosition,
+                    config: config,
+                    topicBoundaries: topicBoundaries,
+                    sections: sections,
+                    tableBlocks: tableBlocks
+                )
+
+                // Safety check: ensure range is valid and not empty
+                guard chunkRange.lowerBound < chunkRange.upperBound else {
+                    Log.warning("[SemanticChunker] Empty range detected; stopping chunking", category: .ingestion)
+                    return true
+                }
+
+                // HARD LIMIT ENFORCEMENT: Truncate chunk to maxSize words
+                // This prevents token truncation during embedding (510 token limit)
+                var chunkText = String(text[chunkRange])
+                var wordCount = tokenWordCount(chunkText)
+
+                if wordCount > config.maxSize {
+                    chunksCutToMaxSize += 1
+                    if logsEachChunk {
+                        Log.warning("[SemanticChunker] HARD LIMIT: Chunk \(chunkIndex + 1) has \(wordCount) words, truncating to \(config.maxSize)", category: .ingestion)
+                    }
+
+                    // Use cached NLTokenizer to properly count words (handles tabs, special chars)
+                    // This matches how tokenWordCount() works
+                    cachedWordTokenizer.string = chunkText
+
+                    var wordRanges: [Range<String.Index>] = []
+                    cachedWordTokenizer.enumerateTokens(in: chunkText.startIndex..<chunkText.endIndex) { range, _ in
+                        wordRanges.append(range)
+                        return wordRanges.count < config.maxSize  // Stop after maxSize words
+                    }
+
+                    if let lastRange = wordRanges.last {
+                        // Truncate to end of last word within limit
+                        chunkText = String(chunkText[chunkText.startIndex..<lastRange.upperBound])
+
+                        // Recalculate the range to match truncated text
+                        let newEnd = text.index(currentPosition, offsetBy: chunkText.count, limitedBy: text.endIndex) ?? text.endIndex
+                        chunkRange = currentPosition..<newEnd
+                    }
+
+                    wordCount = tokenWordCount(chunkText)
+                    if logsEachChunk {
+                        Log.info("[SemanticChunker] Chunk \(chunkIndex + 1) ACTUALLY truncated to \(wordCount) words", category: .ingestion)
                     }
                 }
-                break
-            }
-
-            // Find optimal chunk end
-            var chunkRange = findOptimalChunkRange(
-                in: text,
-                from: currentPosition,
-                config: config,
-                topicBoundaries: topicBoundaries,
-                sections: sections,
-                tableBlocks: tableBlocks
-            )
-
-            // Safety check: ensure range is valid and not empty
-            guard chunkRange.lowerBound < chunkRange.upperBound else {
-                Log.warning("[SemanticChunker] Empty range detected; stopping chunking", category: .ingestion)
-                break
-            }
-
-            // HARD LIMIT ENFORCEMENT: Truncate chunk to maxSize words
-            // This prevents token truncation during embedding (510 token limit)
-            var chunkText = String(text[chunkRange])
-            var wordCount = tokenWordCount(chunkText)
-
-            if wordCount > config.maxSize {
-                Log.warning("[SemanticChunker] HARD LIMIT: Chunk \(chunkIndex + 1) has \(wordCount) words, truncating to \(config.maxSize)", category: .ingestion)
-
-                // Use cached NLTokenizer to properly count words (handles tabs, special chars)
-                // This matches how tokenWordCount() works
-                cachedWordTokenizer.string = chunkText
-
-                var wordRanges: [Range<String.Index>] = []
-                cachedWordTokenizer.enumerateTokens(in: chunkText.startIndex..<chunkText.endIndex) { range, _ in
-                    wordRanges.append(range)
-                    return wordRanges.count < config.maxSize  // Stop after maxSize words
+                if logsEachChunk {
+                    Log.verbose("[SemanticChunker] Chunk \(chunkIndex + 1): \(wordCount) words", category: .ingestion)
                 }
 
-                if let lastRange = wordRanges.last {
-                    // Truncate to end of last word within limit
-                    chunkText = String(chunkText[chunkText.startIndex..<lastRange.upperBound])
+                // Extract metadata
+                let metadata = extractMetadata(
+                    chunkText: chunkText,
+                    chunkIndex: chunkIndex,
+                    documentId: documentId,
+                    range: chunkRange,
+                    startOffset: positionOffset,
+                    in: text,
+                    sections: sections,
+                    pageNumbers: pageNumbers,
+                    documentCategory: documentCategory
+                )
 
-                    // Recalculate the range to match truncated text
-                    let newEnd = text.index(currentPosition, offsetBy: chunkText.count, limitedBy: text.endIndex) ?? text.endIndex
-                    chunkRange = currentPosition..<newEnd
+                let parentContent = buildParentContent(
+                    for: chunkRange,
+                    in: text,
+                    windowChars: config.parentWindowChars
+                )
+                chunks.append(EnhancedChunk(
+                    content: chunkText,
+                    parentContent: parentContent,
+                    metadata: metadata,
+                    embedding: nil  // Will be added later
+                ))
+
+                coveredUpTo = max(coveredUpTo, chunkRange.upperBound)
+
+                // Move to next chunk with overlap
+                let nextPosition = advancePosition(
+                    from: currentPosition,
+                    chunkEnd: chunkRange.upperBound,
+                    overlap: config.overlap,
+                    in: text
+                )
+
+                // Safety check: ensure we're making progress
+                if nextPosition <= currentPosition {
+                    Log.warning("[SemanticChunker] No progress made; advancing by 1 character to prevent infinite loop", category: .ingestion)
+                    currentPosition = text.index(after: currentPosition)
+                    positionOffset += 1
+                } else {
+                    positionOffset += text.distance(from: currentPosition, to: nextPosition)
+                    currentPosition = nextPosition
                 }
 
-                wordCount = tokenWordCount(chunkText)
-                Log.info("[SemanticChunker] Chunk \(chunkIndex + 1) ACTUALLY truncated to \(wordCount) words", category: .ingestion)
+                chunkIndex += 1
+                return false
             }
-            Log.verbose("[SemanticChunker] Chunk \(chunkIndex + 1): \(tokenWordCount(chunkText)) words", category: .ingestion)
-
-            // Extract metadata
-            let metadata = extractMetadata(
-                chunkText: chunkText,
-                chunkIndex: chunkIndex,
-                documentId: documentId,
-                range: chunkRange,
-                startOffset: positionOffset,
-                in: text,
-                sections: sections,
-                pageNumbers: pageNumbers,
-                documentCategory: documentCategory
-            )
-
-            let parentContent = buildParentContent(
-                for: chunkRange,
-                in: text,
-                windowChars: config.parentWindowChars
-            )
-            chunks.append(EnhancedChunk(
-                content: chunkText,
-                parentContent: parentContent,
-                metadata: metadata,
-                embedding: nil  // Will be added later
-            ))
-
-            coveredUpTo = max(coveredUpTo, chunkRange.upperBound)
-
-            // Move to next chunk with overlap
-            let nextPosition = advancePosition(
-                from: currentPosition,
-                chunkEnd: chunkRange.upperBound,
-                overlap: config.overlap,
-                in: text
-            )
-
-            // Safety check: ensure we're making progress
-            if nextPosition <= currentPosition {
-                Log.warning("[SemanticChunker] No progress made; advancing by 1 character to prevent infinite loop", category: .ingestion)
-                currentPosition = text.index(after: currentPosition)
-                positionOffset += 1
-            } else {
-                positionOffset += text.distance(from: currentPosition, to: nextPosition)
-                currentPosition = nextPosition
-            }
-
-            chunkIndex += 1
+            if reachedTheEnd { break }
         }
 
         // At the limit the loop's position is the start of the last chunk's overlap, which is
@@ -653,7 +687,9 @@ nonisolated class SemanticChunker {
                 "[SemanticChunker] Stopped at the \(maxChunks)-chunk limit with text left unchunked", category: .ingestion)
         }
 
-        Log.debug("[SemanticChunker] Created \(chunks.count) semantically-aware chunks", category: .ingestion)
+        Log.debug(
+            "[SemanticChunker] Created \(chunks.count) semantically-aware chunks (\(chunksCutToMaxSize) cut to the \(config.maxSize)-word limit)",
+            category: .ingestion)
 
         // What follows is the merge and four more passes over the whole text for the run's
         // statistics. A cancelled import does not wait for them.
@@ -823,88 +859,94 @@ nonisolated class SemanticChunker {
         let maxChunks = chunkLimit
 
         while currentPosition < text.endIndex, chunkIndex < maxChunks {
-            if text.index(currentPosition, offsetBy: 10, limitedBy: text.endIndex) == nil {
-                if currentPosition < text.endIndex {
-                    let finalText = String(text[currentPosition ..< text.endIndex])
-                    let wc = tokenWordCount(finalText)
-                    if wc > 0 {
-                        let metadata = extractMetadata(
-                            chunkText: finalText,
-                            chunkIndex: chunkIndex,
-                            documentId: documentId,
-                            range: currentPosition ..< text.endIndex,
-                            startOffset: positionOffset,
-                            in: text,
-                            sections: sections,
-                            pageNumbers: pageNumbers,
-                            documentCategory: documentCategory
-                        )
-                        let parentContent = buildParentContent(
-                            for: currentPosition ..< text.endIndex,
-                            in: text,
-                            windowChars: config.parentWindowChars
-                        )
-                        chunks.append(EnhancedChunk(
-                            content: finalText,
-                            parentContent: parentContent,
-                            metadata: metadata,
-                            embedding: nil
-                        ))
+            logsEachChunk = chunkIndex < Self.chunksLoggedOneByOne
+            // One pool for each chunk, as in `chunkText`.
+            let reachedTheEnd: Bool = autoreleasepool {
+                if text.index(currentPosition, offsetBy: 10, limitedBy: text.endIndex) == nil {
+                    if currentPosition < text.endIndex {
+                        let finalText = String(text[currentPosition ..< text.endIndex])
+                        let wc = tokenWordCount(finalText)
+                        if wc > 0 {
+                            let metadata = extractMetadata(
+                                chunkText: finalText,
+                                chunkIndex: chunkIndex,
+                                documentId: documentId,
+                                range: currentPosition ..< text.endIndex,
+                                startOffset: positionOffset,
+                                in: text,
+                                sections: sections,
+                                pageNumbers: pageNumbers,
+                                documentCategory: documentCategory
+                            )
+                            let parentContent = buildParentContent(
+                                for: currentPosition ..< text.endIndex,
+                                in: text,
+                                windowChars: config.parentWindowChars
+                            )
+                            chunks.append(EnhancedChunk(
+                                content: finalText,
+                                parentContent: parentContent,
+                                metadata: metadata,
+                                embedding: nil
+                            ))
+                        }
                     }
+                    return true
                 }
-                break
+
+                let chunkRange = findOptimalChunkRange(
+                    in: text,
+                    from: currentPosition,
+                    config: config,
+                    topicBoundaries: topicBoundaries,
+                    sections: sections,
+                    tableBlocks: tableBlocks
+                )
+
+                guard chunkRange.lowerBound < chunkRange.upperBound else { return true }
+
+                let chunkText = String(text[chunkRange])
+                let metadata = extractMetadata(
+                    chunkText: chunkText,
+                    chunkIndex: chunkIndex,
+                    documentId: documentId,
+                    range: chunkRange,
+                    startOffset: positionOffset,
+                    in: text,
+                    sections: sections,
+                    pageNumbers: pageNumbers,
+                    documentCategory: documentCategory
+                )
+                let parentContent = buildParentContent(
+                    for: chunkRange,
+                    in: text,
+                    windowChars: config.parentWindowChars
+                )
+                chunks.append(EnhancedChunk(
+                    content: chunkText,
+                    parentContent: parentContent,
+                    metadata: metadata,
+                    embedding: nil
+                ))
+
+                let nextPosition = advancePosition(
+                    from: currentPosition,
+                    chunkEnd: chunkRange.upperBound,
+                    overlap: config.overlap,
+                    in: text
+                )
+
+                if nextPosition <= currentPosition {
+                    currentPosition = text.index(after: currentPosition)
+                    positionOffset += 1
+                } else {
+                    positionOffset += text.distance(from: currentPosition, to: nextPosition)
+                    currentPosition = nextPosition
+                }
+                chunkIndex += 1
+                return false
             }
-
-            let chunkRange = findOptimalChunkRange(
-                in: text,
-                from: currentPosition,
-                config: config,
-                topicBoundaries: topicBoundaries,
-                sections: sections,
-                tableBlocks: tableBlocks
-            )
-
-            guard chunkRange.lowerBound < chunkRange.upperBound else { break }
-
-            let chunkText = String(text[chunkRange])
-            let metadata = extractMetadata(
-                chunkText: chunkText,
-                chunkIndex: chunkIndex,
-                documentId: documentId,
-                range: chunkRange,
-                startOffset: positionOffset,
-                in: text,
-                sections: sections,
-                pageNumbers: pageNumbers,
-                documentCategory: documentCategory
-            )
-            let parentContent = buildParentContent(
-                for: chunkRange,
-                in: text,
-                windowChars: config.parentWindowChars
-            )
-            chunks.append(EnhancedChunk(
-                content: chunkText,
-                parentContent: parentContent,
-                metadata: metadata,
-                embedding: nil
-            ))
-
-            let nextPosition = advancePosition(
-                from: currentPosition,
-                chunkEnd: chunkRange.upperBound,
-                overlap: config.overlap,
-                in: text
-            )
-
-            if nextPosition <= currentPosition {
-                currentPosition = text.index(after: currentPosition)
-                positionOffset += 1
-            } else {
-                positionOffset += text.distance(from: currentPosition, to: nextPosition)
-                currentPosition = nextPosition
-            }
-            chunkIndex += 1
+            if reachedTheEnd { break }
         }
 
         Log.debug("[SemanticChunker] Created \(chunks.count) chunks with embedding-aware boundaries", category: .ingestion)
@@ -1420,7 +1462,9 @@ nonisolated class SemanticChunker {
                 let count = tokenWordCount(String(chunkText))
 
                 if count >= config.minSize && count <= config.maxSize {
-                    Log.verbose("[SemanticChunker] Snapping to table end (\(table.lineCount) lines)", category: .ingestion)
+                    if logsEachChunk {
+                        Log.verbose("[SemanticChunker] Snapping to table end (\(table.lineCount) lines)", category: .ingestion)
+                    }
                     return start..<tableEnd
                 }
             }
@@ -1497,24 +1541,24 @@ nonisolated class SemanticChunker {
             let extendedWordCount = tokenWordCount(extendedText)
 
             if extendedWordCount <= config.maxSize {
-                Log.info("[SemanticChunker] Table protection: extended chunk to include \(table.lineCount)-line table (\(extendedWordCount) words)", category: .ingestion)
+                if logsEachChunk { Log.info("[SemanticChunker] Table protection: extended chunk to include \(table.lineCount)-line table (\(extendedWordCount) words)", category: .ingestion) }
                 targetIndex = table.range.upperBound
             } else if table.range.lowerBound > start {
                 // Option B: Snap back to before the table starts
                 let truncatedText = String(text[start..<table.range.lowerBound])
                 let truncatedWordCount = tokenWordCount(truncatedText)
                 if truncatedWordCount >= config.minSize {
-                    Log.info("[SemanticChunker] Table protection: snapped chunk end before \(table.lineCount)-line table", category: .ingestion)
+                    if logsEachChunk { Log.info("[SemanticChunker] Table protection: snapped chunk end before \(table.lineCount)-line table", category: .ingestion) }
                     targetIndex = table.range.lowerBound
                 } else {
                     // Option C: Table starts too close to chunk start — include it as oversized
                     // The hard-limit enforcement after findOptimalChunkRange will truncate if needed
-                    Log.info("[SemanticChunker] Table protection: including oversized \(table.lineCount)-line table (\(extendedWordCount) words)", category: .ingestion)
+                    if logsEachChunk { Log.info("[SemanticChunker] Table protection: including oversized \(table.lineCount)-line table (\(extendedWordCount) words)", category: .ingestion) }
                     targetIndex = table.range.upperBound
                 }
             } else {
                 // Table starts at chunk start — include the whole table
-                Log.info("[SemanticChunker] Table protection: table spans from chunk start (\(table.lineCount) lines)", category: .ingestion)
+                if logsEachChunk { Log.info("[SemanticChunker] Table protection: table spans from chunk start (\(table.lineCount) lines)", category: .ingestion) }
                 targetIndex = table.range.upperBound
             }
         }

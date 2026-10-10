@@ -282,6 +282,13 @@ struct ContentView: View {
                 await importSamplesIfNeeded()
             }
         }
+        .onChange(of: ragService.isProcessing) { _, isWorking in
+            #if canImport(UIKit) && !os(visionOS)
+                // An import or a rebuild can run for many minutes with nobody touching the screen.
+                // Once the phone locks, iOS gives the app about half a minute before it stops it.
+                UIApplication.shared.isIdleTimerDisabled = isWorking
+            #endif
+        }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             handleScenePhaseChange(from: oldPhase, to: newPhase)
         }
@@ -413,6 +420,10 @@ struct ContentView: View {
                 IngestionRuntimeBridge.shared.beginForegroundFallbackIngestion(reason: "Active Ingestion Handoff")
             }
 
+            // An import the system is carrying in the background runs on the reduced profile
+            // from here, and on the full one again when the app is back in front.
+            BackgroundTaskService.shared.applyIngestionExecutionProfileForCurrentState()
+
             // Checkpoint and close database connection before app suspension
             Task {
                 await SQLiteFullTextService.shared.shutdown()
@@ -429,6 +440,9 @@ struct ContentView: View {
 
         case .active:
             entitlementStore.refreshTransientState()
+            BackgroundTaskService.shared.applyIngestionExecutionProfileForCurrentState()
+            // An import that a background limit stopped continues without being asked.
+            ragService.resumeIngestionStoppedInBackgroundIfNeeded()
             Task { @MainActor in
                 await refreshSharedWorkspaceIfNeeded(forceReload: workspaceSyncService.isUsingSharedWorkspace)
             }

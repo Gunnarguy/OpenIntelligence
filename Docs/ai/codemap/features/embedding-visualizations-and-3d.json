@@ -16,7 +16,8 @@
     {"path": "OpenIntelligence/Services/Infrastructure/Presentation/LibraryVisualizationEngine.swift", "role": "primary", "blob": "ab9cc1fc31dcce32c5887d2238e87f4f254b3255"},
     {"path": "OpenIntelligence/Services/Infrastructure/Presentation/ProjectionCache.swift", "role": "primary", "blob": "9c42192da94a6cc995cc29711154c9e5dc04baa0"},
     {"path": "OpenIntelligence/Services/Infrastructure/Presentation/ProjectionService.swift", "role": "primary", "blob": "57b21b7b4b411b49183c20db28c801b4af7ca4eb"},
-    {"path": "OpenIntelligenceTests/Features/Telemetry/Visualizations/EmbeddingNormalizationBoundsTests.swift", "role": "test", "blob": "750d2d0ff8958e8e7a50c35ce40b07ea22779688"}
+    {"path": "OpenIntelligenceTests/Features/Telemetry/Visualizations/EmbeddingNormalizationBoundsTests.swift", "role": "test", "blob": "750d2d0ff8958e8e7a50c35ce40b07ea22779688"},
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/LibraryMapSampleTests.swift", "role": "test", "blob": "626821341ff713b7ecaefa9042c5edd9196de7f7"}
   ],
   "nodes": [
     {"id": "Embedding3DSceneView", "kind": "view", "path": "OpenIntelligence/Features/Telemetry/Visualizations/Embedding3DView.swift", "line": 3322, "match": "struct Embedding3DSceneView: View {", "status": "VERIFIED", "by": "build"},

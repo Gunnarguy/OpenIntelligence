@@ -193,6 +193,10 @@ struct PipelineMetrics: Codable, Sendable, Equatable {
 }
 
 struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
+    /// The detail of an item whose import the system stopped when background time ran out. The
+    /// queue continues it when the app is next in front, and the Live Activity says so.
+    nonisolated static let queuedForResumeDetail = "Queued for resume"
+
     let id: UUID
     private let legacyURL: URL?
     var storageRelativePath: String?

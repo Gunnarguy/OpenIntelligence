@@ -182,9 +182,18 @@ actor BNNSVectorDatabase: VectorDatabase {
                     mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
                 }
                 if mapped.count != expectedBytes {
+                    // More whole vectors than the metadata lists. Since 5.7 `saveToDisk` writes
+                    // new vectors before the metadata that names them, so this is what a save
+                    // that was cut off between the two leaves: the first `expectedBytes` are the
+                    // listed chunks' vectors and the rest belong to chunks that were never
+                    // recorded. They are cut off and the store loads as it was before that save.
+                    // (Through 5.6 this repair ran only when the file was an exact multiple of
+                    // the expected size, and any other excess deleted the whole store.)
+                    let bytesPerVector = dimension * MemoryLayout<Float>.size
                     if expectedBytes > 0,
                        mapped.count > expectedBytes,
-                       mapped.count % expectedBytes == 0 {
+                       bytesPerVector > 0,
+                       (mapped.count - expectedBytes) % bytesPerVector == 0 {
                         Log.warning(
                             "[BNNS] Repairing oversized vector file: \(mapped.count) -> \(expectedBytes)",
                             category: .vectorDB
@@ -308,11 +317,14 @@ actor BNNSVectorDatabase: VectorDatabase {
         guard let url = storageURL else { return }
         let bin = binaryURLs(from: url)
 
-        // 1. Metadata JSON (chunks have embedding:[], lightweight)
-        let metaData = try JSONEncoder().encode(chunks)
-        try metaData.write(to: bin.meta, options: .atomic)
-
-        // 2. Write vectors atomically if there is pending data to prevent mmap corruption
+        // 1. New vectors first, written atomically to prevent mmap corruption.
+        //
+        // The order matters when the app is ended between the two writes. Through 5.6 the
+        // metadata went first: a save cut off there left metadata for more chunks than the
+        // vectors file held, and the next load answered that mismatch by deleting the whole
+        // store, every document's vectors in the library. With the vectors first, a save cut
+        // off there leaves more vectors than the metadata lists, which the loader trims, and
+        // the store comes back as it was before the save. The file layout is unchanged.
         if !pendingEmbeddings.isEmpty {
             var allVectorsData = Data()
             allVectorsData.reserveCapacity(chunks.count * dimension * MemoryLayout<Float>.size)
@@ -331,6 +343,10 @@ actor BNNSVectorDatabase: VectorDatabase {
             self.mappedVectors = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
             self.persistedChunkCount = chunks.count
         }
+
+        // 2. Metadata JSON (chunks have embedding:[], lightweight)
+        let metaData = try JSONEncoder().encode(chunks)
+        try metaData.write(to: bin.meta, options: .atomic)
 
         // 3. Norms binary
         let normData = embeddingNorms.withUnsafeBytes { Data($0) }
