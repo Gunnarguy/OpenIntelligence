@@ -815,13 +815,9 @@ actor LibraryIntelligenceCenter {
         let confidence = min(1.0, winner.1 / 2.0)
         var provider = winner.2
 
-        #if canImport(CoreAI)
-        if provider == "coreml_sentence_embedding" {
-            if #available(iOS 27.0, macOS 27.0, *) {
-                provider = "coreai_sentence_embedding"
-            }
+        if provider == EmbeddingProviderDefaults.coreML {
+            provider = EmbeddingProviderDefaults.preferredSentenceProviderId
         }
-        #endif
 
         // Add provider-specific reasoning
         switch provider {

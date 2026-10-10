@@ -4,8 +4,8 @@
   "name": "Model Selector",
   "aliases": ["the model selector", "Model Preference", "model status indicator", "model configuration sheet", "model capability cards", "which model", "pick a model", "choose a model", "switch the model", "default model", "model picker"],
   "purpose": "Lets the user choose which model answers, and shows that model's status and capabilities.",
-  "revision": "af7aaf9",
-  "verified_on": "2026-10-09",
+  "revision": "7840499",
+  "verified_on": "2026-10-10",
   "entry_points": ["ModelStatusIndicator", "SettingsStore.fmPreference", "FoundationModelPreference", "ModelSelectorSheet", "ModelInfoCard", "ModelConfigurationSheet", "LLMModel", "LLMModelType"],
   "files": [
     {"path": "OpenIntelligence/Core/Models/LLMModel.swift", "role": "primary", "blob": "565649e36764cc33f7c6ebdc05117d7d42bdba93"},
@@ -17,7 +17,7 @@
     {"path": "OpenIntelligence/Features/Settings/Components/ModelPipelineStage.swift", "role": "primary", "blob": "b367a56202f4e16f1ca9e449e5aea1d308c3185d"},
     {"path": "OpenIntelligence/Features/Settings/Components/ModelSelectorSheet.swift", "role": "primary", "blob": "e092ad52701f07d4120a6e0b12c075cd088fd579"},
     {"path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift", "role": "primary", "blob": "9e076ea968683d60a3f25abc151d4474ee6eff78"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "shared", "blob": "1c0170ec6c54e5e4eb5525e8aceb3d8e52fff081"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "shared", "blob": "4671c98587c24eeb595cd3f5ab1b28411b9976d6"},
     {"path": "OpenIntelligenceTests/Core/Models/LLMModelTypeTests.swift", "role": "test", "blob": "ad08301a04dc772c0faa108944dd9b7e344a13af"},
     {"path": "OpenIntelligence/Core/Models/AppleIntelligenceAvailability.swift", "role": "primary", "blob": "4337fd2e6e759e9baa4b69df8180ee207bd04077"},
     {"path": "OpenIntelligenceTests/Core/Models/AppleIntelligenceCopyTests.swift", "role": "test", "blob": "1c5953fe420660a41120bae906acfe7078c35ad9"}
@@ -36,8 +36,8 @@
     {"id": "FoundationModelPreference", "kind": "model", "path": "OpenIntelligence/Core/Models/LLMModel.swift", "line": 234, "match": "enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "ModelStatusIndicator.body", "kind": "model", "path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift", "line": 16, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ModelSelectorSheet", "kind": "view", "path": "OpenIntelligence/Features/Settings/Components/ModelSelectorSheet.swift", "line": 10, "match": "struct ModelSelectorSheet: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DeviceCapabilities", "kind": "model", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 19254, "match": "struct DeviceCapabilities {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.checkDeviceCapabilities", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 18843, "match": "static func checkDeviceCapabilities() -> DeviceCapabilities {", "status": "VERIFIED", "by": "build"},
+    {"id": "DeviceCapabilities", "kind": "model", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 19464, "match": "struct DeviceCapabilities {", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.checkDeviceCapabilities", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 19053, "match": "static func checkDeviceCapabilities() -> DeviceCapabilities {", "status": "VERIFIED", "by": "build"},
     {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 307, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ModelInfoCard", "kind": "view", "path": "OpenIntelligence/Features/Settings/Components/ModelInfoCard.swift", "line": 12, "match": "struct ModelInfoCard: View {", "status": "VERIFIED", "by": "build"},
     {"id": "ModelConfigurationSheet", "kind": "view", "path": "OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift", "line": 12, "match": "struct ModelConfigurationSheet: View {", "status": "VERIFIED", "by": "build"},
@@ -51,7 +51,7 @@
     {"id": "ModelSelectorSheet.previewModel", "kind": "model", "path": "OpenIntelligence/Features/Settings/Components/ModelSelectorSheet.swift", "line": 15, "match": "@State private var previewModel: LLMModelType?", "status": "VERIFIED", "by": "build"},
     {"id": "SettingsStore.selectedModel", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "line": 145, "match": "@Published var selectedModel: LLMModelType", "status": "VERIFIED", "by": "build"},
     {"id": "ModelResolutionService.ResolutionEvent.from", "kind": "service", "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 47, "match": "let from: LLMModelType?", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.instantiateService", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 17136, "match": "private static func instantiateService(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.instantiateService", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 17346, "match": "private static func instantiateService(", "status": "VERIFIED", "by": "build"},
     {"id": "test:LLMModelTypeTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Core/Models/LLMModelTypeTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
@@ -77,7 +77,7 @@
     {"from": "ModelSelectorSheet.previewModel", "type": "depends_on", "to": "LLMModelType", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/Components/ModelSelectorSheet.swift", "line": 15, "match": "@State private var previewModel: LLMModelType?"}], "by": "build", "note": "named there"},
     {"from": "SettingsStore.selectedModel", "type": "depends_on", "to": "LLMModelType", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "line": 145, "match": "@Published var selectedModel: LLMModelType"}], "by": "build", "note": "named there"},
     {"from": "ModelResolutionService.ResolutionEvent.from", "type": "depends_on", "to": "LLMModelType", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 47, "match": "let from: LLMModelType?"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.instantiateService", "type": "depends_on", "to": "LLMModelType", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 17141, "match": "let effectiveKey = LLMModelType.isDeprecatedRawValue(modelKey) ? \"apple_intelligence\" : modelKey"}], "by": "build", "note": "named there"},
+    {"from": "RAGService.instantiateService", "type": "depends_on", "to": "LLMModelType", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 17351, "match": "let effectiveKey = LLMModelType.isDeprecatedRawValue(modelKey) ? \"apple_intelligence\" : modelKey"}], "by": "build", "note": "named there"},
     {"from": "LLMModelType", "type": "tested_by", "to": "test:LLMModelTypeTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Core/Models/LLMModelTypeTests.swift", "line": 8, "match": "XCTAssertTrue(LLMModelType.isDeprecatedRawValue(\"gguf_local\"))"}], "by": "build", "note": "the test names it"}
   ],
   "docs": [],

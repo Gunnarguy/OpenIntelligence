@@ -1125,25 +1125,24 @@ class HybridSearchService {
         // FTS5 returns ChunkSearchResult with native bm25Score. We need to convert
         // these to (chunk: RetrievedChunk, score: Float) tuples for RRF fusion.
         // For FTS5-only hits (not in vector results), we need the full DocumentChunk
-        // to construct RetrievedChunk. Look up from cached chunks or vector DB.
+        // to construct RetrievedChunk. Look up only the needed keys from cached chunks or vector DB.
         var fts5KeywordResults: [(chunk: RetrievedChunk, score: Float)] = []
 
         if !fts5ChunkResults.isEmpty || !structuredRowResults.isEmpty {
             // Build lookup for chunks already found by vector search
-            let vectorChunkLookup: [String: RetrievedChunk] = {
-                var dict = [String: RetrievedChunk]()
-                dict.reserveCapacity(vectorResultsFiltered.count)
-                for r in vectorResultsFiltered {
-                    let key = "\(r.chunk.documentId.uuidString)_\(r.chunk.metadata.chunkIndex)"
-                    dict[key] = r
-                }
-                return dict
-            }()
+            let vectorChunkLookup = Self.makeVectorChunkLookup(vectorResultsFiltered)
 
-            // Build lookup for all chunks (needed for FTS5-only hits)
+            // Collect only the keys needed from the library chunk store (not in vector results)
+            let neededKeys = Self.neededChunkIds(
+                vectorChunkLookup: vectorChunkLookup,
+                fts5ChunkResults: fts5ChunkResults,
+                structuredRowResults: structuredRowResults,
+                queryLower: queryLower
+            )
+
+            // Build lookup only for the needed chunks, stopping early once all are found
             let allChunkLookup: [String: DocumentChunk]
-            if !fts5ChunkResults.allSatisfy({ vectorChunkLookup[$0.chunkId] != nil }) {
-                // Some FTS5 results aren't in vector results — need the full chunk data
+            if !neededKeys.isEmpty {
                 let allChunks: [DocumentChunk]
                 if let cachedChunks {
                     allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(cachedChunks) : cachedChunks
@@ -1151,88 +1150,25 @@ class HybridSearchService {
                     let fetched = try await vectorDatabase.allChunks()
                     allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(fetched) : fetched
                 }
-                var dict = [String: DocumentChunk]()
-                dict.reserveCapacity(allChunks.count)
-                for chunk in allChunks {
-                    let key = "\(chunk.documentId.uuidString)_\(chunk.metadata.chunkIndex)"
-                    dict[key] = chunk
-                }
-                allChunkLookup = dict
+                allChunkLookup = Self.buildNeededChunkLookup(from: allChunks, neededChunkIds: neededKeys)
             } else {
                 allChunkLookup = [:]
             }
 
-            var lexicalHitsByChunkId: [String: (chunk: RetrievedChunk, score: Float)] = [:]
-            var fts5OnlyCount = 0
-            var structuredRowOnlyCount = 0
-            for fts5Hit in fts5ChunkResults {
-                // FTS5 bm25() returns negative scores (lower = better match in SQLite).
-                // Negate to get positive scores for RRF ranking.
-                let bm25Score: Float = fts5Hit.bm25Score < 0 ? Float(-fts5Hit.bm25Score) : Float(fts5Hit.bm25Score)
+            let joinOutcome = Self.joinKeywordResults(
+                vectorChunkLookup: vectorChunkLookup,
+                fts5ChunkResults: fts5ChunkResults,
+                structuredRowResults: structuredRowResults,
+                docChunkLookup: allChunkLookup,
+                queryLower: queryLower
+            )
+            fts5KeywordResults = joinOutcome.results
 
-                if let existingChunk = vectorChunkLookup[fts5Hit.chunkId] {
-                    // Chunk found by both vector and FTS5 — use the full RetrievedChunk
-                    lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: existingChunk, score: bm25Score)
-                } else if let docChunk = allChunkLookup[fts5Hit.chunkId] {
-                    // FTS5-only hit: construct RetrievedChunk from DocumentChunk.
-                    // We don't have a reliable filename at this layer, so avoid using section metadata as provenance.
-                    let retrieved = RetrievedChunk(
-                        chunk: docChunk,
-                        similarityScore: 0,  // No vector similarity — RRF uses rank, not score
-                        rank: 0,
-                        sourceDocument: "Unknown",
-                        pageNumber: fts5Hit.pageNumber
-                    )
-                    lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: retrieved, score: bm25Score)
-                    fts5OnlyCount += 1
-                }
-                // else: FTS5 hit doesn't match any known chunk — skip (stale index)
+            if joinOutcome.fts5OnlyCount > 0 {
+                Log.info("[Hybrid] FTS5 found \(joinOutcome.fts5OnlyCount) chunks missed by vector search (true hybrid gain)", category: .pipeline)
             }
-
-            for rowHit in structuredRowResults {
-                if EvidenceScoringPolicyService.isStateLookupQuery(queryLower),
-                   !EvidenceScoringPolicyService.satisfiesStateLookupAnchors(query: queryLower, content: rowHit.content)
-                {
-                    continue
-                }
-
-                let rowScore = rowHit.bm25Score < 0 ? Float(-rowHit.bm25Score) : Float(rowHit.bm25Score)
-                let mergedScore = rowScore + 0.10
-
-                if let existingChunk = vectorChunkLookup[rowHit.chunkId] {
-                    let existing = lexicalHitsByChunkId[rowHit.chunkId]
-                    if existing == nil || existing!.score < mergedScore {
-                        lexicalHitsByChunkId[rowHit.chunkId] = (chunk: existingChunk, score: mergedScore)
-                    }
-                } else if let docChunk = allChunkLookup[rowHit.chunkId] {
-                    let retrieved = RetrievedChunk(
-                        chunk: docChunk,
-                        similarityScore: 0,
-                        rank: 0,
-                        sourceDocument: "Unknown",
-                        pageNumber: rowHit.pageNumber
-                    )
-                    let existing = lexicalHitsByChunkId[rowHit.chunkId]
-                    if existing == nil || existing!.score < mergedScore {
-                        lexicalHitsByChunkId[rowHit.chunkId] = (chunk: retrieved, score: mergedScore)
-                    }
-                    structuredRowOnlyCount += 1
-                }
-            }
-
-            fts5KeywordResults = lexicalHitsByChunkId.values
-                .sorted {
-                    $0.score != $1.score
-                        ? $0.score > $1.score
-                        : Self.stableTieBreakKey($0.chunk) < Self.stableTieBreakKey($1.chunk)
-                }
-                .map { ($0.chunk, $0.score) }
-
-            if fts5OnlyCount > 0 {
-                Log.info("[Hybrid] FTS5 found \(fts5OnlyCount) chunks missed by vector search (true hybrid gain)", category: .pipeline)
-            }
-            if structuredRowOnlyCount > 0 {
-                Log.info("[Hybrid] Structured row search found \(structuredRowOnlyCount) row-backed chunks", category: .pipeline)
+            if joinOutcome.structuredRowOnlyCount > 0 {
+                Log.info("[Hybrid] Structured row search found \(joinOutcome.structuredRowOnlyCount) row-backed chunks", category: .pipeline)
             }
         }
 
@@ -1330,4 +1266,171 @@ class HybridSearchService {
         return adjusted.sorted(by: Self.byScoreThenId)
     }
 
+    // MARK: - Keyword Join Helpers
+
+    /// Fast key for identifying chunks by document ID and chunk index without string allocations.
+    struct ChunkCoordinate: Hashable, Sendable {
+        let documentId: UUID
+        let chunkIndex: Int
+    }
+
+    /// Builds a dictionary from vector results keyed by `<documentId>_<chunkIndex>`.
+    static func makeVectorChunkLookup(_ vectorResults: [RetrievedChunk]) -> [String: RetrievedChunk] {
+        var dict = [String: RetrievedChunk]()
+        dict.reserveCapacity(vectorResults.count)
+        for r in vectorResults {
+            let key = "\(r.chunk.documentId.uuidString)_\(r.chunk.metadata.chunkIndex)"
+            dict[key] = r
+        }
+        return dict
+    }
+
+    /// Collects chunk IDs required from library storage that are not already present in vector search results.
+    static func neededChunkIds(
+        vectorChunkLookup: [String: RetrievedChunk],
+        fts5ChunkResults: [SQLiteFullTextService.ChunkSearchResult],
+        structuredRowResults: [SQLiteFullTextService.ChunkSearchResult],
+        queryLower: String
+    ) -> Set<String> {
+        var needed = Set<String>()
+        for hit in fts5ChunkResults where vectorChunkLookup[hit.chunkId] == nil {
+            needed.insert(hit.chunkId)
+        }
+        for hit in structuredRowResults where vectorChunkLookup[hit.chunkId] == nil {
+            if EvidenceScoringPolicyService.isStateLookupQuery(queryLower),
+               !EvidenceScoringPolicyService.satisfiesStateLookupAnchors(query: queryLower, content: hit.content) {
+                continue
+            }
+            needed.insert(hit.chunkId)
+        }
+        return needed
+    }
+
+    /// Builds a dictionary containing only chunks matching `neededChunkIds`, scanning library chunks
+    /// and breaking early once all needed chunks have been found.
+    static func buildNeededChunkLookup(
+        from chunks: [DocumentChunk],
+        neededChunkIds: Set<String>
+    ) -> [String: DocumentChunk] {
+        guard !neededChunkIds.isEmpty else { return [:] }
+
+        var coordinateToChunkId: [ChunkCoordinate: String] = [:]
+        coordinateToChunkId.reserveCapacity(neededChunkIds.count)
+        for id in neededChunkIds {
+            if let separatorIndex = id.lastIndex(of: "_"),
+               let docId = UUID(uuidString: String(id[..<separatorIndex])),
+               let index = Int(id[id.index(after: separatorIndex)...]) {
+                coordinateToChunkId[ChunkCoordinate(documentId: docId, chunkIndex: index)] = id
+            }
+        }
+
+        var dict = [String: DocumentChunk]()
+        dict.reserveCapacity(neededChunkIds.count)
+
+        for chunk in chunks {
+            let coord = ChunkCoordinate(documentId: chunk.documentId, chunkIndex: chunk.metadata.chunkIndex)
+            if let chunkId = coordinateToChunkId[coord] {
+                dict[chunkId] = chunk
+                if dict.count == neededChunkIds.count {
+                    break
+                }
+            }
+        }
+        return dict
+    }
+
+    /// Joins vector hits and lexical (FTS5 + structured row) hits into ranked keyword results for RRF fusion.
+    static func joinKeywordResults(
+        vectorChunkLookup: [String: RetrievedChunk],
+        fts5ChunkResults: [SQLiteFullTextService.ChunkSearchResult],
+        structuredRowResults: [SQLiteFullTextService.ChunkSearchResult],
+        docChunkLookup: [String: DocumentChunk],
+        queryLower: String
+    ) -> (results: [(chunk: RetrievedChunk, score: Float)], fts5OnlyCount: Int, structuredRowOnlyCount: Int) {
+        var lexicalHitsByChunkId: [String: (chunk: RetrievedChunk, score: Float)] = [:]
+        var fts5OnlyCount = 0
+        var structuredRowOnlyCount = 0
+        for fts5Hit in fts5ChunkResults {
+            // FTS5 bm25() returns negative scores (lower = better match in SQLite).
+            // Negate to get positive scores for RRF ranking.
+            let bm25Score: Float = fts5Hit.bm25Score < 0 ? Float(-fts5Hit.bm25Score) : Float(fts5Hit.bm25Score)
+
+            if let existingChunk = vectorChunkLookup[fts5Hit.chunkId] {
+                // Chunk found by both vector and FTS5 — use the full RetrievedChunk
+                lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: existingChunk, score: bm25Score)
+            } else if let docChunk = docChunkLookup[fts5Hit.chunkId] {
+                // FTS5-only hit: construct RetrievedChunk from DocumentChunk.
+                // We don't have a reliable filename at this layer, so avoid using section metadata as provenance.
+                let retrieved = RetrievedChunk(
+                    chunk: docChunk,
+                    similarityScore: 0,  // No vector similarity — RRF uses rank, not score
+                    rank: 0,
+                    sourceDocument: "Unknown",
+                    pageNumber: fts5Hit.pageNumber
+                )
+                lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: retrieved, score: bm25Score)
+                fts5OnlyCount += 1
+            }
+            // else: FTS5 hit doesn't match any known chunk — skip (stale index)
+        }
+
+        for rowHit in structuredRowResults {
+            if EvidenceScoringPolicyService.isStateLookupQuery(queryLower),
+               !EvidenceScoringPolicyService.satisfiesStateLookupAnchors(query: queryLower, content: rowHit.content)
+            {
+                continue
+            }
+
+            let rowScore = rowHit.bm25Score < 0 ? Float(-rowHit.bm25Score) : Float(rowHit.bm25Score)
+            let mergedScore = rowScore + 0.10
+
+            if let existingChunk = vectorChunkLookup[rowHit.chunkId] {
+                let existing = lexicalHitsByChunkId[rowHit.chunkId]
+                if existing == nil || existing!.score < mergedScore {
+                    lexicalHitsByChunkId[rowHit.chunkId] = (chunk: existingChunk, score: mergedScore)
+                }
+            } else if let docChunk = docChunkLookup[rowHit.chunkId] {
+                let retrieved = RetrievedChunk(
+                    chunk: docChunk,
+                    similarityScore: 0,
+                    rank: 0,
+                    sourceDocument: "Unknown",
+                    pageNumber: rowHit.pageNumber
+                )
+                let existing = lexicalHitsByChunkId[rowHit.chunkId]
+                if existing == nil || existing!.score < mergedScore {
+                    lexicalHitsByChunkId[rowHit.chunkId] = (chunk: retrieved, score: mergedScore)
+                }
+                structuredRowOnlyCount += 1
+            }
+        }
+
+        let sortedResults = lexicalHitsByChunkId.values
+            .sorted {
+                $0.score != $1.score
+                    ? $0.score > $1.score
+                    : Self.stableTieBreakKey($0.chunk) < Self.stableTieBreakKey($1.chunk)
+            }
+            .map { ($0.chunk, $0.score) }
+
+        return (sortedResults, fts5OnlyCount, structuredRowOnlyCount)
+    }
+
+    /// Convenience overload for joinKeywordResults taking array of RetrievedChunk.
+    static func joinKeywordResults(
+        vectorResults: [RetrievedChunk],
+        fts5ChunkResults: [SQLiteFullTextService.ChunkSearchResult],
+        structuredRowResults: [SQLiteFullTextService.ChunkSearchResult],
+        docChunkLookup: [String: DocumentChunk],
+        queryLower: String
+    ) -> (results: [(chunk: RetrievedChunk, score: Float)], fts5OnlyCount: Int, structuredRowOnlyCount: Int) {
+        let lookup = makeVectorChunkLookup(vectorResults)
+        return joinKeywordResults(
+            vectorChunkLookup: lookup,
+            fts5ChunkResults: fts5ChunkResults,
+            structuredRowResults: structuredRowResults,
+            docChunkLookup: docChunkLookup,
+            queryLower: queryLower
+        )
+    }
 }

@@ -2505,6 +2505,7 @@ struct DocumentPreviewSheet: View {
     private static let displayLimit = 100_000
 
     @State private var fullContent: String = ""
+    @State private var fullContentCharacterCount: Int = 0
     @State private var displayContent: String = ""
     @State private var isTruncated = false
     @State private var isLoading = true
@@ -2596,7 +2597,7 @@ struct DocumentPreviewSheet: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "info.circle.fill")
                                         .foregroundColor(.orange)
-                                    Text("Showing first \(Self.displayLimit.formatted()) of \(fullContent.count.formatted()) characters. Use Share to export full content.")
+                                    Text("Showing first \(Self.displayLimit.formatted()) of \(fullContentCharacterCount.formatted()) characters. Use Share to export full content.")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }
@@ -2680,16 +2681,17 @@ struct DocumentPreviewSheet: View {
         .task {
             isLoading = true
             let docId = documentId
-            // Read content off the actor (bypasses serial queue contention)
-            let result = await Task.detached(priority: .userInitiated) {
-                SQLiteFullTextService.readContentDirectly(documentId: docId)
+            // Read content off the actor (bypasses serial queue contention) and compute count off main thread
+            let (loaded, count) = await Task.detached(priority: .userInitiated) { () -> (String, Int) in
+                let content = SQLiteFullTextService.readContentDirectly(documentId: docId) ?? ""
+                return (content, content.count)
             }.value
 
-            let loaded = result ?? ""
             fullContent = loaded
+            fullContentCharacterCount = count
 
             // Truncate for display — SwiftUI Text chokes on >100K monospaced chars
-            if loaded.count > Self.displayLimit {
+            if count > Self.displayLimit {
                 displayContent = String(loaded.prefix(Self.displayLimit))
                 isTruncated = true
             } else {
@@ -2700,7 +2702,7 @@ struct DocumentPreviewSheet: View {
             isLoading = false
 
             // Compute analysis stats off main thread AFTER content is visible
-            if !loaded.isEmpty {
+            if count > 0 {
                 let text = loaded
                 let stats = await Task.detached(priority: .utility) {
                     let lines = text.components(separatedBy: .newlines).count
@@ -2718,7 +2720,7 @@ struct DocumentPreviewSheet: View {
                         lines: lines, sentences: sentences, paragraphs: paragraphs,
                         uppercaseCount: upper, lowercaseCount: lower, digitCount: digits,
                         whitespaceCount: whitespace, punctuationCount: punctuation,
-                        totalChars: text.count
+                        totalChars: count
                     )
                 }.value
                 analysisStats = stats

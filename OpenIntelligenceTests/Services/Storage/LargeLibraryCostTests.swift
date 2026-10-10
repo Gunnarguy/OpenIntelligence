@@ -91,6 +91,16 @@ final class LargeLibraryCostTests: XCTestCase {
         XCTAssertLessThan(seconds, 30)
     }
 
+    func testANewLibraryOnIPhoneUsesTheCoreMLCopyAndNoLibraryIsMovedBetweenCopies() {
+        #if os(iOS)
+            XCTAssertEqual(EmbeddingProviderDefaults.preferredSentenceProviderId, "coreml_sentence_embedding")
+        #endif
+        XCTAssertTrue(
+            EmbeddingProviderDefaults.areCopiesOfOneModel("coreai_sentence_embedding", "coreml_sentence_embedding"))
+        XCTAssertFalse(
+            EmbeddingProviderDefaults.areCopiesOfOneModel("coreai_sentence_embedding", "nl_contextual_embedding"))
+    }
+
     func testTheSyncRecordSurvivesARestartAndChangesWithItsInputs() throws {
         let suite = "large-library-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

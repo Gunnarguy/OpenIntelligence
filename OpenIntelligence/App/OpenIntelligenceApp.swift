@@ -54,6 +54,8 @@ struct OpenIntelligenceApp: App {
         // Configure TipKit for contextual user guidance
         AppTipConfiguration.configure()
 
+        MetricDiagnostics.start()
+
         // Register background tasks for index maintenance
         #if os(iOS)
         registerBackgroundTasks()

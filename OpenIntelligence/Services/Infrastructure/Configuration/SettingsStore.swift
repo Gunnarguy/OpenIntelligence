@@ -527,26 +527,22 @@ final class SettingsStore: ObservableObject {
         reliabilityModeEnabled =
             defaults.object(forKey: Keys.reliabilityModeEnabled) as? Bool ?? true
 
-        // Embedding provider settings (Auto-select native Core AI on iOS 27+ / macOS 27+)
-        var resolvedDefaultProvider = "coreml_sentence_embedding"
-        var forceMigrateToCoreAI = false
-        #if canImport(CoreAI)
-        if #available(iOS 27.0, macOS 27.0, *) {
-            resolvedDefaultProvider = "coreai_sentence_embedding"
-            forceMigrateToCoreAI = true
-        }
-        #endif
-        
+        // Embedding provider: this platform's copy of the bundled sentence model (see
+        // `EmbeddingProviderDefaults`). A saved default that names the other copy is moved, as a
+        // saved Core ML default was moved to Core AI through 5.6. Libraries are not touched.
+        let preferredProvider = EmbeddingProviderDefaults.preferredSentenceProviderId
         let savedProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider)
-        if forceMigrateToCoreAI, savedProvider == "coreml_sentence_embedding" {
-            // Automatically upgrade users who had the old default saved to the new Core AI model
-            defaultEmbeddingProvider = "coreai_sentence_embedding"
-            defaults.set("coreai_sentence_embedding", forKey: Keys.defaultEmbeddingProvider)
-            Log.info("[SettingsStore] Auto-migrated default embedding provider to Core AI for iOS 27+", category: .initialization)
+        if let savedProvider, savedProvider != preferredProvider,
+            EmbeddingProviderDefaults.areCopiesOfOneModel(savedProvider, preferredProvider) {
+            defaultEmbeddingProvider = preferredProvider
+            defaults.set(preferredProvider, forKey: Keys.defaultEmbeddingProvider)
+            Log.info(
+                "[SettingsStore] Default embedder for new libraries is now \(preferredProvider) (was \(savedProvider))",
+                category: .initialization)
         } else {
-            defaultEmbeddingProvider = savedProvider ?? resolvedDefaultProvider
+            defaultEmbeddingProvider = savedProvider ?? preferredProvider
         }
-        
+
         useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? true
 
         // Advanced RAG Intelligence settings
@@ -812,12 +808,7 @@ final class SettingsStore: ObservableObject {
             .dropFirst()
             .sink { [weak self] _ in
                 guard let self else { return }
-                var resolvedProvider = "coreml_sentence_embedding"
-                #if canImport(CoreAI)
-                if #available(iOS 27.0, macOS 27.0, *) {
-                    resolvedProvider = "coreai_sentence_embedding"
-                }
-                #endif
+                let resolvedProvider = EmbeddingProviderDefaults.preferredSentenceProviderId
                 self.defaultEmbeddingProvider = resolvedProvider
             }
             .store(in: &cancellables)

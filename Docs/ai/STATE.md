@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-10, 13:40 PT (5.7 is open; five commits are local and not pushed, `b6dba43` through the one that carries this file; `55af072` is the last pushed commit; the owner reported that the 144,247-passage library makes the app very slow, and five costs that grew with library size were removed that afternoon; a development (Debug) build with them is built at `/private/tmp/oi-install` and goes on his iPhone when the app is not running; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
+Updated: 2026-10-10, 15:40 PT (5.7 is open; seven commits are local and not pushed, `b6dba43` through the one that carries this file; `55af072` is the last pushed commit; at 14:45 PT the owner said to do everything the SDK survey turned up and everything still open, "all done and squared away for 5.7"; the embedder default, MetricKit, two system tools (off), and three more per-passage costs went in that afternoon; the storage change is designed and not started; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 4efb7b8
+Last verified commit: 7840499
 
 ## Objective
 
@@ -34,6 +34,31 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 `Growth/CURRENT_EXPERIMENT.md`).
 
 ## Status
+
+- **2026-10-10, 14:45 to 15:40 PT: "do these, and still open from before too. I want it all done and squared away
+  for 5.7."** Done, merged and verified that hour (suite 821 tests, 0 failures, `/private/tmp/oi-57-test-m1.log`;
+  device build without the provisioning flag succeeded, `/private/tmp/oi-57-device-m1.log`; Mac build succeeded at 15:38 PT; after a one-line signature revert in the tool registry the device build and the suite passed again at 15:50 PT, `oi-57-test-m2.log`, and the Mac rerun was stopped by the disk guard at 3.4 GB free):
+  1. *Embedder default.* New libraries on iPhone and iPad use the Core ML copy of the model; the Mac keeps Core AI
+     (`EmbeddingProviderDefaults` in `EmbeddingService.swift`). No existing library moves: auto-tuning no longer
+     treats the other copy as a change of provider (`RAGService.evaluateEmbeddingShift`). The owner's 144,247-passage
+     library is Core AI and stays so until rebuilt by hand.
+  2. *Written by `gemini-3.8-flash-high` agents in detached worktrees under `/private/tmp/oi-wt/` (metrics, tools,
+     costs), applied here as patches, reviewed and corrected:* `MetricDiagnostics` (MetricKit, iOS 27 Swift API);
+     `SystemModelTools` (`OCRTool`, `SpotlightSearchTool` on the app's own index, both OFF unless
+     `systemTools.ocr.enabled` / `systemTools.spotlightSearch.enabled` is set in `UserDefaults`; no Settings
+     control yet); the hybrid join's per-passage dictionary, the spec scan (sample of 20,000 above that size; the
+     agent's version scanned the passages it should skip and was rewritten), and the Database preview's
+     per-redraw character count. The worktrees can be removed with `git worktree remove`.
+  3. *Storage change, not started.* The inventory of every caller of the vector store and what it reads is in
+     `BenchmarkRuns/2026-10-10-large-library/W3-store-callers.md` (JSON, table in `summary`; not yet read or
+     checked). Plan: keep the three files' format; memory-map `_meta.json`; hold a small per-passage index in memory
+     (id, document, number, page, level, byte range) and decode a passage when asked; move callers from
+     `allChunks()` to count, by-index, by-document and sample methods. No migration. Give it to a Claude model on
+     Antigravity (quota reset about 18:00 PT) in a worktree, with `BNNSVectorDatabasePersistenceTests` and new
+     tests as the oracle, and review the diff before it lands.
+  4. *Not done from his list:* `MLTensor.matmul`/`topK` or `cblas_sgemv` for the similarity scan (needs a
+     measurement on the phone first; search is not what is slow); a Settings control and a device trial for the two
+     system tools; the Background GPU Access entitlement (his edit; the permission check refuses it); the push.
 
 - **2026-10-10, 14:26 to 14:45 PT: the Atlas map never finished on the large library; fixed.** The owner's
   screenshot: the app no longer freezes, and the Semantic Atlas panel shows "Mapping semantic space…" without end.
@@ -1026,24 +1051,11 @@ in it, left shut down).
 
 ## Exact Next Action
 
-0. **Put the large-library build on his iPhone and time it.** Install `/private/tmp/oi-install/OpenIntelligence.app`
-   (rebuild with `scratchpad/builddevice.sh <log>` if it is gone) only when `devicectl device info processes` shows
-   the app is not running. Then, with the 144,247-passage library: cold launch to a usable Chat, and the first
-   question. The trace should show one `[VectorLoad]` for that library per launch from the second launch on (the
-   first launch after the install still runs one full sync comparison and records it). Next in the same area: the
-   three costs in Status item 3, then the storage design in item 4 if he approves it.
-1. **Ask the owner one thing and act on the answer: which embedder new libraries on iPhone and iPad use.** The
-   phone's numbers (Status, item 8) favour the Core ML provider there: 116 to 121 passages a second on the Neural
-   Engine against 88 for Core AI on the GPU, and 84 to 104 on the CPU alone for the background, where Core AI has 5.
-   If he says yes: `SettingsStore.swift` lines 530 to 548 and `ContainerService.defaultContainer()` choose the
-   provider (selection logic, in bounds); keep Core AI on the Mac; do not migrate existing libraries (a provider
-   change clears and re-embeds a library); read `Documents/embedding_bench_providers.json` first if it exists
-   (Status, item 9), because it holds the provider-level rates and the agreement between the two providers'
-   vectors. If he prefers the Neural Engine through Core AI: the model has to be exported again with the attention
-   mask as numbers (`scripts/compile_core_ai_model.py`, `Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md`),
-   which needs `coreai-torch`, `torch` and `transformers` downloaded; then run both benchmark parts again.
-   Leave `CoreAISentenceEmbeddingProvider.swift` alone on iOS: the compute preference and calls in flight measured
-   as no gain there. On the Mac, four calls in flight measured 47% more with bit-identical vectors, if he wants it.
+0. **Start the storage change** (Status, 14:45 block, item 3), then on his iPhone with the newest build: cold launch
+   with the 144,247-passage library to a usable Chat; the first question; the Atlas map finishing; one import into a
+   NEW library (it should log the Core ML provider) timed against 36 passages a second, in front and with the app
+   left; then set `systemTools.spotlightSearch.enabled` and ask one question to see whether the model calls the
+   tool and what it costs. The decision about the embedder is made (Core ML on iPhone and iPad).
 1a. **Push at his word.** `b6dba43` and the commit after it are local. `[ci skip]` unless he wants a TestFlight build.
 1b. **Device checks, on the build with the midday work:** import a large file and confirm no `[VectorLoad]` line
    for that library between its pieces; open the 144,247-passage library, ask one question about a record, open the

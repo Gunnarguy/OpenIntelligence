@@ -10,6 +10,22 @@ import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
 
+#if canImport(CoreSpotlight)
+import CoreSpotlight
+#endif
+
+#if canImport(Vision)
+import Vision
+#endif
+
+#if canImport(_Vision_FoundationModels)
+import _Vision_FoundationModels
+#endif
+
+#if canImport(_CoreSpotlight_FoundationModels)
+import _CoreSpotlight_FoundationModels
+#endif
+
 // MARK: - Tool Protocol Implementations for Function Calling
 // TOKEN BUDGET: Apple FM has 4096 token context limit (~10K chars).
 // Each tool output should be ≤1500 chars to leave room for prompt + response.
@@ -416,6 +432,78 @@ struct GetLibraryOverviewTool: Tool {
     }
 }
 
+// MARK: - System-Provided FoundationModels Tools (iOS 27 / macOS 27)
+
+/// Two tools the system provides for FoundationModels sessions from iOS 27: one reads text from
+/// an image, one searches a Core Spotlight index. Both are off unless their switch is set,
+/// because a tool's description takes room in the model's small window on every request and
+/// neither has been tried on a device with this app's questions yet.
+@available(iOS 26.0, macOS 26.0, *)
+nonisolated enum SystemModelTools {
+    static let ocrKey = "systemTools.ocr.enabled"
+    static let spotlightSearchKey = "systemTools.spotlightSearch.enabled"
+
+    static func isOCREnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: ocrKey)
+    }
+
+    static func isSpotlightSearchEnabled(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: spotlightSearchKey)
+    }
+
+    // MARK: - System Tools Construction
+
+    /// Returns the system tools to add for iOS 27 / macOS 27 given the configured flags.
+    ///
+    /// - OCRTool when `systemTools.ocr.enabled` is on.
+    /// - SpotlightSearchTool configured to search ONLY the app's own Core Spotlight index
+    ///   (CoreSpotlightSource, never FileSource), capped at 8 results and a 1500-character
+    ///   maximum response size, when `systemTools.spotlightSearch.enabled` is on.
+    static func systemTools(defaults: UserDefaults = .standard) -> [any Tool] {
+        systemTools(
+            ocrEnabled: isOCREnabled(defaults: defaults),
+            spotlightSearchEnabled: isSpotlightSearchEnabled(defaults: defaults)
+        )
+    }
+
+    /// Returns system tools given explicit flag values.
+    static func systemTools(
+        ocrEnabled: Bool,
+        spotlightSearchEnabled: Bool
+    ) -> [any Tool] {
+        var tools: [any Tool] = []
+
+        #if canImport(_Vision_FoundationModels)
+        if #available(iOS 27.0, macOS 27.0, *) {
+            if ocrEnabled {
+                tools.append(OCRTool())
+            }
+        }
+        #endif
+
+        #if canImport(_CoreSpotlight_FoundationModels)
+        if #available(iOS 27.0, macOS 27.0, *) {
+            if spotlightSearchEnabled {
+                // Search ONLY the app's own Core Spotlight index via CoreSpotlightSource
+                // (never FileSource, which searches filesystem directories). Limit results
+                // to at most 8 items and response size to 1500 UTF-8 characters to protect
+                // the on-device model's ~4096 token budget.
+                var source = CoreSpotlightSource()
+                source.maximumResultCount = 8
+                let configuration = SpotlightSearchTool.Configuration(
+                    sources: [.coreSpotlight(source)],
+                    maximumResponseSize: 1500
+                )
+                tools.append(SpotlightSearchTool(configuration: configuration))
+            }
+        }
+        #endif
+
+        return tools
+    }
+
+}
+
 @available(iOS 26.0, macOS 26.0, *)
 struct FoundationModelToolRegistry {
     static func createTools(toolHandler: RAGToolHandler?) -> [any Tool] {
@@ -470,6 +558,14 @@ struct FoundationModelToolRegistry {
         tools.append(exactTool)
 
         Log.debug("Initialized \(tools.count) engine-native tools for agentic RAG", category: .llm)
+
+        let systemTools = SystemModelTools.systemTools()
+        if !systemTools.isEmpty {
+            let names = systemTools.map(\.name).joined(separator: ", ")
+            Log.debug("Added system FoundationModels tools: \(names)", category: .llm)
+            tools.append(contentsOf: systemTools)
+        }
+
         return tools
     }
 }

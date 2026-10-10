@@ -392,16 +392,7 @@ final class ContainerService: ObservableObject {
     }
 
     private static func defaultContainer() -> KnowledgeContainer {
-        let defaultProviderId: String
-        #if canImport(CoreAI)
-        if #available(iOS 27.0, macOS 27.0, *) {
-            defaultProviderId = "coreai_sentence_embedding"
-        } else {
-            defaultProviderId = "coreml_sentence_embedding"
-        }
-        #else
-        defaultProviderId = "coreml_sentence_embedding"
-        #endif
+        let defaultProviderId = EmbeddingProviderDefaults.preferredSentenceProviderId
 
         return KnowledgeContainer(
             name: "General",

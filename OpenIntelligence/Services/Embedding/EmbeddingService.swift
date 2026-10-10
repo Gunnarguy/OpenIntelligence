@@ -540,3 +540,30 @@ enum EmbeddingError: LocalizedError {
         return .providerFailed(provider: provider, underlying: error.localizedDescription)
     }
 }
+
+/// Which sentence embedder a new library uses on this platform.
+///
+/// Measured on an iPhone 16 Pro Max on 2026-10-10 (the model alone, passages a second): the Core AI
+/// copy of the bundled model 88 on the GPU under every compute option (it fails the Neural Engine's
+/// validation at its attention-mask step) and 5 on the CPU; the Core ML copy 116 to 121 on the
+/// Neural Engine and 84 to 104 on the CPU alone, which is what an import in the background may use.
+/// So iPhone and iPad use Core ML. The Mac keeps Core AI, which was not slower there.
+/// A library keeps the embedder it was built with: the two are copies of one model, and moving a
+/// library between them clears and re-embeds it for no change in what is retrieved.
+nonisolated enum EmbeddingProviderDefaults {
+    static let coreML = "coreml_sentence_embedding"
+    static let coreAI = "coreai_sentence_embedding"
+
+    static var preferredSentenceProviderId: String {
+        #if os(macOS) && canImport(CoreAI)
+            if #available(macOS 27.0, *) { return coreAI }
+        #endif
+        return coreML
+    }
+
+    /// True when both names are one of the two copies of the bundled sentence model.
+    static func areCopiesOfOneModel(_ first: String, _ second: String) -> Bool {
+        let copies: Set<String> = [coreML, coreAI]
+        return copies.contains(first) && copies.contains(second)
+    }
+}

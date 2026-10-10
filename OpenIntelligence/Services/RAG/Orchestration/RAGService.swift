@@ -2636,7 +2636,9 @@ class RAGService: ObservableObject {
 
         var candidates: [(chunk: DocumentChunk, score: Float, matchCount: Int)] = []
 
-        for chunk in allChunks where !excludeIds.contains(chunk.id) {
+        let passagesToScan = Self.passagesToScanForSpecSniper(allChunks: allChunks, excludeIds: excludeIds)
+
+        for chunk in passagesToScan {
             guard
                 let candidate = EvidenceScoringPolicyService.specSniperScore(
                     content: chunk.content,
@@ -2666,6 +2668,26 @@ class RAGService: ObservableObject {
                 pageNumber: chunk.metadata.pageNumber
             )
         }
+    }
+
+    /// The most passages the spec scan scores for one question.
+    nonisolated static let specScanLimit = 20_000
+
+    /// Which passages the spec scan scores: every passage not already retrieved, as before, for
+    /// a library up to `specScanLimit`; for a larger one an even sample of that many, in order.
+    /// The scan runs on the main actor for one kind of extractive question, and over 144,247
+    /// passages it was seven times this. A sample can miss the one passage that holds a value,
+    /// which the keyword search and the vector search still look for in full.
+    static func passagesToScanForSpecSniper(
+        allChunks: [DocumentChunk],
+        excludeIds: Set<UUID>
+    ) -> [DocumentChunk] {
+        guard allChunks.count > specScanLimit else {
+            return allChunks.filter { !excludeIds.contains($0.id) }
+        }
+        return evenSampleIndices(count: allChunks.count, limit: specScanLimit)
+            .map { allChunks[$0] }
+            .filter { !excludeIds.contains($0.id) }
     }
 
     private struct SpecSearchConcept {
@@ -8624,7 +8646,11 @@ class RAGService: ObservableObject {
             return nil
         }
 
-        let providerChanged = plan.providerId != container.embeddingProviderId
+        // Core ML and Core AI are two copies of one sentence model. A plan that names the other
+        // copy is not a reason to clear a library and embed it again.
+        let providerChanged =
+            plan.providerId != container.embeddingProviderId
+            && !EmbeddingProviderDefaults.areCopiesOfOneModel(plan.providerId, container.embeddingProviderId)
         let dimensionDelta = abs(plan.dimension - container.embeddingDim)
         guard providerChanged || dimensionDelta >= 64 else { return nil }
 

@@ -130,6 +130,13 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
+- **On-device diagnostics and two system model tools, added 2026-10-10 for 5.7**: `MetricDiagnostics`
+  (app target, `OpenIntelligence/App/`) writes MetricKit's hang, launch and termination reports to the pipeline log
+  and to `metric_reports.jsonl` in the local cache; nothing is sent anywhere. `SystemModelTools` in
+  `FoundationModelToolRegistry.swift` can add the system's `OCRTool` and `SpotlightSearchTool` (the app's own
+  Spotlight index only) to a session's tools; both are off unless a `UserDefaults` switch is set, and
+  `createTools` is still the only place a tool reaches a session.
+  `[evidence: build_verified; test_verified for the switches and helpers; no MetricKit report received and neither tool called on a device yet]`
 - **The keyword index's term and phrase statistics read a sample, changed 2026-10-10**:
   `SQLiteFullTextService.getTopTermsForContainer` and `getKeyPhrasesForContainer` (what the Atlas map shows as
   terms and phrases) read every character of every document and ran inside the index's actor, so on a library
@@ -375,6 +382,9 @@ Unknown: whether the `WorkspaceSyncService` edge above moves thread files at all
 Historical note: earlier planning artifacts proposed `LocalCache/EvidenceThreads/` with no sync (Phase 1A local-only design). Phase 1B relocated threads to `Application Support/EvidenceThreads/<containerId>/` with bidirectional iCloud Drive sync. `[evidence: code_verified, exact, Docs/AuditArtifacts/Implementation/phase_1b_1c_1d_post_implementation_verification.md, WorkspaceSyncService.swift]`
 
 ## 17. Core AI Embedding Subsystem Boundary
+
+> **Which copy of the model a new library uses, changed 2026-10-10 for 5.7.** iPhone and iPad: the Core ML provider. Mac (macOS 27): the Core AI provider. The choice is `EmbeddingProviderDefaults.preferredSentenceProviderId` in `EmbeddingService.swift`. Reason: on an iPhone 16 Pro Max the Core AI copy ran at 88 passages a second on the GPU (it fails the Neural Engine's validation at its attention-mask step) and 5 on the CPU, and the Core ML copy at 116 to 121 on the Neural Engine and 84 to 104 on the CPU alone. A library keeps the copy it was built with; auto-tuning no longer moves a library between the two (`EmbeddingProviderDefaults.areCopiesOfOneModel`). The statements below about Core AI being the iOS 27 default describe 5.0 to 5.6. `[evidence: measured, device benchmark 2026-10-10; test_verified, LargeLibraryCostTests; not yet seen in a real import]`
+
 
 **The tokenizer is part of this boundary, and it disagreed with the model for the life of the
 feature.** Both compiled models declare input shape `[1, 512]` (`scripts/compile_core_ai_model.py`
