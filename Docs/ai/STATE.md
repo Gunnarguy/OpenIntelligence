@@ -2,7 +2,7 @@
 
 Updated: 2026-10-10, 15:40 PT (5.7 is open; seven commits are local and not pushed, `b6dba43` through the one that carries this file; `55af072` is the last pushed commit; at 14:45 PT the owner said to do everything the SDK survey turned up and everything still open, "all done and squared away for 5.7"; the embedder default, MetricKit, two system tools (off), and three more per-passage costs went in that afternoon; the storage change is designed and not started; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 7840499
+Last verified commit: f80e4b6
 
 ## Objective
 
@@ -34,6 +34,15 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 `Growth/CURRENT_EXPERIMENT.md`).
 
 ## Status
+
+- **2026-10-10, 16:20 PT: Background GPU Access is in, at the owner's direct instruction.** The key
+  `com.apple.developer.background-tasks.continued-processing.gpu` was added to `OpenIntelligence.entitlements` (the
+  edit went through the file-edit tool; the same change by shell script had been refused twice). The device build
+  with `-allowProvisioningUpdates` succeeded at 16:24 PT (`/private/tmp/oi-57-device-gpu.log`), `codesign` shows the
+  key in the signed app, and that build was installed on his iPhone at 16:25 PT with the app closed. To check on
+  the phone: start an import, leave the app, and read `continued_ingestion_status.json` for
+  `backgroundGPUSupported` and `backgroundGPURequested`, and whether the import goes on. Open risk: App Store
+  signing in Xcode Cloud with the new key is untested until the first 5.7 cloud build.
 
 - **2026-10-10, 14:45 to 15:40 PT: "do these, and still open from before too. I want it all done and squared away
   for 5.7."** Done, merged and verified that hour (suite 821 tests, 0 failures, `/private/tmp/oi-57-test-m1.log`;
