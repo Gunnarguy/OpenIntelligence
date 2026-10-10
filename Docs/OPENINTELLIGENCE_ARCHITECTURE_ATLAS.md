@@ -130,6 +130,13 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
+- **The keyword index's term and phrase statistics read a sample, changed 2026-10-10**:
+  `SQLiteFullTextService.getTopTermsForContainer` and `getKeyPhrasesForContainer` (what the Atlas map shows as
+  terms and phrases) read every character of every document and ran inside the index's actor, so on a library
+  with one 88-million-character document the map never finished and keyword searches waited behind them. They now
+  read a short document whole and eight evenly spaced slices of a long one, about 2,000,000 characters for the
+  library (`statisticsText`, `evenSlices`). No table or column changed.
+  `[evidence: test_verified, LargeLibraryCostTests; code_verified, SQLiteFullTextService.swift; not seen on a device]`
 - **Ingestion Checkpoints**: Saved under `localCacheDir()/IngestionCheckpoints/` to guarantee they are strictly local-only and excluded from iCloud syncing paths. `[evidence: code_verified, exact, DocumentProcessor.swift]`
 - **Vector store refresh is change-gated, added 2026-08-29**: `VectorStoreRouter.clearAll()` is
   called by `reloadWorkspaceData()` to pick up sync-driven file changes. It compares each container's

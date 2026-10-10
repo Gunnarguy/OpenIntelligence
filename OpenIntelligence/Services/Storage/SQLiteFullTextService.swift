@@ -2412,17 +2412,82 @@ actor SQLiteFullTextService {
 
     /// Get top N most frequent terms for a specific container
     /// Analyzes term frequency from documents in this container only
+    /// The most characters of a library the two statistics below read.
+    nonisolated static let statisticsCharacterBudget = 2_000_000
+    /// The least a document contributes when a library has many documents.
+    nonisolated static let statisticsFloorPerDocument = 20_000
+
+    /// Where to read a long text: `count` equal slices, the first at the start and the last at
+    /// the end, `share` characters in all. Starts are 1-based, as SQLite's `substr` counts.
+    nonisolated static func evenSlices(length: Int, share: Int, count: Int = 8) -> [(start: Int, length: Int)] {
+        guard length > 0, share > 0 else { return [] }
+        guard length > share, count > 1 else { return [(1, min(length, share))] }
+        let slice = max(1, share / count)
+        return (0..<count).map { index in
+            (1 + index * (length - slice) / (count - 1), slice)
+        }
+    }
+
+    /// Text for the term and phrase statistics: a short document whole, evenly spaced slices of
+    /// a long one, about `statisticsCharacterBudget` characters for the library.
+    ///
+    /// Both statistics used to read every character of every document. For a library holding
+    /// one 88-million-character document that was 14 million words counted, then a string built
+    /// for every pair and every triple of them, inside this actor: the Atlas map that waits for
+    /// them never finished, and every keyword search queued behind it. The top terms and the
+    /// frequent phrases of a library are statistics, and a spread sample gives them.
+    private func statisticsText(containerId: UUID, db: OpaquePointer) -> [(document: Int, text: String)] {
+        var rows: [(rowid: Int64, length: Int)] = []
+        var lengths: OpaquePointer?
+        guard
+            sqlite3_prepare_v2(
+                db, "SELECT rowid, length(content) FROM documents WHERE container_id = ?", -1, &lengths, nil)
+                == SQLITE_OK
+        else { return [] }
+        sqlite3_bind_text(lengths, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+        while sqlite3_step(lengths) == SQLITE_ROW {
+            rows.append((sqlite3_column_int64(lengths, 0), Int(sqlite3_column_int64(lengths, 1))))
+        }
+        sqlite3_finalize(lengths)
+        guard !rows.isEmpty else { return [] }
+
+        let share = max(Self.statisticsFloorPerDocument, Self.statisticsCharacterBudget / rows.count)
+        var texts: [(document: Int, text: String)] = []
+        var read = 0
+        for (document, row) in rows.enumerated() {
+            guard read < Self.statisticsCharacterBudget * 2 else { break }
+            let slices = Self.evenSlices(length: row.length, share: share)
+            guard !slices.isEmpty else { continue }
+            let columns = slices.map { _ in "substr(content, ?, ?)" }.joined(separator: ", ")
+            var statement: OpaquePointer?
+            guard
+                sqlite3_prepare_v2(db, "SELECT \(columns) FROM documents WHERE rowid = ?", -1, &statement, nil)
+                    == SQLITE_OK
+            else { continue }
+            for (index, slice) in slices.enumerated() {
+                sqlite3_bind_int64(statement, Int32(index * 2 + 1), Int64(slice.start))
+                sqlite3_bind_int64(statement, Int32(index * 2 + 2), Int64(slice.length))
+            }
+            sqlite3_bind_int64(statement, Int32(slices.count * 2 + 1), row.rowid)
+            if sqlite3_step(statement) == SQLITE_ROW {
+                for index in 0..<slices.count {
+                    guard let pointer = sqlite3_column_text(statement, Int32(index)) else { continue }
+                    let text = String(cString: pointer)
+                    read += text.count
+                    texts.append((document, text))
+                }
+            }
+            sqlite3_finalize(statement)
+        }
+        return texts
+    }
+
     func getTopTermsForContainer(containerId: UUID, limit: Int = 50) async -> [TermFrequency] {
         ensureInitialized()
         guard let db = database else { return [] }
 
-        // Get all content for this container and analyze term frequencies
-        let sql = "SELECT content FROM documents WHERE container_id = ?"
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(statement) }
-
-        sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+        // A sample of the library's text, not all of it: see `statisticsText`.
+        let texts = statisticsText(containerId: containerId, db: db)
 
         // Term analysis
         var termCounts: [String: Int] = [:]
@@ -2440,9 +2505,9 @@ actor SQLiteFullTextService {
             "not", "only", "own", "same", "so", "than", "too", "very", "just", "can"
         ]
 
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let contentPtr = sqlite3_column_text(statement, 0) else { continue }
-            let content = String(cString: contentPtr).lowercased()
+        for (document, text) in texts {
+            docIndex = document
+            let content = text.lowercased()
 
             // Tokenize - split on non-alphanumerics
             let words = content.components(separatedBy: CharacterSet.alphanumerics.inverted)
@@ -2475,12 +2540,8 @@ actor SQLiteFullTextService {
         ensureInitialized()
         guard let db = database else { return [] }
 
-        let sql = "SELECT content FROM documents WHERE container_id = ?"
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(statement) }
-
-        sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+        // A sample of the library's text, not all of it: see `statisticsText`.
+        let texts = statisticsText(containerId: containerId, db: db)
 
         var bigramCounts: [String: Int] = [:]
         var trigramCounts: [String: Int] = [:]
@@ -2491,13 +2552,13 @@ actor SQLiteFullTextService {
             "that", "this", "it", "its", "they", "them", "there", "can", "will", "would"
         ]
 
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let contentPtr = sqlite3_column_text(statement, 0) else { continue }
-            let content = String(cString: contentPtr).lowercased()
+        for (_, text) in texts {
+            let content = text.lowercased()
 
             // Split into words
             let words = content.components(separatedBy: CharacterSet.alphanumerics.inverted)
                 .filter { $0.count >= 2 }
+            guard words.count > 2 else { continue }
 
             // Extract bigrams (2-word phrases)
             for i in 0..<(words.count - 1) {
@@ -2523,13 +2584,15 @@ actor SQLiteFullTextService {
         // Combine and sort - prefer trigrams for meaning, but include strong bigrams
         var phrases: [(String, Int)] = []
 
-        // Add trigrams with count >= 3
-        for (phrase, count) in trigramCounts where count >= 3 {
+        // Add trigrams with count >= 3. Only the strongest can reach the result, and the check
+        // below compares every kept bigram with every kept trigram, so both lists are cut first.
+        let keep = max(limit, 1) * 5
+        for (phrase, count) in trigramCounts.filter({ $0.value >= 3 }).sorted(by: { $0.value > $1.value }).prefix(keep) {
             phrases.append((phrase, count))
         }
 
         // Add bigrams with count >= 5 (higher threshold since less specific)
-        for (phrase, count) in bigramCounts where count >= 5 {
+        for (phrase, count) in bigramCounts.filter({ $0.value >= 5 }).sorted(by: { $0.value > $1.value }).prefix(keep) {
             // Skip if this bigram is part of a trigram we already have
             let isSubphrase = phrases.contains { $0.0.contains(phrase) }
             if !isSubphrase {

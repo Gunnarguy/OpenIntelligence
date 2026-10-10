@@ -2,7 +2,7 @@
 
 Updated: 2026-10-10, 13:40 PT (5.7 is open; five commits are local and not pushed, `b6dba43` through the one that carries this file; `55af072` is the last pushed commit; the owner reported that the 144,247-passage library makes the app very slow, and five costs that grew with library size were removed that afternoon; a development (Debug) build with them is built at `/private/tmp/oi-install` and goes on his iPhone when the app is not running; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: a4e237b
+Last verified commit: 4efb7b8
 
 ## Objective
 
@@ -34,6 +34,24 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 `Growth/CURRENT_EXPERIMENT.md`).
 
 ## Status
+
+- **2026-10-10, 14:26 to 14:45 PT: the Atlas map never finished on the large library; fixed.** The owner's
+  screenshot: the app no longer freezes, and the Semantic Atlas panel shows "Mapping semantic space…" without end.
+  Cause, read from the code: the panel's loader (`AdaptiveVisualizationsView.loadAndProject`) waits for
+  `SQLiteFullTextService.getTopTermsForContainer` and `getKeyPhrasesForContainer`, which read every character of
+  every document (one of about 88 million characters here) and build a string for every pair and triple of words,
+  inside the keyword-index actor, so keyword searches queued behind them too. Both now read a spread sample of
+  about 2,000,000 characters (`statisticsText`, `evenSlices`). Suite: 800 tests, 0 failures
+  (`/private/tmp/oi-57-test24.log`, 14:38 PT; the 6,000,000-character test took 1.1 s); device build 16 succeeded
+  at 14:42 PT and installs when the app is closed. Not seen on the device yet.
+- **The Apple SDK survey came back (two `gemini-3.8-flash-high` agents, 14:35 PT):**
+  `BenchmarkRuns/2026-10-10-large-library/B1-sdk-search-storage.md` and `B2-sdk-interface-background.md` (JSON; the
+  tables are in each file's `summary`). Fourteen of fourteen symbols spot-checked with `grep` are in the iOS 27 SDK
+  where stated. Their commentary and time estimates are not verified. What matters: no vector index or
+  nearest-neighbour database in the SDK (both agents' searches); `SpotlightSearchTool` and `OCRTool` are system
+  tools for FoundationModels in iOS 27 and the app uses neither; `MLTensor.matmul`/`topK` and `cblas_sgemv` could
+  replace the per-passage similarity loop; `MetricManager` (hang and launch diagnostics) is unused; SwiftData has a
+  custom `DataStore` protocol; `tokenCount(for:)` is already used (6 places).
 
 - **2026-10-10, 13:00 to 13:40 PT: the large library makes the app slow, and five causes are fixed.** The owner: the
   144,247-passage library makes the app "unbelievably slow and buggy", and he asked for delegated agents because

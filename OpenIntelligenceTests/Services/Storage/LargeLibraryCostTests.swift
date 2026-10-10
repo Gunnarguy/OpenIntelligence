@@ -57,6 +57,40 @@ final class LargeLibraryCostTests: XCTestCase {
         }
     }
 
+    func testALongTextIsReadInEvenSlicesThatStayInsideIt() {
+        let slices = SQLiteFullTextService.evenSlices(length: 88_000_000, share: 2_000_000)
+        XCTAssertEqual(slices.count, 8)
+        XCTAssertEqual(slices.reduce(0) { $0 + $1.length }, 2_000_000)
+        XCTAssertEqual(slices.first?.start, 1, "SQLite counts characters from 1")
+        XCTAssertEqual(slices.last.map { $0.start + $0.length - 1 }, 88_000_000, "the last slice ends at the end")
+        XCTAssertEqual(slices.map(\.start), slices.map(\.start).sorted())
+
+        let short = SQLiteFullTextService.evenSlices(length: 900, share: 2_000_000)
+        XCTAssertEqual(short.count, 1)
+        XCTAssertEqual(short.first?.start, 1)
+        XCTAssertEqual(short.first?.length, 900)
+        XCTAssertTrue(SQLiteFullTextService.evenSlices(length: 0, share: 2_000_000).isEmpty)
+    }
+
+    func testTheAtlasStatisticsFinishOnAVeryLongDocument() async {
+        // Six million characters in one document. Reading all of it took the phrase statistic
+        // long enough on a phone that the Atlas map never finished.
+        let library = UUID()
+        let document = UUID()
+        let sentence = "the hydraulic pump schedule lists each filter change for the service bay. "
+        let text = String(repeating: sentence, count: 6_000_000 / sentence.count)
+        await SQLiteFullTextService.shared.store(text: text, for: document, containerId: library)
+        let started = Date()
+        let terms = await SQLiteFullTextService.shared.getTopTermsForContainer(containerId: library, limit: 10)
+        let phrases = await SQLiteFullTextService.shared.getKeyPhrasesForContainer(containerId: library, limit: 5)
+        let seconds = Date().timeIntervalSince(started)
+        await SQLiteFullTextService.shared.delete(for: document)
+
+        XCTAssertTrue(terms.map(\.term).contains("hydraulic"))
+        XCTAssertFalse(phrases.isEmpty)
+        XCTAssertLessThan(seconds, 30)
+    }
+
     func testTheSyncRecordSurvivesARestartAndChangesWithItsInputs() throws {
         let suite = "large-library-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
