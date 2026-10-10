@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-10, midday (5.7 is open; `b6dba43` holds the import in pieces and the fixes of the night of 10-09 and the morning of 10-10, committed at 11:13 PT at the owner's word and not pushed; the commit after it, which carries this file, holds the midday work: the sync guard, three import-accuracy fixes and a development benchmark; `55af072` is the last pushed commit; a development (Debug) build of `b6dba43` plus the sync guard and the benchmark is built and waiting to be installed, the phone having been out of reach of the Mac since about 11:25 PT; the build on the phone is the 10:19 PT one; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
+Updated: 2026-10-10, 12:50 PT (5.7 is open; three commits are local and not pushed: `b6dba43`, `2a33196` and the handoff commits after them; `55af072` is the last pushed commit; the embedding benchmark ran on the owner's iPhone at 12:01 PT and its numbers are in Status; a development (Debug) build of `2a33196` plus the benchmark's second part is on his iPhone since 12:39 PT; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 2a33196
+Last verified commit: 1ab6b14
 
 ## Objective
 
@@ -87,7 +87,41 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
   7. *After the commit:* device build 13 of `2a33196` succeeded at 11:53 PT without the provisioning flag
      (`/private/tmp/oi-57-device13.log`) and is the one at `/private/tmp/oi-install/OpenIntelligence.app` that the
      waiting job installs.
-  8. *Not done:* anything for interface sluggishness beyond the audit's readings. No measurement was possible with
+  8. *The benchmark ran on his iPhone 16 Pro Max at 12:01 PT* (Debug build of `2a33196`, thermal state nominal, 420
+     real tokens of 512; `scratchpad/phone2/embedding_bench_models_1201.json`). Model alone, passages a second:
+
+     | Model | Option | one at a time | 2 in flight | 4 in flight |
+     |---|---|---|---|---|
+     | Core AI | default | 88.5 (11.30 ms) | 89.6 | 86.6 |
+     | Core AI | prefer GPU | 85.5 | 80.9 | 81.4 |
+     | Core AI | prefer Neural Engine | 78.5 | 74.2 | 75.1 |
+     | Core AI | CPU only | 5.4 (185.8 ms) | 8.0 | 12.7 |
+     | Core ML | CPU only | 84.0 (11.90 ms) | 104.0 | 101.9 |
+     | Core ML | CPU and GPU | 108.3 | 105.8 | 101.5 |
+     | Core ML | CPU and Neural Engine | 115.8 (8.64 ms) | 118.5 | 120.8 |
+     | Core ML | all | 99.0 | 90.3 | 117.1 |
+
+     What it says. (a) Core AI is the same speed under every option that allows the GPU, as on the Mac, so the
+     compute preference changes nothing. (b) Calls in flight gain nothing for Core AI on the phone (they gained 47%
+     on the Mac). (c) Core AI on the CPU is 5 passages a second, so it has no usable background path. (d) The Core ML
+     copy of the same model is 31% faster on the Neural Engine than Core AI is on the GPU, and on the CPU alone it
+     matches Core AI on the GPU. (e) The import of 10-10 ran at 46 falling to 32 passages a second, against 88 for
+     the model alone on a cool phone: about half of a passage's time in a long import is not the model (tokenising
+     and the main-actor hops in the provider, the Debug build, and the phone warming to "Serious").
+     **No provider code was changed on these numbers**: the two changes the owner approved (compute preference,
+     calls in flight) measure as no gain on the phone. The change the numbers point to is which embedder a new
+     library on iPhone and iPad uses (Core ML, which runs on the Neural Engine and already has a CPU mode for
+     background imports), or exporting the Core AI model again so the Neural Engine accepts it. Both are his to
+     decide: the first changes a default that `SettingsStore` migrates every user to, the second needs a download.
+  9. *A second part of the benchmark did not finish.* It times the two providers as an import calls them and
+     compares their vectors (`-embeddingBenchProviders`, or a file `run_embedding_bench_providers` in Documents;
+     result `Documents/embedding_bench_providers.json`). Build 14 with it was installed and launched from the Mac
+     at 12:39:37 PT; the app wrote the empty result file at 12:39:45 and was gone by 12:46 with the trace ending at
+     12:39:47, no crash report and no memory report. Cause not established (the owner may have closed an app that
+     opened by itself; he had opened it at 12:30, and the install would have ended that session). The flag file was
+     put back at 12:48 PT without launching, so the part runs the next time he opens the app and leaves it in front
+     for about a minute.
+  10. *Not done:* anything for interface sluggishness beyond the audit's readings. No measurement was possible with
      the phone away, and no interface code was changed without one.
 
 - **2026-10-10, 00:10 to 10:20 PT: the 88.50 MB file is in, and the night found five more defects, all changed in
@@ -444,6 +478,8 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - `xcodebuild build-for-testing` then `test-without-building`, simulator `55AFFA2C-...`, `-jobs 1`, on the tree with every midday change -> 793 XCTest tests, 0 failures, 3 skipped (`/private/tmp/oi-57-test19.log`, 11:47 PT). The run before it, without the encoding and PDF changes, was 788 tests, 0 failures (`oi-57-test18.log`, 11:40 PT). New since 777: 8 in `WorkspaceSyncImportGuardTests`, 8 in `IngestionAccuracyTests`.
 - `xcodebuild build ... -configuration Debug -destination 'generic/platform=iOS' -jobs 1 MARKETING_VERSION=5.7`, no provisioning flag -> BUILD SUCCEEDED (`/private/tmp/oi-57-device12.log`, about 11:25 PT). It holds the sync guard, `embeddingText` and the benchmark, not the encoding or PDF changes. Copied to `/private/tmp/oi-install/OpenIntelligence.app`; not installed (phone out of reach).
 - `xcodebuild build ... -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` -> BUILD SUCCEEDED at 11:43 PT for the sync guard, `embeddingText` and the benchmark (the Core AI branch of the benchmark compiles only there and for a device), and again at 11:49 PT with the encoding and PDF changes (`/private/tmp/oi-57-mac.log`). No warning names a line changed at midday.
+- After the benchmark's second part was added (`DebugEmbeddingBench.swift` and one line in `OpenIntelligenceApp.swift`): the same simulator build and suite -> 793 tests, 0 failures, 3 skipped (`/private/tmp/oi-57-test20.log`, 12:50 PT); the Mac build -> BUILD SUCCEEDED at 12:51 PT; the device build without the provisioning flag -> BUILD SUCCEEDED (`/private/tmp/oi-57-device14.log`, 12:03 PT), installed on the iPhone at 12:39 PT.
+- On the iPhone: `[EmbeddingBench] Finished: 8 row(s) in embedding_bench.json` at 12:01:08 PT in `pipeline_trace.log`; the numbers are in Status, midday, item 8. The second part has no result (item 9).
 - `swiftc` harness with a copy of `decodeTextFile` on macOS 27 (`scratchpad/encprobe/check.swift`) -> exact text for 12 of 12 encoded samples and UTF-8 kept for the two zero-byte cases. Foundation's detection alone, same day: 6 of 8 exact, wrong for Mac Roman.
 - Apple's reference page for the inference entitlement, fetched 2026-10-10, and Xcode's `DVTPortalCachedPortalCapabilities.json` read the same day (Status item 5).
 - `python3 scripts/verify_doc_claims.py` -> every checked claim matches. `python3 scripts/secret_scan.py` and `scripts/check_icloud_conflicts.sh` -> clean (11:13 PT, before `b6dba43`; run again before the commit that carries this file).
@@ -942,19 +978,18 @@ in it, left shut down).
 
 ## Exact Next Action
 
-1. **Read the phone benchmark and choose the embedding settings from it.** The question it now has to answer first:
-   is Core AI `default` on the phone the same speed as `prefer gpu` and `prefer neuralEngine` (then the model is on
-   the GPU there too), and how does Core ML `all` or `cpuAndNeuralEngine` compare (the Core ML copy of the model
-   does run on the Neural Engine: 150 of 161 operations on the Mac's plan)? If Core ML on the Neural Engine is much
-   faster on the phone, the lever is the model export or the provider default for new libraries, not calls in
-   flight. When
-   `scratchpad/phone2/embedding_bench.json` says `"finished" : true` (see `scratchpad/phone_bench.out`), compare
-   Core AI `default`, `prefer gpu` and `prefer neuralEngine` at 1, 2 and 4 calls in flight, and Core ML `cpuOnly`.
-   Change `CoreAISentenceEmbeddingProvider.swift` (named by the owner's go-ahead of 2026-10-10) only where the
-   phone's numbers show a gain: the option at `AIModel(contentsOf:)` (and the same option in
-   `EmbeddingModelWarmup.swift`, or the warm-up prepares a cache entry the provider does not use), and a bounded task
-   group in `embedBatch`, one call in flight when `ProcessInfo.thermalState` is serious or worse. Then the suite,
-   a device build without `-allowProvisioningUpdates`, and one import on the phone timed against 36 passages a second.
+1. **Ask the owner one thing and act on the answer: which embedder new libraries on iPhone and iPad use.** The
+   phone's numbers (Status, item 8) favour the Core ML provider there: 116 to 121 passages a second on the Neural
+   Engine against 88 for Core AI on the GPU, and 84 to 104 on the CPU alone for the background, where Core AI has 5.
+   If he says yes: `SettingsStore.swift` lines 530 to 548 and `ContainerService.defaultContainer()` choose the
+   provider (selection logic, in bounds); keep Core AI on the Mac; do not migrate existing libraries (a provider
+   change clears and re-embeds a library); read `Documents/embedding_bench_providers.json` first if it exists
+   (Status, item 9), because it holds the provider-level rates and the agreement between the two providers'
+   vectors. If he prefers the Neural Engine through Core AI: the model has to be exported again with the attention
+   mask as numbers (`scripts/compile_core_ai_model.py`, `Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md`),
+   which needs `coreai-torch`, `torch` and `transformers` downloaded; then run both benchmark parts again.
+   Leave `CoreAISentenceEmbeddingProvider.swift` alone on iOS: the compute preference and calls in flight measured
+   as no gain there. On the Mac, four calls in flight measured 47% more with bit-identical vectors, if he wants it.
 1a. **Push at his word.** `b6dba43` and the commit after it are local. `[ci skip]` unless he wants a TestFlight build.
 1b. **Device checks, on the build with the midday work:** import a large file and confirm no `[VectorLoad]` line
    for that library between its pieces; open the 144,247-passage library, ask one question about a record, open the

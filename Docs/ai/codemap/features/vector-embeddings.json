@@ -4,7 +4,7 @@
   "name": "Vector Embeddings",
   "aliases": ["embedding service", "embedding provider", "Core ML sentence embeddings", "contextual embeddings", "adaptive embedding optimizer", "embedding model", "embeddings"],
   "purpose": "Turns chunks and queries into vectors with the library's embedding provider (Core ML, Apple Foundation Models or NaturalLanguage).",
-  "revision": "b6dba43",
+  "revision": "1ab6b14",
   "verified_on": "2026-10-10",
   "entry_points": ["EmbeddingService", "LibraryIntelligenceCenter", "CoreAISentenceEmbeddingProvider", "CoreMLSentenceEmbeddingProvider", "NLContextualEmbeddingProvider", "EmbeddingService.generateEmbeddings"],
   "files": [
@@ -22,7 +22,7 @@
     {"path": "OpenIntelligenceTests/Services/Embedding/Providers/NLEmbeddingProviderTests.swift", "role": "test", "blob": "6481df8125e6c026a4d52797e66b0d7f81a7298b"},
     {"path": "OpenIntelligenceTests/Services/Embedding/RebuildFalseAlarmTests.swift", "role": "test", "blob": "4a223e74a28d70ddfbb8bdf0e2c27bb820d05a6f"},
     {"path": "OpenIntelligence/Services/Embedding/EmbeddingModelWarmup.swift", "role": "primary", "blob": "d6121cbdf74c446434fd55ab42ef783365ff0f3f"},
-    {"path": "OpenIntelligence/App/DebugEmbeddingBench.swift", "role": "primary", "blob": "fdcf1e5d1255460db12d5ba629ade04462856163"}
+    {"path": "OpenIntelligence/App/DebugEmbeddingBench.swift", "role": "primary", "blob": "4c91b12cdb65ec8d62be7977dea5a47c4b017082"}
   ],
   "nodes": [
     {"id": "EmbeddingService", "kind": "service", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 13, "match": "class EmbeddingService {", "status": "VERIFIED", "by": "build"},

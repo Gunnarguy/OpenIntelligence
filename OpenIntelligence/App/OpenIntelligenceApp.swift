@@ -23,6 +23,7 @@ struct OpenIntelligenceApp: App {
         #if DEBUG
         DebugRAGValidationHarness.runHeadlessIfNeeded()
         DebugEmbeddingBench.runIfRequested()
+        DebugEmbeddingBench.runProvidersIfRequested()
         #endif
 
         #if targetEnvironment(macCatalyst)

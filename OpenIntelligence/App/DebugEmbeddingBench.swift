@@ -15,6 +15,11 @@
     /// provider. It runs when the app is launched with `-embeddingBench`, or when a file named
     /// `run_embedding_bench` is in the app's Documents folder at launch (the file is removed first,
     /// so it runs once).
+    ///
+    /// A second part times the two providers as an import calls them (`embedBatch`, slices of 96,
+    /// the same passages for both, turn and turn about) and reports how far their vectors agree.
+    /// It runs with `-embeddingBenchProviders` or a file named `run_embedding_bench_providers`, and
+    /// writes `Documents/embedding_bench_providers.json`.
     nonisolated enum DebugEmbeddingBench {
         static let flagName = "run_embedding_bench"
         static let resultName = "embedding_bench.json"
@@ -38,6 +43,113 @@
                 try? await Task.sleep(for: .seconds(8))
                 await run(resultURL: resultURL)
             }
+        }
+
+        static func runProvidersIfRequested() {
+            guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            else { return }
+            let flag = documents.appendingPathComponent("run_embedding_bench_providers")
+            let requested =
+                FileManager.default.fileExists(atPath: flag.path)
+                || ProcessInfo.processInfo.arguments.contains("-embeddingBenchProviders")
+            guard requested else { return }
+            try? FileManager.default.removeItem(at: flag)
+            let resultURL = documents.appendingPathComponent("embedding_bench_providers.json")
+            Task.detached(priority: .userInitiated) {
+                try? await Task.sleep(for: .seconds(8))
+                await runProviders(resultURL: resultURL)
+            }
+        }
+
+        /// Ordinary English of about 330 words, different for each number.
+        private static func passage(_ number: Int) -> String {
+            let words = [
+                "the", "pump", "valve", "report", "quarter", "revenue", "inspection", "schedule", "maintenance",
+                "pressure", "reading", "technician", "replaced", "filter", "before", "after", "service", "manual",
+                "section", "table", "shows", "values", "measured", "during", "the", "second", "week", "of", "and",
+                "was", "found", "to", "be", "within", "limits", "for", "each", "unit", "in", "building",
+            ]
+            var state = UInt64(number &* 2_654_435_761 &+ 12_345)
+            var out: [String] = ["Record \(number + 1)."]
+            for index in 0..<330 {
+                state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                out.append(words[Int((state >> 33) % UInt64(words.count))] + (index % 17 == 16 ? "." : ""))
+            }
+            return out.joined(separator: " ")
+        }
+
+        private static func cosine(_ a: [Float], _ b: [Float]) -> Double {
+            guard a.count == b.count, !a.isEmpty else { return 0 }
+            var dot = 0.0
+            var lengthA = 0.0
+            var lengthB = 0.0
+            for index in 0..<a.count {
+                dot += Double(a[index]) * Double(b[index])
+                lengthA += Double(a[index]) * Double(a[index])
+                lengthB += Double(b[index]) * Double(b[index])
+            }
+            let scale = lengthA.squareRoot() * lengthB.squareRoot()
+            return scale > 0 ? dot / scale : 0
+        }
+
+        static func runProviders(resultURL: URL) async {
+            var rows: [[String: Any]] = []
+            save(rows, finished: false, to: resultURL)
+            let clock = ContinuousClock()
+            let texts = (0..<480).map(passage)
+            let coreML = await MainActor.run { CoreMLSentenceEmbeddingProvider() }
+            var providers: [(name: String, provider: any EmbeddingProvider)] = [("Core ML", coreML)]
+            #if canImport(CoreAI)
+                if #available(iOS 27.0, macOS 27.0, *) {
+                    let coreAI = await MainActor.run { CoreAISentenceEmbeddingProvider.shared }
+                    providers.insert(("Core AI", coreAI), at: 0)
+                }
+            #endif
+            let units = await MainActor.run { DeviceCapabilityService.shared.preferredComputeUnitsDescription }
+            var firstVectors: [String: [[Float]]] = [:]
+            do {
+                for entry in providers {
+                    let warm = try await entry.provider.embedBatch(texts: Array(texts.prefix(32)))
+                    firstVectors[entry.name] = warm
+                    let tokens = await entry.provider.countTokens(texts[0])
+                    rows.append([
+                        "framework": "provider \(entry.name)", "option": "warm-up", "tokensInFirstPassage": tokens,
+                        "coreMLUnits": units, "thermalAfter": thermal(),
+                    ])
+                }
+                // Turn and turn about, so the heat one leaves is not charged to the other alone.
+                for round in 1...3 {
+                    for entry in providers {
+                        var row: [String: Any] = [
+                            "framework": "provider \(entry.name)", "option": "round \(round)",
+                            "thermalBefore": thermal(),
+                        ]
+                        let elapsed = try await clock.measure {
+                            for start in stride(from: 0, to: texts.count, by: 96) {
+                                _ = try await entry.provider.embedBatch(
+                                    texts: Array(texts[start..<min(start + 96, texts.count)]))
+                            }
+                        }
+                        row["sequentialMsEach"] = seconds(elapsed) / Double(texts.count) * 1000
+                        row["sequentialPerSecond"] = Double(texts.count) / seconds(elapsed)
+                        row["thermalAfter"] = thermal()
+                        rows.append(row)
+                        save(rows, finished: false, to: resultURL)
+                    }
+                }
+                if let a = firstVectors["Core AI"], let b = firstVectors["Core ML"], a.count == b.count, !a.isEmpty {
+                    let agreement = zip(a, b).map { cosine($0, $1) }
+                    rows.append([
+                        "framework": "agreement", "option": "Core AI against Core ML, 32 passages",
+                        "lowestCosine": agreement.min() ?? 0,
+                        "meanCosine": agreement.reduce(0, +) / Double(agreement.count),
+                    ])
+                }
+            } catch {
+                rows.append(["framework": "providers", "error": String(String(describing: error).prefix(300))])
+            }
+            save(rows, finished: true, to: resultURL)
+            Log.info("[EmbeddingBench] Providers finished: \(rows.count) row(s)", category: .embedding)
         }
 
         private static func seconds(_ duration: Duration) -> Double {
