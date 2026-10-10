@@ -8773,28 +8773,87 @@ class DocumentProcessor {
     }
 
     private func readTextFileWithFallbackEncodings(url: URL, purpose: String) throws -> String {
-        if let utf8 = try? String(contentsOf: url, encoding: .utf8), !utf8.isEmpty {
-            return utf8
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        guard let decoded = Self.decodeTextFile(data) else {
+            throw DocumentProcessingError.unsupportedEncoding
+        }
+        if decoded.encodingName != "UTF-8" {
+            Log.info(
+                "[DocumentProcessor] The \(purpose) is not UTF-8; read as \(decoded.encodingName)",
+                category: .ingestion)
+        }
+        return decoded.text
+    }
+
+    /// The text of a file whose encoding is not stated, and the name of the encoding it was read
+    /// as. Nil for an empty file.
+    ///
+    /// Through 5.6 a file that was not UTF-8 was read as Latin-1. Latin-1 gives every byte a
+    /// character, so that read never failed and the two encodings tried after it were never
+    /// reached: a Shift-JIS, GB 18030, Windows-1251 or UTF-16 file was imported as rows of
+    /// accented Latin letters and control characters, with no error. Now Foundation's own
+    /// detection (`NSString.stringEncoding(for:encodingOptions:convertedString:usedLossyConversion:)`)
+    /// reads what is not UTF-8, lossless results only; measured on 2026-10-10 it returned the
+    /// exact text for UTF-16 with a byte-order mark, Shift-JIS, EUC-JP, Windows-1251,
+    /// Windows-1252 and GB 18030, and the wrong encoding for Mac Roman. UTF-16 with no
+    /// byte-order mark can be valid UTF-8 full of control codes, so it is caught before the
+    /// UTF-8 read by its zero bytes. A leading byte-order mark is not part of the text.
+    nonisolated static func decodeTextFile(_ data: Data) -> (text: String, encodingName: String)? {
+        guard !data.isEmpty else { return nil }
+        let probe = [UInt8](data.prefix(4_096))
+
+        func accepted(_ text: String?, _ name: String) -> (text: String, encodingName: String)? {
+            guard var text, !text.isEmpty else { return nil }
+            if text.unicodeScalars.first == "\u{FEFF}" { text.unicodeScalars.removeFirst() }
+            return text.isEmpty ? nil : (text, name)
         }
 
-        Log.warning("[DocumentProcessor] UTF-8 decode failed for \(purpose); trying fallback encodings", category: .ingestion)
-
-        if let latin1 = try? String(contentsOf: url, encoding: .isoLatin1), !latin1.isEmpty {
-            Log.debug("[DocumentProcessor] Decoded \(purpose) with Latin-1", category: .ingestion)
-            return latin1
+        let hasUTF16Mark =
+            probe.count >= 2 && ((probe[0] == 0xFF && probe[1] == 0xFE) || (probe[0] == 0xFE && probe[1] == 0xFF))
+        if hasUTF16Mark, let result = accepted(String(data: data, encoding: .utf16), "UTF-16") {
+            return result
         }
 
-        if let win1252 = try? String(contentsOf: url, encoding: .windowsCP1252), !win1252.isEmpty {
-            Log.debug("[DocumentProcessor] Decoded \(purpose) with Windows-1252", category: .ingestion)
-            return win1252
+        var zerosAtEven = 0
+        var zerosAtOdd = 0
+        var controlBytes = 0
+        for (offset, byte) in probe.enumerated() where byte < 0x20 && byte != 0x09 && byte != 0x0A && byte != 0x0D {
+            controlBytes += 1
+            if byte == 0 {
+                if offset.isMultiple(of: 2) { zerosAtEven += 1 } else { zerosAtOdd += 1 }
+            }
+        }
+        let utf8Text = String(data: data, encoding: .utf8)
+        if zerosAtEven + zerosAtOdd > 0, utf8Text == nil || controlBytes * 10 >= probe.count {
+            // Zero bytes, and either the bytes are not UTF-8 or a tenth of them are control
+            // codes: two-byte text with no mark, not UTF-8 with a stray zero in it. The zeros are
+            // the high bytes of its spaces, digits and line ends, which come second in
+            // little-endian. A run of zero padding reads as U+0000 and is turned away.
+            let littleEndian = zerosAtOdd >= zerosAtEven
+            let encoding: String.Encoding = littleEndian ? .utf16LittleEndian : .utf16BigEndian
+            if let result = accepted(String(data: data, encoding: encoding), "UTF-16"),
+                !result.text.unicodeScalars.prefix(1_000).contains("\u{0}") {
+                return result
+            }
+        }
+        // Bytes that are UTF-8 are read as UTF-8; nothing below is asked.
+        if let result = accepted(utf8Text, "UTF-8") { return result }
+
+        var converted: NSString?
+        var usedLossyConversion: ObjCBool = false
+        let detected = NSString.stringEncoding(
+            for: data, encodingOptions: [.allowLossyKey: false], convertedString: &converted,
+            usedLossyConversion: &usedLossyConversion)
+        if detected != 0, !usedLossyConversion.boolValue,
+            let result = accepted(
+                converted as String?, String.localizedName(of: String.Encoding(rawValue: detected))) {
+            return result
         }
 
-        if let ascii = try? String(contentsOf: url, encoding: .ascii), !ascii.isEmpty {
-            Log.debug("[DocumentProcessor] Decoded \(purpose) with ASCII", category: .ingestion)
-            return ascii
-        }
-
-        throw DocumentProcessingError.unsupportedEncoding
+        // What is left is bytes nothing recognised. Windows-1252 and then Latin-1, which gives
+        // every byte a character, keep the file readable where it is plain text.
+        return accepted(String(data: data, encoding: .windowsCP1252), "Windows-1252")
+            ?? accepted(String(data: data, encoding: .isoLatin1), "Latin-1")
     }
 
     /// Reads a `.json`, `.jsonl` or `.ndjson` file as records. Returns nil when the file is not

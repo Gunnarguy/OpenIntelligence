@@ -67,6 +67,10 @@ struct SyncPendingBootstrapConflict: Sendable {
 struct WorkspaceInventory {
     let containers: [KnowledgeContainer]
     let documents: [Document]
+    /// Libraries with an import this device had not finished when the inventory was read.
+    /// The import queue is read before `documents`, so an import that finishes while a pass
+    /// runs is still listed here even when its document is missing from `documents`.
+    var librariesWithUnfinishedImports: Set<UUID> = []
 }
 
 struct ContainerMergeResult {
@@ -955,6 +959,13 @@ final class WorkspaceSyncService: ObservableObject {
             return WorkspaceInventory(containers: [], documents: [])
         }
 
+        // The import queue is read before the documents on purpose; see
+        // `WorkspaceInventory.librariesWithUnfinishedImports`.
+        let ingestionQueue = try Self.readJSONIfPresent(
+            PersistedIngestionQueueStateRecord.self,
+            from: root.appendingPathComponent("ingestion_queue.json")
+        )
+
         let containers = try Self.readJSONIfPresent(
             [KnowledgeContainer].self,
             from: root.appendingPathComponent("containers.json")
@@ -965,11 +976,6 @@ final class WorkspaceSyncService: ObservableObject {
             from: root.appendingPathComponent("documents_metadata.json")
         ) ?? []
 
-        let ingestionQueue = try Self.readJSONIfPresent(
-            PersistedIngestionQueueStateRecord.self,
-            from: root.appendingPathComponent("ingestion_queue.json")
-        )
-
         let repairResult = try repairWorkspaceMetadataIfNeeded(
             at: root,
             containers: containers,
@@ -979,7 +985,12 @@ final class WorkspaceSyncService: ObservableObject {
 
         return WorkspaceInventory(
             containers: repairResult.containers,
-            documents: repairResult.documents
+            documents: repairResult.documents,
+            librariesWithUnfinishedImports: Self.librariesWithUnfinishedImports(
+                in: ingestionQueue,
+                deviceID: Self.currentDeviceID(defaults: defaults),
+                defaultContainerId: repairResult.containers.first?.id
+            )
         )
     }
 
@@ -1359,6 +1370,7 @@ final class WorkspaceSyncService: ObservableObject {
             syncedDocuments: finalSharedDocuments,
             documentAliases: sharedDocumentMergeResult.sourceToCanonical,
             sourceContainerIDsByCanonicalID: mergeResult.canonicalToSources,
+            librariesImportingAtPassStart: localInventory.librariesWithUnfinishedImports,
             strategy: strategy
         )
 
@@ -1871,7 +1883,7 @@ final class WorkspaceSyncService: ObservableObject {
             storeOpens += 2
             let localChunks = try await loadVectorChunks(from: localVectorURL, dimension: container.embeddingDim)
             let sharedChunks = try await loadVectorChunks(from: sharedVectorURL, dimension: container.embeddingDim)
-            let mergedChunks = mergeVectorChunks(
+            let mergedChunks = Self.mergeVectorChunks(
                 shared: sharedChunks,
                 local: localChunks,
                 allowedDocumentIds: canonicalDocumentIds
@@ -1917,7 +1929,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    nonisolated private func mergeVectorChunks(
+    nonisolated static func mergeVectorChunks(
         shared: [DocumentChunk],
         local: [DocumentChunk],
         allowedDocumentIds: Set<UUID>
@@ -1954,7 +1966,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    nonisolated private func vectorChunkDuplicateKey(for chunk: DocumentChunk) -> String {
+    nonisolated private static func vectorChunkDuplicateKey(for chunk: DocumentChunk) -> String {
         "\(chunk.documentId.uuidString)|\(chunk.metadata.chunkIndex)|\(chunk.content)"
     }
 
@@ -2278,6 +2290,36 @@ final class WorkspaceSyncService: ObservableObject {
         return filteredState.isEmpty ? nil : filteredState
     }
 
+    /// Libraries with an import this device has not finished: running, paused, or waiting to
+    /// be continued after the app was ended.
+    ///
+    /// While an import is unfinished its passages are already in the library's vector store
+    /// and its document is not in `documents_metadata.json` (`RAGService` saves the record
+    /// last). `synchronizeVectorStore` works from the documents: it reads every passage of the
+    /// store, keeps the ones whose document it knows, and writes the store back when that
+    /// differs from what is on disk. So a pass during an import decodes the whole store to
+    /// decide nothing (a device trace of 2026-10-10 holds 135 such reads of one store growing
+    /// to 144,247 passages, 381 MB on disk), and in a library that has other documents it
+    /// writes the store back without the passages being imported.
+    ///
+    /// An item another device holds the lease on is that device's import and its passages are
+    /// in that device's store, so it is not listed.
+    nonisolated static func librariesWithUnfinishedImports(
+        in queue: PersistedIngestionQueueStateRecord?,
+        deviceID: String,
+        defaultContainerId: UUID?
+    ) -> Set<UUID> {
+        guard let queue else { return [] }
+        var libraries = Set<UUID>()
+        for item in queue.items where !item.stage.isTerminal {
+            if let owner = item.leaseOwnerDeviceId, owner != deviceID { continue }
+            if let library = item.containerId ?? defaultContainerId {
+                libraries.insert(library)
+            }
+        }
+        return libraries
+    }
+
     nonisolated private func synchronizeContainerArtifacts(
         localRoot: URL,
         sharedRoot: URL,
@@ -2285,24 +2327,57 @@ final class WorkspaceSyncService: ObservableObject {
         syncedDocuments: [Document],
         documentAliases: [UUID: UUID],
         sourceContainerIDsByCanonicalID: [UUID: [UUID]],
+        librariesImportingAtPassStart: Set<UUID>,
         strategy: SyncResolutionStrategy
     ) async throws {
         let defaultContainerId = syncedContainers.first?.id
         let documentIdsByContainer = Dictionary(grouping: syncedDocuments, by: { resolvedContainerID(for: $0, defaultContainerId: defaultContainerId) })
             .mapValues { Set($0.map(\.id)) }
 
+        // Two readings of the import queue, joined. The one from the start of the pass covers
+        // an import that finished while the pass ran: its document was not in the pass's
+        // snapshot, so `syncedDocuments` does not know it. The one taken here covers an import
+        // that started since. A queue that cannot be read is treated as every library
+        // importing, because the cost of waiting one pass is nothing and the cost of guessing
+        // wrong is a store written back without an import's passages.
+        var librariesImporting = librariesImportingAtPassStart
+        var importQueueIsReadable = true
+        do {
+            librariesImporting.formUnion(Self.librariesWithUnfinishedImports(
+                in: try Self.readJSONIfPresent(
+                    PersistedIngestionQueueStateRecord.self,
+                    from: localRoot.appendingPathComponent("ingestion_queue.json")
+                ),
+                deviceID: Self.currentDeviceID(defaults: defaults),
+                defaultContainerId: defaultContainerId
+            ))
+        } catch {
+            importQueueIsReadable = false
+            Log.warning(
+                "[WorkspaceSync] The import queue could not be read (\(error.localizedDescription)); leaving every vector store alone this pass.",
+                category: .ingestion
+            )
+        }
+
         for container in syncedContainers {
             let allowedDocumentIds = documentIdsByContainer[container.id] ?? []
             let sourceContainerIDs = Set(sourceContainerIDsByCanonicalID[container.id] ?? [container.id])
-            try await synchronizeVectorStore(
-                for: container,
-                localRoot: localRoot,
-                sharedRoot: sharedRoot,
-                sourceContainerIDs: sourceContainerIDs,
-                allowedDocumentIds: allowedDocumentIds,
-                documentAliases: documentAliases,
-                strategy: strategy
-            )
+            if !importQueueIsReadable || !sourceContainerIDs.isDisjoint(with: librariesImporting) {
+                Log.debug(
+                    "[WorkspaceSyncService] Vector store for \(container.id) left alone this pass: an import into it has not finished",
+                    category: .vectorDB
+                )
+            } else {
+                try await synchronizeVectorStore(
+                    for: container,
+                    localRoot: localRoot,
+                    sharedRoot: sharedRoot,
+                    sourceContainerIDs: sourceContainerIDs,
+                    allowedDocumentIds: allowedDocumentIds,
+                    documentAliases: documentAliases,
+                    strategy: strategy
+                )
+            }
 
             try await synchronizeAuxiliaryFile(
                 filePrefix: "chat_history_",
@@ -2425,7 +2500,7 @@ final class WorkspaceSyncService: ObservableObject {
         let resolvedChunks: [DocumentChunk]
         switch strategy {
         case .mergeLibraries:
-            resolvedChunks = mergeVectorChunks(shared: sharedChunks, local: localChunks, allowedDocumentIds: allowedDocumentIds)
+            resolvedChunks = Self.mergeVectorChunks(shared: sharedChunks, local: localChunks, allowedDocumentIds: allowedDocumentIds)
         case .useICloudWorkspace, .importExistingICloudLibraries:
             resolvedChunks = sharedChunks.filter { allowedDocumentIds.contains($0.documentId) }
         }

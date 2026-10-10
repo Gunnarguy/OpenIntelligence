@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-10, morning (5.7 is open; `55af072` is the last commit and is pushed with `[ci skip]`; the working tree after it is not committed and holds the import in pieces, the fixes from the night of 10-09 and the morning of 10-10, and three import-accuracy fixes; the owner's 88.50 MB file finished importing on his iPhone at 02:20 PT on 10-10; a development (Debug) build of the whole working tree is on his iPhone since 10:19 PT on 10-10; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
+Updated: 2026-10-10, midday (5.7 is open; `b6dba43` holds the import in pieces and the fixes of the night of 10-09 and the morning of 10-10, committed at 11:13 PT at the owner's word and not pushed; the commit after it, which carries this file, holds the midday work: the sync guard, three import-accuracy fixes and a development benchmark; `55af072` is the last pushed commit; a development (Debug) build of `b6dba43` plus the sync guard and the benchmark is built and waiting to be installed, the phone having been out of reach of the Mac since about 11:25 PT; the build on the phone is the 10:19 PT one; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 55af072
+Last verified commit: b6dba43
 
 ## Objective
 
@@ -34,6 +34,44 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 `Growth/CURRENT_EXPERIMENT.md`).
 
 ## Status
+
+- **2026-10-10, 11:10 to 11:50 PT: the owner said to go ahead with everything asked of him that morning ("you can
+  do it. Just go ahead and do it").** What was done, what was refused, and what waits on the phone:
+  1. *Committed.* `b6dba43` on `main`, `[ci skip]`, 47 files, not pushed (he asked for the commit, not a push).
+  2. *iCloud sync and a running import* (`WorkspaceSyncService.swift`, a protected file, named by his go-ahead). The
+     trace of the 88.50 MB import holds 135 full reads of the importing library's vector store in its last 500 KB:
+     a sync pass runs 2 s after every save of the store, decodes every passage from the device copy and the iCloud
+     copy, and (the library having no document record yet) logs "refusing to delete". By the end each read was
+     144,247 passages and 381 MB on disk. Read from the code and not run: in a library with another document the
+     same pass writes the store back without the import's passages, and the window that loses them is after the last
+     save and before the document record (about 35 s in that trace; a pass ran inside it). Now a pass skips the
+     vector store of a library with an unfinished import on this device (`librariesWithUnfinishedImports`, read from
+     the import queue before the documents and again before the vector step). Row
+     https://app.notion.com/p/3f549a74d54f81e8936ae30d99d63134 .
+  3. *Three import-accuracy fixes*, each with tests and its own row: a passage over 500 tokens was cut to 1,500
+     characters before embedding in both large-file paths (`RAGService.embeddingText`,
+     https://app.notion.com/p/3f549a74d54f81ffb2bce20895b1e7c3 ); a text file that was not UTF-8 was read as Latin-1,
+     which never fails (`DocumentProcessor.decodeTextFile`, Foundation's encoding detection,
+     https://app.notion.com/p/3f549a74d54f8164b6ecf46a12edb8ae ); a PDF over 10 MB numbered each 15-page batch's
+     passages from zero and the keyword index dropped the rows whose number repeated
+     (`importLargePDFStreamed` now uses `documentNumbered`, https://app.notion.com/p/3f549a74d54f813cbe15f9e6062e159b ).
+     A PDF over 10 MB imported before this needs importing again.
+  4. *A benchmark for the phone* (`OpenIntelligence/App/DebugEmbeddingBench.swift`, Debug builds only): times the
+     bundled embedding model under each Core AI and Core ML compute option with 1, 2 and 4 calls in flight and writes
+     `Documents/embedding_bench.json`. It runs when the app is launched with `-embeddingBench` or finds a file named
+     `run_embedding_bench` in Documents. `scratchpad/phone_bench.sh` (running in the background since about 11:27 PT,
+     six-hour limit) installs the build when the phone is reachable and no import is running, places the flag,
+     launches, and copies the result to `scratchpad/phone2/embedding_bench.json`. No result yet: the phone was
+     `unavailable` to `devicectl`. **`CoreAISentenceEmbeddingProvider.swift` is not changed**: the compute option and
+     the number of calls in flight are to be chosen from that file's numbers, not from the Mac's.
+  5. *Refused by the session's permission check, twice, as "Protected-Scope IaC Apply", after his go-ahead:* adding
+     `com.apple.developer.background-tasks.continued-processing.inference` to `OpenIntelligence.entitlements`, and a
+     device build with `-allowProvisioningUpdates`. Neither was done and no other route was tried. The device build
+     without that flag is allowed and succeeded (`/private/tmp/oi-57-device12.log`). Xcode 27.0's capability list
+     has Background GPU Access and no entry for the inference key, so whether Xcode provisions it by itself is not
+     known.
+  6. *Not done:* anything for interface sluggishness beyond the audit's readings. No measurement was possible with
+     the phone away, and no interface code was changed without one.
 
 - **2026-10-10, 00:10 to 10:20 PT: the 88.50 MB file is in, and the night found five more defects, all changed in
   the working tree, none committed.** The session was idle from about 01:27 to 10:02 PT (cause not established);
@@ -339,7 +377,13 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Working Set
 
-- **Uncommitted, new files (add by name):** `OpenIntelligence/Services/Document/Processing/TextPieceReader.swift`,
+- **In the commit that carries this file (2026-10-10, midday):** `WorkspaceSyncService.swift` (the import guard;
+  `mergeVectorChunks` is now static), `RAGService+TextStreaming.swift` and `RAGService+Streaming.swift`
+  (`embeddingText`, batch numbering), `DocumentProcessor.swift` (`decodeTextFile`), `OpenIntelligenceApp.swift` (one
+  line that starts the benchmark), and three new files: `OpenIntelligence/App/DebugEmbeddingBench.swift`,
+  `OpenIntelligenceTests/Services/Storage/WorkspaceSyncImportGuardTests.swift` (8 tests), and additions to
+  `IngestionAccuracyTests.swift` (now 16 tests).
+- **New in `b6dba43` (committed 2026-10-10, 11:13 PT):** `OpenIntelligence/Services/Document/Processing/TextPieceReader.swift`,
   `OpenIntelligence/Services/RAG/Orchestration/RAGService+TextStreaming.swift`,
   `OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityStageText.swift`, and five test files:
   `OpenIntelligenceTests/Services/Document/Processing/TextPieceImportTests.swift` (21 tests) and
@@ -377,6 +421,16 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - `Docs/SHIPPED_VERSION.json`: the release record the three sites read from `origin/main`.
 - `Docs/BILLING_AND_LIMITS.md` sections 2 and 5: what the plans screen says, and the prices.
 - `Docs/ai/RUNBOOK.md`: the three "through the API" sections (submit, pull back, release an approved version).
+
+## Verification (2026-10-10, 11:20 to 11:50 PT, `b6dba43` plus the midday work, output read)
+
+- `xcodebuild build-for-testing` then `test-without-building`, simulator `55AFFA2C-...`, `-jobs 1`, on the tree with every midday change -> 793 XCTest tests, 0 failures, 3 skipped (`/private/tmp/oi-57-test19.log`, 11:47 PT). The run before it, without the encoding and PDF changes, was 788 tests, 0 failures (`oi-57-test18.log`, 11:40 PT). New since 777: 8 in `WorkspaceSyncImportGuardTests`, 8 in `IngestionAccuracyTests`.
+- `xcodebuild build ... -configuration Debug -destination 'generic/platform=iOS' -jobs 1 MARKETING_VERSION=5.7`, no provisioning flag -> BUILD SUCCEEDED (`/private/tmp/oi-57-device12.log`, about 11:25 PT). It holds the sync guard, `embeddingText` and the benchmark, not the encoding or PDF changes. Copied to `/private/tmp/oi-install/OpenIntelligence.app`; not installed (phone out of reach).
+- `xcodebuild build ... -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` -> BUILD SUCCEEDED at 11:43 PT for the sync guard, `embeddingText` and the benchmark (the Core AI branch of the benchmark compiles only there and for a device), and again at 11:49 PT with the encoding and PDF changes (`/private/tmp/oi-57-mac.log`). No warning names a line changed at midday.
+- `swiftc` harness with a copy of `decodeTextFile` on macOS 27 (`scratchpad/encprobe/check.swift`) -> exact text for 12 of 12 encoded samples and UTF-8 kept for the two zero-byte cases. Foundation's detection alone, same day: 6 of 8 exact, wrong for Mac Roman.
+- Apple's reference page for the inference entitlement, fetched 2026-10-10, and Xcode's `DVTPortalCachedPortalCapabilities.json` read the same day (Status item 5).
+- `python3 scripts/verify_doc_claims.py` -> every checked claim matches. `python3 scripts/secret_scan.py` and `scripts/check_icloud_conflicts.sh` -> clean (11:13 PT, before `b6dba43`; run again before the commit that carries this file).
+- Not verified: anything from midday on a device. The benchmark has not run on any device. The sync guard has not been watched during a real import. The loss it guards against in a library with other documents was read from the code, not reproduced.
 
 ## Verification (2026-10-10, 10:14 PT, the uncommitted working tree, output read)
 
@@ -563,9 +617,22 @@ in it, left shut down).
 
 ## Blockers / Unknowns
 
-- **Background imports stop within seconds of leaving the app.** Likely cause and the two ways forward are in Status
-  item 6 and in row https://app.notion.com/p/3f549a74d54f81ecb6ecd600e800db07 . The entitlement is a provisioning
-  change on his developer account, which this session's permission check refused to make; do not try another route.
+- **The embedding benchmark has not run.** `scratchpad/phone_bench.sh` waits for the phone (six hours from about
+  11:27 PT on 10-10). If the scratchpad is gone, the recipe is in Status (midday, item 4): install a Debug build,
+  copy an empty file to `Documents/run_embedding_bench` in the app container with `devicectl device copy to`,
+  launch, then copy `Documents/embedding_bench.json` back. The phone has to be unlocked for a launch from the Mac;
+  otherwise the benchmark starts the next time the app is opened.
+- **After an import, sync still copies the whole store.** The first pass after the document record exists decodes
+  both copies and writes a second whole copy for iCloud (381 MB for the 144,247-passage library), and every save
+  of the store rewrites every vector. Row https://app.notion.com/p/3f549a74d54f8196b4cff3bc5d16d9e3 (Future Backlog).
+  An import that both starts and finishes inside one sync pass is not covered by the guard.
+- **Background imports stop within seconds of leaving the app.** Likely cause and the two ways forward are in the
+  00:10 Status bullet, item 6, and in row https://app.notion.com/p/3f549a74d54f81ecb6ecd600e800db07 . The
+  entitlement is his to add: on 2026-10-10 he said to go ahead and the session's permission check refused the edit
+  and the provisioning build both times; do not try another route. What he does: add
+  `<key>com.apple.developer.background-tasks.continued-processing.inference</key><true/>` to
+  `OpenIntelligence/OpenIntelligence.entitlements` and build to the phone once from Xcode. If signing refuses the
+  key, it has to be requested from Apple.
   The other way (embed with the Core ML copy of the model on the CPU while in the background) touches
   `CoreAISentenceEmbeddingProvider.swift` or `EmbeddingService.swift`; the provider file is out of bounds until he
   names it. Verify first: read the expiry line the new build writes (`expired ... thermal=..., lowPower=...`) from
@@ -854,21 +921,26 @@ in it, left shut down).
 
 ## Exact Next Action
 
-1. **Check the imported file on his iPhone, then commit at his word.** The file is in (144,247 passages). On the
-   build now on the phone: open the library, note how long it takes to load; ask one question about a record; open the
-   Atlas tab and confirm the "Mapped from a sample" card and that leaving and returning does not end the app (rows
-   https://app.notion.com/p/3f549a74d54f8154b822e4eee927a961 , https://app.notion.com/p/3f549a74d54f81998d02e74ec246580e ,
-   https://app.notion.com/p/3f549a74d54f81d5a5e5e38b9631ff74 ). The build on the phone since 10:19 PT on 10-10 holds everything in the working
-   tree. He has not asked for a commit of any of this. When he does:
-   add the eight new files by name (Working Set), `[ci skip]` unless he wants a TestFlight build.
-1a. **Then the two measurements that decide the next changes, both needing him at the phone.** (a) Leave the app
-   during an import and read the expiry line (Blockers, first item). (b) Record `xctrace` with the `Core AI` template
-   during an import and the `SwiftUI` template during one streamed answer. Before either, put a Release build on the
-   phone or say plainly that the numbers are from a Debug build.
-1b. **Then the audit list**, row https://app.notion.com/p/3f549a74d54f81f4931bd35e661177ae , in this order: re-read
-   each item against the code, write the failing test, fix, file its own row. Start with the streamed PDF path's
-   repeated passage numbers (`RAGService+Streaming.swift`), the 1,500-character cut before embedding in both
-   streamed paths, and the Latin-1 fallback in `readTextFileWithFallbackEncodings`.
+1. **Read the phone benchmark and choose the embedding settings from it.** When
+   `scratchpad/phone2/embedding_bench.json` says `"finished" : true` (see `scratchpad/phone_bench.out`), compare
+   Core AI `default`, `prefer gpu` and `prefer neuralEngine` at 1, 2 and 4 calls in flight, and Core ML `cpuOnly`.
+   Change `CoreAISentenceEmbeddingProvider.swift` (named by the owner's go-ahead of 2026-10-10) only where the
+   phone's numbers show a gain: the option at `AIModel(contentsOf:)` (and the same option in
+   `EmbeddingModelWarmup.swift`, or the warm-up prepares a cache entry the provider does not use), and a bounded task
+   group in `embedBatch`, one call in flight when `ProcessInfo.thermalState` is serious or worse. Then the suite,
+   a device build without `-allowProvisioningUpdates`, and one import on the phone timed against 36 passages a second.
+1a. **Push at his word.** `b6dba43` and the commit after it are local. `[ci skip]` unless he wants a TestFlight build.
+1b. **Device checks, on the build with the midday work:** import a large file and confirm no `[VectorLoad]` line
+   for that library between its pieces; open the 144,247-passage library, ask one question about a record, open the
+   Atlas and look for "Mapped from a sample"; leave the app during an import and read the expiry line in
+   `continued_ingestion_status.json`. For the interface: `xcrun xctrace record --device 00008140-001130DA1863C01C
+   --template SwiftUI --attach OpenIntelligence --time-limit 60s` while one answer streams, on a Release build or
+   with the numbers labelled Debug. Nothing in the interface is to be changed before one of those recordings.
+1c. **Then the rest of the audit list**, row https://app.notion.com/p/3f549a74d54f81f4931bd35e661177ae : done from it
+   are the Atlas, number-only cells, non-Latin lines, the recording's language, the 1,500-character cut, the
+   encoding fallback and the large-PDF numbering. Next: the OCR low-quality tag that uses an English word list, PDF
+   image analysis repeated over every page for each batch, and `refreshIntelligence(force: true)` over the whole
+   library after each import. Re-read each against the code and write the failing test first.
 2. **Keep going down the `To Do` rows on `v5.7`** (`SELECT ... WHERE "Target Release" = 'v5.7' AND "Status" = 'To Do'`
    on the roadmap data source). Next, in the order that needs least from him: PDF export of a conversation; a Live
    Activity for a Deep Think answer (`QueryLiveActivityAttributes` exists, the widget target is a synchronized

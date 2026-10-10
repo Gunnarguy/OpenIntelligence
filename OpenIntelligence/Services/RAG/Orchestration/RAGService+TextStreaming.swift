@@ -392,7 +392,7 @@ extension RAGService {
 
         let holdsRecords = state.totalRecords != nil
         let prefix = "\(filename): "
-        let maxTokens = containerEmbeddingService.outputDimension == 384 ? 500 : 8000
+        let embeddingWindow = containerEmbeddingService.maxSafeTokens
         let totalBytes = max(1, reader.count)
 
         // Whatever a stopped run appended for a piece it did not commit is cut off.
@@ -451,12 +451,20 @@ extension RAGService {
 
             var textsToEmbed: [String] = []
             textsToEmbed.reserveCapacity(processedChunks.count)
+            var passagesAtTheWindow = 0
             for chunk in processedChunks {
-                var textForEmbedding = prefix + chunk.text
-                if containerEmbeddingService.countTokens(textForEmbedding) > maxTokens {
-                    textForEmbedding = String(textForEmbedding.prefix(1500))
-                }
-                textsToEmbed.append(textForEmbedding)
+                let forEmbedding = Self.embeddingText(
+                    prefix: prefix, passage: chunk.text, window: embeddingWindow,
+                    countTokens: { containerEmbeddingService.countTokens($0) })
+                if forEmbedding.reachesWindow { passagesAtTheWindow += 1 }
+                textsToEmbed.append(forEmbedding.text)
+            }
+            if passagesAtTheWindow > 0 {
+                Log.warning(
+                    "[RAGService] \(filename): \(label): \(passagesAtTheWindow) of \(processedChunks.count) passages "
+                        + "reach the embedding model's \(embeddingWindow)-token window; the vector of each covers "
+                        + "its first \(embeddingWindow) tokens and the stored text is whole",
+                    category: .ingestion)
             }
             // The passages are embedded a slice at a time, and each slice's vectors are written
             // beside the checkpoint as soon as they exist. A piece of the file that prompted this
@@ -787,5 +795,37 @@ extension RAGService {
                 ))
         }
         return rows
+    }
+}
+
+extension RAGService {
+    /// The text one passage is embedded from: the document's prefix and the passage, whole
+    /// whenever the embedding model can read all of it.
+    ///
+    /// Until 2026-10-10 both large-file paths cut any passage over 500 tokens to its first 1,500
+    /// characters before embedding and logged nothing. That is about 350 tokens, so a passage a
+    /// few tokens over lost a third of what the model could have read from it. The stored text
+    /// and the keyword index were always whole; only the vector was short. Now a passage goes to
+    /// the model whole when it fits the window, and one that does not is cut at the last
+    /// character that still fits. `reachesWindow` is true for a passage at or over the window,
+    /// because a tokenizer that stops counting at the window gives a longer passage the same
+    /// count as one that fits exactly.
+    nonisolated static func embeddingText(
+        prefix: String, passage: String, window: Int, countTokens: (String) -> Int
+    ) -> (text: String, reachesWindow: Bool) {
+        let whole = prefix + passage
+        let count = countTokens(whole)
+        guard window > 0, count > window else { return (whole, window > 0 && count >= window) }
+        var low = 0
+        var high = whole.count
+        while low < high {
+            let middle = (low + high + 1) / 2
+            if countTokens(String(whole.prefix(middle))) <= window {
+                low = middle
+            } else {
+                high = middle - 1
+            }
+        }
+        return (String(whole.prefix(low)), true)
     }
 }

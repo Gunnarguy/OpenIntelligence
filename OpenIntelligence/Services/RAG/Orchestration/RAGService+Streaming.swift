@@ -106,7 +106,15 @@ extension RAGService {
             )
             
             guard !processedChunks.isEmpty else { continue }
-            
+
+            // Each batch of pages comes back with its passages numbered from zero. The keyword
+            // index names a passage's row by the document and that number
+            // (`SQLiteFullTextService.storeChunks`), so through 5.6 a later batch's rows met rows
+            // already stored under the same names and were not stored, and nothing was logged.
+            // The document's numbers now go on from the batch before, as a text file's pieces do.
+            let batchMetadata = Self.documentNumbered(
+                processedChunks.map(\.metadata), chunkBase: totalChunks, positionBase: 0)
+
             let batchWordCount = processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
             totalChunks += processedChunks.count
             totalWords += batchWordCount
@@ -125,21 +133,31 @@ extension RAGService {
             // 2. Embed Batch
             var textsToEmbed: [String] = []
             let prefix = "\(doc.filename): "
-            let maxTokens = containerEmbeddingService.outputDimension == 384 ? 500 : 8000
-            
+            let embeddingWindow = containerEmbeddingService.maxSafeTokens
+            var passagesAtTheWindow = 0
+
             for chunk in processedChunks {
-                var textForEmbedding = prefix + chunk.text
-                if containerEmbeddingService.countTokens(textForEmbedding) > maxTokens {
-                    textForEmbedding = String(textForEmbedding.prefix(1500))
-                }
-                textsToEmbed.append(textForEmbedding)
+                // See `embeddingText`: whole when it fits the model's window, never cut to a
+                // fixed number of characters.
+                let forEmbedding = Self.embeddingText(
+                    prefix: prefix, passage: chunk.text, window: embeddingWindow,
+                    countTokens: { containerEmbeddingService.countTokens($0) })
+                if forEmbedding.reachesWindow { passagesAtTheWindow += 1 }
+                textsToEmbed.append(forEmbedding.text)
+            }
+            if passagesAtTheWindow > 0 {
+                Log.warning(
+                    "[RAGService] \(doc.filename): \(passagesAtTheWindow) of \(processedChunks.count) passages in this "
+                        + "batch reach the embedding model's \(embeddingWindow)-token window; the vector of each "
+                        + "covers its first \(embeddingWindow) tokens and the stored text is whole",
+                    category: .ingestion)
             }
             
             let batchEmbeddings = try await containerEmbeddingService.generateEmbeddings(for: textsToEmbed)
             
             // 3. Store in DB
             var dbChunks: [DocumentChunk] = []
-            for (chunk, embedding) in zip(processedChunks, batchEmbeddings) {
+            for (place, (chunk, embedding)) in zip(processedChunks, batchEmbeddings).enumerated() {
                 let uniqueChunkId = UUID()
                 dbChunks.append(DocumentChunk(
                     id: uniqueChunkId,
@@ -148,14 +166,14 @@ extension RAGService {
                     parentContent: chunk.parentText,
                     contextualPrefix: prefix,
                     embedding: embedding,
-                    metadata: chunk.metadata
+                    metadata: batchMetadata[place]
                 ))
             }
             
             try await db.storeBatch(chunks: dbChunks)
             
             // 4. Store Chunks in FTS5 Index
-            let fts5ChunkData = processedChunks.map { chunk -> (
+            let fts5ChunkData = zip(processedChunks, batchMetadata).map { chunk, numbered -> (
                 chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
                 sectionPath: String?, structureType: String?, chunkType: String?,
                 tableTitle: String?, content: String,
@@ -176,7 +194,7 @@ extension RAGService {
                     )
                 }
                 return (
-                    chunkIndex: chunk.metadata.chunkIndex,
+                    chunkIndex: numbered.chunkIndex,
                     pageNumber: chunk.metadata.pageNumber,
                     sectionTitle: chunk.metadata.sectionTitle,
                     sectionPath: pathStr,

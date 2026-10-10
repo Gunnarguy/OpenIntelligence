@@ -142,6 +142,15 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   change still reloads immediately. It bounds the symptom only — the 1.68 s trigger is a workspace
   timer meeting a container whose orphaned state never resolves, and that lives in
   `WorkspaceSyncService`. `[evidence: measured, exact, pipeline_trace.log 19:45:24-19:48:08 on the maintainer's Mac; VectorStoreRouter.clearAll]`
+- **A pass skips the vector store of a library with an unfinished import, added 2026-10-10**: the
+  import queue is read before the documents and again before the vector step
+  (`WorkspaceSyncService.librariesWithUnfinishedImports`: an item this device holds whose stage is
+  not complete, cancelled or failed), and `synchronizeVectorStore` is not called for a library named
+  in either reading. An import's passages are in the store before its document record exists, so the
+  pass used to decode the whole store to conclude nothing (135 reads of one store in one device
+  trace) and, in a library with another document, would write the store back without them. The store
+  syncs on the first pass after the import ends, which still decodes both copies whole.
+  `[evidence: test_verified for the rule, WorkspaceSyncImportGuardTests; measured for the reads, device trace 2026-10-10; not seen on a device since]`
 - **Benchmark runs stand down from queue merging**: `mergeIngestionQueueIfNeeded` returns early while
   `OpenIntelligenceRuntimePaths.areOverridesPinned` is set. `localRoot` there resolves through
   `applicationSupportRoot()`, which does not consult the storage override, so every benchmark run
