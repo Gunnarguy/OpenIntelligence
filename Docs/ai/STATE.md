@@ -2,7 +2,7 @@
 
 Updated: 2026-10-10, midday (5.7 is open; `b6dba43` holds the import in pieces and the fixes of the night of 10-09 and the morning of 10-10, committed at 11:13 PT at the owner's word and not pushed; the commit after it, which carries this file, holds the midday work: the sync guard, three import-accuracy fixes and a development benchmark; `55af072` is the last pushed commit; a development (Debug) build of `b6dba43` plus the sync guard and the benchmark is built and waiting to be installed, the phone having been out of reach of the Mac since about 11:25 PT; the build on the phone is the 10:19 PT one; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: b6dba43
+Last verified commit: 2a33196
 
 ## Objective
 
@@ -70,7 +70,24 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
      without that flag is allowed and succeeded (`/private/tmp/oi-57-device12.log`). Xcode 27.0's capability list
      has Background GPU Access and no entry for the inference key, so whether Xcode provisions it by itself is not
      known.
-  6. *Not done:* anything for interface sluggishness beyond the audit's readings. No measurement was possible with
+  6. *The embedding model is not on the Neural Engine (measured on the Mac at about 11:55 PT, not yet on the phone).* A
+     probe that loads the bundled Core AI model under each option (`scratchpad/caicos/cos.swift`) printed, three
+     times, `ane_validation_message ... 'anec.reshape' ... got 'memref<1x1x1x1x512xi1>' ... failed: ANE I/O op can
+     only do F16 MemRef <-> F32 Tensor cast` for the attention-mask step inside the model (the debug location is
+     `scripts/compile_core_ai_model.py:59`, the call into the BERT backbone), naming `MPSGraph` for the operation;
+     and the vectors under default, prefer-GPU, prefer-Neural-Engine and CPU-only are equal to nine decimal places,
+     which a half-precision Neural Engine run would not be. So every option but CPU-only runs on the GPU there. The
+     phone's `continued_ingestion_status.json` of 02:20 PT reads `backgroundGPUSupported = false` and
+     `backgroundGPURequested = false`: a background import has no GPU. `BackgroundTaskService` already asks for the
+     GPU when the system offers it (lines 322 and 425), and the system offers it only with the Background GPU Access
+     capability (`com.apple.developer.background-tasks.continued-processing.gpu`, iOS 26), which Xcode 27.0 lists
+     and can provision. Inference: that, more than the inference entitlement, is why a background import stops
+     today. Four calls in flight gave bit-identical vectors (same probe). Recorded in row
+     https://app.notion.com/p/3f549a74d54f81ecb6ecd600e800db07 .
+  7. *After the commit:* device build 13 of `2a33196` succeeded at 11:53 PT without the provisioning flag
+     (`/private/tmp/oi-57-device13.log`) and is the one at `/private/tmp/oi-install/OpenIntelligence.app` that the
+     waiting job installs.
+  8. *Not done:* anything for interface sluggishness beyond the audit's readings. No measurement was possible with
      the phone away, and no interface code was changed without one.
 
 - **2026-10-10, 00:10 to 10:20 PT: the 88.50 MB file is in, and the night found five more defects, all changed in
@@ -632,7 +649,11 @@ in it, left shut down).
   and the provisioning build both times; do not try another route. What he does: add
   `<key>com.apple.developer.background-tasks.continued-processing.inference</key><true/>` to
   `OpenIntelligence/OpenIntelligence.entitlements` and build to the phone once from Xcode. If signing refuses the
-  key, it has to be requested from Apple.
+  key, it has to be requested from Apple. **The GPU key matters first** (Status, midday, item 6): add
+  `<key>com.apple.developer.background-tasks.continued-processing.gpu</key><true/>` (Xcode: Signing & Capabilities,
+  Background GPU Access). With it the code that is already there asks for the GPU in a background import. The
+  inference key matters once the model runs on the Neural Engine, which needs the model exported again with the
+  attention mask as numbers; that needs `coreai-torch` downloaded, which he has not been asked for by name.
   The other way (embed with the Core ML copy of the model on the CPU while in the background) touches
   `CoreAISentenceEmbeddingProvider.swift` or `EmbeddingService.swift`; the provider file is out of bounds until he
   names it. Verify first: read the expiry line the new build writes (`expired ... thermal=..., lowPower=...`) from
@@ -921,7 +942,12 @@ in it, left shut down).
 
 ## Exact Next Action
 
-1. **Read the phone benchmark and choose the embedding settings from it.** When
+1. **Read the phone benchmark and choose the embedding settings from it.** The question it now has to answer first:
+   is Core AI `default` on the phone the same speed as `prefer gpu` and `prefer neuralEngine` (then the model is on
+   the GPU there too), and how does Core ML `all` or `cpuAndNeuralEngine` compare (the Core ML copy of the model
+   does run on the Neural Engine: 150 of 161 operations on the Mac's plan)? If Core ML on the Neural Engine is much
+   faster on the phone, the lever is the model export or the provider default for new libraries, not calls in
+   flight. When
    `scratchpad/phone2/embedding_bench.json` says `"finished" : true` (see `scratchpad/phone_bench.out`), compare
    Core AI `default`, `prefer gpu` and `prefer neuralEngine` at 1, 2 and 4 calls in flight, and Core ML `cpuOnly`.
    Change `CoreAISentenceEmbeddingProvider.swift` (named by the owner's go-ahead of 2026-10-10) only where the
