@@ -5047,6 +5047,12 @@ extension AgenticOrchestrator {
                 Log.debug("[ReasoningChain] Session \(sessionNum)/\(config.sessionCount)", category: .llm)
             }
 
+            // A one second gap between sessions while the system asks apps to scale back (iOS 27).
+            // The session count is not cut: the answer stays as deep, and takes longer.
+            if sessionIndex > 0, await SystemResourceAdvice.easeOff(for: .seconds(1)) {
+                Log.debug("[ReasoningChain] Eased off before session \(sessionNum): the system asked for less", category: .llm)
+            }
+
             if Task.isCancelled { break }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -5224,10 +5230,11 @@ extension AgenticOrchestrator {
                     )
                     break  // Success - exit retry loop
                 } catch {
-                    let errorDesc = error.localizedDescription.lowercased()
-                    let isContextOverflow =
-                        errorDesc.contains("context") || errorDesc.contains("exceeded") || errorDesc.contains("4096")
-                        || errorDesc.contains("token")
+                    // By the error's type (`ModelErrorClassifier`). The words "context", "exceeded",
+                    // "4096" and "token" were tested one at a time here, so the unsupported-language
+                    // message ("Try rephrasing with more context") was treated as an overflow.
+                    let failureKind = ModelErrorClassifier.kind(of: error)
+                    let isContextOverflow = failureKind == .contextOverflow
 
                     if isContextOverflow && retryCount < maxRetries {
                         Log.warning(
@@ -5286,13 +5293,10 @@ extension AgenticOrchestrator {
                     // never too large. Matching on the SDK type as well as the text
                     // because `localizedDescription` collapses to the same generic
                     // "Failed to parse generated content" for several causes.
-                    let errorDetail = String(describing: error).lowercased()
-                    let isTransientGenerationFailure =
-                        errorDetail.contains("parsingerror")
-                        || errorDetail.contains("without producing a response")
-                        || errorDesc.contains("failed to parse generated content")
-                        || errorDesc.contains("rate limit")
-                        || errorDesc.contains("rate-limited")
+                    // The classifier knows both messages the app writes for an unreadable
+                    // response. The text test here knew one, so "could not be parsed" was never
+                    // retried.
+                    let isTransientGenerationFailure = failureKind == .transient || failureKind == .rateLimited
 
                     if isTransientGenerationFailure && retryCount < maxRetries {
                         Log.warning(
@@ -6511,6 +6515,12 @@ extension AgenticOrchestrator {
         // THE UNLIMITED LOOP - runs until confidence OR exhaustion
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         for sessionNum in 1...effectiveMaxSessions {
+            // A one second gap between sessions while the system asks apps to scale back (iOS 27),
+            // as in the reasoning chain. The loop had no cancellation check of its own.
+            if sessionNum > 1 {
+                await SystemResourceAdvice.easeOff(for: .seconds(1))
+                try Task.checkCancellation()
+            }
             let evidenceCoverageTarget = unlimitedPolicy.evidenceCoverageTarget(
                 for: factBank.subQuestions.count
             )

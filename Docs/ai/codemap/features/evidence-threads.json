@@ -4,7 +4,7 @@
   "name": "Evidence Threads",
   "aliases": ["Evidence Threads", "thread sidebar", "thread store", "conversation history", "saved chats", "thread list", "chat history"],
   "purpose": "Keeps each conversation as a thread tied to the evidence its answers used, and lets the user switch between threads.",
-  "revision": "7025657",
+  "revision": "af7aaf9",
   "verified_on": "2026-10-09",
   "entry_points": ["EvidenceThread", "EvidenceThreadStore", "RAGService.createNewThread", "RAGService.persistChatHistory", "ThreadSidebarView", "QuotaPolicy.evidenceThreadLimit", "WorkspaceSyncService.synchronizeEvidenceThreads"],
   "files": [
@@ -15,7 +15,7 @@
     {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "d95547af52c9334d1bb4a5ff2fc0c68f4279568a"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "role": "shared", "blob": "280adf492488b3c93175acbbc2a2bf64c3b6c13e"},
     {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "453f56d4ed18f3bfd2345b9048d19a77d61250dd"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "c41a1adb6f8747c32664b98bf412ee3d668f138d"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "1f06c629b26e2b72cefbf4696c07cc8e94b98cca"},
     {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "adec5c17bc92d6d2d7da9668c327d9c30dbcff39"}
   ],
   "nodes": [
@@ -78,5 +78,29 @@
   "entries": ["OpenIntelligence/Core/Models/EvidenceThread.swift::EvidenceThread", "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift::EvidenceThreadStore", "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift::RAGService.createNewThread", "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift::RAGService.persistChatHistory", "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift::ThreadSidebarView", "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift::QuotaPolicy.evidenceThreadLimit", "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::WorkspaceSyncService.synchronizeEvidenceThreads"],
   "owns": ["OpenIntelligence/Core/Models/EvidenceThread.swift", "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "OpenIntelligence/Features/Debug/EvidenceThreadDebugView.swift"],
   "decisions": [],
-  "traps": ["Threads wrap ChatMessage, which is Tier 2: it is persisted as monolithic JSON arrays, so any shape change breaks existing chat history (Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md)."]
+  "traps": ["Threads wrap ChatMessage, which is Tier 2: it is persisted as monolithic JSON arrays, so any shape change breaks existing chat history (Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md)."],
+  "derived": {
+    "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
+    "nodes": [
+      {"id": "EvidenceThreadDebugService", "kind": "service", "path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "line": 13, "match": "final class EvidenceThreadDebugService: ObservableObject {", "status": "VERIFIED"},
+      {"id": "EvidenceThreadDebugView", "kind": "view", "path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugView.swift", "line": 12, "match": "struct EvidenceThreadDebugView: View {", "status": "VERIFIED"},
+      {"id": "test:EvidenceThreadStoreTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 9, "match": "final class EvidenceThreadStoreTests: XCTestCase {", "status": "VERIFIED"}
+    ],
+    "edges": [
+      {"from": "ThreadSidebarView", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 14, "match": "@State private var threads: [EvidenceThread] = []"}]},
+      {"from": "EvidenceThreadDebugService", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "line": 14, "match": "@Published var threads: [EvidenceThread] = []"}]},
+      {"from": "EvidenceThreadDebugService", "type": "depends_on", "to": "EvidenceThreadStore", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "line": 17, "match": "private let store: EvidenceThreadStore"}]},
+      {"from": "EvidenceThreadDebugView", "type": "depends_on", "to": "EvidenceThreadDebugService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugView.swift", "line": 13, "match": "@StateObject private var service = EvidenceThreadDebugService()"}]},
+      {"from": "EvidenceThreadStore", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 84, "match": "func saveThread(_ thread: EvidenceThread) throws {"}]},
+      {"from": "EvidenceThread", "type": "tested_by", "to": "test:EvidenceThreadStoreTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 12, "match": "var testThread: EvidenceThread!"}]},
+      {"from": "EvidenceThreadStore", "type": "tested_by", "to": "test:EvidenceThreadStoreTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 10, "match": "var store: EvidenceThreadStore!"}]},
+      {"from": "EvidenceThread", "type": "depends_on", "to": "feature:chat-conversation-view", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/EvidenceThread.swift", "line": 16, "match": "var messages: [ChatMessage]"}], "note": "via ChatMessage"},
+      {"from": "ThreadSidebarView", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 10, "match": "@ObservedObject var ragService: RAGService"}], "note": "via RAGService"},
+      {"from": "ThreadSidebarView", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 23, "match": ".font(DSTypography.title)"}], "note": "via DSTypography, DSColors, DSSpacing"},
+      {"from": "ThreadSidebarView", "type": "depends_on", "to": "feature:billing-and-quotas", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 31, "match": "} catch let quotaError as EvidenceThreadQuotaError {"}], "note": "via EvidenceThreadQuotaError"},
+      {"from": "EvidenceThreadDebugService", "type": "depends_on", "to": "feature:chat-conversation-view", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "line": 40, "match": "ChatMessage(role: .user, content: \"Hello, this is a mock diagnostic thread.\"),"}], "note": "via ChatMessage"},
+      {"from": "EvidenceThreadStore", "type": "depends_on", "to": "feature:icloud-workspace-synchronization", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 92, "match": "try WorkspaceSyncService.coordinatedWriteData(data, to: fileURL)"}], "note": "via WorkspaceSyncService"}
+    ],
+    "edges_omitted": 0
+  }
 }

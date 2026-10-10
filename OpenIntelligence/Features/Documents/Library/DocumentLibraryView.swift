@@ -477,6 +477,21 @@ struct DocumentLibraryView: View {
                 presentDocumentPickerOrUpgrade()
             }
 
+            // A copied file, web address or text. The same chip as its neighbours; what it stores
+            // takes the plan check and the import review that a file handed over by another app
+            // takes.
+            LibraryPasteButton { staged in
+                DSHaptics.drop()
+                importOpenedFiles(staged)
+            } label: { isWorking in
+                DocumentActionChipLabel(
+                    title: "Paste",
+                    systemImage: isWorking ? "hourglass" : "doc.on.clipboard",
+                    isEnabled: !isWorking,
+                    iconOnly: true
+                )
+            }
+
             DocumentActionChip(
                 title: "Semantic Search",
                 systemImage: "sparkle.magnifyingglass",
@@ -1341,6 +1356,12 @@ struct DocumentLibraryView: View {
                 // "Add a Document" from Siri, Shortcuts or a link ends here, at the file picker.
                 if AppNavigationRequest.shared.take(where: { $0 == .addDocument }) != nil {
                     presentDocumentPickerOrUpgrade()
+                }
+
+                // "Find in Library" from the menu, a keyboard or a link. The search needs something
+                // to search, as its button on this screen does.
+                if AppNavigationRequest.shared.take(where: { $0 == .search }) != nil, !ragService.documents.isEmpty {
+                    showingSemanticSearch = true
                 }
             }
             .sheet(isPresented: $showingFilePicker) {

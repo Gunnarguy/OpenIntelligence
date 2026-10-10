@@ -44,6 +44,9 @@ struct SystemStateSnapshot: Sendable, Equatable {
     let processorCount: Int
     let activeProcessorCount: Int
     let isLowPowerModeEnabled: Bool
+    /// iOS 27: the system would prefer apps to scale back resource-heavy work. False on macOS and
+    /// on iOS 26.
+    let systemPrefersReducedResourceUsage: Bool
 
     // REAL CPU Utilization (via Mach APIs - same as Xcode Energy Impact)
     let systemCpuUsage: Double  // System-wide CPU % (0.0-100.0)
@@ -127,7 +130,7 @@ struct SystemStateSnapshot: Sendable, Equatable {
     var hasWarning: Bool {
         thermalState == .serious || thermalState == .critical || memoryPressure == .warning
             || memoryPressure == .critical || (batteryLevel >= 0 && batteryLevel < 0.10 && !isCharging)
-            || isLowPowerModeEnabled
+            || isLowPowerModeEnabled || systemPrefersReducedResourceUsage
     }
 
     /// Whether any metric is in a critical state
@@ -300,6 +303,7 @@ final class SystemStateMonitor: ObservableObject {
     private var batteryStateObserver: NSObjectProtocol?
     private var lowPowerObserver: NSObjectProtocol?
     private var memoryObserver: NSObjectProtocol?
+    private var reducedResourceObserver: NSObjectProtocol?
 
     // MARK: - Initialization
 
@@ -311,6 +315,7 @@ final class SystemStateMonitor: ObservableObject {
 
         // Capture initial state
         currentState = Self.captureState()
+        SystemResourceAdvice.set(prefersReducedUsage: currentState.systemPrefersReducedResourceUsage)
 
         // Setup observers
         setupObservers()
@@ -321,7 +326,10 @@ final class SystemStateMonitor: ObservableObject {
 
     deinit {
         timer?.invalidate()
-        [thermalObserver, batteryLevelObserver, batteryStateObserver, lowPowerObserver, memoryObserver]
+        [
+            thermalObserver, batteryLevelObserver, batteryStateObserver, lowPowerObserver, memoryObserver,
+            reducedResourceObserver,
+        ]
             .compactMap { $0 }
             .forEach { NotificationCenter.default.removeObserver($0) }
     }
@@ -504,6 +512,7 @@ final class SystemStateMonitor: ObservableObject {
             processorCount: processorCount,
             activeProcessorCount: activeProcessorCount,
             isLowPowerModeEnabled: isLowPowerMode,
+            systemPrefersReducedResourceUsage: Self.systemPrefersReducedResourceUsage(),
             systemCpuUsage: systemCpuUsage,
             processCpuUsage: processCpuUsage,
             systemUptime: uptime,
@@ -531,9 +540,20 @@ final class SystemStateMonitor: ObservableObject {
         return ProcessInfo.processInfo.physicalMemory / 2
     }
 
+    /// UIKit only. The macOS SDK has no equivalent.
+    private static func systemPrefersReducedResourceUsage() -> Bool {
+        #if canImport(UIKit) && compiler(>=6.4)
+            if #available(iOS 27.0, *) {
+                return UIApplication.shared.systemPrefersReducedResourceUsage
+            }
+        #endif
+        return false
+    }
+
     private func updateState() {
         let newState = Self.captureState()
         currentState = newState
+        SystemResourceAdvice.set(prefersReducedUsage: newState.systemPrefersReducedResourceUsage)
 
         // Add to history
         stateHistory.append(newState)
@@ -616,6 +636,22 @@ final class SystemStateMonitor: ObservableObject {
                 }
             }
         }
+
+        // The system's request to scale back (iOS 27). The handler only re-reads the value: Apple
+        // says not to start expensive work because it changed.
+        #if canImport(UIKit) && compiler(>=6.4)
+            if #available(iOS 27.0, *) {
+                reducedResourceObserver = NotificationCenter.default.addObserver(
+                    forName: UIApplication.systemPrefersReducedResourceUsageDidChangeNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.updateState()
+                    }
+                }
+            }
+        #endif
 
         // Memory warnings
         #if canImport(UIKit)

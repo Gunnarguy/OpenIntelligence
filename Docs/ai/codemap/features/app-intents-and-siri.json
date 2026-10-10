@@ -4,7 +4,7 @@
   "name": "App Intents and Siri",
   "aliases": ["Shortcuts", "Siri", "App Shortcuts", "App Intents", "screen awareness intents", "visual intelligence intents"],
   "purpose": "Lets Siri and Shortcuts search, import into and ask the library, and works with what is on screen.",
-  "revision": "7025657",
+  "revision": "af7aaf9",
   "verified_on": "2026-10-09",
   "entry_points": ["RAGAppShortcutsProvider", "QueryDocumentsIntent", "SearchLibraryIntent", "IngestDocumentIntent", "AnalyzeImageIntent"],
   "files": [
@@ -13,7 +13,7 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/OILibraryEntity.swift", "role": "primary", "blob": "55dd8af91f471bc37c36528f24a8f4b8df3021f7"},
     {"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "role": "primary", "blob": "7c337e501a69ebd9c1d37580c286e9c68860e63c"},
     {"path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "role": "primary", "blob": "a1f27a95b9c3dbdf36a7aad9dbb4b4fc7304d06b"},
-    {"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "role": "primary", "blob": "6337c8da99d6bf6ed8993c457a4d12cce87760be"},
+    {"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "role": "primary", "blob": "ec5cf990630aba7ea5b8c11ffeb5d0a37637feec"},
     {"path": "OpenIntelligence/Services/Agentic/IntentSupport.swift", "role": "primary", "blob": "a9faca9f7045af177ff4c410b52bf0c475953cb5"},
     {"path": "OpenIntelligence/Services/Agentic/SearchPassagesIntent.swift", "role": "primary", "blob": "7c92928e02d4afb3d66a4afae951f45631b6d304"},
     {"path": "OpenIntelligence/Services/Agentic/AddToLibraryIntent.swift", "role": "primary", "blob": "22f88bc00ee9c9c31f022ed6af3d23e74a6cf84e"},
@@ -23,10 +23,11 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIPassageEntity.swift", "role": "primary", "blob": "6b1c19b2bd5a7acbeb4da62f150659ee894fdb44"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIThreadEntity.swift", "role": "primary", "blob": "6a86a0c2870f0e2f858c19e175ce5bccaa3a446e"},
     {"path": "OpenIntelligenceTests/Services/Agentic/OIEntityMappingTests.swift", "role": "test", "blob": "bfb9b6390b6b199b4f505dcad3267862e4813de1"},
-    {"path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "role": "primary", "blob": "7c922fd4fc7aa280a30eb1c0d8cc5d6ba4dba501"},
+    {"path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "role": "primary", "blob": "2eaf252848491c783ada097dfbc99368485718a0"},
     {"path": "OpenIntelligence/Services/Agentic/OpenItemIntents.swift", "role": "primary", "blob": "c7c7338320156239071ba37ece5d034c201ae537"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/AppLinkTests.swift", "role": "test", "blob": "6a7429975e9fb5cbadb9bcb1e927118ef7a45d66"},
-    {"path": "OpenIntelligenceTests/App/AppShortcutsProviderTests.swift", "role": "test", "blob": "74efc7d10db2b1a3d07a42b918e73bc71897e736"}
+    {"path": "OpenIntelligenceTests/Services/Agentic/AppLinkTests.swift", "role": "test", "blob": "7c8aa7fc2a9578311dbfe1f4429c3c90ba140f49"},
+    {"path": "OpenIntelligenceTests/App/AppShortcutsProviderTests.swift", "role": "test", "blob": "74efc7d10db2b1a3d07a42b918e73bc71897e736"},
+    {"path": "OpenIntelligence/UI/Components/SiriPhraseTip.swift", "role": "primary", "blob": "38bdd28e6babe9c9ea41d68f766c39fc2eacee7b"}
   ],
   "nodes": [
     {"id": "RAGAppShortcutsProvider", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 371, "match": "struct RAGAppShortcutsProvider: AppShortcutsProvider {", "status": "VERIFIED", "by": "build"},
@@ -48,7 +49,7 @@
     {"id": "RAGAppShortcutsProvider.appShortcuts", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 372, "match": "static var appShortcuts: [AppShortcut] {", "status": "VERIFIED", "by": "build"},
     {"id": "AnalyzeImageIntent", "kind": "model", "path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 22, "match": "struct AnalyzeImageIntent: AppIntent {", "status": "VERIFIED", "by": "build"},
     {"id": "VisualEvidenceMetadata", "kind": "model", "path": "OpenIntelligence/Services/RAG/Evidence/VisualEvidenceSource.swift", "line": 12, "match": "struct VisualEvidenceMetadata: Codable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "VisualAnalysisSnippetView", "kind": "view", "path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 247, "match": "struct VisualAnalysisSnippetView: View {", "status": "VERIFIED", "by": "build"}
+    {"id": "VisualAnalysisSnippetView", "kind": "view", "path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 241, "match": "struct VisualAnalysisSnippetView: View {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "RAGAppShortcutsProvider", "type": "depends_on", "to": "QueryDocumentsIntent", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 374, "match": "intent: QueryDocumentsIntent(),"}], "by": "build", "note": "constructs it"},
@@ -65,11 +66,10 @@
     {"from": "IngestDocumentIntent", "type": "depends_on", "to": "ScreenAwarenessSnippetView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "line": 74, "match": "view: ScreenAwarenessSnippetView("}], "by": "build", "note": "constructs it"},
     {"from": "IngestDocumentIntent", "type": "calls", "to": "RAGService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "line": 68, "match": "_ = IntentSupport.engine().enqueueDocuments([stored])"}], "by": "build", "note": "through IntentSupport.engine(), which returns the presented engine or builds one"},
     {"from": "RAGAppShortcutsProvider.appShortcuts", "type": "depends_on", "to": "IngestDocumentIntent", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 448, "match": "intent: IngestDocumentIntent(),"}], "by": "build", "note": "constructs it"},
-    {"from": "AnalyzeImageIntent", "type": "depends_on", "to": "ErrorSnippetView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 59, "match": "view: ErrorSnippetView(message: \"No text detected\")"}], "by": "build", "note": "constructs it"},
     {"from": "AnalyzeImageIntent", "type": "calls", "to": "RAGService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 65, "match": "let ragService = await MainActor.run { RAGService.activePresentedInstance ?? RAGService() }"}], "by": "build", "note": "constructs it"},
     {"from": "AnalyzeImageIntent", "type": "depends_on", "to": "InferenceConfig", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 66, "match": "let config = InferenceConfig(maxTokens: 300, temperature: 0.7)"}], "by": "build", "note": "constructs it"},
     {"from": "AnalyzeImageIntent", "type": "depends_on", "to": "VisualEvidenceMetadata", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 69, "match": "let metadata = VisualEvidenceMetadata("}], "by": "build", "note": "constructs it"},
-    {"from": "AnalyzeImageIntent", "type": "depends_on", "to": "VisualAnalysisSnippetView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 86, "match": "view: VisualAnalysisSnippetView("}], "by": "build", "note": "constructs it"},
+    {"from": "AnalyzeImageIntent", "type": "depends_on", "to": "VisualAnalysisSnippetView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 87, "match": "view: VisualAnalysisSnippetView("}], "by": "build", "note": "constructs it"},
     {"from": "IngestDocumentIntent", "type": "calls", "to": "RAGService.enqueueDocuments", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "line": 68, "match": "_ = IntentSupport.engine().enqueueDocuments([stored])"}], "by": "build", "note": "named in the body"}
   ],
   "docs": [],
@@ -98,7 +98,7 @@
       {"id": "OIAnswerEntity", "kind": "model", "path": "OpenIntelligence/Services/Agentic/Entities/OIAnswerEntity.swift", "line": 15, "match": "struct OIAnswerEntity: TransientAppEntity {", "status": "VERIFIED"},
       {"id": "OIAnswerMode", "kind": "model", "path": "OpenIntelligence/Services/Agentic/Entities/OIAnswerModeAppEnum.swift", "line": 14, "match": "enum OIAnswerMode: String, AppEnum, CaseIterable, Sendable {", "status": "VERIFIED"},
       {"id": "OIThreadEntity", "kind": "model", "path": "OpenIntelligence/Services/Agentic/Entities/OIThreadEntity.swift", "line": 11, "match": "struct OIThreadEntity: AppEntity {", "status": "VERIFIED"},
-      {"id": "AppNavigationRequest", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "line": 126, "match": "final class AppNavigationRequest {", "status": "VERIFIED"}
+      {"id": "AppNavigationRequest", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "line": 137, "match": "final class AppNavigationRequest {", "status": "VERIFIED"}
     ],
     "edges": [
       {"from": "OIDocumentEntity", "type": "depends_on", "to": "OIDocumentEntityQuery", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/Entities/OIDocumentEntity.swift", "line": 69, "match": "static var defaultQuery = OIDocumentEntityQuery()"}]},
@@ -142,6 +142,6 @@
       {"from": "CreateNewEvidenceThreadIntent", "type": "depends_on", "to": "AppNavigationRequest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 959, "match": "AppNavigationRequest.post(.newConversation(libraryId: containerId))"}]},
       {"from": "CreateNewEvidenceThreadIntent", "type": "depends_on", "to": "OIIntentError", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 962, "match": "throw OIIntentError(\"A new conversation could not be started. \\(error.localizedDescription)\")"}]}
     ],
-    "edges_omitted": 61
+    "edges_omitted": 64
   }
 }

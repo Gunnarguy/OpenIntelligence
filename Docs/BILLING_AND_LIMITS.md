@@ -327,3 +327,17 @@ redemption per customer per offer. An offer can be a discounted price rather tha
 
 Prefer offer codes over a price change for win-back and targeted outreach: they never touch the
 public price and each redemption is attributable.
+
+**Redeeming a code in the app (5.7).** The plans sheet has a "Redeem a Code" button under Restore
+Purchases. It presents Apple's redemption sheet: `offerCodeRedemption(options:isPresented:onCompletion:)`
+on iOS 27 and macOS 27, whose result is the transaction the redemption produced, and the call it
+replaces on iOS 26 and macOS 26, whose result only says the sheet was shown. Apple's page for the
+call says a code is redeemed through that sheet and not through an interface of the app's own. A
+redeemed transaction reaches the app through the `Transaction.updates` listener that purchases
+already use. On 27, where the transaction is handed back, the sheet also reads the current
+entitlements again two seconds later; on 26 it re-reads nothing, because a closed sheet says
+nothing about a redemption. A product
+identifier outside `BillingProduct` is dropped by that listener, so a code has to be for one of the
+app's own products. `[evidence_level: build_verified for the button and sheet, documented for Apple's behaviour; confidence: high; evidence_source: PlanUpgradeSheet.swift, RedeemCodeEntry.swift, RedeemCodeOutcomeTests; developer.apple.com/documentation/swiftui/view/offercoderedemption(options:ispresented:oncompletion:), fetched 2026-10-09; the StoreKit interface in the Xcode 27.0 SDK]`
+No code has been redeemed with it, in the sandbox or anywhere else. `RedeemOption`, the type of the
+new call's options, has no values in the Xcode 27.0 SDK, so the set passed is empty.

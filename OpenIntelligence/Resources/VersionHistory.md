@@ -15,9 +15,14 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **JSON and JSONL files import as records.** A .json, .jsonl or .ndjson file used to come in as one long run of raw text, and a .jsonl file couldn't even be chosen in the file picker.  Now each record is its own passage, with its field names and its numbers kept exactly as the file has them, so a chat export, a log or a dataset can be searched and cited one record at a time.  A line that isn't valid JSON is kept the way it was written.
 - **OpenIntelligence shows up under "Open in".** A PDF, a text or Markdown file, a CSV, a JSON file, a Word, Excel or PowerPoint file or an image can be sent to the app from Files, Mail or a share sheet, and on the Mac by dropping it on the app's icon.  It goes through the same import check as a file you pick in the app.
 - **Long passages are stored the way your document wrote them.** When a passage was too long to index in one piece, the app split it and re-typed it on the way, so "$75.50" could be stored as "$75. 50" and a question mark could become a period.  Now it's cut at line and sentence ends and nothing is re-typed.  A document you already imported keeps the old text until it's imported again.
+- **Paste into a library.** The Documents screen has a Paste button.  A file you copied is copied in, a web address is downloaded the same way "Save a Web Page" does it, and text is saved as a note.  A copied PDF or picture works too.  Whatever you paste goes through the same import check as a file you pick.  On iPhone and iPad, iOS may ask you to allow the paste when what you copied came from another app.
+- **Big text files don't freeze the app anymore.** A big text file used to freeze the app while it imported, sometimes for minutes, and iOS could close the app while it was stuck.  The step that cuts a file into passages was re-reading the rest of the file for every passage, and it ran on the same thread as the screen.  Now it reads each part once and runs in the background, the import shows how far along it is, and Cancel works while it runs.
+- **A file that's too long says so.** One document can hold 50,000 passages.  A longer file used to be cut off there without telling you.  Now the import stops with a message that says to split the file into smaller ones.
+- **Recordings use Apple's newer transcriber.** The app had code for Apple's long-form speech transcriber that was never actually built into it, so every audio or video file went through the older recognizer.  Now a recording goes to the newer one first, and to the older one if the newer one can't take it.  Both run on your device.
+- **Pictures are described from the picture.** When you import a document with figures, or a photo, the app asks Apple's model for a sentence or two about each picture so search can find it.  It turns out the picture itself was never sent, only the labels another tool had guessed for it.  On iOS 27 and macOS 27 the model is shown the image now, on your device.
 
 ### Shortcuts and Siri
-- **Actions hand back what they found.** Asking a question from Shortcuts used to show a card and give the shortcut nothing to work with.  Now the ask actions return the answer with its sources, List Documents returns the documents, and List Conversations returns the conversations, so the next step of a shortcut can use them.  When an action can't do its job it stops the shortcut and says why, where it used to report success with an apology inside.
+- **Actions hand back what they found.** Asking a question from Shortcuts used to show a card and give the shortcut nothing to work with.  Now the ask actions return the answer with its sources, List Documents returns the documents, and List Conversations returns the conversations, so the next step of a shortcut can use them.  When an action can't do its job it stops the shortcut and says why, where it used to report success with an apology inside.  "Ask About an Image" and "Search with a Photo" hand back their text as well.
 - **You can pick the mode.** "Ask My Documents" and "Ask a Library" have a Mode menu: Standard, Deep Think or Maximum.  On the free plan, Maximum from Shortcuts counts against the same daily allowance as Maximum in the app.
 - **"Ask About a Document" only reads that document.** It used to put the file's name in the question and search the whole library, so the answer could come from a different document.  Now it's searched inside the one you picked and nowhere else, and so are Summarize a Document and Compare Two Documents.  These three answer in Standard.
 - **Plainer names.** "Query Documents" is "Ask My Documents", "Search Library" is "Ask a Library", "Ingest Document" is "Add a File" and "Ingest Webpage" is "Save a Web Page".
@@ -31,9 +36,14 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **A button into Shortcuts.** Settings, under Shortcuts, has a button that opens the Shortcuts app on OpenIntelligence's actions, and the list there names every action as Shortcuts shows it.
 - **"Add a File" keeps its file.** It queued the temporary copy that Shortcuts hands over, which the system can remove when the action ends.  Now the file is copied into the app first.
 - **Siri phrases are things you'd say.** "Ask OpenIntelligence a question", "Save this page to OpenIntelligence", "Find passages in OpenIntelligence".
+- **The Siri phrase shows up where you'd use it.** On iPhone and iPad, the empty Chat screen shows Apple's tip with the phrase for asking a question.  Close it and it stays closed.
 
 ### Spotlight
 - **A Spotlight result opens what you tapped.** Tapping a document or a library in Spotlight used to open the Documents tab of whatever library was active.  Now it switches to the right library.
+
+### Getting around
+- **Touch and hold the app icon.** Ask, Add Document and Scan Document are on the Home Screen, under the icon.
+- **Keyboard shortcuts.** On the Mac, and on an iPad with a keyboard: Shift-Command-N starts a new conversation, Command-O adds documents, Command-1 and Command-2 switch between Chat and Documents, Command-F opens the library's search, Command-] and Command-[ go to the next and previous library, and Command-comma opens Settings.
 
 ### Sharing
 - **A shared answer takes its sources with it.** Share used to send the answer's text and nothing else, so the [S1] and [S2] in it pointed at nothing.  Now the documents and pages it cites are listed under it, with the app's name and its App Store link at the end.
@@ -42,6 +52,17 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 
 ### Answers
 - **Sentences from your documents aren't cut in half.** Before the model writes, the app picks the sentences that match your question, and it was cutting them at every line break and after things like "p.m."  So an answer could be built from "on the 5th" without the first half of the sentence.  They stay whole now.
+- **Numbers are checked as numbers.** The check that compares the numbers in an answer with your documents used to pass a number if its digits showed up anywhere on the page.  An answer said a model had "2.5 billion" parameters, and it passed because another model in a table was named "Qwen-2.5-3B".  Now a number is compared as a number: "2.5 billion" isn't backed up by a "2.5" that's part of a name, and "2.5" doesn't pass because the page says "12.5".  A sentence with a figure your documents don't state shows as Partial in Fact Check, and the answer isn't marked Verified.
+- **A blank response gets one more try.** Sometimes Apple's model returns nothing the app can read.  When that happens while an answer is being written, Standard now waits two seconds and asks once more before it gives up.  Deep Think and Maximum already retried one of the ways that failure shows up, and now they retry all of them.
+
+### Notifications
+- **A notification when it's done.** Settings has a new Notifications page with one switch.  With it on, you get a notification when an import finishes, or when an answer that took more than 20 seconds is ready, if OpenIntelligence isn't in front.  It's off until you turn it on, and it never shows your question or a file name.
+
+### Plans
+- **Redeem a code.** The plans screen has a Redeem a Code button.  It opens Apple's sheet for offer codes.
+
+### When your device is busy
+- **The app eases off when iOS asks.** iOS 27 can tell apps to use less when the device is under pressure.  When it does, an import leaves a short gap between batches and Deep Think and Maximum leave a second between steps.  The answer isn't cut short.  It takes a little longer.
 
 ## v5.6 - October 8, 2026
 

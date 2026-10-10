@@ -533,6 +533,8 @@ struct ContentView: View {
             selectedTab = .chat
         case .documents:
             selectedTab = .documents
+        case .settings:
+            selectedTab = .settings
         case .importQueue:
             selectedTab = .documents
             NotificationCenter.default.post(
@@ -545,7 +547,7 @@ struct ContentView: View {
                 containerService.setActive(libraryId)
             }
             selectedTab = .documents
-        case .addDocument, .importFiles:
+        case .addDocument, .importFiles, .search:
             selectedTab = .documents
             return
         case .scanDocument:

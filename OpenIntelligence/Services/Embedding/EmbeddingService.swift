@@ -284,6 +284,8 @@ class EmbeddingService {
             allEmbeddings.reserveCapacity(texts.count)
 
             for batchStart in stride(from: 0, to: texts.count, by: batchSize) {
+                // Space the batches out while the system asks apps to scale back (iOS 27).
+                if batchStart > 0 { await SystemResourceAdvice.easeOff(for: .milliseconds(120)) }
                 try Task.checkCancellation()
                 let batchEnd = min(batchStart + batchSize, texts.count)
                 let batch = Array(texts[batchStart..<batchEnd])

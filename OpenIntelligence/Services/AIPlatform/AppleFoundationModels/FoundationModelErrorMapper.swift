@@ -107,10 +107,12 @@ struct FoundationModelErrorMapper {
                 title: "Generated content failed to parse",
                 metadata: ["rawContentChars": "\(raw.count)"]
             )
+            // `ModelErrorClassifier` reads these two messages back, so the callers that retry an
+            // unreadable response retry both.
             return .throwError(LLMError.generationFailed(
                 raw.isEmpty
-                    ? "Apple Intelligence ended the session without producing a response."
-                    : "Apple Intelligence returned a response that could not be parsed."
+                    ? ModelErrorClassifier.emptyResponseMessage
+                    : ModelErrorClassifier.unparsedResponseMessage
             ))
         }
 
@@ -327,9 +329,7 @@ struct FoundationModelErrorMapper {
                 ))
             case let .decodingFailure(context):
                 Log.error("[FM] Decoding failure: \(context)", category: .llm)
-                return .throwError(LLMError.generationFailed(
-                    "Failed to decode model response. This is an internal error—please try again."
-                ))
+                return .throwError(LLMError.generationFailed(ModelErrorClassifier.legacyDecodeFailureMessage))
             case let .concurrentRequests(context):
                 Log.warning("[FM] Concurrent requests blocked: \(context)", category: .llm)
                 return .throwError(LLMError.concurrentRequests(

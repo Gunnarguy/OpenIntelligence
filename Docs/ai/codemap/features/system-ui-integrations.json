@@ -1,30 +1,112 @@
 {
-  "schema": "codemap/1",
-  "id": "system-ui-integrations",
-  "name": "System UI Integrations",
-  "aliases": ["Image Playground", "TipKit tips", "first query tip", "ingest document tip"],
-  "purpose": "Opens Image Playground and shows the app's TipKit tips.",
-  "revision": "0e9728e",
-  "verified_on": "2026-09-28",
-  "entry_points": ["ImagePlaygroundService", "FirstQueryTip", "IngestDocumentTip"],
-  "files": [
-    {"path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "role": "primary", "blob": "9138cf4b3e46a720f98052cb699b74cc84a2643e"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "role": "primary", "blob": "59b3f8577c3f80bb436640954d151f0dbfb26c49"}
-  ],
-  "nodes": [
-    {"id": "ImagePlaygroundService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "line": 62, "match": "final class ImagePlaygroundService: ObservableObject {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.illustrateLastResponse", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2312, "match": "private func illustrateLastResponse() {", "status": "VERIFIED", "by": "build"},
-    {"id": "FirstQueryTip", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 17, "match": "struct FirstQueryTip: Tip {", "status": "VERIFIED", "by": "build"},
-    {"id": "IngestDocumentTip", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 42, "match": "struct IngestDocumentTip: Tip {", "status": "VERIFIED", "by": "build"}
-  ],
-  "edges": [
-    {"from": "ChatScreen.illustrateLastResponse", "type": "depends_on", "to": "ImagePlaygroundService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2316, "match": "ImagePlaygroundService.shared.onThinkingEvent = { event in"}], "by": "build", "note": "named there"}
-  ],
-  "docs": [],
-  "unknowns": [],
-  "related": ["chat-conversation-view"],
-  "entries": ["OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift::ImagePlaygroundService", "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift::FirstQueryTip", "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift::IngestDocumentTip"],
-  "owns": ["OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "OpenIntelligence/Services/Infrastructure/Tips/**"],
-  "decisions": [],
-  "traps": []
+ "schema": "codemap/1",
+ "id": "system-ui-integrations",
+ "name": "System UI Integrations",
+ "aliases": [
+  "Image Playground",
+  "TipKit tips",
+  "first query tip",
+  "ingest document tip"
+ ],
+ "purpose": "Opens Image Playground and shows the app's TipKit tips.",
+ "revision": "0e9728e",
+ "verified_on": "2026-09-28",
+ "entry_points": [
+  "ImagePlaygroundService",
+  "FirstQueryTip",
+  "IngestDocumentTip"
+ ],
+ "files": [
+  {
+   "path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift",
+   "role": "primary",
+   "blob": "9138cf4b3e46a720f98052cb699b74cc84a2643e"
+  },
+  {
+   "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift",
+   "role": "primary",
+   "blob": "59b3f8577c3f80bb436640954d151f0dbfb26c49"
+  },
+  {
+   "path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift",
+   "role": "primary",
+   "blob": ""
+  },
+  {
+   "path": "OpenIntelligenceTests/Services/Infrastructure/CompletionNotificationPolicyTests.swift",
+   "role": "test",
+   "blob": ""
+  }
+ ],
+ "nodes": [
+  {
+   "id": "ImagePlaygroundService",
+   "kind": "service",
+   "path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift",
+   "line": 62,
+   "match": "final class ImagePlaygroundService: ObservableObject {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ChatScreen.illustrateLastResponse",
+   "kind": "function",
+   "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+   "line": 2312,
+   "match": "private func illustrateLastResponse() {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FirstQueryTip",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift",
+   "line": 17,
+   "match": "struct FirstQueryTip: Tip {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "IngestDocumentTip",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift",
+   "line": 42,
+   "match": "struct IngestDocumentTip: Tip {",
+   "status": "VERIFIED",
+   "by": "build"
+  }
+ ],
+ "edges": [
+  {
+   "from": "ChatScreen.illustrateLastResponse",
+   "type": "depends_on",
+   "to": "ImagePlaygroundService",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+     "line": 2316,
+     "match": "ImagePlaygroundService.shared.onThinkingEvent = { event in"
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  }
+ ],
+ "docs": [],
+ "unknowns": [],
+ "related": [
+  "chat-conversation-view"
+ ],
+ "entries": [
+  "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift::ImagePlaygroundService",
+  "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift::FirstQueryTip",
+  "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift::IngestDocumentTip"
+ ],
+ "owns": [
+  "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift",
+  "OpenIntelligence/Services/Infrastructure/Tips/**"
+ ],
+ "decisions": [],
+ "traps": []
 }

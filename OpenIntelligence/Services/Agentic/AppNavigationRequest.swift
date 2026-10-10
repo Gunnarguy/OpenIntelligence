@@ -11,9 +11,12 @@ import Foundation
 nonisolated enum AppDestination: Equatable, Sendable {
     case chat
     case documents
+    case settings
     case importQueue
     /// The Documents tab with the file picker up.
     case addDocument
+    /// The Documents tab with the library's search up.
+    case search
     /// The chat with the camera capture up (iPhone and iPad).
     case scanDocument
     /// The chat on a new conversation, in a library when one is named.
@@ -42,12 +45,17 @@ nonisolated enum AppLink {
             components.host = "chat"
         case .documents:
             components.host = "documents"
+        case .settings:
+            components.host = "settings"
         case .importQueue:
             components.host = "documents"
             components.path = "/ingestion"
         case .addDocument:
             components.host = "documents"
             components.path = "/add"
+        case .search:
+            components.host = "documents"
+            components.path = "/search"
         case .scanDocument:
             components.host = "chat"
             components.path = "/scan"
@@ -90,8 +98,11 @@ nonisolated enum AppLink {
             switch path.first {
             case "ingestion": return .importQueue
             case "add": return .addDocument
+            case "search": return .search
             default: return .documents
             }
+        case "settings":
+            return .settings
         case "library":
             return path.first.flatMap(UUID.init(uuidString:)).map(AppDestination.library)
         case "document":

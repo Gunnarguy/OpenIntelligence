@@ -676,9 +676,26 @@ class ImageUnderstandingService {
                 followingContext: followingContext
             )
 
-            // Generate description
-            // Note: iOS 26 FoundationModels supports image attachments
-            // For now, we use text context since image attachment API may vary
+            // iOS 27 and macOS 27: the model is shown the image. Through 5.6 it was sent the labels a
+            // classifier gave the image and the text around it, and asked to describe a picture it
+            // had never been shown. If the attempt with the image fails, the text-only request
+            // below still runs, so a description is never lost to this.
+            #if compiler(>=6.4)
+                if #available(iOS 27.0, macOS 27.0, *),
+                    let seen = await describeAttachedImage(
+                        image,
+                        contentType: contentType,
+                        extractedText: extractedText,
+                        caption: caption,
+                        precedingContext: precedingContext,
+                        followingContext: followingContext
+                    )
+                {
+                    return seen
+                }
+            #endif
+
+            // Text only: the labels, the caption and the text around the image.
             let response = try await session.respond(to: prompt)
 
             let description = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -694,6 +711,108 @@ class ImageUnderstandingService {
         #endif
 
         return nil
+    }
+
+    #if canImport(FoundationModels) && compiler(>=6.4)
+        /// Describes the image by showing it to the on-device model. nil when the model here cannot
+        /// take an image, the image is a logo or too small to be a figure, the system has asked
+        /// apps to scale back, or the request fails.
+        @available(iOS 27.0, macOS 27.0, *)
+        private func describeAttachedImage(
+            _ image: CIImage,
+            contentType: ImageContentType,
+            extractedText: String?,
+            caption: String?,
+            precedingContext: String?,
+            followingContext: String?
+        ) async -> String? {
+            guard SystemLanguageModel.default.capabilities.contains(.vision),
+                contentType != .logo,
+                !SystemResourceAdvice.prefersReducedUsage,
+                let attached = Self.imageSizedForModel(image)
+            else { return nil }
+
+            let prompt = Self.attachedImagePrompt(
+                extractedText: extractedText,
+                caption: caption,
+                precedingContext: precedingContext,
+                followingContext: followingContext
+            )
+            // A session of its own. The text-only request that follows a failure here must be the
+            // request it always was, with no image turn ahead of it in the transcript.
+            let session = LanguageModelSession(
+                model: SystemLanguageModel.default,
+                instructions: Instructions("You describe images found in documents. Be concise and factual.")
+            )
+            do {
+                let response = try await session.respond(
+                    options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 256)
+                ) {
+                    prompt
+                    Attachment(attached)
+                }
+                let description = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !description.isEmpty else { return nil }
+                Log.info(
+                    "[ImageUnderstanding] Described from the image itself: \(description.prefix(100))...",
+                    category: .ingestion)
+                return description
+            } catch {
+                Log.warning(
+                    "[ImageUnderstanding] Describing from the image failed (\(error.localizedDescription)); "
+                        + "using its labels and text",
+                    category: .ingestion)
+                return nil
+            }
+        }
+    #endif
+
+    /// The image moved to the origin and scaled so its longest side is at most `maxSide`, or nil
+    /// when it has no finite size or its shorter side, after scaling, is under `minSide`: an icon, a
+    /// rule, a banner strip. Those keep the text-only description.
+    nonisolated static func imageSizedForModel(_ image: CIImage, maxSide: CGFloat = 1024, minSide: CGFloat = 96) -> CIImage? {
+        let extent = image.extent
+        guard !extent.isInfinite, !extent.isEmpty else { return nil }
+        let longest = max(extent.width, extent.height)
+        let scale = longest > maxSide ? maxSide / longest : 1
+        guard min(extent.width, extent.height) * scale >= minSide else { return nil }
+        var sized = image
+        if extent.origin != .zero {
+            sized = sized.transformed(by: CGAffineTransform(translationX: -extent.origin.x, y: -extent.origin.y))
+        }
+        return scale == 1 ? sized : sized.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
+
+    /// What the model is asked when it is shown the image. The notes come from text recognition and
+    /// from the page around the image; the classifier's labels are left out, because the model can
+    /// see what they were guessing at.
+    nonisolated static func attachedImagePrompt(
+        extractedText: String?,
+        caption: String?,
+        precedingContext: String?,
+        followingContext: String?
+    ) -> String {
+        var notes: [String] = []
+        if let caption, !caption.isEmpty { notes.append("Caption on the page: \(caption)") }
+        if let extractedText, !extractedText.isEmpty {
+            notes.append("Text recognised in the image: \(String(extractedText.prefix(500)))")
+        }
+        if let precedingContext, !precedingContext.isEmpty {
+            notes.append("Text before it on the page: \(String(precedingContext.prefix(220)))")
+        }
+        if let followingContext, !followingContext.isEmpty {
+            notes.append("Text after it on the page: \(String(followingContext.prefix(220)))")
+        }
+
+        var prompt = """
+            You are writing the text a search will use to find this image, which is attached.
+            Describe what it shows: its title or subject, the labels and values that can be read, and how its parts relate.
+            Two or three sentences. State only what is visible. Keep words, codes, numbers and units exactly as written.
+            """
+        if !notes.isEmpty {
+            prompt += "\n\nNotes from the page, to use only where they agree with the image:\n" + notes.joined(separator: "\n")
+        }
+        return prompt
     }
 
     /// Build a context-aware prompt for image description based on content type

@@ -117,7 +117,7 @@ struct SettingsView: View {
         case howItWorks, glossary
         case intelligenceMode, appleIntelligence, privateCloudCompute
         case librariesSync
-        case devicePerformance, appearance
+        case devicePerformance, appearance, notifications
         case plan, siriShortcuts
         case advanced, developer, about, versionHistory
     }
@@ -207,6 +207,13 @@ struct SettingsView: View {
                 subtitle: "Accent colour and the hardware HUD",
                 icon: "paintbrush", tint: .pink,
                 keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "glow", "haptics"]
+            ),
+            .init(
+                id: .notifications, group: .device,
+                title: "Notifications",
+                subtitle: "When an import or a long answer finishes",
+                icon: "bell.badge", tint: .red,
+                keywords: ["notifications", "notify", "alert", "banner", "finished", "import", "deep think", "maximum", "background"]
             ),
             .init(
                 id: .plan, group: .account,
@@ -541,6 +548,8 @@ struct SettingsView: View {
             detailScroll { contextWindowCard }
         case .appearance:
             detailScroll { appearanceCard }
+        case .notifications:
+            detailScroll { CompletionNotificationSettingsCard() }
         case .plan:
             detailScroll { billingCard }
         case .siriShortcuts:

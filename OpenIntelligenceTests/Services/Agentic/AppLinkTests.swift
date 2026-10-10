@@ -17,7 +17,7 @@ final class AppLinkTests: XCTestCase {
 
     func testEveryDestinationRoundTripsThroughItsLink() {
         let destinations: [AppDestination] = [
-            .chat, .documents, .importQueue, .addDocument, .scanDocument,
+            .chat, .documents, .settings, .importQueue, .addDocument, .search, .scanDocument,
             .newConversation(libraryId: nil), .newConversation(libraryId: id),
             .library(id), .document(id),
         ]
@@ -42,7 +42,7 @@ final class AppLinkTests: XCTestCase {
 
     func testOtherAddressesAreNotLinks() {
         XCTAssertNil(AppLink.destination(for: URL(string: "https://example.com/documents")!))
-        XCTAssertNil(AppLink.destination(for: URL(string: "openintelligence://settings")!))
+        XCTAssertNil(AppLink.destination(for: URL(string: "openintelligence://billing")!))
         XCTAssertNil(AppLink.destination(for: URL(string: "openintelligence://document/not-an-id")!))
         XCTAssertNil(AppLink.destination(for: URL(fileURLWithPath: "/tmp/Lease.pdf")))
     }

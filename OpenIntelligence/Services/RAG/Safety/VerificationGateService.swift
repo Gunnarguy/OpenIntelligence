@@ -357,7 +357,10 @@ actor VerificationGateService {
         }
 
         let corpus = buildCorpus(from: chunks)
-        let claimResults = claimInputs.map { evaluateClaim($0, in: chunks, corpus: corpus, query: query) }
+        let numericEvidence = Self.numericEvidence(from: chunks)
+        let claimResults = claimInputs.map {
+            evaluateClaim($0, in: chunks, corpus: corpus, numericEvidence: numericEvidence, query: query)
+        }
 
         let supportedCount = claimResults.filter { $0.verdict == .supported }.count
         let partialCount = claimResults.filter { $0.verdict == .partial }.count
@@ -398,8 +401,10 @@ actor VerificationGateService {
     /// If response contains numbers, verify they appear in source documents
     /// This gate catches HALLUCINATED numbers - keep it strict!
     private func runGateC(response: String, chunks: [RetrievedChunk]) async -> RAGVerificationResult.GateResult {
-        // Extract numbers from response
-        let responseNumbers = extractNumbers(from: response)
+        // The numbers the answer states, read as values (NumericValueExtractor): "2.5 billion" is
+        // compared as 2,500,000,000, and a number inside a name ("Qwen-2.5-3B") is matched as that
+        // name. Through 5.6 a number passed when its digits appeared anywhere in the evidence.
+        let responseNumbers = NumericValueExtractor.mentions(inAnswer: response).filter(NumericValueExtractor.isCountedByGate)
         guard !responseNumbers.isEmpty else {
             return RAGVerificationResult.GateResult(
                 gate: .numericSanity,
@@ -409,39 +414,19 @@ actor VerificationGateService {
             )
         }
 
-        // Extract numbers from source chunks (include parent content)
-        let sourceNumbers = Set(chunks.flatMap { chunk -> [String] in
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
-            return extractNumbers(from: content)
-        })
-
-        // Build full text for word-boundary matching
-        let sourceText = chunks.map { $0.chunk.parentContent ?? $0.chunk.content }.joined(separator: " ")
+        // Source passages, parent content included.
+        let evidence = Self.numericEvidence(from: chunks)
 
         // Check if response numbers appear in source
         var verifiedCount = 0
         var unverifiedNumbers: [String] = []
 
         for number in responseNumbers {
-            if sourceNumbers.contains(number) {
+            // Years (2024, 2025) are not penalized: they are commonly taken from document metadata.
+            if NumericValueExtractor.isSupported(number, by: evidence) || Self.isYear(number) {
                 verifiedCount += 1
             } else {
-                // Allow small variations (e.g., "5" matching "5.0")
-                let normalized = normalizeNumber(number)
-                if sourceNumbers.contains(where: { normalizeNumber($0) == normalized }) {
-                    verifiedCount += 1
-                } else if sourceText.contains(number) {
-                    // Number appears somewhere in source text (may be part of a larger value)
-                    verifiedCount += 1
-                } else {
-                    // Don't penalize year numbers (2024, 2025) or common page/section refs
-                    let isLikelyMetadata = isYearOrReference(number)
-                    if isLikelyMetadata {
-                        verifiedCount += 1
-                    } else {
-                        unverifiedNumbers.append(number)
-                    }
-                }
+                unverifiedNumbers.append(number.written)
             }
         }
 
@@ -471,7 +456,7 @@ actor VerificationGateService {
     /// (18 gallons), or doses (25 mg) fall in this range. Auto-verifying them
     /// would let hallucinated measurement values pass Gate C unchecked.
     /// Only years and explicit "Section X.Y" / "Figure N" patterns get a pass.
-    private func isYearOrReference(_ number: String) -> Bool {
+    private static func isYearOrReference(_ number: String) -> Bool {
         // Year pattern: 1900-2100 (covers historical through future documents)
         if let year = Int(number), year >= 1900, year <= 2100 {
             return true
@@ -479,6 +464,15 @@ actor VerificationGateService {
         // Section/figure references are typically formatted as "X.Y" — handled elsewhere.
         // Single integers 1-50 are NOT auto-verified because they could be real data.
         return false
+    }
+
+    /// A plain year, with no scale word after it.
+    private static func isYear(_ mention: NumericValueExtractor.Mention) -> Bool {
+        mention.identifier == nil && mention.scale == nil && isYearOrReference(mention.digits)
+    }
+
+    private static func numericEvidence(from chunks: [RetrievedChunk]) -> [NumericValueExtractor.Evidence] {
+        NumericValueExtractor.evidence(from: chunks.map { $0.chunk.parentContent ?? $0.chunk.content })
     }
 
     /// Gate D: Contradiction Sweep
@@ -1290,6 +1284,7 @@ actor VerificationGateService {
         _ claimInput: VerificationClaimInput,
         in chunks: [RetrievedChunk],
         corpus: String,
+        numericEvidence: [NumericValueExtractor.Evidence],
         query: String
     ) -> RAGVerificationResult.ClaimResult {
         let claimText = cleanClaimText(claimInput.claim)
@@ -1305,9 +1300,9 @@ actor VerificationGateService {
         let supportConfidence = claimSupportConfidence(for: claimText, evidence: supportingChunks)
         let resolvedEvidenceIds = supportingChunks.map { $0.chunk.id.uuidString }
 
-        let verdict: RAGVerificationResult.ClaimResult.Verdict
-        let confidence: Float
-        let details: String
+        var verdict: RAGVerificationResult.ClaimResult.Verdict
+        var confidence: Float
+        var details: String
 
         if !claimInput.citations.isEmpty {
             if !citedChunks.isEmpty && citedCoverage && supportConfidence >= 0.58 {
@@ -1341,6 +1336,21 @@ actor VerificationGateService {
             verdict = .unsupported
             confidence = min(0.20, max(0.05, supportConfidence * 0.5))
             details = "No reliable supporting evidence found in retrieved chunks"
+        }
+
+        // A sentence is not Supported while a figure it states is missing from the passages as a
+        // value. The term overlap above counts "2.5" as found when the passages only hold it inside
+        // a name, which is how "2.5 billion parameters" was Supported by a table row for
+        // "Qwen-2.5-3B".
+        if verdict == .supported,
+            let missing = NumericValueExtractor.firstUnsupportedMention(
+                in: claimText,
+                evidence: numericEvidence,
+                exempt: { !NumericValueExtractor.isCountedByGate($0) || Self.isYear($0) })
+        {
+            verdict = .partial
+            confidence = min(confidence, 0.55)
+            details = "The figure \(missing.written) is not stated in the retrieved passages"
         }
 
         return RAGVerificationResult.ClaimResult(
@@ -1507,7 +1517,9 @@ actor VerificationGateService {
             .replacingOccurrences(of: #"[^a-z0-9]"#, with: "", options: .regularExpression)
     }
 
-    /// Extract numbers from text (including decimals, fractions, percentages, spec codes)
+    /// Extract numbers from text (including decimals, fractions, percentages, spec codes).
+    /// Used for the claim check's term overlap only. The numeric gate reads values through
+    /// `NumericValueExtractor`.
     private func extractNumbers(from text: String) -> [String] {
         // Pattern matches: grade codes (0W-30, A2-70), integers, decimals, fractions, percentages
         let patterns = [
@@ -1526,17 +1538,6 @@ actor VerificationGateService {
             }
         }
         return allMatches
-    }
-
-    /// Normalize number for comparison (strip units, standardize format)
-    private func normalizeNumber(_ number: String) -> String {
-        // Remove units and whitespace
-        let cleaned = number.replacingOccurrences(of: #"\s*(mg|kg|ml|L|mm|cm|m|psi|kPa|%)"#, with: "", options: .regularExpression)
-        // Normalize decimal format
-        if let doubleValue = Double(cleaned) {
-            return String(format: "%.2f", doubleValue)
-        }
-        return cleaned
     }
 
     /// Detect contradictions in retrieved chunks

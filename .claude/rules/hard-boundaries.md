@@ -40,6 +40,6 @@ Each of these files guards something a compile-clean change can still break sile
 | `SQLiteFullTextService.swift` schema | The FTS5 index, which requires a full reindex to change |
 | `BNNSVectorDatabase.swift` format | On-disk vector format, same problem |
 | `QuotaPolicy.swift` tier limits | What each paid tier is allowed to do |
-| `RAGAppIntents.swift` shortcut count | 9 of 10 Siri shortcut slots are used; a tenth is a one-way door |
+| `RAGAppIntents.swift` shortcut count | 10 of 10 Siri shortcut slots are used since 5.7 (9 through 5.6); an eleventh stops every one registering, with no error |
 | `FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift` | Where a query executes, which is the app's central privacy promise |
 | `EngineSDKCompatibility.swift` | SDK availability gating across OS versions |

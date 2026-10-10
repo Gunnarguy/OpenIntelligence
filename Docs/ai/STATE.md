@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-09 (5.7 is open; four batches of it are written, build for iPhone and Mac, pass the suite, and are committed with `[ci skip]`; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
+Updated: 2026-10-09, night (5.7 is open; batches one to four are `af7aaf9`; the fifth, sixth and seventh, two controls rebuilt as the app's own, and the fix for a large text import that froze the owner's iPhone until iOS ended the app are in the commit after it, pushed with `[ci skip]`; that tree is on his iPhone as a development build; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 7025657
+Last verified commit: af7aaf9
 
 ## Objective
 
@@ -10,8 +10,13 @@ Last verified commit: 7025657
 Shortcuts, App Intents). The owner wants it mainly for iPhone and iPad, and as complete as it can be made.** He named it
 on 2026-10-08 and put 81 rows on `v5.7` in the roadmap that day (82 since a defect found on 10-09 was added). On
 2026-10-09 he said "proceed: implement", then "keep going", and named the protected files (see Active
-Constraints). `CHANGELOG.md` opens with `## 5.7 <!-- unreleased -->`, so the next source push builds 5.7. No 5.7
-record exists in App Store Connect; he creates it.
+Constraints). `CHANGELOG.md` opens with `## 5.7 <!-- unreleased -->`, so the next source push builds 5.7. He created the
+5.7 records in App Store Connect on 2026-10-09 (both platforms, PREPARE_FOR_SUBMISSION, release MANUAL, read back
+through the API that afternoon).
+
+On 2026-10-09, shown the list of what was next, he said the work was not done while the Apple model APIs the
+sweep had found were untouched. So the rows about the on-device model, speech, image input, Core AI and
+Evaluations are part of 5.7 too, and the sixth batch below is the first pass over them.
 
 5.6 ("the first five minutes") is live. Its device checks are still open and are listed under Exact Next Action.
 
@@ -20,9 +25,13 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Status
 
-- **2026-10-09, 5.7: four batches written, built, tested and committed with `[ci skip]`; nothing seen on a device.** One
-  entry per change is in `CHANGELOG.md` under 5.7, each with what was read, built or tested. 28 roadmap rows are
-  `In Progress`, none `Completed`. In the working tree:
+- **2026-10-09, 5.7: seven batches written, built, tested and committed with `[ci skip]`. One thing has been seen
+  on a device, and it was a crash: an 88.50 MB `.jsonl` froze the app during import and iOS ended it (below).** One
+  entry per change is in `CHANGELOG.md` under 5.7, each with what was read, built or tested. Of the 83 rows on
+  `v5.7`, 42 are `In Progress` and 41 `To Do`, none `Completed` (read from the roadmap on 2026-10-09, night; the
+  83rd is the import crash; each row carries a dated note and what closes it). A defect the new
+  evaluation suite found is filed on `Future Backlog`:
+  https://app.notion.com/p/3f449a74d54f812d9685f440b8fead30 . The first four groups are `af7aaf9`; the rest is the commit after it:
   - **Import.** `.json`, `.jsonl` and `.ndjson` import as one passage per record, with the file's order and digits
     kept (`JSONRecordExtractor`, its own reader). The app is offered files by other apps (`Info.plist` document
     types and a declared `.jsonl` type; `ContentView.importOpenedFile`). "Save a Web Page" downloads the page
@@ -42,7 +51,70 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
     picker and "Scan a Document" the camera. A shared answer lists its sources; Export Conversation (Markdown, JSON
     Lines); Copy works on the Mac; Settings lists the phrases and actions that exist.
   - **Answers.** Evidence sentences are not cut at a line break or after "p.m." (`EvidenceLineSplitter`).
-  - **`RAGService.swift` is edited in seven places** (14 hunks in `git diff`; the owner did not name this file, and
+  - **Fifth batch:** menu and keyboard commands for the Mac and iPad, and Home
+    Screen quick actions (Ask, Add Document, Scan Document), which gave the app a delegate for the first time.
+  - **Sixth batch (2026-10-09, afternoon and evening).** Each has an entry in `CHANGELOG.md` under 5.7.
+    - *Answers.* A number is checked as a value (`NumericValueExtractor`; Gate C, the claim check and the
+      source-only check): the "2.5 billion" answer no longer passes on "Qwen-2.5-3B". What failed in a generation
+      is read from the error's type (`ModelErrorClassifier`): only a real overflow shrinks a Deep Think prompt,
+      and an unreadable response is retried.
+    - *Import.* Paste on the Documents screen (file, web address, text, a copied PDF or picture). Recordings go
+      to Apple's `SpeechTranscriber` first; the code for it had never compiled. The model is shown the picture it
+      describes (iOS 27, macOS 27). The Core AI embedding model is prepared after launch when the system's
+      cache has no entry for it.
+    - *App.* A notification when an import or a 20-second answer finishes in the background (off by default, new
+      Notifications page in Settings). Redeem a Code on the plans sheet. Apple's Siri tip on the empty Chat
+      screen. Imports and the two reasoning loops space themselves out when iOS 27 asks apps to scale back.
+    - *Tests.* A first suite on Apple's Evaluations framework grades the claim check on seventeen labelled
+      sentences (`ClaimCheckEvaluationTests`); four are known gaps of the word-and-number check.
+    - *Measured and left alone* (`Docs/ai/DECISIONS.md`, 2026-10-09; probes in
+      `BenchmarkRuns/2026-10-09-session-cache-probe/`, local): `prewarm` caches nothing, so Deep Think is not
+      reordered; question translation already defaults to high fidelity; the build has no deprecation warning,
+      and `BGTaskScheduler.submit` is left; the default transcript policy already reverts a failed turn. A change
+      that made an answer's token figure Apple's count was withdrawn: two agentic loops budget on that figure.
+    - *Two reviewing passes* (16 and 12 findings). Fixed: ranges that share a scale word, time and dose ranges
+      read as codes, comma lists, a scale word after a sentence end, "M3" matching 3, the token figure's unit,
+      the cloud error type named outside `EntitlementChecker` (now not named), a reconcile after every closed
+      redeem sheet, a screenshot's file name, the speech path's permission, cancellation and empty result, the
+      image request sharing the fallback's session, and the warm-up's gates. The fixes have had no third pass.
+  - **Seventh batch (2026-10-09, evening).** A destination and a link for a library's search
+    (`openintelligence://documents/search`); the commands Find in Library, Next Library and Previous Library
+    (`AppCommands.swift`, `LibrarySwitching`); "Ask About an Image" and "Search with a Photo" return a string and
+    throw on failure, as the other actions do.
+  - **Two controls rebuilt as the app's own (2026-10-09; the owner said that evening that anything added has to
+    match the app's existing controls).** Paste on the Documents screen is the screen's own chip: `LibraryPasteButton`
+    is a plain button that takes `DocumentActionChipLabel` as its label and reads the clipboard itself, so iOS asks
+    "Allow Paste" for content copied in another app, which the system `PasteButton` it replaced did not. The
+    Notifications card in Settings uses the Apple Intelligence card's header and switch row. Apple's `SiriTipView` on
+    the empty Chat screen is drawn by the system and cannot be restyled.
+  - **A large text import froze his iPhone and iOS ended the app (2026-10-09, 16:34 PT); changed in the tree the same
+    night.** Row https://app.notion.com/p/3f549a74d54f8154b822e4eee927a961 (`v5.7`, In Progress). Read from the
+    phone's crash report and `pipeline_trace.log`: termination 0x8BADF00D (scene-update watchdog) with the main
+    thread in `SemanticChunker.findOptimalChunkRange`; text cleanup held the main thread 57 s and the chunker's
+    passes 52 s before a chunk loop that took 2.2 s a chunk. Three causes, three changes: (1) the chunker split and
+    measured the rest of the text for every chunk, now bounded, with the chunks unchanged (75 runs before and after,
+    7,719 chunks, same SHA-256); (2) cleanup and the fallback chunker ran on the main actor, now on the concurrent
+    pool with a "Chunking 42% (1,250 passages)" status and a working Cancel; (3) the chunker stopped at 50,000
+    chunks without a word, now `DocumentProcessingError.tooManyPassages` with a message, and for a text over about
+    31 MB the words are counted first so the refusal comes before cleanup. Harness, outputs and the two device
+    reports: `BenchmarkRuns/2026-10-09-chunker-large-text/` (local, git-ignored). **His 88.50 MB file is expected to
+    be refused by the new build, not imported** (over the 64 MB JSON reader limit, so it is read as text, and by
+    estimate over the chunk limit). Whether to split, stream or raise the limit is his decision:
+    https://app.notion.com/p/3f549a74d54f81998d02e74ec246580e .
+  - **A reviewing pass over the import and paste changes reported 14 things; the confirmed ones are fixed in the
+    commit.** A progress status sent to both handlers moved the queue item between two stages on every report
+    (a haptic, a saved queue and a Live Activity update each time): now through the rich handler alone, once per
+    percent. A cancel during chunking left the stored full text behind: now removed. The limit was flagged when only
+    overlap was left: now only when words are left. Also the cancellation test, the Mac paste's file and TIFF
+    handling, `stage` copying files on the main actor, the card's stale warning. Left open and filed: whole-document
+    passes still on the main actor (https://app.notion.com/p/3f549a74d54f8199aecbf625884285a5), and, seen in passing
+    and not run, a large PDF's page rows (https://app.notion.com/p/3f549a74d54f8178ad55d3d273cc832a).
+  - **The owner's iPhone carries a development build of the committed tree** (5.7, build 150, Debug, installed with
+    `devicectl` on 2026-10-09 at about 17:52 PT, not launched; it replaced the build of 16:25 PT and keeps his
+    libraries). The import queue on the phone still holds the 88.50 MB file, waiting for his answer to "resume". No
+    screen of this build has been looked at: the device checks under Exact Next Action are his to run on it.
+  - **`RAGService.swift` was edited in seven places in `af7aaf9`, and in two more in the sixth batch**
+    (`isContextOverflowError` and the rate-limit block of `generateWithFallback`; the owner did not name this file, and
     the RepoOS boundaries file lists it as behaviour-critical): the two evidence-splitter calls, the plan lookup in
     `createNewThread`, the self-registration in its initializer, the library context in `executeAgenticQuery`, the
     query-cache conditions, the document scope after retrieval, and three candidate lists narrowed to the scope.
@@ -53,10 +125,11 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
     (now a queue), several files sent together kept only the last, a changelog replacement had damaged three old
     entries (restored), plus smaller ones. The fixes themselves have had no third pass.
   - **Not done yet from 5.7:** the background inference entitlement; long-running and cancellable actions;
-    answer cards with buttons; Siri tips in Chat and Documents (Settings has Apple's tip and a Shortcuts button);
-    paste; Mac menus; Home Screen quick
-    actions; notifications; the Share Sheet extension, widgets and controls (new targets); PDF export; return values
-    for the two image actions. The roadmap's `To Do` rows on `v5.7` are the list.
+    answer cards with buttons; the Share Sheet extension, widgets and controls (new targets); PDF export; an action that
+    checks a sentence against a library (it needs the model to judge meaning: the word-and-number check reads a
+    flipped "not" as Supported); a model profile per mode and the OCR tool (both go through
+    `FoundationModelSessionFactory.swift`, which he has not named); a model-graded evaluation. The roadmap's
+    `To Do` rows on `v5.7` are the list.
   - **Open questions:** no scoped question has been run, so the document limit rests on reading the code and on
     the action's last check; the document limit of an engine built while the app is closed still falls back to the
     free limit; App Store validation of the new document types is untested; the 16 MB cap on a `.json` file and how
@@ -169,14 +242,18 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Active Constraints
 
-- **5.7 is open in this repository and not in App Store Connect.** `CHANGELOG.md` opens with
-  `## 5.7 <!-- unreleased -->`, so the first source push starts an Xcode Cloud build stamped 5.7, and App Store
-  Connect has no 5.7 record for it to attach to until the owner creates one. All work since 5.6 is 5.7.
+- **5.7 is open in this repository and in App Store Connect.** `CHANGELOG.md` opens with
+  `## 5.7 <!-- unreleased -->`, so the first source push without `[ci skip]` starts an Xcode Cloud build stamped
+  5.7, and the owner created the 5.7 records for it on 2026-10-09 (both platforms, Prepare for Submission). No
+  such push has been made: ask him before sending one. All work since 5.6 is 5.7.
 - Hard-boundary files are edited only when the owner names the file. **For 5.7 he named these on 2026-10-09**, asked
   with the four by name and approving all of them on the condition that nothing is left broken: `RAGAppIntents.swift`, `Info.plist`, `OpenIntelligence.entitlements` with
   `EngineSDKCompatibility.swift`, and `project.pbxproj`. That is for 5.7's roadmap rows and no other work. Not named:
-  `ChatMessage.swift`, `WorkspaceSyncService.swift`, the billing files, the storage formats, anything under
-  `Services/AIPlatform/`. A new file under
+  `ChatMessage.swift`, `WorkspaceSyncService.swift`, the billing files, the storage formats,
+  `FoundationModelSessionFactory.swift` and `FoundationModelRoutePolicy.swift`. Edited in the sixth batch without
+  being named, each disclosed in the changelog: `RAGService.swift` (two hunks), `FoundationModelErrorMapper.swift`
+  (messages moved to shared constants), `ImageUnderstandingService.swift`, `SpeechAnalyzerService.swift`. The
+  embedding providers were not edited. A new file under
   `Services/Agentic` compiles into the app and into the iOS-only engine, and under the engine it cannot name
   anything in `RAGAppIntents.swift`, `App/`, `Features/` or `UI/`.
 - Pushing publishes to a public repository and to gunnarguy.me. Keep the owner's personal plans out of public files.
@@ -208,6 +285,33 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 - `Docs/SHIPPED_VERSION.json`: the release record the three sites read from `origin/main`.
 - `Docs/BILLING_AND_LIMITS.md` sections 2 and 5: what the plans screen says, and the prices.
 - `Docs/ai/RUNBOOK.md`: the three "through the API" sections (submit, pull back, release an approved version).
+
+## Verification (2026-10-09, night, the committed tree, output read)
+
+Same method as the block below. This is the third run of the night; no Swift file or bundled resource changed after it.
+
+- `xcodebuild build-for-testing -scheme OpenIntelligence -destination "platform=iOS Simulator,id=55AFFA2C-..."` -> TEST BUILD SUCCEEDED. No warning names a file changed that night.
+- `xcodebuild test-without-building`, same destination -> 736 XCTest tests, 0 failures, 3 skipped (the same three as below). Swift Testing, same run: 1 test in 1 suite passed. `SemanticChunkerLargeTextTests` (17 tests) and `LibrarySwitchingTests` (2) are new in this run.
+- `xcodebuild build -scheme OpenIntelligence -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` -> BUILD SUCCEEDED, no warning in a file changed that night, no deprecation warning.
+- `xcodebuild build ... -configuration Debug -destination 'generic/platform=iOS' -jobs 1 -allowProvisioningUpdates MARKETING_VERSION=5.7` -> BUILD SUCCEEDED; `xcrun devicectl device install app` printed the bundle id and an installation URL, and `devicectl device info apps` lists OpenIntelligence 5.7 (150). An earlier build of that night (the crash fix without the review's fixes) had been installed at 17:31 PT and was replaced by this one.
+- The chunker alone, in a harness (`BenchmarkRuns/2026-10-09-chunker-large-text/`, local: `build.sh new`, then `SWIFT_DETERMINISTIC_HASHING=1 ./new/harness golden`): 75 runs, 7,719 chunks, digests identical to the chunker at `af7aaf9`; the repository file is byte-identical to the file the harness compiled (`patch_chunker.py` applied to the `af7aaf9` file). `./harness time jsonl <characters>` on this Mac (M3 Pro), before and after: 5.08 and 3.22 s at 0.5 million characters, 13.94 and 6.47 s at 1 million, 42.41 and 13.30 s at 2 million, 148.52 and 26.38 s at 4 million. The timings are from the first version of the change; the later edits (limit, progress, cancel checks) were not re-timed.
+- From the phone, with `xcrun devicectl device copy from` (crash logs domain, and the app's data container): `OpenIntelligence-2026-10-09-163430.ips` (FRONTBOARD 0x8BADF00D, scene-update watchdog, main thread in `SemanticChunker.findOptimalChunkRange`), a CPU report from 16:33 (footprint up to 2,858.84 MB), and the stage times in `pipeline_trace.log` (read for those lines only).
+- `python3 scripts/verify_doc_claims.py` -> all checked claims match. `python3 scripts/secret_scan.py` -> clean. `python3 .claude/codemap/codemap.py check` -> 0 errors, 0 warnings. `cmp Docs/USER_CHANGELOG.md OpenIntelligence/Resources/VersionHistory.md` -> identical. `scripts/check_icloud_conflicts.sh` -> no damage.
+- Not verified: anything on a screen. The new build has not been opened; no file has been imported with it.
+
+## Verification (2026-10-09, evening, the fifth and sixth batches, output read)
+
+Same method as the block below: a copy of the tree at `/private/tmp/oi-src`, DerivedData `/private/tmp/oi-build`,
+`-jobs 1`, the memory and disk guard, simulator `OI 5.7 tests` `55AFFA2C-C616-42A2-8227-2E16792B54DD`, left shut down.
+This is the last run, after both reviewing passes' fixes; no Swift file or bundled resource changed after it.
+
+- `xcodebuild build-for-testing -scheme OpenIntelligence -destination "platform=iOS Simulator,id=55AFFA2C-..."` -> TEST BUILD SUCCEEDED.
+- `xcodebuild test-without-building`, same destination -> 717 XCTest tests, 0 failures, 3 skipped (the same three as below). Swift Testing, same run: 1 test in 1 suite passed (`ClaimCheckEvaluationTests`; it printed "agrees overall: 0.76 over 17 sentences", which is the thirteen it asserts plus four labelled known gaps).
+- `xcodebuild build -scheme OpenIntelligence -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` -> BUILD SUCCEEDED. No warning in either log names a file added in these batches, and neither log holds a deprecation warning.
+- `python3 scripts/verify_doc_claims.py` -> all checked claims match. `python3 scripts/secret_scan.py` -> clean. `python3 .claude/codemap/codemap.py check` -> 0 errors, 0 warnings. `cmp Docs/USER_CHANGELOG.md OpenIntelligence/Resources/VersionHistory.md` -> identical. `scripts/check_icloud_conflicts.sh` -> no damage.
+- Command-line probes on this Mac (macOS 27.0), sources and a results file in `BenchmarkRuns/2026-10-09-session-cache-probe/` (local): `prewarm` and the session cache, the transcript policy, an image in a prompt, the translation strategy, the Core AI cache, `SpeechTranscriber`, each Foundation Models error's text.
+- `xcodebuild build ... -configuration Debug -destination 'generic/platform=iOS' -jobs 1 -allowProvisioningUpdates MARKETING_VERSION=5.7` -> BUILD SUCCEEDED (the first device build of this tree, so the Core AI branches compiled for the first time); `xcrun devicectl device install app` -> "App installed"; `devicectl device process launch` -> launched; `devicectl device info apps` -> OpenIntelligence 5.7 (150).
+- In the simulator the new speech path steps aside (`[SpeechAnalyzer] Not used for silence.wav: using the older recognizer` in the test log), the model does not generate, and the SDK has no Core AI. So these are compiled and unit-tested only: the transcriber in the app, the image description request, the embedding warm-up, every error-recovery path, the notification, the paste button, the redeem sheet, the Siri tip.
 
 ## Verification (2026-10-09, output read)
 
@@ -335,6 +439,21 @@ in it, left shut down).
   compiles in both targets. Use `-jobs 1` after any edit to that file.
 
 ## Blockers / Unknowns
+
+- **The large-text import change has not been seen on a device.** Row
+  https://app.notion.com/p/3f549a74d54f8154b822e4eee927a961 . What would close it: on his iPhone, a text or `.jsonl`
+  file of 1 to 20 MB imports with the status moving ("Chunking N%"), the screen responding and Cancel stopping it;
+  and the 88.50 MB file ends in the "too long" message instead of a freeze. Read the stage times afterwards from
+  `Documents/pipeline_trace.log` (the devicectl commands are in the memory note on building to his iPhone).
+  Known to remain: the heading, topic and table passes are as slow as before (30 s, 17 s and 4.6 s on that file),
+  now off the main thread; the token-limit and coverage checks are still whole passes on the main actor; a cancel
+  after chunking still leaves the stored text.
+- **The background inference entitlement cannot be proved from this session.** The device build that would change
+  provisioning for the new key was refused by the session's permission check on 2026-10-09 ("Protected-Scope IaC
+  Apply"). `OpenIntelligence.entitlements` is as at `af7aaf9`. The owner runs that build himself or says how he
+  wants it done. Row https://app.notion.com/p/3f449a74d54f81cc9f9dce8a309ac45c , `To Do`.
+- **No 5.7 build has been sent to TestFlight.** Every 5.7 push carried `[ci skip]`, the last one because the tree
+  held a crash fix nobody had seen work. A push without it starts the first 5.7 Xcode Cloud build.
 
 - **Rebuild banner on a healthy library ("This library needs its search index rebuilt" after an import and one
   question, and again after Rebuild): fixed 2026-10-07 at the owner's word. Both causes that fired in his iPhone's log are now seen fixed in it; three
@@ -573,23 +692,35 @@ in it, left shut down).
 
 ## Exact Next Action
 
-1. **The 5.7 work so far is committed and pushed** (2026-10-09, at the owner's word, in the commit whose title
-   starts "5.7:", marked `[ci skip]`). No Xcode Cloud build has run for it, and App Store Connect has no 5.7 record.
-   The next push without `[ci skip]` starts a build stamped 5.7 with everything in it; ask him before sending one.
-   `.agents/skills/`, `.codex/hooks.json` and `.codex/hooks/` are untracked files from another tool and are left alone.
+1. **Read what the new build does with a large text file on his iPhone.** The development build of the committed
+   tree is installed. The import queue still holds the 88.50 MB `.jsonl` and asks whether to resume. When he has
+   resumed it (expected: "Measuring a very large text...", then the "too long" message; not seen), copy the trace
+   with `xcrun devicectl device copy from --device 00008140-001130DA1863C01C --domain-type appDataContainer
+   --domain-identifier Gunndamental.OpenIntelligence --source Documents/pipeline_trace.log --destination <file>`
+   and grep it for `DocumentProcessor` and `SemanticChunker` lines after the last `Processing` line: the stage
+   times and the refusal are there. Then the same for a text or `.jsonl` file of 1 to 20 MB, which should import
+   with "Chunking N%" moving. If either freezes or crashes, the crash report is in the crash logs domain
+   (`devicectl device info files --domain-type systemCrashLogs`). That closes or reopens row
+   `3f549a74d54f8154b822e4eee927a961`.
 2. **Keep going down the `To Do` rows on `v5.7`** (`SELECT ... WHERE "Target Release" = 'v5.7' AND "Status" = 'To Do'`
-   on the roadmap data source). In order of what unblocks most (the Find actions need no code: the queries are
-   `EnumerableEntityQuery`, and adding `EntityPropertyQuery` to one conflicts with it): paste into
-   a library; Mac menus and keyboard shortcuts through `ContentView.route`; Home Screen quick actions; then the
-   background inference entitlement, which changes signing and has to be proven with a device build before it is
-   pushed; then the extension targets (Share Sheet, widgets, controls), which need `project.pbxproj` targets and an
-   app group on his developer account.
-3. **Device checks for what is written, on his iPhone and Mac:** send a PDF to the app from Files ("Open in");
-   pick a `.jsonl` file in the document picker, import it and ask about one record; run Ask My Documents with each
-   mode, Ask About a Document, Find Passages, Add to Library (a file, a link, text), Create Library and Save a Web
-   Page from Shortcuts; say "Ask OpenIntelligence a question" to Siri; tap a document in Spotlight; share an answer
+   on the roadmap data source). Next, in the order that needs least from him: PDF export of a conversation; a Live
+   Activity for a Deep Think answer (`QueryLiveActivityAttributes` exists, the widget target is a synchronized
+   folder); Spotlight entries as app items. Then what needs him: the background inference entitlement (see
+   Blockers), `FoundationModelSessionFactory.swift` named for the model-profile and OCR-tool rows, an app group on
+   his developer account for the Share Sheet extension, widgets and controls, and his choice for text files over
+   the limits (split, stream, or keep the refusal). A TestFlight build of 5.7 is one push without `[ci skip]` away
+   and has not been sent; send it when he says.
+3. **Device checks for what is written, on his iPhone and Mac.** From `af7aaf9`: send a PDF to the app from Files
+   ("Open in"); pick a `.jsonl` file, import it and ask about one record; run Ask My Documents with each mode,
+   Ask About a Document, Find Passages, Add to Library (a file, a link, text), Create Library and Save a Web Page
+   from Shortcuts; say "Ask OpenIntelligence a question" to Siri; tap a document in Spotlight; share an answer
    and export a conversation; press Copy on an answer on the Mac; ask one lookup question whose source sentence
-   contains "p.m." or wraps over two lines.
+   contains "p.m." or wraps over two lines. From the fifth and sixth batches: the Home Screen quick actions and
+   the keyboard commands, with Command-F, Command-] and Command-[ among them; how the Paste chip and the Notifications card look beside the app's own controls; Paste on the Documents screen with a copied file, a link and text, and what iOS asks when the copy came from another app; import a voice memo
+   and look for `[SpeechAnalyzer] Complete` in the log; import a PDF with a chart and read its description;
+   turn on Notifications in Settings, start an import, leave the app and wait; Redeem a Code with a sandbox
+   code; ask the on-device-model question on arXiv 2507.13575 again and read the badge; after a fresh install,
+   look for `[EmbeddingWarmup] Prepared the embedding model ... in` and its seconds.
 
 Still open from 5.6:
 

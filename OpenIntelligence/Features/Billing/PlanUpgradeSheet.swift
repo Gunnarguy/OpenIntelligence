@@ -16,6 +16,7 @@ struct PlanUpgradeSheet: View {
     @State private var alertMessage: String?
     @State private var isRefreshingProducts: Bool = false
     @State private var isRestoring = false
+    @State private var showingRedeemCode = false
     @State private var selectedStoryIndex = 0
     @State private var showingTerms = false
     @State private var showingPrivacy = false
@@ -374,6 +375,27 @@ extension PlanUpgradeSheet {
             }
             .buttonStyle(.bordered)
             .disabled(isRestoring)
+
+            // Apple's own sheet for an offer code made in App Store Connect. Apple's rule is that a
+            // code is redeemed through that sheet and not through a field of the app's own.
+            Button {
+                showingRedeemCode = true
+            } label: {
+                Label("Redeem a Code", systemImage: "giftcard")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .redeemCodeSheet(isPresented: $showingRedeemCode) { outcome in
+                if let message = outcome.message { alertMessage = message }
+                guard outcome.readsEntitlementsAgain else { return }
+                // Reads the App Store's current entitlements again; nothing is asked of the person.
+                // After a pause, so the listener that applies the redeemed transaction goes first
+                // and this read cannot overwrite it with an older state.
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    await entitlementStore.reconcileEntitlementsOnLaunch()
+                }
+            }
         }
     }
 

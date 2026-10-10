@@ -15670,6 +15670,8 @@ class RAGService: ObservableObject {
     }
 
     private func isContextOverflowError(_ error: Error) -> Bool {
+        // The type first: an error Apple throws keeps its type on the paths that do not map it.
+        if ModelErrorClassifier.kind(of: error) == .contextOverflow { return true }
         let message = error.localizedDescription.lowercased()
 
         // Standard context overflow indicators
@@ -16864,15 +16866,14 @@ class RAGService: ObservableObject {
             // Rate-limit retry: Apple FM on-device model can hit transient rate limits
             // after heavy compression. Wait briefly and retry once before falling through
             // to fallback services.
-            let isRateLimited: Bool
-            if let llmErr = primaryError as? LLMError {
-                switch llmErr {
-                case .rateLimited, .concurrentRequests: isRateLimited = true
-                default: isRateLimited = errorDesc.lowercased().contains("rate") || errorDesc.contains("concurrent")
-                }
-            } else {
-                isRateLimited = errorDesc.lowercased().contains("rate") || errorDesc.contains("concurrent")
-            }
+            // By the error's type (`ModelErrorClassifier`). The text test this replaces looked for
+            // "rate" anywhere. Apple's "Failed to parse generated content" holds it, so an unreadable
+            // response that arrived unmapped was waited out and retried here, while the same failure
+            // mapped to the app's own message was not. From 5.7 both get one retry after 2 seconds,
+            // a real rate limit keeps the whole ladder, and no other message enters this branch for
+            // holding those four letters.
+            let primaryFailureKind = ModelErrorClassifier.kind(of: primaryError)
+            let isRateLimited = primaryFailureKind == .rateLimited || primaryFailureKind == .transient
             if isRateLimited {
                 // Escalating backoff, because a flat one did not work.
                 //
@@ -16892,11 +16893,13 @@ class RAGService: ObservableObject {
                 // because the *original* error was a rate limit, so the ladder runs to completion.
                 //
                 // Worst case adds 19 seconds to a query that already spent minutes in the chain.
-                let backoffSeconds: [Int] = [2, 5, 12]
+                // An unreadable response is retried once: if it is not a throttle clearing, three
+                // more generations would only delay the fallback.
+                let backoffSeconds: [Int] = primaryFailureKind == .rateLimited ? [2, 5, 12] : [2]
                 for (index, delay) in backoffSeconds.enumerated() {
                     Log.info(
-                        "[RAG] Primary LLM rate-limited: waiting \(delay)s before retry "
-                            + "\(index + 1)/\(backoffSeconds.count)",
+                        "[RAG] Primary LLM \(primaryFailureKind == .rateLimited ? "rate-limited" : "returned nothing readable"): "
+                            + "waiting \(delay)s before retry \(index + 1)/\(backoffSeconds.count)",
                         category: .llm
                     )
                     try? await Task.sleep(for: .seconds(delay))

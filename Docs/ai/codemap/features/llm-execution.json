@@ -1,120 +1,1165 @@
 {
-  "schema": "codemap/1",
-  "id": "llm-execution",
-  "name": "LLM Execution",
-  "aliases": ["LLM execution", "answer generation", "LLM service", "model resolution", "prompt evaluation service"],
-  "purpose": "Generates the answer text with the resolved model.",
-  "revision": "7236c8a",
-  "verified_on": "2026-10-07",
-  "entry_points": ["AppleFoundationLLMService.generate", "AppleFoundationLLMService.ensureSession", "AppleFoundationLLMService", "ModelResolutionService", "PromptEvaluationService"],
-  "files": [
-    {"path": "OpenIntelligence/Services/LLM/AdapterManager.swift", "role": "primary", "blob": "b2f202ed97da9e3578bbb057df1b00831b0568a1"},
-    {"path": "OpenIntelligence/Services/LLM/LLMService.swift", "role": "primary", "blob": "f92a6c05e9b1a4c84c5b99a0f22bb6a45ff3106b"},
-    {"path": "OpenIntelligence/Services/LLM/LLMStreamingContext.swift", "role": "primary", "blob": "0f9ecbf639c704f0e056bff44d0a7e3368d4635b"},
-    {"path": "OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift", "role": "primary", "blob": "e44288ae7da5d55c435b1e9d62575a54b9682997"},
-    {"path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "role": "primary", "blob": "3b4637429e7180067441322708d287b5f607511d"},
-    {"path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "role": "primary", "blob": "124d8981400518276eed916735126665b9783b95"},
-    {"path": "OpenIntelligence/Services/LLM/AnswerSentenceSplitter.swift", "role": "primary", "blob": "4fd30e34b0b0e4f00f2806b3050abcccb084fa7e"},
-    {"path": "OpenIntelligenceTests/Services/LLM/AnswerSentenceSplitterTests.swift", "role": "test", "blob": "d0a9f7c57aae7838a228ab2a4acd454ff82c3bcd"}
-  ],
-  "nodes": [
-    {"id": "AppleFoundationLLMService.generate", "kind": "function", "path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 629, "match": "func generate(", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelTranscriptStore.trimTranscript", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTranscriptStore.swift", "line": 23, "match": "static func trimTranscript(", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelPromptCompiler.compilePrompt", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelPromptCompiler.swift", "line": 86, "match": "static func compilePrompt(prompt: String, context: String?, systemPrompt: String?, disableTools: Bool) -> String {", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelTokenBudget.estimateTokens", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift", "line": 66, "match": "public nonisolated static func estimateTokens(charsCount: Int, isAppleFMOnDevice: Bool) -> Int {", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelRoutePolicy.determineRoute", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift", "line": 23, "match": "static func determineRoute(", "status": "VERIFIED", "by": "build"},
-    {"id": "RouteLog.started", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift", "line": 97, "match": "static func started(", "status": "VERIFIED", "by": "build"},
-    {"id": "LLMStreamingContext.emit", "kind": "function", "path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 135, "match": "static func emit(text: String, reasoning: String? = nil, isFinal: Bool) {", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelErrorMapper.mapError", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelErrorMapper.swift", "line": 252, "match": "static func mapError(", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelErrorMapper.mapModernError", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelErrorMapper.swift", "line": 77, "match": "static func mapModernError(", "status": "VERIFIED", "by": "build"},
-    {"id": "ToolCallCounter.takeAndReset", "kind": "function", "path": "OpenIntelligence/Services/Agentic/ToolCallCounter.swift", "line": 23, "match": "func takeAndReset() -> Int {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelExecutionReceipt", "kind": "model", "path": "OpenIntelligence/Services/RAG/Orchestration/ModelExecutionReceipt.swift", "line": 41, "match": "struct ModelExecutionReceipt: Identifiable, Codable, Sendable, Equatable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelExecutionAttempt", "kind": "model", "path": "OpenIntelligence/Services/RAG/Orchestration/ModelExecutionReceipt.swift", "line": 16, "match": "struct ModelExecutionAttempt: Identifiable, Codable, Sendable, Equatable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RouteLog.completed", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift", "line": 105, "match": "static func completed(actualTarget: ModelExecutionTarget, receipt: ModelExecutionReceipt?) {", "status": "VERIFIED", "by": "build"},
-    {"id": "LLMResponse", "kind": "model", "path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 183, "match": "struct LLMResponse {", "status": "VERIFIED", "by": "build"},
-    {"id": "AppleFoundationModelRoute.contextOptions", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoute.swift", "line": 93, "match": "func contextOptions(includeSchemaInPrompt: Bool? = nil) -> FoundationModels.ContextOptions? {", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareTelemetryReporter.reportLLMInference", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 1002, "match": "nonisolated static func reportLLMInference(active: Bool) {", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareTelemetryReporter.sustain", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 973, "match": "nonisolated static func sustain(", "status": "VERIFIED", "by": "build"},
-    {"id": "DSHaptics.generationStarted", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 595, "match": "public static func generationStarted() {", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareTelemetryReporter.reportLLMTokens", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 1031, "match": "nonisolated static func reportLLMTokens(count: Int, tokenLatencyMs: Double) {", "status": "VERIFIED", "by": "build"},
-    {"id": "DSHaptics.generationTick", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 606, "match": "public static func generationTick() {", "status": "VERIFIED", "by": "build"},
-    {"id": "DSHaptics.generationComplete", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 617, "match": "public static func generationComplete() {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.generateWithFreshSession", "kind": "function", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 8904, "match": "func generateWithFreshSession(prompt: String, maxTokens: Int) async throws -> LLMResponse {", "status": "VERIFIED", "by": "build"},
-    {"id": "ResponseTransformService.keyFacts", "kind": "function", "path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift", "line": 59, "match": "func keyFacts(response: String, chunks: [RetrievedChunk]) async throws -> String {", "status": "VERIFIED", "by": "build"},
-    {"id": "WritingToolsService.proofread", "kind": "function", "path": "OpenIntelligence/Services/Agentic/WritingToolsService.swift", "line": 50, "match": "func proofread(_ text: String) async throws -> String {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentSummaryService.generateSummaryViaLLM", "kind": "function", "path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 227, "match": "private func generateSummaryViaLLM(", "status": "VERIFIED", "by": "build"},
-    {"id": "LocalOpenAIServerLLMService.generate", "kind": "function", "path": "OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift", "line": 99, "match": "func generate(prompt: String, context: String?, config userConfig: InferenceConfig) async throws -> LLMResponse {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.attempt", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 16424, "match": "func attempt(", "status": "VERIFIED", "by": "build"},
-    {"id": "AppleFoundationLLMService.ensureSession", "kind": "function", "path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 596, "match": "private func ensureSession(", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelSessionFactory.createSession", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift", "line": 24, "match": "static func createSession(", "status": "VERIFIED", "by": "build"},
-    {"id": "AppleFoundationLLMService", "kind": "service", "path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 235, "match": "class AppleFoundationLLMService: LLMService {", "status": "VERIFIED", "by": "build"},
-    {"id": "BackendHealthDiagnosticsView.checkAppleFMAvailability", "kind": "function", "path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift", "line": 148, "match": "private func checkAppleFMAvailability() async {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.resetLLMSession", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 760, "match": "func resetLLMSession() {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelResolutionService", "kind": "service", "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 20, "match": "final class ModelResolutionService: ObservableObject {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelResolutionState", "kind": "model", "path": "OpenIntelligence/Core/Models/ModelResolutionState.swift", "line": 11, "match": "struct ModelResolutionState: Equatable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelResolutionService.ResolutionEvent", "kind": "service", "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 44, "match": "struct ResolutionEvent: Identifiable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.checkDeviceCapabilities", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 18751, "match": "static func checkDeviceCapabilities() -> DeviceCapabilities {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelBackend", "kind": "model", "path": "OpenIntelligence/Core/Models/ModelResolutionState.swift", "line": 94, "match": "enum ModelBackend: String, Codable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelResolutionState.ActiveParameters", "kind": "model", "path": "OpenIntelligence/Core/Models/ModelResolutionState.swift", "line": 86, "match": "struct ActiveParameters: Equatable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ContentView.modelResolutionService", "kind": "service", "path": "OpenIntelligence/App/ContentView.swift", "line": 19, "match": "@StateObject private var modelResolutionService: ModelResolutionService", "status": "VERIFIED", "by": "build"},
-    {"id": "ModelStatusIndicator.modelResolution", "kind": "model", "path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift", "line": 12, "match": "@EnvironmentObject private var modelResolution: ModelResolutionService", "status": "VERIFIED", "by": "build"},
-    {"id": "PromptEvaluationService", "kind": "service", "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 64, "match": "actor PromptEvaluationService {", "status": "VERIFIED", "by": "build"},
-    {"id": "PromptTestCase", "kind": "model", "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 14, "match": "struct PromptTestCase: Codable, Sendable, Identifiable {", "status": "VERIFIED", "by": "build"},
-    {"id": "PromptEvalSuiteResult", "kind": "model", "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 53, "match": "struct PromptEvalSuiteResult: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "PromptEvalResult", "kind": "model", "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 40, "match": "struct PromptEvalResult: Sendable, Identifiable {", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareTelemetryReporter.pulse", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 962, "match": "nonisolated static func pulse(", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareTelemetryReporter.reportCPUOperation", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 1048, "match": "nonisolated static func reportCPUOperation() {", "status": "VERIFIED", "by": "build"}
-  ],
-  "edges": [
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelTranscriptStore.trimTranscript", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 655, "match": "pendingTranscript = FoundationModelTranscriptStore.trimTranscript("}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelPromptCompiler.compilePrompt", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 664, "match": "let fullPrompt = FoundationModelPromptCompiler.compilePrompt("}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelTokenBudget.estimateTokens", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 685, "match": "let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: fullPrompt, isAppleFMOnDevice: true)"}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelRoutePolicy.determineRoute", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 697, "match": "let targetRoute = FoundationModelRoutePolicy.determineRoute("}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "RouteLog.started", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 713, "match": "RouteLog.started(route: actualRoute, plan: config.modelExecutionPlan)"}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "LLMStreamingContext.emit", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 940, "match": "LLMStreamingContext.emit(text: chunk, isFinal: false)"}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelErrorMapper.mapError", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 995, "match": "let mapped = FoundationModelErrorMapper.mapError("}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelErrorMapper.mapModernError", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 1034, "match": "if let mapped = FoundationModelErrorMapper.mapModernError("}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "ToolCallCounter.takeAndReset", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 1136, "match": "let toolCalls = await ToolCallCounter.shared.takeAndReset()"}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "depends_on", "to": "ModelExecutionReceipt", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 1144, "match": "ModelExecutionReceipt("}], "by": "build", "note": "constructs it"},
-    {"from": "AppleFoundationLLMService.generate", "type": "depends_on", "to": "ModelExecutionAttempt", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 1149, "match": "ModelExecutionAttempt("}], "by": "build", "note": "constructs it"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "RouteLog.completed", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 1163, "match": "RouteLog.completed(actualTarget: actualTarget, receipt: executionReceipt)"}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "depends_on", "to": "LLMResponse", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 1175, "match": "return LLMResponse("}], "by": "build", "note": "constructs it"},
-    {"from": "AppleFoundationLLMService.ensureSession", "type": "calls", "to": "FoundationModelSessionFactory.createSession", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 609, "match": "let result = try FoundationModelSessionFactory.createSession("}], "by": "build", "note": "the call names the type"},
-    {"from": "BackendHealthDiagnosticsView.checkAppleFMAvailability", "type": "calls", "to": "AppleFoundationLLMService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift", "line": 154, "match": "let fm = AppleFoundationLLMService()"}], "by": "build", "note": "constructs it"},
-    {"from": "RAGService.generateWithFreshSession", "type": "calls", "to": "AppleFoundationLLMService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 8908, "match": "let tempService = AppleFoundationLLMService()"}], "by": "build", "note": "constructs it"},
-    {"from": "ModelResolutionService", "type": "depends_on", "to": "ModelResolutionState", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 60, "match": "currentState = ModelResolutionState("}], "by": "build", "note": "constructs it"},
-    {"from": "ModelResolutionService", "type": "depends_on", "to": "ModelResolutionService.ResolutionEvent", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 199, "match": "resolutionHistory.append(ResolutionEvent("}], "by": "build", "note": "constructs it"},
-    {"from": "ModelResolutionService", "type": "calls", "to": "RAGService.checkDeviceCapabilities", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 293, "match": "let capabilities = RAGService.checkDeviceCapabilities()"}], "by": "build", "note": "the call names the type"},
-    {"from": "ModelResolutionService", "type": "depends_on", "to": "ModelBackend", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 340, "match": "let _ = ModelBackend(rawValue: backendRaw)"}], "by": "build", "note": "constructs it"},
-    {"from": "PromptEvaluationService", "type": "depends_on", "to": "PromptTestCase", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 107, "match": "let testCase = PromptTestCase("}], "by": "build", "note": "constructs it"},
-    {"from": "PromptEvaluationService", "type": "depends_on", "to": "PromptEvalSuiteResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 152, "match": "let suiteResult = PromptEvalSuiteResult("}], "by": "build", "note": "constructs it"},
-    {"from": "PromptEvaluationService", "type": "depends_on", "to": "PromptEvalResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 228, "match": "return PromptEvalResult("}], "by": "build", "note": "constructs it"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "AppleFoundationModelRoute.contextOptions", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 879, "match": "let contextOptions = actualRoute.contextOptions()"}], "by": "build", "note": "named in the body"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "HardwareTelemetryReporter.reportLLMInference", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 907, "match": "HardwareTelemetryReporter.reportLLMInference(active: true)"}], "by": "build", "note": "named in the body"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "HardwareTelemetryReporter.sustain", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 908, "match": "defer { HardwareTelemetryReporter.sustain(.llmInference, active: false) }"}], "by": "build", "note": "named in the body"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "DSHaptics.generationStarted", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 920, "match": "await MainActor.run { DSHaptics.generationStarted() }"}], "by": "build", "note": "named in the body"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "HardwareTelemetryReporter.reportLLMTokens", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 968, "match": "HardwareTelemetryReporter.reportLLMTokens(count: newTokens, tokenLatencyMs: perTokenMs)"}], "by": "build", "note": "named in the body"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "DSHaptics.generationTick", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 973, "match": "await MainActor.run { DSHaptics.generationTick() }"}], "by": "build", "note": "named in the body"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "DSHaptics.generationComplete", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 1068, "match": "await MainActor.run { DSHaptics.generationComplete() }"}], "by": "build", "note": "named in the body"},
-    {"from": "RAGService.generateWithFreshSession", "type": "calls", "to": "AppleFoundationLLMService.generate", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 8925, "match": "return try await tempService.generate("}], "by": "build", "note": "named there"},
-    {"from": "ResponseTransformService.keyFacts", "type": "calls", "to": "AppleFoundationLLMService.generate", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift", "line": 77, "match": "return try await generate(prompt: prompt)"}], "by": "build", "note": "named there"},
-    {"from": "WritingToolsService.proofread", "type": "calls", "to": "AppleFoundationLLMService.generate", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/WritingToolsService.swift", "line": 66, "match": "let result = try await generate(prompt: prompt)"}], "by": "build", "note": "named there"},
-    {"from": "DocumentSummaryService.generateSummaryViaLLM", "type": "calls", "to": "AppleFoundationLLMService.generate", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 303, "match": "let response = try await llmService.generate("}], "by": "build", "note": "named there"},
-    {"from": "LocalOpenAIServerLLMService.generate", "type": "calls", "to": "AppleFoundationLLMService.generate", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift", "line": 99, "match": "func generate(prompt: String, context: String?, config userConfig: InferenceConfig) async throws -> LLMResponse {"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.attempt", "type": "calls", "to": "AppleFoundationLLMService.generate", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 16581, "match": "response = try await service.generate("}], "by": "build", "note": "named there"},
-    {"from": "RAGService.resetLLMSession", "type": "depends_on", "to": "AppleFoundationLLMService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 761, "match": "if let appleFMService = _llmService as? AppleFoundationLLMService {"}], "by": "build", "note": "named there"},
-    {"from": "ModelResolutionService", "type": "calls", "to": "ModelResolutionState.ActiveParameters", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift", "line": 306, "match": "return ModelResolutionState.ActiveParameters("}], "by": "build", "note": "named in the body"},
-    {"from": "ContentView.modelResolutionService", "type": "depends_on", "to": "ModelResolutionService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 19, "match": "@StateObject private var modelResolutionService: ModelResolutionService"}], "by": "build", "note": "named there"},
-    {"from": "ModelStatusIndicator.modelResolution", "type": "depends_on", "to": "ModelResolutionService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift", "line": 12, "match": "@EnvironmentObject private var modelResolution: ModelResolutionService"}], "by": "build", "note": "named there"},
-    {"from": "PromptEvaluationService", "type": "calls", "to": "HardwareTelemetryReporter.sustain", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 139, "match": "HardwareTelemetryReporter.sustain(.llmInference, active: true, intensity: 0.8)"}], "by": "build", "note": "named in the body"},
-    {"from": "PromptEvaluationService", "type": "calls", "to": "HardwareTelemetryReporter.pulse", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 198, "match": "HardwareTelemetryReporter.pulse(.llmInference, intensity: 0.9, duration: 0.3)"}], "by": "build", "note": "named in the body"},
-    {"from": "PromptEvaluationService", "type": "calls", "to": "HardwareTelemetryReporter.reportCPUOperation", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift", "line": 203, "match": "HardwareTelemetryReporter.reportCPUOperation()"}], "by": "build", "note": "named in the body"}
-  ],
-  "docs": [],
-  "unknowns": [],
-  "related": ["app-lifecycle", "apple-foundation-models", "apple-writing-tools", "design-system-and-markdown", "document-analysis", "model-selector", "private-cloud-compute-routing", "quality-modes-and-agentic-orchestrator"],
-  "entries": ["OpenIntelligence/Services/LLM/LLMService.swift::AppleFoundationLLMService.generate", "OpenIntelligence/Services/LLM/LLMService.swift::AppleFoundationLLMService.ensureSession", "OpenIntelligence/Services/LLM/LLMService.swift::AppleFoundationLLMService", "OpenIntelligence/Services/LLM/ModelResolutionService.swift::ModelResolutionService", "OpenIntelligence/Services/LLM/PromptEvaluationService.swift::PromptEvaluationService"],
-  "owns": ["OpenIntelligence/Services/LLM/**", "OpenIntelligence/Services/LLM/AnswerSentenceSplitter.swift"],
-  "decisions": [],
-  "traps": ["LocalOpenAIServerLLMService.swift is compiled out (#if false at lines 14 and 330).", "No other Swift file names AdapterManager (grep, 2026-09-28): check before building on it."]
+ "schema": "codemap/1",
+ "id": "llm-execution",
+ "name": "LLM Execution",
+ "aliases": [
+  "LLM execution",
+  "answer generation",
+  "LLM service",
+  "model resolution",
+  "prompt evaluation service"
+ ],
+ "purpose": "Generates the answer text with the resolved model.",
+ "revision": "7236c8a",
+ "verified_on": "2026-10-07",
+ "entry_points": [
+  "AppleFoundationLLMService.generate",
+  "AppleFoundationLLMService.ensureSession",
+  "AppleFoundationLLMService",
+  "ModelResolutionService",
+  "PromptEvaluationService"
+ ],
+ "files": [
+  {
+   "path": "OpenIntelligence/Services/LLM/AdapterManager.swift",
+   "role": "primary",
+   "blob": "b2f202ed97da9e3578bbb057df1b00831b0568a1"
+  },
+  {
+   "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+   "role": "primary",
+   "blob": "f92a6c05e9b1a4c84c5b99a0f22bb6a45ff3106b"
+  },
+  {
+   "path": "OpenIntelligence/Services/LLM/LLMStreamingContext.swift",
+   "role": "primary",
+   "blob": "0f9ecbf639c704f0e056bff44d0a7e3368d4635b"
+  },
+  {
+   "path": "OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift",
+   "role": "primary",
+   "blob": "e44288ae7da5d55c435b1e9d62575a54b9682997"
+  },
+  {
+   "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+   "role": "primary",
+   "blob": "3b4637429e7180067441322708d287b5f607511d"
+  },
+  {
+   "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+   "role": "primary",
+   "blob": "124d8981400518276eed916735126665b9783b95"
+  },
+  {
+   "path": "OpenIntelligence/Services/LLM/AnswerSentenceSplitter.swift",
+   "role": "primary",
+   "blob": "4fd30e34b0b0e4f00f2806b3050abcccb084fa7e"
+  },
+  {
+   "path": "OpenIntelligenceTests/Services/LLM/AnswerSentenceSplitterTests.swift",
+   "role": "test",
+   "blob": "d0a9f7c57aae7838a228ab2a4acd454ff82c3bcd"
+  },
+  {
+   "path": "OpenIntelligence/Services/LLM/ModelErrorClassifier.swift",
+   "role": "primary",
+   "blob": ""
+  },
+  {
+   "path": "OpenIntelligenceTests/Services/LLM/ModelErrorClassifierTests.swift",
+   "role": "test",
+   "blob": ""
+  }
+ ],
+ "nodes": [
+  {
+   "id": "AppleFoundationLLMService.generate",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+   "line": 629,
+   "match": "func generate(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FoundationModelTranscriptStore.trimTranscript",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTranscriptStore.swift",
+   "line": 23,
+   "match": "static func trimTranscript(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FoundationModelPromptCompiler.compilePrompt",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelPromptCompiler.swift",
+   "line": 86,
+   "match": "static func compilePrompt(prompt: String, context: String?, systemPrompt: String?, disableTools: Bool) -> String {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FoundationModelTokenBudget.estimateTokens",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift",
+   "line": 66,
+   "match": "public nonisolated static func estimateTokens(charsCount: Int, isAppleFMOnDevice: Bool) -> Int {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FoundationModelRoutePolicy.determineRoute",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift",
+   "line": 23,
+   "match": "static func determineRoute(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "RouteLog.started",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift",
+   "line": 97,
+   "match": "static func started(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "LLMStreamingContext.emit",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+   "line": 135,
+   "match": "static func emit(text: String, reasoning: String? = nil, isFinal: Bool) {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FoundationModelErrorMapper.mapError",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelErrorMapper.swift",
+   "line": 252,
+   "match": "static func mapError(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FoundationModelErrorMapper.mapModernError",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelErrorMapper.swift",
+   "line": 77,
+   "match": "static func mapModernError(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ToolCallCounter.takeAndReset",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Agentic/ToolCallCounter.swift",
+   "line": 23,
+   "match": "func takeAndReset() -> Int {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelExecutionReceipt",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/RAG/Orchestration/ModelExecutionReceipt.swift",
+   "line": 41,
+   "match": "struct ModelExecutionReceipt: Identifiable, Codable, Sendable, Equatable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelExecutionAttempt",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/RAG/Orchestration/ModelExecutionReceipt.swift",
+   "line": 16,
+   "match": "struct ModelExecutionAttempt: Identifiable, Codable, Sendable, Equatable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "RouteLog.completed",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift",
+   "line": 105,
+   "match": "static func completed(actualTarget: ModelExecutionTarget, receipt: ModelExecutionReceipt?) {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "LLMResponse",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+   "line": 183,
+   "match": "struct LLMResponse {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "AppleFoundationModelRoute.contextOptions",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoute.swift",
+   "line": 93,
+   "match": "func contextOptions(includeSchemaInPrompt: Bool? = nil) -> FoundationModels.ContextOptions? {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "HardwareTelemetryReporter.reportLLMInference",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift",
+   "line": 1002,
+   "match": "nonisolated static func reportLLMInference(active: Bool) {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "HardwareTelemetryReporter.sustain",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift",
+   "line": 973,
+   "match": "nonisolated static func sustain(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "DSHaptics.generationStarted",
+   "kind": "function",
+   "path": "OpenIntelligence/UI/DesignSystem/Theme.swift",
+   "line": 595,
+   "match": "public static func generationStarted() {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "HardwareTelemetryReporter.reportLLMTokens",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift",
+   "line": 1031,
+   "match": "nonisolated static func reportLLMTokens(count: Int, tokenLatencyMs: Double) {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "DSHaptics.generationTick",
+   "kind": "function",
+   "path": "OpenIntelligence/UI/DesignSystem/Theme.swift",
+   "line": 606,
+   "match": "public static func generationTick() {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "DSHaptics.generationComplete",
+   "kind": "function",
+   "path": "OpenIntelligence/UI/DesignSystem/Theme.swift",
+   "line": 617,
+   "match": "public static func generationComplete() {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "RAGService.generateWithFreshSession",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+   "line": 8904,
+   "match": "func generateWithFreshSession(prompt: String, maxTokens: Int) async throws -> LLMResponse {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ResponseTransformService.keyFacts",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift",
+   "line": 59,
+   "match": "func keyFacts(response: String, chunks: [RetrievedChunk]) async throws -> String {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "WritingToolsService.proofread",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Agentic/WritingToolsService.swift",
+   "line": 50,
+   "match": "func proofread(_ text: String) async throws -> String {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "DocumentSummaryService.generateSummaryViaLLM",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift",
+   "line": 227,
+   "match": "private func generateSummaryViaLLM(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "LocalOpenAIServerLLMService.generate",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift",
+   "line": 99,
+   "match": "func generate(prompt: String, context: String?, config userConfig: InferenceConfig) async throws -> LLMResponse {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "RAGService.attempt",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+   "line": 16424,
+   "match": "func attempt(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "AppleFoundationLLMService.ensureSession",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+   "line": 596,
+   "match": "private func ensureSession(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "FoundationModelSessionFactory.createSession",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift",
+   "line": 24,
+   "match": "static func createSession(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "AppleFoundationLLMService",
+   "kind": "service",
+   "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+   "line": 235,
+   "match": "class AppleFoundationLLMService: LLMService {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "BackendHealthDiagnosticsView.checkAppleFMAvailability",
+   "kind": "function",
+   "path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift",
+   "line": 148,
+   "match": "private func checkAppleFMAvailability() async {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "RAGService.resetLLMSession",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+   "line": 760,
+   "match": "func resetLLMSession() {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelResolutionService",
+   "kind": "service",
+   "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+   "line": 20,
+   "match": "final class ModelResolutionService: ObservableObject {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelResolutionState",
+   "kind": "model",
+   "path": "OpenIntelligence/Core/Models/ModelResolutionState.swift",
+   "line": 11,
+   "match": "struct ModelResolutionState: Equatable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelResolutionService.ResolutionEvent",
+   "kind": "service",
+   "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+   "line": 44,
+   "match": "struct ResolutionEvent: Identifiable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "RAGService.checkDeviceCapabilities",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+   "line": 18751,
+   "match": "static func checkDeviceCapabilities() -> DeviceCapabilities {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelBackend",
+   "kind": "model",
+   "path": "OpenIntelligence/Core/Models/ModelResolutionState.swift",
+   "line": 94,
+   "match": "enum ModelBackend: String, Codable, Sendable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelResolutionState.ActiveParameters",
+   "kind": "model",
+   "path": "OpenIntelligence/Core/Models/ModelResolutionState.swift",
+   "line": 86,
+   "match": "struct ActiveParameters: Equatable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ContentView.modelResolutionService",
+   "kind": "service",
+   "path": "OpenIntelligence/App/ContentView.swift",
+   "line": 19,
+   "match": "@StateObject private var modelResolutionService: ModelResolutionService",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "ModelStatusIndicator.modelResolution",
+   "kind": "model",
+   "path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift",
+   "line": 12,
+   "match": "@EnvironmentObject private var modelResolution: ModelResolutionService",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "PromptEvaluationService",
+   "kind": "service",
+   "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+   "line": 64,
+   "match": "actor PromptEvaluationService {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "PromptTestCase",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+   "line": 14,
+   "match": "struct PromptTestCase: Codable, Sendable, Identifiable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "PromptEvalSuiteResult",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+   "line": 53,
+   "match": "struct PromptEvalSuiteResult: Sendable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "PromptEvalResult",
+   "kind": "model",
+   "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+   "line": 40,
+   "match": "struct PromptEvalResult: Sendable, Identifiable {",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "HardwareTelemetryReporter.pulse",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift",
+   "line": 962,
+   "match": "nonisolated static func pulse(",
+   "status": "VERIFIED",
+   "by": "build"
+  },
+  {
+   "id": "HardwareTelemetryReporter.reportCPUOperation",
+   "kind": "function",
+   "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift",
+   "line": 1048,
+   "match": "nonisolated static func reportCPUOperation() {",
+   "status": "VERIFIED",
+   "by": "build"
+  }
+ ],
+ "edges": [
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "FoundationModelTranscriptStore.trimTranscript",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 655,
+     "match": "pendingTranscript = FoundationModelTranscriptStore.trimTranscript("
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "FoundationModelPromptCompiler.compilePrompt",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 664,
+     "match": "let fullPrompt = FoundationModelPromptCompiler.compilePrompt("
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "FoundationModelTokenBudget.estimateTokens",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 685,
+     "match": "let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: fullPrompt, isAppleFMOnDevice: true)"
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "FoundationModelRoutePolicy.determineRoute",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 697,
+     "match": "let targetRoute = FoundationModelRoutePolicy.determineRoute("
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "RouteLog.started",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 713,
+     "match": "RouteLog.started(route: actualRoute, plan: config.modelExecutionPlan)"
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "LLMStreamingContext.emit",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 940,
+     "match": "LLMStreamingContext.emit(text: chunk, isFinal: false)"
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "FoundationModelErrorMapper.mapError",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 995,
+     "match": "let mapped = FoundationModelErrorMapper.mapError("
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "FoundationModelErrorMapper.mapModernError",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 1034,
+     "match": "if let mapped = FoundationModelErrorMapper.mapModernError("
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "ToolCallCounter.takeAndReset",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 1136,
+     "match": "let toolCalls = await ToolCallCounter.shared.takeAndReset()"
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "depends_on",
+   "to": "ModelExecutionReceipt",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 1144,
+     "match": "ModelExecutionReceipt("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "depends_on",
+   "to": "ModelExecutionAttempt",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 1149,
+     "match": "ModelExecutionAttempt("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "RouteLog.completed",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 1163,
+     "match": "RouteLog.completed(actualTarget: actualTarget, receipt: executionReceipt)"
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "depends_on",
+   "to": "LLMResponse",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 1175,
+     "match": "return LLMResponse("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "AppleFoundationLLMService.ensureSession",
+   "type": "calls",
+   "to": "FoundationModelSessionFactory.createSession",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 609,
+     "match": "let result = try FoundationModelSessionFactory.createSession("
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "BackendHealthDiagnosticsView.checkAppleFMAvailability",
+   "type": "calls",
+   "to": "AppleFoundationLLMService",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift",
+     "line": 154,
+     "match": "let fm = AppleFoundationLLMService()"
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "RAGService.generateWithFreshSession",
+   "type": "calls",
+   "to": "AppleFoundationLLMService",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+     "line": 8908,
+     "match": "let tempService = AppleFoundationLLMService()"
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "ModelResolutionService",
+   "type": "depends_on",
+   "to": "ModelResolutionState",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+     "line": 60,
+     "match": "currentState = ModelResolutionState("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "ModelResolutionService",
+   "type": "depends_on",
+   "to": "ModelResolutionService.ResolutionEvent",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+     "line": 199,
+     "match": "resolutionHistory.append(ResolutionEvent("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "ModelResolutionService",
+   "type": "calls",
+   "to": "RAGService.checkDeviceCapabilities",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+     "line": 293,
+     "match": "let capabilities = RAGService.checkDeviceCapabilities()"
+    }
+   ],
+   "by": "build",
+   "note": "the call names the type"
+  },
+  {
+   "from": "ModelResolutionService",
+   "type": "depends_on",
+   "to": "ModelBackend",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+     "line": 340,
+     "match": "let _ = ModelBackend(rawValue: backendRaw)"
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "PromptEvaluationService",
+   "type": "depends_on",
+   "to": "PromptTestCase",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+     "line": 107,
+     "match": "let testCase = PromptTestCase("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "PromptEvaluationService",
+   "type": "depends_on",
+   "to": "PromptEvalSuiteResult",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+     "line": 152,
+     "match": "let suiteResult = PromptEvalSuiteResult("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "PromptEvaluationService",
+   "type": "depends_on",
+   "to": "PromptEvalResult",
+   "status": "VERIFIED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+     "line": 228,
+     "match": "return PromptEvalResult("
+    }
+   ],
+   "by": "build",
+   "note": "constructs it"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "AppleFoundationModelRoute.contextOptions",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 879,
+     "match": "let contextOptions = actualRoute.contextOptions()"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "HardwareTelemetryReporter.reportLLMInference",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 907,
+     "match": "HardwareTelemetryReporter.reportLLMInference(active: true)"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "HardwareTelemetryReporter.sustain",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 908,
+     "match": "defer { HardwareTelemetryReporter.sustain(.llmInference, active: false) }"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "DSHaptics.generationStarted",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 920,
+     "match": "await MainActor.run { DSHaptics.generationStarted() }"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "HardwareTelemetryReporter.reportLLMTokens",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 968,
+     "match": "HardwareTelemetryReporter.reportLLMTokens(count: newTokens, tokenLatencyMs: perTokenMs)"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "DSHaptics.generationTick",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 973,
+     "match": "await MainActor.run { DSHaptics.generationTick() }"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "AppleFoundationLLMService.generate",
+   "type": "calls",
+   "to": "DSHaptics.generationComplete",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+     "line": 1068,
+     "match": "await MainActor.run { DSHaptics.generationComplete() }"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "RAGService.generateWithFreshSession",
+   "type": "calls",
+   "to": "AppleFoundationLLMService.generate",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+     "line": 8925,
+     "match": "return try await tempService.generate("
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "ResponseTransformService.keyFacts",
+   "type": "calls",
+   "to": "AppleFoundationLLMService.generate",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift",
+     "line": 77,
+     "match": "return try await generate(prompt: prompt)"
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "WritingToolsService.proofread",
+   "type": "calls",
+   "to": "AppleFoundationLLMService.generate",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/Agentic/WritingToolsService.swift",
+     "line": 66,
+     "match": "let result = try await generate(prompt: prompt)"
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "DocumentSummaryService.generateSummaryViaLLM",
+   "type": "calls",
+   "to": "AppleFoundationLLMService.generate",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift",
+     "line": 303,
+     "match": "let response = try await llmService.generate("
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "LocalOpenAIServerLLMService.generate",
+   "type": "calls",
+   "to": "AppleFoundationLLMService.generate",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift",
+     "line": 99,
+     "match": "func generate(prompt: String, context: String?, config userConfig: InferenceConfig) async throws -> LLMResponse {"
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "RAGService.attempt",
+   "type": "calls",
+   "to": "AppleFoundationLLMService.generate",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+     "line": 16581,
+     "match": "response = try await service.generate("
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "RAGService.resetLLMSession",
+   "type": "depends_on",
+   "to": "AppleFoundationLLMService",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+     "line": 761,
+     "match": "if let appleFMService = _llmService as? AppleFoundationLLMService {"
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "ModelResolutionService",
+   "type": "calls",
+   "to": "ModelResolutionState.ActiveParameters",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/ModelResolutionService.swift",
+     "line": 306,
+     "match": "return ModelResolutionState.ActiveParameters("
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "ContentView.modelResolutionService",
+   "type": "depends_on",
+   "to": "ModelResolutionService",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/App/ContentView.swift",
+     "line": 19,
+     "match": "@StateObject private var modelResolutionService: ModelResolutionService"
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "ModelStatusIndicator.modelResolution",
+   "type": "depends_on",
+   "to": "ModelResolutionService",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift",
+     "line": 12,
+     "match": "@EnvironmentObject private var modelResolution: ModelResolutionService"
+    }
+   ],
+   "by": "build",
+   "note": "named there"
+  },
+  {
+   "from": "PromptEvaluationService",
+   "type": "calls",
+   "to": "HardwareTelemetryReporter.sustain",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+     "line": 139,
+     "match": "HardwareTelemetryReporter.sustain(.llmInference, active: true, intensity: 0.8)"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "PromptEvaluationService",
+   "type": "calls",
+   "to": "HardwareTelemetryReporter.pulse",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+     "line": 198,
+     "match": "HardwareTelemetryReporter.pulse(.llmInference, intensity: 0.9, duration: 0.3)"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  },
+  {
+   "from": "PromptEvaluationService",
+   "type": "calls",
+   "to": "HardwareTelemetryReporter.reportCPUOperation",
+   "status": "INFERRED",
+   "evidence": [
+    {
+     "path": "OpenIntelligence/Services/LLM/PromptEvaluationService.swift",
+     "line": 203,
+     "match": "HardwareTelemetryReporter.reportCPUOperation()"
+    }
+   ],
+   "by": "build",
+   "note": "named in the body"
+  }
+ ],
+ "docs": [],
+ "unknowns": [],
+ "related": [
+  "app-lifecycle",
+  "apple-foundation-models",
+  "apple-writing-tools",
+  "design-system-and-markdown",
+  "document-analysis",
+  "model-selector",
+  "private-cloud-compute-routing",
+  "quality-modes-and-agentic-orchestrator"
+ ],
+ "entries": [
+  "OpenIntelligence/Services/LLM/LLMService.swift::AppleFoundationLLMService.generate",
+  "OpenIntelligence/Services/LLM/LLMService.swift::AppleFoundationLLMService.ensureSession",
+  "OpenIntelligence/Services/LLM/LLMService.swift::AppleFoundationLLMService",
+  "OpenIntelligence/Services/LLM/ModelResolutionService.swift::ModelResolutionService",
+  "OpenIntelligence/Services/LLM/PromptEvaluationService.swift::PromptEvaluationService"
+ ],
+ "owns": [
+  "OpenIntelligence/Services/LLM/**",
+  "OpenIntelligence/Services/LLM/AnswerSentenceSplitter.swift"
+ ],
+ "decisions": [],
+ "traps": [
+  "LocalOpenAIServerLLMService.swift is compiled out (#if false at lines 14 and 330).",
+  "No other Swift file names AdapterManager (grep, 2026-09-28): check before building on it."
+ ]
 }

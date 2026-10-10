@@ -861,6 +861,21 @@ final class SourceOnlyAnswerService {
             notes.append("Numeric tokens missing from cited evidence: \(missingNumericTokens.joined(separator: ", ")).")
         }
 
+        // The test above looks for the digits anywhere in the cited text, so "2.5" passes against
+        // "12.5" and against a name such as "Qwen-2.5-3B". Read the claim's numbers as values too.
+        // Only the numbers the numeric gate counts: digits with a letter against them ("5th",
+        // "Q3", "4K") are left to the test above.
+        if missingNumericTokens.isEmpty,
+            let unstated = NumericValueExtractor.firstUnsupportedMention(
+                in: draft.claimText,
+                evidence: NumericValueExtractor.evidence(from: citedTexts),
+                exempt: { !NumericValueExtractor.isCountedByGate($0) })
+        {
+            verdict = .unsupported
+            fidelity = min(fidelity, 0.2)
+            notes.append("A figure is not stated in the cited evidence as a value: \(unstated.written).")
+        }
+
         let exactClaimHasHardAnchor = !numericTokens.isEmpty
             || !quote.isEmpty
             || claimContainsSpecificationCue(draft.claimText)

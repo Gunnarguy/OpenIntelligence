@@ -245,6 +245,10 @@ private struct EmptyStateV2: View {
                 .foregroundStyle(Color.secondary)
                 .multilineTextAlignment(.center)
             }
+
+            // The phrase Siri has for asking a question, until the person closes the tip.
+            SiriPhraseTip()
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
     }

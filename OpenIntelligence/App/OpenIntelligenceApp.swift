@@ -14,6 +14,11 @@ import TipKit
 
 @main
 struct OpenIntelligenceApp: App {
+    #if os(iOS)
+    /// For Home Screen quick actions only; see `QuickActions.swift`.
+    @UIApplicationDelegateAdaptor(OpenIntelligenceAppDelegate.self) private var appDelegate
+    #endif
+
     init() {
         #if DEBUG
         DebugRAGValidationHarness.runHeadlessIfNeeded()
@@ -29,6 +34,21 @@ struct OpenIntelligenceApp: App {
         configureIngestionRuntimeBridge()
         configureQueryRuntimeBridge()
 
+        // Routes a tapped notification to the screen its result is on.
+        CompletionNotificationService.shared.install()
+
+        // Starts the monitor that reads iOS 27's request to scale back, so the import and
+        // reasoning loops see it from launch and not from the first screen that shows the HUD.
+        _ = SystemStateMonitor.shared
+
+        // Prepares the embedding model for this device when the system's cache has no entry for it.
+        // Not under the validation harness, whose timings it would sit beside.
+        #if DEBUG
+            if !DebugRAGValidationHarness.isEnabled { EmbeddingModelWarmup.scheduleAfterLaunch() }
+        #else
+            EmbeddingModelWarmup.scheduleAfterLaunch()
+        #endif
+
         // Configure TipKit for contextual user guidance
         AppTipConfiguration.configure()
 
@@ -41,6 +61,9 @@ struct OpenIntelligenceApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+        }
+        .commands {
+            OpenIntelligenceCommands()
         }
     }
 
@@ -66,6 +89,7 @@ struct OpenIntelligenceApp: App {
         }
         IngestionRuntimeBridge.shared.completeUserInitiatedIngestionHandler = { success in
             BackgroundTaskService.shared.completeUserInitiatedIngestion(success: success)
+            CompletionNotificationService.shared.importFinished(success: success)
         }
         IngestionRuntimeBridge.shared.beginForegroundFallbackIngestionHandler = { reason in
             BackgroundTaskService.shared.beginForegroundFallbackIngestionExtensionIfNeeded(reason: reason)
@@ -113,6 +137,7 @@ struct OpenIntelligenceApp: App {
                 title: title,
                 subtitle: subtitle
             )
+            CompletionNotificationService.shared.answerBegan()
         }
         QueryRuntimeBridge.shared.updateContinuedQueryProgressHandler = { title, subtitle, fraction in
             BackgroundTaskService.shared.updateContinuedQueryProgress(
@@ -123,6 +148,7 @@ struct OpenIntelligenceApp: App {
         }
         QueryRuntimeBridge.shared.completeUserInitiatedQueryHandler = { success in
             BackgroundTaskService.shared.completeUserInitiatedQuery(success: success)
+            CompletionNotificationService.shared.answerFinished(success: success)
         }
         QueryRuntimeBridge.shared.beginForegroundFallbackQueryHandler = { reason in
             BackgroundTaskService.shared.beginForegroundFallbackQueryExtensionIfNeeded(reason: reason)

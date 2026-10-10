@@ -45,7 +45,10 @@ struct AnalyzeImageIntent: AppIntent {
         }
     }
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+    /// Returns the answer when a question was asked, otherwise the text read from the image, so the
+    /// next step of a shortcut has something to work with. Through 5.6 it showed a card and
+    /// returned nothing, and a failure came back as a successful result.
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
         Log.info("[VisualIntelligence] Analyze Image intent invoked", category: .pipeline)
 
         let imageData = imageFile.data
@@ -54,10 +57,7 @@ struct AnalyzeImageIntent: AppIntent {
         let extractedText = try await extractText(from: imageData)
 
         guard !extractedText.isEmpty else {
-            return .result(
-                dialog: "No text was found in the image.",
-                view: ErrorSnippetView(message: "No text detected")
-            )
+            throw OIIntentError("No text was found in the image.")
         }
 
         // If a question was asked, query RAG with the extracted context
@@ -82,6 +82,7 @@ struct AnalyzeImageIntent: AppIntent {
                 let answer = response.generatedResponse
 
                 return .result(
+                    value: answer,
                     dialog: IntentDialog(stringLiteral: String(answer.prefix(500))),
                     view: VisualAnalysisSnippetView(
                         extractedText: String(extractedText.prefix(200)),
@@ -90,19 +91,15 @@ struct AnalyzeImageIntent: AppIntent {
                     )
                 )
             } catch {
-                return .result(
-                    dialog: "Found text but couldn't query: \(error.localizedDescription)",
-                    view: VisualAnalysisSnippetView(
-                        extractedText: extractedText,
-                        answer: nil,
-                        question: question
-                    )
+                throw OIIntentError(
+                    "The text in the image was read, but the question could not be answered: \(error.localizedDescription)"
                 )
             }
         }
 
-        // No question — just return the extracted text
+        // No question: the text read from the image is the result.
         return .result(
+            value: extractedText,
             dialog: IntentDialog(stringLiteral: "Found \(extractedText.split(separator: " ").count) words of text."),
             view: VisualAnalysisSnippetView(
                 extractedText: extractedText,
@@ -179,7 +176,9 @@ struct VisualSearchIntent: AppIntent {
         Summary("Search documents using \(\.$photo)")
     }
 
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+    /// Returns what the search wrote, and throws where it used to return a successful result
+    /// holding an apology.
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
         Log.info("[VisualIntelligence] Visual Search intent invoked", category: .pipeline)
 
         let imageData = photo.data
@@ -197,10 +196,7 @@ struct VisualSearchIntent: AppIntent {
             .joined(separator: " ") ?? ""
 
         guard !extractedText.isEmpty else {
-            return .result(
-                dialog: "No text found in the photo to search with.",
-                view: ErrorSnippetView(message: "No searchable text")
-            )
+            throw OIIntentError("No text was found in the photo to search with.")
         }
 
         // Use extracted text as a query
@@ -223,6 +219,7 @@ struct VisualSearchIntent: AppIntent {
             )
 
             return .result(
+                value: response.generatedResponse,
                 dialog: IntentDialog(stringLiteral: String(response.generatedResponse.prefix(400))),
                 view: VisualAnalysisSnippetView(
                     extractedText: String(extractedText.prefix(200)),
@@ -231,10 +228,7 @@ struct VisualSearchIntent: AppIntent {
                 )
             )
         } catch {
-            return .result(
-                dialog: "Search failed: \(error.localizedDescription)",
-                view: ErrorSnippetView(message: error.localizedDescription)
-            )
+            throw OIIntentError("The search did not finish: \(error.localizedDescription)")
         }
     }
 }

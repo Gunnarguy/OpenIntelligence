@@ -954,6 +954,11 @@ final class BackgroundTaskService: Sendable {
             rationale.append("Low Power Mode is enabled, so background GPU escalation is disabled.")
         }
 
+        if systemState.systemPrefersReducedResourceUsage {
+            backgroundGPURequested = false
+            rationale.append("The system asked apps to reduce resource use, so background GPU escalation is disabled.")
+        }
+
         if systemState.thermalState == .serious || systemState.thermalState == .critical {
             backgroundGPURequested = false
             rationale.append("Thermal pressure is above the safe continued-processing range.")

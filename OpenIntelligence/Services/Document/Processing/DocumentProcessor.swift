@@ -406,6 +406,18 @@ class DocumentProcessor {
     /// Accumulated extraction metrics (updated during processing)
     private var liveMetrics = ExtractionProgress(stage: "idle", detail: "", currentPage: nil, totalPages: nil)
 
+    /// A text of fewer bytes than this cannot hold more words than `SemanticChunker.maxChunks`
+    /// chunks of `safeMaxSize` words can (a word and what separates it from the next take two
+    /// bytes at the least), so the early word count is skipped for it. About 31 MB.
+    nonisolated static let largeTextWordCountBytes =
+        SemanticChunker.maxChunks * SemanticChunker.ChunkingConfig.safeMaxSize * 2
+
+    /// How many off-main chunker runs this processor is waiting on; see `reportChunkingProgress`.
+    /// A count and not a flag: the engine uses one processor for every import, and a second
+    /// import can start while the first is still chunking.
+    private var chunkingRunsInFlight = 0
+    private var lastChunkingPercentShown = -1
+
     /// Vision-detected entities from last document processing (reset on each call)
     /// Contains emails, phone numbers, URLs, dates, etc. extracted via DataDetection
     private(set) var lastDetectedEntities: [(type: String, value: String)] = []
@@ -496,9 +508,19 @@ class DocumentProcessor {
     // MARK: - Progress Emission Helpers
 
     /// Emit rich progress with accumulated metrics
-    private func emitProgress(stage: String, detail: String, page: Int? = nil, totalPages: Int? = nil) {
+    ///
+    /// `legacy: false` leaves the string handler out when a rich handler is installed. The engine
+    /// files the string handler's text under Extracting and the rich handler's "chunking" under
+    /// Chunking, so one status sent to both moves the queue item between two stages, and every
+    /// stage change is a haptic, a saved queue and a Live Activity update. A status repeated
+    /// through a stage goes to the rich handler alone.
+    private func emitProgress(
+        stage: String, detail: String, page: Int? = nil, totalPages: Int? = nil, legacy: Bool = true
+    ) {
         // Update simple handler (legacy)
-        progressHandler?(detail)
+        if legacy || richProgressHandler == nil {
+            progressHandler?(detail)
+        }
 
         // Update accumulated metrics with current page info
         var progress = liveMetrics
@@ -517,6 +539,57 @@ class DocumentProcessor {
             usingANE: liveMetrics.usingANE
         )
         richProgressHandler?(progress)
+    }
+
+    /// Shows where the chunker is. The chunker calls back from the concurrent pool every 25
+    /// chunks and each call hops here, so a report can arrive after chunking has returned or
+    /// behind a later one; both are dropped.
+    private func reportChunkingProgress(_ progress: SemanticChunker.ChunkingProgress) {
+        guard chunkingRunsInFlight > 0 else { return }
+        switch progress.phase {
+        case .findingStructure:
+            lastChunkingPercentShown = -1
+            emitProgress(stage: "chunking", detail: "✂️ Reading the text's structure...", legacy: false)
+        case .cuttingChunks:
+            // The chunker reports every 25 chunks. The status changes when the percentage does,
+            // so a document of any length gives at most 101 of these.
+            let percent = Self.chunkingPercent(progress.fractionOfText)
+            guard percent > lastChunkingPercentShown else { return }
+            lastChunkingPercentShown = percent
+            emitProgress(
+                stage: "chunking",
+                detail: Self.chunkingProgressText(
+                    chunksCreated: progress.chunksCreated, fractionOfText: progress.fractionOfText),
+                legacy: false)
+        case .finishing:
+            emitProgress(
+                stage: "chunking",
+                detail: "✂️ Finishing \(Self.passageCountText(progress.chunksCreated))...",
+                legacy: false)
+        }
+    }
+
+    nonisolated static func chunkingPercent(_ fractionOfText: Double) -> Int {
+        Int((min(1, max(0, fractionOfText)) * 100).rounded(.down))
+    }
+
+    nonisolated static func passageCountText(_ count: Int) -> String {
+        count == 1 ? "1 passage" : "\(count.formatted(.number)) passages"
+    }
+
+    /// "✂️ Chunking 42% (1,250 passages)". The share is of the text, which is known; the final
+    /// number of passages is not known until the last one is cut.
+    nonisolated static func chunkingProgressText(chunksCreated: Int, fractionOfText: Double) -> String {
+        "✂️ Chunking \(chunkingPercent(fractionOfText))% (\(passageCountText(chunksCreated)))"
+    }
+
+    /// `OCRConfiguration.normalizeExtractedText` on the concurrent pool instead of the main actor.
+    @concurrent
+    nonisolated private static func normalizeOffMainActor(
+        _ text: String,
+        profile: OCRConfiguration.TextNormalizationProfile
+    ) async -> String {
+        OCRConfiguration.normalizeExtractedText(text, profile: profile)
     }
 
     /// Increment a metric and emit progress
@@ -758,6 +831,26 @@ class DocumentProcessor {
             category: .ingestion
         )
 
+        // A very large text that the fallback chunker will take may be more than one document can
+        // hold. Its words are counted first, off the main actor, and it is refused now if so:
+        // before the cleanup pass, and before anything is stored. Below the size named here no
+        // text can hold that many words, so nothing else pays for the count. The chunker checks
+        // again on the cleaned text and is the authority.
+        let takesFallbackChunker = jsonRecordCount == nil && !(usedStructuredParsing && !structuredElements.isEmpty)
+        if takesFallbackChunker, extractedText.utf8.count > Self.largeTextWordCountBytes {
+            emitProgress(stage: "parsing", detail: "📏 Measuring a very large text...", page: nil, totalPages: nil)
+            let tokenizerWords = await SemanticChunker.wordCountOffMainActor(extractedText)
+            try Task.checkCancellation()
+            if SemanticChunker.exceedsChunkLimit(
+                wordCount: tokenizerWords, maxSize: SemanticChunker.ChunkingConfig.safeMaxSize)
+            {
+                Log.error(
+                    "[DocumentProcessor] \(filename) has \(tokenizerWords) words, more than \(SemanticChunker.maxChunks) chunks can hold; refusing it before cleanup",
+                    category: .ingestion)
+                throw DocumentProcessingError.tooManyPassages(limit: SemanticChunker.maxChunks)
+            }
+        }
+
         // POST-OCR GARBAGE TEXT FILTER
         // Apply a final line-level cleanup for OCR-heavy non-PDF paths.
         // PDF ingestion already filters garbage line-by-line per page during extraction,
@@ -779,10 +872,16 @@ class DocumentProcessor {
         // Document-aware text normalization
         // OCR/PDF-heavy sources get the full repair pipeline; authored text files
         // use a conservative profile to avoid mutating real words or formatting.
-        let normalizedText = OCRConfiguration.normalizeExtractedText(
+        //
+        // Off the main actor since 5.7. It is one pass over the whole text, and on an 88 MB file
+        // it held the main thread for 57 s (iPhone 16 Pro Max, 2026-10-09). Same function, same
+        // result; only where it runs changed.
+        emitProgress(stage: "parsing", detail: "🧹 Cleaning up the text...", page: nil, totalPages: nil)
+        let normalizedText = await Self.normalizeOffMainActor(
             filteredText,
             profile: normalizationProfile(for: documentType)
         )
+        try Task.checkCancellation()
         if normalizedText.count != filteredText.count {
             let delta = filteredText.count - normalizedText.count
             Log.info(
@@ -839,6 +938,9 @@ class DocumentProcessor {
 
         // Step D: Strip page break sentinels for chunking — chunker must see continuous text
         let chunkableText = normalizedText.replacingOccurrences(of: Self.pageBreakSentinel, with: "\n\n")
+        // Each statement from here to the chunker is one pass over the whole text on the main
+        // actor. The yields let the screen and the system in between them.
+        await Task.yield()
 
         // Per-stage conservation ledger. `verifyContentCoverage` below compares this text against the
         // FINISHED chunks and so can only say that text was lost; this records each transition, so a
@@ -849,6 +951,7 @@ class DocumentProcessor {
             words: chunkableText.split(whereSeparator: \.isWhitespace).count
         )
 
+        await Task.yield()
         let documentCategory = classifyDocumentCategory(
             text: chunkableText,
             filename: filename,
@@ -943,15 +1046,53 @@ class DocumentProcessor {
             Task { @MainActor in
                 HardwareTelemetryState.shared.pulse(.textChunking, intensity: 0.75, duration: 0.4)
             }
-            let semanticChunker = SemanticChunker()
             let pageMapping = pageInfo.pageTextRanges.isEmpty ? nil : pageInfo.pageTextRanges
-            let enhancedChunks = semanticChunker.chunkText(
-                chunkableText,
-                documentId: documentId,
-                config: chunkerConfig,
-                pageNumbers: pageMapping,
-                documentCategory: documentCategory
-            )
+            // Off the main actor since 5.7, with progress. On the main actor a large text file
+            // froze the screen for as long as chunking took, the status never moved, Cancel could
+            // not be tapped, and iOS ended the app when a scene update waited ten seconds.
+            let enhancedChunks: [SemanticChunker.EnhancedChunk]
+            chunkingRunsInFlight += 1
+            do {
+                enhancedChunks = try await SemanticChunker.chunkTextOffMainActor(
+                    chunkableText,
+                    documentId: documentId,
+                    config: chunkerConfig,
+                    pageNumbers: pageMapping,
+                    documentCategory: documentCategory,
+                    progress: { [weak self] progress in
+                        guard let self else { return }
+                        Task { @MainActor in self.reportChunkingProgress(progress) }
+                    }
+                )
+            } catch {
+                chunkingRunsInFlight -= 1
+                // Chunking did not finish: the text is over the limit, or the import was
+                // cancelled, which can be tapped during chunking now that the screen is live. The
+                // full text stored above is removed, so it is not left under an id that no
+                // document will have. Not when this call was adding pages to a document that
+                // already has some: with no page range the id is always a new one (the three
+                // callers were read on 2026-10-09).
+                var limitReached: Int?
+                if case SemanticChunker.ChunkingError.tooManyChunks(let limit) = error { limitReached = limit }
+                if pageRange == nil, limitReached != nil || error is CancellationError {
+                    if containerId != nil {
+                        await SQLiteFullTextService.shared.delete(for: documentId)
+                    } else {
+                        await FullTextStorageService.shared.delete(for: documentId)
+                    }
+                    Log.info(
+                        "[DocumentProcessor] Removed the stored text of \(filename): chunking did not finish",
+                        category: .ingestion)
+                }
+                if let limitReached {
+                    Log.error(
+                        "[DocumentProcessor] \(filename) needs more than \(limitReached) chunks; refusing it rather than indexing part of it",
+                        category: .ingestion)
+                    throw DocumentProcessingError.tooManyPassages(limit: limitReached)
+                }
+                throw error
+            }
+            chunkingRunsInFlight -= 1
 
             // Extract text strings and metadata for downstream use
             processedChunks = enhancedChunks.enumerated().map { index, chunk in
@@ -992,6 +1133,8 @@ class DocumentProcessor {
         // CRITICAL: Post-processing validation - ensure NO chunk exceeds embedding token limit
         // This is a safety net that catches any chunks that slipped through chunking config limits
         emitProgress(stage: "validate", detail: "🔐 Validating token limits...", page: nil, totalPages: nil)
+        await Task.yield()
+        try Task.checkCancellation()
         processedChunks = enforceTokenLimitOnChunks(processedChunks)
         stageLedger.record(.tokenLimited, chunkTexts: processedChunks.map(\.text))
         stageLedger.emit()
@@ -9618,6 +9761,8 @@ enum DocumentProcessingError: LocalizedError {
     case audioTranscriptionFailed(String)
     case audioTranscriptionEmpty
     case fileTooLarge(sizeMB: Double, limitMB: Double)
+    /// The text needs more passages than one document may have (`SemanticChunker.maxChunks`).
+    case tooManyPassages(limit: Int)
 
     var errorDescription: String? {
         switch self {
@@ -9656,6 +9801,8 @@ enum DocumentProcessingError: LocalizedError {
             return "Audio transcription produced no text. The audio may be silent or incompatible."
         case let .fileTooLarge(sizeMB, limitMB):
             return "File is too large (\(String(format: "%.0f", sizeMB)) MB). Maximum supported size is \(String(format: "%.0f", limitMB)) MB. Try splitting the file into smaller parts."
+        case let .tooManyPassages(limit):
+            return "This file is too long to import in one piece. It needs more than \(limit.formatted(.number)) passages, which is the most one document can have. Split it into smaller files and import those."
         }
     }
 }

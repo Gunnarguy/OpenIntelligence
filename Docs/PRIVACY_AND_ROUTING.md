@@ -119,6 +119,37 @@ Background and App Intent execution never waits for a foreground consent sheet. 
 
 `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.generateWithFallback, AgenticOrchestrator.generateWithFreshSession]`
 
+### How a failed generation is classified (added 2026-10-09, for 5.7)
+
+The code that recovers from a failed generation decides what failed through `ModelErrorClassifier`, by the
+error's type: the app's `LLMError`, the types Apple added in iOS 27 (`LanguageModelError`,
+`GeneratedContent.ParsingError`, `LanguageModelSession.Error`, `SystemLanguageModel.Error`) and the iOS 26
+`LanguageModelSession.GenerationError`. Text is read for an error of no known type, and for an
+`LLMError.generationFailed` whose message is not one of the three the app writes for an unreadable response;
+it is read as phrases. Through 5.6 three places tested single words: the reasoning chain cut its prompt down
+whenever the text held "context", "exceeded", "4096" or "token", and `generateWithFallback` waited out a rate
+limit whenever it held "rate", which "generated" does.
+`[evidence_level: test_verified, confidence: high, evidence_source: ModelErrorClassifierTests, 2026-10-09; ModelErrorClassifier.swift; AgenticOrchestrator.executeReasoningChain; RAGService.generateWithFallback and isContextOverflowError]`
+
+None of this changes where a question runs. What does change, none of it seen on a device:
+
+- An unsupported-language failure, and any other error whose text merely holds one of those words, no longer
+  sends a reasoning session back with a smaller prompt.
+- In the chain, an unreadable response (all three messages the app writes for it) and a concurrent-request
+  error are retried with the same prompt; one message was before. In `generateWithFallback` an unreadable
+  response from the streaming path gets one retry after 2 seconds, where only the unmapped form was retried,
+  by accident of its wording. A real rate limit keeps the 2, 5 and 12 second ladder.
+- Private Cloud Compute's own error type is not named in the app. Every mention of that model stays behind
+  `EntitlementChecker`, and its errors are read as text, which classifies none of them as retryable. The
+  fallback to the on-device model after a Private Cloud Compute failure is unchanged: it runs after any error
+  and labels a quota failure from the error's own text ("Your quota has been reached", as the macOS 27 SDK
+  printed it on 2026-10-09).
+  `[evidence_level: code_verified for the fallback, measured for Apple's wording; confidence: high; evidence_source: RAGService.generateWithFallback; a swiftc probe printing each error's localizedDescription, 2026-10-09]`
+
+A notification the app posts when an import or a long answer finishes (5.7, off by default) carries a fixed
+title and sentence and a link into the app. The rule that writes it is handed only whether something finished and how long it took, so it cannot carry the
+question, an answer or a file name; a notification can be read on a locked screen. `[evidence_level: test_verified, confidence: high, evidence_source: CompletionNotificationPolicyTests testTheTextIsOneOfFourFixedSentences; CompletionNotificationService.swift]`
+
 ## Route telemetry
 
 ### What Apple reports, as distinct from what the app decided

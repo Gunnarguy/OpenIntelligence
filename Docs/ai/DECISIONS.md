@@ -980,3 +980,38 @@ Subscription settings, not on the plans screen; a lapsed subscriber who buys fro
 price. Revisit in-app win-backs if lapsed subscribers become a meaningful number.
 
 `[evidence_level: measured, confidence: exact, evidence_source: PATCH /v1/reviewSubmissions {canceled: true} for 409aead4 (iOS), 6d81ae2c (macOS) and 00242f20 (products), 2026-09-29, read back COMPLETE with both 5.5 records DEVELOPER_REJECTED; owner's messages 2026-09-29]`
+
+## 2026-10-09 - Deep Think and Maximum sessions are not prewarmed, and their prompt order stays
+
+**Context.** A 5.7 roadmap row asked for the model's cache to be kept warm between the steps of a Deep Think
+answer. Each step builds a new session with its own instructions, and its passages, which change every step
+and fill most of the window, come after the question and the prior findings. Apple's article on key-value
+caching says a session reuses what it has already processed and that `prewarm(promptPrefix:)` precomputes a
+prefix before the first request. The plan was to give every step the same instructions, put the passages
+first, and prewarm the next step's session while the current one generated.
+
+**Decision.** Not built. On this Mac (M3 Pro, macOS 27.0, `contextSize` 8192, about 6,100 input tokens a run)
+no form of prewarm put a token in the cache or shortened the time to the first word: 7.6 to 9.3 s cold; 8.2 s
+and 8.5 s after `prewarm(promptPrefix:)` with the whole passage window and a 12 s and 25 s wait; 8.3 s with
+the passages in the instructions and a bare `prewarm()`; 8.4 s with the passages in a rebuilt transcript and
+`prewarm()`. `usage.input.cachedTokenCount` read 0 in every one. A second turn in the same session did reuse
+the cache (3.0 s, 6,304 cached tokens), and a prewarm started while another session was generating delayed
+that session's first word from 7.6 s to 12.6 s. A step's passages fill the window, so two steps cannot share
+a session, which is the only thing that was faster.
+
+**Alternatives.** Reorder the prompts anyway for a later system that does cache a prefix (rejected: it changes
+what every Deep Think step is sent, with nothing to measure the answers against); keep one session and trim
+its transcript between steps (rejected: Apple's article says a change deep in the transcript drops the cache
+from that point, and the passages are that point).
+
+**Consequences.** Deep Think's time is the sum of its sessions, each paying for its own prompt. The launch
+warm-up in `LLMService.warmUpModel` still calls `prewarm` with a prefix; whether that shortens the first
+answer after a cold start was not measured, because the model was already loaded for every run. Re-run the
+probe on an iPhone and after a system update before trying this again.
+
+`[evidence_level: measured, confidence: medium (one machine, one run per case, differences under about 1 s are not differences), evidence_source: BenchmarkRuns/2026-10-09-session-cache-probe/results.txt and cacheprobe.swift, run 2026-10-09 (local: BenchmarkRuns is not committed); developer.apple.com/documentation/foundationmodels/optimizing-key-value-caching-in-language-model-sessions, read 2026-10-08]`
+
+The same probe read `transcriptErrorHandlingPolicy`: left at its default (`nil`), a prompt too large for the
+window threw and the transcript kept its 3 entries, as it did with `.revertTranscript`; `.preserveTranscript`
+kept the failed prompt (4 entries). So the app sets no policy: the default already rolls a failed turn back.
+
