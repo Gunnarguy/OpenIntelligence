@@ -4,7 +4,7 @@
   "name": "Evidence Threads",
   "aliases": ["Evidence Threads", "thread sidebar", "thread store", "conversation history", "saved chats", "thread list", "chat history"],
   "purpose": "Keeps each conversation as a thread tied to the evidence its answers used, and lets the user switch between threads.",
-  "revision": "b6dba43",
+  "revision": "a4e237b",
   "verified_on": "2026-10-10",
   "entry_points": ["EvidenceThread", "EvidenceThreadStore", "RAGService.createNewThread", "RAGService.persistChatHistory", "ThreadSidebarView", "QuotaPolicy.evidenceThreadLimit", "WorkspaceSyncService.synchronizeEvidenceThreads"],
   "files": [
@@ -14,8 +14,8 @@
     {"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugView.swift", "role": "primary", "blob": "827a20eaeb5d330b117c914a195e6e0958748fcf"},
     {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "d95547af52c9334d1bb4a5ff2fc0c68f4279568a"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "role": "shared", "blob": "280adf492488b3c93175acbbc2a2bf64c3b6c13e"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "516e2607d99fe8c148db0c9b2ce3c518049e9762"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "a506acfd1642564d9bd4090eb225658e876864a4"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "35ee961142fd17a08b8c0ae42c0b95aa234f1dab"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "b664e41234d83a0d7811f2a8f43b184e5aa2af5e"},
     {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "adec5c17bc92d6d2d7da9668c327d9c30dbcff39"}
   ],
   "nodes": [
@@ -26,9 +26,9 @@
     {"id": "RAGService.persistChatHistory", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 699, "match": "func persistChatHistory(_ messages: [ChatMessage], for containerId: UUID?) {", "status": "VERIFIED", "by": "build"},
     {"id": "EvidenceThreadStore.saveThread", "kind": "function", "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 84, "match": "func saveThread(_ thread: EvidenceThread) throws {", "status": "VERIFIED", "by": "build"},
     {"id": "EvidenceThreadStore", "kind": "model", "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 12, "match": "final class EvidenceThreadStore: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.coordinatedWriteData", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3751, "match": "nonisolated static func coordinatedWriteData(_ data: Data, to url: URL) throws {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.coordinatedReadData", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3725, "match": "nonisolated static func coordinatedReadData(from url: URL) throws -> Data {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.coordinatedRemoveItem", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3852, "match": "nonisolated static func coordinatedRemoveItem(at url: URL) throws {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.coordinatedWriteData", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3794, "match": "nonisolated static func coordinatedWriteData(_ data: Data, to url: URL) throws {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.coordinatedReadData", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3768, "match": "nonisolated static func coordinatedReadData(from url: URL) throws -> Data {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.coordinatedRemoveItem", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3895, "match": "nonisolated static func coordinatedRemoveItem(at url: URL) throws {", "status": "VERIFIED", "by": "build"},
     {"id": "EvidenceThreadDebugService.store", "kind": "service", "path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "line": 17, "match": "private let store: EvidenceThreadStore", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.threadStore", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 354, "match": "let threadStore = EvidenceThreadStore()", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.createNewThread", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 889, "match": "func createNewThread(for containerId: UUID) throws {", "status": "VERIFIED", "by": "build"},
@@ -43,7 +43,7 @@
     {"id": "EvidenceThreadDebugService.deleteThread", "kind": "function", "path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "line": 53, "match": "func deleteThread(id: UUID) {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.listThreads", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 884, "match": "func listThreads(for containerId: UUID) -> [EvidenceThread] {", "status": "VERIFIED", "by": "build"},
     {"id": "ChatScreen.chatLifecycleLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 591, "match": "private var chatLifecycleLayer: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.synchronizeEvidenceThreads", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 2807, "match": "nonisolated private func synchronizeEvidenceThreads(", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.synchronizeEvidenceThreads", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 2850, "match": "nonisolated private func synchronizeEvidenceThreads(", "status": "VERIFIED", "by": "build"},
     {"id": "test:EvidenceThreadStoreTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [

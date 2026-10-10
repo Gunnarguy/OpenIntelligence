@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 @preconcurrency import Foundation
 import os
 
@@ -240,7 +241,40 @@ final class WorkspaceSyncService: ObservableObject {
     /// invalidates it. An unreadable attribute yields `nil`, which never matches, so doubt
     /// always takes the full path. A cold start has an empty cache and behaves exactly as
     /// before.
-    private nonisolated let vectorStoreSyncSignatures = OSAllocatedUnfairLock<[UUID: String]>(initialState: [:])
+    ///
+    /// Since 2026-10-10 the record is kept across launches (as a digest, in `UserDefaults`). A
+    /// cold start used to begin empty, so every launch decoded both copies of every synced
+    /// library and compared them passage by passage: two 3 s decodes, every vector copied to
+    /// the heap twice and a 144,247-passage comparison for the owner's largest library, to
+    /// conclude nothing had changed. The rule above is unchanged and holds across a launch as
+    /// it does within one: the same sizes, dates, documents, aliases and strategy.
+    private nonisolated let vectorStoreSyncSignatures = OSAllocatedUnfairLock<[UUID: String]>(
+        initialState: WorkspaceSyncService.savedVectorStoreSignatureDigests())
+
+    nonisolated static let vectorStoreSignatureDigestsKey = "workspaceSync.vectorStoreSignatureDigests.v1"
+
+    nonisolated static func vectorStoreSignatureDigest(_ signature: String) -> String {
+        SHA256.hash(data: Data(signature.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    nonisolated static func savedVectorStoreSignatureDigests(defaults: UserDefaults = .standard) -> [UUID: String] {
+        guard let saved = defaults.dictionary(forKey: vectorStoreSignatureDigestsKey) as? [String: String] else {
+            return [:]
+        }
+        var digests: [UUID: String] = [:]
+        for (key, value) in saved {
+            if let id = UUID(uuidString: key) { digests[id] = value }
+        }
+        return digests
+    }
+
+    nonisolated static func saveVectorStoreSignatureDigests(
+        _ digests: [UUID: String], defaults: UserDefaults = .standard
+    ) {
+        var saved: [String: String] = [:]
+        for (id, digest) in digests { saved[id.uuidString] = digest }
+        defaults.set(saved, forKey: vectorStoreSignatureDigestsKey)
+    }
     typealias BootstrapChoice = SyncBootstrapChoice
     typealias PendingBootstrapConflict = SyncPendingBootstrapConflict
 
@@ -2451,7 +2485,7 @@ final class WorkspaceSyncService: ObservableObject {
             strategy: strategy
         )
         if let currentSignature,
-           vectorStoreSyncSignatures.withLock({ $0[container.id] }) == currentSignature {
+           vectorStoreSyncSignatures.withLock({ $0[container.id] }) == Self.vectorStoreSignatureDigest(currentSignature) {
             Log.debug(
                 "[WorkspaceSyncService] Vector stores for \(container.id) unchanged since the last "
                     + "pass found them current; skipping read of both roots",
@@ -2673,9 +2707,18 @@ final class WorkspaceSyncService: ObservableObject {
                 documentAliases: documentAliases,
                 strategy: strategy
             )
-            vectorStoreSyncSignatures.withLock { $0[container.id] = settled }
+            let digest = settled.map(Self.vectorStoreSignatureDigest)
+            let all = vectorStoreSyncSignatures.withLock { state -> [UUID: String] in
+                state[container.id] = digest
+                return state
+            }
+            Self.saveVectorStoreSignatureDigests(all, defaults: defaults)
         } else {
-            vectorStoreSyncSignatures.withLock { $0[container.id] = nil }
+            let all = vectorStoreSyncSignatures.withLock { state -> [UUID: String] in
+                state[container.id] = nil
+                return state
+            }
+            Self.saveVectorStoreSignatureDigests(all, defaults: defaults)
         }
     }
 

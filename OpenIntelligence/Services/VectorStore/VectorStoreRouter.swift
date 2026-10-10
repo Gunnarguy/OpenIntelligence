@@ -167,6 +167,11 @@ final class VectorStoreRouter {
         }
 
         stores[container.id] = created
+        // A store reads its files when it is created, so what is on disk now is what it holds.
+        // Without this the first `clearAll()` after launch found no recorded signature for the
+        // store and read it again: a second full decode on every launch, 3 s for a library of
+        // 144,247 passages.
+        lastSeenDiskSignature[container.id] = diskSignature(for: container.id)
         return created
     }
 

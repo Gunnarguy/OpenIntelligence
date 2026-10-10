@@ -142,6 +142,13 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   change still reloads immediately. It bounds the symptom only — the 1.68 s trigger is a workspace
   timer meeting a container whose orphaned state never resolves, and that lives in
   `WorkspaceSyncService`. `[evidence: measured, exact, pipeline_trace.log 19:45:24-19:48:08 on the maintainer's Mac; VectorStoreRouter.clearAll]`
+- **The record that two copies of a store match is kept across launches, changed 2026-10-10**:
+  `synchronizeVectorStore` skips a library whose files, documents, aliases and strategy are what they
+  were when a pass last proved the device copy and the iCloud copy identical. That record was in memory
+  only, so each launch decoded and compared both copies of every synced library. It is now a digest in
+  `UserDefaults` (`workspaceSync.vectorStoreSignatureDigests.v1`). `VectorStoreRouter.db(for:)` also
+  records a store's disk signature when it creates the store, so the first `clearAll()` after launch
+  no longer reads it a second time. `[evidence: test_verified for the record's round trip, LargeLibraryCostTests; code_verified; not timed on a device]`
 - **A pass skips the vector store of a library with an unfinished import, added 2026-10-10**: the
   import queue is read before the documents and again before the vector step
   (`WorkspaceSyncService.librariesWithUnfinishedImports`: an item this device holds whose stage is

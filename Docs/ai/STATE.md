@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-10, 12:50 PT (5.7 is open; three commits are local and not pushed: `b6dba43`, `2a33196` and the handoff commits after them; `55af072` is the last pushed commit; the embedding benchmark ran on the owner's iPhone at 12:01 PT and its numbers are in Status; a development (Debug) build of `2a33196` plus the benchmark's second part is on his iPhone since 12:39 PT; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
+Updated: 2026-10-10, 13:40 PT (5.7 is open; five commits are local and not pushed, `b6dba43` through the one that carries this file; `55af072` is the last pushed commit; the owner reported that the 144,247-passage library makes the app very slow, and five costs that grew with library size were removed that afternoon; a development (Debug) build with them is built at `/private/tmp/oi-install` and goes on his iPhone when the app is not running; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 1ab6b14
+Last verified commit: a4e237b
 
 ## Objective
 
@@ -34,6 +34,35 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 `Growth/CURRENT_EXPERIMENT.md`).
 
 ## Status
+
+- **2026-10-10, 13:00 to 13:40 PT: the large library makes the app slow, and five causes are fixed.** The owner: the
+  144,247-passage library makes the app "unbelievably slow and buggy", and he asked for delegated agents because
+  the week's usage in this tool was nearly spent. The file is fully imported (all 45 parts).
+  1. *Delegation (Antigravity, `~/.claude/skills/delegate`).* Two read-only sweeps succeeded: the engine layer
+     (`claude-opus-5-5-high`) and the interface layer (`claude-sonnet-5-5-high`). Their final answers hold a summary
+     and the top findings only (the full tables stayed in the agents' conversations):
+     `BenchmarkRuns/2026-10-10-large-library/A-services-cost-map.md` and `C-interface-cost-map.md`. All eight quoted
+     lines were found at the stated lines with `grep`. The Apple SDK survey failed twice on the Claude models (a
+     network error, then `RESOURCE_EXHAUSTED ... Resets in 4h45m56s` at about 13:15 PT) and its third run, on
+     `gemini-3.1-pro-high`, is not usable: it reports Core AI as absent from the SDK, which the app imports. Run it
+     again on a Claude model after about 18:00 PT with `scratchpad/agy/B.txt` plus `common.txt`.
+  2. *Fixed, with tests (`LargeLibraryCostTests`, 5):* each store was read twice at launch
+     (`VectorStoreRouter.db(for:)` now records the disk signature); the iCloud pass decoded and compared both copies
+     of every synced library at every launch (its record is now kept across launches as a digest in
+     `UserDefaults`); the first question ran a part-of-speech tagger over every passage on the main actor
+     (`CorpusVocabulary.build`, now an even sample above 4,000); opening Chat scored every passage for suggested
+     questions (`RAGService.suggestedQuestionPool`); a graph build compiled its patterns per passage
+     (`GraphIndexService`, compiled once). Row https://app.notion.com/p/3f549a74d54f8195bdcff0b7a8b27d59 .
+  3. *Found and not changed:* a string-keyed dictionary of every passage built in each hybrid search pass
+     (`HybridSearchService.swift:1157`); a loop over every passage for an extractive question
+     (`RAGService.swift:2639`); the Database preview counting the whole document text in a view body
+     (`DatabaseDashboardView.swift:2599`); one decode of the 159 MB metadata file per launch; every save rewriting
+     the whole store.
+  4. *The design behind all of it, not started and his to approve:* the passage text is stored twice, in
+     `_meta.json` (decoded whole into memory) and in the keyword index's `chunks` table. Keeping only ids and
+     vectors in the vector store and fetching text from SQLite for the passages a question returns would make
+     launch, memory and sync independent of library size. It changes `BNNSVectorDatabase.swift`'s file format (a
+     protected format) and needs a migration for existing libraries.
 
 - **2026-10-10, 11:10 to 11:50 PT: the owner said to go ahead with everything asked of him that morning ("you can
   do it. Just go ahead and do it").** What was done, what was refused, and what waits on the phone:
@@ -475,6 +504,7 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 
 ## Verification (2026-10-10, 11:20 to 11:50 PT, `b6dba43` plus the midday work, output read)
 
+- The five large-library fixes: simulator build and suite -> 798 XCTest tests, 0 failures, 3 skipped (`/private/tmp/oi-57-test23.log`, 13:36 PT; the first run had 3 failures, all one new test whose expected value was wrong, `oi-57-test21.log`); Mac build -> BUILD SUCCEEDED (13:27 PT, before a one-keyword warning fix); device build without the provisioning flag -> BUILD SUCCEEDED (`/private/tmp/oi-57-device15.log`, 13:37 PT). Not timed on a device.
 - `xcodebuild build-for-testing` then `test-without-building`, simulator `55AFFA2C-...`, `-jobs 1`, on the tree with every midday change -> 793 XCTest tests, 0 failures, 3 skipped (`/private/tmp/oi-57-test19.log`, 11:47 PT). The run before it, without the encoding and PDF changes, was 788 tests, 0 failures (`oi-57-test18.log`, 11:40 PT). New since 777: 8 in `WorkspaceSyncImportGuardTests`, 8 in `IngestionAccuracyTests`.
 - `xcodebuild build ... -configuration Debug -destination 'generic/platform=iOS' -jobs 1 MARKETING_VERSION=5.7`, no provisioning flag -> BUILD SUCCEEDED (`/private/tmp/oi-57-device12.log`, about 11:25 PT). It holds the sync guard, `embeddingText` and the benchmark, not the encoding or PDF changes. Copied to `/private/tmp/oi-install/OpenIntelligence.app`; not installed (phone out of reach).
 - `xcodebuild build ... -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO` -> BUILD SUCCEEDED at 11:43 PT for the sync guard, `embeddingText` and the benchmark (the Core AI branch of the benchmark compiles only there and for a device), and again at 11:49 PT with the encoding and PDF changes (`/private/tmp/oi-57-mac.log`). No warning names a line changed at midday.
@@ -978,6 +1008,12 @@ in it, left shut down).
 
 ## Exact Next Action
 
+0. **Put the large-library build on his iPhone and time it.** Install `/private/tmp/oi-install/OpenIntelligence.app`
+   (rebuild with `scratchpad/builddevice.sh <log>` if it is gone) only when `devicectl device info processes` shows
+   the app is not running. Then, with the 144,247-passage library: cold launch to a usable Chat, and the first
+   question. The trace should show one `[VectorLoad]` for that library per launch from the second launch on (the
+   first launch after the install still runs one full sync comparison and records it). Next in the same area: the
+   three costs in Status item 3, then the storage design in item 4 if he approves it.
 1. **Ask the owner one thing and act on the answer: which embedder new libraries on iPhone and iPad use.** The
    phone's numbers (Status, item 8) favour the Core ML provider there: 116 to 121 passages a second on the Neural
    Engine against 88 for Core AI on the GPU, and 84 to 104 on the CPU alone for the background, where Core AI has 5.

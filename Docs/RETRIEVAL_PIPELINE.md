@@ -17,6 +17,8 @@
 
 ---
 
+> **Large libraries, changed 2026-10-10 for 5.7.** Three steps described in this document used to walk every passage of the active library: the query-expansion vocabulary (`CorpusVocabulary.build`, a part-of-speech tagger per passage, built for the first question after a launch or an import), the suggested-question sampler (`RAGService.getSampleChunks`) and the cross-reference graph (a regular expression compiled per pattern per passage). Above 4,000 passages the first two now work from an even sample of the library (the sampler also keeps every document summary), and the graph's patterns are compiled once. A vocabulary built from a sample can miss a term that appears in few passages; that is the trade. Still per passage on each question: the hybrid search's join dictionary (`HybridSearchService.swift`) and the extractive "spec" scan (`RAGService.swift`). `[evidence_level: test_verified for the sampling rules; code_verified; not timed on a device, confidence: medium, evidence_source: LargeLibraryCostTests, QueryEnhancementService.swift, RAGService.swift, GraphIndexService.swift]`
+
 ## 1. Overview
 The retrieval pipeline is the core engineering idea in OpenIntelligence: answers are grounded in user-provided material and expose the exact evidence that influenced them. The app is built to bias responses toward groundedness, showing uncertainty when evidence is weak rather than inventing confident prose.
 

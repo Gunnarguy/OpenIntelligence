@@ -4343,6 +4343,23 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// The most passages the suggested-question sampler scores.
+    nonisolated static let suggestedQuestionPoolLimit = 4_000
+
+    /// Every passage of a small library; for a large one an even sample in order, and every
+    /// document summary, which are few and are what the sampler prefers.
+    static func suggestedQuestionPool(from stored: [DocumentChunk]) -> [DocumentChunk] {
+        guard stored.count > suggestedQuestionPoolLimit else { return stored }
+        let sampled = evenSampleIndices(count: stored.count, limit: suggestedQuestionPoolLimit)
+        let inSample = Set(sampled)
+        var pool = sampled.map { stored[$0] }
+        for (index, chunk) in stored.enumerated()
+        where chunk.metadata.abstractionLevel == .documentSummary && !inSample.contains(index) {
+            pool.append(chunk)
+        }
+        return pool
+    }
+
     /// Return a sample of chunks for content analysis (used by SuggestedQuestionsService)
     /// - Parameters:
     ///   - containerId: The container to sample from
@@ -4353,7 +4370,10 @@ class RAGService: ObservableObject {
             return []
         }
         let db = vectorRouter.db(for: container)
-        let allChunks = try await db.allChunks()
+        // Choosing a few dozen samples scored every passage of the library, on the main actor,
+        // each time Chat was first shown. A large library now offers an even sample of its
+        // passages, plus its document summaries, to choose from.
+        let allChunks = Self.suggestedQuestionPool(from: try await db.allChunks())
         let detailChunks = allChunks.filter { $0.metadata.abstractionLevel == .detail }
         let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
 

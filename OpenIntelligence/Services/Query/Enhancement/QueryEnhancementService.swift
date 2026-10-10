@@ -1130,6 +1130,15 @@ final class QueryEnhancementService {
 // MARK: - Corpus Vocabulary Builder
 
 extension CorpusVocabulary {
+    /// The most passages a vocabulary is built from.
+    nonisolated static let vocabularySampleLimit = 4_000
+
+    /// Every passage of a small library; an even sample, in order, of a large one.
+    nonisolated static func sampledForVocabulary(_ chunks: [DocumentChunk]) -> [DocumentChunk] {
+        guard chunks.count > vocabularySampleLimit else { return chunks }
+        return RAGService.evenSampleIndices(count: chunks.count, limit: vocabularySampleLimit).map { chunks[$0] }
+    }
+
     /// Builds vocabulary from document chunks for corpus-aware query expansion.
     ///
     /// Quality filtering at build time:
@@ -1139,6 +1148,10 @@ extension CorpusVocabulary {
     /// 4. Adjective+noun pairs from text (e.g., "blue outlet", "red button")
     static func build(from chunks: [DocumentChunk]) -> CorpusVocabulary {
         guard !chunks.isEmpty else { return .empty }
+        // The loop below runs a part-of-speech tagger over every passage it is given, and it
+        // runs for the first question after each launch and each import. A vocabulary is a
+        // statistic of the library, so a large library gives it an even sample of its passages.
+        let chunks = sampledForVocabulary(chunks)
 
         var allKeywords: Set<String> = []
         var coOccurrences: [String: Set<String>] = [:]

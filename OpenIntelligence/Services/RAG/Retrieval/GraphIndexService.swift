@@ -159,6 +159,12 @@ actor GraphIndexService {
         extractCrossReferencesStatic(from: content).map(\ .targetId)
     }
 
+    /// `referencePatterns`, compiled once. They were compiled again for every passage, which is
+    /// what a graph build over a large library spent its time on. A compiled expression is safe
+    /// to match with from any thread.
+    nonisolated private static let compiledReferencePatterns: [NSRegularExpression?] =
+        referencePatterns.map { try? NSRegularExpression(pattern: $0.pattern, options: []) }
+
     /// Extract all cross-references without requiring an actor instance.
     nonisolated static func extractCrossReferencesStatic(from content: String) -> [CrossReference] {
         var references: [CrossReference] = []
@@ -167,8 +173,8 @@ actor GraphIndexService {
 
         var matchedRanges: [NSRange] = []
 
-        for (pattern, type, targetGroup) in Self.referencePatterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { continue }
+        for (index, (_, type, targetGroup)) in Self.referencePatterns.enumerated() {
+            guard let regex = Self.compiledReferencePatterns[index] else { continue }
             let matches = regex.matches(in: content, options: [], range: fullRange)
 
             for match in matches {
