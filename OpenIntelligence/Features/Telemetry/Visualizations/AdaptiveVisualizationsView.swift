@@ -2057,13 +2057,13 @@ struct Fullscreen3DAtlasView: View {
         Group {
             if !docLegendItems.isEmpty {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Documents")
+                    Text("Clusters")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(.white.opacity(0.4))
                         .textCase(.uppercase)
                         .tracking(0.5)
 
-                    ForEach(docLegendItems.prefix(8), id: \.docId) { item in
+                    ForEach(docLegendItems.prefix(5), id: \.docId) { item in
                         HStack(spacing: 6) {
                             Circle()
                                 .fill(item.color)
@@ -2224,65 +2224,83 @@ struct Fullscreen3DAtlasView: View {
             seed: seed
         )
 
-        // === PER-DOCUMENT COLORING (deterministic, no gray fallback) ===
-        let docIds = Set(sampledChunks.map { $0.documentId })
-        let sortedDocIds = docIds.sorted { $0.uuidString < $1.uuidString }
-        let palette = EmbeddingColorPalette.makePalette(count: max(sortedDocIds.count, 1))
-        var colorByDoc: [UUID: PlatformColor] = [:]
-        for (i, did) in sortedDocIds.enumerated() {
-            colorByDoc[did] = palette[i % palette.count]
-        }
-        let mappedColors = sampledChunks.map { colorByDoc[$0.documentId] ?? EmbeddingColorPalette.fallback }
+        // === CLUSTER MEMBERSHIP & NAMING ===
+        // Cluster membership derives deterministically from embeddings via k-means.
+        // Cluster names derive solely from the words of the passages in the cluster.
+        let texts = sampledChunks.map { $0.content }
+        // Splitting 6,000 passages into words and clustering their vectors is seconds of work on
+        // a phone, so it is done off the main actor; only the results come back to it.
+        let (passageTerms, clusterIndices, clusterNames) = await Task.detached(priority: .userInitiated) {
+            let terms = texts.map { AtlasLabeling.terms(in: $0) }
+            let indices = AtlasLabeling.kMeans(embeddings: embeddings)
+            let names = AtlasLabeling.clusterNames(
+                texts: texts,
+                clusterMembership: indices,
+                precomputedTerms: terms
+            )
+            return (terms, indices, names)
+        }.value
 
-        // Build document name map (extract from contextualPrefix "[From filename] ...")
-        var docNameMap: [UUID: String] = [:]
-        for chunk in sampledChunks {
-            if docNameMap[chunk.documentId] == nil {
-                var name: String?
-                if let prefix = chunk.contextualPrefix,
-                   let fromRange = prefix.range(of: "[From "),
-                   let closeBracket = prefix[fromRange.upperBound...].range(of: "]") {
-                    let extracted = String(prefix[fromRange.upperBound ..< closeBracket.lowerBound])
-                    if !extracted.isEmpty { name = extracted }
-                }
-                docNameMap[chunk.documentId] = name ?? chunk.documentId.uuidString.prefix(8).description
+        let palette: [PlatformColor] = [
+            PlatformColor(.blue),
+            PlatformColor(.purple),
+            PlatformColor(.green),
+            PlatformColor(.orange),
+            PlatformColor(.pink),
+            PlatformColor(.teal)
+        ]
+
+        var topicAssignments: [UUID: String] = [:]
+        var mappedColors: [PlatformColor] = []
+        mappedColors.reserveCapacity(sampledChunks.count)
+
+        for (i, chunk) in sampledChunks.enumerated() {
+            let c = (i < clusterIndices.count && clusterIndices[i] >= 0 && clusterIndices[i] < clusterNames.count) ? clusterIndices[i] : 0
+            let name = clusterNames[c]
+            topicAssignments[chunk.id] = name
+            mappedColors.append(palette[c % palette.count])
+        }
+
+        // Build legend items matching clusters
+        var clusterCounts = Array(repeating: 0, count: clusterNames.count)
+        for c in clusterIndices {
+            if c >= 0 && c < clusterCounts.count {
+                clusterCounts[c] += 1
             }
         }
 
-        // Build legend items
-        var docCounts: [UUID: Int] = [:]
-        for chunk in sampledChunks { docCounts[chunk.documentId, default: 0] += 1 }
-        var docLegend: [VizLegendItem] = []
-        for did in sortedDocIds {
-            let color = colorByDoc[did] ?? EmbeddingColorPalette.fallback
-            let name = docNameMap[did] ?? "Unknown"
-            let count = docCounts[did] ?? 0
-            if count > 0 { docLegend.append(VizLegendItem(docId: did, name: name, color: Color(color), count: count)) }
+        var clusterLegend: [VizLegendItem] = []
+        for c in 0..<clusterNames.count {
+            let count = clusterCounts[c]
+            guard count > 0 else { continue }
+            clusterLegend.append(VizLegendItem(
+                docId: UUID(),
+                name: clusterNames[c],
+                color: Color(palette[c % palette.count]),
+                count: count
+            ))
         }
 
         // Scale points properly for viewing
         let scaledPoints = scaleCoordinatesForViewing(coords3D)
 
-        // Build per-document cluster annotations with FTS5-enriched keywords
-        let clusterAnnotations = buildDocClusterAnnotations(
-            chunks: sampledChunks,
+        // Build cluster annotations at actual cluster centroids
+        let clusterAnnotations = buildScaledAnnotations(
             coords: coords3D,
-            docNameMap: docNameMap,
-            colorByDoc: colorByDoc
+            clusterIndices: clusterIndices,
+            clusterNames: clusterNames,
+            palette: palette
         )
 
-        // Also keep topic assignments for any legacy consumers
-        let topicAssignments = assignTopics(chunks: sampledChunks)
-
-        // Analyze axis extremes for content-derived semantic labels
-        let axisLabels = analyzeAxisLabels(coords: coords3D, chunks: sampledChunks)
+        // Analyze axis extremes for content-derived semantic labels using AtlasLabeling
+        let axisLabels = analyzeAxisLabels(coords: coords3D, chunks: sampledChunks, precomputedTerms: passageTerms)
 
         await MainActor.run {
             points = scaledPoints
             colors = mappedColors
             annotations = clusterAnnotations
             chunkTopicAssignments = topicAssignments
-            docLegendItems = docLegend
+            docLegendItems = clusterLegend
             dynamicAxisLabels = axisLabels
             sceneReloadToken = UUID()
             isLoading = false
@@ -2319,138 +2337,6 @@ struct Fullscreen3DAtlasView: View {
         }
 
         return Array(sampled.prefix(sampleLimit))
-    }
-
-    private func assignTopics(chunks: [DocumentChunk]) -> [UUID: String] {
-        var assignments: [UUID: String] = [:]
-
-        // Use profile topics if available
-        var topicKeywords: [String: Set<String>] = [:]
-        if let profile {
-            for topic in profile.dominantTopics {
-                var keywords = Set<String>()
-                keywords.insert(topic.name.lowercased())
-                topicKeywords[topic.name] = keywords
-            }
-        }
-
-        for chunk in chunks {
-            let text = chunk.text.lowercased()
-            let words = Set(text.components(separatedBy: .alphanumerics.inverted).filter { $0.count > 2 })
-
-            var bestTopic: String?
-            var bestScore = 0
-
-            for (name, keywords) in topicKeywords {
-                let score = words.intersection(keywords).count
-                if score > bestScore {
-                    bestScore = score
-                    bestTopic = name
-                }
-            }
-
-            assignments[chunk.id] = bestTopic ?? inferTopic(from: text)
-        }
-
-        return assignments
-    }
-
-    private func inferTopic(from text: String) -> String {
-        let patterns: [(String, String)] = [
-            ("func |class |struct |enum ", "Code"),
-            ("import |require\\(|from .+ import", "Code"),
-            ("http|api|endpoint|request", "API"),
-            ("test|spec|assert|expect", "Testing"),
-            ("config|settings|options", "Config"),
-            ("error|exception|throw", "Errors"),
-            ("view|component|render", "UI"),
-        ]
-
-        for (pattern, topic) in patterns {
-            if text.range(of: pattern, options: .regularExpression) != nil {
-                return topic
-            }
-        }
-
-        return "General"
-    }
-
-    private func mapColors(chunks: [DocumentChunk], assignments: [UUID: String]) -> [PlatformColor] {
-        var topicColorMap: [String: PlatformColor] = [:]
-        if let profile {
-            for topic in profile.dominantTopics {
-                topicColorMap[topic.name] = PlatformColor(topic.color)
-            }
-        }
-
-        let fallback: [String: Color] = [
-            "Code": .blue, "API": .purple, "Testing": .green,
-            "Config": .orange, "Errors": .red, "UI": .pink,
-            "General": .gray,
-        ]
-
-        let docPalette: [PlatformColor] = [
-            PlatformColor(.blue.opacity(0.8)),
-            PlatformColor(.purple.opacity(0.8)),
-            PlatformColor(.teal.opacity(0.8)),
-            PlatformColor(.orange.opacity(0.8)),
-        ]
-        var docColors: [UUID: PlatformColor] = [:]
-        var idx = 0
-
-        return chunks.map { chunk in
-            guard let topic = assignments[chunk.id] else {
-                if let c = docColors[chunk.documentId] { return c }
-                let c = docPalette[idx % docPalette.count]
-                docColors[chunk.documentId] = c
-                idx += 1
-                return c
-            }
-
-            if let c = topicColorMap[topic] { return c }
-            if let c = fallback[topic] { return PlatformColor(c) }
-            return PlatformColor(.gray.opacity(0.6))
-        }
-    }
-
-    private func buildAnnotations(
-        chunks: [DocumentChunk],
-        coords: [SIMD3<Float>],
-        assignments: [UUID: String]
-    ) -> [Embedding3DSceneView.AnnotationData] {
-        guard chunks.count == coords.count else { return [] }
-
-        var topicPoints: [String: [SIMD3<Float>]] = [:]
-        for (i, chunk) in chunks.enumerated() {
-            guard i < coords.count else { continue }
-            let topic = assignments[chunk.id] ?? "General"
-            topicPoints[topic, default: []].append(coords[i])
-        }
-
-        var topicColorMap: [String: PlatformColor] = [:]
-        if let profile {
-            for topic in profile.dominantTopics {
-                topicColorMap[topic.name] = PlatformColor(topic.color)
-            }
-        }
-
-        var result: [Embedding3DSceneView.AnnotationData] = []
-        for (topic, pts) in topicPoints where pts.count >= 3 {
-            let centroid = pts.reduce(.zero, +) / Float(pts.count)
-            let color = topicColorMap[topic] ?? PlatformColor(.gray)
-
-            result.append(Embedding3DSceneView.AnnotationData(
-                position: SCNVector3(centroid.x, centroid.y + 0.15, centroid.z),
-                title: topic,
-                keywords: [],
-                color: color,
-                detailLevel: pts.count > 20 ? 2 : 1,
-                clusterSize: pts.count,
-                isDocumentCluster: false
-            ))
-        }
-
-        return result
     }
 
     // MARK: - Coordinate Scaling (matches CompactAtlasSceneView)
@@ -2496,89 +2382,15 @@ struct Fullscreen3DAtlasView: View {
         return result
     }
 
-    /// Build annotations with same scaling as points (legacy, kept for reference)
+    /// Build annotations at cluster centroids
     private func buildScaledAnnotations(
-        chunks: [DocumentChunk],
         coords: [SIMD3<Float>],
-        assignments: [UUID: String]
+        clusterIndices: [Int],
+        clusterNames: [String],
+        palette: [PlatformColor]
     ) -> [Embedding3DSceneView.AnnotationData] {
-        guard chunks.count == coords.count, !coords.isEmpty else { return [] }
+        guard coords.count == clusterIndices.count, !coords.isEmpty else { return [] }
 
-        // Calculate scaling parameters (same as scaleCoordinatesForViewing)
-        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
-        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
-        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
-
-        for c in coords {
-            minX = min(minX, c.x); maxX = max(maxX, c.x)
-            minY = min(minY, c.y); maxY = max(maxY, c.y)
-            minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
-        }
-
-        let centerX = (minX + maxX) / 2
-        let centerY = (minY + maxY) / 2
-        let centerZ = (minZ + maxZ) / 2
-        let maxSpan = max(max(maxX - minX, maxY - minY), max(maxZ - minZ, 0.0001))
-        let scale = 4.5 / maxSpan
-
-        // Group by topic
-        var topicPoints: [String: [SIMD3<Float>]] = [:]
-        for (i, chunk) in chunks.enumerated() {
-            guard i < coords.count else { continue }
-            let topic = assignments[chunk.id] ?? "General"
-            topicPoints[topic, default: []].append(coords[i])
-        }
-
-        // Get topic colors
-        var topicColorMap: [String: PlatformColor] = [:]
-        if let profile {
-            for topic in profile.dominantTopics {
-                topicColorMap[topic.name] = PlatformColor(topic.color)
-            }
-        }
-
-        var result: [Embedding3DSceneView.AnnotationData] = []
-        for (topic, pts) in topicPoints where pts.count >= 3 {
-            var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
-            for p in pts {
-                sumX += p.x; sumY += p.y; sumZ += p.z
-            }
-            let count = Float(pts.count)
-
-            let centroidX = ((sumX / count) - centerX) * scale
-            let centroidY = ((sumY / count) - centerY) * scale
-            let centroidZ = ((sumZ / count) - centerZ) * scale
-
-            let color = topicColorMap[topic] ?? PlatformColor(.gray)
-
-            result.append(Embedding3DSceneView.AnnotationData(
-                position: SCNVector3(centroidX, centroidY, centroidZ),
-                title: topic,
-                keywords: ["\(pts.count) pts"],
-                color: color,
-                detailLevel: pts.count > 20 ? 2 : (pts.count > 5 ? 1 : 0),
-                clusterSize: pts.count,
-                isDocumentCluster: false
-            ))
-        }
-
-        return result
-    }
-
-    // MARK: - Per-Document Cluster Annotations (FTS5-enriched)
-
-    /// Builds cluster annotations grouped by document with FTS5 keyword enrichment.
-    /// Each document gets a labeled centroid with extracted keywords from the FTS5 index.
-    /// Eliminates topic→"General"→gray fallback entirely.
-    private func buildDocClusterAnnotations(
-        chunks: [DocumentChunk],
-        coords: [SIMD3<Float>],
-        docNameMap: [UUID: String],
-        colorByDoc: [UUID: PlatformColor]
-    ) -> [Embedding3DSceneView.AnnotationData] {
-        guard chunks.count == coords.count, !coords.isEmpty else { return [] }
-
-        // Calculate scaling parameters (same as scaleCoordinatesForViewing)
         var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
         var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
         var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
@@ -2595,66 +2407,38 @@ struct Fullscreen3DAtlasView: View {
         let maxSpan = max(max(maxX - minX, maxY - minY), max(maxZ - minZ, 0.0001))
         let scale: Float = 4.5 / maxSpan
 
-        // Group by document
-        var docPoints: [UUID: [SIMD3<Float>]] = [:]
-        var docChunks: [UUID: [DocumentChunk]] = [:]
-        for (i, chunk) in chunks.enumerated() {
+        var clusterPoints: [Int: [SIMD3<Float>]] = [:]
+        for (i, c) in clusterIndices.enumerated() {
             guard i < coords.count else { continue }
-            docPoints[chunk.documentId, default: []].append(coords[i])
-            docChunks[chunk.documentId, default: []].append(chunk)
+            clusterPoints[c, default: []].append(coords[i])
         }
 
         var result: [Embedding3DSceneView.AnnotationData] = []
-
-        for (docId, pts) in docPoints {
-            guard pts.count >= 2 else { continue }
-
-            // Calculate centroid in original coords, then scale
+        for c in 0..<clusterNames.count {
+            guard let pts = clusterPoints[c], !pts.isEmpty else { continue }
             var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
-            for p in pts { sumX += p.x; sumY += p.y; sumZ += p.z }
+            for p in pts {
+                sumX += p.x; sumY += p.y; sumZ += p.z
+            }
             let count = Float(pts.count)
-            let cx = ((sumX / count) - centerX) * scale
-            let cy = ((sumY / count) - centerY) * scale
-            let cz = ((sumZ / count) - centerZ) * scale
 
-            let docName = docNameMap[docId] ?? docId.uuidString.prefix(8).description
-            let color = colorByDoc[docId] ?? EmbeddingColorPalette.fallback
+            let centroidX = ((sumX / count) - centerX) * scale
+            let centroidY = ((sumY / count) - centerY) * scale
+            let centroidZ = ((sumZ / count) - centerZ) * scale
 
-            // === FTS5-ENRICHED KEYWORDS ===
-            // Extract keywords from chunk metadata, enriched with FTS5 corpus intel
-            var kwCounts: [String: Int] = [:]
-            let docNameLower = docName.lowercased()
-            for chunk in (docChunks[docId] ?? []) {
-                for kw in chunk.metadata.keywords {
-                    let kwLower = kw.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard kwLower.count >= 3, !docNameLower.contains(kwLower) else { continue }
-                    kwCounts[kwLower, default: 0] += 1
-                }
-            }
-
-            // Boost keywords that also appear in FTS5 top terms
-            let fts5Set = Set(fts5TopTerms.map { $0.lowercased() })
-            var scoredKws: [(String, Double)] = kwCounts.map { kw, count in
-                let fts5Boost: Double = fts5Set.contains(kw) ? 1.5 : 1.0
-                return (kw, Double(count) * fts5Boost)
-            }
-            scoredKws.sort { $0.1 > $1.1 }
-
-            var keywords = scoredKws.prefix(3).map { $0.0 }
-            keywords.append("\(pts.count) chunks")
+            let color = palette[c % palette.count]
 
             result.append(Embedding3DSceneView.AnnotationData(
-                position: SCNVector3(cx, cy, cz),
-                title: docName,
-                keywords: keywords,
+                position: SCNVector3(centroidX, centroidY, centroidZ),
+                title: clusterNames[c],
+                keywords: ["\(pts.count) pts"],
                 color: color,
-                detailLevel: pts.count > 50 ? 2 : (pts.count > 15 ? 1 : 0),
+                detailLevel: pts.count > 20 ? 2 : (pts.count > 5 ? 1 : 0),
                 clusterSize: pts.count,
-                isDocumentCluster: true
+                isDocumentCluster: false
             ))
         }
 
-        result.sort { $0.clusterSize > $1.clusterSize }
         return result
     }
 
@@ -2664,178 +2448,38 @@ struct Fullscreen3DAtlasView: View {
     /// Returns content-derived labels like "Maintenance ↔ Specifications" for each axis.
     private func analyzeAxisLabels(
         coords: [SIMD3<Float>],
-        chunks: [DocumentChunk]
+        chunks: [DocumentChunk],
+        precomputedTerms: [Set<String>]? = nil
     ) -> Embedding3DSceneView.AxisLabels {
-        guard coords.count >= 6, coords.count == chunks.count else {
+        guard coords.count == chunks.count, !coords.isEmpty else {
             return .placeholder
         }
 
-        let extremeSampleSize = max(3, min(10, coords.count / 8))
-        let indexed = coords.enumerated().map { (idx: $0.offset, coord: $0.element) }
+        let texts = chunks.map { $0.content }
+        let allTerms = precomputedTerms ?? texts.map { AtlasLabeling.terms(in: $0) }
 
-        let sortedByX = indexed.sorted { $0.coord.x < $1.coord.x }
-        let sortedByY = indexed.sorted { $0.coord.y < $1.coord.y }
-        let sortedByZ = indexed.sorted { $0.coord.z < $1.coord.z }
+        let xValues = coords.map { $0.x }
+        let yValues = coords.map { $0.y }
+        let zValues = coords.map { $0.z }
 
-        let vocabularySet = Set(fts5TopTerms.map { $0.lowercased() })
+        let xEnds = AtlasLabeling.axisEnds(values: xValues, texts: texts, passageTerms: allTerms)
+        let yEnds = AtlasLabeling.axisEnds(values: yValues, texts: texts, passageTerms: allTerms)
+        let zEnds = AtlasLabeling.axisEnds(values: zValues, texts: texts, passageTerms: allTerms)
 
-        // Build corpus-wide word frequencies for TF-IDF contrast scoring
-        // Terms that appear uniformly across ALL chunks are noise, not axis-discriminative
-        let globalFreqs = buildGlobalWordFrequencies(chunks: chunks)
+        let xNeg = xEnds?.lowLabel ?? ""
+        let xPos = xEnds != nil ? (xEnds?.highLabel ?? "") : "Component 1"
 
-        // Greedy deduplication: each axis endpoint claims a unique label
-        var usedLabels = Set<String>()
+        let yNeg = yEnds?.lowLabel ?? ""
+        let yPos = yEnds != nil ? (yEnds?.highLabel ?? "") : "Component 2"
 
-        let xNeg = extractExtremeLabel(indices: sortedByX.prefix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !xNeg.isEmpty { usedLabels.insert(xNeg.lowercased()) }
-        let xPos = extractExtremeLabel(indices: sortedByX.suffix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !xPos.isEmpty { usedLabels.insert(xPos.lowercased()) }
-        let yNeg = extractExtremeLabel(indices: sortedByY.prefix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !yNeg.isEmpty { usedLabels.insert(yNeg.lowercased()) }
-        let yPos = extractExtremeLabel(indices: sortedByY.suffix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !yPos.isEmpty { usedLabels.insert(yPos.lowercased()) }
-        let zNeg = extractExtremeLabel(indices: sortedByZ.prefix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !zNeg.isEmpty { usedLabels.insert(zNeg.lowercased()) }
-        let zPos = extractExtremeLabel(indices: sortedByZ.suffix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        let zNeg = zEnds?.lowLabel ?? ""
+        let zPos = zEnds != nil ? (zEnds?.highLabel ?? "") : "Component 3"
 
         return Embedding3DSceneView.AxisLabels(
             xNeg: xNeg, xPos: xPos,
             yNeg: yNeg, yPos: yPos,
             zNeg: zNeg, zPos: zPos
         )
-    }
-
-    /// Build word → chunk-count map across entire corpus for IDF scoring
-    private func buildGlobalWordFrequencies(chunks: [DocumentChunk]) -> [String: Int] {
-        var docFreq: [String: Int] = [:]
-        for chunk in chunks {
-            let uniqueWords = Set(
-                chunk.text
-                    .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                    .map { $0.lowercased() }
-                    .filter { $0.count >= 3 }
-            )
-            for word in uniqueWords {
-                docFreq[word, default: 0] += 1
-            }
-            // Also count metadata keywords
-            for kw in chunk.metadata.keywords {
-                let clean = kw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                if clean.count >= 3 {
-                    docFreq[clean, default: 0] += 1
-                }
-            }
-        }
-        return docFreq
-    }
-
-    /// Extract the most distinctive keyword from chunks at an axis extreme.
-    /// Uses TF-IDF contrast: penalizes words that appear uniformly across ALL chunks
-    /// (corpus noise like "infotainment" appearing everywhere). Prefers terms
-    /// concentrated at this specific axis extreme.
-    private func extractExtremeLabel(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>, excluding: Set<String> = [], globalFreqs: [String: Int] = [:], totalChunks: Int = 1) -> String {
-        guard !indices.isEmpty else { return "" }
-        let extremeCount = Double(indices.count)
-        let totalDocs = max(Double(totalChunks), 1.0)
-
-        // Use chunk metadata keywords first (already curated by NER)
-        var metadataKeywords: [String: Int] = [:]
-        for idx in indices {
-            guard idx < chunks.count else { continue }
-            for keyword in chunks[idx].metadata.keywords {
-                let clean = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-                if clean.count >= 3 {
-                    metadataKeywords[clean.lowercased(), default: 0] += 1
-                }
-            }
-        }
-
-        if !metadataKeywords.isEmpty {
-            // FTS5 validation + IDF contrast scoring
-            let scored = metadataKeywords
-                .filter { vocabulary.contains($0.key) && !excluding.contains($0.key) }
-                .map { kw, count -> (String, Double) in
-                    let tf = Double(count) / extremeCount
-                    let globalCount = Double(globalFreqs[kw] ?? 1)
-                    // IDF: penalize terms appearing in many chunks (background noise)
-                    let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-                    // Concentration: what fraction of global occurrences are in this extreme?
-                    let concentration = Double(count) / max(globalCount, 1.0)
-                    return (kw, tf * idf * (1.0 + concentration))
-                }.sorted { $0.1 > $1.1 }
-
-            if let top = scored.first?.0 {
-                return top.prefix(1).uppercased() + top.dropFirst()
-            }
-        }
-
-        // Fallback: extract from raw text
-        let stopwords: Set<String> = [
-            "the", "a", "an", "is", "are", "was", "were", "be", "been",
-            "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "may", "might", "must", "shall", "can",
-            "to", "of", "in", "for", "on", "with", "at", "by", "from",
-            "as", "into", "through", "during", "before", "after", "above",
-            "below", "between", "under", "and", "but", "or", "not", "this",
-            "that", "these", "those", "it", "its", "they", "their", "them",
-            "we", "our", "you", "your", "he", "she", "him", "her", "his",
-            "data", "file", "page", "section", "chapter", "also", "use"
-        ]
-
-        var wordCounts: [String: Int] = [:]
-        var originalCase: [String: String] = [:]
-
-        for idx in indices {
-            guard idx < chunks.count else { continue }
-            let words = chunks[idx].text
-                .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .filter { w in
-                    let l = w.lowercased()
-                    return w.count >= 3 && w.count <= 20
-                        && !stopwords.contains(l)
-                        && !w.allSatisfy { $0.isNumber }
-                }
-            for word in words {
-                let lower = word.lowercased()
-                wordCounts[lower, default: 0] += 1
-                if originalCase[lower] == nil || word.first?.isUppercase == true {
-                    originalCase[lower] = word
-                }
-            }
-        }
-
-        // FTS5-validated terms with TF-IDF contrast scoring
-        let fts5Words = wordCounts
-            .filter { vocabulary.contains($0.key) && !excluding.contains($0.key) }
-            .map { word, count -> (String, Double) in
-                let tf = Double(count) / extremeCount
-                let globalCount = Double(globalFreqs[word] ?? 1)
-                let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-                let concentration = Double(count) / max(globalCount, 1.0)
-                return (word, tf * idf * (1.0 + concentration))
-            }.sorted { $0.1 > $1.1 }
-
-        if let best = fts5Words.first?.0 {
-            let display = originalCase[best] ?? best
-            return display.prefix(1).uppercased() + display.dropFirst()
-        }
-
-        // Last resort: highest TF-IDF non-excluded term (no FTS5 gate)
-        let fallback = wordCounts
-            .filter { !excluding.contains($0.key) }
-            .map { word, count -> (String, Double) in
-                let tf = Double(count) / extremeCount
-                let globalCount = Double(globalFreqs[word] ?? 1)
-                let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-                let concentration = Double(count) / max(globalCount, 1.0)
-                return (word, tf * idf * (1.0 + concentration))
-            }.sorted { $0.1 > $1.1 }
-
-        if let best = fallback.first?.0 {
-            let display = originalCase[best] ?? best
-            return display.prefix(1).uppercased() + display.dropFirst()
-        }
-        return ""
     }
 }
 
@@ -2864,6 +2508,7 @@ struct CompactAtlasSceneView: View {
     @State private var annotations: [Embedding3DSceneView.AnnotationData] = []
     @State private var sceneReloadToken = UUID()
     @State private var chunkTopicAssignments: [UUID: String] = [:] // chunk.id → topic name
+    @State private var legendItems: [TopicColorItem] = []
 
     // FTS5-derived corpus intelligence for richer labels
     @State private var fts5TopTerms: [String] = []
@@ -2980,12 +2625,10 @@ struct CompactAtlasSceneView: View {
 
     /// Shows what each color represents
     private var topicLegendOverlay: some View {
-        let topicColors = buildTopicColorLegend()
-
-        return Group {
-            if !topicColors.isEmpty {
+        Group {
+            if !legendItems.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
-                    ForEach(topicColors.prefix(5), id: \.name) { item in
+                    ForEach(legendItems.prefix(5), id: \.name) { item in
                         HStack(spacing: 5) {
                             Circle()
                                 .fill(item.color)
@@ -3008,25 +2651,6 @@ struct CompactAtlasSceneView: View {
         let name: String
         let color: Color
         let count: Int
-    }
-
-    private func buildTopicColorLegend() -> [TopicColorItem] {
-        // Count chunks per topic
-        var topicCounts: [String: Int] = [:]
-        for (_, topicName) in chunkTopicAssignments {
-            topicCounts[topicName, default: 0] += 1
-        }
-
-        // Map to colors from profile
-        var result: [TopicColorItem] = []
-        for topic in profile.dominantTopics {
-            if let count = topicCounts[topic.name], count > 0 {
-                result.append(TopicColorItem(name: topic.name, color: topic.color, count: count))
-            }
-        }
-
-        // Sort by count descending
-        return result.sorted { $0.count > $1.count }
     }
 
     /// Small overlay explaining what the user is looking at
@@ -3093,11 +2717,42 @@ struct CompactAtlasSceneView: View {
             seed: seed
         )
 
-        // Enhanced topic assignment using NLP keywords
-        let topicAssignments = assignTopicsNLP(chunks: sampledChunks)
+        // === CLUSTER MEMBERSHIP & NAMING ===
+        // Cluster membership derives deterministically from embeddings via k-means.
+        // Cluster names derive solely from the words of the passages in the cluster.
+        let texts = sampledChunks.map { $0.content }
+        // Splitting 6,000 passages into words and clustering their vectors is seconds of work on
+        // a phone, so it is done off the main actor; only the results come back to it.
+        let (passageTerms, clusterIndices, clusterNames) = await Task.detached(priority: .userInitiated) {
+            let terms = texts.map { AtlasLabeling.terms(in: $0) }
+            let indices = AtlasLabeling.kMeans(embeddings: embeddings)
+            let names = AtlasLabeling.clusterNames(
+                texts: texts,
+                clusterMembership: indices,
+                precomputedTerms: terms
+            )
+            return (terms, indices, names)
+        }.value
 
-        // Map colors based on topic assignments
-        let mappedColors = mapTopicColors(chunks: sampledChunks, assignments: topicAssignments)
+        let palette: [PlatformColor] = [
+            PlatformColor(.blue),
+            PlatformColor(.purple),
+            PlatformColor(.green),
+            PlatformColor(.orange),
+            PlatformColor(.pink),
+            PlatformColor(.teal)
+        ]
+
+        var topicAssignments: [UUID: String] = [:]
+        var mappedColors: [PlatformColor] = []
+        mappedColors.reserveCapacity(sampledChunks.count)
+
+        for (i, chunk) in sampledChunks.enumerated() {
+            let c = (i < clusterIndices.count && clusterIndices[i] >= 0 && clusterIndices[i] < clusterNames.count) ? clusterIndices[i] : 0
+            let name = clusterNames[c]
+            topicAssignments[chunk.id] = name
+            mappedColors.append(palette[c % palette.count])
+        }
 
         // Use ACTUAL PCA/UMAP coordinates - scale them properly for viewing
         // This preserves natural clustering and semantic structure!
@@ -3105,19 +2760,38 @@ struct CompactAtlasSceneView: View {
 
         // Build 3D cluster label annotations at ACTUAL cluster positions
         let clusterAnnotations = buildClusterAnnotations(
-            chunks: sampledChunks,
-            coords: coords3D, // Use original coords for centroid calculation
-            assignments: topicAssignments
+            coords: coords3D,
+            clusterIndices: clusterIndices,
+            clusterNames: clusterNames,
+            palette: palette
         )
 
+        var clusterCounts = Array(repeating: 0, count: clusterNames.count)
+        for c in clusterIndices {
+            if c >= 0 && c < clusterCounts.count {
+                clusterCounts[c] += 1
+            }
+        }
+        var legendItems: [TopicColorItem] = []
+        for c in 0..<clusterNames.count {
+            let count = clusterCounts[c]
+            guard count > 0 else { continue }
+            legendItems.append(TopicColorItem(
+                name: clusterNames[c],
+                color: Color(palette[c % palette.count]),
+                count: count
+            ))
+        }
+
         // Analyze axis extremes for content-derived semantic labels
-        let axisLabels = analyzeAxisLabelsCompact(coords: coords3D, chunks: sampledChunks)
+        let axisLabels = analyzeAxisLabelsCompact(coords: coords3D, chunks: sampledChunks, precomputedTerms: passageTerms)
 
         await MainActor.run {
             points = scaledPoints
             colors = mappedColors
             annotations = clusterAnnotations
             chunkTopicAssignments = topicAssignments
+            self.legendItems = legendItems
             dynamicAxisLabels = axisLabels
             sceneReloadToken = UUID()
             isLoading = false
@@ -3175,522 +2849,19 @@ struct CompactAtlasSceneView: View {
         return result
     }
 
-    // MARK: - Enhanced NLP Topic Assignment
 
-    private func assignTopicsNLP(chunks: [DocumentChunk]) -> [UUID: String] {
-        var assignments: [UUID: String] = [:]
 
-        // Build keyword sets from the actual dominant-topic metadata the library analysis produced.
-        // Using only the display label was too weak and pushed unmatched chunks into unrelated fallbacks.
-        let topicKeywords: [(name: String, terms: Set<String>, phrases: Set<String>)] = profile.dominantTopics.map { topic in
-            var terms = expandKeywords(topic.name)
-            var phrases: Set<String> = []
 
-            let normalizedName = normalizeTopicTerm(topic.name)
-            if !normalizedName.isEmpty {
-                terms.insert(normalizedName)
-                terms.formUnion(tokens(from: normalizedName))
-                phrases.insert(normalizedName)
-            }
-
-            for keyword in topic.keywords {
-                let normalizedKeyword = normalizeTopicTerm(keyword)
-                guard !normalizedKeyword.isEmpty else { continue }
-                terms.insert(normalizedKeyword)
-                terms.formUnion(tokens(from: normalizedKeyword))
-                terms.formUnion(expandKeywords(normalizedKeyword))
-                phrases.insert(normalizedKeyword)
-            }
-
-            return (name: topic.name, terms: terms, phrases: phrases)
-        }
-
-        for chunk in chunks {
-            let text = chunk.text.lowercased()
-            let words = chunkTopicTerms(for: chunk, lowerText: text)
-
-            var bestMatch: (name: String, score: Int)?
-
-            for topic in topicKeywords {
-                let termMatches = words.intersection(topic.terms).count
-                let phraseMatches = topic.phrases.reduce(into: 0) { partial, phrase in
-                    guard phrase.count >= 3, text.contains(phrase) else { return }
-                    partial += phrase.contains(" ") ? 3 : 2
-                }
-                let score = termMatches + phraseMatches
-
-                if score > (bestMatch?.score ?? 0) {
-                    bestMatch = (name: topic.name, score: score)
-                }
-            }
-
-            if let bestMatch, bestMatch.score > 0 {
-                assignments[chunk.id] = bestMatch.name
-            } else {
-                assignments[chunk.id] = fallbackTopicLabel(for: chunk)
-            }
-        }
-
-        return assignments
-    }
-
-    private func normalizeTopicTerm(_ value: String) -> String {
-        value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-    }
-
-    private func tokens(from value: String) -> Set<String> {
-        Set(
-            value
-                .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .map { $0.lowercased() }
-                .filter { $0.count >= 3 }
-        )
-    }
-
-    private func chunkTopicTerms(for chunk: DocumentChunk, lowerText: String) -> Set<String> {
-        var terms = extractSignificantWords(from: lowerText)
-
-        for keyword in chunk.metadata.keywords {
-            let normalizedKeyword = normalizeTopicTerm(keyword)
-            guard !normalizedKeyword.isEmpty else { continue }
-            terms.insert(normalizedKeyword)
-            terms.formUnion(tokens(from: normalizedKeyword))
-        }
-
-        if let sectionTitle = chunk.metadata.sectionTitle {
-            let normalizedSection = normalizeTopicTerm(sectionTitle)
-            if !normalizedSection.isEmpty {
-                terms.insert(normalizedSection)
-                terms.formUnion(tokens(from: normalizedSection))
-            }
-        }
-
-        return terms
-    }
-
-    private func fallbackTopicLabel(for chunk: DocumentChunk) -> String {
-        if let sectionTitle = chunk.metadata.sectionTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !sectionTitle.isEmpty {
-            let normalizedSection = normalizeTopicTerm(sectionTitle)
-            if !normalizedSection.isEmpty, !isGenericAtlasFallbackLabel(normalizedSection) {
-                return String(sectionTitle.prefix(40))
-            }
-        }
-
-        for keyword in chunk.metadata.keywords {
-            let normalizedKeyword = normalizeTopicTerm(keyword)
-            guard !normalizedKeyword.isEmpty, !isGenericAtlasFallbackLabel(normalizedKeyword) else { continue }
-            return displayTopicLabel(normalizedKeyword)
-        }
-
-        return "General"
-    }
-
-    private func isGenericAtlasFallbackLabel(_ normalizedLabel: String) -> Bool {
-        let genericTerms: Set<String> = [
-            "general", "document", "documents", "content", "contents", "section", "sections",
-            "page", "pages", "chapter", "chapters", "overview", "introduction", "summary",
-            "appendix", "appendices", "notes", "details", "information"
-        ]
-
-        let normalizedTokens = tokens(from: normalizedLabel)
-        guard !normalizedTokens.isEmpty else { return true }
-        return normalizedTokens.allSatisfy { genericTerms.contains($0) }
-    }
-
-    private func displayTopicLabel(_ normalizedLabel: String) -> String {
-        let acronyms: Set<String> = ["api", "sdk", "sql", "pdf", "ocr", "ui", "ux", "rag", "llm", "json", "xml", "csv", "faq"]
-
-        return normalizedLabel
-            .split(separator: " ")
-            .map { token in
-                let word = String(token)
-                if acronyms.contains(word) {
-                    return word.uppercased()
-                }
-                return word.prefix(1).uppercased() + word.dropFirst()
-            }
-            .joined(separator: " ")
-    }
-
-    private func expandKeywords(_ topic: String) -> Set<String> {
-        let base = normalizeTopicTerm(topic)
-        var expanded = Set<String>()
-
-        guard !base.isEmpty else { return expanded }
-
-        let baseTokens = tokens(from: base)
-
-        // Add the base term
-        expanded.insert(base)
-        expanded.formUnion(baseTokens)
-
-        // Add common suffixes/variations
-        let suffixes = ["s", "ing", "ed", "er", "tion", "ment", "ness", "ity", "ies"]
-        for token in baseTokens where token.count >= 4 {
-            for suffix in suffixes {
-                expanded.insert(token + suffix)
-            }
-        }
-
-        // Domain-specific expansions
-        let domainMappings: [String: [String]] = [
-            "code": ["programming", "software", "function", "class", "method", "api", "algorithm"],
-            "data": ["database", "analytics", "statistics", "dataset", "schema", "query"],
-            "design": ["ui", "ux", "interface", "layout", "visual", "style", "component"],
-            "security": ["authentication", "encryption", "auth", "token", "password", "secure"],
-            "network": ["http", "api", "endpoint", "request", "response", "server", "client"],
-            "test": ["testing", "unit", "integration", "mock", "assert", "spec", "coverage"],
-            "document": ["documentation", "readme", "guide", "tutorial", "reference", "manual"],
-            "config": ["configuration", "settings", "options", "parameters", "env", "environment"],
-            "model": ["schema", "entity", "struct", "class", "type", "object", "record"],
-            "view": ["component", "screen", "page", "layout", "template", "render", "display"],
-        ]
-
-        for token in baseTokens {
-            if let related = domainMappings[token] {
-                expanded.formUnion(related.map(normalizeTopicTerm))
-            }
-        }
-
-        // Check if any token matches a related-domain term.
-        for token in baseTokens {
-            for (_, related) in domainMappings where related.contains(token) {
-                expanded.formUnion(related.map(normalizeTopicTerm))
-            }
-        }
-
-        return expanded
-    }
-
-    private func extractSignificantWords(from text: String) -> Set<String> {
-        // Common stop words to filter out
-        let stopWords: Set<String> = [
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "as", "is", "was", "are", "were", "been",
-            "be", "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "may", "might", "must", "shall", "can", "need",
-            "this", "that", "these", "those", "it", "its", "they", "them",
-            "we", "us", "our", "you", "your", "he", "she", "him", "her",
-        ]
-
-        let words = text
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 }
-            .map { $0.lowercased() }
-            .filter { !stopWords.contains($0) }
-
-        return Set(words)
-    }
-
-    private func inferTopicFromContent(text: String) -> String {
-        let lowercased = text.lowercased()
-
-        // First, detect document domain for context-aware labeling
-        let domain = detectDomain(from: lowercased)
-
-        // Domain-specific pattern matching for meaningful labels
-        switch domain {
-        case "vehicle":
-            return inferVehicleTopic(from: lowercased)
-        case "technical":
-            return inferTechnicalTopic(from: lowercased)
-        case "legal":
-            return inferLegalTopic(from: lowercased)
-        case "medical":
-            return inferMedicalTopic(from: lowercased)
-        default:
-            return inferGeneralTopic(from: lowercased)
-        }
-    }
-
-    /// Detect document domain from content
-    private func detectDomain(from text: String) -> String {
-        // Vehicle/automotive indicators
-        let vehicleTerms = ["vehicle", "car", "engine", "transmission", "brake", "tire", "oil",
-                           "fuel", "mph", "dashboard", "steering", "warranty", "maintenance"]
-        if vehicleTerms.contains(where: { text.contains($0) }) { return "vehicle" }
-
-        // Technical/software indicators
-        let techTerms = ["api", "function", "code", "software", "database", "server", "deploy"]
-        if techTerms.contains(where: { text.contains($0) }) { return "technical" }
-
-        // Legal indicators
-        let legalTerms = ["agreement", "contract", "liability", "hereby", "pursuant"]
-        if legalTerms.contains(where: { text.contains($0) }) { return "legal" }
-
-        // Life-sciences indicators
-        let lifeSciencesTerms = ["study", "protocol", "cohort", "assay", "outcome"]
-        if lifeSciencesTerms.contains(where: { text.contains($0) }) { return "life sciences" }
-
-        return "general"
-    }
-
-    /// Infer topic for vehicle/automotive content
-    private func inferVehicleTopic(from text: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["infotainment", "display", "screen", "touchscreen", "navigation"], "Infotainment System"),
-            (["bluetooth", "audio", "speaker", "radio", "music", "sound"], "Audio & Connectivity"),
-            (["setting", "settings", "configure", "customize"], "Vehicle Settings"),
-            (["climate", "air conditioning", "hvac", "temperature", "heater"], "Climate Control"),
-            (["seat", "seating", "lumbar", "headrest"], "Seat Adjustment"),
-            (["safety", "airbag", "collision", "seatbelt"], "Safety Features"),
-            (["adas", "driver assist", "lane", "blind spot", "cruise control"], "Driver Assistance"),
-            (["alarm", "security", "theft", "lock", "keyless"], "Security System"),
-            (["camera", "backup", "parking", "sensor"], "Parking Assistance"),
-            (["oil", "lubricant", "viscosity"], "Oil Specifications"),
-            (["maintenance", "service", "schedule"], "Maintenance Schedule"),
-            (["tire", "wheel", "pressure", "rotation"], "Tire Information"),
-            (["brake", "braking", "pad", "rotor"], "Brake System"),
-            (["coolant", "antifreeze", "radiator"], "Cooling System"),
-            (["battery", "charging", "jump start"], "Battery & Charging"),
-            (["fuel", "gas", "gasoline", "tank", "mpg"], "Fuel System"),
-            (["engine", "motor", "horsepower", "torque"], "Engine Specs"),
-            (["transmission", "gear", "shift"], "Transmission"),
-            (["warranty", "coverage", "guarantee"], "Warranty"),
-            (["interior", "cabin", "dashboard", "console"], "Interior Features"),
-            (["trunk", "cargo", "storage"], "Cargo & Storage"),
-            (["gauge", "speedometer", "instrument"], "Instrument Panel"),
-            (["warning", "indicator", "alert"], "Warning Lights"),
-            (["specification", "dimension", "weight"], "Specifications"),
-            (["mirror", "lighting", "headlight"], "Exterior Controls"),
-        ]
-
-        return matchBestPattern(patterns: patterns, text: text) ?? "Vehicle Info"
-    }
-
-    /// Infer topic for technical/software content
-    private func inferTechnicalTopic(from text: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["api", "endpoint", "rest", "graphql"], "API Reference"),
-            (["authentication", "auth", "oauth", "token", "login"], "Authentication"),
-            (["database", "sql", "query", "schema"], "Database"),
-            (["configuration", "config", "settings", "env"], "Configuration"),
-            (["testing", "test", "unit test", "spec"], "Testing"),
-            (["error", "exception", "debugging", "troubleshoot"], "Error Handling"),
-            (["security", "encryption", "ssl"], "Security"),
-            (["performance", "optimization", "cache"], "Performance"),
-            (["deployment", "deploy", "ci/cd", "docker"], "Deployment"),
-            (["architecture", "design", "pattern"], "Architecture"),
-        ]
-
-        return matchBestPattern(patterns: patterns, text: text) ?? "Technical"
-    }
-
-    /// Infer topic for legal content
-    private func inferLegalTopic(from text: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["liability", "indemnify", "damages"], "Liability"),
-            (["confidential", "nda", "non-disclosure"], "Confidentiality"),
-            (["termination", "cancel", "expiration"], "Termination"),
-            (["payment", "fee", "compensation"], "Payment Terms"),
-            (["intellectual property", "copyright", "trademark"], "IP Rights"),
-            (["dispute", "arbitration", "mediation"], "Dispute Resolution"),
-        ]
-
-        return matchBestPattern(patterns: patterns, text: text) ?? "Legal Terms"
-    }
-
-    /// Infer topic for medical content
-    private func inferMedicalTopic(from text: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["diagnosis", "symptom", "condition"], "Diagnosis"),
-            (["treatment", "therapy", "procedure"], "Treatment"),
-            (["medication", "drug", "prescription", "dosage"], "Medications"),
-            (["side effect", "adverse", "reaction"], "Side Effects"),
-        ]
-
-        return matchBestPattern(patterns: patterns, text: text) ?? "Medical Info"
-    }
-
-    /// Infer topic for general content
-    private func inferGeneralTopic(from text: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["introduction", "overview", "about"], "Introduction"),
-            (["installation", "setup", "install"], "Setup"),
-            (["usage", "how to", "guide", "tutorial"], "Guide"),
-            (["troubleshoot", "problem", "issue", "fix"], "Troubleshooting"),
-            (["faq", "question", "answer"], "FAQ"),
-            (["contact", "support", "help"], "Support"),
-        ]
-
-        return matchBestPattern(patterns: patterns, text: text) ?? "General"
-    }
-
-    /// Helper to find the best matching pattern
-    private func matchBestPattern(patterns: [(terms: [String], label: String)], text: String) -> String? {
-        var bestMatch: (label: String, score: Int)?
-
-        for pattern in patterns {
-            var score = 0
-                // Whole words, not substrings. See ClusterLabelService: `contains`
-                // scored a neuroscience paper as "API Reference" because `"api"`
-                // matches inside ther**api**es, and as "Glossary" because `"term"`
-                // matches inside de**term**ined. Three copies of this taxonomy exist
-                // and all three had the defect; fixing one would have left the Atlas
-                // still mislabelling, because the labels come from a different copy.
-            for term in pattern.terms {
-                if HybridSearchService.containsTerm(text, term) {
-                    score += 1
-                }
-            }
-            if score > 0 && (bestMatch == nil || score > bestMatch!.score) {
-                bestMatch = (pattern.label, score)
-            }
-        }
-
-        return bestMatch?.label
-    }
-
-    // MARK: - Color Mapping
-
-    private func mapTopicColors(chunks: [DocumentChunk], assignments: [UUID: String]) -> [PlatformColor] {
-        // Build topic → color mapping from profile
-        var topicColorMap: [String: PlatformColor] = [:]
-        for topic in profile.dominantTopics {
-            topicColorMap[topic.name] = PlatformColor(topic.color)
-        }
-
-        // Expanded fallback palette for domain-specific topics
-        let fallbackPalette: [String: Color] = [
-            // Technical topics
-            "Code": .blue,
-            "API Reference": .purple,
-            "API": .purple,
-            "Testing": .green,
-            "Configuration": .orange,
-            "Config": .orange,
-            "Error Handling": .red,
-            "Errors": .red,
-            "Async": .cyan,
-            "UI": .pink,
-            "Data": .indigo,
-            "Authentication": .yellow,
-            "Auth": .yellow,
-            "Database": .teal,
-            "Deployment": .mint,
-            "Security": .red.opacity(0.7),
-            "Performance": .orange.opacity(0.8),
-            "Architecture": .blue.opacity(0.7),
-            "Technical": .blue,
-
-            // Vehicle topics
-            "Infotainment System": .purple,
-            "Audio & Connectivity": .purple.opacity(0.8),
-            "Vehicle Settings": .blue,
-            "Climate Control": .cyan,
-            "Seat Adjustment": .brown,
-            "Safety Features": .red,
-            "Driver Assistance": .green,
-            "Security System": .orange,
-            "Parking Assistance": .teal,
-            "Oil Specifications": .yellow,
-            "Maintenance Schedule": .orange,
-            "Tire Information": .gray,
-            "Brake System": .red.opacity(0.7),
-            "Cooling System": .blue.opacity(0.7),
-            "Battery & Charging": .green.opacity(0.8),
-            "Fuel System": .yellow.opacity(0.8),
-            "Engine Specs": .indigo,
-            "Transmission": .purple.opacity(0.7),
-            "Warranty": .green,
-            "Interior Features": .brown.opacity(0.7),
-            "Cargo & Storage": .gray.opacity(0.8),
-            "Instrument Panel": .blue.opacity(0.6),
-            "Warning Lights": .orange.opacity(0.9),
-            "Specifications": .gray,
-            "Exterior Controls": .teal.opacity(0.8),
-            "Vehicle Info": .blue.opacity(0.5),
-
-            // Legal topics
-            "Liability": .red.opacity(0.6),
-            "Confidentiality": .purple.opacity(0.6),
-            "Termination": .orange.opacity(0.6),
-            "Payment Terms": .green.opacity(0.6),
-            "IP Rights": .blue.opacity(0.6),
-            "Dispute Resolution": .yellow.opacity(0.6),
-            "Legal Terms": .purple.opacity(0.5),
-
-            // Medical topics
-            "Diagnosis": .blue.opacity(0.7),
-            "Treatment": .green.opacity(0.7),
-            "Medications": .purple.opacity(0.7),
-            "Side Effects": .orange.opacity(0.7),
-            "Medical Info": .teal.opacity(0.7),
-
-            // General topics
-            "Introduction": .blue.opacity(0.6),
-            "Setup": .green.opacity(0.6),
-            "Guide": .teal.opacity(0.6),
-            "Troubleshooting": .orange.opacity(0.6),
-            "FAQ": .purple.opacity(0.6),
-            "Support": .green.opacity(0.5),
-            "General": .gray,
-        ]
-
-        // Document-based fallback palette
-        let docPalette: [PlatformColor] = [
-            PlatformColor(.blue.opacity(0.8)),
-            PlatformColor(.purple.opacity(0.8)),
-            PlatformColor(.teal.opacity(0.8)),
-            PlatformColor(.orange.opacity(0.8)),
-            PlatformColor(.pink.opacity(0.8)),
-            PlatformColor(.green.opacity(0.8)),
-        ]
-        var docColorMap: [UUID: PlatformColor] = [:]
-        var docColorIndex = 0
-
-        // Cache for dynamically assigned topic colors
-        var dynamicTopicColors: [String: PlatformColor] = [:]
-        let dynamicPalette: [Color] = [.blue, .purple, .teal, .orange, .pink, .green, .indigo, .cyan, .mint, .brown]
-        var dynamicColorIndex = 0
-
-        return chunks.map { chunk in
-            guard let topicName = assignments[chunk.id] else {
-                // No topic assigned - use document color
-                if let existing = docColorMap[chunk.documentId] {
-                    return existing
-                }
-                let color = docPalette[docColorIndex % docPalette.count]
-                docColorMap[chunk.documentId] = color
-                docColorIndex += 1
-                return color
-            }
-
-            // Try profile topic color
-            if let color = topicColorMap[topicName] {
-                return color
-            }
-
-            // Try fallback palette
-            if let fallback = fallbackPalette[topicName] {
-                return PlatformColor(fallback)
-            }
-
-            // Try already assigned dynamic color for this topic
-            if let dynamicColor = dynamicTopicColors[topicName] {
-                return dynamicColor
-            }
-
-            // Assign a new dynamic color for unrecognized topics
-            let newColor = PlatformColor(dynamicPalette[dynamicColorIndex % dynamicPalette.count].opacity(0.7))
-            dynamicTopicColors[topicName] = newColor
-            dynamicColorIndex += 1
-            return newColor
-        }
-    }
 
     // MARK: - 3D Cluster Annotations
 
     private func buildClusterAnnotations(
-        chunks: [DocumentChunk],
         coords: [SIMD3<Float>],
-        assignments: [UUID: String]
+        clusterIndices: [Int],
+        clusterNames: [String],
+        palette: [PlatformColor]
     ) -> [Embedding3DSceneView.AnnotationData] {
-        guard chunks.count == coords.count else { return [] }
+        guard coords.count == clusterIndices.count, !coords.isEmpty else { return [] }
 
         // First, compute the same scaling parameters used for points
         var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
@@ -3713,25 +2884,18 @@ struct CompactAtlasSceneView: View {
         let maxSpan = max(spanX, max(spanY, spanZ))
         let scale = 4.5 / maxSpan // Same as scalePointsForViewing
 
-        // Group points by topic
-        var topicPoints: [String: [SIMD3<Float>]] = [:]
-        for (index, chunk) in chunks.enumerated() {
+        // Group points by cluster
+        var clusterPoints: [Int: [SIMD3<Float>]] = [:]
+        for (index, c) in clusterIndices.enumerated() {
             guard index < coords.count else { continue }
-            let topic = assignments[chunk.id] ?? "General"
-            topicPoints[topic, default: []].append(coords[index])
-        }
-
-        // Build topic → color mapping
-        var topicColorMap: [String: PlatformColor] = [:]
-        for topic in profile.dominantTopics {
-            topicColorMap[topic.name] = PlatformColor(topic.color)
+            clusterPoints[c, default: []].append(coords[index])
         }
 
         // Create annotation at centroid of each cluster
         var annotations: [Embedding3DSceneView.AnnotationData] = []
 
-        for (topicName, pointsInCluster) in topicPoints {
-            guard pointsInCluster.count >= 3 else { continue } // Only label significant clusters
+        for c in 0..<clusterNames.count {
+            guard let pointsInCluster = clusterPoints[c], pointsInCluster.count >= 1 else { continue }
 
             // Calculate centroid in ORIGINAL coords
             var sumX: Float = 0
@@ -3750,40 +2914,12 @@ struct CompactAtlasSceneView: View {
             let centroidZ = ((sumZ / count) - centerZ) * scale
 
             let centroid = SCNVector3(centroidX, centroidY, centroidZ)
-
-            // Get color for this topic
-            let color = topicColorMap[topicName] ?? PlatformColor(.white.opacity(0.7))
-
-            // === PER-TOPIC KEYWORDS FROM CHUNK METADATA ===
-            // Extract keywords from chunks assigned to THIS topic
-            var keywords: [String] = []
-            let topicNameLower = topicName.lowercased()
-
-            // Find chunks belonging to this topic and extract their keywords
-            var topicKeywordCounts: [String: Int] = [:]
-            for (_, chunk) in chunks.enumerated() {
-                guard assignments[chunk.id] == topicName else { continue }
-                for kw in chunk.metadata.keywords {
-                    let kwLower = kw.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard kwLower.count >= 3, !topicNameLower.contains(kwLower) else { continue }
-                    topicKeywordCounts[kwLower, default: 0] += 1
-                }
-            }
-
-            // Get top keywords for this topic
-            let topTopicKeywords = topicKeywordCounts
-                .sorted { $0.value > $1.value }
-                .prefix(2)
-                .map { $0.key }
-            keywords.append(contentsOf: topTopicKeywords)
-
-            // Always show point count
-            keywords.append("\(pointsInCluster.count) pts")
+            let color = palette[c % palette.count]
 
             annotations.append(Embedding3DSceneView.AnnotationData(
                 position: centroid,
-                title: topicName,
-                keywords: keywords,
+                title: clusterNames[c],
+                keywords: ["\(pointsInCluster.count) pts"],
                 color: color,
                 detailLevel: pointsInCluster.count > 50 ? 2 : (pointsInCluster.count > 20 ? 1 : 0),
                 clusterSize: pointsInCluster.count,
@@ -3791,8 +2927,6 @@ struct CompactAtlasSceneView: View {
             ))
         }
 
-        // Sort by cluster size (largest first) - show ALL topics, not just top few
-        annotations.sort { $0.detailLevel > $1.detailLevel }
         return annotations
     }
 
@@ -3812,10 +2946,12 @@ struct CompactAtlasSceneView: View {
         var sampled: [DocumentChunk] = []
         sampled.reserveCapacity(sampleLimit)
 
-        let seed = UInt64(abs(Int64(containerService.activeContainerId.uuidString.hashValue)))
+        let seed = deterministicSeed(from: containerService.activeContainerId.uuidString)
         var prng = VizLCG(seed: seed)
 
-        for (_, docChunks) in byDoc {
+        let sortedDocIds = byDoc.keys.sorted { $0.uuidString < $1.uuidString }
+        for docId in sortedDocIds {
+            guard let docChunks = byDoc[docId] else { continue }
             if docChunks.count > perDocQuota {
                 var indices = Array(0 ..< docChunks.count)
                 for i in stride(from: indices.count - 1, through: 1, by: -1) {
@@ -3847,38 +2983,32 @@ struct CompactAtlasSceneView: View {
     /// Analyze what content appears at the extremes of each projection axis.
     private func analyzeAxisLabelsCompact(
         coords: [SIMD3<Float>],
-        chunks: [DocumentChunk]
+        chunks: [DocumentChunk],
+        precomputedTerms: [Set<String>]? = nil
     ) -> Embedding3DSceneView.AxisLabels {
-        guard coords.count >= 6, coords.count == chunks.count else {
+        guard coords.count == chunks.count, !coords.isEmpty else {
             return .placeholder
         }
 
-        let extremeSampleSize = max(3, min(10, coords.count / 8))
-        let indexed = coords.enumerated().map { (idx: $0.offset, coord: $0.element) }
+        let texts = chunks.map { $0.content }
+        let allTerms = precomputedTerms ?? texts.map { AtlasLabeling.terms(in: $0) }
 
-        let sortedByX = indexed.sorted { $0.coord.x < $1.coord.x }
-        let sortedByY = indexed.sorted { $0.coord.y < $1.coord.y }
-        let sortedByZ = indexed.sorted { $0.coord.z < $1.coord.z }
+        let xValues = coords.map { $0.x }
+        let yValues = coords.map { $0.y }
+        let zValues = coords.map { $0.z }
 
-        let vocabularySet = Set(fts5TopTerms.map { $0.lowercased() })
+        let xEnds = AtlasLabeling.axisEnds(values: xValues, texts: texts, passageTerms: allTerms)
+        let yEnds = AtlasLabeling.axisEnds(values: yValues, texts: texts, passageTerms: allTerms)
+        let zEnds = AtlasLabeling.axisEnds(values: zValues, texts: texts, passageTerms: allTerms)
 
-        // Build corpus-wide word frequencies for TF-IDF contrast scoring
-        let globalFreqs = buildGlobalWordFrequenciesCompact(chunks: chunks)
+        let xNeg = xEnds?.lowLabel ?? ""
+        let xPos = xEnds != nil ? (xEnds?.highLabel ?? "") : "Component 1"
 
-        // Greedy deduplication: each axis endpoint claims a unique label
-        var usedLabels = Set<String>()
+        let yNeg = yEnds?.lowLabel ?? ""
+        let yPos = yEnds != nil ? (yEnds?.highLabel ?? "") : "Component 2"
 
-        let xNeg = extractExtremeLabelCompact(indices: sortedByX.prefix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !xNeg.isEmpty { usedLabels.insert(xNeg.lowercased()) }
-        let xPos = extractExtremeLabelCompact(indices: sortedByX.suffix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !xPos.isEmpty { usedLabels.insert(xPos.lowercased()) }
-        let yNeg = extractExtremeLabelCompact(indices: sortedByY.prefix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !yNeg.isEmpty { usedLabels.insert(yNeg.lowercased()) }
-        let yPos = extractExtremeLabelCompact(indices: sortedByY.suffix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !yPos.isEmpty { usedLabels.insert(yPos.lowercased()) }
-        let zNeg = extractExtremeLabelCompact(indices: sortedByZ.prefix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !zNeg.isEmpty { usedLabels.insert(zNeg.lowercased()) }
-        let zPos = extractExtremeLabelCompact(indices: sortedByZ.suffix(extremeSampleSize).map { $0.idx }, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        let zNeg = zEnds?.lowLabel ?? ""
+        let zPos = zEnds != nil ? (zEnds?.highLabel ?? "") : "Component 3"
 
         return Embedding3DSceneView.AxisLabels(
             xNeg: xNeg, xPos: xPos,
@@ -3887,119 +3017,7 @@ struct CompactAtlasSceneView: View {
         )
     }
 
-    /// Build word → chunk-count map across entire corpus for IDF scoring (compact)
-    private func buildGlobalWordFrequenciesCompact(chunks: [DocumentChunk]) -> [String: Int] {
-        var docFreq: [String: Int] = [:]
-        for chunk in chunks {
-            let uniqueWords = Set(
-                chunk.text
-                    .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                    .map { $0.lowercased() }
-                    .filter { $0.count >= 3 }
-            )
-            for word in uniqueWords {
-                docFreq[word, default: 0] += 1
-            }
-            for kw in chunk.metadata.keywords {
-                let clean = kw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                if clean.count >= 3 { docFreq[clean, default: 0] += 1 }
-            }
-        }
-        return docFreq
-    }
 
-    /// Extract the most distinctive keyword from chunks at an axis extreme.
-    /// Uses TF-IDF contrast scoring to avoid corpus-wide noise terms.
-    private func extractExtremeLabelCompact(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>, excluding: Set<String> = [], globalFreqs: [String: Int] = [:], totalChunks: Int = 1) -> String {
-        guard !indices.isEmpty else { return "" }
-        let extremeCount = Double(indices.count)
-        let totalDocs = max(Double(totalChunks), 1.0)
-
-        var metadataKeywords: [String: Int] = [:]
-        for idx in indices {
-            guard idx < chunks.count else { continue }
-            for keyword in chunks[idx].metadata.keywords {
-                let clean = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-                if clean.count >= 3 { metadataKeywords[clean.lowercased(), default: 0] += 1 }
-            }
-        }
-
-        if !metadataKeywords.isEmpty {
-            let scored = metadataKeywords
-                .filter { vocabulary.contains($0.key) && !excluding.contains($0.key) }
-                .map { kw, count -> (String, Double) in
-                    let tf = Double(count) / extremeCount
-                    let globalCount = Double(globalFreqs[kw] ?? 1)
-                    let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-                    let concentration = Double(count) / max(globalCount, 1.0)
-                    return (kw, tf * idf * (1.0 + concentration))
-                }.sorted { $0.1 > $1.1 }
-
-            if let top = scored.first?.0 {
-                return top.prefix(1).uppercased() + top.dropFirst()
-            }
-        }
-
-        let stopwords: Set<String> = [
-            "the", "a", "an", "is", "are", "was", "were", "be", "been",
-            "have", "has", "had", "do", "does", "did", "will", "would",
-            "to", "of", "in", "for", "on", "with", "at", "by", "from",
-            "and", "but", "or", "not", "this", "that", "it", "its",
-            "they", "their", "them", "we", "our", "you", "your",
-            "data", "file", "page", "section", "chapter", "also", "use"
-        ]
-
-        var wordCounts: [String: Int] = [:]
-        var originalCase: [String: String] = [:]
-
-        for idx in indices {
-            guard idx < chunks.count else { continue }
-            let words = chunks[idx].text
-                .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .filter { w in
-                    let l = w.lowercased()
-                    return w.count >= 3 && w.count <= 20 && !stopwords.contains(l) && !w.allSatisfy { $0.isNumber }
-                }
-            for word in words {
-                let lower = word.lowercased()
-                wordCounts[lower, default: 0] += 1
-                if originalCase[lower] == nil || word.first?.isUppercase == true { originalCase[lower] = word }
-            }
-        }
-
-        // FTS5-validated with TF-IDF contrast
-        let fts5Words = wordCounts
-            .filter { vocabulary.contains($0.key) && !excluding.contains($0.key) }
-            .map { word, count -> (String, Double) in
-                let tf = Double(count) / extremeCount
-                let globalCount = Double(globalFreqs[word] ?? 1)
-                let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-                let concentration = Double(count) / max(globalCount, 1.0)
-                return (word, tf * idf * (1.0 + concentration))
-            }.sorted { $0.1 > $1.1 }
-
-        if let best = fts5Words.first?.0 {
-            let display = originalCase[best] ?? best
-            return display.prefix(1).uppercased() + display.dropFirst()
-        }
-
-        // Last resort fallback with TF-IDF
-        let fallback = wordCounts
-            .filter { !excluding.contains($0.key) }
-            .map { word, count -> (String, Double) in
-                let tf = Double(count) / extremeCount
-                let globalCount = Double(globalFreqs[word] ?? 1)
-                let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-                let concentration = Double(count) / max(globalCount, 1.0)
-                return (word, tf * idf * (1.0 + concentration))
-            }.sorted { $0.1 > $1.1 }
-
-        if let best = fallback.first?.0 {
-            let display = originalCase[best] ?? best
-            return display.prefix(1).uppercased() + display.dropFirst()
-        }
-        return ""
-    }
 }
 
 #Preview {

@@ -2,7 +2,7 @@
 
 Updated: 2026-10-10, 15:40 PT (5.7 is open; seven commits are local and not pushed, `b6dba43` through the one that carries this file; `55af072` is the last pushed commit; at 14:45 PT the owner said to do everything the SDK survey turned up and everything still open, "all done and squared away for 5.7"; the embedder default, MetricKit, two system tools (off), and three more per-passage costs went in that afternoon; the storage change is designed and not started; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, 13:18 PT, build 485 from `2bee971`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: f80e4b6
+Last verified commit: 5053b02
 
 ## Objective
 
@@ -34,6 +34,20 @@ Also local and not started: a small marketing test whose notes are in `Growth/` 
 `Growth/CURRENT_EXPERIMENT.md`).
 
 ## Status
+
+- **2026-10-10, 16:35 to 17:30 PT: the Knowledge Atlas names things from the data.** The owner's screenshots of one
+  library showed three clusters named "API Reference", names that changed between launches, and axes labelled
+  "Return", "Document", "Text"; he asked for a fix "genuinely universal to any kind of content". Two
+  `gemini-3.8-flash-high` passes in a worktree removed the built-in subject list (about 1,770 lines) and added
+  `AtlasLabeling` (`Services/Infrastructure/Presentation/`): deterministic k-means on the sampled embeddings,
+  names from words over-represented in a cluster, two-ended axis labels, `NLTokenizer` word splitting for any
+  script. Reviewed and changed here: two mislabelled call sites, the word splitting and clustering moved off the
+  main actor, a one-group library named by its commonest words (it was "Group 1"), and three test expectations.
+  Suite 832 tests, 0 failures (`/private/tmp/oi-57-test-atlas6.log`, 17:28 PT); device and Mac builds succeeded.
+  Not seen on the device. Not checked: that the chips under the map and the labels in it show the same counts
+  (the view and `LibraryVisualizationEngine` each cluster their own sample).
+  The test simulator is now `54356825-1C05-4ADB-8C68-CE31F046AE88` ("OI 5.7 tests", iPhone 18 Pro, iOS 27.0, made
+  at 17:14 PT because every simulator on the Mac had been deleted); `scratchpad/build57.sh` names it.
 
 - **2026-10-10, 16:20 PT: Background GPU Access is in, at the owner's direct instruction.** The key
   `com.apple.developer.background-tasks.continued-processing.gpu` was added to `OpenIntelligence.entitlements` (the

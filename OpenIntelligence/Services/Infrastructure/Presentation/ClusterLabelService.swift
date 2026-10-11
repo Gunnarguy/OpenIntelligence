@@ -298,27 +298,17 @@ actor ClusterLabelService {
         sampleContent: [String],
         documentContext: String?
     ) -> String {
-        // Combine all text for analysis
-        let allText = (sampleContent.joined(separator: " ") + " " + keywords.joined(separator: " ")).lowercased()
-
-        // Infer document domain from context
-        let domain = inferDomain(from: documentContext, content: allText)
-
-        // Domain-specific label generation
-        switch domain {
-        case .technical:
-            return generateTechnicalLabel(keywords: keywords, content: allText)
-        case .legal:
-            return generateLegalLabel(keywords: keywords, content: allText)
-        case .medical:
-            return generateMedicalLabel(keywords: keywords, content: allText)
-        case .financial:
-            return generateFinancialLabel(keywords: keywords, content: allText)
-        case .academic:
-            return generateAcademicLabel(keywords: keywords, content: allText)
-        case .general:
-            return generateGeneralLabel(keywords: keywords, content: allText)
+        let validKeywords = keywords.filter { !AtlasLabeling.terms(in: $0).isEmpty }
+        if !validKeywords.isEmpty {
+            return AtlasLabeling.formatTerms(validKeywords)
         }
+        if !sampleContent.isEmpty {
+            let names = AtlasLabeling.clusterNames(groups: [sampleContent])
+            if let first = names.first, !first.isEmpty {
+                return first
+            }
+        }
+        return "Group 1"
     }
 
     private enum DocumentDomain {
@@ -336,15 +326,15 @@ actor ClusterLabelService {
         // Score each domain by keyword match count (most matches wins, no priority bias)
         let domainTerms: [(DocumentDomain, [String])] = [
             (.technical, ["api", "function", "code", "software", "algorithm", "database", "server",
-                         "programming", "developer", "git", "deploy", "cloud", "kubernetes"]),
+                          "programming", "developer", "git", "deploy", "cloud", "kubernetes"]),
             (.legal, ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
-                     "plaintiff", "defendant", "court", "law", "legal", "attorney"]),
+                      "plaintiff", "defendant", "court", "law", "legal", "attorney"]),
             (.medical, ["study", "protocol", "cohort", "assay", "sample", "specimen",
-                       "biology", "life science", "biomarker", "literature", "methods", "outcome"]),
+                        "biology", "life science", "biomarker", "literature", "methods", "outcome"]),
             (.financial, ["revenue", "profit", "investment", "portfolio", "stock", "market",
-                         "financial", "accounting", "budget", "expense", "asset"]),
+                          "financial", "accounting", "budget", "expense", "asset"]),
             (.academic, ["research", "hypothesis", "methodology", "findings", "abstract",
-                        "study", "thesis", "dissertation", "peer-reviewed", "journal"]),
+                         "study", "thesis", "dissertation", "peer-reviewed", "journal"]),
         ]
 
         var bestDomain: DocumentDomain = .general
@@ -359,196 +349,6 @@ actor ClusterLabelService {
 
         // Require at least 2 matching terms to claim a domain
         return bestScore >= 2 ? bestDomain : .general
-    }
-
-    // MARK: - Domain-Specific Label Generators
-
-    private func generateTechnicalLabel(keywords: [String], content: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["api", "endpoint", "rest", "graphql", "request", "response"], "API Reference"),
-            (["authentication", "auth", "oauth", "token", "login", "jwt"], "Authentication"),
-            (["database", "sql", "query", "schema", "table", "index"], "Database"),
-            (["deployment", "deploy", "ci/cd", "pipeline", "docker", "kubernetes"], "Deployment"),
-            (["configuration", "config", "settings", "environment", "env"], "Configuration"),
-            (["testing", "test", "unit test", "integration", "spec"], "Testing"),
-            (["error", "exception", "debugging", "troubleshoot", "log"], "Error Handling"),
-            (["security", "encryption", "ssl", "tls", "https"], "Security"),
-            (["performance", "optimization", "cache", "latency", "speed"], "Performance"),
-            (["architecture", "design", "pattern", "structure", "system"], "Architecture"),
-        ]
-
-        return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
-            ?? generateFallbackLabel(keywords: keywords, suffix: "Guide")
-    }
-
-    private func generateLegalLabel(keywords: [String], content: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["liability", "indemnify", "indemnification", "damages"], "Liability & Indemnity"),
-            (["confidential", "nda", "non-disclosure", "proprietary"], "Confidentiality"),
-            (["termination", "cancel", "expiration", "end"], "Termination"),
-            (["payment", "fee", "compensation", "billing"], "Payment Terms"),
-            (["intellectual property", "ip", "copyright", "trademark", "patent"], "Intellectual Property"),
-            (["dispute", "arbitration", "mediation", "resolution"], "Dispute Resolution"),
-            (["warranty", "guarantee", "representation"], "Warranties"),
-            (["compliance", "regulation", "gdpr", "hipaa"], "Compliance"),
-        ]
-
-        return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
-            ?? generateFallbackLabel(keywords: keywords, suffix: "Terms")
-    }
-
-    private func generateMedicalLabel(keywords: [String], content: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["study", "protocol", "cohort", "trial"], "Study Design"),
-            (["assay", "sample", "specimen", "cell"], "Assay Notes"),
-            (["protein", "gene", "genome", "biomarker"], "Biomarkers"),
-            (["method", "methods", "procedure", "intervention"], "Methods"),
-            (["result", "finding", "outcome", "endpoint"], "Results"),
-            (["lab", "test", "measurement", "signal"], "Measurements"),
-            (["analysis", "statistics", "p-value", "confidence"], "Analysis"),
-            (["literature", "citation", "abstract", "paper"], "Literature"),
-        ]
-
-        return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
-            ?? generateFallbackLabel(keywords: keywords, suffix: "Information")
-    }
-
-    private func generateFinancialLabel(keywords: [String], content: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["revenue", "income", "earnings", "proceeds"], "Revenue Analysis"),
-            (["expense", "cost", "spending", "overhead"], "Expenses"),
-            (["investment", "portfolio", "return", "roi"], "Investments"),
-            (["budget", "forecast", "projection", "plan"], "Budget & Forecast"),
-            (["tax", "taxation", "deduction", "credit"], "Tax Information"),
-            (["risk", "assessment", "management", "exposure"], "Risk Management"),
-            (["compliance", "audit", "regulation", "sox"], "Compliance & Audit"),
-            (["cash flow", "liquidity", "working capital"], "Cash Flow"),
-        ]
-
-        return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
-            ?? generateFallbackLabel(keywords: keywords, suffix: "Analysis")
-    }
-
-    private func generateAcademicLabel(keywords: [String], content: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["abstract", "summary", "overview"], "Abstract"),
-            (["introduction", "background", "context"], "Introduction"),
-            (["methodology", "method", "approach", "design"], "Methodology"),
-            (["result", "finding", "data", "observation"], "Results"),
-            (["discussion", "analysis", "interpretation"], "Discussion"),
-            (["conclusion", "summary", "implication"], "Conclusions"),
-            (["reference", "citation", "bibliography", "source"], "References"),
-            (["literature", "review", "prior work", "related"], "Literature Review"),
-        ]
-
-        return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
-            ?? generateFallbackLabel(keywords: keywords, suffix: "Section")
-    }
-
-    private func generateGeneralLabel(keywords: [String], content: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["introduction", "overview", "about", "getting started"], "Introduction"),
-            (["faq", "question", "answer", "frequently"], "FAQ"),
-            (["glossary", "term", "definition", "vocabulary"], "Glossary"),
-            (["appendix", "reference", "additional", "supplementary"], "Appendix"),
-        ]
-
-        return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
-            ?? generateFallbackLabel(keywords: keywords, suffix: nil)
-    }
-
-    // MARK: - Helper Methods
-
-    private func matchPatternLabel(
-        patterns: [(terms: [String], label: String)],
-        keywords: [String],
-        content: String
-    ) -> String? {
-        let allText = (keywords.joined(separator: " ") + " " + content).lowercased()
-
-        // Score each pattern by how many terms match
-        var bestMatch: (label: String, score: Int)?
-
-        // Whole words, not substrings.
-        //
-        // `allText.contains(term)` scored a neuroscience paper as "API Reference"
-        // because `"api"` matches inside ther**api**es and `"rest"` inside inte**rest**,
-        // and as "Glossary" because `"term"` matches inside de**term**ined. Observed on
-        // device 2026-08-26: a psychiatry review on dopamine and serotonin signalling
-        // clustered as "API Reference" and "Glossary" in the Semantic Atlas, labels with
-        // no relationship to the document.
-        //
-        // Fourth instance of this defect family in this release, after the
-        // specification keyword lists, `extractivePriorityScore`, and the PartNumber
-        // pattern. `containsTerm` is the shared matcher those fixes standardised on and
-        // it handles multi-word entries like `"unit test"` as phrases.
-        for pattern in patterns {
-            var score = 0
-            for term in pattern.terms {
-                if HybridSearchService.containsTerm(allText, term) {
-                    score += 1
-                }
-            }
-            if score > 0 && (bestMatch == nil || score > bestMatch!.score) {
-                bestMatch = (pattern.label, score)
-            }
-        }
-
-        return bestMatch?.label
-    }
-
-    private func generateFallbackLabel(keywords: [String], suffix: String?) -> String {
-        // Filter to meaningful keywords
-        let meaningfulKeywords = keywords.filter { keyword in
-            let word = keyword.lowercased()
-            let skipWords: Set<String> = [
-                // Pronouns / Articles / Conjunctions / Grammatical noise
-                "the", "and", "for", "with", "this", "that", "from", "have", "are",
-                "was", "were", "been", "will", "would", "could", "should", "can",
-                "its", "use", "see", "set", "get", "one", "two", "also", "more",
-                "general", "content", "information", "data", "text", "document",
-                "our", "your", "their", "his", "her", "only", "other", "some",
-                "many", "much", "most", "few", "all", "any", "both", "each", "every",
-                "same", "different", "new", "old", "high", "low", "great", "small",
-                "large", "good", "bad", "best", "worst", "true", "false", "yes", "no",
-                "not", "non", "without", "into", "onto", "over", "under", "after",
-                "before", "between", "among", "through", "during", "while", "until",
-                
-                // Generic structural, formatting, and layout noise
-                "part", "parts", "list", "lists", "step", "steps", "page", "pages",
-                "section", "sections", "chapter", "chapters", "table", "tables",
-                "row", "rows", "column", "columns", "col", "cols", "line", "lines",
-                "cell", "cells", "item", "items", "detail", "details", "description",
-                "descriptions", "summary", "summaries", "overview", "introduction",
-                "conclusion", "conclusions", "appendix", "appendices", "figure",
-                "figures", "fig", "figs", "image", "images", "photo", "photos",
-                "graph", "graphs", "chart", "charts", "diagram", "diagrams",
-                "value", "values", "number", "numbers", "digit", "digits", "type",
-                "types", "form", "forms", "group", "groups", "user", "users",
-                "read", "write", "show", "find", "here", "there", "problem", "problems",
-                "issue", "issues", "solution", "solutions"
-            ]
-            return word.count >= 3 &&
-                   !skipWords.contains(word) &&
-                   word.first?.isLetter == true
-        }
-
-        guard !meaningfulKeywords.isEmpty else {
-            return suffix ?? "General Content"
-        }
-
-        // Title case the top keywords
-        let topKeywords = meaningfulKeywords.prefix(2).map { keyword -> String in
-            keyword.prefix(1).uppercased() + keyword.dropFirst().lowercased()
-        }
-
-        var label = topKeywords.joined(separator: " & ")
-
-        if let suffix = suffix, !label.lowercased().contains(suffix.lowercased()) {
-            label += " \(suffix)"
-        }
-
-        return label
     }
 
     private func analyzeDocumentType(chunks: [ChunkInfo], documentNames: [String]) -> String {

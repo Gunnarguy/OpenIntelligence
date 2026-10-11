@@ -130,6 +130,12 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
+- **How the Knowledge Atlas names things, changed 2026-10-10 for 5.7**: `AtlasLabeling` (app target,
+  `Services/Infrastructure/Presentation/`) holds the whole rule as pure functions: deterministic k-means over the
+  sampled embeddings for cluster membership, names from the words over-represented in a cluster against the
+  sample, and two-ended axis labels from the lowest and highest tenth of passages on an axis. There is no list of
+  subjects and nothing specific to a language. The map views and `LibraryVisualizationEngine` both call it.
+  `[evidence: test_verified, AtlasLabelingTests; not yet seen on a device]`
 - **On-device diagnostics and two system model tools, added 2026-10-10 for 5.7**: `MetricDiagnostics`
   (app target, `OpenIntelligence/App/`) writes MetricKit's hang, launch and termination reports to the pipeline log
   and to `metric_reports.jsonl` in the local cache; nothing is sent anywhere. `SystemModelTools` in

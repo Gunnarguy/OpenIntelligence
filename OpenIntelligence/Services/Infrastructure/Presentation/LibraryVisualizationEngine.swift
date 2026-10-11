@@ -168,6 +168,25 @@ struct TopicCluster: Identifiable, Equatable {
     let percentage: Float
     let color: Color
     let representativeSnippet: String
+    let chunkIds: Set<UUID>
+
+    init(
+        name: String,
+        keywords: [String],
+        chunkCount: Int,
+        percentage: Float,
+        color: Color,
+        representativeSnippet: String,
+        chunkIds: Set<UUID> = []
+    ) {
+        self.name = name
+        self.keywords = keywords
+        self.chunkCount = chunkCount
+        self.percentage = percentage
+        self.color = color
+        self.representativeSnippet = representativeSnippet
+        self.chunkIds = chunkIds
+    }
 }
 
 struct HotChunk: Identifiable, Equatable {
@@ -467,151 +486,48 @@ final class LibraryVisualizationEngine: ObservableObject {
     private func analyzeTopics(chunks: [DocumentChunk]) async -> ([TopicCluster], Float) {
         guard !chunks.isEmpty else { return ([], 0) }
 
-        // Comprehensive stop words to filter out
-        let stopWords: Set<String> = [
-            "the", "and", "for", "with", "this", "that", "from", "have", "are",
-            "was", "were", "been", "will", "would", "could", "should", "can",
-            "its", "use", "see", "set", "get", "one", "two", "also", "more",
-            "your", "you", "our", "their", "they", "them", "his", "her", "has",
-            "had", "may", "might", "must", "shall", "need", "let", "than",
-            "when", "where", "what", "which", "who", "how", "why", "there",
-            "here", "then", "now", "just", "only", "even", "still", "already",
-            "very", "much", "most", "some", "any", "all", "each", "every",
-            "both", "few", "many", "several", "such", "same", "other", "another",
-            "being", "does", "did", "done", "doing", "make", "made", "take",
-            "come", "came", "going", "goes", "went", "gone", "know", "knew",
-            "think", "thought", "want", "wanted", "like", "liked", "said",
-            "page", "section", "chapter", "figure", "table", "note", "item",
-        ]
+        // Cluster membership from embeddings using deterministic k-means
+        let embeddings = chunks.map { $0.embedding }
+        let texts = chunks.map { $0.content }
+        // Off the main actor: clustering the vectors and splitting the passages into words.
+        let (clusterMembership, chunkTerms) = await Task.detached(priority: .userInitiated) {
+            (AtlasLabeling.kMeans(embeddings: embeddings), texts.map { AtlasLabeling.terms(in: $0) })
+        }.value
 
-        // Extract keywords from all chunks - use BOTH metadata and content
-        var keywordCounts: [String: Int] = [:]
-        var keywordChunks: [String: Set<UUID>] = [:]
+        let maxCluster = clusterMembership.max() ?? 0
+        let k = maxCluster + 1
 
-        for chunk in chunks {
-            var chunkKeywords: Set<String> = []
-
-            // 1. Use metadata keywords if available
-            for keyword in chunk.metadata.keywords {
-                let normalized = keyword.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                if isValidKeyword(normalized, stopWords: stopWords) {
-                    chunkKeywords.insert(normalized)
-                }
-            }
-
-            // 2. Also extract significant words directly from content
-            // This helps when metadata keywords are weak
-            let contentWords = extractContentKeywords(from: chunk.content, stopWords: stopWords)
-            chunkKeywords.formUnion(contentWords)
-
-            // Record all keywords for this chunk
-            for kw in chunkKeywords {
-                keywordCounts[kw, default: 0] += 1
-                keywordChunks[kw, default: []].insert(chunk.id)
-            }
+        let groupTerms = (0 ..< k).map { c in
+            chunks.indices.filter { clusterMembership[$0] == c }.map { chunkTerms[$0] }
         }
 
-        // Group into topic clusters using keyword co-occurrence
-        let topKeywords = keywordCounts
-            .sorted { $0.value > $1.value }
-            .prefix(30)
-            .map { $0.key }
+        let distinguishing = AtlasLabeling.distinguishingTerms(
+            passageTerms: groupTerms,
+            allPassageTerms: chunkTerms
+        )
 
-        // Simple clustering: group keywords that appear in same chunks
-        var clusters: [[String]] = []
-        var assigned: Set<String> = []
+        let names = AtlasLabeling.clusterNames(distinguishingTerms: distinguishing)
 
-        for keyword in topKeywords where !assigned.contains(keyword) {
-            var cluster = [keyword]
-            assigned.insert(keyword)
-
-            let keywordChunkSet = keywordChunks[keyword] ?? []
-
-            for otherKeyword in topKeywords where !assigned.contains(otherKeyword) {
-                let otherChunkSet = keywordChunks[otherKeyword] ?? []
-                let overlap = Float(keywordChunkSet.intersection(otherChunkSet).count)
-                let union = Float(keywordChunkSet.union(otherChunkSet).count)
-                let jaccard = union > 0 ? overlap / union : 0
-
-                if jaccard > 0.3 {
-                    cluster.append(otherKeyword)
-                    assigned.insert(otherKeyword)
-                }
-            }
-
-            clusters.append(cluster)
-        }
-
-        // Limit to top 5 clusters
-        let topClusters = clusters.sorted { $0.count > $1.count }.prefix(5)
-
-        // Build TopicCluster objects
-        let palette: [Color] = [.blue, .purple, .green, .orange, .pink]
+        let palette: [Color] = [.blue, .purple, .green, .orange, .pink, .teal]
         var topicClusters: [TopicCluster] = []
 
-        // Collect cluster data for batch label generation
-        var clusterData: [(keywords: [String], chunkIds: Set<UUID>, sampleChunks: [DocumentChunk])] = []
-
-        for clusterKeywords in topClusters {
-            guard !clusterKeywords.isEmpty else { continue }
-
-            // Count chunks in this cluster
-            var clusterChunkIds: Set<UUID> = []
-            for kw in clusterKeywords {
-                clusterChunkIds.formUnion(keywordChunks[kw] ?? [])
-            }
-
-            // Get sample chunks for LLM context (up to 3)
-            let sampleChunks = chunks.filter { clusterChunkIds.contains($0.id) }.prefix(3)
-
-            clusterData.append((
-                keywords: Array(clusterKeywords.prefix(5)),
-                chunkIds: clusterChunkIds,
-                sampleChunks: Array(sampleChunks)
-            ))
-        }
-
-        // Get document context for better labeling
-        let documentNames = Set(chunks.compactMap { chunk -> String? in
-            // Try to get document name from contextual prefix
-            if let prefix = chunk.contextualPrefix,
-               prefix.range(of: "\\[From (.+?)\\]", options: .regularExpression) != nil,
-               let nameRange = prefix.range(of: "(?<=\\[From ).+?(?=\\])", options: .regularExpression) {
-                return String(prefix[nameRange])
-            }
-            return nil
-        })
-        let documentContext = documentNames.first
-
-        // Generate intelligent labels using ClusterLabelService
-        // This uses LLM when available, falls back to domain-aware heuristics
-        _ = clusterData.map { data in
-            (keywords: data.keywords, sampleContent: data.sampleChunks.map { $0.content })
-        }
-
-        // Note: We're on MainActor, need to access the actor properly
-        // For now, use the heuristic path which is synchronous
-        // The async LLM path will be used when called from an async context
-
-        for (index, data) in clusterData.enumerated() {
-            // Find representative snippet
-            let snippet = data.sampleChunks.first?.content.prefix(100).trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-            // Generate topic name using improved heuristics
-            // (LLM path is used in Atlas view directly for better async handling)
-            let topicName = generateTopicNameEnhanced(
-                from: data.keywords,
-                sampleContent: data.sampleChunks.map { $0.content },
-                documentContext: documentContext
-            )
+        for c in 0 ..< k {
+            let chunkIndicesInCluster = chunks.indices.filter { clusterMembership[$0] == c }
+            guard !chunkIndicesInCluster.isEmpty else { continue }
+            let clusterChunkIds = Set(chunkIndicesInCluster.map { chunks[$0].id })
+            let name = names[c]
+            let kw = distinguishing[c].prefix(5).map { $0 }
+            let firstIdx = chunkIndicesInCluster.first ?? 0
+            let snippet = chunks[firstIdx].content.prefix(100).trimmingCharacters(in: .whitespacesAndNewlines)
 
             topicClusters.append(TopicCluster(
-                name: topicName,
-                keywords: data.keywords,
-                chunkCount: data.chunkIds.count,
-                percentage: Float(data.chunkIds.count) / Float(max(chunks.count, 1)),
-                color: palette[index % palette.count],
-                representativeSnippet: String(snippet)
+                name: name,
+                keywords: Array(kw),
+                chunkCount: clusterChunkIds.count,
+                percentage: Float(clusterChunkIds.count) / Float(max(chunks.count, 1)),
+                color: palette[c % palette.count],
+                representativeSnippet: String(snippet),
+                chunkIds: clusterChunkIds
             ))
         }
 
@@ -620,255 +536,6 @@ final class LibraryVisualizationEngine: ObservableObject {
         let diversity = calculateEntropy(percentages)
 
         return (topicClusters, diversity)
-    }
-
-    private func generateTopicName(from keywords: [String]) -> String {
-        guard !keywords.isEmpty else { return "General" }
-
-        // Common garbage words to skip (fragments, articles, formatting/structural noise)
-        let skipWords: Set<String> = [
-            // Pronouns / Articles / Conjunctions / Grammatical noise
-            "the", "and", "for", "with", "this", "that", "from", "have", "are",
-            "was", "were", "been", "being", "will", "would", "could", "should",
-            "may", "might", "must", "can", "not", "but", "all", "any", "some",
-            "its", "use", "using", "used", "also", "more", "most", "other",
-            "new", "one", "two", "see", "set", "get", "make", "made",
-            "general", "content", "information", "data", "text", "document",
-            "our", "your", "their", "his", "her", "only", "many", "much",
-            "most", "few", "both", "each", "every", "same", "different",
-            "old", "high", "low", "great", "small", "large", "good", "bad",
-            "best", "worst", "true", "false", "yes", "no", "non", "without",
-            "into", "onto", "over", "under", "after", "before", "between",
-            "among", "through", "during", "while", "until",
-            
-            // Generic structural, formatting, and layout noise
-            "part", "parts", "list", "lists", "step", "steps", "page", "pages",
-            "section", "sections", "chapter", "chapters", "table", "tables",
-            "row", "rows", "column", "columns", "col", "cols", "line", "lines",
-            "cell", "cells", "item", "items", "detail", "details", "description",
-            "descriptions", "summary", "summaries", "overview", "introduction",
-            "conclusion", "conclusions", "appendix", "appendices", "figure",
-            "figures", "fig", "figs", "image", "images", "photo", "photos",
-            "graph", "graphs", "chart", "charts", "diagram", "diagrams",
-            "value", "values", "number", "numbers", "digit", "digits", "type",
-            "types", "form", "forms", "group", "groups", "user", "users",
-            "read", "write", "show", "find", "here", "there", "problem", "problems",
-            "issue", "issues", "solution", "solutions"
-        ]
-
-        // Filter to meaningful keywords (3+ chars, not garbage)
-        let validKeywords = keywords.filter { keyword in
-            let word = keyword.lowercased()
-            return word.count >= 3 &&
-                !skipWords.contains(word) &&
-                word.rangeOfCharacter(from: .decimalDigits) == nil && // No numbers
-                word.first?.isLetter == true // Starts with letter
-        }
-
-        guard !validKeywords.isEmpty else { return "Content" }
-
-        // Take top 1-2 meaningful keywords
-        let top = validKeywords.prefix(2)
-
-        // Capitalize properly - handle multi-word phrases
-        let formatted = top.map { keyword -> String in
-            if keyword.contains(" ") {
-                // Multi-word phrase: title case each word
-                return keyword.split(separator: " ")
-                    .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
-                    .joined(separator: " ")
-            } else {
-                return keyword.prefix(1).uppercased() + keyword.dropFirst().lowercased()
-            }
-        }
-
-        return formatted.joined(separator: " & ")
-    }
-
-    /// Enhanced topic name generation using domain-aware heuristics
-    /// Produces meaningful labels like "Infotainment System" instead of "UI • images"
-    private func generateTopicNameEnhanced(
-        from keywords: [String],
-        sampleContent: [String],
-        documentContext: String?
-    ) -> String {
-        let allText = (sampleContent.joined(separator: " ") + " " + keywords.joined(separator: " ")).lowercased()
-
-        // Detect document domain
-        let domain = detectDocumentDomain(from: documentContext, content: allText)
-
-        // Try domain-specific patterns first
-        if let domainLabel = matchDomainPatterns(domain: domain, keywords: keywords, content: allText) {
-            return domainLabel
-        }
-
-        // Fallback to improved keyword-based naming
-        return generateTopicName(from: keywords)
-    }
-
-    /// Detect the domain/type of document from context and content
-    private func detectDocumentDomain(from context: String?, content: String) -> String {
-        let text = (context ?? "").lowercased() + " " + content.lowercased()
-
-        // Score each domain by keyword match count (most matches wins, no priority bias)
-        let domainTerms: [(String, [String])] = [
-            ("technical", ["api", "function", "code", "software", "algorithm", "database", "server",
-                          "programming", "developer", "git", "deploy", "cloud", "kubernetes"]),
-            ("legal", ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
-                      "plaintiff", "defendant", "court", "law", "legal", "attorney"]),
-            ("medical", ["study", "protocol", "cohort", "assay", "sample", "specimen",
-                       "biology", "life science", "biomarker", "literature", "methods", "outcome"]),
-            ("financial", ["revenue", "profit", "investment", "portfolio", "stock", "market",
-                         "financial", "accounting", "budget", "expense", "asset"]),
-            ("academic", ["research", "hypothesis", "methodology", "findings", "abstract",
-                         "study", "thesis", "dissertation", "peer-reviewed", "journal"]),
-        ]
-
-        var bestDomain = "general"
-        var bestScore = 0
-        for (domain, terms) in domainTerms {
-            let score = terms.filter { text.contains($0) }.count
-            if score > bestScore {
-                bestScore = score
-                bestDomain = domain
-            }
-        }
-
-        return bestScore >= 2 ? bestDomain : "general"
-    }
-
-    /// Match domain-specific patterns to generate meaningful labels
-    private func matchDomainPatterns(domain: String, keywords: [String], content: String) -> String? {
-        let allText = keywords.joined(separator: " ") + " " + content
-
-        let patterns: [(terms: [String], label: String)]
-
-        switch domain {
-        case "technical":
-            patterns = [
-                (["api", "endpoint", "rest", "graphql", "request", "response"], "API Reference"),
-                (["authentication", "auth", "oauth", "token", "login", "jwt"], "Authentication"),
-                (["database", "sql", "query", "schema", "table", "index"], "Database"),
-                (["deployment", "deploy", "ci/cd", "pipeline", "docker", "kubernetes"], "Deployment"),
-                (["configuration", "config", "settings", "environment", "env"], "Configuration"),
-                (["testing", "test", "unit test", "integration", "spec"], "Testing"),
-                (["error", "exception", "debugging", "troubleshoot", "log"], "Error Handling"),
-                (["security", "encryption", "ssl", "tls", "https"], "Security"),
-                (["performance", "optimization", "cache", "latency", "speed"], "Performance"),
-                (["architecture", "design", "pattern", "structure", "system"], "Architecture"),
-            ]
-
-        case "legal":
-            patterns = [
-                (["liability", "indemnify", "indemnification", "damages"], "Liability & Indemnity"),
-                (["confidential", "nda", "non-disclosure", "proprietary"], "Confidentiality"),
-                (["termination", "cancel", "expiration", "end"], "Termination"),
-                (["payment", "fee", "compensation", "billing"], "Payment Terms"),
-                (["intellectual property", "ip", "copyright", "trademark", "patent"], "Intellectual Property"),
-                (["dispute", "arbitration", "mediation", "resolution"], "Dispute Resolution"),
-                (["warranty", "guarantee", "representation"], "Warranties"),
-                (["compliance", "regulation", "gdpr", "hipaa"], "Compliance"),
-            ]
-
-        case "medical":
-            patterns = [
-                (["study", "protocol", "cohort", "trial"], "Study Design"),
-                (["assay", "sample", "specimen", "cell"], "Assay Notes"),
-                (["protein", "gene", "genome", "biomarker"], "Biomarkers"),
-                (["method", "methods", "procedure", "intervention"], "Methods"),
-                (["result", "finding", "outcome", "endpoint"], "Results"),
-                (["lab", "test", "measurement", "signal"], "Measurements"),
-                (["analysis", "statistics", "p-value", "confidence"], "Analysis"),
-                (["literature", "citation", "abstract", "paper"], "Literature"),
-            ]
-
-        case "financial":
-            patterns = [
-                (["revenue", "income", "earnings", "proceeds"], "Revenue Analysis"),
-                (["expense", "cost", "spending", "overhead"], "Expenses"),
-                (["investment", "portfolio", "return", "roi"], "Investments"),
-                (["budget", "forecast", "projection", "plan"], "Budget & Forecast"),
-                (["tax", "taxation", "deduction", "credit"], "Tax Information"),
-                (["risk", "assessment", "management", "exposure"], "Risk Management"),
-                (["compliance", "audit", "regulation", "sox"], "Compliance & Audit"),
-                (["cash flow", "liquidity", "working capital"], "Cash Flow"),
-            ]
-
-        case "academic":
-            patterns = [
-                (["abstract", "summary", "overview"], "Abstract"),
-                (["introduction", "background", "context"], "Introduction"),
-                (["methodology", "method", "approach", "design"], "Methodology"),
-                (["result", "finding", "data", "observation"], "Results"),
-                (["discussion", "analysis", "interpretation"], "Discussion"),
-                (["conclusion", "summary", "implication"], "Conclusions"),
-                (["reference", "citation", "bibliography", "source"], "References"),
-                (["literature", "review", "prior work", "related"], "Literature Review"),
-            ]
-
-        default:
-            patterns = [
-                (["introduction", "overview", "about", "getting started"], "Introduction"),
-                (["faq", "question", "answer", "frequently"], "FAQ"),
-                (["glossary", "term", "definition", "vocabulary"], "Glossary"),
-                (["appendix", "reference", "additional", "supplementary"], "Appendix"),
-            ]
-        }
-
-        // Score each pattern
-        var bestMatch: (label: String, score: Int)?
-        for pattern in patterns {
-            var score = 0
-                // Whole words, not substrings. See ClusterLabelService: `contains`
-                // scored a neuroscience paper as "API Reference" because `"api"`
-                // matches inside ther**api**es, and as "Glossary" because `"term"`
-                // matches inside de**term**ined. Three copies of this taxonomy exist
-                // and all three had the defect; fixing one would have left the Atlas
-                // still mislabelling, because the labels come from a different copy.
-            for term in pattern.terms {
-                if HybridSearchService.containsTerm(allText, term) {
-                    score += 1
-                }
-            }
-            if score > 0 && (bestMatch == nil || score > bestMatch!.score) {
-                bestMatch = (pattern.label, score)
-            }
-        }
-
-        return bestMatch?.label
-    }
-
-    /// Check if a keyword is valid (not a stop word, proper length, etc.)
-    private func isValidKeyword(_ word: String, stopWords: Set<String>) -> Bool {
-        return word.count >= 4 && // Minimum 4 chars for topic keywords
-            word.count <= 25 && // Not too long
-            !stopWords.contains(word) &&
-            word.first?.isLetter == true &&
-            word.rangeOfCharacter(from: .decimalDigits) == nil
-    }
-
-    /// Extract meaningful keywords directly from content text
-    private func extractContentKeywords(from content: String, stopWords: Set<String>) -> Set<String> {
-        var keywords: Set<String> = []
-
-        // Split on non-alphanumeric characters
-        let words = content.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { isValidKeyword($0, stopWords: stopWords) }
-
-        // Count word frequencies in this chunk
-        var wordFreq: [String: Int] = [:]
-        for word in words {
-            wordFreq[word, default: 0] += 1
-        }
-
-        // Keep top 5 most frequent meaningful words from this chunk
-        let topWords = wordFreq.sorted { $0.value > $1.value }.prefix(5)
-        for (word, _) in topWords {
-            keywords.insert(word)
-        }
-
-        return keywords
     }
 
     private func calculateEntropy(_ distribution: [Float]) -> Float {
