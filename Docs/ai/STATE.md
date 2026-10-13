@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-12, 21:00 PT (5.7 is open and unreleased; all of its work is committed, and the commit that carries this file is the one pushed that evening with `[ci skip]`; the 5.7 store notes are on both App Store Connect records and nothing is submitted; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, build 485)
+Updated: 2026-10-12, 21:30 PT (5.7 is open and unreleased; all of its work is committed and pushed, `ec4fb74` at 20:59 PT with `[ci skip]`; the 5.7 store notes are on both App Store Connect records and nothing is submitted; that tree's build was installed on the owner's iPhone at 21:25 PT; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, build 485)
 Branch/worktree: `main`, primary checkout
-Last verified commit: e8daab0
+Last verified commit: ec4fb74
 
 The long form this file had grown to (1,129 lines: every status and verification block since 2026-09-29, the
 open checks for 5.6 and earlier, the owner decisions still open) is kept word for word in
@@ -15,17 +15,18 @@ Shortcuts, App Intents), mainly for iPhone and iPad.** The owner named it on 202
 on 2026-10-09 to the Apple model APIs, and on 2026-10-10 to the whole import path and to how the app feels
 with a very large library ("all done and squared away for 5.7"). On 2026-10-12 he asked for everything to be
 committed and pushed and every document, the App Store Connect metadata, the READMEs and the roadmap brought
-up to date. That request is what the commit carrying this file completes.
+up to date. `ec4fb74` completed that request, and the commit carrying this file only records what
+happened after the push.
 
 ## Status (2026-10-12)
 
 | What | Where it stands |
 |---|---|
-| 5.7 source | Ten commits after `55af072`: the nine from `b6dba43` to `e8daab0`, and the one carrying this file. `git rev-list --count origin/main..HEAD` prints 0 when the push landed; if it prints more, push with the newest commit still marked `[ci skip]`. |
+| 5.7 source | `ec4fb74` is on origin, pushed 2026-10-12 at 20:59 PT: ten commits after `55af072`, each marked `[ci skip]`. The commit carrying this file changes this file only. `git rev-list --count origin/main..HEAD` prints 0 when everything is pushed; if it prints more, push with the newest commit still marked `[ci skip]`. |
 | Tests | 832 run, 0 failures, 4 skipped, on a simulator made that evening (see Verification). |
 | App Store Connect | 5.7 exists on both platforms in PREPARE_FOR_SUBMISSION, release set to manual, no build. Release notes pushed 2026-10-12 (Mac 20:11 PT, iPhone and iPad 20:16 PT). App Review's notes carry the 5.7 addition and are at 3,990 of 4,000 characters. |
-| TestFlight | No 5.7 build has ever been made. Every 5.7 push carried `[ci skip]`. |
-| His iPhone | A Debug build of `e8daab0`, installed 2026-10-10 at 17:35 PT. The 2026-10-12 text corrections are not on it. |
+| TestFlight | No 5.7 build has ever been made. Every 5.7 push carried `[ci skip]`, and four minutes after the 20:59 push the newest Xcode Cloud run was still #485, the 5.6 build of 2026-10-08. |
+| His iPhone | A Debug build of the Swift in `ec4fb74` (5.7, build 150), installed 2026-10-12 at 21:25 PT once the app was seen not running, and not launched. It carries that day's text corrections, and it imports the sample documents again the first time it opens. |
 | Roadmap | 101 rows on `v5.7`: 62 In Progress and 39 To Do (queried 2026-10-12). None is Completed, because nothing in 5.7 has had its device check. |
 
 ## Completed (2026-10-10 to 2026-10-12, this session)
@@ -111,7 +112,10 @@ up to date. That request is what the commit carrying this file completes.
   names its platform and `app_version` 5.7 and ends "finished successfully"; `fastlane/report.xml` held no
   failure; the Mac copy in the repository was restored (checksums compared).
 - `ruby scripts/asc_listing_extras.rb 5.7 --apply` -> both notes 3,042 to 3,990 characters, HTTP 200.
-- Not run: anything on his iPhone or in the Mac app since 2026-10-10.
+- A read of the four newest Xcode Cloud runs through the API at 21:03 PT -> #485 (2026-10-08) is the newest, so
+  the push started no build.
+- `xcrun devicectl device install app` at 21:25 PT, after two process listings without the app -> installed.
+- Not run: the app itself, on his iPhone or on the Mac, since 2026-10-10.
 
 ## Blockers / Unknowns
 
