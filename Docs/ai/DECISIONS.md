@@ -1118,6 +1118,8 @@ an import still decodes both copies and writes a whole second copy for iCloud (3
 
 ## 2026-10-10 - The vector store keeps its file format; the plan is to index the passage file, not to move it (planned, not built)
 
+*Built on 2026-10-12. The record of that date, "The vector store indexes its passage file", says what was built, what was measured and what was left.*
+
 **Context.** `BNNSVectorDatabase` decodes `_meta.json`, every passage's text, into memory on load: 159 MB and
 3.0 to 3.2 s for 144,247 passages. That one decode per launch, the memory it holds, and every save rewriting
 the whole store are what still grow with a library after the sampling above.
@@ -1417,3 +1419,45 @@ the tag would hide the number.
 **Consequences.** Downloads from the three places are reported under one campaign. Apple's limit for a campaign
 token is 30 characters.
 `[evidence_level: test_verified (OpenIntelligenceLinksTests), confidence: exact, evidence_source: CHANGELOG.md 5.7 Added, AboutView.swift OpenIntelligenceLinks, SettingsView.swift shareApp]`
+
+## 2026-10-12 - The vector store indexes its passage file and decodes a passage when asked; the steps that read every passage's text stay as they are
+
+**Context.** The plan of 2026-10-10 (the record "The vector store keeps its file format") was approved by the
+owner on 2026-10-12 ("ok now do the storage change"). `BNNSVectorDatabase` decoded `_meta.json` whole at every load
+and held every passage's text: 159 MB of JSON and 3.0 to 3.2 s for the owner's 144,247 passages, and every save
+encoded all of it again.
+
+**Decision.** Keep the three files and their format. Map `_meta.json`, walk it once for a 72-byte record per passage
+(`PassageFileIndex`), decode a passage from its own bytes when it is asked for, and write a save by copying the
+bytes of passages already in the file. Give the store protocol methods for records, positions, one document and
+ids, and move the callers that used a few passages onto them. Leave `allChunks()` in place: its first call decodes
+every passage on several threads and the store keeps them, as it kept them from load before.
+
+**Rationale.** A load that only indexes is what a launch, a library switch, a count and a sync check need. The
+walk is trusted only where it is certain: anything not shaped as the encoder writes it goes to `JSONDecoder`, a
+decoded passage must carry the id its record names, and the walk in several stretches is accepted only when
+every stretch ends exactly on the next one's start.
+
+**Alternatives.** (1) A second file holding the records, so a launch reads 10 MB and walks nothing. Rejected:
+it is a second source of truth that can go stale when sync replaces the metadata file, checking it against the
+file's content costs about what the walk costs (0.02 s optimised on the Mac), and it would only help
+unoptimised builds. (2) Appending new passages to the file in place. Rejected for now: a write that is cut off
+leaves a file that is not a JSON array, which an older build on the same iCloud library cannot read. Saves stay
+whole-file and atomic. (3) Moving the question path off the full array. Not done: the summary, enumeration,
+parent-expansion, cross-reference, extractive-scan and multi-hop steps read every passage's text for each
+question, so serving them from the file means a decode for each question, or asking the keyword index instead
+of scanning memory, which is a change to retrieval and has no end-to-end test to hold it. (4) Sampling the
+library analysis (`refreshIntelligence`). Not done: it measures vocabulary richness and total words over all the
+text and those feed the embedding plan, a sample shifts both, and a shifted plan can start a rebuild of the
+library.
+
+**Consequences.** On the Mac with 144,247 synthetic passages (unoptimised build): load 1.97 s to about 0.62 s,
+memory after a load 276 MB to 11 MB, the saves of building the library 60.8 s to 13.8 s, a delete 2.31 s to
+under 1 s. Memory is unchanged once every passage has been asked for, which the library analysis does at launch
+and the question path does for each question: 329 MB against 330 MB for a plain decode. The store drops its
+decoded passages under memory pressure and reads them back. Eleven callers of `allChunks()` remain, listed in
+the changelog entry. Run over copies of the nine metadata files on the owner's iPhone (145,500 passages, written by
+builds from 2026-09-14 on), the walk and the decoder agreed on every passage, and the 159 MB file walked in
+0.015 s optimised and 0.17 s unoptimised on the Mac. The figures on the owner's iPhone are not known: the walk in an unoptimised build is the
+part most likely to differ, and the first launch of a build with this change prints it as `[VectorLoad]`.
+`[evidence_level: test_verified for the format, the alignment of vectors and passages, and the moved callers (VectorStorePassageIndexTests); measured on the Mac for the figures (VectorStoreScaleBenchmarkTests, 2026-10-12); not run on a device, confidence: high for what was built, medium for what a phone will show, evidence_source: BNNSVectorDatabase.swift, PassageFileIndex.swift, VectorDatabase.swift; CHANGELOG.md 5.7 Changed]`

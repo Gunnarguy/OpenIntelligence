@@ -262,7 +262,7 @@ extension RAGService {
             )
         }
         
-        let documentChunks = (try? await db.allChunks())?.filter { $0.documentId == documentId } ?? []
+        let documentChunks = (try? await db.chunks(forDocument: documentId)) ?? []
         await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument(
             document,
             chunks: documentChunks,

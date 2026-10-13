@@ -1255,9 +1255,11 @@ class RAGService: ObservableObject {
                     // chunk counting. Consult the store, and treat a read failure as
                     // "not proven missing" rather than as evidence to re-ingest.
                     let database = self.vectorRouter.db(for: container)
-                    let allChunks: [DocumentChunk]
+                    // The check needs which document each passage belongs to and nothing of
+                    // its text, so it reads the store's records (5.7).
+                    let allChunks: [PassageRecord]
                     do {
-                        allChunks = try await database.allChunks()
+                        allChunks = try await database.passageRecords()
                     } catch {
                         Log.error(
                             "[RAGService] Vector store read failed while checking '\(item.url.lastPathComponent)' "
@@ -4319,11 +4321,13 @@ class RAGService: ObservableObject {
     func allChunksForActiveContainer() async -> [DocumentChunk] {
         let db = await dbForActiveContainer()
         do {
-            let stored = try await db.allChunks()
-            guard !stored.isEmpty else { return [] }
+            // Only the sampled passages are read from the store. Through 5.6 every passage
+            // was loaded and the sample taken from that.
+            let storedCount = try await db.count()
+            guard storedCount > 0 else { return [] }
             let keptIndices = Self.evenSampleIndices(
-                count: stored.count, limit: Self.visualizationPassageLimit)
-            let chunks = keptIndices.count == stored.count ? stored : keptIndices.map { stored[$0] }
+                count: storedCount, limit: Self.visualizationPassageLimit)
+            let chunks = try await db.chunks(atIndices: keptIndices)
 
             // Compatibility hydration for mmap-backed stores:
             // BNNSVectorDatabase intentionally stores metadata-only chunks (embedding: [])
@@ -4382,6 +4386,21 @@ class RAGService: ObservableObject {
         return pool
     }
 
+    /// The positions `suggestedQuestionPool(from:)` would keep, worked out from the store's
+    /// records so that only those passages have to be read: every position of a library that
+    /// fits the limit, and past that the even sample followed by each document summary the
+    /// sample missed.
+    static func suggestedQuestionPoolPositions(levels: [ChunkAbstractionLevel]) -> [Int] {
+        guard levels.count > suggestedQuestionPoolLimit else { return Array(levels.indices) }
+        let sampled = evenSampleIndices(count: levels.count, limit: suggestedQuestionPoolLimit)
+        let inSample = Set(sampled)
+        var positions = sampled
+        for (index, level) in levels.enumerated() where level == .documentSummary && !inSample.contains(index) {
+            positions.append(index)
+        }
+        return positions
+    }
+
     /// Return a sample of chunks for content analysis (used by SuggestedQuestionsService)
     /// - Parameters:
     ///   - containerId: The container to sample from
@@ -4395,7 +4414,9 @@ class RAGService: ObservableObject {
         // Choosing a few dozen samples scored every passage of the library, on the main actor,
         // each time Chat was first shown. A large library now offers an even sample of its
         // passages, plus its document summaries, to choose from.
-        let allChunks = Self.suggestedQuestionPool(from: try await db.allChunks())
+        let poolPositions = Self.suggestedQuestionPoolPositions(
+            levels: try await db.passageRecords().map(\.abstractionLevel))
+        let allChunks = try await db.chunks(atIndices: poolPositions)
         let detailChunks = allChunks.filter { $0.metadata.abstractionLevel == .detail }
         let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
 
@@ -8218,7 +8239,7 @@ class RAGService: ObservableObject {
 
             // Try to get existing chunks from vector database first
             let db = await dbFor(targetContainerId)
-            var chunksToReembed = try await db.allChunks().filter { $0.documentId == document.id }
+            var chunksToReembed = try await db.chunks(forDocument: document.id)
 
             // If empty in vector DB, try to retrieve from FTS5
             if chunksToReembed.isEmpty {

@@ -32,6 +32,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 ## 6. Storage Boundaries
 - SQLite is strictly local. `[evidence: code_verified, exact]`
 - Vectors use `BNNSVectorDatabase` with memory mapping. `[evidence: code_verified, exact]`
+- From 5.7 the store's passage file (`_meta.json`) is memory-mapped too and indexed at load, one small record per passage, and a passage is decoded when it is asked for. The file's format is unchanged. Every passage is still decoded once per launch, by the first caller that asks for all of them. `[evidence_level: test_verified, confidence: high, evidence_source: BNNSVectorDatabase.swift, PassageFileIndex.swift; VectorStorePassageIndexTests]`
 - Chat messages are serialized to monolithic JSON arrays. `[evidence: code_verified, exact]`
 - Ingestion checkpoints are stored as JSON files under `localCacheDir()/IngestionCheckpoints/<fingerprint>/`. `[evidence: code_verified, exact, DocumentProcessor.swift]`
 

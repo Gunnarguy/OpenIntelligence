@@ -1051,6 +1051,21 @@ between two options prove nothing about the unit: on 2026-10-10 the vectors unde
 matched CPU-only output to nine decimal places, which only rules out a half-precision unit.
 `[evidence_level: measured, confidence: high for this Mac, evidence_source: the probe's output of 2026-10-12, kept in the session scratchpad and not in the repository; the probe source was a scratch file]`
 
+## Timing the vector store at the size of a very large library (added 2026-10-12)
+
+`VectorStoreScaleBenchmarkTests` builds a store of as many passages as it is told, times a load, a search,
+a full decode, a save and a delete, and prints each figure on a line that starts `[StoreBench]`. It is
+skipped unless the passage count is given, because it writes about 430 MB and takes a minute or two:
+
+```bash
+TEST_RUNNER_OI_STORE_BENCH=144247 TEST_RUNNER_OI_STORE_BENCH_DIR=/private/tmp/oi-store-bench xcodebuild test-without-building -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<simulator id>" -derivedDataPath <a path outside ~/Documents> -only-testing:OpenIntelligenceTests/VectorStoreScaleBenchmarkTests
+```
+
+The store's files stay in that folder, so the next run times a load of files an earlier run wrote. That is
+how the 5.7 store was shown to open files the 5.6 code had written. Run it with nothing else building: two
+of eight runs on 2026-10-12 showed a 1.5 s load beside six at 0.61 to 0.73 s, with another process busy.
+`[evidence_level: measured, confidence: high for this Mac, evidence_source: the eight runs of 2026-10-12]`
+
 ## Staging a release without submitting it
 
 *Verified 2026-09-02, both platforms.*

@@ -226,14 +226,14 @@ extension RAGService {
             saved.pieceBytes == TextPieceReader.pieceBytes
         {
             if let pending = saved.pending {
-                let vectorChunks = try await db.allChunks().filter { $0.documentId == saved.documentId }.count
+                let vectorChunks = try await db.chunkCount(forDocument: saved.documentId)
                 let indexChunks = await SQLiteFullTextService.shared.retrieveChunks(for: saved.documentId).count
                 var recovery = TextStreamingIngestionState.recovery(
                     committedChunks: saved.committed.totalChunks, pendingChunks: pending.totalChunks,
                     vectorChunks: vectorChunks, indexChunks: indexChunks)
                 var missingIndexRows: [SearchIndexRow] = []
                 if recovery == .finishIndex {
-                    let stored = try await db.allChunks().filter { $0.documentId == saved.documentId }
+                    let stored = try await db.chunks(forDocument: saved.documentId)
                     if let rows = Self.searchIndexRows(
                         forStored: stored, first: saved.committed.totalChunks,
                         count: pending.totalChunks - saved.committed.totalChunks)
@@ -338,8 +338,7 @@ extension RAGService {
         updateIngestionItem(
             id: trackingId, filename: filename, stage: .storing, detail: "Generating suggested questions...",
             progress: 0.99)
-        let sample = Array(
-            try await db.allChunks().lazy.filter { $0.documentId == document.id }.prefix(Self.suggestedQuestionSample))
+        let sample = try await db.chunks(forDocument: document.id, limit: Self.suggestedQuestionSample)
         await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument(
             document, chunks: sample, in: activeContainerId)
 

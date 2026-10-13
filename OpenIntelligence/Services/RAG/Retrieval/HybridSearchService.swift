@@ -830,7 +830,12 @@ class HybridSearchService {
         if let cachedChunks {
             all = cachedChunks
         } else {
-            all = try await vectorDatabase.allChunks()
+            // Only the named documents' passages are read, in store order, which is what
+            // filtering every passage gave (5.7). They are asked for by id, so a passage
+            // added or removed between the two calls cannot shift which ones come back.
+            let records = try await vectorDatabase.passageRecords()
+            all = try await vectorDatabase.chunks(
+                withIDs: records.filter { scope.contains($0.documentId) }.map(\.id))
         }
         let candidates = all.filter { scope.contains($0.documentId) }
         guard !candidates.isEmpty, topK > 0 else {
@@ -1147,8 +1152,12 @@ class HybridSearchService {
                 if let cachedChunks {
                     allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(cachedChunks) : cachedChunks
                 } else {
-                    let fetched = try await vectorDatabase.allChunks()
-                    allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(fetched) : fetched
+                    // Only the passages the keyword hits name are read from the store (5.7),
+                    // by id, so a change to the store between the two calls cannot shift them.
+                    let records = try await vectorDatabase.passageRecords()
+                    let positions = Self.neededChunkPositions(
+                        records: records, neededChunkIds: neededKeys, summariesOnly: isOverviewQuery)
+                    allChunks = try await vectorDatabase.chunks(withIDs: positions.map { records[$0].id })
                 }
                 allChunkLookup = Self.buildNeededChunkLookup(from: allChunks, neededChunkIds: neededKeys)
             } else {
@@ -1337,6 +1346,43 @@ class HybridSearchService {
             }
         }
         return dict
+    }
+
+    /// The positions of the passages `buildNeededChunkLookup(from:neededChunkIds:)` would pick out
+    /// of every passage, worked out from the store's records so that only those are read. It
+    /// walks the records the way that function walks the passages: in store order, a later
+    /// passage with the same document and number replacing an earlier one, stopping once every
+    /// needed id has been seen. `summariesOnly` is the overview filter applied first.
+    static func neededChunkPositions(
+        records: [PassageRecord],
+        neededChunkIds: Set<String>,
+        summariesOnly: Bool
+    ) -> [Int] {
+        guard !neededChunkIds.isEmpty else { return [] }
+
+        var coordinateToChunkId: [ChunkCoordinate: String] = [:]
+        coordinateToChunkId.reserveCapacity(neededChunkIds.count)
+        for id in neededChunkIds {
+            if let separatorIndex = id.lastIndex(of: "_"),
+               let docId = UUID(uuidString: String(id[..<separatorIndex])),
+               let index = Int(id[id.index(after: separatorIndex)...]) {
+                coordinateToChunkId[ChunkCoordinate(documentId: docId, chunkIndex: index)] = id
+            }
+        }
+
+        var positionByChunkId: [String: Int] = [:]
+        positionByChunkId.reserveCapacity(neededChunkIds.count)
+        for (position, record) in records.enumerated() {
+            if summariesOnly, !record.abstractionLevel.isSummary { continue }
+            let coord = ChunkCoordinate(documentId: record.documentId, chunkIndex: record.chunkIndex)
+            if let chunkId = coordinateToChunkId[coord] {
+                positionByChunkId[chunkId] = position
+                if positionByChunkId.count == neededChunkIds.count {
+                    break
+                }
+            }
+        }
+        return positionByChunkId.values.sorted()
     }
 
     /// Joins vector hits and lexical (FTS5 + structured row) hits into ranked keyword results for RRF fusion.

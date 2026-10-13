@@ -33,7 +33,31 @@ protocol VectorDatabase {
     func count() async throws -> Int
 
     /// Return all chunks.
+    ///
+    /// For `BNNSVectorDatabase` this decodes every passage's text, which a load no longer does
+    /// (5.7). Ask for it only when every passage's text is what is needed. A count, the
+    /// passages of one document, a sample or a few passages by position or id each have their
+    /// own method below, and `passageRecords()` answers questions about ids, documents, pages
+    /// and levels without any text.
     func allChunks() async throws -> [DocumentChunk]
+
+    /// The id, document, number, page and level of every passage, in store order, without text.
+    func passageRecords() async throws -> [PassageRecord]
+
+    /// The passages at these positions in the store, in the order asked. Throws when a position
+    /// is outside the store. A position is only good until the store changes: a delete moves
+    /// every passage after it. A caller that worked its positions out from an earlier call and
+    /// needs exactly those passages asks by id or by document instead.
+    func chunks(atIndices indices: [Int]) async throws -> [DocumentChunk]
+
+    /// The passages of one document, in store order: all of them, or the first `limit`.
+    func chunks(forDocument documentId: UUID, limit: Int?) async throws -> [DocumentChunk]
+
+    /// How many passages one document has.
+    func chunkCount(forDocument documentId: UUID) async throws -> Int
+
+    /// The passages with these ids, in the order asked. An id the store does not hold is left out.
+    func chunks(withIDs ids: [UUID]) async throws -> [DocumentChunk]
 
     /// Update a chunk.
     func updateChunk(_ chunk: DocumentChunk) async throws
@@ -71,6 +95,51 @@ extension VectorDatabase {
     }
     func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]] {
         return ids.map { _ in [Float]() }
+    }
+
+    // A store that holds every passage in memory answers these from `allChunks()`.
+    // `BNNSVectorDatabase` answers them from its records and decodes only what is asked for.
+
+    func passageRecords() async throws -> [PassageRecord] {
+        try await allChunks().map {
+            PassageRecord(
+                id: $0.id, documentId: $0.documentId, chunkIndex: $0.metadata.chunkIndex,
+                pageNumber: $0.metadata.pageNumber, abstractionLevel: $0.metadata.abstractionLevel)
+        }
+    }
+
+    func chunks(atIndices indices: [Int]) async throws -> [DocumentChunk] {
+        let all = try await allChunks()
+        return try indices.map { index in
+            guard index >= 0, index < all.count else {
+                throw VectorDatabaseError.searchFailed("a passage position is outside the store")
+            }
+            return all[index]
+        }
+    }
+
+    func chunks(forDocument documentId: UUID, limit: Int?) async throws -> [DocumentChunk] {
+        let matching = try await allChunks().lazy.filter { $0.documentId == documentId }
+        if let limit { return Array(matching.prefix(max(0, limit))) }
+        return Array(matching)
+    }
+
+    /// Every passage of one document, in store order.
+    func chunks(forDocument documentId: UUID) async throws -> [DocumentChunk] {
+        try await chunks(forDocument: documentId, limit: nil)
+    }
+
+    func chunkCount(forDocument documentId: UUID) async throws -> Int {
+        try await allChunks().reduce(0) { $0 + ($1.documentId == documentId ? 1 : 0) }
+    }
+
+    func chunks(withIDs ids: [UUID]) async throws -> [DocumentChunk] {
+        guard !ids.isEmpty else { return [] }
+        var byId: [UUID: DocumentChunk] = [:]
+        for chunk in try await allChunks() where byId[chunk.id] == nil {
+            byId[chunk.id] = chunk
+        }
+        return ids.compactMap { byId[$0] }
     }
 }
 
