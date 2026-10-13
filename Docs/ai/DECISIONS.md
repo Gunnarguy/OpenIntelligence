@@ -1455,9 +1455,54 @@ library.
 memory after a load 276 MB to 11 MB, the saves of building the library 60.8 s to 13.8 s, a delete 2.31 s to
 under 1 s. Memory is unchanged once every passage has been asked for, which the library analysis does at launch
 and the question path does for each question: 329 MB against 330 MB for a plain decode. The store drops its
-decoded passages under memory pressure and reads them back. Eleven callers of `allChunks()` remain, listed in
-the changelog entry. Run over copies of the nine metadata files on the owner's iPhone (145,500 passages, written by
+decoded passages under memory pressure and reads them back. Eleven callers still read every passage's text,
+listed in the changelog entry. *(The figures in this paragraph are the first version's. The record that
+follows this one says what the review changed, and the changelog entry carries the figures of the code as
+committed.)* Run over copies of the nine metadata files on the owner's iPhone (145,500 passages, written by
 builds from 2026-09-14 on), the walk and the decoder agreed on every passage, and the 159 MB file walked in
 0.015 s optimised and 0.17 s unoptimised on the Mac. The figures on the owner's iPhone are not known: the walk in an unoptimised build is the
 part most likely to differ, and the first launch of a build with this change prints it as `[VectorLoad]`.
 `[evidence_level: test_verified for the format, the alignment of vectors and passages, and the moved callers (VectorStorePassageIndexTests); measured on the Mac for the figures (VectorStoreScaleBenchmarkTests, 2026-10-12); not run on a device, confidence: high for what was built, medium for what a phone will show, evidence_source: BNNSVectorDatabase.swift, PassageFileIndex.swift, VectorDatabase.swift; CHANGELOG.md 5.7 Changed]`
+
+## 2026-10-12 - After review of the storage change: a load never writes, a delete saves what is unsaved first, and a passage that cannot be read is left out
+
+**Context.** The storage change of the record above was committed locally and handed to a second agent told to
+refute it, before anything was pushed. It found seven things, listed in `CHANGELOG.md` (5.7, Changed, the second
+Indexing entry). The two that could have damaged a library: a delete ended part-way while passages were unsaved
+could leave a vectors file the loader reads as a cut-off save, with every passage on a neighbour's vector, and
+`allChunks()` handed back a shorter array when one passage failed to decode, which sync pairs with the vectors
+by position.
+
+**Decision.**
+1. A load reads and never writes. Vectors the metadata does not list are ignored in memory and the next save
+   writes the file at its right length. Fewer vectors than passages loads the store empty and leaves the files.
+2. A delete and an update write out anything unsaved before they take a vector out of the middle of the file.
+   That keeps one rule true for the loader: a cut-off save leaves more vectors than the metadata lists, all after
+   the listed ones, and a cut-off delete leaves fewer.
+3. A passage whose bytes no longer decode is counted and left out: of searches, of reads of a document or by
+   id, and of `readableChunks()`, which every reader of text in the app now calls. `allChunks()` throws instead,
+   and sync is its one caller.
+4. Each file is written under a unique name in the system's replacement directory for the store's volume,
+   synchronised to disk, and renamed over the destination.
+5. A caller that picks passages from the store's records reads them by id. `chunks(atIndices:)` is gone.
+6. The scoped search gets its similarities from vectors asked for by id, inside `HybridSearchService`.
+
+**Alternatives.** (a) Leave the unreadable passage out of `allChunks()` too. Rejected: `WorkspaceSyncService`
+pairs that array with `getEmbeddings(forIndices:)` and would write both copies of the library with every later
+passage on its neighbour's vector. That file is a hard boundary and was not edited. (b) Have every reader
+throw. Rejected: through 5.6 one passage that did not decode emptied the library at load, and throwing would
+have made that a library in which every question fails. (c) Remove the unreadable passage from the files when it
+is found. Rejected: it is a write made from a read, sync's store could make it while the app's store is saving,
+and if the fault were ever in the store's records and not in the file it would delete good passages. Nothing is
+lost by leaving the bytes, and deleting the document removes them. (d) A method on the store that scores
+passages against a vector where the vectors are, with none copied out. It was written and taken out again: it
+is the faster way to rank a very large document, and it is an addition to `BNNSVectorDatabase.swift` for
+retrieval, which the owner's go-ahead for the storage change does not cover. It waits for his word.
+(e) `FileManager.replaceItemAt`. Not used: `rename` replaces in one step whether or not the destination exists.
+
+**Consequences.** A library with a passage that cannot be read answers questions without it, and does not sync
+until the document is deleted or imported again; the pipeline log names the cause. Saves cost a synchronise
+each: the 49 saves of building the 144,247-passage store took 15.5 and 16.3 s in two builds, against 13.8 s
+without it and 60.8 s in the 5.6 code. The cut-off cases are held by tests through a hook that exists only in
+debug builds (`interruptMetadataWrites`). Two stores open on one library's files at once is still not tested.
+`[evidence_level: test_verified (BNNSVectorDatabasePersistenceTests, VectorStorePassageIndexTests, HybridSearchServiceTests; the full suite on 2026-10-13, 864 tests with 0 failures and 4 skipped), measured on the Mac for the save figures, confidence: high for the cases the tests reproduce, evidence_source: BNNSVectorDatabase.swift, PassageFileIndex.swift, VectorDatabase.swift, HybridSearchService.swift; CHANGELOG.md 5.7]`

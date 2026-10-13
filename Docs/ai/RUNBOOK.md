@@ -1062,9 +1062,19 @@ TEST_RUNNER_OI_STORE_BENCH=144247 TEST_RUNNER_OI_STORE_BENCH_DIR=/private/tmp/oi
 ```
 
 The store's files stay in that folder, so the next run times a load of files an earlier run wrote. That is
-how the 5.7 store was shown to open files the 5.6 code had written. Run it with nothing else building: two
-of eight runs on 2026-10-12 showed a 1.5 s load beside six at 0.61 to 0.73 s, with another process busy.
-`[evidence_level: measured, confidence: high for this Mac, evidence_source: the eight runs of 2026-10-12]`
+how the 5.7 store was shown to open files the 5.6 code had written. Run it with nothing else building, and
+not just after the Mac has woken: two of eight runs on 2026-10-12 showed a 1.5 s load beside six at 0.61 to
+0.73 s with another process busy, and on 2026-10-13 the Mac slept for five and a half hours in the middle of
+a set of runs and the first runs after it woke read 0.24 to 0.38 s for a search that takes 0.14 s. Check the
+`second_search_s` line of a run before using its other figures.
+`[evidence_level: measured, confidence: high for this Mac, evidence_source: the runs of 2026-10-12 and 2026-10-13]`
+
+What a save or a delete leaves when it is ended part-way is tested without ending anything. In a debug build
+the store has `interruptMetadataWrites`, which a test sets to throw before the first or the second write of
+the metadata file; the test then opens a second store on the same files, which is what the next launch does
+(`BNNSVectorDatabasePersistenceTests`). The rule those tests hold: a cut-off save leaves more vectors than the
+metadata lists, and a cut-off delete leaves fewer.
+`[evidence_level: test_verified, confidence: high, evidence_source: BNNSVectorDatabasePersistenceTests.swift]`
 
 ## Staging a release without submitting it
 

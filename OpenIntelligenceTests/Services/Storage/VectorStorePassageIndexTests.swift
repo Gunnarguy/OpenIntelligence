@@ -110,8 +110,9 @@ final class VectorStorePassageIndexTests: XCTestCase {
     }
 
     /// The three files the way a 5.6 build wrote them: the whole array through `JSONEncoder`.
-    private func writeStoreAsFivePointSixDid(_ chunks: [DocumentChunk]) throws {
-        try JSONEncoder().encode(chunks.map(stripped)).write(to: metaURL)
+    /// With `metadata`, those bytes are the metadata file instead.
+    private func writeStoreAsFivePointSixDid(_ chunks: [DocumentChunk], metadata: Data? = nil) throws {
+        try (metadata ?? JSONEncoder().encode(chunks.map(stripped))).write(to: metaURL)
         var vectors = Data()
         var norms: [Float] = []
         for chunk in chunks {
@@ -213,6 +214,124 @@ final class VectorStorePassageIndexTests: XCTestCase {
         XCTAssertNil(PassageFileIndex.scan(good + Data("x".utf8)))
     }
 
+    /// One passage as JSON text, with whatever a test wants spliced into it.
+    private func passageJSON(
+        id: UUID, document: UUID, idKey: String = "\"id\"", top: String = "", metadata: String = ""
+    ) -> String {
+        "{\(idKey):\"\(id.uuidString)\",\"documentId\":\"\(document.uuidString)\",\"content\":\"x\",\"embedding\":[],"
+            + "\"metadata\":{\"chunkIndex\":3,\"keywords\":[]\(metadata)}\(top)}"
+    }
+
+    /// Where the walk and the decoder both read the bytes, they read the same passages. Returns
+    /// what each made of them.
+    @discardableResult
+    private func assertTheWalkNeverDisagrees(
+        _ json: String, file: StaticString = #filePath, line: UInt = #line
+    ) -> (slots: [PassageSlot]?, decoded: [DocumentChunk]?) {
+        let data = Data(json.utf8)
+        let slots = PassageFileIndex.scan(data)
+        let decoded = try? JSONDecoder().decode([DocumentChunk].self, from: data)
+        if let slots, let decoded {
+            XCTAssertEqual(slots.map(\.record.id), decoded.map(\.id), json, file: file, line: line)
+            XCTAssertEqual(slots.map(\.record.documentId), decoded.map(\.documentId), json, file: file, line: line)
+            XCTAssertEqual(
+                slots.map(\.record.chunkIndex), decoded.map(\.metadata.chunkIndex), json, file: file, line: line)
+            XCTAssertEqual(
+                slots.map(\.record.pageNumber), decoded.map(\.metadata.pageNumber), json, file: file, line: line)
+            XCTAssertEqual(
+                slots.map(\.record.abstractionLevel), decoded.map(\.metadata.abstractionLevel), json, file: file,
+                line: line)
+        }
+        return (slots, decoded)
+    }
+
+    /// A key the walk reads, written twice or written with an escape, is the decoder's to read:
+    /// which of two values counts, and what an escaped key spells, are its rules.
+    func testRepeatedAndEscapedKeysAreReadTheWayTheDecoderReadsThem() throws {
+        let first = UUID()
+        let second = UUID()
+        let document = UUID()
+        let other = UUID()
+        let cases = [
+            // "id" twice, at the start and at the end.
+            "[" + passageJSON(id: first, document: document, top: ",\"id\":\"\(second.uuidString)\"") + "]",
+            // "documentId" twice.
+            "[" + passageJSON(id: first, document: document, top: ",\"documentId\":\"\(other.uuidString)\"") + "]",
+            // "metadata" twice, with another number in the second.
+            "[" + passageJSON(id: first, document: document, top: ",\"metadata\":{\"chunkIndex\":9,\"keywords\":[]}") + "]",
+            // The numbers inside the metadata twice.
+            "[" + passageJSON(id: first, document: document, metadata: ",\"chunkIndex\":8") + "]",
+            "[" + passageJSON(id: first, document: document, metadata: ",\"pageNumber\":4,\"pageNumber\":6") + "]",
+            "[" + passageJSON(id: first, document: document, metadata: ",\"abstractionLevel\":0,\"abstractionLevel\":2") + "]",
+            // The same keys spelled with an escape, alone and beside the plain spelling.
+            "[" + passageJSON(id: first, document: document, idKey: "\"\\u0069d\"") + "]",
+            "[" + passageJSON(id: first, document: document, top: ",\"\\u0069d\":\"\(second.uuidString)\"") + "]",
+            "[" + passageJSON(id: first, document: document, top: ",\"document\\u0049d\":\"\(other.uuidString)\"") + "]",
+            "[" + passageJSON(id: first, document: document, metadata: ",\"page\\u004eumber\":11") + "]",
+            "[" + passageJSON(id: first, document: document, metadata: ",\"abstraction\\u004cevel\":2") + "]",
+            "[" + passageJSON(id: first, document: document, metadata: ",\"chunk\\u0049ndex\":12") + "]",
+            // An escaped key the walk does not read changes nothing.
+            "[" + passageJSON(id: first, document: document, top: ",\"not\\u0065d\":1") + "]",
+        ]
+        var bothRead = 0
+        for json in cases {
+            let made = assertTheWalkNeverDisagrees(json)
+            if made.slots != nil, made.decoded != nil { bothRead += 1 }
+            // What the decoder reads, the walk does not refuse.
+            if made.decoded != nil { XCTAssertNotNil(made.slots, json) }
+        }
+        XCTAssertGreaterThan(bothRead, 0, "none of the cases was read by both, so nothing was compared")
+    }
+
+    /// The walk skips the values it does not read. It still refuses a file whose skipped values
+    /// are not JSON as far as it looks: a bare word that is not a number, true, false or null,
+    /// and a bracket closed by the other kind.
+    func testValuesThatAreNotJSONAreRefusedAndTheOnesThatAreAreSkipped() throws {
+        let id = UUID()
+        let document = UUID()
+        let good = [
+            "0", "-0", "10", "-12.5e-3", "1E+5", "0.5", "true", "false", "null", "[]", "{}", "\"]}\"",
+            "[[],{},[{\"a\":[null,true,false,\"]}\",-1.5]}]]", "{\"a\":{\"b\":[1,{\"c\":\"}\"}]}}",
+        ]
+        for value in good {
+            for json in [
+                "[" + passageJSON(id: id, document: document, top: ",\"extra\":\(value)") + "]",
+                "[" + passageJSON(id: id, document: document, metadata: ",\"extra\":\(value)") + "]",
+            ] {
+                let made = assertTheWalkNeverDisagrees(json)
+                XCTAssertEqual(made.slots?.count, 1, json)
+                XCTAssertEqual(made.decoded?.count, 1, json)
+            }
+        }
+        let bad = [
+            "", "tru", "nul", "True", "+1", ".5", "0x10", "NaN", "Infinity", "1 2",
+            "[1,2}", "{\"a\":[1}]", "{\"a\":1]", "[[1]", "[1]]",
+        ]
+        for value in bad {
+            for json in [
+                "[" + passageJSON(id: id, document: document, top: ",\"extra\":\(value)") + "]",
+                "[" + passageJSON(id: id, document: document, metadata: ",\"extra\":\(value)") + "]",
+            ] {
+                XCTAssertNil(PassageFileIndex.scan(Data(json.utf8)), json)
+                XCTAssertNil(try? JSONDecoder().decode([DocumentChunk].self, from: Data(json.utf8)), json)
+            }
+        }
+        // Four that are not JSON numbers and that `JSONDecoder` takes all the same under a key
+        // nothing decodes: it checks a number's digits when the number is read, and nothing
+        // reads these (measured on macOS 27.0 and in the iOS 27.0 Simulator, 2026-10-12;
+        // `JSONSerialization` refuses all four). The walk refuses them, which costs nothing: a
+        // file the walk refuses is decoded whole
+        // (`testAFileTheWalkCannotFollowIsOpenedByDecodingItWhole`).
+        for value in ["01", "1.", "1e", "-"] {
+            for json in [
+                "[" + passageJSON(id: id, document: document, top: ",\"extra\":\(value)") + "]",
+                "[" + passageJSON(id: id, document: document, metadata: ",\"extra\":\(value)") + "]",
+            ] {
+                XCTAssertNil(PassageFileIndex.scan(Data(json.utf8)), json)
+            }
+        }
+    }
+
     // MARK: - The store on files a 5.6 build wrote
 
     func testAStoreWrittenByFivePointSixOpensSearchesAndReadsByDocument() async throws {
@@ -247,18 +366,178 @@ final class VectorStorePassageIndexTests: XCTestCase {
         let none = try await store.chunkCount(forDocument: UUID())
         XCTAssertEqual(none, 0)
 
-        let picked = try await store.chunks(atIndices: [299, 0, 150])
+        // By id: in the order asked, an id the store does not hold left out, an id asked for
+        // twice handed back twice.
+        let picked = try await store.chunks(withIDs: [chunks[299].id, chunks[0].id, chunks[150].id])
         XCTAssertEqual(picked.map(\.id), [chunks[299].id, chunks[0].id, chunks[150].id])
-        let byId = try await store.chunks(withIDs: [chunks[42].id, UUID(), chunks[7].id])
-        XCTAssertEqual(byId.map(\.id), [chunks[42].id, chunks[7].id])
+        for (found, number) in zip(picked, [299, 0, 150]) { assertSamePassage(found, chunks[number], "by id") }
+        let byId = try await store.chunks(withIDs: [chunks[42].id, UUID(), chunks[7].id, chunks[42].id])
+        XCTAssertEqual(byId.map(\.id), [chunks[42].id, chunks[7].id, chunks[42].id])
 
         let everything = try await store.allChunks()
         XCTAssertEqual(everything.count, 300)
         for index in [0, 1, 2, 3, 4, 5, 6, 7, 150, 299] {
             assertSamePassage(everything[index], chunks[index], "allChunks at \(index)")
         }
+        let readable = try await store.readableChunks()
+        XCTAssertEqual(readable.map(\.id), everything.map(\.id), "with nothing unreadable the two are the same")
+
+        // Vectors by id: a few (each looked up) and many (found in one pass over the records).
         let embeddings = await store.getEmbeddings(forChunkIDs: [chunks[9].id, UUID()])
         XCTAssertEqual(embeddings, [embedding(9), []])
+        var asked: [(id: UUID, vector: [Float])] = (0..<300).filter { $0 % 7 == 3 }.reversed().map {
+            (chunks[$0].id, embedding($0))
+        }
+        asked.insert((UUID(), []), at: 5)
+        asked.append((chunks[3].id, embedding(3)))
+        asked.append((chunks[3].id, embedding(3)))
+        XCTAssertGreaterThan(asked.count, 16)
+        let many = await store.getEmbeddings(forChunkIDs: asked.map(\.id))
+        XCTAssertEqual(many, asked.map(\.vector))
+    }
+
+    /// A metadata file the walk refuses and the decoder reads (here, a value nested deeper than
+    /// the walk follows) is opened by decoding it whole, as every file was through 5.6. The
+    /// store's next save writes it in the form the walk follows.
+    func testAFileTheWalkCannotFollowIsOpenedByDecodingItWhole() async throws {
+        let document = UUID()
+        let chunks = (0..<12).map { chunk($0, documentId: document, page: $0) }
+        var parts = try chunks.map { try String(decoding: JSONEncoder().encode(stripped($0)), as: UTF8.self) }
+        let deep = String(repeating: "[", count: 70) + "1" + String(repeating: "]", count: 70)
+        parts[4] = String(parts[4].dropLast()) + ",\"extra\":\(deep)}"
+        let metadata = Data(("[" + parts.joined(separator: ",") + "]").utf8)
+        XCTAssertNil(PassageFileIndex.scan(metadata), "the walk does not follow a value 70 deep")
+        XCTAssertEqual(try JSONDecoder().decode([DocumentChunk].self, from: metadata).count, 12)
+        try writeStoreAsFivePointSixDid(chunks, metadata: metadata)
+
+        let store = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+        let count = try await store.count()
+        XCTAssertEqual(count, 12)
+        for number in [0, 4, 11] {
+            let found = try await store.search(embedding: embedding(number), topK: 1)
+            assertSamePassage(found.first?.chunk, chunks[number], "search for passage \(number)")
+        }
+        let everything = try await store.allChunks()
+        XCTAssertEqual(everything.map(\.id), chunks.map(\.id))
+        let ofDocument = try await store.chunks(forDocument: document)
+        XCTAssertEqual(ofDocument.map(\.id), chunks.map(\.id))
+
+        let added = chunk(12, documentId: document, page: 12)
+        try await store.storeBatch(chunks: [added])
+        try await store.persist()
+        let written = try Data(contentsOf: metaURL)
+        XCTAssertEqual(PassageFileIndex.scan(written)?.count, 13, "the file the store wrote is one the walk follows")
+        let reloaded = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+        let records = try await reloaded.passageRecords()
+        XCTAssertEqual(records.map(\.id), (chunks + [added]).map(\.id))
+        for number in [0, 4, 11, 12] {
+            let found = try await reloaded.search(embedding: embedding(number), topK: 1)
+            assertSamePassage(found.first?.chunk, (chunks + [added])[number], "after the save, passage \(number)")
+        }
+    }
+
+    // MARK: - A passage that cannot be read
+
+    /// The metadata file with one passage's text replaced by a number. It is still JSON, so the
+    /// walk gives the passage a place, and it is not a passage `DocumentChunk` decodes.
+    private func metadataJSON(_ chunks: [DocumentChunk], damaging damaged: Int) throws -> Data {
+        var data = Data("[".utf8)
+        for (index, chunk) in chunks.enumerated() {
+            var encoded = try JSONEncoder().encode(stripped(chunk))
+            if index == damaged {
+                var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+                object["content"] = 7
+                encoded = try JSONSerialization.data(withJSONObject: object)
+            }
+            if index > 0 { data.append(UInt8(ascii: ",")) }
+            data.append(encoded)
+        }
+        data.append(UInt8(ascii: "]"))
+        return data
+    }
+
+    /// Through 5.6 one passage that did not decode failed the decode of the whole file, and the
+    /// library opened empty. Now the passage has a place and no text. It is counted, it is left
+    /// out of searches, of reads of its document, of reads by id and of `readableChunks()`, and
+    /// `allChunks()` refuses, because its callers may pair that array with the vectors by
+    /// position. Every other passage keeps its own vector. Small enough to be read on the
+    /// store's own thread, and large enough to be read on several.
+    func testAPassageThatCannotBeReadIsLeftOutAndNeverShiftsTheOthers() async throws {
+        for total in [12, 2_600] {
+            try? FileManager.default.removeItem(at: metaURL)
+            let first = UUID()
+            let second = UUID()
+            let chunks = (0..<total).map { chunk($0, documentId: $0 % 2 == 0 ? first : second, page: $0 % 9) }
+            let damaged = total / 2 + 1  // one of `second`'s
+            let metadata = try metadataJSON(chunks, damaging: damaged)
+            XCTAssertNil(
+                try? JSONDecoder().decode([DocumentChunk].self, from: metadata),
+                "a 5.6 build could not open this file at all")
+            try writeStoreAsFivePointSixDid(chunks, metadata: metadata)
+            let readableIds = chunks.indices.filter { $0 != damaged }.map { chunks[$0].id }
+
+            let store = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+            let count = try await store.count()
+            XCTAssertEqual(count, total, "\(total): the passage is counted")
+            let records = try await store.passageRecords()
+            XCTAssertEqual(records.map(\.id), chunks.map(\.id))
+            let ofSecond = try await store.chunkCount(forDocument: second)
+            XCTAssertEqual(ofSecond, total / 2)
+
+            // Searches: its neighbours are found by their own vectors, and it is not handed back.
+            for number in [damaged - 1, damaged + 1, 0, total - 1] {
+                let found = try await store.search(embedding: embedding(number), topK: 1)
+                assertSamePassage(found.first?.chunk, chunks[number], "\(total): search for passage \(number)")
+            }
+            let nearIt = try await store.search(embedding: embedding(damaged), topK: 3)
+            XCTAssertFalse(nearIt.contains { $0.chunk.id == chunks[damaged].id })
+
+            // Reads of a set of passages leave it out.
+            let itsDocument = try await store.chunks(forDocument: second)
+            XCTAssertEqual(itsDocument.map(\.id), chunks.filter { $0.documentId == second }.map(\.id).filter { $0 != chunks[damaged].id })
+            let byId = try await store.chunks(withIDs: [chunks[damaged - 1].id, chunks[damaged].id, chunks[damaged + 1].id])
+            XCTAssertEqual(byId.map(\.id), [chunks[damaged - 1].id, chunks[damaged + 1].id])
+            let readable = try await store.readableChunks()
+            XCTAssertEqual(readable.map(\.id), readableIds, "\(total): every other passage, in order")
+            assertSamePassage(readable[damaged], chunks[damaged + 1], "\(total): the passage after the gap")
+            let readableAgain = try await store.readableChunks()
+            XCTAssertEqual(readableAgain.map(\.id), readableIds)
+
+            // The read that is paired with the vectors by position refuses, every time.
+            for attempt in 1...2 {
+                do {
+                    _ = try await store.allChunks()
+                    XCTFail("\(total): allChunks() handed back passages on attempt \(attempt)")
+                } catch {}
+            }
+
+            // Its vector is still its own, and so is everyone else's.
+            let vectors = await store.getEmbeddings(forIndices: [damaged - 1, damaged, damaged + 1])
+            XCTAssertEqual(vectors, [embedding(damaged - 1), embedding(damaged), embedding(damaged + 1)])
+
+            // A save keeps the file as it is (the bytes are copied), and what is added is read.
+            let added = chunk(total, documentId: first)
+            try await store.storeBatch(chunks: [added])
+            try await store.persist()
+            let afterSave = try await store.readableChunks()
+            XCTAssertEqual(afterSave.map(\.id), readableIds + [added.id])
+            let reloaded = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+            let reloadedCount = try await reloaded.count()
+            XCTAssertEqual(reloadedCount, total + 1)
+            let reloadedReadable = try await reloaded.readableChunks()
+            XCTAssertEqual(reloadedReadable.map(\.id), readableIds + [added.id])
+            let foundAdded = try await reloaded.search(embedding: embedding(total), topK: 1)
+            assertSamePassage(foundAdded.first?.chunk, added, "\(total): the passage added after the damage")
+
+            // Removing the document it belongs to removes it, and the store is whole again.
+            try await reloaded.deleteChunks(forDocument: second)
+            let whole = try await reloaded.allChunks()
+            XCTAssertEqual(whole.map(\.id), chunks.filter { $0.documentId == first }.map(\.id) + [added.id])
+            let wholeVectors = await reloaded.getEmbeddings(forIndices: Array(whole.indices))
+            XCTAssertEqual(
+                wholeVectors, (chunks.indices.filter { $0 % 2 == 0 } + [total]).map { embedding($0) },
+                "\(total): each passage that stayed has its own vector")
+        }
     }
 
     /// The stores that keep every passage in memory answer the same questions from `allChunks()`.
@@ -280,29 +559,10 @@ final class VectorStorePassageIndexTests: XCTestCase {
         XCTAssertEqual(firstThree.map(\.id), Array(ofSecond.prefix(3)).map(\.id))
         let howMany = try await store.chunkCount(forDocument: second)
         XCTAssertEqual(howMany, 20)
-        let picked = try await store.chunks(atIndices: [5, 0])
-        XCTAssertEqual(picked.map(\.id), [everything[5].id, everything[0].id])
-        let byId = try await store.chunks(withIDs: [everything[9].id, UUID()])
-        XCTAssertEqual(byId.map(\.id), [everything[9].id])
-        do {
-            _ = try await store.chunks(atIndices: [60])
-            XCTFail("position 60 of 60 was accepted")
-        } catch {}
-    }
-
-    func testPositionsOutsideTheStoreAreAnError() async throws {
-        let document = UUID()
-        let store = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
-        try await store.storeBatch(chunks: (0..<3).map { chunk($0, documentId: document) })
-        try await store.persist()
-        do {
-            _ = try await store.chunks(atIndices: [0, 3])
-            XCTFail("position 3 of 3 was accepted")
-        } catch {}
-        do {
-            _ = try await store.chunks(atIndices: [-1])
-            XCTFail("position -1 was accepted")
-        } catch {}
+        let byId = try await store.chunks(withIDs: [everything[9].id, UUID(), everything[5].id, everything[0].id])
+        XCTAssertEqual(byId.map(\.id), [everything[9].id, everything[5].id, everything[0].id])
+        let readable = try await store.readableChunks()
+        XCTAssertEqual(readable.map(\.id), everything.map(\.id))
     }
 
     // MARK: - What a save writes

@@ -195,4 +195,109 @@ final class HybridSearchServiceTests: XCTestCase {
         let c2 = results.first(where: { $0.chunk.content.contains("insuline") })
         XCTAssertEqual(c2?.similarityScore ?? 0.0, 0.41, accuracy: 0.001)
     }
+
+    // MARK: - A question limited to named documents
+
+    /// A question limited to a document is ranked by how close each of its passages is to the
+    /// question as well as by the words they share. The vector store hands passages back
+    /// without their vectors, and the scoped search compared the question with that empty
+    /// vector, so every similarity was 0 and only the words counted. Neither passage here
+    /// shares a word with the question: the one that points the question's way has to win, and
+    /// a passage outside the named document is not returned however close it is.
+    func testAQuestionLimitedToADocumentIsRankedByVectorsFromTheStore() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("scope-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = BNNSVectorDatabase(
+            dimension: 4, storageURL: directory.appendingPathComponent("vector_database_scope.json"))
+
+        let lease = UUID()
+        let rules = UUID()
+        func passage(_ document: UUID, _ index: Int, _ text: String, _ vector: [Float]) -> DocumentChunk {
+            DocumentChunk(
+                documentId: document, content: text, embedding: vector, metadata: ChunkMetadata(chunkIndex: index))
+        }
+        let far = passage(lease, 0, "Quiet hours begin at ten in the evening.", [0, 1, 0, 0])
+        let near = passage(lease, 1, "The deposit comes back within sixty days.", [0.9, 0.1, 0, 0])
+        let between = passage(lease, 2, "Pets need written permission.", [0.5, 0.5, 0, 0])
+        let outside = passage(rules, 0, "refund timing refund timing", [1, 0, 0, 0])
+        try await store.storeBatch(chunks: [far, near, outside])
+        try await store.persist()
+        // One passage no save has written yet: its vector is still in memory.
+        try await store.storeBatch(chunks: [between])
+
+        let handedBack = try await store.chunks(forDocument: lease)
+        XCTAssertTrue(handedBack.allSatisfy { $0.embedding.isEmpty }, "the store hands passages back without vectors")
+
+        let search = HybridSearchService(vectorDatabase: store)
+        let results = try await RAGQueryScope.$documentIds.withValue([lease]) {
+            try await search.search(query: "refund timing", embedding: [1, 0, 0, 0], topK: 3)
+        }
+        XCTAssertEqual(results.map(\.chunk.id), [near.id, between.id, far.id])
+        XCTAssertEqual(results.map(\.rank), [1, 2, 3])
+        XCTAssertGreaterThan(results[0].similarityScore, results[1].similarityScore)
+        XCTAssertGreaterThan(results[1].similarityScore, results[2].similarityScore)
+        XCTAssertEqual(results[2].similarityScore, 0, accuracy: 0.0001, "nothing in common: no words, a right angle")
+
+        // The scores are the similarity times the search's vector weight, and no words matched.
+        let nearExpected: Float = 0.7 * 0.9 / Float(0.9 * 0.9 + 0.1 * 0.1).squareRoot()
+        let betweenExpected: Float = 0.7 * 0.5 / Float(0.5).squareRoot()
+        XCTAssertEqual(results[0].similarityScore, nearExpected, accuracy: 0.0001)
+        XCTAssertEqual(results[1].similarityScore, betweenExpected, accuracy: 0.0001)
+    }
+
+    /// A document with more passages than are asked for at a time is scored in several
+    /// requests, and each passage still gets its own vector's score.
+    func testAQuestionLimitedToALongDocumentScoresEveryPassageByItsOwnVector() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("scope-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = BNNSVectorDatabase(
+            dimension: 4, storageURL: directory.appendingPathComponent("vector_database_long.json"))
+        let manual = UUID()
+        let total = 5_000
+        // Passage n sits at an angle from the question that grows with n, so the closest is
+        // passage 0 and the order by score is the order by number. The angles run from 22.5 to
+        // 67.5 degrees, where one step changes the cosine by far more than a Float rounds off.
+        let passages = (0..<total).map { number -> DocumentChunk in
+            let angle = Float.pi / 8 + Float(number) / Float(total) * (Float.pi / 4)
+            return DocumentChunk(
+                documentId: manual, content: "passage \(number)", embedding: [cos(angle), sin(angle), 0, 0],
+                metadata: ChunkMetadata(chunkIndex: number))
+        }
+        try await store.storeBatch(chunks: passages.shuffled())
+        try await store.persist()
+
+        let search = HybridSearchService(vectorDatabase: store)
+        let results = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zzz", embedding: [1, 0, 0, 0], topK: total)
+        }
+        XCTAssertEqual(results.count, total)
+        XCTAssertEqual(results.prefix(40).map(\.chunk.metadata.chunkIndex), Array(0..<40))
+        XCTAssertEqual(results.suffix(3).map(\.chunk.metadata.chunkIndex), [total - 3, total - 2, total - 1])
+        XCTAssertEqual(results[0].similarityScore, 0.7 * cos(Float.pi / 8), accuracy: 0.0001)
+        for index in 1..<total {
+            XCTAssertLessThan(results[index].similarityScore, results[index - 1].similarityScore, "at \(index)")
+        }
+    }
+
+    /// A store that hands passages back with their vectors (the one kept in memory) is ranked
+    /// from those, as it was.
+    func testAQuestionLimitedToADocumentIsRankedByVectorsOnThePassages() async throws {
+        let store = InMemoryVectorDatabase(dimension: 4)
+        let lease = UUID()
+        let far = DocumentChunk(
+            documentId: lease, content: "Quiet hours begin at ten.", embedding: [0, 1, 0, 0],
+            metadata: ChunkMetadata(chunkIndex: 0))
+        let near = DocumentChunk(
+            documentId: lease, content: "The deposit comes back within sixty days.", embedding: [1, 0, 0, 0],
+            metadata: ChunkMetadata(chunkIndex: 1))
+        try await store.storeBatch(chunks: [far, near])
+        let search = HybridSearchService(vectorDatabase: store)
+        let results = try await RAGQueryScope.$documentIds.withValue([lease]) {
+            try await search.search(query: "refund timing", embedding: [1, 0, 0, 0], topK: 2)
+        }
+        XCTAssertEqual(results.map(\.chunk.id), [near.id, far.id])
+        XCTAssertGreaterThan(results[0].similarityScore, 0.5)
+    }
 }

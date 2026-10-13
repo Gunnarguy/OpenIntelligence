@@ -103,7 +103,16 @@ actor BNNSVectorDatabase: VectorDatabase {
     private var everyChunkCache: [DocumentChunk]?
 
     /// The decode of every passage that is under way, and the passage generation it started at.
-    private var everyChunkTask: (generation: Int, task: Task<[DocumentChunk], Never>)?
+    private var everyChunkTask: (generation: Int, task: Task<[DocumentChunk]?, Never>)?
+
+    /// The passage generation at which a decode of every passage found one it could not read.
+    /// The store does not try again until the passages change.
+    private var unreadableGeneration: Int?
+
+    /// What `readableChunks()` handed back while a passage could not be read, and the passage
+    /// generation it belongs to, so a library in that state does not decode every passage
+    /// again for each question. Not aligned with `slots`. Let go under memory pressure.
+    private var readableFallback: (generation: Int, chunks: [DocumentChunk])?
 
     /// Passages decoded one at a time (search results, lookups), by position. Emptied when it
     /// reaches `decodedCacheLimit` and whenever positions change.
@@ -125,9 +134,27 @@ actor BNNSVectorDatabase: VectorDatabase {
     /// Dirty flag for deferred persistence
     private var isDirty = false
 
+    /// The vectors file on disk is not exactly this store's vectors: a load found more or fewer
+    /// than the metadata lists, or a delete could not finish. The next save writes the file
+    /// again even when no new passages are waiting.
+    private var vectorsFileNeedsRewrite = false
+
     /// Load-completion task — all public methods await this before accessing data.
     /// Prevents returning empty results while loadFromDisk is in progress.
     nonisolated(unsafe) private var loadTask: Task<Void, Never>?
+
+    #if DEBUG
+    /// For tests. Called before each write of the metadata file with how many there have been
+    /// since it was set. Throwing ends the save there, which leaves the files the way they are
+    /// when the app is ended between the vectors and the metadata that names them.
+    private var beforeMetadataWrite: (@Sendable (Int) throws -> Void)?
+    private var metadataWritesSeen = 0
+
+    func interruptMetadataWrites(_ body: (@Sendable (Int) throws -> Void)?) {
+        beforeMetadataWrite = body
+        metadataWritesSeen = 0
+    }
+    #endif
 
     // MARK: - Init
 
@@ -211,8 +238,8 @@ actor BNNSVectorDatabase: VectorDatabase {
         // === BINARY FORMAT: mmap vectors, index the metadata file ===
         if fm.fileExists(atPath: bin.meta.path), fm.fileExists(atPath: bin.vectors.path) {
             do {
-                if try loadBinary(bin) { return }
-                // The files disagreed and were removed, as before 5.7.
+                // Loaded, or loaded empty because the vectors did not match the metadata.
+                _ = try loadBinary(bin)
                 return
             } catch {
                 resetLoadedState()
@@ -277,17 +304,21 @@ actor BNNSVectorDatabase: VectorDatabase {
         pendingChunks.removeAll()
         everyChunkCache = nil
         everyChunkTask = nil
+        readableFallback = nil
         decodedByIndex.removeAll()
         passageGeneration &+= 1
         embeddingNorms.removeAll()
         pendingEmbeddings.removeAll(keepingCapacity: false)
         mappedVectors = nil
         persistedChunkCount = 0
+        // Whatever is on disk is not this (empty) store. Its first save writes every file.
+        vectorsFileNeedsRewrite = true
     }
 
     /// Opens the three binary files. True when the store is loaded from them. False when the
-    /// vectors file did not match the metadata and all three were removed. Throws when the
-    /// metadata file is not a passage array at all.
+    /// vectors file did not match the metadata and the store was loaded empty. Throws when the
+    /// metadata file is not a passage array at all. It reads and never writes: a second store
+    /// may be opened on files the first is in the middle of saving.
     private func loadBinary(_ bin: (meta: URL, vectors: URL, norms: URL)) throws -> Bool {
         let fm = FileManager.default
 
@@ -318,34 +349,44 @@ actor BNNSVectorDatabase: VectorDatabase {
         if expectedBytes > 0 {
             mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
         }
+        var surplusIgnored = false
         if mapped.count != expectedBytes {
-            // More whole vectors than the metadata lists. Since 5.7 `saveToDisk` writes
-            // new vectors before the metadata that names them, so this is what a save
-            // that was cut off between the two leaves: the first `expectedBytes` are the
-            // listed chunks' vectors and the rest belong to chunks that were never
-            // recorded. They are cut off and the store loads as it was before that save.
-            // (Through 5.6 this repair ran only when the file was an exact multiple of
-            // the expected size, and any other excess deleted the whole store.)
+            // More whole vectors than the metadata lists is what a save that was cut off leaves.
+            // `saveToDisk` writes the vectors before the metadata that names them, and a save
+            // only ever adds vectors at the end, so the first `expectedBytes` are the listed
+            // passages' vectors and the rest belong to passages that were never recorded. The
+            // store loads as it was before that save. A delete is the one operation that takes
+            // vectors out of the middle, and it writes out anything unsaved first, so a delete
+            // that is cut off always leaves FEWER vectors than the metadata lists, never more.
+            //
+            // The surplus is ignored here, not cut off the file, and the next save by this
+            // store writes the file at its right length. A load used to rewrite the vectors
+            // file, and a second store opened on the same files (sync opens one to read a
+            // library) could do that in the middle of the first one's save.
+            // (Through 5.6 a file that was not an exact multiple of the expected size deleted
+            // the whole store.)
             let bytesPerVector = dimension * MemoryLayout<Float>.size
             if expectedBytes > 0,
                mapped.count > expectedBytes,
                bytesPerVector > 0,
                (mapped.count - expectedBytes) % bytesPerVector == 0 {
                 Log.warning(
-                    "[BNNS] Repairing oversized vector file: \(mapped.count) -> \(expectedBytes)",
-                    category: .vectorDB
+                    "[BNNS] Vector file holds \((mapped.count - expectedBytes) / bytesPerVector) more vector(s) than the metadata lists; ignoring them (a save was cut off)",
+                    category: .pipeline
                 )
-                let repairedData = Data(mapped.prefix(expectedBytes))
-                try repairedData.write(to: bin.vectors, options: .atomic)
-                mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+                mapped = mapped.prefix(expectedBytes)
+                surplusIgnored = true
             }
 
             guard mapped.count == expectedBytes else {
-                Log.error("[BNNS] Vector file size mismatch: \(mapped.count) vs expected \(expectedBytes). Clearing corrupted files.", category: .vectorDB)
+                // Fewer vectors than passages, or part of a vector: there is no telling which
+                // passages lost theirs. The store loads empty and the library's empty-index
+                // repair takes over, as before. The three files are left as they are (a load
+                // used to remove them): this may be a second store looking at files the first
+                // is in the middle of writing, and the first save of a store that loaded empty
+                // writes all three again.
+                Log.error("[BNNS] Vector file size mismatch: \(mapped.count) vs expected \(expectedBytes). Loading this library's vector store empty.", category: .pipeline)
                 resetLoadedState()
-                try? fm.removeItem(at: bin.meta)
-                try? fm.removeItem(at: bin.vectors)
-                try? fm.removeItem(at: bin.norms)
                 return false
             }
         }
@@ -355,11 +396,13 @@ actor BNNSVectorDatabase: VectorDatabase {
         self.pendingChunks = loadedInMemory
         self.everyChunkCache = nil
         self.everyChunkTask = nil
+        self.readableFallback = nil
         self.decodedByIndex.removeAll()
         self.passageGeneration &+= 1
         self.mappedVectors = mapped
         self.persistedChunkCount = loadedSlots.count
         self.pendingEmbeddings.removeAll(keepingCapacity: false)
+        self.vectorsFileNeedsRewrite = surplusIgnored
 
         // 3. Norms — 200 KB in RAM (acceptable)
         if let normData = try? Data(contentsOf: bin.norms),
@@ -410,29 +453,41 @@ actor BNNSVectorDatabase: VectorDatabase {
         // metadata went first: a save cut off there left metadata for more chunks than the
         // vectors file held, and the next load answered that mismatch by deleting the whole
         // store, every document's vectors in the library. With the vectors first, a save cut
-        // off there leaves more vectors than the metadata lists, which the loader trims, and
+        // off there leaves more vectors than the metadata lists, which the loader ignores, and
         // the store comes back as it was before the save. The file layout is unchanged.
         //
         // Since 5.7 the file is streamed: what is already mapped, then what is pending. Before,
         // both were copied into one `Data` first, which for 144,247 passages was 221 MB of
         // memory for every save of an import.
-        if !pendingEmbeddings.isEmpty {
+        if !pendingEmbeddings.isEmpty || vectorsFileNeedsRewrite {
             let mapped = mappedVectors
             try Self.replaceFile(at: bin.vectors) { handle in
                 if let mapped, !mapped.isEmpty {
                     try handle.write(contentsOf: mapped)
                 }
-                try pendingEmbeddings.withUnsafeBytes { rawBuf in
-                    try handle.write(contentsOf: Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: rawBuf.baseAddress!), count: rawBuf.count, deallocator: .none))
+                if !pendingEmbeddings.isEmpty {
+                    try pendingEmbeddings.withUnsafeBytes { rawBuf in
+                        try handle.write(contentsOf: Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: rawBuf.baseAddress!), count: rawBuf.count, deallocator: .none))
+                    }
                 }
             }
 
+            // The new file is mapped before what was pending is let go. If the mapping fails,
+            // the store still holds every vector it needs, and the next save writes them again.
+            let remapped = try Self.mapOrRead(bin.vectors)
             pendingEmbeddings.removeAll(keepingCapacity: false)
-            self.mappedVectors = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+            self.mappedVectors = remapped
             self.persistedChunkCount = slots.count
+            vectorsFileNeedsRewrite = false
         }
 
         // 2. Metadata JSON (chunks have embedding:[]).
+        #if DEBUG
+        if let beforeMetadataWrite {
+            metadataWritesSeen += 1
+            try beforeMetadataWrite(metadataWritesSeen)
+        }
+        #endif
         try writeMetadataFile(to: bin.meta)
 
         // 3. Norms binary
@@ -445,32 +500,52 @@ actor BNNSVectorDatabase: VectorDatabase {
         }
     }
 
-    /// Writes a file whole to a temporary file beside it and moves that into place, which is
-    /// what `Data.write(to:options: .atomic)` does, without needing the whole file in memory.
-    /// The temporary file has one fixed name, so one left behind by a save that was cut off is
-    /// overwritten by the next save and does not accumulate.
+    /// A file's bytes, memory-mapped when that works and read into memory when it does not.
+    nonisolated private static func mapOrRead(_ url: URL) throws -> Data {
+        if let mapped = try? Data(contentsOf: url, options: .alwaysMapped) { return mapped }
+        return try Data(contentsOf: url)
+    }
+
+    /// Writes a file whole to a temporary file and moves that into place, which is what
+    /// `Data.write(to:options: .atomic)` does, without needing the whole file in memory.
+    ///
+    /// The temporary file is made where the system prepares replacements for the destination
+    /// (`.itemReplacementDirectory`): on the same volume, in a folder of its own, outside the
+    /// library's folder and so outside what iCloud Drive watches when the store is the shared
+    /// copy. Its name is unique, because more than one store can be open on a library's files
+    /// (sync opens its own), and two saves must not write into one temporary file. The bytes
+    /// are synchronised to disk before the move, so a power loss just after it cannot leave
+    /// the store's name on blocks that were never written.
     nonisolated private static func replaceFile(at destination: URL, body: (FileHandle) throws -> Void) throws {
         let fm = FileManager.default
-        let temporary = destination.appendingPathExtension("tmp")
-        guard fm.createFile(atPath: temporary.path, contents: nil) else {
-            throw VectorDatabaseError.storeFailed("could not create \(temporary.lastPathComponent)")
+        var folder = destination.deletingLastPathComponent()
+        var folderIsOurs = false
+        if let prepared = try? fm.url(
+            for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: destination, create: true)
+        {
+            folder = prepared
+            folderIsOurs = true
         }
+        let temporary = folder.appendingPathComponent("\(destination.lastPathComponent).\(UUID().uuidString).tmp")
+        defer {
+            // After the move the temporary file is gone and only the folder is left to remove.
+            try? fm.removeItem(at: folderIsOurs ? folder : temporary)
+        }
+        guard fm.createFile(atPath: temporary.path, contents: nil) else {
+            throw VectorDatabaseError.storeFailed("could not create a temporary file for \(destination.lastPathComponent)")
+        }
+        let handle = try FileHandle(forWritingTo: temporary)
         do {
-            let handle = try FileHandle(forWritingTo: temporary)
-            do {
-                try body(handle)
-                try handle.close()
-            } catch {
-                try? handle.close()
-                throw error
-            }
-            guard rename(temporary.path, destination.path) == 0 else {
-                throw VectorDatabaseError.storeFailed(
-                    "could not move \(temporary.lastPathComponent) into place (errno \(errno))")
-            }
+            try body(handle)
+            try handle.synchronize()
+            try handle.close()
         } catch {
-            try? fm.removeItem(at: temporary)
+            try? handle.close()
             throw error
+        }
+        guard rename(temporary.path, destination.path) == 0 else {
+            throw VectorDatabaseError.storeFailed(
+                "could not move the new \(destination.lastPathComponent) into place (errno \(errno))")
         }
     }
 
@@ -565,7 +640,7 @@ actor BNNSVectorDatabase: VectorDatabase {
         }
 
         // The file is in place. Point every slot at its new place in it.
-        let remapped = try Data(contentsOf: url, options: .alwaysMapped)
+        let remapped = try Self.mapOrRead(url)
         for index in slots.indices {
             slots[index].offset = newOffsets[index]
             slots[index].length = newLengths[index]
@@ -611,7 +686,7 @@ actor BNNSVectorDatabase: VectorDatabase {
         guard let meta = mappedMeta,
             let chunk = Self.decodePassage(slots[index], in: meta, with: passageDecoder)
         else {
-            Log.error("[BNNS] Passage \(index) could not be read from the metadata file", category: .vectorDB)
+            Log.error("[BNNS] Passage \(index) could not be read from the metadata file", category: .pipeline)
             return nil
         }
         if decodedByIndex.count >= Self.decodedCacheLimit {
@@ -637,7 +712,14 @@ actor BNNSVectorDatabase: VectorDatabase {
         }
         let snapshot = slots
         let inMemory = pendingChunks
-        return await Self.decode(positions: positions, slots: snapshot, inMemory: inMemory, meta: meta)
+        let found = await Self.decode(positions: positions, slots: snapshot, inMemory: inMemory, meta: meta)
+        let asked = positions.reduce(0) { $0 + (($1 >= 0 && $1 < snapshot.count) ? 1 : 0) }
+        if found.count < asked {
+            Log.error(
+                "[BNNS] \(asked - found.count) passage(s) could not be read from the metadata file and were left out",
+                category: .pipeline)
+        }
+        return found
     }
 
     /// Decodes passages on several threads. `positions` index into `slots`, whose last
@@ -753,18 +835,19 @@ actor BNNSVectorDatabase: VectorDatabase {
         return succeeded ? result : nil
     }
 
-    /// Every passage, decoded. The first call decodes the metadata file on several threads and
-    /// the result is kept, so from then on the store holds every passage's text, as it did from
-    /// load through 5.6. Callers that need a count, a sample, one document or a few passages
-    /// use the methods that do not come here.
-    private func everyChunk() async -> [DocumentChunk] {
+    /// Every passage, decoded and in store order, or nil when one of them cannot be read. The
+    /// first call decodes the metadata file on several threads and the result is kept, so from
+    /// then on the store holds every passage's text, as it did from load through 5.6. Callers
+    /// that need a count, a sample, one document or a few passages use the methods that do not
+    /// come here.
+    private func everyChunkIfWhole() async -> [DocumentChunk]? {
         if let cached = everyChunkCache { return cached }
         let inFile = slots.count - pendingChunks.count
         if inFile <= 0 { return pendingChunks }
-        guard let meta = mappedMeta else { return pendingChunks }
-
         let generation = passageGeneration
-        let task: Task<[DocumentChunk], Never>
+        guard let meta = mappedMeta, unreadableGeneration != generation else { return nil }
+
+        let task: Task<[DocumentChunk]?, Never>
         if let running = everyChunkTask, running.generation == generation {
             task = running.task
         } else {
@@ -772,39 +855,50 @@ actor BNNSVectorDatabase: VectorDatabase {
             let inMemory = pendingChunks
             let started = Date()
             task = Task.detached(priority: .userInitiated) {
-                let decoded: [DocumentChunk]
-                if let filled = Self.decodeEvery(slots: snapshot, inMemory: inMemory, meta: meta) {
-                    decoded = filled
-                    // Each thread of the decode keeps what it freed for its own next use. Hand
-                    // that back, or it stays counted against the app for a decode that runs once.
-                    malloc_zone_pressure_relief(nil, 0)
-                } else {
-                    // A passage could not be read. Take the ones that can be.
-                    decoded = await Self.decode(
-                        positions: Array(snapshot.indices), slots: snapshot, inMemory: inMemory, meta: meta)
+                guard let filled = Self.decodeEvery(slots: snapshot, inMemory: inMemory, meta: meta) else {
+                    return nil
                 }
+                // Each thread of the decode keeps what it freed for its own next use. Hand
+                // that back, or it stays counted against the app for a decode that runs once.
+                malloc_zone_pressure_relief(nil, 0)
                 Log.info(
-                    "[VectorLoad] decoded every passage: \(decoded.count) in "
+                    "[VectorLoad] decoded every passage: \(filled.count) in "
                         + "\(String(format: "%.0f", Date().timeIntervalSince(started) * 1000))ms",
                     category: .pipeline)
-                return decoded
+                return filled
             }
             everyChunkTask = (generation, task)
         }
-        let decoded = await task.value
+        guard let decoded = await task.value else {
+            if passageGeneration == generation {
+                everyChunkTask = nil
+                unreadableGeneration = generation
+            }
+            return nil
+        }
         if passageGeneration == generation {
             everyChunkTask = nil
             if decoded.count == slots.count {
                 everyChunkCache = decoded
+                readableFallback = nil
                 decodedByIndex.removeAll(keepingCapacity: false)
                 watchMemoryPressure()
-            } else {
-                Log.error(
-                    "[BNNS] \(slots.count - decoded.count) passage(s) could not be read from the metadata file",
-                    category: .vectorDB)
             }
         }
         return decoded
+    }
+
+    /// Every passage, or an error. It never hands back fewer passages than the store holds:
+    /// a caller of `allChunks()` may pair the array with the vectors by position (sync does, to
+    /// write both copies of a library), and an array with one passage missing would give every
+    /// passage after it its neighbour's vector.
+    private func everyChunk() async throws -> [DocumentChunk] {
+        if let all = await everyChunkIfWhole() { return all }
+        Log.error(
+            "[BNNS] A passage in the metadata file could not be read, so the library's passages were not handed over whole. "
+                + "Searches, questions and reads of one document go on without that passage.",
+            category: .pipeline)
+        throw VectorDatabaseError.searchFailed("a passage in this library's vector store could not be read")
     }
 
     /// Lets go of every decoded passage the store is holding. Nothing is lost: the passages are
@@ -812,10 +906,15 @@ actor BNNSVectorDatabase: VectorDatabase {
     /// itself when the system reports memory pressure, because the decoded passages are the
     /// largest thing it holds (276 MB for 144,247 passages in the scale benchmark) and the one
     /// thing it can rebuild.
+    ///
+    /// A caller that is still holding the array it was given keeps those passages alive until
+    /// it is done, so memory comes back when the last holder lets go, and a caller that asks
+    /// again while another still holds the old array has both in memory for that time.
     func releaseDecodedPassages() {
-        guard everyChunkCache != nil || !decodedByIndex.isEmpty else { return }
-        let held = everyChunkCache?.count ?? decodedByIndex.count
+        guard everyChunkCache != nil || readableFallback != nil || !decodedByIndex.isEmpty else { return }
+        let held = everyChunkCache?.count ?? readableFallback?.chunks.count ?? decodedByIndex.count
         everyChunkCache = nil
+        readableFallback = nil
         decodedByIndex.removeAll(keepingCapacity: false)
         Log.info("[BNNS] Released \(held) decoded passage(s) under memory pressure", category: .pipeline)
     }
@@ -836,6 +935,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     private func positionsChanged() {
         passageGeneration &+= 1
         everyChunkTask = nil
+        readableFallback = nil
         decodedByIndex.removeAll(keepingCapacity: false)
     }
 
@@ -936,6 +1036,7 @@ actor BNNSVectorDatabase: VectorDatabase {
         // stays. A decode of every passage that is under way no longer covers the store.
         passageGeneration &+= 1
         everyChunkTask = nil
+        readableFallback = nil
     }
 
     func store(chunk: DocumentChunk) async throws {
@@ -972,7 +1073,9 @@ actor BNNSVectorDatabase: VectorDatabase {
     /// Persist pending data to disk + re-mmap
     func persist() async throws {
         await awaitLoad()
-        guard isDirty || !pendingEmbeddings.isEmpty else { return }
+        // Passages can be waiting when their vectors are not (a save wrote the vectors and
+        // failed on the metadata), and a delete that could not finish leaves `isDirty` set.
+        guard isDirty || !pendingEmbeddings.isEmpty || !pendingChunks.isEmpty || vectorsFileNeedsRewrite else { return }
         try saveToDisk()
         isDirty = false
         Log.debug("[BNNS] Persisted \(slots.count) chunks (\(persistedChunkCount) mmap'd)", category: .vectorDB)
@@ -1126,6 +1229,19 @@ actor BNNSVectorDatabase: VectorDatabase {
 
     func deleteChunks(forDocument documentId: UUID) async throws {
         await awaitLoad()
+
+        // Anything not yet saved is written out first. A delete takes vectors out of the middle
+        // of the vectors file and writes that file before the metadata. With unsaved passages
+        // waiting, a delete cut off between the two could leave as many vectors as the metadata
+        // lists, or more, in a different order, and the loader would have paired them with the
+        // wrong passages without a sign. After this save a cut-off delete can only leave fewer
+        // vectors than passages, which the loader sees and answers by loading the store empty.
+        if storageURL != nil,
+           isDirty || !pendingEmbeddings.isEmpty || !pendingChunks.isEmpty || vectorsFileNeedsRewrite {
+            try saveToDisk()
+            isDirty = false
+        }
+
         // Which passages stay is read from the records. Through 5.6 this compared every decoded
         // passage, and it still does the same work on the files: the vectors of the passages
         // that stay are written out again, and so is the metadata.
@@ -1135,46 +1251,57 @@ actor BNNSVectorDatabase: VectorDatabase {
             keepIndices.append(index)
         }
         let deletedCount = slots.count - keepIndices.count
+        // Nothing of that document is here, and what was unsaved has been saved.
+        guard deletedCount > 0 else { return }
 
         // Rebuild vectors file with kept indices only
         if let url = storageURL {
             let bin = binaryURLs(from: url)
             let bytesPerVector = dimension * MemoryLayout<Float>.size
             let mapped = mappedVectors
-
-            try Self.replaceFile(at: bin.vectors) { handle in
-                // Vectors that stay and sit next to each other in the mapped file are written
-                // as one run. Through 5.6 each vector was its own write, 143,747 of them to
-                // take one small document out of the benchmark's library.
-                var run: Range<Int>?
-                func writeRun() throws {
-                    guard let mapped, let pending = run else { return }
-                    let lower = mapped.startIndex + pending.lowerBound * bytesPerVector
-                    let upper = mapped.startIndex + pending.upperBound * bytesPerVector
-                    try handle.write(contentsOf: mapped[lower..<upper])
-                    run = nil
-                }
-                for idx in keepIndices {
-                    if idx < persistedChunkCount, let mapped {
-                        guard (idx + 1) * bytesPerVector <= mapped.count else { continue }
-                        if let current = run, current.upperBound == idx {
-                            run = current.lowerBound..<(idx + 1)
+            let remapped: Data
+            do {
+                try Self.replaceFile(at: bin.vectors) { handle in
+                    // Vectors that stay and sit next to each other in the mapped file are
+                    // written as one run. Through 5.6 each vector was its own write, 143,747
+                    // of them to take one small document out of the benchmark's library.
+                    var run: Range<Int>?
+                    func writeRun() throws {
+                        guard let mapped, let pending = run else { return }
+                        let lower = mapped.startIndex + pending.lowerBound * bytesPerVector
+                        let upper = mapped.startIndex + pending.upperBound * bytesPerVector
+                        try handle.write(contentsOf: mapped[lower..<upper])
+                        run = nil
+                    }
+                    for idx in keepIndices {
+                        if idx < persistedChunkCount, let mapped {
+                            guard (idx + 1) * bytesPerVector <= mapped.count else { continue }
+                            if let current = run, current.upperBound == idx {
+                                run = current.lowerBound..<(idx + 1)
+                            } else {
+                                try writeRun()
+                                run = idx..<(idx + 1)
+                            }
                         } else {
                             try writeRun()
-                            run = idx..<(idx + 1)
+                            let pendingIdx = idx - persistedChunkCount
+                            let start = pendingIdx * dimension
+                            let end = start + dimension
+                            guard pendingIdx >= 0, end <= pendingEmbeddings.count else { continue }
+                            try pendingEmbeddings[start..<end].withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
                         }
-                    } else {
-                        try writeRun()
-                        let pendingIdx = idx - persistedChunkCount
-                        let start = pendingIdx * dimension
-                        let end = start + dimension
-                        guard pendingIdx >= 0, end <= pendingEmbeddings.count else { continue }
-                        try pendingEmbeddings[start..<end].withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
                     }
+                    try writeRun()
                 }
-                try writeRun()
+                remapped = try Self.mapOrRead(bin.vectors)
+            } catch {
+                // The store in memory is still the store before the delete. If the vectors file
+                // was already replaced, the next save writes it again from here.
+                vectorsFileNeedsRewrite = true
+                isDirty = true
+                throw error
             }
-            self.mappedVectors = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+            self.mappedVectors = remapped
             pendingEmbeddings.removeAll(keepingCapacity: false)
         } else {
             // A store with no files holds every vector in `pendingEmbeddings`. Keep the ones
@@ -1209,7 +1336,12 @@ actor BNNSVectorDatabase: VectorDatabase {
         positionsChanged()
 
         Log.debug("[BNNS] Deleted \(deletedCount) chunks for document \(documentId)", category: .vectorDB)
+        // Until the metadata is written the files disagree. If this save fails, `isDirty` stays
+        // set and the next `persist()` writes the metadata again. Through 5.6, and until this
+        // was added, nothing retried it and the next launch found the mismatch.
+        isDirty = true
         try saveToDisk()
+        isDirty = false
     }
 
     func clear() async throws {
@@ -1223,6 +1355,8 @@ actor BNNSVectorDatabase: VectorDatabase {
         pendingEmbeddings.removeAll()
         mappedVectors = nil
         persistedChunkCount = 0
+        isDirty = false
+        vectorsFileNeedsRewrite = false
 
         if let url = storageURL {
             let bin = binaryURLs(from: url)
@@ -1230,10 +1364,6 @@ actor BNNSVectorDatabase: VectorDatabase {
             try? fm.removeItem(at: bin.meta)
             try? fm.removeItem(at: bin.vectors)
             try? fm.removeItem(at: bin.norms)
-            // A save that was cut off leaves its temporary file beside the store until the next
-            // save writes over it. An emptied store has no next save to count on.
-            try? fm.removeItem(at: bin.meta.appendingPathExtension("tmp"))
-            try? fm.removeItem(at: bin.vectors.appendingPathExtension("tmp"))
 
             if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
                !WorkspaceSyncService.isSyncWriteInProgress {
@@ -1249,7 +1379,23 @@ actor BNNSVectorDatabase: VectorDatabase {
 
     func allChunks() async throws -> [DocumentChunk] {
         await awaitLoad()
-        return await everyChunk()
+        return try await everyChunk()
+    }
+
+    func readableChunks() async throws -> [DocumentChunk] {
+        await awaitLoad()
+        if let all = await everyChunkIfWhole() { return all }
+        if let fallback = readableFallback, fallback.generation == passageGeneration { return fallback.chunks }
+        // One passage or more cannot be read. Every other passage is handed over, which is what
+        // a search or a read of one document does too. `chunks(atPositions:)` logs how many
+        // were left out.
+        let generation = passageGeneration
+        let found = await chunks(atPositions: Array(slots.indices))
+        if passageGeneration == generation {
+            readableFallback = (generation, found)
+            watchMemoryPressure()
+        }
+        return found
     }
 
     // MARK: Passages Without Decoding All Of Them (5.7)
@@ -1257,18 +1403,6 @@ actor BNNSVectorDatabase: VectorDatabase {
     func passageRecords() async throws -> [PassageRecord] {
         await awaitLoad()
         return slots.map(\.record)
-    }
-
-    func chunks(atIndices indices: [Int]) async throws -> [DocumentChunk] {
-        await awaitLoad()
-        guard indices.allSatisfy({ $0 >= 0 && $0 < slots.count }) else {
-            throw VectorDatabaseError.searchFailed("a passage position is outside the store")
-        }
-        let found = await chunks(atPositions: indices)
-        guard found.count == indices.count else {
-            throw VectorDatabaseError.searchFailed("a passage could not be read from the metadata file")
-        }
-        return found
     }
 
     func chunks(forDocument documentId: UUID, limit: Int?) async throws -> [DocumentChunk] {
@@ -1286,15 +1420,22 @@ actor BNNSVectorDatabase: VectorDatabase {
         return slots.reduce(0) { $0 + ($1.documentId == documentId ? 1 : 0) }
     }
 
-    func chunks(withIDs ids: [UUID]) async throws -> [DocumentChunk] {
-        await awaitLoad()
-        guard !ids.isEmpty else { return [] }
+    /// Where each of these ids is in the store, found in one pass over the records. An id the
+    /// store does not hold has no entry. Good until the next await.
+    private func positions(of ids: [UUID]) -> [UUID: Int] {
         let wanted = Set(ids)
         var positionById: [UUID: Int] = [:]
         positionById.reserveCapacity(wanted.count)
         for index in slots.indices where wanted.contains(slots[index].id) {
             if positionById[slots[index].id] == nil { positionById[slots[index].id] = index }
         }
+        return positionById
+    }
+
+    func chunks(withIDs ids: [UUID]) async throws -> [DocumentChunk] {
+        await awaitLoad()
+        guard !ids.isEmpty else { return [] }
+        let positionById = positions(of: ids)
         return await chunks(atPositions: ids.compactMap { positionById[$0] })
     }
 
@@ -1306,6 +1447,13 @@ actor BNNSVectorDatabase: VectorDatabase {
         }
         guard chunk.embedding.count == dimension else {
             throw VectorDatabaseError.invalidEmbedding
+        }
+        // As for a delete: what is unsaved goes out first, so the files agree before one
+        // vector in the middle of them is changed.
+        if storageURL != nil,
+           isDirty || !pendingEmbeddings.isEmpty || !pendingChunks.isEmpty || vectorsFileNeedsRewrite {
+            try saveToDisk()
+            isDirty = false
         }
 
         // Nothing calls this today. It changes one passage in the middle of the file, so every
@@ -1321,37 +1469,40 @@ actor BNNSVectorDatabase: VectorDatabase {
         }
         let kept = stripped(chunk)
         all[idx] = kept
-        for index in slots.indices { slots[index] = PassageSlot(inMemory: all[index]) }
-        pendingChunks = all
-        everyChunkCache = nil
-        positionsChanged()
-        embeddingNorms[idx] = computeNormAccelerated(chunk.embedding)
 
-        // Rewrite vectors file with updated embedding at idx
+        // The vectors file first, with the one vector changed. The store in memory is not
+        // touched until that file is in place.
         if let url = storageURL {
             let bin = binaryURLs(from: url)
             let bytesPerVector = dimension * MemoryLayout<Float>.size
             let mapped = mappedVectors
             let total = slots.count
-
-            try Self.replaceFile(at: bin.vectors) { handle in
-                for i in 0..<total {
-                    if i == idx {
-                        try chunk.embedding.withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
-                    } else if i < persistedChunkCount, let mapped {
-                        let byteOffset = i * bytesPerVector
-                        guard byteOffset + bytesPerVector <= mapped.count else { continue }
-                        try handle.write(contentsOf: mapped[(mapped.startIndex + byteOffset)..<(mapped.startIndex + byteOffset + bytesPerVector)])
-                    } else {
-                        let pendingIdx = i - persistedChunkCount
-                        let start = pendingIdx * dimension
-                        let end = start + dimension
-                        guard pendingIdx >= 0, end <= pendingEmbeddings.count else { continue }
-                        try pendingEmbeddings[start..<end].withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
+            let remapped: Data
+            do {
+                try Self.replaceFile(at: bin.vectors) { handle in
+                    for i in 0..<total {
+                        if i == idx {
+                            try chunk.embedding.withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
+                        } else if i < persistedChunkCount, let mapped {
+                            let byteOffset = i * bytesPerVector
+                            guard byteOffset + bytesPerVector <= mapped.count else { continue }
+                            try handle.write(contentsOf: mapped[(mapped.startIndex + byteOffset)..<(mapped.startIndex + byteOffset + bytesPerVector)])
+                        } else {
+                            let pendingIdx = i - persistedChunkCount
+                            let start = pendingIdx * dimension
+                            let end = start + dimension
+                            guard pendingIdx >= 0, end <= pendingEmbeddings.count else { continue }
+                            try pendingEmbeddings[start..<end].withUnsafeBytes { try handle.write(contentsOf: Data($0)) }
+                        }
                     }
                 }
+                remapped = try Self.mapOrRead(bin.vectors)
+            } catch {
+                vectorsFileNeedsRewrite = true
+                isDirty = true
+                throw error
             }
-            self.mappedVectors = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+            self.mappedVectors = remapped
             self.pendingEmbeddings.removeAll(keepingCapacity: false)
             self.persistedChunkCount = slots.count
         } else {
@@ -1361,7 +1512,15 @@ actor BNNSVectorDatabase: VectorDatabase {
             }
         }
 
+        for index in slots.indices { slots[index] = PassageSlot(inMemory: all[index]) }
+        pendingChunks = all
+        everyChunkCache = nil
+        positionsChanged()
+        embeddingNorms[idx] = computeNormAccelerated(chunk.embedding)
+
+        isDirty = true
         try saveToDisk()
+        isDirty = false
     }
 
     func exists(chunkId: UUID) async -> Bool {
@@ -1370,8 +1529,17 @@ actor BNNSVectorDatabase: VectorDatabase {
 
     /// Retrieve embeddings for Gate E Semantic Grounding
     func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]] {
-        ids.map { id in
-            guard let idx = slots.firstIndex(where: { $0.id == id }) else { return [Float]() }
+        // A few ids (the grounding check asks for three to ten) are each looked up in the
+        // records. Many ids (the Atlas asks for thousands) are found in one pass over them.
+        guard ids.count > 16 else {
+            return ids.map { id in
+                guard let idx = slots.firstIndex(where: { $0.id == id }) else { return [Float]() }
+                return readEmbedding(at: idx)
+            }
+        }
+        let positionById = positions(of: ids)
+        return ids.map { id in
+            guard let idx = positionById[id] else { return [Float]() }
             return readEmbedding(at: idx)
         }
     }

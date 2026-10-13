@@ -513,7 +513,7 @@ class RAGService: ObservableObject {
         guard let container else { return nil }
 
         let db = await dbFor(targetId)
-        let chunks = (try? await db.allChunks()) ?? []
+        let chunks = (try? await db.readableChunks()) ?? []
         let expectedDim = container.embeddingDim
         let mismatched = chunks.filter { $0.embedding.count != expectedDim }.count
         let wordCounts = chunks.map { $0.content.split(whereSeparator: { $0.isWhitespace }).count }
@@ -561,7 +561,7 @@ class RAGService: ObservableObject {
 
         let docs = await MainActor.run { self.documentsForContainer(targetId) }
         let database = await dbFor(targetId)
-        let chunks = (try? await database.allChunks()) ?? []
+        let chunks = (try? await database.readableChunks()) ?? []
         let report = await intelligenceCenter.analyzeLibrary(
             documents: docs,
             chunks: chunks
@@ -4322,19 +4322,23 @@ class RAGService: ObservableObject {
         let db = await dbForActiveContainer()
         do {
             // Only the sampled passages are read from the store. Through 5.6 every passage
-            // was loaded and the sample taken from that.
-            let storedCount = try await db.count()
-            guard storedCount > 0 else { return [] }
-            let keptIndices = Self.evenSampleIndices(
-                count: storedCount, limit: Self.visualizationPassageLimit)
-            let chunks = try await db.chunks(atIndices: keptIndices)
+            // was loaded and the sample taken from that. The sample is chosen by position
+            // from the store's records and then read by id: an import or a delete can run
+            // between these calls, and a position would then name another passage, or pair a
+            // passage with another passage's vector.
+            let records = try await db.passageRecords()
+            guard !records.isEmpty else { return [] }
+            let keptIds = Self.evenSampleIndices(
+                count: records.count, limit: Self.visualizationPassageLimit
+            ).map { records[$0].id }
+            let chunks = try await db.chunks(withIDs: keptIds)
 
             // Compatibility hydration for mmap-backed stores:
             // BNNSVectorDatabase intentionally stores metadata-only chunks (embedding: [])
             // to keep memory low during retrieval. Visualization views require embeddings,
             // so we fetch them explicitly for this call.
             if chunks.allSatisfy({ $0.embedding.isEmpty }) {
-                let embeddings = await db.getEmbeddings(forIndices: keptIndices)
+                let embeddings = await db.getEmbeddings(forChunkIDs: chunks.map(\.id))
 
                 guard embeddings.count == chunks.count else {
                     Log.warning(
@@ -4414,9 +4418,11 @@ class RAGService: ObservableObject {
         // Choosing a few dozen samples scored every passage of the library, on the main actor,
         // each time Chat was first shown. A large library now offers an even sample of its
         // passages, plus its document summaries, to choose from.
-        let poolPositions = Self.suggestedQuestionPoolPositions(
-            levels: try await db.passageRecords().map(\.abstractionLevel))
-        let allChunks = try await db.chunks(atIndices: poolPositions)
+        // The pool is chosen from the store's records and read by id, for the reason given in
+        // `allChunksForActiveContainer()`.
+        let records = try await db.passageRecords()
+        let poolPositions = Self.suggestedQuestionPoolPositions(levels: records.map(\.abstractionLevel))
+        let allChunks = try await db.chunks(withIDs: poolPositions.map { records[$0].id })
         let detailChunks = allChunks.filter { $0.metadata.abstractionLevel == .detail }
         let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
 
@@ -6329,7 +6335,7 @@ class RAGService: ObservableObject {
 
                 // Get ALL existing chunks in this container for comprehensive analysis
                 let db = await dbForActiveContainer()
-                let existingChunks = try await db.allChunks()
+                let existingChunks = try await db.readableChunks()
 
                 await MainActor.run {
                     updateIngestionItem(
@@ -7693,7 +7699,7 @@ class RAGService: ObservableObject {
                 guard !containerDocuments.isEmpty else { continue }
 
                 let database = await MainActor.run { self.vectorRouter.db(for: container) }
-                let allChunks = try await database.allChunks()
+                let allChunks = try await database.readableChunks()
 
                 // Safety guard: If we have documents but the vector database returns 0 chunks,
                 // do not wipe the existing FTS5 search index, as it would destroy the index.
@@ -8985,7 +8991,7 @@ class RAGService: ObservableObject {
 
         let embeddingContext = await resolveEmbeddingContext()
         let db = await dbFor(embeddingContext.containerId)
-        let allChunks = RAGQueryScope.apply(to: try await db.allChunks())  // narrowed when the question names documents
+        let allChunks = RAGQueryScope.apply(to: try await db.readableChunks())  // narrowed when the question names documents
         let sniperChunks = specTableSniper(
             query: question,
             allChunks: allChunks,
@@ -10188,7 +10194,7 @@ class RAGService: ObservableObject {
                 let finalCorpusVocabulary: CorpusVocabulary
                 var cachedAllChunks: [DocumentChunk]?
                 if corpusVocabulary.keywords.isEmpty {
-                    let allChunks = try await vdb.allChunks()
+                    let allChunks = try await vdb.readableChunks()
                     cachedAllChunks = allChunks  // Store for HybridSearchService lexical recall
 
                     // Run viscosity scan when building vocabulary (first query)
@@ -10212,7 +10218,7 @@ class RAGService: ObservableObject {
                     // document summary, and multi-hop even when vocabulary is cached.
                     // Previously only loaded when pipelineTraceEnabled, which silently broke
                     // parent doc expansion on repeat queries to the same container.
-                    let allChunks = try await vdb.allChunks()
+                    let allChunks = try await vdb.readableChunks()
                     cachedAllChunks = allChunks
                     if Log.pipelineTraceEnabled {
                         await runViscosityScan(allChunks, query: question)
@@ -19794,7 +19800,7 @@ extension RAGService: RAGToolHandler {
         }
         let effectiveMinSimilarity = minSimilarity ?? resolvedRetrievalConfig.minSimilarity
         let db = await dbFor(embeddingContext.containerId)
-        let allChunks = RAGQueryScope.apply(to: try await db.allChunks())  // narrowed when the question names documents
+        let allChunks = RAGQueryScope.apply(to: try await db.readableChunks())  // narrowed when the question names documents
 
         // Skip if no chunks
         guard !allChunks.isEmpty else { return [] }
@@ -20150,7 +20156,7 @@ extension RAGService: RAGToolHandler {
             keywordWeight: adjustedWeights.keywordWeight
         )
 
-        let allChunks = RAGQueryScope.apply(to: try await db.allChunks())  // narrowed when the question names documents
+        let allChunks = RAGQueryScope.apply(to: try await db.readableChunks())  // narrowed when the question names documents
 
         // RAPTOR-lite: Query routing for summary-first retrieval
         var effectiveChunks = allChunks

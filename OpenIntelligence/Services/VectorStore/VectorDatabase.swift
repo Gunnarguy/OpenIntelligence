@@ -32,23 +32,38 @@ protocol VectorDatabase {
     /// Count chunks currently stored.
     func count() async throws -> Int
 
-    /// Return all chunks.
+    /// Return all chunks, in store order, which is the order of the vectors
+    /// (`getEmbeddings(forIndices:)`).
     ///
-    /// For `BNNSVectorDatabase` this decodes every passage's text, which a load no longer does
-    /// (5.7). Ask for it only when every passage's text is what is needed. A count, the
-    /// passages of one document, a sample or a few passages by position or id each have their
-    /// own method below, and `passageRecords()` answers questions about ids, documents, pages
-    /// and levels without any text.
+    /// All of them or an error. A store that cannot read one of its passages throws here and
+    /// does not hand back a shorter array, because a caller may pair this array with the
+    /// vectors by position (sync does), and one passage missing would give every passage after
+    /// it its neighbour's vector. A caller that wants the passages' text and does not pair
+    /// them with anything by position uses `readableChunks()`.
+    ///
+    /// For `BNNSVectorDatabase` both decode every passage's text, which a load no longer does
+    /// (5.7). Ask only when every passage's text is what is needed. A count, the passages of
+    /// one document and a few passages by id each have their own method below, and
+    /// `passageRecords()` answers questions about ids, documents, pages and levels without any
+    /// text.
     func allChunks() async throws -> [DocumentChunk]
 
-    /// The id, document, number, page and level of every passage, in store order, without text.
-    func passageRecords() async throws -> [PassageRecord]
+    /// Every passage the store can read, in store order, for callers that treat the passages
+    /// as a set (the question path's scans, the keyword index rebuild, the library analysis).
+    /// A passage that cannot be read is left out and logged, so this can be shorter than
+    /// `count()`, and its positions are then not the store's.
+    func readableChunks() async throws -> [DocumentChunk]
 
-    /// The passages at these positions in the store, in the order asked. Throws when a position
-    /// is outside the store. A position is only good until the store changes: a delete moves
-    /// every passage after it. A caller that worked its positions out from an earlier call and
-    /// needs exactly those passages asks by id or by document instead.
-    func chunks(atIndices indices: [Int]) async throws -> [DocumentChunk]
+    // A passage the store cannot read (the bytes of it in the store's file no longer decode)
+    // is treated one way throughout. `count()`, `passageRecords()` and
+    // `chunkCount(forDocument:)` count it, because they read the store's records and not the
+    // text. `search`, `chunks(forDocument:limit:)`, `chunks(withIDs:)` and `readableChunks()`
+    // leave it out and log it. `allChunks()` throws.
+
+    /// The id, document, number, page and level of every passage, in store order, without text.
+    /// A position in this array is only good until the store changes: a delete moves every
+    /// passage after it. A caller that picks passages from the records reads them by id.
+    func passageRecords() async throws -> [PassageRecord]
 
     /// The passages of one document, in store order: all of them, or the first `limit`.
     func chunks(forDocument documentId: UUID, limit: Int?) async throws -> [DocumentChunk]
@@ -108,14 +123,8 @@ extension VectorDatabase {
         }
     }
 
-    func chunks(atIndices indices: [Int]) async throws -> [DocumentChunk] {
-        let all = try await allChunks()
-        return try indices.map { index in
-            guard index >= 0, index < all.count else {
-                throw VectorDatabaseError.searchFailed("a passage position is outside the store")
-            }
-            return all[index]
-        }
+    func readableChunks() async throws -> [DocumentChunk] {
+        try await allChunks()
     }
 
     func chunks(forDocument documentId: UUID, limit: Int?) async throws -> [DocumentChunk] {

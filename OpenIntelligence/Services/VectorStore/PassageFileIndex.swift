@@ -14,11 +14,20 @@
 //  for.
 //
 //  The walk is deliberately small: it understands strings, nesting and whole numbers, and
-//  nothing else of JSON. Whenever an object is not shaped the way the encoder writes it (a key
-//  with an escape in it, an id that is not a plain UUID string, a number with a fraction), the
-//  object is handed to `JSONDecoder` instead, so the walk is only ever trusted where it is
-//  certain. A file it cannot follow at all returns nil and the store falls back to decoding the
-//  whole array, as before.
+//  nothing else of JSON. Whenever an object is not shaped the way the encoder writes it (any
+//  key with an escape in it, one of the keys it reads appearing twice, an id that is not a
+//  plain UUID string, a number with a fraction), the object's values are read by `JSONDecoder`
+//  instead, so the walk is only ever trusted where it is certain. A file it cannot follow
+//  returns nil and the store falls back to decoding the whole array, as before: brackets that
+//  do not match, a value nested more than 64 deep, or a member of a passage or of its metadata
+//  whose value is a bare word other than a number, true, false or null. Inside a value it
+//  skips, the walk follows only the strings and the brackets.
+//
+//  What the walk does not do is check a passage the way decoding it does. A passage whose JSON
+//  is sound and whose values `DocumentChunk` rejects (a value from a newer version of the app,
+//  a missing field) gets a slot here and fails when it is decoded. The store then leaves it
+//  out of a search or a read of one document, and refuses to hand over every passage at once
+//  (`BNNSVectorDatabase.everyChunk`).
 //
 
 import Foundation
@@ -97,9 +106,10 @@ nonisolated enum PassageFileIndex {
     ///
     /// A large file is walked in several stretches at once. A stretch has to start where an
     /// element starts, and the only way to know where elements start is to have walked there,
-    /// so the starts are guesses: the bytes `},{"` cannot occur inside a JSON string (a quote
-    /// in a string is escaped), and in this file they occur where one passage ends and the
-    /// next begins. A guess is never trusted. Each stretch has to end exactly on the next
+    /// so the starts are guesses: the bytes `},{"` are what the encoder writes where one passage
+    /// ends and the next begins. They can turn up elsewhere (a text that ends in `},{` is
+    /// followed by its closing quote), so a guess is never trusted. Each stretch has to end
+    /// exactly on the next
     /// stretch's start, having walked whole elements to get there, and the first stretch starts
     /// at the array's real first element, so one wrong guess makes a stretch miss its end and
     /// the whole file is walked again on one thread.
@@ -243,13 +253,50 @@ nonisolated enum PassageFileIndex {
             return nil
         }
 
-        /// At the first byte of any value. Moves past it.
+        /// A number as JSON writes one: an optional minus, digits with no leading zero, an
+        /// optional fraction, an optional exponent. Written as plain loops: this runs for every
+        /// number in the file, and in an unoptimised build a helper closure here cost a third
+        /// of the whole walk.
+        private func isNumber(_ range: Range<Int>) -> Bool {
+            var cursor = range.lowerBound
+            let stop = range.upperBound
+            if cursor < stop, base[cursor] == 0x2D { cursor += 1 }  // -
+            guard cursor < stop else { return false }
+            if base[cursor] == 0x30 {
+                cursor += 1
+            } else {
+                let start = cursor
+                while cursor < stop, base[cursor] >= 0x30, base[cursor] <= 0x39 { cursor += 1 }
+                guard cursor > start else { return false }
+            }
+            if cursor < stop, base[cursor] == 0x2E {  // .
+                cursor += 1
+                let start = cursor
+                while cursor < stop, base[cursor] >= 0x30, base[cursor] <= 0x39 { cursor += 1 }
+                guard cursor > start else { return false }
+            }
+            if cursor < stop, base[cursor] == 0x65 || base[cursor] == 0x45 {  // e E
+                cursor += 1
+                if cursor < stop, base[cursor] == 0x2B || base[cursor] == 0x2D { cursor += 1 }  // + -
+                let start = cursor
+                while cursor < stop, base[cursor] >= 0x30, base[cursor] <= 0x39 { cursor += 1 }
+                guard cursor > start else { return false }
+            }
+            return cursor == stop
+        }
+
+        /// At the first byte of any value. Moves past it. False when the value is not one JSON
+        /// allows as far as this walk looks: a bare word has to be a number, true, false or
+        /// null, and every bracket has to be closed by its own kind.
         private mutating func skipValue() -> Bool {
             guard position < end else { return false }
             switch base[position] {
             case Self.quote:
                 return string() != nil
             case Self.openBrace, Self.openBracket:
+                // One bit for each open container, set for an array. Sixty-four deep is far
+                // past anything a passage holds, and deeper goes to the decoder.
+                var kinds: UInt64 = 0
                 var depth = 0
                 while position < end {
                     let byte = base[position]
@@ -258,9 +305,18 @@ nonisolated enum PassageFileIndex {
                         continue
                     }
                     if byte == Self.openBrace || byte == Self.openBracket {
+                        guard depth < 64 else { return false }
+                        if byte == Self.openBracket {
+                            kinds |= 1 << UInt64(depth)
+                        } else {
+                            kinds &= ~(1 << UInt64(depth))
+                        }
                         depth += 1
                     } else if byte == Self.closeBrace || byte == Self.closeBracket {
+                        guard depth > 0 else { return false }
                         depth -= 1
+                        let openedAsArray = kinds & (1 << UInt64(depth)) != 0
+                        guard openedAsArray == (byte == Self.closeBracket) else { return false }
                         if depth == 0 {
                             position += 1
                             return true
@@ -281,7 +337,14 @@ nonisolated enum PassageFileIndex {
                     }
                     position += 1
                 }
-                return position > start
+                let word = start..<position
+                guard start < position else { return false }
+                switch base[start] {
+                case 0x74: return matches(word, "true")
+                case 0x66: return matches(word, "false")
+                case 0x6E: return matches(word, "null")
+                default: return isNumber(word)
+                }
             }
         }
 
@@ -380,6 +443,23 @@ nonisolated enum PassageFileIndex {
             /// Something was not written the way the encoder writes it. `JSONDecoder` reads
             /// this object instead.
             var unsure = false
+            /// The keys the walk reads that it has met in this object, one bit each. A second
+            /// meeting makes the object the decoder's: which of two values counts is its rule.
+            var seen: UInt8 = 0
+
+            @inline(__always)
+            mutating func meet(_ bit: UInt8) {
+                if seen & bit != 0 { unsure = true }
+                seen |= bit
+            }
+        }
+
+        /// A key written with an escape could be any key, one of the keys the walk reads among
+        /// them, so an object that has one is read by the decoder.
+        @inline(__always)
+        private func hasEscape(_ range: Range<Int>) -> Bool {
+            range.lowerBound < range.upperBound
+                && memchr(base + range.lowerBound, 0x5C, range.upperBound - range.lowerBound) != nil
         }
 
         /// At the opening brace of the metadata object. Moves past its closing brace.
@@ -398,10 +478,13 @@ nonisolated enum PassageFileIndex {
                 guard position < end, base[position] == Self.colon else { return false }
                 position += 1
                 skipWhitespace()
+                if hasEscape(key) { found.unsure = true }
                 if matches(key, "chunkIndex") {
+                    found.meet(0x08)
                     guard let value = wholeValue() else { return false }
                     if case .number(let number) = value { found.chunkIndex = number } else { found.unsure = true }
                 } else if matches(key, "pageNumber") {
+                    found.meet(0x10)
                     guard let value = wholeValue() else { return false }
                     switch value {
                     case .number(let number): found.pageNumber = number
@@ -409,6 +492,7 @@ nonisolated enum PassageFileIndex {
                     case .other: found.unsure = true
                     }
                 } else if matches(key, "abstractionLevel") {
+                    found.meet(0x20)
                     guard let value = wholeValue() else { return false }
                     switch value {
                     case .number(let number): found.abstractionLevel = number
@@ -449,13 +533,17 @@ nonisolated enum PassageFileIndex {
                     guard position < end, base[position] == Self.colon else { return nil }
                     position += 1
                     skipWhitespace()
+                    if hasEscape(key) { found.unsure = true }
                     if matches(key, "id") {
+                        found.meet(0x01)
                         guard let value = uuidValue() else { return nil }
                         if let id = value { found.id = id } else { found.unsure = true }
                     } else if matches(key, "documentId") {
+                        found.meet(0x02)
                         guard let value = uuidValue() else { return nil }
                         if let id = value { found.documentId = id } else { found.unsure = true }
                     } else if matches(key, "metadata") {
+                        found.meet(0x04)
                         if position < end, base[position] == Self.openBrace {
                             guard metadata(into: &found) else { return nil }
                         } else {

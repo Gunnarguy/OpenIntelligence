@@ -748,7 +748,7 @@ class HybridSearchService {
             allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(cached) : cached
             Log.debug("Lexical recall using cached chunks (\(cached.count))", category: .pipeline)
         } else {
-            let fetched = try await vectorDatabase.allChunks()
+            let fetched = try await vectorDatabase.readableChunks()
             allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(fetched) : fetched
         }
         guard !allChunks.isEmpty else { return [] }
@@ -845,12 +845,25 @@ class HybridSearchService {
 
         let terms = Set((tokenize(query) + tokenize(boostQuery)).filter { $0.count > 2 })
         let queryNorm = computeNorm(embedding)
+        // The vector store hands passages back without their vectors, which stay in its own
+        // file, so the vectors are asked for by id. Before this was added the question was
+        // compared with the empty vector on the passage, every similarity was 0, and a
+        // question limited to a document was ranked by its words alone.
+        let fromStore: [Float?] =
+            candidates.contains { $0.embedding.count != embedding.count }
+            ? await storedSimilarities(of: candidates.map(\.id), to: embedding, queryNorm: queryNorm) : []
+        var comparedByVector = 0
         var scored: [RetrievedChunk] = []
         scored.reserveCapacity(candidates.count)
-        for chunk in candidates {
-            let similarity =
-                chunk.embedding.count == embedding.count
-                ? cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm) : 0
+        for (position, chunk) in candidates.enumerated() {
+            var similarity: Float = 0
+            if chunk.embedding.count == embedding.count {
+                similarity = cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm)
+                comparedByVector += 1
+            } else if position < fromStore.count, let stored = fromStore[position] {
+                similarity = stored
+                comparedByVector += 1
+            }
             var keyword: Float = 0
             if !terms.isEmpty {
                 let content = chunk.content.lowercased()
@@ -864,9 +877,37 @@ class HybridSearchService {
         }
         scored.sort { $0.similarityScore > $1.similarityScore }
         Log.info(
-            "[Hybrid] Document scope: scored \(candidates.count) passages of \(scope.count) named document(s), returning \(min(topK, scored.count))",
+            "[Hybrid] Document scope: scored \(candidates.count) passages of \(scope.count) named document(s), "
+                + "\(comparedByVector) of them by vector as well as by words, returning \(min(topK, scored.count))",
             category: .pipeline)
         return reindex(Array(scored.prefix(topK)))
+    }
+
+    /// Vectors asked for in one call by `storedSimilarities`: 2,048 vectors of 384 numbers are
+    /// about 3 MB.
+    private static let storedSimilarityBatch = 2_048
+
+    /// How close each of these passages is to the question, from the vectors the store holds:
+    /// one answer per id in the order asked, and nil where the store has no vector of the
+    /// question's length for that id. The vectors are asked for a few thousand at a time, so
+    /// a very large document does not bring all of its vectors into memory at once.
+    private func storedSimilarities(of ids: [UUID], to embedding: [Float], queryNorm: Float) async -> [Float?] {
+        var scores: [Float?] = []
+        scores.reserveCapacity(ids.count)
+        var start = 0
+        while start < ids.count {
+            let end = min(ids.count, start + Self.storedSimilarityBatch)
+            let vectors = await vectorDatabase.getEmbeddings(forChunkIDs: Array(ids[start..<end]))
+            for offset in 0..<(end - start) {
+                if offset < vectors.count, vectors[offset].count == embedding.count {
+                    scores.append(cosineSimilarity(embedding, vectors[offset], queryNorm: queryNorm))
+                } else {
+                    scores.append(nil)
+                }
+            }
+            start = end
+        }
+        return scores
     }
 
     private func cosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float) -> Float {
