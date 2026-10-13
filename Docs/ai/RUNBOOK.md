@@ -1069,6 +1069,18 @@ a set of runs and the first runs after it woke read 0.24 to 0.38 s for a search 
 `second_search_s` line of a run before using its other figures.
 `[evidence_level: measured, confidence: high for this Mac, evidence_source: the runs of 2026-10-12 and 2026-10-13]`
 
+`LibraryAnalysisScaleBenchmarkTests` times the library analysis on the same store files, the way 5.6 ran it
+(every passage, or the first `OI_ANALYSIS_BENCH_LIMIT` of them) and the way 5.7 picks its sample, and the
+first question's vocabulary build. It prints lines that start `[AnalysisBench]`. It repeats the sample-picking
+steps of `RAGService.libraryAnalysisInput` and gives the analysis no documents, so it times the analysis and
+not the per-document profiles. Analysing all 144,247 passages takes over three minutes and more than a gigabyte:
+
+```bash
+TEST_RUNNER_OI_ANALYSIS_BENCH=144247 TEST_RUNNER_OI_ANALYSIS_BENCH_LIMIT=6000 TEST_RUNNER_OI_STORE_BENCH_DIR=/private/tmp/oi-store-bench xcodebuild test-without-building -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<simulator id>" -derivedDataPath <a path outside ~/Documents> -only-testing:OpenIntelligenceTests/LibraryAnalysisScaleBenchmarkTests
+```
+
+`[evidence_level: measured, confidence: high for this Mac, evidence_source: the runs of 2026-10-13, kept in BenchmarkRuns/2026-10-13-launch-analysis (local)]`
+
 What a save or a delete leaves when it is ended part-way is tested without ending anything. In a debug build
 the store has `interruptMetadataWrites`, which a test sets to throw before the first or the second write of
 the metadata file; the test then opens a second store on the same files, which is what the next launch does

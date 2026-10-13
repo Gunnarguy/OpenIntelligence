@@ -9,7 +9,14 @@ import Foundation
 import NaturalLanguage
 
 /// Vocabulary extracted from the corpus for context-aware query expansion.
-struct CorpusVocabulary: Sendable {
+///
+/// A plain value with no tie to the main actor: it is built, encoded and decoded on the
+/// concurrent pool (`RAGService.libraryVocabulary`, `LibraryIntelligenceCache`).
+nonisolated struct CorpusVocabulary: Sendable, Codable {
+    /// Raise this when `build(from:)` changes what it makes, so that a vocabulary kept on disk
+    /// by the older code is not used (`LibraryIntelligenceCache`).
+    static let buildVersion = 1
+
     /// All keywords from all chunks, lowercased
     let keywords: Set<String>
     /// Co-occurrence map: term → terms that appear in the same chunk
@@ -1146,7 +1153,7 @@ extension CorpusVocabulary {
     /// 2. Requires minimum cross-chunk frequency (hapax legomena = noise)
     /// 3. Filters text snippets by ASCII quality (garbled OCR → skip)
     /// 4. Adjective+noun pairs from text (e.g., "blue outlet", "red button")
-    static func build(from chunks: [DocumentChunk]) -> CorpusVocabulary {
+    nonisolated static func build(from chunks: [DocumentChunk]) -> CorpusVocabulary {
         guard !chunks.isEmpty else { return .empty }
         // The loop below runs a part-of-speech tagger over every passage it is given, and it
         // runs for the first question after each launch and each import. A vocabulary is a
@@ -1231,7 +1238,7 @@ extension CorpusVocabulary {
 
     /// Validates a term during vocabulary building.
     /// Rejects OCR garbage, fragments, and non-meaningful tokens.
-    private static func isValidVocabTerm(_ term: String) -> Bool {
+    nonisolated private static func isValidVocabTerm(_ term: String) -> Bool {
         // Reject fragments ("cle", "vehi", "ble")
         guard term.count >= 4 else { return false }
 
@@ -1253,7 +1260,7 @@ extension CorpusVocabulary {
 
     /// Extract adjective+noun pairs using NLTagger
     /// This catches domain-specific phrases that may not be capitalized
-    private static func extractAdjectiveNounPairs(from text: String) -> [String] {
+    nonisolated private static func extractAdjectiveNounPairs(from text: String) -> [String] {
         guard !text.isEmpty else { return [] }
 
         var pairs: [String] = []

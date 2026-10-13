@@ -88,6 +88,10 @@ struct RAGPipelineAuditView: View {
             if let report = intelligenceReport {
                 LabeledContent("Documents", value: "\(report.corpus.documentCount)")
                 LabeledContent("Chunks", value: "\(report.corpus.chunkCount)")
+                if report.corpus.isEstimate {
+                    // A large library is measured from an even sample of its passages.
+                    LabeledContent("Measured from", value: "\(report.corpus.analysedChunkCount) chunks")
+                }
                 LabeledContent(
                     "Avg words per chunk",
                     value: String(format: "%.1f", report.corpus.avgWordsPerChunk)

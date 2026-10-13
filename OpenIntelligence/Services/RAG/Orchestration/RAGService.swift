@@ -473,6 +473,7 @@ class RAGService: ObservableObject {
     @MainActor
     func clearIntelligence(for containerId: UUID) {
         containerIntelligence.removeValue(forKey: containerId)
+        containerIntelligenceSignature.removeValue(forKey: containerId)
         corpusVocabularyCache.removeValue(forKey: containerId)
         Log.info(
             "[RAGService] Cleared intelligence and vocabulary cache for container \(containerId)", category: .retrieval)
@@ -491,6 +492,8 @@ class RAGService: ObservableObject {
             await MainActor.run {
                 let targetId = containerId ?? self.containerService.activeContainerId
                 self.corpusVocabularyCache.removeValue(forKey: targetId)
+                // A refresh a screen asked for, with the library unchanged, removes nothing.
+                self.removeStaleKeptAnalysis(for: targetId)
             }
             await self.generateIntelligenceSnapshot(
                 for: containerId,
@@ -498,6 +501,77 @@ class RAGService: ObservableObject {
                 allowSelfTuningScheduling: allowSelfTuningScheduling
             )
         }
+    }
+
+    /// Removes what is kept on disk for a library (its analysis, with a preview of each document,
+    /// and its vocabulary, with snippets of its text) and was made from other documents than the
+    /// library holds now: everything, when it holds none or is gone. It runs at the start of
+    /// every refresh, so nothing of a deleted document waits for the next analysis or question
+    /// to replace it, and again after each file is written, because the files are written off
+    /// the main actor and the library can change while one is.
+    @MainActor
+    private func removeStaleKeptAnalysis(for containerId: UUID) {
+        // Until the documents have been loaded the list is empty for every library, which is
+        // not the same as a library having none. A refresh that runs that early removes nothing.
+        guard hasAppliedLoadedDocuments else { return }
+        let documentsNow =
+            containerService.containers.contains { $0.id == containerId } ? documentsForContainer(containerId) : []
+        if documentsNow.isEmpty {
+            LibraryIntelligenceCache.remove(containerId: containerId)
+        } else {
+            LibraryIntelligenceCache.removeStale(
+                containerId: containerId, documents: LibraryIntelligenceCache.documentsSignature(documentsNow))
+        }
+    }
+
+    /// The audit's figures for one store: how many vectors are another length than the library
+    /// expects, and the average, least and most words in a passage.
+    ///
+    /// A store keeps vectors of one length, its own, and `BNNSVectorDatabase` hands passages back
+    /// without them. Through 5.6 the audit compared the (empty) vector on each passage with the
+    /// library's setting, so every passage of every library on that store was counted as a
+    /// mismatch. A passage that does carry a vector is still compared; one that does not is a
+    /// mismatch only when the store's length differs from the library's.
+    ///
+    /// The words are counted a batch of passages at a time, read by id, so a large library is
+    /// not all held in memory for the count, and on the concurrent pool: through 5.6 every
+    /// passage's words were counted on the main actor when the audit screen opened.
+    @concurrent
+    nonisolated static func vectorAuditFigures(
+        of database: VectorDatabase, records: [PassageRecord], storeDimension: Int, expectedDimension: Int
+    ) async -> (mismatched: Int, averageWords: Double, minimumWords: Int, maximumWords: Int) {
+        let storeMatches = storeDimension == expectedDimension
+        var mismatched = 0
+        var counted = 0
+        var totalWords = 0
+        var minimumWords = Int.max
+        var maximumWords = 0
+        var start = 0
+        while start < records.count {
+            let end = min(records.count, start + 2_048)
+            let batch = (try? await database.chunks(withIDs: records[start..<end].map(\.id))) ?? []
+            // A passage that could not be read is not in the batch. Its vector is the store's.
+            mismatched += storeMatches ? 0 : (end - start) - batch.count
+            for chunk in batch {
+                if chunk.embedding.isEmpty {
+                    mismatched += storeMatches ? 0 : 1
+                } else if chunk.embedding.count != expectedDimension {
+                    mismatched += 1
+                }
+                let words = chunk.content.split(whereSeparator: { $0.isWhitespace }).count
+                totalWords += words
+                minimumWords = min(minimumWords, words)
+                maximumWords = max(maximumWords, words)
+                counted += 1
+            }
+            start = end
+        }
+        return (
+            mismatched,
+            counted == 0 ? 0 : Double(totalWords) / Double(counted),
+            counted == 0 ? 0 : minimumWords,
+            maximumWords
+        )
     }
 
     /// Run a storage integrity audit on the active container's vector database.
@@ -513,22 +587,22 @@ class RAGService: ObservableObject {
         guard let container else { return nil }
 
         let db = await dbFor(targetId)
-        let chunks = (try? await db.readableChunks()) ?? []
         let expectedDim = container.embeddingDim
-        let mismatched = chunks.filter { $0.embedding.count != expectedDim }.count
-        let wordCounts = chunks.map { $0.content.split(whereSeparator: { $0.isWhitespace }).count }
-        let totalWords = wordCounts.reduce(0, +)
-        let avgWords = wordCounts.isEmpty ? 0.0 : Double(totalWords) / Double(wordCounts.count)
-        let minWords = wordCounts.min() ?? 0
-        let maxWords = wordCounts.max() ?? 0
-        let uniqueDocs = Set(chunks.map { $0.documentId }).count
+        let records = (try? await db.passageRecords()) ?? []
+        let figures = await Self.vectorAuditFigures(
+            of: db, records: records, storeDimension: db.dimension, expectedDimension: expectedDim)
+        let mismatched = figures.mismatched
+        let avgWords = figures.averageWords
+        let minWords = figures.minimumWords
+        let maxWords = figures.maximumWords
+        let uniqueDocs = Set(records.map(\.documentId)).count
 
         let audit = VectorStoreAudit(
             timestamp: Date(),
             containerId: targetId,
             containerName: container.name,
             expectedDimension: expectedDim,
-            totalChunks: chunks.count,
+            totalChunks: records.count,
             mismatchedDimensions: mismatched,
             uniqueDocuments: uniqueDocs,
             averageChunkWords: avgWords,
@@ -543,6 +617,132 @@ class RAGService: ObservableObject {
         return audit
     }
 
+    /// `CorpusVocabulary.build` on the concurrent pool, with the documents the passages belong
+    /// to. The build runs a part-of-speech tagger over up to 4,000 passages (2.6 to 2.7 s for a
+    /// library past that size, on a Mac, `LibraryAnalysisScaleBenchmarkTests`), and through 5.6
+    /// it ran on the main actor in the middle of the first question after every launch.
+    @concurrent
+    nonisolated private static func buildVocabularyOffMainActor(
+        from chunks: [DocumentChunk]
+    ) async -> (vocabulary: CorpusVocabulary, documents: Set<UUID>) {
+        (CorpusVocabulary.build(from: chunks), Set(chunks.map(\.documentId)))
+    }
+
+    /// Whether a vocabulary may be kept on disk for a library: only when it was built from every
+    /// passage in the library's store (`passagesUsed` of `passagesStored`) and every one of them
+    /// belongs to a document the library lists. A store can hold passages of a document that is
+    /// not listed: one being imported in pieces (its passages are stored as each piece finishes
+    /// and it is listed at the end), and one removed on another device whose passages have not
+    /// been cleared here yet. A vocabulary built then holds words and snippets of that document,
+    /// and nothing that removes kept files by the library's documents would ever name it.
+    nonisolated static func vocabularyMayBeKept(
+        passageDocuments: Set<UUID>, passagesUsed: Int, passagesStored: Int, listedDocuments: [Document]
+    ) -> Bool {
+        !listedDocuments.isEmpty && passagesUsed == passagesStored
+            && passageDocuments.isSubset(of: Set(listedDocuments.map(\.id)))
+    }
+
+    /// A library's vocabulary for query expansion, for the first question since the library
+    /// changed or the app was opened: the one kept on disk when the library is what it was when
+    /// that was built, and otherwise built from `allChunks` off the main actor. Through 5.6 it
+    /// was built again, on the main actor, for the first question after every launch.
+    ///
+    /// The caller gets a vocabulary for its own question either way. What is done with it
+    /// beyond that question depends on what it is of:
+    /// - It is held in memory for the library's later questions only when it is of the whole
+    ///   library (`isWholeLibrary`: a question limited to named documents hands in only their
+    ///   passages) and the library's documents are still the ones it was made from. The read
+    ///   and the build run off the main actor, so a document can be added or deleted while they
+    ///   do; the refresh that follows such a change empties the memory cache, and a vocabulary
+    ///   of the library as it was must not be put back after it.
+    /// - It is written to disk only when `vocabularyMayBeKept` holds as well.
+    private func libraryVocabulary(
+        for containerId: UUID, from allChunks: [DocumentChunk], isWholeLibrary: Bool
+    ) async -> CorpusVocabulary {
+        let database = await dbFor(containerId)
+        let passagesStored = (try? await database.count()) ?? -1
+        let documents = await MainActor.run { self.documentsForContainer(containerId) }
+        let signature = LibraryIntelligenceCache.signature(documents: documents, passages: passagesStored)
+
+        var vocabulary: CorpusVocabulary?
+        var mayBeKept = false
+        // The kept file is of every passage in the store, so it answers only a caller that has
+        // every passage. (A store with a passage it cannot read hands back fewer than it counts;
+        // its vocabulary is built each launch and never kept.)
+        if isWholeLibrary, !documents.isEmpty, passagesStored == allChunks.count {
+            vocabulary = await LibraryIntelligenceCache.loadVocabulary(containerId: containerId, signature: signature)
+        }
+        if vocabulary == nil {
+            let built = await Self.buildVocabularyOffMainActor(from: allChunks)
+            vocabulary = built.vocabulary
+            mayBeKept =
+                isWholeLibrary
+                && Self.vocabularyMayBeKept(
+                    passageDocuments: built.documents, passagesUsed: allChunks.count, passagesStored: passagesStored,
+                    listedDocuments: documents)
+        }
+        let result = vocabulary ?? .empty
+
+        // One step on the main actor, so that a refresh cannot empty the cache between the check
+        // and the write.
+        let libraryIsUnchanged = await MainActor.run { () -> Bool in
+            let unchanged =
+                LibraryIntelligenceCache.documentsSignature(self.documentsForContainer(containerId))
+                == signature.documents
+            if unchanged, isWholeLibrary { self.corpusVocabularyCache[containerId] = result }
+            return unchanged
+        }
+        if libraryIsUnchanged, mayBeKept {
+            await LibraryIntelligenceCache.saveVocabulary(result, containerId: containerId, signature: signature)
+            // Written off the main actor: see `removeStaleKeptAnalysis`.
+            await MainActor.run { self.removeStaleKeptAnalysis(for: containerId) }
+        }
+        return result
+    }
+
+    /// Whether any passage of the store can be read: true at the first batch that hands one
+    /// back. A store's records list every passage, including one whose text cannot be decoded.
+    nonisolated static func holdsAReadablePassage(
+        _ database: VectorDatabase, records: [PassageRecord], batch: Int = 64
+    ) async throws -> Bool {
+        var start = 0
+        while start < records.count {
+            let end = min(records.count, start + max(1, batch))
+            let read = try await database.chunks(withIDs: records[start..<end].map(\.id))
+            if !read.isEmpty { return true }
+            start = end
+        }
+        return false
+    }
+
+    /// The passages a library analysis reads: every passage of the library and `newChunks`
+    /// together when they fit `LibraryIntelligenceCenter.analysisPassageLimit`, and otherwise an
+    /// even sample of both, read by id, with the size the sample stands for. On the concurrent
+    /// pool: picking the sample walks every record of the library.
+    @concurrent
+    nonisolated private static func libraryAnalysisInput(
+        from database: VectorDatabase, adding newChunks: [DocumentChunk] = []
+    ) async -> (chunks: [DocumentChunk], size: LibraryIntelligenceCenter.LibrarySize?) {
+        let records = (try? await database.passageRecords()) ?? []
+        guard
+            let sample = LibraryIntelligenceCenter.samplePositions(
+                records: records, newCount: newChunks.count,
+                limit: LibraryIntelligenceCenter.analysisPassageLimit)
+        else {
+            let existing = (try? await database.readableChunks()) ?? []
+            return (existing + newChunks, nil)
+        }
+        let existing = (try? await database.chunks(withIDs: sample.existing.map { records[$0].id })) ?? []
+        var passagesByDocument: [UUID: Int] = [:]
+        for record in records { passagesByDocument[record.documentId, default: 0] += 1 }
+        for chunk in newChunks { passagesByDocument[chunk.documentId, default: 0] += 1 }
+        return (
+            existing + sample.new.map { newChunks[$0] },
+            LibraryIntelligenceCenter.LibrarySize(
+                passages: records.count + newChunks.count, passagesByDocument: passagesByDocument)
+        )
+    }
+
     private func generateIntelligenceSnapshot(
         for containerId: UUID?,
         force: Bool,
@@ -553,24 +753,105 @@ class RAGService: ObservableObject {
         }
         guard let targetId = resolvedId else { return }
 
-        let shouldSkip = await MainActor.run { () -> Bool in
-            if force { return false }
-            return self.containerIntelligence[targetId] != nil
+        // A library that is gone has nothing to analyse. (Deleting a library removes its
+        // documents one at a time, and each removal asks for a refresh that runs after the
+        // library has left the list. `dbFor` answers with the active library's store for an id
+        // it does not know, so that refresh used to analyse another library under this id.)
+        let libraryExists = await MainActor.run {
+            self.containerService.containers.contains { $0.id == targetId }
         }
-        if shouldSkip { return }
+        guard libraryExists else {
+            LibraryIntelligenceCache.remove(containerId: targetId)
+            await MainActor.run {
+                self.containerIntelligence.removeValue(forKey: targetId)
+                self.containerIntelligenceSignature.removeValue(forKey: targetId)
+            }
+            return
+        }
 
         let docs = await MainActor.run { self.documentsForContainer(targetId) }
         let database = await dbFor(targetId)
-        let chunks = (try? await database.readableChunks()) ?? []
-        let report = await intelligenceCenter.analyzeLibrary(
-            documents: docs,
-            chunks: chunks
-        )
+        // Through 5.6 this read every passage and analysed all of the text each time a library
+        // was opened and after each import: 199 s, and 1,054 MB over what the app held, for
+        // 144,247 passages on a Mac. The analysis is now kept on disk under a signature of the
+        // library it was made from and read back while the library is unchanged, and a large
+        // library is analysed from a sample of its passages (`libraryAnalysisInput`).
+        let passageCount = (try? await database.count()) ?? 0
+        let signature = LibraryIntelligenceCache.signature(documents: docs, passages: passageCount)
+
+        // A report made earlier this session stands while it is still about this library. It
+        // used to stand until a forced refresh, so a library changed underneath by sync went on
+        // showing, and being tuned from, the report of what it had been.
+        let shouldSkip = await MainActor.run { () -> Bool in
+            if force { return false }
+            return self.containerIntelligence[targetId] != nil
+                && self.containerIntelligenceSignature[targetId] == signature
+        }
+        if shouldSkip { return }
+
+        // Whether the library is still the one `signature` describes. Asked after anything that
+        // ran off the main actor, during which a document can have been added or deleted.
+        func libraryIsUnchanged() async -> Bool {
+            let passagesNow = (try? await database.count()) ?? -1
+            let documentsNow = await MainActor.run { () -> [Document]? in
+                self.containerService.containers.contains { $0.id == targetId }
+                    ? self.documentsForContainer(targetId) : nil
+            }
+            return documentsNow.map { LibraryIntelligenceCache.signature(documents: $0, passages: passagesNow) }
+                == signature
+        }
+
+        let report: LibraryIntelligenceCenter.IntelligenceReport
+        var reportIsCurrent = true
+        var kept: LibraryIntelligenceCenter.IntelligenceReport?
+        if !force {
+            kept = await LibraryIntelligenceCache.loadReport(containerId: targetId, signature: signature)
+        }
+        if let kept {
+            report = kept
+            reportIsCurrent = await libraryIsUnchanged()
+            Log.info(
+                "[Intelligence] Library \(targetId): using the analysis kept on disk "
+                    + "(\(passageCount) passages, unchanged since it was made)"
+                    + (reportIsCurrent ? "" : "; the library changed while it was read"),
+                category: .pipeline)
+        } else {
+            let started = Date()
+            let input = await Self.libraryAnalysisInput(from: database)
+            report = await intelligenceCenter.analyzeLibrary(
+                documents: docs,
+                chunks: input.chunks,
+                library: input.size
+            )
+            // The analysis takes seconds, and a document can be deleted or added while it runs.
+            // A report of the library as it was is not kept: it would hold a preview of a
+            // document that may just have been deleted, under a name nothing would replace.
+            reportIsCurrent = await libraryIsUnchanged()
+            if reportIsCurrent, !docs.isEmpty {
+                await LibraryIntelligenceCache.saveReport(report, containerId: targetId, signature: signature)
+                // The file was written off the main actor. If the library's documents changed
+                // while it was, the refresh that follows that change may already have looked
+                // for stale files, so they are looked for again now that this one exists.
+                await MainActor.run { self.removeStaleKeptAnalysis(for: targetId) }
+            }
+            Log.info(
+                "[Intelligence] Library \(targetId): analysed \(report.corpus.analysedChunkCount) of "
+                    + "\(report.corpus.chunkCount) passages in "
+                    + "\(String(format: "%.0f", Date().timeIntervalSince(started) * 1000))ms"
+                    + (reportIsCurrent ? "" : "; the library changed meanwhile, so the report is not kept"),
+                category: .pipeline)
+        }
 
         await MainActor.run {
             self.containerIntelligence[targetId] = report
+            // Without a signature the next refresh, forced or not, makes the report again.
+            self.containerIntelligenceSignature[targetId] = reportIsCurrent ? signature : nil
         }
 
+        // Nothing is tuned from a report of what the library was a moment ago; the refresh that
+        // follows the change decides. The library is read again here because its settings can
+        // have been edited while the analysis ran.
+        guard reportIsCurrent else { return }
         guard
             let container = await MainActor.run(
                 resultType: KnowledgeContainer?.self,
@@ -581,11 +862,14 @@ class RAGService: ObservableObject {
         else { return }
         guard container.autoAdaptDimension else { return }
 
-        let (updated, reasons) = resolveAutoAdjustments(for: container, report: report)
+        // A report made from a sample can move the chunking settings, as any report can, and
+        // never asks for another embedding model (see `resolveAutoAdjustments`).
+        let (updated, reasons) = Self.resolveAutoAdjustments(for: container, report: report)
         guard !reasons.isEmpty else { return }
 
-        let embeddingShift = evaluateEmbeddingShift(container: container, plan: report.embedding)
-        let requiresRebuild = embeddingShift != nil
+        let requiresRebuild =
+            !report.corpus.isEstimate
+            && Self.evaluateEmbeddingShift(container: container, plan: report.embedding) != nil
 
         if !requiresRebuild {
             // Chunking strategy/window shifts DO NOT require a full database rebuild.
@@ -1572,6 +1856,12 @@ class RAGService: ObservableObject {
     @MainActor @Published var pendingCloudConsent: CloudTransmissionRecord?
     @MainActor @Published private(set) var lastCloudTransmission: CloudTransmissionRecord?
     @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
+    /// The signature of the library each report in `containerIntelligence` was made from
+    /// (`LibraryIntelligenceCache.signature`). None for a report that is not of the library as
+    /// it is on disk.
+    @MainActor private var containerIntelligenceSignature: [UUID: LibraryIntelligenceCache.Signature] = [:]
+    /// False from the service's creation until the documents read from disk have been applied.
+    @MainActor private var hasAppliedLoadedDocuments = false
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] =
         [:]
     @MainActor @Published private(set) var chatHistories: [UUID: [ChatMessage]] = [:]
@@ -3980,8 +4270,33 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// What `LibraryIntelligenceCache.sweep` keeps for these documents: for each library that
+    /// has any, the signature of its documents. A document with no library belongs to the first.
+    @MainActor
+    private func keptAnalysisSignatures(for loadedDocuments: [Document]) -> [UUID: String] {
+        let defaultContainerId = containerService.containers.first?.id
+        let known = Set(containerService.containers.map(\.id))
+        var byContainer: [UUID: [Document]] = [:]
+        for document in loadedDocuments {
+            guard let containerId = document.containerId ?? defaultContainerId, known.contains(containerId) else {
+                continue
+            }
+            byContainer[containerId, default: []].append(document)
+        }
+        return byContainer.mapValues { LibraryIntelligenceCache.documentsSignature($0) }
+    }
+
     @MainActor
     private func applyLoadedDocuments(_ loadedDocuments: [Document]) {
+        // Every load of the documents, changed or not, checks what is kept on disk about each
+        // library against the documents it has now. This is where a document or a library
+        // removed on another device arrives, and where a library whose last document is gone
+        // is seen. The check reads file names and nothing else.
+        let current = keptAnalysisSignatures(for: loadedDocuments)
+        Task.detached(priority: .utility) {
+            LibraryIntelligenceCache.sweep(keeping: current)
+        }
+        hasAppliedLoadedDocuments = true
         guard documents != loadedDocuments else { return }
         documents = loadedDocuments
         totalChunksStored = loadedDocuments.reduce(0) { $0 + $1.totalChunks }
@@ -4262,6 +4577,16 @@ class RAGService: ObservableObject {
     /// foreground; see `VectorStoreRouter.persistAll`.
     func persistAllVectorStores() async {
         await vectorRouter.persistAll()
+    }
+
+    /// Has every open vector store let go of the passages it has decoded (5.7). A library that
+    /// has answered a question holds every passage's text (333 to 345 MB for 144,247 passages in
+    /// `VectorStoreScaleBenchmarkTests`), and the system ends the background apps that hold the
+    /// most memory first. The text is in the store's file, and the next question reads it back.
+    /// Called on iPhone and iPad when the app goes to the background, after everything that has
+    /// to be saved has been. What it gives back on a device has not been measured.
+    func releaseDecodedPassagesInVectorStores() async {
+        await vectorRouter.releaseDecodedPassages()
     }
 
     func dbForActiveContainer() async -> VectorDatabase {
@@ -6198,6 +6523,11 @@ class RAGService: ObservableObject {
                     embeddingDim: initialDimension,
                     containerEmbeddingService: containerEmbeddingService
                 )
+                // The refresh every other import ends with (the rest of what a whole-file
+                // import does at its end is not done here). Without it the analysis and the
+                // vocabulary held for the library, in memory and on disk, stayed those of the
+                // library before this document until the app was opened again.
+                refreshIntelligence(for: activeContainerId, force: true)
                 return  // Streaming method handles the full end-to-end pipeline
             }
 
@@ -6218,6 +6548,7 @@ class RAGService: ObservableObject {
                     providerId: providerId,
                     containerEmbeddingService: containerEmbeddingService
                 )
+                refreshIntelligence(for: activeContainerId, force: true)
                 return  // It handles the whole import, like the streamed PDF above.
             }
 
@@ -6333,9 +6664,13 @@ class RAGService: ObservableObject {
                     }
                 }
 
-                // Get ALL existing chunks in this container for comprehensive analysis
+                // This block does not run in any build so far: `allowsSelfTuningScheduling` is
+                // false for every kind of import. It is kept in step with the launch analysis so
+                // that turning it on would not bring back a read of every passage.
+                // The library as it is, counted. Its passages are read by `libraryAnalysisInput`
+                // below, all of them or a sample.
                 let db = await dbForActiveContainer()
-                let existingChunks = try await db.readableChunks()
+                let existingPassageCount = (try? await db.count()) ?? 0
 
                 await MainActor.run {
                     updateIngestionItem(
@@ -6343,7 +6678,7 @@ class RAGService: ObservableObject {
                         filename: filename,
                         stage: .analyzing,
                         detail:
-                            "Analyzing \(existingChunks.count + processedChunks.count) chunks for vocabulary patterns...",
+                            "Analyzing \(existingPassageCount + processedChunks.count) chunks for vocabulary patterns...",
                         progress: 0.3
                     )
                 }
@@ -6352,9 +6687,8 @@ class RAGService: ObservableObject {
                 let allDocumentsForAnalysis = await MainActor.run {
                     self.documents.filter { $0.containerId == activeContainerId } + [document]
                 }
-                let combinedChunks =
-                    existingChunks
-                    + processedChunks.enumerated().map { index, chunk in
+                let newDocumentChunks =
+                    processedChunks.enumerated().map { index, chunk in
                         DocumentChunk(
                             documentId: document.id,
                             content: chunk.text,
@@ -6406,9 +6740,11 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                let analysisInput = await Self.libraryAnalysisInput(from: db, adding: newDocumentChunks)
                 let report = await intelligenceCenter.analyzeLibrary(
                     documents: allDocumentsForAnalysis,
-                    chunks: combinedChunks
+                    chunks: analysisInput.chunks,
+                    library: analysisInput.size
                 )
 
                 // Update progress after analysis
@@ -6468,7 +6804,10 @@ class RAGService: ObservableObject {
                 }
 
                 await MainActor.run {
+                    // This report is of the library with the document being imported added to
+                    // it, which no signature of the library on disk describes yet.
                     self.containerIntelligence[activeContainerId] = report
+                    self.containerIntelligenceSignature.removeValue(forKey: activeContainerId)
                 }
 
                 // Log analysis results
@@ -6495,9 +6834,14 @@ class RAGService: ObservableObject {
                     ]
                 )
 
-                let (updatedContainer, autoReasons) = resolveAutoAdjustments(
+                // A library with no documents yet is choosing its settings for this first
+                // import, which nothing has been embedded under, so its embedding model may come
+                // from a sample of a long document. A library that has documents does not get
+                // another model from a sample.
+                let (updatedContainer, autoReasons) = Self.resolveAutoAdjustments(
                     for: autoContainer,
-                    report: report
+                    report: report,
+                    allowingEstimate: preExistingDocumentsInContainerCount == 0
                 )
 
                 if updatedContainer != autoContainer {
@@ -6533,8 +6877,14 @@ class RAGService: ObservableObject {
                     // updated config *before* embedding, so there is nothing to rebuild yet.
                     // Without this guard, the app will immediately re-embed the just-added doc,
                     // which looks like an infinite “re-upload” loop to the user.
-                    if preExistingDocumentsInContainerCount > 0 {
+                    if preExistingDocumentsInContainerCount > 0, !report.corpus.isEstimate {
+                        // Never from a sample: its reason can only be the chunking, and a
+                        // rebuild embeds every document again.
                         pendingSelfTuneReasons = autoReasons
+                    } else if preExistingDocumentsInContainerCount > 0 {
+                        Log.info(
+                            "Skipping self-tuning rebuild: the analysis read a sample of the library.",
+                            category: .ingestion)
                     } else {
                         Log.info(
                             "Skipping self-tuning rebuild: config updated during first ingest and there are no prior documents to rebuild.",
@@ -7699,11 +8049,20 @@ class RAGService: ObservableObject {
                 guard !containerDocuments.isEmpty else { continue }
 
                 let database = await MainActor.run { self.vectorRouter.db(for: container) }
-                let allChunks = try await database.readableChunks()
+                // Which documents the store holds is read from its records, and each document's
+                // passages are read when its turn comes (5.7). Through 5.6 every passage of the
+                // library was read first and held while its index was rebuilt.
+                let storedRecords = try await database.passageRecords()
+
+                // The guard below is about passages that can be read, and the records count one
+                // that cannot. So passages are read, a batch at a time, until one comes back:
+                // the first batch for any store in working order, and every batch only for a
+                // store nothing can be read from, which is the case the guard is for.
+                let holdsAReadablePassage = try await Self.holdsAReadablePassage(database, records: storedRecords)
 
                 // Safety guard: If we have documents but the vector database returns 0 chunks,
                 // do not wipe the existing FTS5 search index, as it would destroy the index.
-                guard !allChunks.isEmpty else {
+                guard holdsAReadablePassage else {
                     Log.warning(
                         "[RAGService] Safety guard triggered: vector store is empty but container \(container.id) has \(containerDocuments.count) documents. Skipping FTS5 rebuild.",
                         category: .ingestion)
@@ -7733,11 +8092,11 @@ class RAGService: ObservableObject {
                 await SQLiteFullTextService.shared.deleteContainer(containerId: container.id)
                 await SQLiteFullTextService.shared.deleteChunksForContainer(containerId: container.id)
 
-                let chunksByDocument = Dictionary(grouping: allChunks, by: \.documentId)
+                let storedDocumentIDs = Set(storedRecords.map(\.documentId))
 
                 // Clean up orphaned vector database chunks for documents no longer in the metadata catalog
                 let containerDocIDs = Set(containerDocuments.map(\.id))
-                for docID in chunksByDocument.keys {
+                for docID in storedDocumentIDs {
                     if !containerDocIDs.contains(docID) {
                         Log.info(
                             "[RAGService] Wiping orphaned vector database chunks for document \(docID) in container \(container.id)",
@@ -7747,9 +8106,10 @@ class RAGService: ObservableObject {
                 }
 
                 for document in containerDocuments {
-                    guard let unsortedChunks = chunksByDocument[document.id], !unsortedChunks.isEmpty else {
-                        continue
-                    }
+                    guard storedDocumentIDs.contains(document.id) else { continue }
+                    // In store order, which is the order grouping every passage gave.
+                    let unsortedChunks = try await database.chunks(forDocument: document.id)
+                    guard !unsortedChunks.isEmpty else { continue }
 
                     let documentChunks = unsortedChunks.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
                     let fullText = documentChunks.map(\.content).joined(separator: "\n\n")
@@ -8635,14 +8995,37 @@ class RAGService: ObservableObject {
         }.value
     }
 
-    private func resolveAutoAdjustments(
+    /// What a self-tuning library changes about itself after an analysis: the library as it
+    /// would be, and why. No reasons means no change.
+    ///
+    /// The chunking settings follow any report, as they did through 5.6. They cost nothing to
+    /// change: they are used the next time something is cut into passages, they are not part of
+    /// a library's embedding fingerprint when the app sets them (`EmbeddingFingerprint.chunkerRecipe`),
+    /// and each import sets them again from the file it reads.
+    ///
+    /// The embedding model does not follow a report made from a sample of the library
+    /// (`CorpusSignals.isEstimate`, which is what a library past `analysisPassageLimit` gets),
+    /// unless `allowingEstimate` is set. A sample's measures are not the library's (vocabulary
+    /// reads richer in a sample, and whether code or math is found depends on which passages
+    /// were drawn), and another model means embedding every document again. Today nothing
+    /// applies an embedding change on its own for any report: the one place that would
+    /// (`scheduleSelfTuningRebuild`) is behind `IngestionContext.allowsSelfTuningScheduling`,
+    /// which is false for every kind of import, and its other caller, `handleSelfTuning`, is
+    /// called from nowhere. Both of them queue a rebuild for any reason, the chunking included,
+    /// so each also refuses a sampled report by itself. With that and this rule, turning the
+    /// switch on cannot make a sample start a rebuild. `allowingEstimate` is for a library with
+    /// no documents yet, where there is nothing to embed again.
+    static func resolveAutoAdjustments(
         for container: KnowledgeContainer,
-        report: LibraryIntelligenceCenter.IntelligenceReport
+        report: LibraryIntelligenceCenter.IntelligenceReport,
+        allowingEstimate: Bool = false
     ) -> (KnowledgeContainer, [String]) {
         var updated = container
         var reasons: [String] = []
 
-        if let embeddingAction = evaluateEmbeddingShift(container: container, plan: report.embedding) {
+        if !report.corpus.isEstimate || allowingEstimate,
+            let embeddingAction = evaluateEmbeddingShift(container: container, plan: report.embedding)
+        {
             updated.embeddingProviderId = embeddingAction.providerId
             updated.embeddingDim = embeddingAction.dimension
             reasons.append(embeddingAction.reason)
@@ -8660,7 +9043,7 @@ class RAGService: ObservableObject {
         return (updated, reasons)
     }
 
-    private func evaluateEmbeddingShift(
+    private static func evaluateEmbeddingShift(
         container: KnowledgeContainer,
         plan: LibraryIntelligenceCenter.EmbeddingPlan
     ) -> EmbeddingAutoAction? {
@@ -8709,7 +9092,7 @@ class RAGService: ObservableObject {
         return EmbeddingAutoAction(providerId: plan.providerId, dimension: plan.dimension, reason: reason)
     }
 
-    private func evaluateChunkShift(
+    private static func evaluateChunkShift(
         current: ChunkingDirective?,
         plan: LibraryIntelligenceCenter.ChunkingPlan
     ) -> ChunkAutoAction? {
@@ -8858,14 +9241,14 @@ class RAGService: ObservableObject {
         else { return }
         guard container.autoAdaptDimension else { return }
 
-        let (updated, reasons) = resolveAutoAdjustments(for: container, report: report)
+        let (updated, reasons) = Self.resolveAutoAdjustments(for: container, report: report)
         if updated != container {
             await MainActor.run {
                 self.containerService.updateContainer(updated)
             }
         }
 
-        if triggerAllowsScheduling, !reasons.isEmpty {
+        if triggerAllowsScheduling, !reasons.isEmpty, !report.corpus.isEstimate {
             scheduleSelfTuningRebuild(for: containerId, reasons: reasons)
         }
     }
@@ -10200,11 +10583,10 @@ class RAGService: ObservableObject {
                     // Run viscosity scan when building vocabulary (first query)
                     await runViscosityScan(allChunks, query: question)
 
-                    let built = CorpusVocabulary.build(from: allChunks)
-                    // Cache for future queries
-                    await MainActor.run {
-                        self.corpusVocabularyCache[selectedId] = built
-                    }
+                    // Every passage of the library, whatever documents the question names. The
+                    // function holds the vocabulary for later questions when it is still the
+                    // library's.
+                    let built = await libraryVocabulary(for: selectedId, from: allChunks, isWholeLibrary: true)
                     finalCorpusVocabulary = built
                     let corpusTime = Date().timeIntervalSince(corpusStartTime)
                     Log.debug(
@@ -19858,8 +20240,13 @@ extension RAGService: RAGToolHandler {
         if let cached = cachedVocab {
             agenticVocab = cached
         } else if !allChunks.isEmpty {
-            let built = CorpusVocabulary.build(from: allChunks)
-            await MainActor.run { self.corpusVocabularyCache[embeddingContext.containerId] = built }
+            // `allChunks` is only the named documents' passages when the question is limited to
+            // documents. A vocabulary of those serves this question and is not held as the
+            // library's. (From 2026-10-09 until this was written it was, so the first such
+            // question after a launch left every later one expanding from one document's words.)
+            let built = await libraryVocabulary(
+                for: embeddingContext.containerId, from: allChunks,
+                isWholeLibrary: (RAGQueryScope.documentIds ?? []).isEmpty)
             agenticVocab = built
         } else {
             agenticVocab = nil

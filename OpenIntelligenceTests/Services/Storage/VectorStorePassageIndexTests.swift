@@ -436,15 +436,89 @@ final class VectorStorePassageIndexTests: XCTestCase {
         }
     }
 
+    // MARK: - The audit's figures
+
+    /// The search-index rebuild will not wipe the keyword index of a store nothing can be read
+    /// from. It finds out by reading a batch of passages at a time until one comes back, so a
+    /// store whose first passages cannot be read and whose later ones can is not taken for one
+    /// that holds nothing.
+    func testAStoreHoldsAReadablePassageWhenAnyOneIsNotOnlyItsFirst() async throws {
+        let document = UUID()
+        let chunks = (0..<10).map { chunk($0, documentId: document) }
+        try writeStoreAsFivePointSixDid(chunks, metadata: try metadataJSON(chunks, damagingAll: Set(0..<8)))
+        let store = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+        let records = try await store.passageRecords()
+        XCTAssertEqual(records.count, 10, "every passage has a record, readable or not")
+        let firstBatch = try await store.chunks(withIDs: records.prefix(4).map(\.id))
+        XCTAssertTrue(firstBatch.isEmpty, "the first batch hands nothing back")
+        let readable = try await RAGService.holdsAReadablePassage(store, records: records, batch: 4)
+        XCTAssertTrue(readable)
+
+        try? FileManager.default.removeItem(at: metaURL)
+        try writeStoreAsFivePointSixDid(chunks, metadata: try metadataJSON(chunks, damagingAll: Set(0..<10)))
+        let nothingReadable = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+        let itsRecords = try await nothingReadable.passageRecords()
+        XCTAssertEqual(itsRecords.count, 10)
+        let none = try await RAGService.holdsAReadablePassage(nothingReadable, records: itsRecords, batch: 4)
+        XCTAssertFalse(none)
+        let noRecords = try await RAGService.holdsAReadablePassage(nothingReadable, records: [])
+        XCTAssertFalse(noRecords)
+    }
+
+    /// The store keeps vectors of one length and hands passages back without them. The audit
+    /// counted every passage of every library as a dimension mismatch, because it measured the
+    /// empty vector on the passage. It counts none when the store's length is the library's, and
+    /// all of them when it is not, and its word figures are those of every passage.
+    func testTheAuditCountsNoMismatchWhenTheStoreMatchesTheLibrary() async throws {
+        let document = UUID()
+        let total = 5_000
+        let chunks = (0..<total).map { number in
+            chunk(number, documentId: document, text: Array(repeating: "word", count: number % 7 + 1).joined(separator: " "))
+        }
+        let store = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+        try await store.storeBatch(chunks: chunks)
+        try await store.persist()
+        let records = try await store.passageRecords()
+
+        let matching = await RAGService.vectorAuditFigures(
+            of: store, records: records, storeDimension: dimension, expectedDimension: dimension)
+        XCTAssertEqual(matching.mismatched, 0)
+        XCTAssertEqual(matching.minimumWords, 1)
+        XCTAssertEqual(matching.maximumWords, 7)
+        let expectedAverage = Double((0..<total).reduce(0) { $0 + $1 % 7 + 1 }) / Double(total)
+        XCTAssertEqual(matching.averageWords, expectedAverage, accuracy: 0.000001)
+
+        let other = await RAGService.vectorAuditFigures(
+            of: store, records: records, storeDimension: dimension, expectedDimension: dimension * 2)
+        XCTAssertEqual(other.mismatched, total, "a library set to another length than its store holds")
+
+        // A store that hands passages back with their vectors is measured from those.
+        let inMemory = InMemoryVectorDatabase(dimension: dimension)
+        try await inMemory.storeBatch(chunks: Array(chunks.prefix(40)))
+        let inMemoryRecords = try await inMemory.passageRecords()
+        let kept = await RAGService.vectorAuditFigures(
+            of: inMemory, records: inMemoryRecords, storeDimension: dimension, expectedDimension: dimension)
+        XCTAssertEqual(kept.mismatched, 0)
+        let emptyStore = await RAGService.vectorAuditFigures(
+            of: inMemory, records: [], storeDimension: dimension, expectedDimension: dimension)
+        XCTAssertEqual(emptyStore.mismatched, 0)
+        XCTAssertEqual(emptyStore.minimumWords, 0)
+        XCTAssertEqual(emptyStore.averageWords, 0)
+    }
+
     // MARK: - A passage that cannot be read
 
     /// The metadata file with one passage's text replaced by a number. It is still JSON, so the
     /// walk gives the passage a place, and it is not a passage `DocumentChunk` decodes.
     private func metadataJSON(_ chunks: [DocumentChunk], damaging damaged: Int) throws -> Data {
+        try metadataJSON(chunks, damagingAll: [damaged])
+    }
+
+    private func metadataJSON(_ chunks: [DocumentChunk], damagingAll damaged: Set<Int>) throws -> Data {
         var data = Data("[".utf8)
         for (index, chunk) in chunks.enumerated() {
             var encoded = try JSONEncoder().encode(stripped(chunk))
-            if index == damaged {
+            if damaged.contains(index) {
                 var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
                 object["content"] = 7
                 encoded = try JSONSerialization.data(withJSONObject: object)

@@ -244,7 +244,7 @@ class HybridSearchService {
         if let scope = RAGQueryScope.documentIds, !scope.isEmpty {
             return try await searchInsideScope(
                 scope, query: query, boostQuery: boostQuery, embedding: embedding, topK: topK,
-                cachedChunks: cachedChunks)
+                cachedChunks: cachedChunks, containerId: containerId)
         }
         // Auto-select FTS5 path if containerId provided and FTS5 data available
         if let cid = containerId, await isFTS5Available(containerId: cid) {
@@ -814,53 +814,152 @@ class HybridSearchService {
         sqrt(vDSP.sumOfSquares(vector))
     }
 
-    /// Scores every passage of the named documents against the question and returns the best.
-    /// A document is a few thousand passages at most, so this reads them all: cosine similarity
-    /// with the question's embedding, weighted with the share of the question's words the passage
-    /// holds, by the same two weights the library-wide search uses.
+    /// The most passages of the named documents the scoped search reads the text of when no
+    /// passages are handed in. Up to this many, every passage is read and scored. Past it, every
+    /// vector is still scored (where the store keeps it, with no text read), and text is read
+    /// for the closest passages and for the keyword index's hits inside the scope only.
+    static let scopedExactLimit = 6_000
+
+    /// For a scope past `scopedExactLimit`: how many of the closest passages by vector are read.
+    static let scopedVectorCandidates = 2_000
+
+    /// And how many keyword hits are asked of the index before they are narrowed to the scope.
+    static let scopedKeywordCandidates = 400
+
+    /// Scores the passages of the named documents against the question and returns the best:
+    /// cosine similarity with the question's embedding, weighted with the share of the question's
+    /// words the passage holds, by the same two weights the library-wide search uses.
+    ///
+    /// The vector store hands passages back without their vectors, which stay in its own file,
+    /// so it is asked how close each passage is. (Until 5.7's review the question was compared
+    /// with the empty vector on the passage, every similarity was 0, and a scoped question was
+    /// ranked by its words alone.)
+    ///
+    /// A document is usually a few hundred to a few thousand passages and every one is scored
+    /// both ways. A scope past `scopedExactLimit` (one document of 144,247 passages exists) is
+    /// scored by vector in full and by words only for its candidates, which are the closest
+    /// `scopedVectorCandidates` passages and the keyword index's hits inside the scope. That
+    /// holds whether the passages were handed in or are read here, so the same question gets
+    /// the same candidates either way. A passage that is far from the question and that the
+    /// keyword index does not rank among its best hits is the kind that path can miss.
     private func searchInsideScope(
         _ scope: Set<UUID>,
         query: String,
         boostQuery: String,
         embedding: [Float],
         topK: Int,
-        cachedChunks: [DocumentChunk]?
+        cachedChunks: [DocumentChunk]?,
+        containerId: UUID?
     ) async throws -> [RetrievedChunk] {
-        let all: [DocumentChunk]
-        if let cachedChunks {
-            all = cachedChunks
-        } else {
-            // Only the named documents' passages are read, in store order, which is what
-            // filtering every passage gave (5.7). They are asked for by id, so a passage
-            // added or removed between the two calls cannot shift which ones come back.
-            let records = try await vectorDatabase.passageRecords()
-            all = try await vectorDatabase.chunks(
-                withIDs: records.filter { scope.contains($0.documentId) }.map(\.id))
+        guard topK > 0 else { return [] }
+        let queryNorm = computeNorm(embedding)
+        // A question with no vector (its embedding failed) has nothing to compare a passage's
+        // vector with. Passages come back from the vector store with an empty vector too, and
+        // two empty vectors are not a match.
+        let questionHasVector = !embedding.isEmpty && queryNorm > 0
+
+        // The scope, in store order: the passages themselves when they were handed in, and
+        // otherwise their records, from which the ones to read are picked and then asked for
+        // by id, so a passage added or removed in between cannot shift which ones come back.
+        let handedIn = cachedChunks.map { $0.filter { scope.contains($0.documentId) } }
+        var records: [PassageRecord] = []
+        if handedIn == nil {
+            records = try await vectorDatabase.passageRecords().filter { scope.contains($0.documentId) }
         }
-        let candidates = all.filter { scope.contains($0.documentId) }
-        guard !candidates.isEmpty, topK > 0 else {
+        let ids = handedIn?.map(\.id) ?? records.map(\.id)
+        guard !ids.isEmpty else {
             Log.info("[Hybrid] Document scope: no passages stored for the \(scope.count) named document(s)", category: .pipeline)
             return []
         }
 
+        // What the store says about each passage's vector, where it has been asked.
+        var storeSimilarity: [UUID: Float] = [:]
+        var candidates: [DocumentChunk]
+        if ids.count <= Self.scopedExactLimit {
+            if let handedIn {
+                candidates = handedIn
+            } else {
+                candidates = try await vectorDatabase.chunks(withIDs: ids)
+            }
+        } else {
+            // Every vector is scored. A passage handed in with its own vector is scored from
+            // that, and the rest where the store keeps them.
+            var similarities = await vectorDatabase.similarities(to: embedding, forChunkIDs: ids)
+            if similarities.count != ids.count { similarities = ids.map { _ in nil } }
+            if let handedIn, questionHasVector {
+                for (position, chunk) in handedIn.enumerated()
+                where similarities[position] == nil && chunk.embedding.count == embedding.count {
+                    similarities[position] = cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm)
+                }
+            }
+            let closest = await Self.closestPositionsOffMainActor(similarities, limit: Self.scopedVectorCandidates)
+            if closest.isEmpty {
+                // No vector could be scored for any passage of the scope (a store that neither
+                // keeps vectors on its passages nor answers for them by id). There is nothing to
+                // pick candidates by, so every passage is read and scored by its words, as a
+                // smaller scope's are.
+                Log.warning(
+                    "[Hybrid] Document scope: no vector could be scored for any of \(ids.count) passages; reading all of them",
+                    category: .pipeline)
+            }
+            var wanted = Set(closest.isEmpty ? ids : closest.map { ids[$0] })
+            for position in closest { storeSimilarity[ids[position]] = similarities[position] ?? 0 }
+
+            // The keyword index's best hits, narrowed to the scope.
+            var keywordHits = 0
+            if let containerId, await isFTS5Available(containerId: containerId) {
+                let hits = await SQLiteFullTextService.shared.searchChunks(
+                    query: boostQuery, containerId: containerId, limit: Self.scopedKeywordCandidates)
+                let keys = Set(hits.filter { scope.contains($0.documentId) }.map(\.chunkId))
+                if let handedIn {
+                    for chunk in Self.buildNeededChunkLookup(from: handedIn, neededChunkIds: keys).values {
+                        keywordHits += 1
+                        wanted.insert(chunk.id)
+                    }
+                } else {
+                    for position in Self.neededChunkPositions(records: records, neededChunkIds: keys, summariesOnly: false) {
+                        keywordHits += 1
+                        wanted.insert(records[position].id)
+                    }
+                }
+            }
+            // Read in store order, which is the order every passage of the scope would be in.
+            if let handedIn {
+                candidates = handedIn.filter { wanted.contains($0.id) }
+            } else {
+                candidates = try await vectorDatabase.chunks(withIDs: ids.filter { wanted.contains($0) })
+            }
+            Log.info(
+                "[Hybrid] Document scope: \(ids.count) passages is past \(Self.scopedExactLimit), so every vector was scored and "
+                    + "words were compared for the \(closest.count) closest and \(keywordHits) keyword hit(s) (\(candidates.count) passages)",
+                category: .pipeline)
+        }
+        guard !candidates.isEmpty else {
+            Log.info("[Hybrid] Document scope: none of the \(ids.count) passages of the named document(s) could be read", category: .pipeline)
+            return []
+        }
+
+        // Candidates that arrive without a vector of their own and were not scored above.
+        let unscored =
+            questionHasVector
+            ? candidates.filter { $0.embedding.count != embedding.count && storeSimilarity[$0.id] == nil }.map(\.id) : []
+        if !unscored.isEmpty {
+            let similarities = await vectorDatabase.similarities(to: embedding, forChunkIDs: unscored)
+            for (position, id) in unscored.enumerated() where position < similarities.count {
+                if let similarity = similarities[position] { storeSimilarity[id] = similarity }
+            }
+        }
+
         let terms = Set((tokenize(query) + tokenize(boostQuery)).filter { $0.count > 2 })
-        let queryNorm = computeNorm(embedding)
-        // The vector store hands passages back without their vectors, which stay in its own
-        // file, so the vectors are asked for by id. Before this was added the question was
-        // compared with the empty vector on the passage, every similarity was 0, and a
-        // question limited to a document was ranked by its words alone.
-        let fromStore: [Float?] =
-            candidates.contains { $0.embedding.count != embedding.count }
-            ? await storedSimilarities(of: candidates.map(\.id), to: embedding, queryNorm: queryNorm) : []
         var comparedByVector = 0
         var scored: [RetrievedChunk] = []
         scored.reserveCapacity(candidates.count)
-        for (position, chunk) in candidates.enumerated() {
+        for chunk in candidates {
             var similarity: Float = 0
-            if chunk.embedding.count == embedding.count {
+            if questionHasVector, chunk.embedding.count == embedding.count {
                 similarity = cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm)
                 comparedByVector += 1
-            } else if position < fromStore.count, let stored = fromStore[position] {
+            } else if let stored = storeSimilarity[chunk.id] {
                 similarity = stored
                 comparedByVector += 1
             }
@@ -877,37 +976,26 @@ class HybridSearchService {
         }
         scored.sort { $0.similarityScore > $1.similarityScore }
         Log.info(
-            "[Hybrid] Document scope: scored \(candidates.count) passages of \(scope.count) named document(s), "
+            "[Hybrid] Document scope: scored \(candidates.count) of \(ids.count) passages of \(scope.count) named document(s), "
                 + "\(comparedByVector) of them by vector as well as by words, returning \(min(topK, scored.count))",
             category: .pipeline)
         return reindex(Array(scored.prefix(topK)))
     }
 
-    /// Vectors asked for in one call by `storedSimilarities`: 2,048 vectors of 384 numbers are
-    /// about 3 MB.
-    private static let storedSimilarityBatch = 2_048
-
-    /// How close each of these passages is to the question, from the vectors the store holds:
-    /// one answer per id in the order asked, and nil where the store has no vector of the
-    /// question's length for that id. The vectors are asked for a few thousand at a time, so
-    /// a very large document does not bring all of its vectors into memory at once.
-    private func storedSimilarities(of ids: [UUID], to embedding: [Float], queryNorm: Float) async -> [Float?] {
-        var scores: [Float?] = []
-        scores.reserveCapacity(ids.count)
-        var start = 0
-        while start < ids.count {
-            let end = min(ids.count, start + Self.storedSimilarityBatch)
-            let vectors = await vectorDatabase.getEmbeddings(forChunkIDs: Array(ids[start..<end]))
-            for offset in 0..<(end - start) {
-                if offset < vectors.count, vectors[offset].count == embedding.count {
-                    scores.append(cosineSimilarity(embedding, vectors[offset], queryNorm: queryNorm))
-                } else {
-                    scores.append(nil)
-                }
-            }
-            start = end
+    /// The positions of the `limit` highest similarities, highest first, among the positions
+    /// that have one. Equal similarities keep store order, so the same question picks the same
+    /// passages every time. On the concurrent pool: a scope past `scopedExactLimit` can be over
+    /// a hundred thousand passages, and this function's caller runs on the main actor.
+    @concurrent
+    nonisolated static func closestPositionsOffMainActor(_ similarities: [Float?], limit: Int) async -> [Int] {
+        guard limit > 0 else { return [] }
+        var scored: [(position: Int, similarity: Float)] = []
+        scored.reserveCapacity(similarities.count)
+        for (position, similarity) in similarities.enumerated() {
+            if let similarity { scored.append((position, similarity)) }
         }
-        return scores
+        scored.sort { $0.similarity != $1.similarity ? $0.similarity > $1.similarity : $0.position < $1.position }
+        return scored.prefix(limit).map(\.position)
     }
 
     private func cosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float) -> Float {

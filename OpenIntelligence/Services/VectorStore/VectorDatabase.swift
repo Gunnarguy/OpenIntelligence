@@ -99,6 +99,12 @@ protocol VectorDatabase {
     /// Used by Gate E (Semantic Grounding) — the primary hallucination detector.
     /// Returns one [Float] per input UUID, in order. Empty array for unknown UUIDs.
     func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]]
+
+    /// The cosine similarity of each of these passages' vectors with `embedding`: one answer
+    /// per id, in the order asked, and nil for an id the store does not hold or whose vector
+    /// is another length. For a caller that was handed passages without their vectors
+    /// (`BNNSVectorDatabase` keeps the vectors in its own file) and has to rank them.
+    func similarities(to embedding: [Float], forChunkIDs ids: [UUID]) async -> [Float?]
 }
 
 // Default implementations for optional protocol methods
@@ -110,6 +116,29 @@ extension VectorDatabase {
     }
     func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]] {
         return ids.map { _ in [Float]() }
+    }
+    /// From `getEmbeddings(forChunkIDs:)`, 2,048 vectors at a time (about 3 MB at 384 numbers
+    /// each), so a store without a way of its own never copies every vector out at once.
+    func similarities(to embedding: [Float], forChunkIDs ids: [UUID]) async -> [Float?] {
+        let queryNorm = sqrt(vDSP.sumOfSquares(embedding))
+        guard queryNorm > 0, !embedding.isEmpty else { return ids.map { _ in nil } }
+        var scores: [Float?] = []
+        scores.reserveCapacity(ids.count)
+        var start = 0
+        while start < ids.count {
+            let end = min(ids.count, start + 2_048)
+            let vectors = await getEmbeddings(forChunkIDs: Array(ids[start..<end]))
+            for offset in 0..<(end - start) {
+                guard offset < vectors.count, vectors[offset].count == embedding.count else {
+                    scores.append(nil)
+                    continue
+                }
+                let norm = sqrt(vDSP.sumOfSquares(vectors[offset]))
+                scores.append(norm > 0 ? vDSP.dot(embedding, vectors[offset]) / (queryNorm * norm) : 0)
+            }
+            start = end
+        }
+        return scores
     }
 
     // A store that holds every passage in memory answers these from `allChunks()`.
@@ -347,6 +376,16 @@ class InMemoryVectorDatabase: VectorDatabase {
         return await withCheckedContinuation { continuation in
             queue.async {
                 continuation.resume(returning: Array(self.chunks.values))
+            }
+        }
+    }
+
+    /// This store keeps each passage's vector on the passage. It answers for them by id too, so
+    /// that `similarities(to:forChunkIDs:)` works on it as it does on the store kept in files.
+    func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]] {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: ids.map { self.chunks[$0]?.embedding ?? [] })
             }
         }
     }

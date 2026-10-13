@@ -171,6 +171,9 @@ final class ContainerService: ObservableObject {
         // Always deindex on delete regardless of setting
         SpotlightIndexService.shared.deindexAllDocuments(in: id)
         SpotlightIndexService.shared.deindexContainer(id: id)
+        // The analysis and the vocabulary kept on disk for the library hold previews and
+        // snippets of its documents.
+        LibraryIntelligenceCache.remove(containerId: id)
 
         // Optionally, clean up per-container files (documents + vectors)
         // Leave files in place for safety unless we add a confirmed destructive action elsewhere.

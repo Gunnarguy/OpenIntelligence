@@ -109,6 +109,15 @@ final class VectorStoreRouter {
         }
     }
 
+    /// Has every cached store let go of the passages it has decoded. Nothing is lost: they are
+    /// in each store's file and are read back when next asked for. Called when the app leaves
+    /// the foreground, after `persistAll`.
+    func releaseDecodedPassages() async {
+        for store in stores.values {
+            await (store as? BNNSVectorDatabase)?.releaseDecodedPassages(because: "the app left the foreground")
+        }
+    }
+
     /// Get or create a VectorDatabase for the specified container.
     /// Routes based on container's vectorDBKind and dimension.
     /// If an existing cached store has mismatched dimensions/type, it will be invalidated and recreated.

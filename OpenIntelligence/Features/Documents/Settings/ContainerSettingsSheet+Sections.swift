@@ -397,6 +397,13 @@ extension ContainerSettingsSheet {
                     .clipShape(Capsule())
             }
 
+            if report.corpus.isEstimate {
+                // A large library is measured from a sample of its passages.
+                Text("Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
             // Content Detection Grid
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: 8),

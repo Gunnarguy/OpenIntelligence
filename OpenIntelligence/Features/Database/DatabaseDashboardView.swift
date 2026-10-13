@@ -2221,9 +2221,9 @@ struct LibraryIntelligenceCard: View {
     /// so most cards showed a progress indicator that could never finish.
     var isAnalyzing: Bool = false
     /// Runs the analysis for this library on demand. It is not automatic because a
-    /// refresh opens the library's database and loads every chunk, and doing that for
-    /// every library on tab appear is the read-amplification `771461c` removed from
-    /// sync.
+    /// refresh opens the library's database and reads up to 4,000 of its passages
+    /// (every passage, through 5.6), and doing that for every library on tab appear is
+    /// the read-amplification `771461c` removed from sync.
     var onAnalyze: (() -> Void)?
 
     var body: some View {
@@ -2270,6 +2270,13 @@ struct LibraryIntelligenceCard: View {
             // Chunking adaptations
             if let report = intelligenceReport {
                 VStack(alignment: .leading, spacing: 8) {
+                    if report.corpus.isEstimate {
+                        // A large library is measured from a sample of its passages.
+                        Text("Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks")
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(.secondary)
+                    }
+
                     IntelligenceMetricRow(
                         icon: "rectangle.split.3x1",
                         label: "Chunking Strategy",
@@ -2324,7 +2331,7 @@ struct LibraryIntelligenceCard: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    Text("Reading a library's settings means opening it and loading every passage, so it runs when you ask rather than for all libraries at once.")
+                    Text("Analyzing a library means opening it and reading up to 4,000 of its passages, so it runs when you ask rather than for all libraries at once.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

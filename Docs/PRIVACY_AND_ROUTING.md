@@ -239,6 +239,22 @@ Three things download from the network, and only starting from an address the pe
 
 `MetricDiagnostics` (`OpenIntelligence/App/MetricDiagnostics.swift`) subscribes, on iOS 27 and macOS 27, to MetricKit's `MetricManager` for the reports the system gives an app about itself: hangs, crashes, CPU and disk exceptions, and launch and memory figures. It writes a one-line summary of each to the app's log and appends the report to `metric_reports.jsonl` in the app's local cache folder, keeping the newest 200 lines. The file has no upload code and makes no request, so the app sends these reports nowhere. Whether a person shares analytics with Apple and with developers is a setting of the system's own and is not changed or read by this. No report had been delivered on a device when this was written. `[evidence_level: code_verified; test_verified for the summaries and the 200-line limit (MetricDiagnosticsTests), confidence: high for the code, evidence_source: MetricDiagnostics.swift; a search of that file for URLSession and upload on 2026-10-12 found neither]`
 
+## What the app works out about a library is kept on the device (added 2026-10-13, for 5.7)
+
+Two small files for each library are kept in the app's local cache folder, beside the keyword index, so the app
+does not work them out again each time it opens: the library analysis (counts, language and vocabulary
+measures, recommended settings, and for each document its name, three topics and the first 160 characters of
+its first passage) and the vocabulary the first question builds (keywords, which keywords appear together, and
+up to 300 snippets of up to 200 characters). Both come only from the library's own passages. The app sends
+them nowhere and its iCloud sync does not copy them. The app sets no backup exclusion on that folder or on any
+other, so a backup of the device treats them as it treats the keyword index beside them and the library itself. The vocabulary is kept only when it was built
+from the passages of documents the library lists, so nothing of a file whose import was stopped part-way is in
+it. Each file's name says which documents it was made from, and a
+file made from documents the library no longer has is removed: when a document is added, deleted or replaced,
+when the library is cleared or deleted, and, for every library, each time the app loads its documents, which
+covers a document or a library removed on another device. Nothing about routing changes.
+`[evidence_level: test_verified for what is removed given the documents and for when a vocabulary may be kept (LibraryAnalysisSampleTests), code_verified for where the removal is called from, confidence: high, evidence_source: AdaptiveEmbeddingOptimizer.swift LibraryIntelligenceCache; RAGService.swift refreshIntelligence, removeStaleKeptAnalysis, generateIntelligenceSnapshot, libraryVocabulary, applyLoadedDocuments; ContainerService.swift deleteContainer; ContentView.swift]`
+
 ## Adaptive profiles do not change routing (added 2026-09-11)
 
 `FoundationModelDynamicProfileRegistry` chooses `temperature` and `maxTokens` from the answer

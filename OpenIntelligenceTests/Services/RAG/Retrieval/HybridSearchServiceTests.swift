@@ -246,8 +246,8 @@ final class HybridSearchServiceTests: XCTestCase {
         XCTAssertEqual(results[1].similarityScore, betweenExpected, accuracy: 0.0001)
     }
 
-    /// A document with more passages than are asked for at a time is scored in several
-    /// requests, and each passage still gets its own vector's score.
+    /// A document of several thousand passages, stored in shuffled order: each passage gets its
+    /// own vector's score, and the ranking is by those.
     func testAQuestionLimitedToALongDocumentScoresEveryPassageByItsOwnVector() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("scope-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -279,6 +279,223 @@ final class HybridSearchServiceTests: XCTestCase {
         for index in 1..<total {
             XCTAssertLessThan(results[index].similarityScore, results[index - 1].similarityScore, "at \(index)")
         }
+    }
+
+    /// The store's own answer: each passage's similarity worked out where its vector is. It has
+    /// to be what copying the vectors out and comparing them gives, for a saved passage and for
+    /// one no save has written yet, and nil for an id the store does not hold.
+    func testTheStoreScoresPassagesWhereTheirVectorsAre() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("scope-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = BNNSVectorDatabase(
+            dimension: 4, storageURL: directory.appendingPathComponent("vector_database_scores.json"))
+        let document = UUID()
+        func vector(_ number: Int) -> [Float] {
+            let angle = Float(number) * 0.41
+            return [cos(angle), sin(angle), cos(angle * 1.3 + 0.2), Float(number % 13) / 13 - 0.5]
+        }
+        let passages = (0..<400).map {
+            DocumentChunk(
+                documentId: document, content: "passage \($0)", embedding: vector($0),
+                metadata: ChunkMetadata(chunkIndex: $0))
+        }
+        try await store.storeBatch(chunks: Array(passages[0..<300]))
+        try await store.persist()
+        try await store.storeBatch(chunks: Array(passages[300..<400]))  // not saved
+
+        let question: [Float] = [0.3, -0.8, 0.5, 0.1]
+        var asked = passages.shuffled().map(\.id)
+        asked.insert(UUID(), at: 17)
+        let scores = await store.similarities(to: question, forChunkIDs: asked)
+        XCTAssertEqual(scores.count, asked.count)
+        XCTAssertNil(scores[17])
+
+        let byId = Dictionary(uniqueKeysWithValues: passages.map { ($0.id, $0.embedding) })
+        func cosine(_ a: [Float], _ b: [Float]) -> Float {
+            let dot = zip(a, b).reduce(Float(0)) { $0 + $1.0 * $1.1 }
+            let na = a.reduce(Float(0)) { $0 + $1 * $1 }.squareRoot()
+            let nb = b.reduce(Float(0)) { $0 + $1 * $1 }.squareRoot()
+            return dot / (na * nb)
+        }
+        for (position, id) in asked.enumerated() where position != 17 {
+            let expected = cosine(question, try XCTUnwrap(byId[id]))
+            XCTAssertEqual(try XCTUnwrap(scores[position]), expected, accuracy: 0.0002, "position \(position)")
+        }
+        let wrongLength = await store.similarities(to: [1, 0], forChunkIDs: [passages[0].id])
+        XCTAssertEqual(wrongLength, [nil])
+        let none = await store.similarities(to: question, forChunkIDs: [])
+        XCTAssertTrue(none.isEmpty)
+    }
+
+    /// A document with more passages than the scoped search reads the text of
+    /// (`scopedExactLimit`). Every vector is still scored, so the closest passages come back in
+    /// order, and the answer is the same whether the passages are handed in or read by the
+    /// search. Without a keyword index, a passage that is far from the question and holds its
+    /// words is not among the candidates. With the index, it is found and ranked by its words.
+    func testAQuestionLimitedToAVeryLargeDocumentScoresEveryVectorAndReadsItsCandidates() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("scope-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = BNNSVectorDatabase(
+            dimension: 4, storageURL: directory.appendingPathComponent("vector_database_huge.json"))
+        let library = UUID()
+        let manual = UUID()
+        let total = HybridSearchService.scopedExactLimit + 1_000
+        let farIndex = total - 1
+        let passages = (0..<total).map { number -> DocumentChunk in
+            let angle = Float.pi / 8 + Float(number) / Float(total) * (Float.pi / 4)
+            return DocumentChunk(
+                documentId: manual,
+                content: number == farIndex ? "The deposit zebrafish clause is quoted here." : "passage \(number)",
+                embedding: [cos(angle), sin(angle), 0, 0],
+                metadata: ChunkMetadata(chunkIndex: number))
+        }
+        try await store.storeBatch(chunks: passages)
+        try await store.persist()
+
+        // Words weigh more than the vector here, so the far passage would be first if its words
+        // were compared.
+        let search = HybridSearchService(vectorDatabase: store, vectorWeight: 0.3, keywordWeight: 0.7)
+        let question: [Float] = [1, 0, 0, 0]
+
+        let readHere = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zebrafish clause", embedding: question, topK: 40)
+        }
+        XCTAssertEqual(readHere.map(\.chunk.metadata.chunkIndex), Array(0..<40), "the closest passages, in order")
+        XCTAssertGreaterThan(farIndex, HybridSearchService.scopedVectorCandidates)
+
+        let everything = try await store.readableChunks()
+        let handedIn = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zebrafish clause", embedding: question, topK: 40, cachedChunks: everything)
+        }
+        XCTAssertEqual(handedIn.map(\.chunk.id), readHere.map(\.chunk.id))
+        XCTAssertEqual(handedIn.map(\.similarityScore), readHere.map(\.similarityScore))
+
+        // With the keyword index holding the document, the far passage is a candidate.
+        let rows = [farIndex, 3, 900].map { number in
+            (
+                chunkIndex: number, pageNumber: Int?.none, sectionTitle: String?.none, sectionPath: String?.none,
+                structureType: String?.none, chunkType: String?.none, tableTitle: String?.none,
+                content: passages[number].content,
+                structuredMetadata: SQLiteFullTextService.StructuredChunkMetadata?.none
+            )
+        }
+        // Removed again whatever happens below: the keyword index is shared by the whole test run.
+        addTeardownBlock {
+            await SQLiteFullTextService.shared.deleteChunks(for: manual)
+            await SQLiteFullTextService.shared.delete(for: manual)
+        }
+        await SQLiteFullTextService.shared.store(text: "zebrafish clause", for: manual, containerId: library)
+        await SQLiteFullTextService.shared.storeChunks(documentId: manual, containerId: library, chunks: rows)
+        let withIndex = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zebrafish clause", embedding: question, topK: 40, containerId: library)
+        }
+        let withIndexHandedIn = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(
+                query: "zebrafish clause", embedding: question, topK: 40, cachedChunks: everything, containerId: library)
+        }
+
+        XCTAssertEqual(withIndex.first?.chunk.metadata.chunkIndex, farIndex, "found through the keyword index")
+        XCTAssertEqual(Array(withIndex.dropFirst().map(\.chunk.metadata.chunkIndex)), Array(0..<39))
+        XCTAssertEqual(withIndexHandedIn.map(\.chunk.id), withIndex.map(\.chunk.id))
+    }
+
+    /// The same very large scope on a store that keeps each passage's vector on the passage and
+    /// answers for vectors by id through the protocol's own `similarities`, which asks for them
+    /// 2,048 at a time. Read by id or handed in, the closest passages come back in order.
+    func testAVeryLargeScopeOnAStoreThatKeepsVectorsOnItsPassages() async throws {
+        let manual = UUID()
+        let total = HybridSearchService.scopedExactLimit + 1_000
+        let passages = (0..<total).map { number -> DocumentChunk in
+            let angle = Float.pi / 8 + Float(number) / Float(total) * (Float.pi / 4)
+            return DocumentChunk(
+                documentId: manual, content: "passage \(number)", embedding: [cos(angle), sin(angle), 0, 0],
+                metadata: ChunkMetadata(chunkIndex: number))
+        }
+        let store = InMemoryVectorDatabase(dimension: 4)
+        try await store.storeBatch(chunks: passages)
+        let question: [Float] = [1, 0, 0, 0]
+
+        let scores = await store.similarities(to: question, forChunkIDs: [passages[0].id, UUID(), passages[total - 1].id])
+        XCTAssertEqual(scores.count, 3)
+        XCTAssertEqual(scores[0] ?? -1, cos(Float.pi / 8), accuracy: 0.0001)
+        XCTAssertNil(scores[1])
+        XCTAssertLessThan(scores[2] ?? 2, scores[0] ?? -1)
+
+        let search = HybridSearchService(vectorDatabase: store)
+        let readHere = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zzz", embedding: question, topK: 30)
+        }
+        XCTAssertEqual(readHere.map(\.chunk.metadata.chunkIndex), Array(0..<30))
+        let everything = try await store.allChunks()
+        let handedIn = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zzz", embedding: question, topK: 30, cachedChunks: everything)
+        }
+        XCTAssertEqual(handedIn.map(\.chunk.metadata.chunkIndex), Array(0..<30))
+    }
+
+    /// A store that answers nothing about vectors, for passages that carry none: there is
+    /// nothing to pick candidates by, so every passage of the scope is read and ranked by its
+    /// words, and the search does not come back empty.
+    func testAVeryLargeScopeWithNoVectorsAnywhereIsRankedByItsWords() async throws {
+        let manual = UUID()
+        let total = HybridSearchService.scopedExactLimit + 200
+        let passages = (0..<total).map { number in
+            DocumentChunk(
+                documentId: manual, content: number == 4_321 ? "the zebrafish clause" : "passage \(number)",
+                embedding: [], metadata: ChunkMetadata(chunkIndex: number))
+        }
+        let search = HybridSearchService(vectorDatabase: DummyVectorDatabase())
+        let results = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zebrafish clause", embedding: [1, 0, 0, 0], topK: 5, cachedChunks: passages)
+        }
+        XCTAssertEqual(results.count, 5)
+        XCTAssertEqual(results.first?.chunk.metadata.chunkIndex, 4_321)
+    }
+
+    /// A question whose embedding failed has no vector. The passages come back from the vector
+    /// store without vectors too, and two empty vectors are not a match: nothing was compared,
+    /// so every passage of the scope is read and ranked by its words. (Taken for a match, every
+    /// passage scored 0 and the first 2,000 in store order were the only candidates.)
+    func testAVeryLargeScopeAndAQuestionWithNoVectorIsRankedByItsWords() async throws {
+        let manual = UUID()
+        let total = HybridSearchService.scopedExactLimit + 200
+        let wanted = HybridSearchService.scopedVectorCandidates + 2_321
+        let passages = (0..<total).map { number in
+            DocumentChunk(
+                documentId: manual, content: number == wanted ? "the zebrafish clause" : "passage \(number)",
+                embedding: [], metadata: ChunkMetadata(chunkIndex: number))
+        }
+        let search = HybridSearchService(vectorDatabase: DummyVectorDatabase())
+        let results = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zebrafish clause", embedding: [], topK: 5, cachedChunks: passages)
+        }
+        XCTAssertEqual(results.count, 5)
+        XCTAssertEqual(results.first?.chunk.metadata.chunkIndex, wanted)
+
+        // The same question on a scope small enough to be read whole.
+        let few = Array(passages[(wanted - 50)...(wanted + 50)])
+        let small = try await RAGQueryScope.$documentIds.withValue([manual]) {
+            try await search.search(query: "zebrafish clause", embedding: [], topK: 3, cachedChunks: few)
+        }
+        XCTAssertEqual(small.first?.chunk.metadata.chunkIndex, wanted)
+    }
+
+    /// The closest passages are picked highest first, a passage with no similarity is never
+    /// picked, and equal similarities keep store order, so one question picks the same passages
+    /// every time.
+    func testTheClosestPassagesArePickedHighestFirstAndTiesKeepStoreOrder() async {
+        let picked = await HybridSearchService.closestPositionsOffMainActor([0.5, nil, 0.9, 0.5, 0.9, nil, 0.1], limit: 4)
+        XCTAssertEqual(picked, [2, 4, 0, 3])
+        let everyOne = await HybridSearchService.closestPositionsOffMainActor([0.2, 0.3], limit: 10)
+        XCTAssertEqual(everyOne, [1, 0])
+        let none = await HybridSearchService.closestPositionsOffMainActor([nil, nil], limit: 4)
+        XCTAssertEqual(none, [])
+        let noRoom = await HybridSearchService.closestPositionsOffMainActor([0.2, 0.3], limit: 0)
+        XCTAssertEqual(noRoom, [])
+        let tied = await HybridSearchService.closestPositionsOffMainActor(Array(repeating: 0.25, count: 5_000), limit: 7)
+        XCTAssertEqual(tied, Array(0..<7))
     }
 
     /// A store that hands passages back with their vectors (the one kept in memory) is ranked

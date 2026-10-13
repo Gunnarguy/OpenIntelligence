@@ -7,6 +7,7 @@
 //  and shares retrieval tuning guidance for downstream services.
 //
 
+import CryptoKit
 import Foundation
 import NaturalLanguage
 
@@ -14,10 +15,61 @@ import NaturalLanguage
 actor LibraryIntelligenceCenter {
     // MARK: - Public Data Models
 
+    /// The most passages one analysis reads. The analysis joins the text it is given, tokenises
+    /// every word and every sentence of it, and is run when a library is opened and after each
+    /// import. On 144,247 passages that measured 199 s, and 1,054 MB over what the process held
+    /// before it started, on a Mac (11.4 s for 6,000, 43.4 s for 24,000; unoptimised build,
+    /// `LibraryAnalysisScaleBenchmarkTests`, 2026-10-13). A library with more passages than this
+    /// is analysed from at most this many, taken from across it (`samplePositions`).
+    static let analysisPassageLimit = 4_000
+
+    /// The real size of a library whose analysis is given a sample of its passages.
+    struct LibrarySize: Sendable {
+        let passages: Int
+        let passagesByDocument: [UUID: Int]
+    }
+
+    /// Which passages an analysis reads when the library (`records`, in store order) and the
+    /// passages about to be added to it (`newCount` of them) come to more than `limit`. Nil when
+    /// everything fits and every passage is read.
+    ///
+    /// The two share `limit` in proportion to their sizes. Of the library's share, up to a
+    /// quarter goes to the first passage of each document, in store order (a document's preview
+    /// is its first passage; a library with more documents than that shows the earliest sampled
+    /// passage for the rest), and the remainder to an even sample. The new passages get an even
+    /// sample, which always holds their first. No more than `limit` passages are read in all
+    /// (one more when `limit` is under 2), and the same library always gives the same positions.
+    nonisolated static func samplePositions(
+        records: [PassageRecord], newCount: Int, limit: Int
+    ) -> (existing: [Int], new: [Int])? {
+        let total = records.count + newCount
+        guard limit > 0, total > limit else { return nil }
+        var existingShare =
+            records.isEmpty ? 0 : max(1, Int((Double(limit) * Double(records.count) / Double(total)).rounded()))
+        if newCount > 0, !records.isEmpty { existingShare = max(1, min(existingShare, limit - 1)) }
+        let newShare = newCount == 0 ? 0 : max(1, limit - existingShare)
+
+        var firstOfDocument: [UUID: (index: Int, position: Int)] = [:]
+        for (position, record) in records.enumerated() {
+            if let seen = firstOfDocument[record.documentId], seen.index <= record.chunkIndex { continue }
+            firstOfDocument[record.documentId] = (record.chunkIndex, position)
+        }
+        let firsts = firstOfDocument.values.map(\.position).sorted().prefix(existingShare / 4)
+        var positions = Set(firsts)
+        for position in RAGService.evenSampleIndices(count: records.count, limit: existingShare - firsts.count) {
+            positions.insert(position)
+        }
+        return (positions.sorted(), RAGService.evenSampleIndices(count: newCount, limit: newShare))
+    }
+
     /// Snapshot of the content signals we derive from the current corpus.
     struct CorpusSignals: Sendable {
         let documentCount: Int
+        /// Passages in the library.
         let chunkCount: Int
+        /// Passages the measurements below were made from: all of them, or an even sample when
+        /// the library is past `analysisPassageLimit`.
+        let analysedChunkCount: Int
         let avgWordsPerChunk: Double
         let multilingualScore: Double
         let vocabularyRichness: Double
@@ -27,11 +79,14 @@ actor LibraryIntelligenceCenter {
         let hasMath: Bool
         let structuredRatio: Double
         let languageHypotheses: [NLLanguage: Double]
+
+        /// The measurements come from a sample of the library and not from all of it.
+        var isEstimate: Bool { analysedChunkCount < chunkCount }
     }
 
     /// Recommended chunking configuration for ingestion.
-    struct ChunkingPlan: Sendable {
-        enum Strategy: String, Sendable {
+    struct ChunkingPlan: Sendable, Codable {
+        enum Strategy: String, Sendable, Codable {
             case balanced
             case densePrecision
             case elastic
@@ -44,7 +99,7 @@ actor LibraryIntelligenceCenter {
     }
 
     /// Suggested embedding provider + dimension.
-    struct EmbeddingPlan: Sendable {
+    struct EmbeddingPlan: Sendable, Codable {
         let providerId: String
         let dimension: Int
         let confidence: Double
@@ -53,14 +108,14 @@ actor LibraryIntelligenceCenter {
     }
 
     /// Guidance for retrieval weighting + rerankers.
-    struct RetrievalPlan: Sendable {
-        enum FusionStyle: String, Sendable {
+    struct RetrievalPlan: Sendable, Codable {
+        enum FusionStyle: String, Sendable, Codable {
             case hybrid
             case vectorOnly
             case lexicalBoosted
         }
 
-        enum RerankerStrategy: String, Sendable {
+        enum RerankerStrategy: String, Sendable, Codable {
             case none
             case semantic
             case structural
@@ -75,7 +130,7 @@ actor LibraryIntelligenceCenter {
     }
 
     /// Lightweight document descriptors injected into the report for UI context.
-    struct DocumentProfile: Identifiable, Sendable {
+    struct DocumentProfile: Identifiable, Sendable, Codable {
         let id: UUID
         let name: String
         let descriptor: String
@@ -85,7 +140,7 @@ actor LibraryIntelligenceCenter {
     }
 
     /// Top-level report consumed by the pipeline.
-    struct IntelligenceReport: Sendable {
+    struct IntelligenceReport: Sendable, Codable {
         let corpus: CorpusSignals
         let chunking: ChunkingPlan
         let embedding: EmbeddingPlan
@@ -96,11 +151,17 @@ actor LibraryIntelligenceCenter {
 
     // MARK: - Public API
 
-    /// Primary entry point. Collapses the entire corpus into a single actionable report.
+    /// Primary entry point. Collapses the corpus into a single actionable report.
+    ///
+    /// `chunks` is every passage of the library, or, with `library` set, a sample of a library
+    /// of that size (`samplePositions` says which). From a sample the ratios and averages are
+    /// estimates, the passage counts are the library's real ones, and the word total the
+    /// embedding plan looks at is scaled up to the library's size.
     func analyzeLibrary(
         documents: [Document],
         chunks: [DocumentChunk],
-        recentQueries: [RAGQuery] = []
+        recentQueries: [RAGQuery] = [],
+        library: LibrarySize? = nil
     ) async -> IntelligenceReport {
         let text = chunks.map { $0.content }.joined(separator: "\n")
         let languageHypotheses = detectLanguages(in: text)
@@ -116,9 +177,14 @@ actor LibraryIntelligenceCenter {
         let structuredRatio = calculateStructuredRatio(from: chunks)
         let chunkWordCounts = extractWordCounts(from: chunks, fallback: words)
         let avgWordsPerChunk = average(of: chunkWordCounts)
+        let libraryPassages = max(library?.passages ?? chunks.count, chunks.count)
+        let totalWords =
+            libraryPassages > chunks.count && !chunks.isEmpty
+            ? Int(Double(words.count) * Double(libraryPassages) / Double(chunks.count)) : words.count
         let corpusSignals = CorpusSignals(
             documentCount: documents.count,
-            chunkCount: chunks.count,
+            chunkCount: libraryPassages,
+            analysedChunkCount: chunks.count,
             avgWordsPerChunk: avgWordsPerChunk,
             multilingualScore: multilingualScore,
             vocabularyRichness: vocabularyRichness,
@@ -146,7 +212,7 @@ actor LibraryIntelligenceCenter {
             semanticComplexity: semanticComplexity,
             hasCode: hasCode,
             hasMath: hasMath,
-            totalWords: words.count
+            totalWords: totalWords
         )
 
         let querySignals = analyzeQueries(recentQueries)
@@ -158,7 +224,8 @@ actor LibraryIntelligenceCenter {
         )
 
         let alerts = makeAlerts(from: corpusSignals, embeddingPlan: embeddingPlan, documents: documents)
-        let documentProfiles = buildDocumentProfiles(documents: documents, chunks: chunks)
+        let documentProfiles = buildDocumentProfiles(
+            documents: documents, chunks: chunks, passagesByDocument: library?.passagesByDocument)
 
         return IntelligenceReport(
             corpus: corpusSignals,
@@ -396,9 +463,12 @@ actor LibraryIntelligenceCenter {
         return alerts
     }
 
+    /// `passagesByDocument` is given when `chunks` is a sample: it holds how many passages each
+    /// document really has, for the count shown and to scale a word count summed from the sample.
     private func buildDocumentProfiles(
         documents: [Document],
-        chunks: [DocumentChunk]
+        chunks: [DocumentChunk],
+        passagesByDocument: [UUID: Int]? = nil
     ) -> [DocumentProfile] {
         guard !documents.isEmpty else { return [] }
         let groupedChunks = Dictionary(grouping: chunks, by: { $0.documentId })
@@ -406,14 +476,23 @@ actor LibraryIntelligenceCenter {
         return documents.map { document in
             let docChunks = (groupedChunks[document.id] ?? [])
                 .sorted(by: { $0.metadata.chunkIndex < $1.metadata.chunkIndex })
-            let wordCount = estimateWordCount(for: document, chunks: docChunks)
+            let passageCount = max(passagesByDocument?[document.id] ?? docChunks.count, docChunks.count)
+            var wordCount = estimateWordCount(for: document, chunks: docChunks)
+            if passageCount > docChunks.count, !docChunks.isEmpty,
+                (document.processingMetadata?.totalWords ?? 0) <= 0
+            {
+                wordCount = Int(Double(wordCount) * Double(passageCount) / Double(docChunks.count))
+            }
             let descriptor = makeDescriptor(
                 for: document,
                 wordCount: wordCount,
-                chunkCount: docChunks.count
+                chunkCount: passageCount
             )
             let topics = extractTopics(from: docChunks)
-            let preview = makePreview(from: docChunks)
+            // A document none of whose passages is in the sample has passages; it is not
+            // "awaiting chunk extraction", which is what an empty list gets. It is shown with
+            // its name and counts and no preview.
+            let preview = docChunks.isEmpty && passageCount > 0 ? "" : makePreview(from: docChunks)
 
             return DocumentProfile(
                 id: document.id,
@@ -833,5 +912,211 @@ actor LibraryIntelligenceCenter {
             reasoning.append("NaturalLanguage embeddings deliver speed with 512D coverage.")
         }
         return (dimension, provider, confidence, reasoning.joined(separator: "; "))
+    }
+}
+
+// MARK: - Keeping a report
+
+extension LibraryIntelligenceCenter.CorpusSignals: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case documentCount, chunkCount, analysedChunkCount, avgWordsPerChunk, multilingualScore
+        case vocabularyRichness, technicalDensity, semanticComplexity, hasCode, hasMath, structuredRatio
+        case languageHypotheses
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let languages = try values.decode([String: Double].self, forKey: .languageHypotheses)
+        self.init(
+            documentCount: try values.decode(Int.self, forKey: .documentCount),
+            chunkCount: try values.decode(Int.self, forKey: .chunkCount),
+            analysedChunkCount: try values.decode(Int.self, forKey: .analysedChunkCount),
+            avgWordsPerChunk: try values.decode(Double.self, forKey: .avgWordsPerChunk),
+            multilingualScore: try values.decode(Double.self, forKey: .multilingualScore),
+            vocabularyRichness: try values.decode(Double.self, forKey: .vocabularyRichness),
+            technicalDensity: try values.decode(Double.self, forKey: .technicalDensity),
+            semanticComplexity: try values.decode(Double.self, forKey: .semanticComplexity),
+            hasCode: try values.decode(Bool.self, forKey: .hasCode),
+            hasMath: try values.decode(Bool.self, forKey: .hasMath),
+            structuredRatio: try values.decode(Double.self, forKey: .structuredRatio),
+            languageHypotheses: Dictionary(
+                uniqueKeysWithValues: languages.map { (NLLanguage(rawValue: $0.key), $0.value) })
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(documentCount, forKey: .documentCount)
+        try values.encode(chunkCount, forKey: .chunkCount)
+        try values.encode(analysedChunkCount, forKey: .analysedChunkCount)
+        try values.encode(avgWordsPerChunk, forKey: .avgWordsPerChunk)
+        try values.encode(multilingualScore, forKey: .multilingualScore)
+        try values.encode(vocabularyRichness, forKey: .vocabularyRichness)
+        try values.encode(technicalDensity, forKey: .technicalDensity)
+        try values.encode(semanticComplexity, forKey: .semanticComplexity)
+        try values.encode(hasCode, forKey: .hasCode)
+        try values.encode(hasMath, forKey: .hasMath)
+        try values.encode(structuredRatio, forKey: .structuredRatio)
+        try values.encode(
+            Dictionary(uniqueKeysWithValues: languageHypotheses.map { ($0.key.rawValue, $0.value) }),
+            forKey: .languageHypotheses)
+    }
+}
+
+/// Keeps each library's last analysis, and the vocabulary its first question builds, on disk
+/// until the library changes.
+///
+/// Both follow from the library's documents and passages and from nothing else, so while those
+/// are what they were, opening the app or switching to the library reads the kept file and no
+/// passages. What a file was made from is in its name:
+/// `<library id>.<report or vocabulary>.<hash of the documents>.<passages in the store>.json`.
+/// A file is used only under the name the library has now, so a stale one is never read, and
+/// which files are stale can be told from the folder's listing without opening one.
+///
+/// The files hold text taken from the documents (a preview of each, snippets for the
+/// vocabulary). They live in the app's local cache folder, beside the keyword index, which
+/// iCloud sync does not copy, and they are removed with what they came from: for one library
+/// when its documents change (`removeStale`) or it is deleted (`remove`), and for every library
+/// each time the documents are loaded (`sweep`), which is where a document or a library removed
+/// on another device arrives.
+nonisolated enum LibraryIntelligenceCache {
+    /// Raise this when the analysis itself changes, so that reports made by the older analysis
+    /// are not used.
+    static let analysisVersion = 1
+
+    /// What a kept file was made from.
+    struct Signature: Equatable, Sendable {
+        /// A hash of the library's documents and of the limits and versions the analysis and
+        /// the vocabulary were made under (`documentsSignature`).
+        let documents: String
+        /// Passages in the library's vector store.
+        let passages: Int
+    }
+
+    private enum Kind: String {
+        case report
+        case vocabulary
+    }
+
+    /// Where the files are kept. Every function below takes the folder as its last argument,
+    /// with this as the default, so a test can work in a folder of its own.
+    static var directory: URL {
+        AppSupportPaths.localCacheDir().appendingPathComponent("LibraryIntelligence", isDirectory: true)
+    }
+
+    /// Thirty-two hexadecimal characters that change when the library's documents do: each
+    /// document's id, file hash, passage count, date and name.
+    static func documentsSignature(_ documents: [Document]) -> String {
+        var text = "v\(analysisVersion)|analysis=\(LibraryIntelligenceCenter.analysisPassageLimit)"
+        text += "|vocabulary=\(CorpusVocabulary.buildVersion),\(CorpusVocabulary.vocabularySampleLimit)"
+        for document in documents.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            text += "|\(document.id.uuidString),\(document.fileHash ?? "-"),\(document.totalChunks),"
+            text += "\(document.addedAt.timeIntervalSince1970),\(document.filename)"
+        }
+        return SHA256.hash(data: Data(text.utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func signature(documents: [Document], passages: Int) -> Signature {
+        Signature(documents: documentsSignature(documents), passages: passages)
+    }
+
+    private static func fileURL(_ containerId: UUID, _ kind: Kind, _ signature: Signature, in folder: URL) -> URL {
+        folder.appendingPathComponent(
+            "\(containerId.uuidString).\(kind.rawValue).\(signature.documents).\(signature.passages).json")
+    }
+
+    /// The parts of a kept file's name, or nil when the name is not one this type writes.
+    private static func parts(of name: String) -> (containerId: UUID, kind: Kind, signature: Signature)? {
+        let pieces = name.split(separator: ".", omittingEmptySubsequences: false)
+        guard pieces.count == 5, pieces[4] == "json",
+            let containerId = UUID(uuidString: String(pieces[0])),
+            let kind = Kind(rawValue: String(pieces[1])),
+            let passages = Int(pieces[3])
+        else { return nil }
+        return (containerId, kind, Signature(documents: String(pieces[2]), passages: passages))
+    }
+
+    /// Removes every kept file `stale` says to, and anything else found in the folder.
+    private static func removeFiles(
+        in folder: URL, where stale: (_ containerId: UUID, _ kind: Kind, _ signature: Signature) -> Bool
+    ) {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return }
+        for name in names {
+            if let file = parts(of: name), !stale(file.containerId, file.kind, file.signature) { continue }
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+        }
+    }
+
+    private static func read<Value: Decodable>(
+        _ type: Value.Type, _ containerId: UUID, _ kind: Kind, _ signature: Signature, in folder: URL
+    ) -> Value? {
+        guard let data = try? Data(contentsOf: fileURL(containerId, kind, signature, in: folder)) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+
+    private static func write<Value: Encodable>(
+        _ value: Value, _ containerId: UUID, _ kind: Kind, _ signature: Signature, in folder: URL
+    ) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // One file of each kind for a library: the one being written replaces any other.
+        removeFiles(in: folder) { id, fileKind, _ in id == containerId && fileKind == kind }
+        // Written in place, not through a temporary file. An atomic write keeps its temporary
+        // file beside the destination under another name (`<name>.sb-...` on macOS 27), and
+        // `removeFiles`, which removes any name it does not know, can run while one is being
+        // written. A write cut short leaves a file that does not decode, which reads as nothing
+        // kept and is replaced by the next write.
+        try? data.write(to: fileURL(containerId, kind, signature, in: folder))
+    }
+
+    // The four functions that read or write a file run on the concurrent pool, whoever calls
+    // them: a report holds a profile of every document and a vocabulary a set of terms for
+    // every keyword, and both are asked for from the main actor.
+
+    @concurrent
+    static func loadReport(
+        containerId: UUID, signature: Signature, in folder: URL = directory
+    ) async -> LibraryIntelligenceCenter.IntelligenceReport? {
+        read(LibraryIntelligenceCenter.IntelligenceReport.self, containerId, .report, signature, in: folder)
+    }
+
+    @concurrent
+    static func saveReport(
+        _ report: LibraryIntelligenceCenter.IntelligenceReport, containerId: UUID, signature: Signature,
+        in folder: URL = directory
+    ) async {
+        write(report, containerId, .report, signature, in: folder)
+    }
+
+    /// The vocabulary the first question builds from a library's passages (2.7 s for a library
+    /// past its 4,000-passage sample, measured on a Mac with `LibraryAnalysisScaleBenchmarkTests`).
+    @concurrent
+    static func loadVocabulary(
+        containerId: UUID, signature: Signature, in folder: URL = directory
+    ) async -> CorpusVocabulary? {
+        read(CorpusVocabulary.self, containerId, .vocabulary, signature, in: folder)
+    }
+
+    @concurrent
+    static func saveVocabulary(
+        _ vocabulary: CorpusVocabulary, containerId: UUID, signature: Signature, in folder: URL = directory
+    ) async {
+        write(vocabulary, containerId, .vocabulary, signature, in: folder)
+    }
+
+    /// Everything kept for one library.
+    static func remove(containerId: UUID, in folder: URL = directory) {
+        removeFiles(in: folder) { id, _, _ in id == containerId }
+    }
+
+    /// What is kept for one library and was made from other documents than it holds now.
+    static func removeStale(containerId: UUID, documents: String, in folder: URL = directory) {
+        removeFiles(in: folder) { id, _, signature in id == containerId && signature.documents != documents }
+    }
+
+    /// What is kept for any library that is not in `current` (it is gone, or has no documents)
+    /// or was made from other documents than `current` gives for it.
+    static func sweep(keeping current: [UUID: String], in folder: URL = directory) {
+        removeFiles(in: folder) { id, _, signature in current[id] != signature.documents }
     }
 }

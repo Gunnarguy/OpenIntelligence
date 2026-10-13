@@ -109,6 +109,10 @@ actor BNNSVectorDatabase: VectorDatabase {
     /// The store does not try again until the passages change.
     private var unreadableGeneration: Int?
 
+    /// Goes up each time the store is told to let go of its decoded passages. A decode of every
+    /// passage that was under way then still answers whoever asked for it, and is not kept.
+    private var releaseCount = 0
+
     /// What `readableChunks()` handed back while a passage could not be read, and the passage
     /// generation it belongs to, so a library in that state does not decode every passage
     /// again for each question. Not aligned with `slots`. Let go under memory pressure.
@@ -846,6 +850,7 @@ actor BNNSVectorDatabase: VectorDatabase {
         if inFile <= 0 { return pendingChunks }
         let generation = passageGeneration
         guard let meta = mappedMeta, unreadableGeneration != generation else { return nil }
+        let releasesBefore = releaseCount
 
         let task: Task<[DocumentChunk]?, Never>
         if let running = everyChunkTask, running.generation == generation {
@@ -878,7 +883,7 @@ actor BNNSVectorDatabase: VectorDatabase {
         }
         if passageGeneration == generation {
             everyChunkTask = nil
-            if decoded.count == slots.count {
+            if decoded.count == slots.count, releaseCount == releasesBefore {
                 everyChunkCache = decoded
                 readableFallback = nil
                 decodedByIndex.removeAll(keepingCapacity: false)
@@ -905,18 +910,22 @@ actor BNNSVectorDatabase: VectorDatabase {
     /// in the metadata file, and whoever asks next has them decoded again. The store calls this
     /// itself when the system reports memory pressure, because the decoded passages are the
     /// largest thing it holds (276 MB for 144,247 passages in the scale benchmark) and the one
-    /// thing it can rebuild.
+    /// thing it can rebuild. The app calls it for every open store when it leaves the foreground.
     ///
     /// A caller that is still holding the array it was given keeps those passages alive until
     /// it is done, so memory comes back when the last holder lets go, and a caller that asks
     /// again while another still holds the old array has both in memory for that time.
-    func releaseDecodedPassages() {
+    func releaseDecodedPassages(because reason: String = "memory pressure") {
+        releaseCount &+= 1
         guard everyChunkCache != nil || readableFallback != nil || !decodedByIndex.isEmpty else { return }
         let held = everyChunkCache?.count ?? readableFallback?.chunks.count ?? decodedByIndex.count
         everyChunkCache = nil
         readableFallback = nil
         decodedByIndex.removeAll(keepingCapacity: false)
-        Log.info("[BNNS] Released \(held) decoded passage(s) under memory pressure", category: .pipeline)
+        // Hand the freed blocks back, as the decode does when it finishes. Otherwise they can
+        // stay counted against the app after nothing in it holds them.
+        malloc_zone_pressure_relief(nil, 0)
+        Log.info("[BNNS] Released \(held) decoded passage(s): \(reason)", category: .pipeline)
     }
 
     private func watchMemoryPressure() {
@@ -1541,6 +1550,20 @@ actor BNNSVectorDatabase: VectorDatabase {
         return ids.map { id in
             guard let idx = positionById[id] else { return [Float]() }
             return readEmbedding(at: idx)
+        }
+    }
+
+    /// Each passage's similarity to `embedding`, worked out where its vector is (the mapped
+    /// file, or the vectors not saved yet). No vector is copied out, so asking about every
+    /// passage of a very large document costs one dot product each and no memory to speak of.
+    func similarities(to embedding: [Float], forChunkIDs ids: [UUID]) async -> [Float?] {
+        await awaitLoad()
+        let queryNorm = computeNormAccelerated(embedding)
+        guard embedding.count == dimension, queryNorm > 1e-9, !ids.isEmpty else { return ids.map { _ in nil } }
+        let positionById = positions(of: ids)
+        return ids.map { id in
+            guard let position = positionById[id], position < embeddingNorms.count else { return nil }
+            return cosineSimilarityMmap(embedding, queryNorm: queryNorm, chunkIndex: position)
         }
     }
 

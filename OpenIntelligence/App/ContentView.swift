@@ -410,6 +410,12 @@ struct ContentView: View {
                 await ragService.persistAllVectorStores()
                 ragService.persistIngestionQueueState()
                 ragService.saveSessionTranscript()
+                #if os(iOS)
+                    // Last, so that nothing above waits on it. Not on the Mac: a hidden or
+                    // minimised window would pay a full decode at its next question, and
+                    // macOS does not end a background app for the memory it holds.
+                    await ragService.releaseDecodedPassagesInVectorStores()
+                #endif
                 Log.debug(
                     "[App] Scene entered background - persisted vector stores, saved transcript",
                     category: .initialization)
@@ -488,6 +494,8 @@ struct ContentView: View {
         let newContainers = containerService.containers
         let removedContainerIDs = Set(oldContainers.map(\.id)).subtracting(newContainers.map(\.id))
         for containerId in removedContainerIDs {
+            // The analysis and vocabulary kept on disk for a library removed on another device.
+            LibraryIntelligenceCache.remove(containerId: containerId)
             LibraryVisualizationEngine.shared.invalidateCache(for: containerId)
             await ClusterLabelService.shared.invalidateCache(for: containerId)
             await SuggestedQuestionsService.shared.invalidateCache(for: containerId)

@@ -1506,3 +1506,91 @@ each: the 49 saves of building the 144,247-passage store took 15.5 and 16.3 s in
 without it and 60.8 s in the 5.6 code. The cut-off cases are held by tests through a hook that exists only in
 debug builds (`interruptMetadataWrites`). Two stores open on one library's files at once is still not tested.
 `[evidence_level: test_verified (BNNSVectorDatabasePersistenceTests, VectorStorePassageIndexTests, HybridSearchServiceTests; the full suite on 2026-10-13, 864 tests with 0 failures and 4 skipped), measured on the Mac for the save figures, confidence: high for the cases the tests reproduce, evidence_source: BNNSVectorDatabase.swift, PassageFileIndex.swift, VectorDatabase.swift, HybridSearchService.swift; CHANGELOG.md 5.7]`
+
+## 2026-10-13 - A large library is analysed from a sample, the analysis is kept until the library changes, and a sample never changes the embedding model
+
+**Context.** The owner answered the list of what the storage change left open with a go-ahead for all of it.
+The first thing measured was the library analysis (`LibraryIntelligenceCenter.analyzeLibrary`), which `RAGService` ran over every
+passage whenever the app loaded its documents, after every import and after every delete. On the 144,247-passage
+benchmark store it took 199 s and 1,054 MB over what the process held (Mac, unoptimised build), against 0.7 s
+for the store's own load. Its output feeds two things: three screens (the Database card, the Pipeline Audit,
+Library Settings), and the chunking settings of a library that tunes itself. A third is written and switched
+off: a queued rebuild that embeds the whole library again when the plan changes
+(`IngestionContext.allowsSelfTuningScheduling` is false for every kind of import).
+
+**Decision.** Past 4,000 passages, analyse at most that many, read by id: up to a quarter the documents' first
+passages, the rest an even sample. Keep the library's real counts in the report and mark it an estimate. Never
+take another embedding model from an estimate, except for a library with no documents yet; let the chunking
+settings follow an estimate as they follow any report. Keep the report, and the vocabulary the first question
+builds, in the app's local cache folder under a name that carries a hash of the library's documents and the
+store's passage count, and use a file only under the name the library has now. Keep a vocabulary only when it
+was built from every passage in the store and each belongs to a listed document. Remove what no longer matches
+at once: for one library on every refresh, after every write and on its deletion, and for all of them each time
+the documents are loaded, and never before they have been loaded once. End an import in pieces with the same
+refresh as any other import. Build the vocabulary, pick the sample and read and write the kept files off the
+main actor; write them in place. Hold a vocabulary in memory for later questions only when it is of the whole
+library as the library is when the build ends.
+
+**Alternatives.** (1) Compute the size-dependent measures exactly by streaming every passage. Rejected: the cost
+is the tokenising itself, so it would still be minutes on a large library. (2) Stop analysing at launch and do
+it only when a screen asks. Rejected: the settings a self-tuning library gives its next import are decided from
+the report at launch, and a kept report gives the same decision without the work. (3) Let a sample change
+every setting, or none. Both were tried in this session. Letting it change everything was rejected after the
+first review: whether code or math is found in a sample depends on which passages were drawn, and the draw
+moves whenever the passage count does. Letting it change nothing was built next, on the first review's ground
+that an import seeing a changed plan queues a re-embedding of the library, and rejected after the second: that
+queue is behind `IngestionContext.allowsSelfTuningScheduling`, which is false for every kind of import, so no
+report can start a rebuild today; and each import rewrites the chunking settings from the file it reads, so a
+large library would have kept the last file's settings with nothing to move them back. What is left is the
+rule above: the half that would cost a rebuild is closed to an estimate, and the half that costs nothing is
+not. (4) Keep the files in the system's Caches folder. Tried and rejected after review: every other path in
+the app goes through `OpenIntelligenceRuntimePaths`, whose overrides exist because a path that ignored them
+once put benchmark fixtures in the owner's real library. (5) Put the signature inside the file. Rejected for
+the name: staleness can then be told from a folder listing, which is what makes checking every library on
+every load of the documents cheap. (6) Remove a kept file only when a forced refresh comes. Tried and rejected
+after review: a document removed by sync arrives through a refresh that is not forced, a library removed by
+sync through none, and opening the audit screen forces one with nothing changed. (7) Write the kept files atomically. Tried, and changed after the third review: an atomic write keeps a
+temporary file beside its destination under a name the removal does not know (seen on macOS 27 by listing the
+folder during a write), the removal clears unknown names so that a file from an older naming scheme cannot
+linger, and once the writes moved off the main actor the two could overlap. A file written in place and cut
+short does not decode, which is the same as nothing kept. (8) Speed up the analysis
+itself. Not done: it would change results in corner cases for every library, and what is left is about 6 s on the Mac,
+once per change of a large library.
+
+**Consequences.** A launch with an unchanged library reads no passages for the analysis. A library past 4,000
+passages has its chunking settings follow a sample, and its embedding model stays what it is until someone
+changes it by hand; its screens say how many passages were measured. A document the sample did not reach is
+shown without a preview. The first question after a change to a library no longer holds the main actor while
+its vocabulary is built, and a question limited to named documents no longer leaves a vocabulary of those
+documents behind as the library's. Two more files per library exist on the device, with text from its documents in them, and they go
+when that text's documents go. A report held in memory no longer outlives a change to the library's documents.
+`[evidence_level: test_verified (LibraryAnalysisSampleTests) and measured on the Mac (LibraryAnalysisScaleBenchmarkTests, 2026-10-13); everything inside `RAGService` (the calls that remove kept files, the refresh after an import in pieces, which actor each piece runs on, the switch that keeps a rebuild from being queued) is code_verified, not driven by a test; not run on a device, confidence: high for the mechanism, medium for a sample standing in for the whole on real libraries, evidence_source: AdaptiveEmbeddingOptimizer.swift, RAGService.swift, QueryEnhancementService.swift, ContainerService.swift, ContentView.swift]`
+
+## 2026-10-13 - A question inside a very large document compares words for its candidates only, and the store scores vectors where they are
+
+**Context.** `searchInsideScope` read every passage of the named documents and searched each for the question's
+words. Its own comment said a document is a few thousand passages at most; the owner's library is one document
+of 144,247. The review of the storage change had also shown its similarities were all 0, fixed in `c73b3b9` by
+asking for vectors by id because `BNNSVectorDatabase.swift` could not be given a method then.
+
+**Decision.** The owner's go-ahead of 2026-10-13 came in answer to a report that said the faster form waited
+on his word for that file. He did not name the file himself. The agent read the answer as his word for it,
+said so in its reply, and limited the change in that file to methods that read: `similarities(to:forChunkIDs:)`,
+which scores in place, and the release of decoded passages. The file's format is untouched. If that reading
+was wrong, both come out of the file without touching anything stored. Up to 6,000 passages in scope, nothing else changes: every passage is read and
+scored both ways. Past 6,000, every vector is scored, and words are compared only for the 2,000 closest
+passages and the keyword index's best 400 hits inside the scope. The rule is the same whether passages are
+handed in or read by id. With no vector to score at all, every passage is read, and a question whose own
+embedding failed counts as that. The closest passages are picked off the main actor, ties in store order.
+
+**Alternatives.** (1) A keyword query restricted to the document. Not available: `SQLiteFullTextService` has no
+such query, and it is a hard-boundary file that was not edited. Its library-wide hits are narrowed to the scope
+instead. That search matches every word first and any word only when nothing matches all of them, so a passage
+outside the scope that holds every word leaves the scope with no keyword candidates, and a large library can
+crowd a document's hits out of the 400. Both need a scope past 6,000 passages that is not the whole library;
+below that every passage is read. (2) Keep reading every passage.
+Rejected for that size: it decodes 330 MB and lowercases all of it for each question.
+
+**Consequences.** A scoped question on the 144,247-passage document reads the text of at most 2,400 passages. A passage far
+from the question whose only match is on words the index does not rank in its best 400 can be missed there.
+`[evidence_level: test_verified (HybridSearchServiceTests), not run on a device, confidence: high for the mechanism, evidence_source: HybridSearchService.swift searchInsideScope; BNNSVectorDatabase.swift similarities]`

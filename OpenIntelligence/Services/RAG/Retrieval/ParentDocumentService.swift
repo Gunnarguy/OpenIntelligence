@@ -154,9 +154,19 @@ final class ParentDocumentService {
     ) async -> ExpansionResult {
         let startTime = Date()
 
-        // Build lookup structures
-        let chunkById = Dictionary(uniqueKeysWithValues: allChunks.map { ($0.id, $0) })
-        let chunksByDocument = Dictionary(grouping: allChunks) { $0.documentId }
+        // The passages of the documents the retrieved passages come from, each document's in
+        // the order of its passage numbers. Only those documents are looked at, and each is
+        // sorted once. (Through 5.6 a dictionary of every passage in the library was built for
+        // each question, and never read; every passage was grouped by document; and a
+        // document's passages were sorted again for each retrieved passage.)
+        let wantedDocuments = Set(retrievedChunks.map { $0.chunk.documentId })
+        var chunksByDocument: [UUID: [DocumentChunk]] = [:]
+        for chunk in allChunks where wantedDocuments.contains(chunk.documentId) {
+            chunksByDocument[chunk.documentId, default: []].append(chunk)
+        }
+        for document in Array(chunksByDocument.keys) {
+            chunksByDocument[document]?.sort { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
+        }
 
         // Track which chunks we've already included to avoid duplicates
         var includedChunkIds = Set<UUID>()
@@ -190,8 +200,7 @@ final class ParentDocumentService {
             // Find siblings
             let siblings = findSiblings(
                 for: retrieved.chunk,
-                in: chunksByDocument[retrieved.chunk.documentId] ?? [],
-                chunkById: chunkById
+                inSorted: chunksByDocument[retrieved.chunk.documentId] ?? []
             )
 
             // Collect siblings to insert adjacent to the matched chunk
@@ -291,12 +300,8 @@ final class ParentDocumentService {
     /// Find sibling chunks for a given chunk (same document, same page/section, adjacent indices)
     private func findSiblings(
         for chunk: DocumentChunk,
-        in documentChunks: [DocumentChunk],
-        chunkById _: [UUID: DocumentChunk]
+        inSorted sortedChunks: [DocumentChunk]
     ) -> SiblingGroup {
-        // Sort chunks by index
-        let sortedChunks = documentChunks.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
-
         // Find the position of our chunk
         guard let currentIndex = sortedChunks.firstIndex(where: { $0.id == chunk.id }) else {
             return SiblingGroup(before: [], after: [])
