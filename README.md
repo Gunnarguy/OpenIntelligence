@@ -54,7 +54,7 @@ an answer is more trustworthy when you can see what it was built from.
 
 | | |
 | :-- | :-- |
-| **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, images, audio, and video. Pages, Numbers and Keynote are not readable and must be exported first. Vision handles OCR when a PDF's text layer is unreliable. |
+| **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, images, audio, and video. From 5.7, JSON and JSON Lines files import as records. Pages, Numbers and Keynote are not readable and must be exported first. Vision handles OCR when a PDF's text layer is unreliable. |
 | **Searches two ways at once** | Meaning-based vector search and keyword BM25 run together, then fuse and re-rank. Hunting a part number and asking a conceptual question both work. |
 | **Shows its work** | A live pipeline view names each stage as it runs, and every claim links back to the excerpt behind it. |
 | **Explains its own vocabulary** | Every figure it shows defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and says that it is a per-chip rating rather than a measurement. |
@@ -166,7 +166,7 @@ The [codemap](Docs/ai/codemap/INDEX.md) names, for each feature, the code to rea
 | **Storage & Sync** | `SettingsStore.swift`, `WorkspaceSyncService.swift` | Feature gates, StoreKit 2 quotas, iCloud workspace sync |
 | **Interface** | `ChatScreen.swift`, `DocumentLibraryView.swift` | Chat and library surfaces |
 | **Vocabulary** | `Glossary.swift`, `GlossaryViews.swift` | One definition per term in two registers, attached in place via `.definedTerm(_:)` |
-| **Shortcuts** | `RAGAppIntents.swift`, `ScreenAwarenessIntents.swift` | Siri and App Intents, resolving in-process |
+| **Shortcuts** | `RAGAppIntents.swift`, `ScreenAwarenessIntents.swift`, `VisualIntelligenceIntents.swift`; from 5.7 also `SearchPassagesIntent.swift`, `AddToLibraryIntent.swift`, `LibraryIntents.swift`, `OpenItemIntents.swift` | Siri and App Intents, resolving in-process |
 
 ## Building
 
@@ -202,12 +202,20 @@ failure.
 checkpointing, so a long import survives memory pressure and app restarts instead
 of starting over.
 
+From 5.7 a text, Markdown or JSON Lines file over 8 MB is imported the same way, in pieces of
+about 2 MB with a checkpoint after each. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro
+Max as 144,247 passages on 2026-10-10.
+
 ## Status
 
 Shipping on the App Store for iPhone, iPad, and Mac. **5.6 is live on both platforms**, released
 2026-10-08 from build 485. Developed against a
 [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
 synced from the same database the work is planned in.
+
+**5.7 is in preparation and is not on the App Store yet.** It adds JSON and JSON Lines import as records,
+imports of very large text files in pieces, Shortcuts actions that return their results, and sharing an
+answer with its sources. Statements in this file marked "from 5.7" describe that release.
 
 **Private Cloud Compute shipped in 5.2**, live on both platforms since 2026-09-10, and execution is
 confirmed on a physical device. The release pipeline enforces the claim rather than trusting it:

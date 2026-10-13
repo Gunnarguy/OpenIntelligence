@@ -1,43 +1,60 @@
-This one's about your first few answers.  The citations open now, numbers and times come through the way your document wrote them, and the Verified badge only shows when a check actually ran and passed.
+This one's about getting things in and out of the app.  JSON and JSONL files import as records now, Shortcuts can search your library, add to it and make new libraries, and an answer you share takes its sources with it.
+
+
+YOUR DOCUMENTS
+
+• JSON and JSONL files import as records.  Each record is its own passage, with its field names and its numbers kept exactly as the file has them.
+
+• Very large text and JSONL files import a piece at a time.  An 88 MB file with 189,579 records took 2.8 GB of memory on an iPhone and iOS closed the app before it was a fifth done.  Now each piece is indexed and saved before the next one starts, and an interrupted import picks up where it was.
+
+• OpenIntelligence shows up under "Open in", and the Documents screen has a Paste button for a copied file, a web address or text.
+
+• Numbers in tables are kept.  A cell that held only a small number, a year or a part code was dropped when the file was imported.
+
+• Pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• Keyword search covers every page of a large PDF.  A PDF over 10 MB that you imported before needs importing again.
+
+• Recordings use Apple's newer transcriber, and pictures are described from the picture itself.
+
+• New libraries on iPhone and iPad use the faster of the app's two copies of its search model.  A library you already have keeps the one it was built with.
+
+
+LARGE LIBRARIES
+
+• A very large library doesn't hold the app up.  With 144,247 passages in one library, the app read all of it twice every time it opened and went through it again before the first question.  Now it's read once, and those steps work from an even sample.
+
+• The Atlas opens and finishes on a very large library, and it names its clusters and axes from your own documents.  The names used to come from a built-in list of subjects, and they could change from one launch to the next.
+
+
+SHORTCUTS AND SIRI
+
+• Actions hand back what they found, so the next step of a shortcut can use the answer, its sources, your documents or your conversations.
+
+• New actions: Find Passages, Add to Library, Create Library, Set Active Library, Open Library and Open Document.  "Ask My Documents" and "Ask a Library" have a Mode menu.
+
+• "Ask About a Document" only reads that document, and "Save a Web Page" downloads the page now.
+
+• Touch and hold the app icon for Ask, Add Document and Scan Document.
+
+
+SHARING
+
+• A shared answer takes its sources with it, and the chat menu has Export Conversation, as Markdown or JSON Lines.
 
 
 ANSWERS
 
-• The citations in an answer open now.  An answer cites its sources as [S1], [S2] and so on, and tapping one did nothing.
+• Sentences from your documents aren't cut in half before the model reads them.
 
-• Numbers and times stay the way your document wrote them.  A cleanup step rebuilt every answer and split it at every period, so "$300.00" came out with a space in the middle and "10:00 p.m." lost its "m."
-
-• Two facts don't get merged into one.  That same cleanup could treat "E1 is an open circuit" and "E2 is a short circuit" as one sentence said twice and drop one of them.
-
-• Answers stop ending with a line from my own prompt.
-
-• No more asterisks in Fact Check, or "###" and "**" while an answer's being written.
+• Numbers are checked as numbers.  An answer said a model had "2.5 billion" parameters, and it passed because another model in a table was named "Qwen-2.5-3B".  It doesn't pass now.
 
 
-THE VERIFIED BADGE
+ALSO
 
-• Verified means a check ran and passed.  It used to show on answers whose checks failed or never ran.  Now an answer says Verified, Unverified or Not Checked.
+• A notification when an import or a long answer is done, if you turn it on in Settings.
 
-• A right answer doesn't get "Verification failed" under it when the claim check already supported every sentence.
-
-
-YOUR LIBRARY
-
-• A healthy library isn't told to rebuild its search index.  The Documents tab could say "This library needs its search index rebuilt" after you imported a file and asked one question, and say it again after you tapped Rebuild.
-
-
-PRIVATE CLOUD COMPUTE
-
-• In Deep Think and Maximum, "Just Once" on the consent sheet carried over to your next question.  Now it covers one question.
-
-
-GETTING STARTED
-
-• The app tells you when your device can't run Apple Intelligence, or when it's turned off or still downloading, and what still works without it.
-
-• An empty library doesn't suggest questions it can't answer.
-
-• On iPhone and iPad, the hardware readout waits until you're past the welcome screen.
+• Redeem a Code on the plans screen.
 
 
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.

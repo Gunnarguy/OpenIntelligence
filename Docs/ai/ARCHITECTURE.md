@@ -64,7 +64,7 @@ below, read or grepped at d5cc916 on 2026-09-24]`
 | The PCC consent sheet | `UI/Components/CloudConsentPromptView.swift`, presented by `Features/Chat/Conversation/ChatScreen.swift` | `CloudConsentPromptView`; `.sheet(item: $activeCloudConsent)` fed by `RAGService.pendingCloudConsent` (RAGService.swift:1484); answered through `RAGService.resolveCloudConsent(decision:)`; raised by `RAGService.ensureCloudConsentIfNeeded` (:3666) |
 | Evidence Threads | see the Evidence Threads row above | `EvidenceThreadStore`, `RAGService.createNewThread`, `ThreadSidebarView` |
 | The model selector | `UI/Components/ModelStatusIndicator.swift`, placed in `ChatScreen.swift:3804`; `Features/Settings/Components/ModelSelectorSheet.swift` | `ModelStatusIndicator`, a picker over `SettingsStore.fmPreference` (`FoundationModelPreference`, `Core/Models/LLMModel.swift:234`). `ModelSelectorSheet` sets `SettingsStore.selectedModel`, but the only place that creates it is its own `#Preview` (ModelSelectorSheet.swift:223) `[evidence_level: grep_verified, confidence: high]`. So does `QuickModelPickerSheet`: only `ModelQuickSelector` opens it, and only that file's `#Preview` creates `ModelQuickSelector` (ModelStatusIndicator.swift:348). Otherwise `selectedModel` is set inside `SettingsStore` alone, and it picks the service class `RAGService.rebuildLLMServicesFromSettings` builds (RAGService.swift:1986-1989) `[evidence_level: grep_verified, confidence: high, evidence_source: grep for ModelQuickSelector(, QuickModelPickerSheet( and selectedModel = at dc66b29, 2026-09-28]` |
-| Shortcuts, Siri | `Services/Agentic/RAGAppIntents.swift`, `Services/Agentic/ScreenAwarenessIntents.swift`, `Services/Agentic/Entities/` | `RAGAppShortcutsProvider` (RAGAppIntents.swift:266), 9 `AppShortcut` entries; intents such as `QueryDocumentsIntent`, `SearchLibraryIntent`, `IngestDocumentIntent`. Shortcut count is a hard boundary. |
+| Shortcuts, Siri | `Services/Agentic/RAGAppIntents.swift`, `Services/Agentic/ScreenAwarenessIntents.swift`, `Services/Agentic/VisualIntelligenceIntents.swift`, and from 5.7 `SearchPassagesIntent.swift`, `AddToLibraryIntent.swift`, `LibraryIntents.swift`, `OpenItemIntents.swift`, `IntentSupport.swift` and `AppNavigationRequest.swift` in the same folder; `Services/Agentic/Entities/` | `RAGAppShortcutsProvider` (RAGAppIntents.swift:371), 10 `AppShortcut` entries since 5.7 (9 through 5.6); intents such as `QueryDocumentsIntent`, `SearchLibraryIntent`, `IngestDocumentIntent`; 22 actions in all, 17 of them returning a value (counted 2026-10-12). Shortcut count is a hard boundary: all ten slots are used. |
 | Sample documents | `Features/Documents/Library/SampleDocumentManager.swift` | `SampleDocumentManager` (:95), sample bodies written in Swift in `samples`, `importSamples` (:365), `refreshStaleSamples` (:522); started from `DocumentLibraryView.importSampleWorkspace` and `OnboardingChecklistView` |
 | What's New, version history | `Features/Onboarding/WhatsNewStore.swift`, `WhatsNewView.swift`; `Features/Settings/VersionHistory.swift`, `VersionHistoryView.swift`; `Resources/VersionHistory.md` | `WhatsNewStore.releases` (:102) and `evaluateOnLaunch`, sheet presented in `App/ContentView.swift`; `VersionHistoryLoader` parses the bundled `VersionHistory.md`, a copy of `Docs/USER_CHANGELOG.md` held in step by `VersionHistoryTests.testBundledHistoryMatchesTheWrittenChangelog`; opened from `SettingsView.swift:564` and `AboutView.swift` |
 
@@ -112,6 +112,10 @@ The privacy claim is the product, so these are the invariants worth checking on 
 - Ingestion, indexing, retrieval, and ranking are local. Nothing is uploaded to make search work.
 - Only final answer generation may leave the device, only to Apple Private Cloud Compute, only with
   consent, and only after the user has seen which excerpts would be sent.
+- From 5.7 the app makes one other kind of request, and it carries nothing from the library: it downloads
+  a web page when the person gives it the address ("Save a Web Page", the Link parameter of "Add to
+  Library", and a web address pasted on the Documents screen), through `WebPageFetchService`.
+  `Docs/PRIVACY_AND_ROUTING.md` has the detail.
 - Every use of `PrivateCloudComputeLanguageModel` must be gated behind `EntitlementChecker`.
 - The answer's execution badge is read from an execution receipt, not from what was requested.
 - There is no account, no server operated by this project, and no third-party AI service in the path.
@@ -124,7 +128,7 @@ to keep working without three of them.
 | System | Code boundary | If unavailable |
 |---|---|---|
 | Apple Foundation Models (on-device and PCC) | `Services/AIPlatform/AppleFoundationModels/` | No answer generation. Retrieval still works, so citations and evidence remain available. The public SDK exposes no tier selector, no server architecture, and no server context window; do not name any of them. |
-| CloudKit / iCloud Drive | `Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Library stops reconciling across devices. Local library keeps working. Sync interleaving is a known source of defects and has no test coverage. |
+| CloudKit / iCloud Drive | `Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Library stops reconciling across devices. Local library keeps working. Sync interleaving is a known source of defects. Since 5.7 one case has tests: a sync pass skips a library's vector store while an import into it is unfinished (`WorkspaceSyncImportGuardTests`). Reconciliation between two devices has no test coverage. |
 | StoreKit 2 | `Services/Billing/`, `EntitlementStore.swift` | Entitlement state cannot refresh. Must degrade toward the user keeping what they paid for, never toward revoking it. |
 | Core ML reranker | `Resources/MLModels/ReRankerModel.mlpackage` | The cross-encoder drops out and `RAGEngine.rerank` ranks candidates with its heuristic fallback instead, logging a warning; scores are not comparable to a cross-encoder run. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:329-346]` Bound to `cross-encoder/ms-marco-TinyBERT-L2-v2` by exact path in `THIRD_PARTY_NOTICES.md`, which is the provenance of record. |
 
@@ -136,8 +140,8 @@ in the path, which is a product guarantee rather than a current state.
 - **The repository lives in iCloud-synced `~/Documents`.** Synchronized file groups plus iCloud
   conflict copies produce duplicate-symbol errors that point at innocent code. `.git` is a file
   pointing at `.git.nosync` for the same reason.
-- **`RAGAppIntents.swift` uses 9 of 10 available Siri shortcut slots.** The tenth is close to a
-  one-way door.
+- **`RAGAppIntents.swift` uses all 10 available Siri shortcut slots since 5.7** (9 through 5.6). Adding one
+  now means removing one: an eleventh stops the whole set registering with no error.
 - **Retrieval measurement exists but is not yet trustworthy.** The harness does measure it —
   `BenchmarkRuns/LEDGER.md` carries nDCG and MRR@10 figures — so the older claim that it never had
   is withdrawn as of 2026-09-01. The live problem is different and worse: retrieval is
@@ -147,7 +151,7 @@ in the path, which is a product guarantee rather than a current state.
   makes every quality change in the stack unfalsifiable"
   (https://app.notion.com/3cc49a74d54f81d7a88dffe679ce9bb1) and "Two runs of one build return
   different evidence for the same question" (https://app.notion.com/3bf49a74d54f81189046d2f007f68272)
-  are both To Do in Future Backlog, and `Docs/ai/STATE.md` has 5.5 as the open release.
+  were both To Do in Future Backlog on 2026-09-29, when `Docs/ai/STATE.md` had 5.5 as the open release (5.7 is the open release on 2026-10-12).
   (Corrected 2026-09-29: this line used to call it the
   current work.) `[evidence_level: artifact_derived, confidence: high, evidence_source: Notion
   roadmap data source queried 2026-09-29; Docs/ai/STATE.md Objective]`

@@ -783,6 +783,8 @@ Thirty-three concepts. Turning meaning into coordinates: the one genuinely stran
 
 **Expert's expert.** Three corrections to the word bank. "Neural Engine, status Core" overstates: five lines in the app permit it, none place work there, and Core AI exposes nothing; say "requested." "Core AI, Conditional" understates: on the 27 systems `SettingsStore` makes it the default and migrates. And the Opus page's "generated on the Neural Engine through Apple's newer on-device inference path" collapses two different providers into one sentence. Also worth knowing: the zero-vector fallback exists so a provider failure doesn't corrupt array shape, which means a zero vector can be persisted and will simply never match anything; validation is what should catch it.
 
+**Since 5.7 (note of 2026-10-12).** Two things in the paragraph above have moved. From 5.7 `SettingsStore` no longer makes Core AI the default everywhere on the 27 systems: `EmbeddingProviderDefaults` gives a new library the Core ML copy on iPhone and iPad and the Core AI copy on macOS 27, and an existing library keeps the copy it was built with. And where the Core AI copy runs is no longer unknown: loading it prints a Neural Engine validation failure, and its rate against CPU-only puts it on the GPU (iPhone 16 Pro Max, 2026-10-10: 88.5 passages a second against 5.4; M3 Pro Mac, 2026-10-12: 4.71 ms a passage against 112.26). The Core ML copy measured 115.8 passages a second on that iPhone with the CPU and Neural Engine. `[evidence_level: measured, confidence: medium, evidence_source: Docs/ai/DECISIONS.md 2026-10-10; CHANGELOG.md 5.7]`
+
 ## Every concept
 
 ### Apple Foundation Models embedding provider (Dormant, verified as a placeholder)

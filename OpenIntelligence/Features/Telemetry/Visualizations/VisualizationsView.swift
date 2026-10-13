@@ -1878,6 +1878,8 @@ struct EmbeddingInfoSheet: View {
         switch settings.defaultEmbeddingProvider {
         case "coreml_sentence_embedding":
             return "Neural Engine Embeddings"
+        case "coreai_sentence_embedding":
+            return "Core AI Embeddings"
         case "nl_contextual_embedding":
             return "NLContextualEmbedding"
         case "nl_embedding":
@@ -1894,6 +1896,8 @@ struct EmbeddingInfoSheet: View {
         switch settings.defaultEmbeddingProvider {
         case "coreml_sentence_embedding":
             return "all-MiniLM-L6-v2 sentence-transformer via Core ML. Mean-pooled 384D vectors with Neural Engine acceleration for semantic similarity."
+        case "coreai_sentence_embedding":
+            return "all-MiniLM-L6-v2 sentence-transformer via Core AI. Mean-pooled 384D vectors computed on the GPU for semantic similarity."
         case "nl_contextual_embedding":
             return "NLContextualEmbedding (BERT-based) produces 512D context-aware vectors. 'Bank' near 'river' ≠ 'bank' near 'money'."
         case "nl_embedding":
@@ -1943,7 +1947,7 @@ struct EmbeddingInfoSheet: View {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
                                 .foregroundColor(.orange)
-                            Text("Apple's Embedding Atlas will add pinch-to-explore controls, automatic cluster naming, and shareable scenes.")
+                            Text("Apple's Embedding Atlas will add pinch-to-explore controls and shareable scenes.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }

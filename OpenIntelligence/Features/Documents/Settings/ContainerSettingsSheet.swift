@@ -419,7 +419,9 @@ struct ContainerSettingsSheet: View {
                 tagline: "all-MiniLM-L6-v2 • 384-dim",
                 detail: "Sentence-transformer model fine-tuned for semantic similarity. Produces 384-dimensional vectors via mean-pooling, accelerated on Neural Engine.",
                 isSelectable: true,
-                badgeText: "✓ Default",
+                // The badge follows the platform default since 5.7: Core ML on iPhone and iPad,
+                // Core AI on macOS 27 (`EmbeddingProviderDefaults`).
+                badgeText: EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreML ? "✓ Default" : nil,
                 supportedDimensions: [384],
                 metrics: [
                     OptionMetric(icon: "bolt.fill", text: "ANE accelerated", tint: .orange),
@@ -445,12 +447,15 @@ struct ContainerSettingsSheet: View {
 // `AppleIntelligenceTransitionPlan.md:16`, where "a 40%+ reduction" is stated as a GOAL,
 // and no measurement of it exists in this repository. Flagged unverified by
 // `LIBRARY_SURFACES_AUDIT_2026-08-11.md:196` and resolved here.
-let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine option, recompiled for Apple's Core AI runtime. Runs zero-copy on Apple Silicon, which changes speed rather than accuracy."
+let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine option, recompiled for Apple's Core AI runtime. Runs zero-copy on Apple Silicon, which changes speed rather than accuracy. It runs on the GPU, not the Neural Engine, and a library keeps the option it was built with."
         var coreAIAlertMessage: ProviderAvailabilityAlert? = nil
 
         #if canImport(CoreAI)
         if #available(iOS 27.0, macOS 27.0, *) {
             coreAISelectable = true
+            if EmbeddingProviderDefaults.preferredSentenceProviderId == EmbeddingProviderDefaults.coreAI {
+                coreAIBadge = "✓ Default"
+            }
         } else {
             coreAIAlertMessage = ProviderAvailabilityAlert(
                 id: "coreai_sentence_embedding_os_req",
@@ -485,11 +490,18 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
                 badgeText: coreAIBadge,
                 supportedDimensions: [384],
                 metrics: [
-                    OptionMetric(icon: "bolt.fill", text: "Silicon-native ANE", tint: .indigo),
+                    // Was "Silicon-native ANE". Loading this model prints a Neural Engine validation
+                    // failure, and its rate against CPU-only puts it on the GPU (iPhone 16 Pro Max
+                    // 2026-10-10: 88.5 passages a second against 5.4; M3 Pro Mac 2026-10-12: 4.71 ms
+                    // a passage against 112.26).
+                    OptionMetric(icon: "bolt.fill", text: "Runs on the GPU", tint: .indigo),
                     OptionMetric(icon: "memorychip", text: "Zero-copy memory"),
                     // Was "40%+ faster". That figure is a goal from
                     // AppleIntelligenceTransitionPlan.md:16, never measured here.
-                    OptionMetric(icon: "gauge.with.needle", text: "Lower latency"),
+                    // "Lower latency" followed it out on 2026-10-12: on the same iPhone the Core ML copy
+                    // measured 115.8 passages a second against 88.5 for this one. The precision of the
+                    // weights is the property that can be checked (Float32 in the model's metadata).
+                    OptionMetric(icon: "gauge.with.needle", text: "32-bit weights"),
                 ],
                 alert: coreAIAlertMessage
             )

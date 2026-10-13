@@ -20,7 +20,7 @@ The active source of truth for architecture, modules, and namespaces.
 | [ROADMAP.md](ROADMAP.md) | *Pointer to Notion since 2026-09-29* | **Notion is authoritative for the roadmap.** This file says only where releases stand; its pre-5.0 body is kept at `Archive/ROADMAP_record_through_2026-09-29.md`. Reach the database with the `notion-roadmap` skill. |
 | [LIMITATIONS.md](LIMITATIONS.md) | **Active Reference** | Product, safety, and technical boundaries, including which quality modes have a measured accuracy baseline and which do not. |
 | [RELEASE_NOTES.md](RELEASE_NOTES.md) | **Active Changelog** | Version release summaries and breaking dependency changes. |
-| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.6. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
+| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.6, with the unreleased v5.7 section at the top. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
 | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) | **Active Reference** | The step-by-step walkthrough of how a document is read and a question answered; `README.md` sends readers here. The short root overview that shared its name moved to `Archive/HOW_IT_WORKS_root_overview_v2.0.md` on 2026-09-29. |
 | [AppleIntelligenceTransitionPlan.md](AppleIntelligenceTransitionPlan.md) | *Historical plan, still on `AGENTS.md` rule 14's update list* | Its own banner says the phase plan is finished. App code comments in `ContainerSettingsSheet.swift` cite it by line, so it stays in place until an app release can update them. |
 | [DEMO.md](DEMO.md) | *Historical reference* | The demo walkthrough and the list of material never to use on camera. |
@@ -111,6 +111,7 @@ Operating protocol for any agent or engineer modifying the codebase.
 | [PHASE_1A_IMPLEMENTATION_PLAN.md](Archive/06_PHASE_1A_IMPLEMENTATION_PLAN.md) | *Archived 2026-09-29* | Evidence Threads Phase 1A tasks; Phases 1A to 1D are complete (`AGENTS.md` rule 13). |
 | [RepoOS Command Center](RepoOS/00_REPO_COMMAND_CENTER.md) | **Active Directive** | One-page entry point: document authority order (a ranking, not a reading list), edit boundaries, required tests. |
 | [Docs/ai/INDEX.md](ai/INDEX.md) | **Agent entry point** | Where an agent session starts. Every task reads `ai/STATE.md` (current objective and next action), the superseding protocol and `ai/ARCHITECTURE.md` (component map), then only what the preflight's route names (`AGENTS.md` rule 15). `ai/PROJECT.md`, `ai/DECISIONS.md` and `ai/RUNBOOK.md` are read on demand. |
+| [STATE_record_through_2026-10-10.md](Archive/STATE_record_through_2026-10-10.md) | *Archived 2026-10-12* | The long form `ai/STATE.md` had grown to (1,129 lines), kept word for word: the status and verification blocks from 2026-09-29 to 2026-10-10, the open checks for 5.6 and earlier, and the owner decisions still open. `ai/STATE.md` was rewritten short that day and points to it. |
 
 ---
 

@@ -142,9 +142,21 @@ and are safe. Run any long build with a guard beside it:
   done ) &
 ```
 
-The simulator for tests is the iPhone 18 Pro, `25E29FA1-6A22-4A86-AE9F-A6F48411E6D0`, the only
-iOS 27.0 phone left since the 18.x and 26.5 runtimes were removed on 2026-09-21. Boot it and wait
-for `(Booted)` in `xcrun simctl list devices` before starting `xcodebuild`.
+The simulators on this Mac are deleted between sessions (2026-09-28, 10-02, 10-07, 10-10 and again
+before 10-12), so do not trust an id written here, the old `25E29FA1-6A22-4A86-AE9F-A6F48411E6D0`
+included. Look first, and make one when the list is empty:
+
+```bash
+xcrun simctl list devices | grep 'OI 5.7 tests'
+```
+
+```bash
+xcrun simctl create "OI 5.7 tests" "iPhone 18 Pro" com.apple.CoreSimulator.SimRuntime.iOS-27-0
+```
+
+The second command prints the new id (`DE0883DB-2849-47F9-93AE-23C4E880FDED` on 2026-10-12). Use it as
+the destination, boot it, and wait for `(Booted)` in `xcrun simctl list devices` before starting
+`xcodebuild`. `[evidence_level: measured, confidence: exact for 2026-10-12, evidence_source: xcrun simctl list devices returned no devices at about 20:24 PT; the create command returned the id above at 20:26]`
 
 ## Test
 
@@ -553,6 +565,24 @@ Three things to get right:
 
 Until `.claude/` and `CLAUDE.md` are committed, a fresh worktree will not contain them, so a session
 started there gets no rules, skills, or hooks.
+
+### Delegated agents *(added 2026-10-12)*
+
+For work handed to another tool's agent (Antigravity through `~/.claude/skills/delegate/scripts/agy-job.sh`):
+
+1. `git worktree add --detach /private/tmp/oi-wt/<name> HEAD`, and start the agent with that folder as its
+   working directory. One worktree per writing agent.
+2. The brief says: edit and create files only; no `git add`, commit or stash; no `xcodebuild`; nothing in
+   `project.pbxproj`, entitlements, `Info.plist`, `Package.swift`, store files, `CHANGELOG.md` or `Docs/`; read
+   an iOS 26 or 27 API's declaration in the SDK before using it. It also says that the final structured answer
+   is the only thing kept, and to put the whole table in its `summary` field: twice a job's table was left in
+   an earlier message and lost.
+3. `git -C /private/tmp/oi-wt/<name> diff > <patch>`; read the diff; `git apply` it in the main checkout
+   (without `--3way` when the main checkout has its own uncommitted change to the same file); copy new files.
+4. Build for a device and the Mac and run the suite before committing. Then `git worktree remove --force`.
+
+A read-only survey is checked by `grep` for a sample of its quoted lines before any of it is repeated. Checks a
+worker returns are run directly, one line per item, never under `bash -c`.
 
 ## Governance checks
 
@@ -973,6 +1003,54 @@ update and leaves the libraries alone.
 
 `[evidence_level: measured, confidence: exact, evidence_source: devicectl install and launch output on 2026-09-23, 2026-09-24 and 2026-09-28]`
 
+### The provisioning flag, and when to install *(added 2026-10-12)*
+
+Build without `-allowProvisioningUpdates` unless an entitlement changed: the profile already on this Mac signs
+the app, and the flag is what lets Xcode change the App ID on the developer account. On 2026-10-10 the flag was
+used once, after `com.apple.developer.background-tasks.continued-processing.gpu` was added, and
+`codesign -d --entitlements - --xml <app> | plutil -p -` showed the key in the signed app.
+
+Install only when the app is not running on the phone: an install ends the app, and with it an import or a
+question. `xcrun devicectl device info processes --device <UDID>` has to succeed, list system processes, and
+not list `OpenIntelligence.app/OpenIntelligence`. A call that times out also prints nothing, so an empty
+listing proves nothing. Do not launch the app on his phone from the Mac while he may be holding it.
+
+### Timing the embedding model on a device *(added 2026-10-12)*
+
+A Debug build carries `DebugEmbeddingBench` (`OpenIntelligence/App/`). It runs when the app is launched with
+`-embeddingBench`, or finds an empty file named `run_embedding_bench` in its Documents folder (removed first, so
+it runs once), and writes `Documents/embedding_bench.json`: the bundled model alone under each Core AI and Core
+ML compute option with 1, 2 and 4 calls in flight. A second part (`-embeddingBenchProviders`, or a file
+`run_embedding_bench_providers`) times the two providers as an import calls them and compares their vectors,
+into `Documents/embedding_bench_providers.json`; as of 2026-10-12 it has not finished a run.
+
+```bash
+# place the flag (no launch needed: it runs the next time the app is opened and left in front)
+xcrun devicectl device copy to --device <UDID> --domain-type appDataContainer \
+  --domain-identifier Gunndamental.OpenIntelligence --source <empty file> --destination Documents/run_embedding_bench
+# fetch the result
+xcrun devicectl device copy from --device <UDID> --domain-type appDataContainer \
+  --domain-identifier Gunndamental.OpenIntelligence --source Documents/embedding_bench.json --destination <file>
+```
+
+The 2026-10-10 result on an iPhone 16 Pro Max is in `Docs/ai/DECISIONS.md` (the embedder entry of that date).
+To see which unit a Core AI model can use, load it in a `swiftc` probe and read stderr: a model the Neural
+Engine cannot take prints `ane_validation_message`, and output identical to CPU-only output means no
+half-precision unit ran.
+
+### The same question on the Mac (added 2026-10-12)
+
+A command-line probe answers "which unit runs the Core AI copy" without the app: load
+`EmbeddingModel.aimodel` with `AIModel` under `.default`, `.cpuOnly` and
+`SpecializationOptions(preferredComputeUnitKind:)` for the GPU and the Neural Engine, run the same
+512-token input through each, and print the time per call. On the M3 Pro Mac on 2026-10-12: 4.71 ms
+by default, 4.70 ms preferring the GPU, 5.30 ms preferring the Neural Engine, 112.26 ms CPU-only.
+The default is 24 times faster than the CPU alone and the same as the GPU preference, and loading
+the model prints a Neural Engine validation failure, so it runs on the GPU. Matching vectors
+between two options prove nothing about the unit: on 2026-10-10 the vectors under every option
+matched CPU-only output to nine decimal places, which only rules out a half-precision unit.
+`[evidence_level: measured, confidence: high for this Mac, evidence_source: the probe's output of 2026-10-12, kept in the session scratchpad and not in the repository; the probe source was a scratch file]`
+
 ## Staging a release without submitting it
 
 *Verified 2026-09-02, both platforms.*
@@ -1141,6 +1219,14 @@ cp fastlane/metadata-ios/en-US/release_notes.txt "$M/release_notes.txt"
 cp fastlane/metadata-ios/en-US/promotional_text.txt "$M/promotional_text.txt"
 fastlane push_metadata version:<v> platform:ios
 ```
+
+**App Review's notes are nearly full (2026-10-12).** `scripts/asc_listing_extras.rb <version>` appends
+`fastlane/review_notes/<version>.txt` to the notes already on the record and refuses when the total
+passes Apple's 4,000 characters. For 5.7 the notes went from 3,042 to 3,990, and the first draft of
+the addition (1,431 characters) was refused in the dry run, so it was cut to 946. The next version's
+addition will be refused until the additions for versions already reviewed are taken out of the
+notes on the record, which the script does not do. Run the dry run before writing the addition, not
+after. `[evidence_level: measured, confidence: exact, evidence_source: the script's dry-run and --apply output of 2026-10-12]`
 
 **Do not reach for `fastlane run deliver` with `api_key_path`.** That option expects a JSON wrapper;
 `APP_STORE_CONNECT_API_KEY_PATH` points at the raw `.p8`, and the run dies with

@@ -9,21 +9,25 @@
 > When a release or milestone changes where things stand, update the dated section below and nothing
 > else; `AGENTS.md` rule 14 lists this file for that reason.
 
-## Where things stand (2026-10-08)
+## Where things stand (2026-10-12)
 
 - **Live:** 5.6 on iPhone, iPad and Mac since 2026-10-08, build 485. `Docs/SHIPPED_VERSION.json` is the
-  per-platform record. It carries twelve fixes to a person's first few answers and one change. Inline
-  citations open their passage; numbers and times stay as the document wrote them; the Verified badge has
-  three states and shows Verified only for a check that ran and passed; "Just Once" consent for Private
-  Cloud Compute covers one question; a device that cannot run Apple Intelligence is told so; and a healthy
-  library is no longer told to rebuild its search index. The change: a Deep Think session reads its chunks
-  whole when they fit the device's window. The roadmap rows for these stay open until each is seen on a
-  device.
-- **Open:** nothing in source. The next source change needs a `## 5.7` heading in `CHANGELOG.md` first.
-- **Next candidates** are the roadmap's Future Backlog rows, including the ones the 2026-09-26 retrieval audit
-  filed (`Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/README.md`).
+  per-platform record.
+- **In preparation:** 5.7, opened 2026-10-09. Its records exist in App Store Connect on both platforms
+  (`PREPARE_FOR_SUBMISSION`); no Xcode Cloud build has run for it. In source so far: JSON and JSON Lines
+  import as records; very large text files imported a piece at a time with checkpoints; Shortcuts actions that
+  return results, with new actions for adding, finding, creating and opening; files accepted through "Open
+  in", paste, Home Screen actions and keyboard commands; sharing an answer with its sources and exporting a
+  conversation; a notification when an import or a long answer is done; fixes to how numbers are checked and
+  how sentences are selected; a very large library no longer slowing launch, Chat and the first question; an
+  Atlas that names its clusters and axes from the library's own words; the Core ML copy of the embedding model
+  for new libraries on iPhone and iPad. `Docs/USER_CHANGELOG.md` has each of these in plain words.
+- **Still open in 5.7:** indexing the vector store's passage file instead of decoding it at launch; device
+  checks of the items above; the roadmap rows on `v5.7` that are `To Do`.
+- **Next candidates** beyond that are the roadmap's Future Backlog rows, including the ones the 2026-09-26
+  retrieval audit filed (`Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/README.md`).
 
-`[evidence_level: release_state_verified, confidence: exact, evidence_source: Docs/SHIPPED_VERSION.json (app_store 5.6 on both platforms); App Store Connect read 2026-10-08 13:18 PT, iOS 5.6 and macOS 5.6 READY_FOR_SALE with build 485]`
+`[evidence_level: release_state_verified, confidence: exact, evidence_source: Docs/SHIPPED_VERSION.json (app_store 5.6 on both platforms, preparing 5.7); App Store Connect read 2026-10-12 20:25 PT, 5.7 PREPARE_FOR_SUBMISSION on iOS and macOS; and 2026-10-08 13:18 PT, iOS 5.6 and macOS 5.6 READY_FOR_SALE with build 485]`
 
 ## The old page
 

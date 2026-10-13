@@ -5,6 +5,15 @@
 > directly or through a delegated inventory that was then re-checked line by line. Line numbers
 > drift; the symbol names do not, so re-verify with the commands in §11 before quoting a number.
 > `[evidence_level: code_verified, confidence: exact_for_symbols_high_for_line_numbers]`
+>
+> **Since then (note of 2026-10-12).** The trace below is the tree of 2026-09-01. Two of its statements about the
+> embedder no longer describe the open release. Where it says Core AI is the default on iOS 27 and macOS 27
+> (the claims audit rows on the embedding sentence and on OI-0126): from 5.7 a new library on iPhone and iPad
+> uses the Core ML copy and only macOS 27 defaults to Core AI (`EmbeddingProviderDefaults`). Where it says Core
+> AI exposes no placement: that is still what the API offers, and the placement has since been measured. The
+> Core AI copy fails Neural Engine validation when loaded and runs on the GPU (iPhone 16 Pro Max 2026-10-10,
+> M3 Pro Mac 2026-10-12; figures in `Docs/ai/DECISIONS.md`, 2026-10-10). Nothing else below was re-read.
+> `[evidence_level: measured for the placement, code_verified for the default, confidence: medium]`
 
 This is the execution trace: what actually runs, in what order, on which thread, on which piece
 of silicon, with what data volume, and what each stage throws away. It covers process launch,

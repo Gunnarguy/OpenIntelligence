@@ -94,7 +94,7 @@ struct HowItWorksView: View {
                     // app expresses a preference through `preferredComputeUnits`; it cannot
                     // guarantee the Neural Engine ran. "Where available" is the honest form.
                     title: "Embed",
-                    detail: "Each passage is turned into a list of numbers representing what it is about. This runs on this device's Neural Engine where available.",
+                    detail: "Each passage is turned into a list of numbers representing what it is about. This runs on this device, on the Neural Engine or the GPU depending on the library's embedding option.",
                     term: .vector
                 )
                 stage(

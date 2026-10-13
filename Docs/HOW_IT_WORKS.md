@@ -84,7 +84,7 @@ The second constraint is that documents stay on the device. So "send the whole c
 | `Query` | 10,329 | 12 | Understanding, rewriting, intent, specification extraction, suggestions |
 | `Storage` | 4,534 | 4 | SQLite and the full-text index |
 | `LLM` | 3,687 | 6 | Prompt compilation and model execution |
-| `Embedding` | 2,897 | 9 | Vector generation across Neural Engine and Core ML providers |
+| `Embedding` | 2,897 | 9 | Vector generation across the Core ML and Core AI providers |
 | `Evaluation` | 1,743 | 8 | The benchmark runner and its metrics |
 | `VectorStore` | 1,686 | 4 | The memory-mapped vector database |
 | `AIPlatform` | 1,948 | 11 | Apple Foundation Models: sessions, tools, budgets, capability, routing policy |
@@ -168,7 +168,7 @@ Below 1,000 chunks, similarity is computed with Accelerate's `vDSP_dotpr` direct
 > Imagine a map where things sit near each other if they *mean* similar things. "Dog" and "puppy" are neighbours. "Dog" and "tax return" are on opposite sides of town. Now imagine that map has 384 directions instead of two, because meaning is more complicated than north and east.
 > Every card gets a pin on that map. Later, your question gets a pin too, and the app grabs the cards pinned nearby. That's how it finds "SAE 0W-20 synthetic" when you asked "what oil does my car take," even though those two phrases share no words at all.
 
-**How.** 384-dimensional sentence embeddings, generated on the Neural Engine through Apple's newer on-device inference path where available, falling back to Core ML.
+**How.** 384-dimensional sentence embeddings from a bundled MiniLM model, generated on the device through Core ML or Apple's newer Core AI framework. From 5.7 a new library on iPhone and iPad uses the Core ML copy, which Core ML schedules on the Neural Engine where the device has one, and a new library on a Mac with macOS 27 uses the Core AI copy, which runs on the GPU. A library keeps the copy it was built with.
 
 **Why 384.** Small enough that a whole library's vectors stay memory-mappable on a phone and similarity is a vectorised dot product rather than a search problem.
 
@@ -180,7 +180,7 @@ Below 1,000 chunks, similarity is computed with Accelerate's `vDSP_dotpr` direct
 > File every card **twice**: once alphabetically by the words on it, once by its pin on the meaning-map. Two systems because they fail in opposite ways. Alphabetical is perfect for "part number 4021-B" and useless for "how do I keep this thing running." The meaning-map is the reverse.
 > Also drop a bookmark every few pages. A big PDF on a phone gets interrupted constantly, and without bookmarks you'd start from page one every time. The bookmark has to remember the document's *identity*, not just the page, or you end up filing a second copy of the same document.
 
-**How.** Lexical tokens go to SQLite FTS5 with a Porter tokenizer and BM25 ranking. Dense vectors go to a memory-mapped binary store using cosine similarity. Both are isolated per library. Page-level JSON checkpoints carry a stable document ID. Documents over 10MB use a streaming lane, 15 pages at a time, flushing after each batch.
+**How.** Lexical tokens go to SQLite FTS5 with a Porter tokenizer and BM25 ranking. Dense vectors go to a memory-mapped binary store using cosine similarity. Both are isolated per library. Page-level JSON checkpoints carry a stable document ID. Documents over 10MB use a streaming lane, 15 pages at a time, flushing after each batch. From 5.7, text and JSON Lines files over 8 MB are read the same way, in pieces of about 2 MB, with a checkpoint after each piece.
 
 **Why two indexes.** Dense retrieval is strong on meaning and weak on exact strings such as part numbers and proper nouns. BM25 is the inverse. Running both and fusing them is cheaper and more reliable than making one arm do both jobs.
 
@@ -675,7 +675,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
 | `2` | Cut it into overlapping index cards, keep tables whole | Semantic and structure-aware chunking, ≤310 words, atomic table preservation, contextual prefixing |
 | `3` | Highlight names, dates and section headings | Named entity recognition and metadata tagging |
 | `4` | Check each card fits before filing it | Token gating, ≤510 word-piece tokens; citations are chunk-level, with page and quote, not byte offsets |
-| `5` | Give each card a position on a map of meaning | Dense embedding generation, 384 dimensions, Neural Engine or Core ML |
+| `5` | Give each card a position on a map of meaning | Dense embedding generation, 384 dimensions, Core ML or Core AI |
 | `6` | File every card twice, and leave bookmarks | Dual index storage: FTS5 lexical plus memory-mapped vector store, with page-level checkpointing |
 
 #### Answering a question

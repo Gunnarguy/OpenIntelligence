@@ -12,11 +12,14 @@ In short:
   and Maximum can also send their intermediate reasoning passes there, each behind the same consent check.
   Otherwise answers are written on the device, and on iOS and macOS 26 they always are.
 - Library sync through your iCloud Drive is available on Pro and Lifetime, and only when you turn it on.
+- From 5.7 (in preparation, not yet on the App Store) the app downloads a web page when you give it the
+  address, with "Save a Web Page", the Link field of "Add to Library" or a web address you paste on the
+  Documents screen. The request goes to that site and carries nothing from your library.
 - The app contains no third-party analytics, advertising or tracking code. Its only package dependency is
   swift-tokenizers.
 
 `[evidence_level: artifact_derived, confidence: high, evidence_source: first line: Docs/PRIVACY_AND_ROUTING.md:11-12 and Docs/ai/ARCHITECTURE.md]`
-`[evidence_level: code_verified, confidence: exact, evidence_source: second line: FoundationModelSessionFactory.swift:86-110 (PCC only on 27); ModelExecutionPlanner.swift:81-88; AgenticOrchestrator.swift:9000-9014 (a PCC choice lifts the reasoning passes' on-device pin); RAGService.swift:3676-3740 (the consent check). Third line: WorkspaceSyncService.swift:411-413. Fourth line: Package.resolved has one pin, swift-tokenizers; no AdServices, AdSupport, AppTrackingTransparency or analytics SDK import under OpenIntelligence/, searched 2026-09-29]`
+`[evidence_level: code_verified, confidence: exact, evidence_source: second line: FoundationModelSessionFactory.swift:86-110 (PCC only on 27); ModelExecutionPlanner.swift:81-88; AgenticOrchestrator.swift:9000-9014 (a PCC choice lifts the reasoning passes' on-device pin); RAGService.swift:3676-3740 (the consent check). Third line: WorkspaceSyncService.swift:411-413. Fourth line: Package.resolved has one pin, swift-tokenizers; no AdServices, AdSupport, AppTrackingTransparency or analytics SDK import under OpenIntelligence/, searched 2026-09-29. The web page line, added 2026-10-12: WebPageFetchService.swift, and Docs/PRIVACY_AND_ROUTING.md, "A web page the person asks for is downloaded"]`
 
 The summary this file carried until 2026-09-29 made statements the code contradicts, among them that
 Private Cloud Compute ran as a local simulation. It is kept as a record at

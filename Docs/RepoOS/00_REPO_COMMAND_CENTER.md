@@ -46,7 +46,7 @@ Per `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md` §14 and `Docs/AuditArtifacts/
 | Apple Foundation Models | `OpenIntelligence/Services/AIPlatform/AppleFoundationModels/*` |
 | iCloud/workspace sync | `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` |
 | StoreKit / billing | `OpenIntelligence/Services/Billing/StoreKitBillingService.swift`, `EntitlementStore.swift`, `OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit` |
-| App Intents/Siri/Shortcuts | `OpenIntelligence/Services/Agentic/RAGAppIntents.swift` (9 of 10 shortcut slots used) |
+| App Intents/Siri/Shortcuts | `OpenIntelligence/Services/Agentic/RAGAppIntents.swift` (10 of 10 shortcut slots used since 5.7; 9 through 5.6) |
 
 See `Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md` before touching any of these.
 

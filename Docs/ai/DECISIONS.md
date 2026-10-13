@@ -1015,3 +1015,405 @@ The same probe read `transcriptErrorHandlingPolicy`: left at its default (`nil`)
 window threw and the transcript kept its 3 entries, as it did with `.revertTranscript`; `.preserveTranscript`
 kept the failed prompt (4 entries). So the app sets no policy: the default already rolls a failed turn back.
 
+## 2026-10-10 - New libraries on iPhone and iPad embed with the Core ML copy of the model; the Mac keeps Core AI
+
+**Context.** From 5.0 a library made on iOS 27 or macOS 27 used `CoreAISentenceEmbeddingProvider`, and a saved
+Core ML default was moved to it. No measurement on a phone stood behind that. The owner's 88.50 MB import ran at
+46 falling to 32 passages a second on an iPhone 16 Pro Max, stopped whenever the app left the front, and heated
+the phone to "Serious".
+
+**Decision.** `EmbeddingProviderDefaults.preferredSentenceProviderId` (`EmbeddingService.swift`) answers Core ML
+on iOS and iPadOS and Core AI on macOS 27. `SettingsStore`, `ContainerService.defaultContainer` and
+`AdaptiveEmbeddingOptimizer` ask it. An existing library keeps its provider, and
+`RAGService.evaluateEmbeddingShift` no longer counts the other copy of the same model as a change of provider.
+
+**Rationale.** Measured on that iPhone on 2026-10-10 with `DebugEmbeddingBench` (model alone, 420 real tokens of
+512, thermal state nominal, passages a second): Core AI 88.5 default, 85.5 preferring the GPU, 78.5 preferring
+the Neural Engine, 5.4 on the CPU, and two or four calls in flight no faster; Core ML 115.8 on CPU and Neural
+Engine, 99.0 on all units, 84.0 on the CPU alone (104.0 with two in flight). On the Mac the same day the Core AI
+model printed a Neural Engine validation failure at its attention-mask step when loaded, and its vectors
+matched CPU-only output to nine decimal places under every option, so no half-precision unit ran it. Its rate
+says which unit did: on the M3 Pro Mac on 2026-10-12 it took 4.71 ms a passage by default and 4.70 ms
+preferring the GPU against 112.26 ms CPU-only, and on the iPhone 88.5 passages a second against 5.4, so it
+runs on the GPU on both. The Core ML
+provider already drops to the CPU for a background import; the Core AI provider has no such mode and its CPU
+path is unusable.
+
+**Alternatives.** Prefer a compute unit or run several calls at once in the Core AI provider (the owner had
+approved both; measured as no gain on the phone, so neither was built). Export the Core AI model again so the
+Neural Engine accepts it (needs `coreai-torch`, `torch` and `transformers` downloaded; not done). Move existing
+libraries (rejected: a provider change clears a library and embeds it again, 144,247 passages for the owner's).
+
+**Consequences.** The two providers are treated as one model by auto-tuning, though their vectors differ in
+precision and scaling and a library must stay on one of them. Not measured: the two providers end to end in an
+import, and how closely their vectors agree (`DebugEmbeddingBench.runProviders` exists for that and has not
+finished a run). If a re-exported Core AI model beats Core ML on the Neural Engine, this decision is re-opened.
+`[evidence_level: measured for the rates and the Mac finding; test_verified for the default and the copies rule, confidence: medium, evidence_source: scratchpad phone2/embedding_bench_models_1201.json as recorded in Docs/ai/STATE.md 2026-10-10; LargeLibraryCostTests]`
+
+## 2026-10-10 - A large library is read through samples, with fixed limits
+
+**Context.** A library of 144,247 passages on the owner's iPhone made the app slow at launch, on opening Chat
+and the Atlas, and on the first question. Each cost was a step that walked every passage, and several ran on the
+main actor.
+
+**Decision.** Above a fixed size these steps work from an even sample taken in the library's order
+(`RAGService.evenSampleIndices`): the Atlas and the other maps 6,000 passages; the query-expansion vocabulary
+and the suggested-question sampler 4,000 (the sampler also keeps every document summary); the extractive spec
+scan 20,000; the Atlas's term and phrase statistics about 2,000,000 characters in eight slices per long
+document. Below those sizes nothing changes. Where a screen shows a sample it says so and shows the library's
+real count.
+
+**Rationale.** These are statistics of a library, and an even sample in the library's order is spread over
+every document and repeatable. The alternative that keeps exactness, moving each step off the main actor and
+letting it run over everything, leaves minutes of work and gigabytes of memory on a phone.
+
+**Consequences.** A vocabulary built from a sample can miss a term that appears in few passages, and the spec
+scan can miss the one passage that holds a value (the keyword and vector searches still look in full). The
+limits are constants beside the code that uses them; none was tuned against retrieval quality.
+`[evidence_level: test_verified for each rule (LibraryMapSampleTests, LargeLibraryCostTests, SystemToolsAndScanTests); not timed on a device, confidence: medium]`
+
+## 2026-10-10 - The Knowledge Atlas takes its clusters from the embeddings and its names from the passages' own words
+
+**Context.** The Atlas named clusters by matching keywords against a built-in list of subjects, and named an
+axis with one word from a passage at its extreme. On the owner's library three clusters were all "API
+Reference", names and sizes changed between launches, and the axes read "Return", "Document" and "Text". He
+asked for a fix "genuinely universal" to any content.
+
+**Decision.** `AtlasLabeling` holds the whole rule as pure functions. Membership is a k-means over the sampled
+embeddings with fixed starting centres (1 cluster below 12 passages, otherwise 2 to 6). A cluster's name is the
+one or two words most over-represented in it against the sample; a word in more than 40% of passages names
+nothing; no two clusters share a name; a library that is all one group is named by its commonest words; with
+nothing to go on a cluster is "Group N". An axis is labelled at both ends from its lowest and highest tenth of
+passages, or "Component N". Words are split with `NLTokenizer`. The subject list and the code around it, about
+1,770 lines, are deleted.
+
+**Alternatives.** Keep the list and extend it (rejected: it is the thing that is specific to some content).
+Ask the on-device model to name clusters (rejected for now: a model call per cluster on every Atlas open, and
+names that would change between runs).
+
+**Consequences.** Names are words from the library, so they are only as good as its words: a library of codes
+or numbers gets "Group N". The map views and `LibraryVisualizationEngine` each cluster their own sample, so
+the chips under the map and the labels in it may show different counts; not checked on a device.
+`[evidence_level: test_verified (AtlasLabelingTests), confidence: medium; not seen on a device]`
+
+## 2026-10-10 - iCloud sync leaves a library's vector store alone during an import, and remembers across launches that two copies matched
+
+**Context.** `WorkspaceSyncService.synchronizeVectorStore` decodes both copies of a library's store, keeps the
+passages whose document has a record, and writes back what differs. An import saves its document record last.
+A device trace held 135 full decodes of one store during one import, and in a library with another document the
+pass would have written the store back without the import's passages. Separately, the record that two copies
+matched lived in memory, so every launch decoded and compared every synced library.
+
+**Decision.** A pass skips the vector store of any library with an unfinished import on this device, read from
+the import queue before the documents and again before the vector step. The record that two copies matched is
+kept across launches as a digest of the same signature (sizes, dates, documents, aliases, strategy).
+
+**Rationale.** The file's own rule is that a stale index is recoverable and a deleted one is not. Skipping
+costs nothing: the store syncs on the first pass after the import ends. The digest is trusted under exactly the
+conditions the in-memory record was.
+
+**Consequences.** An import that both starts and finishes inside one pass is not covered. The first pass after
+an import still decodes both copies and writes a whole second copy for iCloud (381 MB for the owner's library).
+`[evidence_level: test_verified for the rules (WorkspaceSyncImportGuardTests, LargeLibraryCostTests); measured for the 135 decodes; code_verified for the loss it prevents, confidence: medium]`
+
+## 2026-10-10 - The vector store keeps its file format; the plan is to index the passage file, not to move it (planned, not built)
+
+**Context.** `BNNSVectorDatabase` decodes `_meta.json`, every passage's text, into memory on load: 159 MB and
+3.0 to 3.2 s for 144,247 passages. That one decode per launch, the memory it holds, and every save rewriting
+the whole store are what still grow with a library after the sampling above.
+
+**Decision.** Planned for 5.7 and not started: keep the three files and their layout; memory-map `_meta.json`;
+hold a small per-passage index in memory (id, document, number, page, level, byte range of the passage's JSON
+object) rebuilt when the file changes; decode a passage when it is asked for; move callers from `allChunks()`
+to count, by-index, by-document and sample methods. The caller inventory is in
+`BenchmarkRuns/2026-10-10-large-library/W3-store-callers.md` (local; not yet read or checked).
+
+**Alternatives.** Passages as SQLite or SwiftData rows with only vectors in the store (rejected for now: a
+format change to a protected file, a migration for every existing library, and the keyword index, the only
+other copy of the text, is a local cache that iCloud does not carry).
+
+**Consequences.** No migration and no change to what syncs. Saves stay whole-file rewrites until an
+append-only save is designed, which needs the loader to trim a partly written vector.
+`[evidence_level: design, not built; the measurements are from the device trace of 2026-10-10]`
+
+## 2026-10-10 - Background GPU Access is requested; work written by delegated agents lands only as a reviewed patch
+
+**Background GPU Access.** `OpenIntelligence.entitlements` carries
+`com.apple.developer.background-tasks.continued-processing.gpu`, added at the owner's instruction. The task's
+status file on his iPhone read `backgroundGPUSupported = false` while background imports stopped within
+seconds; `BackgroundTaskService` already asks for the GPU when the system offers it. The inference entitlement
+(`...continued-processing.inference`, iOS 27) is not requested: Xcode 27.0's capability list has no entry for
+it, and the model does not run on the Neural Engine today. Unverified: that a background import continues with
+the key, and that App Store signing in Xcode Cloud accepts it.
+
+**Delegated agents.** On 2026-10-10 the owner asked for delegated agents (Antigravity) to save this tool's
+usage. The rule that came out of it: an agent that writes works in a detached worktree outside `~/Documents`,
+runs no git and no build, and touches no protected file; its change reaches `main` only as a patch that was
+read, corrected, built for a device and the Mac, and run through the suite here. Of four such jobs that day,
+three needed corrections: inverted logic that followed an error in the brief, a dozen redundant accessors,
+mislabelled call sites, and tests that assumed a tie-break. A read-only survey on a weaker model reported Core
+AI as absent from the SDK. The procedure is in `Docs/ai/RUNBOOK.md`, "Delegated agents".
+`[evidence_level: build_verified for the entitlement (codesign shows the key); the agent record is from the session of 2026-10-10]`
+
+## 2026-10-12 - Thirteen 5.7 decisions are recorded after the fact
+
+**Context.** An audit of the documentation on 2026-10-12 found that thirteen design decisions made for 5.7 on
+2026-10-09 and 2026-10-10 had a changelog entry and no record here.
+
+**Decision.** The thirteen records that follow were drafted that day by a delegated read-only agent from
+`CHANGELOG.md`, the ingestion, privacy and Atlas docs and the code, under the rule that a reason nobody wrote down
+is written as "Not recorded." and not guessed. Twenty-three of their cited symbols, tests and figures were checked
+by search before they were added, and one sentence about the JSON size limits was corrected. Each record carries
+the date of its decision, so these thirteen are out of date order in this file.
+
+**Consequences.** "Not recorded." in a record below means the reason was never written anywhere that was read. It
+does not mean there was none.
+`[evidence_level: artifact_derived, with the spot checks code_verified, confidence: medium, evidence_source: CHANGELOG.md 5.7; the records' own evidence lines]`
+
+## 2026-10-09 - JSON and JSON Lines files import as records, read by the app's own order-keeping reader
+
+**Context.** Through 5.6 a `.json`, `.jsonl` or `.ndjson` file came in as its text as written, cut wherever the
+chunker's word window fell.
+
+**Decision.** `JSONRecordExtractor` writes each record (a line of JSON Lines, an element of a top-level array, an
+object or list member of a top-level object) as a `Record N of T` header and `path: value` lines. It parses with
+its own reader, `JSONValue.parse`. A file that does not parse and a `.json` file over 16 MB take the text lane.
+A JSON Lines file read in one go has a limit of the same kind at 64 MB, which a `.jsonl` or `.ndjson` file no
+longer reaches, because over 8 MB it is imported in pieces, each piece as records (the next record). `.jsonl`
+and `.ndjson` are stored as `DocumentType.json`.
+
+**Rationale.** `JSONSerialization` loses member order, a number's own digits and members with the same name. A new
+type case would not decode on an older build reading the same library.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** The 16 MB figure is a guess at what a phone can hold as one parsed tree and has not been
+measured. No `.jsonl` has been picked in the iOS document picker.
+`[evidence_level: test_verified for the extractor, inferred for the stored type, confidence: high, evidence_source: CHANGELOG.md 5.7 Added, Docs/INGESTION_PIPELINE.md JSON section, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md, JSONRecordExtractor.swift, JSONRecordExtractorTests]`
+
+## 2026-10-09 - A text, Markdown or JSON Lines file over 8 MB is imported in pieces with a checkpoint after each
+
+**Context.** Read whole, the owner's 88.50 MB JSON Lines file reached a footprint of 2,830.73 MB during cleanup
+and the import never finished.
+
+**Decision.** A text, Markdown, `.jsonl` or `.ndjson` file over 8 MB (`DocumentProcessor.piecewiseTextBytes`) is cut
+into pieces of about 2 MB, with a checkpoint after each piece. The document's text is stored once at the end. A
+piece the app stopped while storing is imported again if neither store has it and counted if both do. If only
+the vector store has it, its index rows are rebuilt (`Recovery.finishIndex`, since 2026-10-10).
+
+**Rationale.** The search index's append rewrites the whole stored text each time. Any other mismatch starts the
+document over, because neither store can give up one piece's chunks.
+
+**Alternatives.** The first rule started over in the vector-store-only state, and on 2026-10-10 sent a 17-part
+import back to part 1.
+
+**Consequences.** The vector store still rewrites its files whole once a piece. CSV, HTML, RTF and Office files
+keep the one-go path.
+`[evidence_level: test_verified for the cutting, the recovery decision and the saved state, build_verified for the import loop, measured for the footprint, confidence: medium, evidence_source: CHANGELOG.md 5.7 Fixed, Docs/INGESTION_PIPELINE.md section 5, RAGService+TextStreaming.swift, TextPieceReader.swift, TextPieceImportTests]`
+
+## 2026-10-09 - The tenth and last App Shortcut slot goes to "Find Passages"
+
+**Context.** Apple allows an app ten App Shortcuts, and through 5.6 the app registered nine. An eleventh makes the
+whole set stop registering with no error.
+
+**Decision.** `SearchPassagesIntent`, titled "Find Passages", takes the tenth slot. It returns the passages
+`searchDocumentsRaw` finds in the active library and writes no answer. `AppShortcutsProviderTests` fails the suite
+at eleven.
+
+**Rationale.** The intent's comment says "Search Library" (now "Ask a Library") generated an answer and showed a
+card, with nothing returned to the shortcut. This action returns the passages so a following step, or another
+app's model, can read them. Why this action and not another took the last slot is not recorded.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** No App Shortcut slot is left. The action has not been run from Shortcuts or Siri.
+`[evidence_level: test_verified for the count, build_verified for the action, confidence: high, evidence_source: CHANGELOG.md 5.7 Added and Fixed, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md section 12, SearchPassagesIntent.swift, AppShortcutsProviderTests]`
+
+## 2026-10-09 - Shortcuts ask actions build an engine per question and the other actions use the app's engine
+
+**Context.** Every action in `RAGAppIntents.swift` built its own `RAGService()`, and each new engine pointed the
+weak `activePresentedInstance` at itself. After one action ran, the actions that reach for the app's engine got a
+second engine instead.
+
+**Decision.** The engine's initializer registers itself only when no engine is registered, and `ContentView`
+registers the app's engine. Actions that change or list what the app shows call `IntentSupport.engine()`, which
+returns the app's engine when there is one and a new one otherwise. The ask actions build an engine of their own
+for each question.
+
+**Rationale.** A second question on the app's engine would cancel an answer the chat is generating, because
+`executeAgenticQuery` cancels the active generation.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** An engine built while the app is closed has no entitlement store. `createNewThread` then reads
+the plan from UserDefaults, and the document limit at import falls back to the free limit. Not run with the app
+open or closed.
+`[evidence_level: code_verified, confidence: high, evidence_source: CHANGELOG.md 5.7 Fixed, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md section 12, IntentSupport.swift, RAGService.swift, ContentView.swift, RAGAppIntents.swift AskActionRunner]`
+
+## 2026-10-09 - A question can be limited to named documents through RAGQueryScope
+
+**Context.** "Ask About a Document" put the file name into the question, and `query` has no document filter, so
+an answer could come from any document in the library.
+
+**Decision.** `RAGQueryScope.documentIds` is a task-local set that `AskActionRunner` sets around one `query` call.
+`HybridSearchService.search` then scores only the named documents' passages. Standard narrows its result and
+candidate lists, skips the query cache, and throws `RAGQueryScopeEmptyError` when no passage is left. Deep Think,
+Maximum and `searchDocumentsRaw` narrow their candidate lists. `AskActionRunner` refuses an answer whose passages
+are not all from the named documents.
+
+**Rationale.** The library-wide vector index and FTS5 ignore the candidate list, and a small document in a large
+library would be crowded out.
+
+**Alternatives.** A first version narrowed only the Standard result after a library-wide search. It leaked through
+three later searches and did nothing in Deep Think or Maximum.
+
+**Consequences.** No scoped question has been run. The runner's last check stands behind the limit until one has.
+`[evidence_level: test_verified for the scope's filter and inheritance (RAGQueryScopeTests), code_verified for the four places, confidence: medium, evidence_source: CHANGELOG.md 5.7 Fixed, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md, RAGQueryScope.swift, HybridSearchService.swift searchInsideScope, RAGService.swift]`
+
+## 2026-10-10 - MetricKit reports are kept on the device only
+
+**Context.** MetricKit's iOS 27 Swift API (`MetricManager`) delivers the reports the system gives an app about
+itself: hangs, crashes, CPU and disk exceptions, and launch and memory figures.
+
+**Decision.** `MetricDiagnostics` subscribes to the diagnostic and metric report sequences. Each report becomes
+"[MetricKit]" lines in the pipeline log and one JSON line in `metric_reports.jsonl` in the local cache folder,
+newest 200 kept. It starts at launch, not under tests, and does nothing before iOS 27.
+
+**Rationale.** Not recorded.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** The file has no upload code and makes no request, so the reports go nowhere. Whether a person
+shares analytics with Apple is the system's own setting and is neither read nor changed. No report has been
+received on a device yet. The file was written by a delegated agent and reviewed.
+`[evidence_level: build_verified, test_verified for the formatting and trimming helpers (MetricDiagnosticsTests), confidence: low until a report arrives, evidence_source: CHANGELOG.md 5.7 Added, Docs/PRIVACY_AND_ROUTING.md, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md section 9, MetricDiagnostics.swift]`
+
+## 2026-10-10 - The two system model tools are registered and off by default, with no Settings control
+
+**Context.** iOS 27 and macOS 27 provide two tools for FoundationModels sessions: `OCRTool`, which reads text from
+an image, and `SpotlightSearchTool`.
+
+**Decision.** `SystemModelTools` in `FoundationModelToolRegistry.swift` adds each to what `createTools` returns only
+when its `UserDefaults` switch is set (`systemTools.ocr.enabled`, `systemTools.spotlightSearch.enabled`). Both are
+off when unset. `SpotlightSearchTool` searches the app's own Core Spotlight index only, with at most 8 results, and
+never the files source. There is no Settings control.
+
+**Rationale.** A tool's description takes room in the model's window on every request, and neither tool has been
+tried on a device with this app's questions. Why there is no Settings control is not recorded.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** With both off, `createTools` returns what it returned before. Whether either tool is offered to
+a session routed to Private Cloud Compute has not been observed.
+`[evidence_level: build_verified, test_verified for the switches (SystemToolsAndScanTests), confidence: low for behaviour, evidence_source: CHANGELOG.md 5.7 Added, Docs/PRIVACY_AND_ROUTING.md, FoundationModelToolRegistry.swift]`
+
+## 2026-10-09 - The Documents screen uses its own Paste control, not the system PasteButton
+
+**Context.** The first development build of 5.7 used the system's `PasteButton` on the Documents screen.
+
+**Decision.** On 2026-10-09 it was replaced by `LibraryPasteButton`, a plain button whose label is the screen's
+own action chip. It reads `UIPasteboard.general.itemProviders`, or `NSPasteboard.general` on the Mac, through
+`PastedContentStaging.clipboardProviders`.
+
+**Rationale.** `PasteButton` draws itself and cannot take the chip's look, so it did not match the controls
+beside it.
+
+**Alternatives.** The system `PasteButton`, which reads the clipboard without asking.
+
+**Consequences.** iOS asks "Allow Paste" when the copied content came from another app, unless the person has set
+Paste from Other Apps to Allow. On iPhone and iPad a declined prompt ends in the same "Nothing to Paste" alert as
+an empty clipboard. Command-V with no button pressed is not handled. Nothing has been pasted into a running app.
+`[evidence_level: test_verified for how pasted content is told apart, build_verified for the control, confidence: medium, evidence_source: CHANGELOG.md 5.7 Added, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md, PastedContentStaging.swift LibraryPasteButton, PastedContentStagingTests]`
+
+## 2026-10-09 - Completion notifications are off by default and carry fixed text
+
+**Context.** The app posted no notifications through 5.6.
+
+**Decision.** `CompletionNotificationService` posts one when an import batch finishes, or when a question that ran
+20 seconds or longer finishes, and only while the app is not in front. It is off until the switch on the Settings
+Notifications page is turned on, which is when the system's permission prompt appears. The text is one of four
+fixed sentences. The rule that writes it is handed only whether something finished and how long it took.
+
+**Rationale.** A notification can be read on a locked screen, so it never carries the question, an answer or a
+file name. An answer faster than 20 seconds was not worth leaving the app for. Why it is off by default is not
+recorded.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** A question asked from Shortcuts is not announced. If the system has notifications off for the
+app, the switch goes back off. No notification has been posted on a device.
+`[evidence_level: test_verified for the rule, build_verified for the service and the Settings page, confidence: high, evidence_source: CHANGELOG.md 5.7 Added, Docs/PRIVACY_AND_ROUTING.md, CompletionNotificationService.swift, CompletionNotificationPolicyTests]`
+
+## 2026-10-09 - A document that would need more than 50,000 passages is refused, not truncated
+
+**Context.** The chunker stops at 50,000 chunks (`SemanticChunker.maxChunks`). Through 5.6 it logged nothing and
+the import went on as if the text were whole.
+
+**Decision.** The chunker records the stop (`stoppedAtChunkLimit`) only when words are left after the furthest
+chunk. On the import path the import fails with `DocumentProcessingError.tooManyPassages` and the stored text is
+removed. The message says the file needs more than 50,000 passages and asks for smaller files.
+`SemanticChunker.exceedsChunkLimit` refuses from the word count first, and a text over about 31 MB is counted
+before cleanup.
+
+**Rationale.** The silent stop left the rest of the text unindexed. Why refusing was chosen over a higher limit is
+not recorded.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** A text or JSON Lines file over 8 MB is imported in pieces, where the limit applies to a piece and
+not to the document. The refusal still applies to a text the fallback chunker takes whole.
+`[evidence_level: test_verified for the limit, the early check and the message, build_verified for the processor's handling, confidence: medium, evidence_source: CHANGELOG.md 5.7 Fixed, Docs/INGESTION_PIPELINE.md section 3, SemanticChunker.swift, SemanticChunkerLargeTextTests]`
+
+## 2026-10-10 - Text files are decoded in a fixed encoding order, and embedding input is cut at the model's window
+
+**Context.** `readTextFileWithFallbackEncodings` tried UTF-8 and then Latin-1, which never fails, so a Shift-JIS,
+EUC-JP, GB 18030, Windows-1251 or UTF-16 file was imported as garbage with no error. Both large-file paths cut any
+passage over 500 tokens to its first 1,500 characters before embedding.
+
+**Decision.** `DocumentProcessor.decodeTextFile` reads UTF-16 by its byte-order mark, UTF-16 with no mark by its
+zero bytes, UTF-8, Foundation's lossless detection, then Windows-1252 and Latin-1. `RAGService.embeddingText` sends
+a passage whole when it fits `maxSafeTokens` and cuts one that does not at the last character that fits.
+
+**Rationale.** Latin-1 gives every byte a character. 1,500 characters is about 350 tokens for a model that reads
+512, so a passage lost about a third of what its vector could cover.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** Mac Roman is not handled. How many passages the old cut shortened was not measured.
+`[evidence_level: measured on macOS 27 with a copy of the decoder (13 cases), test_verified (IngestionAccuracyTests), confidence: medium, evidence_source: CHANGELOG.md 5.7 Fixed, Docs/INGESTION_PIPELINE.md, DocumentProcessor.swift, RAGService+TextStreaming.swift, RAGService+Streaming.swift]`
+
+## 2026-10-09 - A first suite on Apple's Evaluations framework grades the claim check
+
+**Context.** The repository had no use of Apple's Evaluations framework (Xcode 27). `AppleEvaluationsBridge.swift`
+was an older placeholder that imports no Evaluations.
+
+**Decision.** `ClaimCheckEvaluationTests`, a Swift Testing suite in the test target, runs seventeen labelled
+sentences through `VerificationGateService` and scores whether each reads Supported. The thirteen the check claims
+to judge are asserted at 100%. The overall figure, which counts four known failures, is printed and not asserted.
+The test target finds the framework with no project change. `AppleEvaluationsBridge.swift` is left as it was.
+
+**Rationale.** No model runs, so the suite works in the simulator. The overall figure is printed so the gap stays
+visible in the evaluation report.
+
+**Alternatives.** Not recorded.
+
+**Consequences.** It does not grade an answer written by the model, which the simulator cannot produce. Its first
+run gave thirteen of thirteen where the check claims to work and thirteen of seventeen overall.
+`[evidence_level: test_verified, confidence: high for what it measures, evidence_source: CHANGELOG.md 5.7 Added, ClaimCheckEvaluationTests.swift, the Evaluations interface in the Xcode 27.0 SDK]`
+
+## 2026-10-09 - Every link the app shares carries one campaign tag, In_App_Share
+
+**Context.** Share the App, a shared answer and a Markdown export hand an App Store link to other people.
+
+**Decision.** `OpenIntelligenceLinks.sharedAppStoreURL` is the App Store link with the provider token the
+repository README already publishes and the campaign tag `In_App_Share`. All three use it. About's "open in the
+App Store" keeps the plain link.
+
+**Rationale.** App Store Connect shows a campaign only after first-time downloads from five people, so splitting
+the tag would hide the number.
+
+**Alternatives.** A separate tag for each place, which the code comment says would hide the number.
+
+**Consequences.** Downloads from the three places are reported under one campaign. Apple's limit for a campaign
+token is 30 characters.
+`[evidence_level: test_verified (OpenIntelligenceLinksTests), confidence: exact, evidence_source: CHANGELOG.md 5.7 Added, AboutView.swift OpenIntelligenceLinks, SettingsView.swift shareApp]`

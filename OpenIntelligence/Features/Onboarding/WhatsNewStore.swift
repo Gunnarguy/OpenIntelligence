@@ -120,6 +120,18 @@ final class WhatsNewStore: ObservableObject {
                         "A .json, .jsonl or .ndjson file used to come in as one long run of raw text, and a .jsonl file couldn't even be chosen in the file picker.  Now each record is its own passage, with its field names and its numbers kept exactly as the file has them."
                 ),
                 .init(
+                    symbol: "tray.and.arrow.down",
+                    title: "Very large text and JSONL files import a piece at a time",
+                    detail:
+                        "A text or JSONL file used to be read, cleaned up and cut into passages all at once, and iOS closed the app on a big one.  Now a file over 8 MB is read a few megabytes at a time, and each piece is indexed and saved before the next one starts.  If an import gets interrupted it picks up where it was."
+                ),
+                .init(
+                    symbol: "map",
+                    title: "The Atlas names things from your own documents",
+                    detail:
+                        "Cluster names used to come from a built-in list of subjects, and they changed from one launch to the next.  Now a cluster is named by the words that set it apart from the rest of the library, each axis is labelled at both ends, and the same library gives the same map every time."
+                ),
+                .init(
                     symbol: "globe",
                     title: "\"Save a Web Page\" downloads the page",
                     detail:

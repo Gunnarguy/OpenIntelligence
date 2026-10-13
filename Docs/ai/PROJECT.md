@@ -20,7 +20,7 @@ developers, and product copy is read by people who will not check the source.
 ## In scope
 
 - Ingesting PDFs (including OCR through Vision when the text layer is unreliable), Office files,
-  code, plain text, images, audio, and video. **Pages, Numbers and Keynote are explicitly out of
+  code, plain text, images, audio, and video, and from 5.7 JSON and JSON Lines files as records. **Pages, Numbers and Keynote are explicitly out of
   scope**: modern iWork stores content as compressed protobuf in `Index/*.iwa`, no Apple API
   exposes it, and `extractTextFromIWorkDocument` throws on every such file by construction. The
   picker still offers them so the failure is reachable and explained rather than hidden.
@@ -60,6 +60,10 @@ These are not roadmap gaps. They are the product.
 - **Core ML**, for the bundled cross-encoder reranker at
   `OpenIntelligence/Resources/MLModels/ReRankerModel.mlpackage`. `THIRD_PARTY_NOTICES.md` binds it to
   `cross-encoder/ms-marco-TinyBERT-L2-v2`, Apache 2.0, by exact path.
+- **Core ML and Core AI**, for the bundled sentence embedder, `sentence-transformers/all-MiniLM-L6-v2`, one
+  copy for each framework. From 5.7 a new library uses the Core ML copy on iPhone and iPad and the Core AI
+  copy on macOS 27 (`EmbeddingProviderDefaults` in `EmbeddingService.swift`), and a library keeps the copy
+  it was built with.
 - **swift-transformers**, vendored locally at `OpenIntelligence/swift-transformers`, for tokenizers.
 - **Vision**, for OCR.
 - **StoreKit 2**, for billing.
@@ -79,14 +83,20 @@ Xcode Cloud (release; as recorded 2026-09-22 it archives and has no test action,
 3. **Claims in the app are claims about code.** The Settings capability list is captioned to users as
    live behavior and has repeatedly described features with no call sites and figures with no
    measurement. Verify before adding, and verify harder before removing.
-4. **`RAGAppIntents.swift` uses 9 of 10 Siri shortcut slots.**
-5. **The suite is 504 tests in 65 files as of 2026-09-28, and it tests components, not the seams
-   between them.** The 65 are 63 test files and two ingestion fixture builders. Some pieces now
+4. **`RAGAppIntents.swift` uses 10 of 10 Siri shortcut slots since 5.7** (9 through 5.6; "Find Passages" took
+   the tenth). An eleventh stops every one registering with no error, and `AppShortcutsProviderTests` fails the
+   suite at eleven.
+5. **The suite is 832 tests as of 2026-10-12 (106 Swift files under `OpenIntelligenceTests`; it was 504
+   tests in 65 files on 2026-09-28), and it tests components, not the seams between them.** The 65 counted
+   on 2026-09-28 were 63 test files and two ingestion fixture builders. Some pieces now
    have unit tests: `ModelExecutionPlannerTests` covers the routing decision
    `ModelExecutionPlanner.makePlan` (9 of its 13 tests; the other 4 cover the route badge and the receipt's Codable round trip), and `SourceOnlyStandardGateTests` covers
    `RAGService.standardSkipsSourceOnlyCheck`, the rule that lets Standard skip the source-only check
-   once the gates pass. No test calls the gates in `VerificationGateService`, `FoundationModelRoutePolicy.determineRoute`
-   or `WorkspaceSyncService`, and none runs a question end to end from retrieval to answer. The seams
+   once the gates pass. Since then `VerificationGateService.verify` has callers in `NumericSanityGateTests`,
+   `SemanticGroundingClaimTests` and `ClaimCheckEvaluationTests`, and `WorkspaceSyncImportGuardTests` covers the
+   sync pass's import guard and its chunk merge (checked 2026-10-12). No test calls
+   `FoundationModelRoutePolicy.determineRoute`, none reconciles two devices' libraries, and none runs a question
+   end to end from retrieval to answer. The seams
    between subsystems are where the real defects have been found.
    `[evidence_level: test_verified_by_prior_session, confidence: high, evidence_source: full iOS suite on the merged tree, 504 tests, 4 skipped, 0 failures (Docs/ai/STATE.md, Verification 2026-09-28); git ls-files OpenIntelligenceTests (65 Swift files, 63 declaring an XCTestCase, 504 func test declarations) and a grep of that folder for each named symbol, 2026-09-29. Superseded figure: 173 tests across 22 files, recorded 2026-08-07]`
 

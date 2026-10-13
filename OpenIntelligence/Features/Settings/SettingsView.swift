@@ -2328,7 +2328,7 @@ Text(deviceService.chipName)
         // same class of claim as the `≈65 tok/s` figure removed from the capability card.
         // The algorithmic change is real; the number was never measured.
         items.append(.init(id: "fast-dedup", icon: "bolt.fill", label: "O(N) Fast Deduplication", desc: "Linear-time evidence dedup, so large libraries stay fast", color: .green))
-        items.append(.init(id: "native-embed", icon: "cpu.fill", label: "Native Embeddings", desc: "CoreAISentenceEmbeddingProvider hardware acceleration", color: .green))
+        items.append(.init(id: "native-embed", icon: "cpu.fill", label: "Native Embeddings", desc: "MiniLM sentence embeddings on device, through Core ML or Core AI", color: .green))
         items.append(.init(id: "contextual-embed", icon: "doc.badge.gearshape", label: "Contextual Embeddings", desc: "Document title + section baked into every vector", color: .green))
         items.append(.init(id: "table-extract", icon: "tablecells", label: "Smart Table Extraction", desc: "iOS 26 Vision API preserves tables with captions", color: .green))
         items.append(.init(id: "entity-link", icon: "link", label: "Cross-Document Entity Linking", desc: "Global entity index finds related info across library", color: .green))

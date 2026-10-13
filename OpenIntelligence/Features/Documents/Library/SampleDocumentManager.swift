@@ -113,7 +113,7 @@ It stands apart in four ways:
 1. **It answers from your library.** Before it writes a word, the app retrieves the relevant passages from your own files, and the answer is built from those passages.
 2. **It keeps the evidence visible.** Every answer carries source cards, filenames and excerpts, plus a metrics bar that shows how the answer was produced. You can audit it instead of trusting it.
 3. \#(SamplePCCCopy.productGuideBullet)
-4. **It is Apple-native throughout.** Foundation Models for language, Vision for text recognition, Speech for transcription, Core ML for embeddings and re-ranking, Accelerate and Metal for the vector math. Swift end to end.
+4. **It is Apple-native throughout.** Foundation Models for language, Vision for text recognition, Speech for transcription, Core ML and Core AI for embeddings, Core ML for re-ranking, Accelerate and Metal for the vector math. Swift end to end.
 
 The short version: grounded answers, visible evidence, your device, Apple's own AI.
 
@@ -121,7 +121,7 @@ The short version: grounded answers, visible evidence, your device, Apple's own 
 
 ## What files can OpenIntelligence read?
 
-- **Documents:** PDF, DOCX, XLSX, PPTX, Markdown, TXT, RTF, CSV, HTML, JSON, XML, YAML
+- **Documents:** PDF, DOCX, XLSX, PPTX, Markdown, TXT, RTF, CSV, HTML, JSON, JSON Lines, XML, YAML
 - **Code:** Swift, Python, JavaScript, TypeScript, Java, C, C++, C#, Go, Rust, Ruby, PHP, CSS, SQL, shell scripts, R, Kotlin, Dart, Lua, Perl, TOML, INI and more
 - **Audio:** M4A, AAC, MP3, WAV, AIFF, CAF. Transcribed on the device, up to two hours per file.
 - **Video:** MP4, M4V, MOV. The audio track is transcribed on the device, with the same two-hour limit.
@@ -148,9 +148,9 @@ An import is a pipeline, and each stage runs on your device:
 1. **Parse.** The file is read into text and structure. Pages that carry no usable text layer, such as scans, go through Vision text recognition. Pages laid out in two columns are read column by column rather than straight across.
 2. **Detect the language once.** The document's language is worked out from the text it already contains, and text recognition is told that language rather than being asked to guess it on every page. A wrong guess corrects words against the wrong dictionary, so this matters for accuracy as well as speed.
 3. **Chunk.** The text is split into passages along headings and natural boundaries, so a citation can point at a readable section.
-4. **Embed and index.** Each passage is embedded by a Core ML sentence model and written to the vector index, and the same text goes into a full-text keyword index. Both are searched on every question.
+4. **Embed and index.** Each passage is embedded by a sentence model that runs on the device and written to the vector index, and the same text goes into a full-text keyword index. Both are searched on every question.
 
-**Large PDFs checkpoint as they go.** A PDF over 10 MB commits its progress page by page. If you quit the app or it is interrupted mid-import, the import resumes from the last page it finished, and the resumed item shows how far it already got. The one action that discards that progress is removing the item from the queue.
+**Large PDFs checkpoint as they go.** A PDF over 10 MB commits its progress page by page. If you quit the app or it is interrupted mid-import, the import resumes from the last page it finished, and the resumed item shows how far it already got. The one action that discards that progress is removing the item from the queue. A text or JSON Lines file over 8 MB is imported the same way, a piece at a time.
 
 **Audio and video** are transcribed with the system's on-device speech recognition. The recording never leaves the device.
 
@@ -247,7 +247,7 @@ Each format has its own reader. Scanned pages go through Vision's document recog
 Text is split into passages along headings and natural boundaries, and every passage remembers the document, page and byte range it came from so a citation can be exact.
 
 ### 3. Embed
-Each passage becomes a semantic vector using the all-MiniLM-L6-v2 sentence model, run through Core ML, which schedules it on the Neural Engine where the device has one. Query embeddings use the same model.
+Each passage becomes a semantic vector using the all-MiniLM-L6-v2 sentence model. A new library on iPhone and iPad runs it through Core ML, which schedules it on the Neural Engine where the device has one. A new library on a Mac with macOS 27 runs it through Apple's Core AI framework, on the GPU. Query embeddings use the same model.
 
 ### 4. Store
 Vectors live in a memory-mapped file. Similarity search runs through Accelerate's vDSP routines on the CPU for libraries under 1,000 passages, and switches to a Metal compute shader for cosine similarity across larger libraries. The keyword index is SQLite FTS5.
@@ -293,7 +293,7 @@ Two surfaces show what happened, and they are easy to confuse.
 
 ## What role does Apple Intelligence play in OpenIntelligence?
 
-OpenIntelligence is built on the FoundationModels framework that ships with iOS and macOS 26, which gives apps direct access to the on-device model behind Apple Intelligence. Around it the app uses Vision for text recognition, Speech for transcription, Core ML for embedding and re-ranking, and Accelerate and Metal for vector math. There is no third-party AI service anywhere in the pipeline.
+OpenIntelligence is built on the FoundationModels framework that ships with iOS and macOS 26, which gives apps direct access to the on-device model behind Apple Intelligence. Around it the app uses Vision for text recognition, Speech for transcription, Core ML and Core AI for embedding, Core ML for re-ranking, and Accelerate and Metal for vector math. There is no third-party AI service anywhere in the pipeline.
 
 This matters because the product runs on Apple's own AI infrastructure, on hardware you already own, rather than on a developer's servers.
 
@@ -306,7 +306,7 @@ This matters because the product runs on Apple's own AI infrastructure, on hardw
 - document parsing and text recognition
 - chunking and indexing
 - semantic and keyword retrieval
-- embedding on the Neural Engine, and vector math through Accelerate on the CPU with Metal for larger libraries
+- embedding on the Neural Engine or the GPU, and vector math through Accelerate on the CPU with Metal for larger libraries
 - evidence packing
 \#(SamplePCCCopy.staysOnDeviceGeneration)
 - verification of the answer against the evidence

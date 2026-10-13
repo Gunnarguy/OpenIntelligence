@@ -29,7 +29,7 @@ The retrieval pipeline is the core engineering idea in OpenIntelligence: answers
 ```mermaid
 flowchart TD
     UserQuery[User Query Input] --> QueryPlan[Query Analysis: NER & Expansion]
-    QueryPlan --> EmbeddingGen[Generate Query Vector - Core ML]
+    QueryPlan --> EmbeddingGen[Generate Query Vector - Core ML or Core AI]
     GPUProfile[GPU Execution Profile] --> EmbeddingGen
     EmbeddingGen --> HybridSearch[Hybrid Search: FTS5 Lexical + Vector Similarity]
     GPUProfile --> HybridSearch
@@ -109,6 +109,8 @@ flowchart TD
 
 ## 4. Library Isolation
 Library and workspace boundaries are critical because retrieval quality depends on scope. The app is designed so that a query is answered strictly against the user-selected document container rather than all files indiscriminately, preventing cross-container leakage.
+
+From 5.7 a question can also be held to named documents inside the library. The three Shortcuts actions that name a document pass a `RAGQueryScope`, run in Standard, and refuse an answer whose passages are not all from those documents. `[evidence_level: code_verified, confidence: high; not run from Shortcuts or Siri on a device, evidence_source: RAGAppIntents.swift AskActionRunner; Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md, the 5.7 Shortcuts paragraph]`
 
 ---
 

@@ -927,7 +927,7 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var embeddingProviderSection: some View {
         Section(header: Text("Embedding model — sentence → vector transformation")) {
-            Text("Select the neural encoder that maps text to dense vectors. Currently using bundled MiniLM-L6-v2 (384D). All inference runs on-device via Neural Engine.")
+            Text("Select the neural encoder that maps text to dense vectors. Currently using bundled MiniLM-L6-v2 (384D). All inference runs on-device.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -1719,9 +1719,11 @@ extension ContainerSettingsSheet {
                     Label("Acceleration Target", systemImage: "bolt.fill")
                         .font(.caption)
                     Spacer()
-                    #if canImport(CoreAI)
-                    if #available(iOS 27.0, macOS 27.0, *) {
-                        Text("Core AI Neural Engine")
+                    // The library's own provider decides this, not the OS version. Through 5.6 every
+                    // iOS 27 and macOS 27 device read "Core AI Neural Engine" here, and the Core AI copy of
+                    // the model does not run on the Neural Engine (Docs/ai/DECISIONS.md, 2026-10-10).
+                    if providerId == "coreai_sentence_embedding" {
+                        Text("Core AI on the GPU")
                             .font(.caption.weight(.medium))
                             .foregroundColor(.indigo)
                     } else {
@@ -1729,11 +1731,6 @@ extension ContainerSettingsSheet {
                             .font(.caption.weight(.medium))
                             .foregroundColor(.orange)
                     }
-                    #else
-                    Text("Core ML Neural Engine")
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(.orange)
-                    #endif
                 }
                 
                 HStack {

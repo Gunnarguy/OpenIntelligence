@@ -164,6 +164,149 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 ## Versions, newest first
 
+### 5.7
+
+- **Platforms:** iOS, macOS
+- **Live:** not yet; records in PREPARE_FOR_SUBMISSION on both platforms (read through the App Store Connect API on 2026-10-12 at about 20:25 PT). No 5.7 build exists yet.
+- **Final release notes commit:** the 2026-10-12 `[ci skip]` commit that adds this entry and `fastlane/review_notes/5.7.txt`
+- **Notes:** the first copy written for 5.7. It was pushed to the two 5.7 records on 2026-10-12 with `fastlane push_metadata version:5.7`, macOS at 20:11 PT and iOS at 20:16 PT (the swap procedure in `Docs/ai/RUNBOOK.md`); each log names its platform and `app_version` 5.7, and `fastlane/report.xml` held no failure after either. Nothing was submitted. The two platforms' notes differ in four places: iPhone and iPad say "Open in", the Mac says a file can be dropped on the app's icon; iPhone and iPad have the line about new libraries using the faster copy of the search model, which does not apply to the Mac; iPhone and iPad have "Touch and hold the app icon", the Mac has the keyboard shortcuts; and the Mac has "Copy works on the Mac". The description, keywords, subtitle and promotional text are unchanged from 5.6. The description is 3,997 of 4,000 characters, so it does not name JSON import, Shortcuts results or sharing, and adding any of them means cutting something. `fastlane/review_notes/5.7.txt` (946 characters) was appended to App Review's notes on both records with `scripts/asc_listing_extras.rb 5.7 --apply` (HTTP 200 for each), which took them from 3,042 to 3,990 characters of Apple's 4,000; a first draft of 1,431 characters did not fit. The next version's addition will not fit until the additions for versions already reviewed are taken out of those notes. Two lines describe behaviour that has been built and not yet seen where a person would use it, and each needs seeing before 5.7 is submitted: "Open in" on an iPhone or iPad, and dropping a file on the app's icon on a Mac. `[evidence_level: measured for the pushes and the character counts (the two fastlane logs and the script's output of 2026-10-12); code_verified for the two lines named last, confidence: high, evidence_source: fastlane/report.xml; scripts/asc_listing_extras.rb output; CHANGELOG.md, the "Open in" entry]`
+
+**Release notes (`fastlane/metadata/`, the macOS copy):**
+
+```text
+This one's about getting things in and out of the app.  JSON and JSONL files import as records now, Shortcuts can search your library, add to it and make new libraries, and an answer you share takes its sources with it.
+
+
+YOUR DOCUMENTS
+
+• JSON and JSONL files import as records.  Each record is its own passage, with its field names and its numbers kept exactly as the file has them.
+
+• Very large text and JSONL files import a piece at a time.  An 88 MB file with 189,579 records took 2.8 GB of memory on an iPhone and iOS closed the app before it was a fifth done.  Now each piece is indexed and saved before the next one starts, and an interrupted import picks up where it was.
+
+• You can drop a file on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
+
+• Numbers in tables are kept.  A cell that held only a small number, a year or a part code was dropped when the file was imported.
+
+• Pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• Keyword search covers every page of a large PDF.  A PDF over 10 MB that you imported before needs importing again.
+
+• Recordings use Apple's newer transcriber, and pictures are described from the picture itself.
+
+
+LARGE LIBRARIES
+
+• A very large library doesn't hold the app up.  With 144,247 passages in one library, the app read all of it twice every time it opened and went through it again before the first question.  Now it's read once, and those steps work from an even sample.
+
+• The Atlas opens and finishes on a very large library, and it names its clusters and axes from your own documents.  The names used to come from a built-in list of subjects, and they could change from one launch to the next.
+
+
+SHORTCUTS AND SIRI
+
+• Actions hand back what they found, so the next step of a shortcut can use the answer, its sources, your documents or your conversations.
+
+• New actions: Find Passages, Add to Library, Create Library, Set Active Library, Open Library and Open Document.  "Ask My Documents" and "Ask a Library" have a Mode menu.
+
+• "Ask About a Document" only reads that document, and "Save a Web Page" downloads the page now.
+
+• Keyboard shortcuts: Shift-Command-N starts a new conversation, Command-O adds documents, Command-F searches the library, and Command-] and Command-[ switch libraries.
+
+
+SHARING
+
+• A shared answer takes its sources with it, and the chat menu has Export Conversation, as Markdown or JSON Lines.
+
+• Copy works on the Mac.  The Copy button under an answer showed "Copied" and copied nothing.
+
+
+ANSWERS
+
+• Sentences from your documents aren't cut in half before the model reads them.
+
+• Numbers are checked as numbers.  An answer said a model had "2.5 billion" parameters, and it passed because another model in a table was named "Qwen-2.5-3B".  It doesn't pass now.
+
+
+ALSO
+
+• A notification when an import or a long answer is done, if you turn it on in Settings.
+
+• Redeem a Code on the plans screen.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+**Release notes (`fastlane/metadata-ios/`, the same commit, 2026-10-12):**
+
+```text
+This one's about getting things in and out of the app.  JSON and JSONL files import as records now, Shortcuts can search your library, add to it and make new libraries, and an answer you share takes its sources with it.
+
+
+YOUR DOCUMENTS
+
+• JSON and JSONL files import as records.  Each record is its own passage, with its field names and its numbers kept exactly as the file has them.
+
+• Very large text and JSONL files import a piece at a time.  An 88 MB file with 189,579 records took 2.8 GB of memory on an iPhone and iOS closed the app before it was a fifth done.  Now each piece is indexed and saved before the next one starts, and an interrupted import picks up where it was.
+
+• OpenIntelligence shows up under "Open in", and the Documents screen has a Paste button for a copied file, a web address or text.
+
+• Numbers in tables are kept.  A cell that held only a small number, a year or a part code was dropped when the file was imported.
+
+• Pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• Keyword search covers every page of a large PDF.  A PDF over 10 MB that you imported before needs importing again.
+
+• Recordings use Apple's newer transcriber, and pictures are described from the picture itself.
+
+• New libraries on iPhone and iPad use the faster of the app's two copies of its search model.  A library you already have keeps the one it was built with.
+
+
+LARGE LIBRARIES
+
+• A very large library doesn't hold the app up.  With 144,247 passages in one library, the app read all of it twice every time it opened and went through it again before the first question.  Now it's read once, and those steps work from an even sample.
+
+• The Atlas opens and finishes on a very large library, and it names its clusters and axes from your own documents.  The names used to come from a built-in list of subjects, and they could change from one launch to the next.
+
+
+SHORTCUTS AND SIRI
+
+• Actions hand back what they found, so the next step of a shortcut can use the answer, its sources, your documents or your conversations.
+
+• New actions: Find Passages, Add to Library, Create Library, Set Active Library, Open Library and Open Document.  "Ask My Documents" and "Ask a Library" have a Mode menu.
+
+• "Ask About a Document" only reads that document, and "Save a Web Page" downloads the page now.
+
+• Touch and hold the app icon for Ask, Add Document and Scan Document.
+
+
+SHARING
+
+• A shared answer takes its sources with it, and the chat menu has Export Conversation, as Markdown or JSON Lines.
+
+
+ANSWERS
+
+• Sentences from your documents aren't cut in half before the model reads them.
+
+• Numbers are checked as numbers.  An answer said a model had "2.5 billion" parameters, and it passed because another model in a table was named "Qwen-2.5-3B".  It doesn't pass now.
+
+
+ALSO
+
+• A notification when an import or a long answer is done, if you turn it on in Settings.
+
+• Redeem a Code on the plans screen.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+**Promotional text** (unchanged from 5.6, set 2026-10-07):
+
+```text
+Ask your own PDFs, contracts and notes, and see the passage each answer came from.  It needs Apple Intelligence: iPhone 15 Pro, iPhone 16 or later, or an M1 iPad or Mac.
+```
+
 ### 5.6
 
 - **Platforms:** iOS, macOS

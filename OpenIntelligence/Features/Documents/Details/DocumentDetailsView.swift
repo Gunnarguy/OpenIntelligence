@@ -380,7 +380,7 @@ struct DocumentDetailsView: View {
                     iconColor: .purple,
                     label: "Vector Embedding",
                     time: metadata.embeddingTimeSeconds,
-                    detail: String(format: "%.0f ms/chunk (Neural Engine)", (metadata.embeddingTimeSeconds / Double(document.totalChunks)) * 1000)
+                    detail: String(format: "%.0f ms/chunk", (metadata.embeddingTimeSeconds / Double(document.totalChunks)) * 1000)
                 )
 
                 Divider()

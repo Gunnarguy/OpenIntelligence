@@ -53,7 +53,7 @@ flowchart TD
     HREC --> I
     H --> I[Token Boundary Enforcer]
     I --> J[SQLite FTS5 Storage]
-    I --> K[Core ML Embedding Generation]
+    I --> K[Embedding Generation - Core ML or Core AI]
     PROFILE[GPU Execution Profile] --> E
     PROFILE --> K
     K --> L[BNNS Vector Storage]
@@ -615,7 +615,7 @@ natural next pass.
 
 Once chunks are generated and validated, they are written to two separate storage engines:
 1. **Lexical Index:** Stored in SQLite FTS5 via [SQLiteFullTextService.swift](../OpenIntelligence/Services/Storage/SQLiteFullTextService.swift). BM25 column weights prioritize section titles and entity tags.
-2. **Vector Index:** Dense query vectors (384-dimensions) are generated using a local Core ML model (`EmbeddingModel.mlpackage`) and stored in [BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) using Cosine Similarity.
+2. **Vector Index:** Dense query vectors (384-dimensions) are generated on the device by the bundled MiniLM model, through its Core ML copy (`EmbeddingModel.mlpackage`) or its Core AI copy (from 5.7 a new library uses Core ML on iPhone and iPad and Core AI on macOS 27), and stored in [BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) using Cosine Similarity.
 Both indexes are isolated by `container_id` to enforce library boundaries.
 
 ---
@@ -862,7 +862,7 @@ When the last piece is in, the kept text is stored once (`SQLiteFullTextService.
 
 **State.** `IngestionCheckpoints/<fingerprint>/text_ingestion_state.json` (`TextStreamingIngestionState`): the document id, the library the pieces are in (an import picks its library when it starts and a resumed one starts again; if the library changed in between, the earlier pieces are removed from the other library and the file starts over), the file's size and the piece size (a different value of either starts a new import), the longest line kept whole, the pieces and records in the file, and the committed progress: bytes, pieces, records, chunks, words, characters, and the bytes and characters of kept text. A restart cuts the kept text back to the committed length.
 
-**A piece that was being stored when the app stopped.** `TextStreamingIngestionState.recovery` compares the document's chunk count in each store with the committed and the pending counts. Neither store has the piece: it is imported again. Both have it: it counts as committed. Anything else, which is the piece in the vector store and not in the search index: the document's chunks are removed from both and it starts over, because neither store can remove one piece's chunks.
+**A piece that was being stored when the app stopped.** `TextStreamingIngestionState.recovery` compares the document's chunk count in each store with the committed and the pending counts. Neither store has the piece: it is imported again. Both have it: it counts as committed. The piece is all in the vector store and none of it is in the search index, which is the app stopping between the two saves: the piece's index rows are written from the chunks the vector store holds and it counts as committed (`Recovery.finishIndex`, since 2026-10-10; through the first two device runs this state started the document over, and on 2026-10-10 it threw away 16 parts). The stores disagree in any other way: the document's chunks are removed from both and it starts over, because neither store can remove one piece's chunks.
 
 **A cancellation is not a failure.** `EmbeddingService` used to wrap a `CancellationError` as a provider failure, and the queue then marked the import Failed and dropped it (an iPhone, 2026-10-09, 22:41 PT). The embedder now rethrows a cancellation as one, and the queue's loop and this import treat any error thrown once the task is cancelled as the cancellation. When the system ends its background task while the app is in front, the import goes on. An item the system stopped in the background keeps its checkpoint's progress, and the Live Activity reads "Paused. Open to continue".
 
