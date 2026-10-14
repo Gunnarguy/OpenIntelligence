@@ -217,8 +217,24 @@ struct ChatComposerV2: View {
         .onChange(of: draft, initial: true) { _, draft in
             guard let draft, draft.id != appliedDraftID else { return }
             appliedDraftID = draft.id
-            inputText = draft.text
             isInputFocused = true
+            let fieldIsInUse =
+                !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty
+            guard fieldIsInUse else {
+                inputText = draft.text
+                // A question typed in the menu bar is sent; while an answer is still being written
+                // it waits in the field, as a typed one would (`canSend`).
+                if draft.sendsAtOnce { send() }
+                return
+            }
+            // What the person has in the field already stays there, with its attachments: a
+            // question from the menu bar goes on its own when one can go now, and otherwise, like
+            // text from the Services menu, it is added below what is there.
+            if draft.sendsAtOnce, !isProcessing || isCheckingAnswer {
+                sendAlone(draft.text)
+            } else {
+                inputText = inputText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + draft.text
+            }
         }
         // Report keyboard typing to HUD (visualizes Taptic Engine activity)
         // iOS keyboard already provides haptics - we just REPORT to telemetry for visualization
@@ -290,6 +306,15 @@ struct ChatComposerV2: View {
             Task { await dictation.start() }
         } else {
             Task { await dictation.stop() }
+        }
+    }
+
+    /// Sends `text` by itself, leaving the field and its attachments as they are.
+    private func sendAlone(_ text: String) {
+        if let onSendWithAttachments {
+            onSendWithAttachments(text, [])
+        } else {
+            onSend(text)
         }
     }
 
@@ -392,8 +417,10 @@ extension ChatComposerV2 {
     .background(DSColors.background)
 }
 
-/// Text handed to the chat from outside it: the Mac's Services menu (5.7).
+/// Text handed to the chat from outside it: the Mac's Services menu and menu bar (5.7).
 struct ComposerDraft: Equatable {
     let id = UUID()
     let text: String
+    /// Sent as it arrives, where `canSend` allows, instead of waiting in the field.
+    var sendsAtOnce = false
 }

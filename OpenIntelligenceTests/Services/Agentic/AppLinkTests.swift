@@ -99,4 +99,12 @@ final class AppLinkTests: XCTestCase {
         subscription.cancel()
         XCTAssertEqual(seen, [[], [.chat], []])
     }
+
+    /// A question from the Mac's menu bar is sent at once; one from the Services menu waits in the
+    /// field. Neither has a link form, so no address carries the question (5.7).
+    func testAQuestionFromTheMenuBarIsSentAndCarriesNoText() {
+        XCTAssertEqual(AppDestination.ask("Pets?"), .ask("Pets?", sendsAtOnce: false))
+        XCTAssertNotEqual(AppDestination.ask("Pets?"), .ask("Pets?", sendsAtOnce: true))
+        XCTAssertEqual(AppLink.url(for: .ask("Pets?", sendsAtOnce: true)).absoluteString, "openintelligence://chat")
+    }
 }

@@ -46,6 +46,11 @@
    "path": "OpenIntelligenceTests/App/MacServicesTests.swift",
    "role": "test",
    "blob": "db830d51bb7d92604368e53f20209216ebe47c3e"
+  },
+  {
+   "path": "OpenIntelligence/App/MenuBarAsk.swift",
+   "role": "primary",
+   "blob": "979230a46e7b86dd6c407e45db883056230e1cf8"
   }
  ],
  "nodes": [

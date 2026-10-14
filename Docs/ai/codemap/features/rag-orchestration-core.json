@@ -15,7 +15,7 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift", "role": "primary", "blob": "fe168397bdf9e6aa577e9cabb842d801df18c150"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+KnowledgeRetrievalEngine.swift", "role": "primary", "blob": "d8925af572639791cc59dc1fd47c9d94790e508d"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "role": "primary", "blob": "92d078de9d4ff9de6c251e394c7abf01bcdbecd0"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "primary", "blob": "1ad8d60fc938ea50ce1f28b478dca61667cf6c06"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "primary", "blob": "3010a268c637ab1cd5837970ab0b3fb709ee1e5b"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/BibliographyPenaltyTests.swift", "role": "test", "blob": "9cfb2b79c23b3ca3439303d811019d9fe8cb352a"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/RebuildSelectionTests.swift", "role": "test", "blob": "643ede7a42cbf99218bbfb89664243ce14d922de"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ResponseMetadataGatingTests.swift", "role": "test", "blob": "81e04b7b16c48cd61be96e1a9c67c71319b273dc"},

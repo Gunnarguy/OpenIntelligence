@@ -15,7 +15,7 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/ModelExecutionReceipt.swift", "role": "primary", "blob": "709cc65879a21a7796274b0c29891d543f735772"},
     {"path": "OpenIntelligence/UI/Components/CloudConsentPromptView.swift", "role": "primary", "blob": "f105d6871f353fa0974aab7fa5244989f92b7279"},
     {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift", "role": "shared", "blob": "239031739b244bf2f133dc83fc65bc5264766ee2"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "1ad8d60fc938ea50ce1f28b478dca61667cf6c06"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "3010a268c637ab1cd5837970ab0b3fb709ee1e5b"},
     {"path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "role": "test", "blob": "6b93075805c0d82c5e4a6dc2e75447d39f3a3376"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/Configuration/RouteLogLineTests.swift", "role": "test", "blob": "6db56ad7be8bc74f1188d1696b1bdea9022836a3"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ModelExecutionPlannerTests.swift", "role": "test", "blob": "e7bdbdaa7d824c6edf870c6889db0279bdfd6dab"},

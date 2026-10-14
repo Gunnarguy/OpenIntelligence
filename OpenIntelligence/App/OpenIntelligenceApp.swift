@@ -20,6 +20,8 @@ struct OpenIntelligenceApp: App {
     #elseif os(macOS)
     /// For the Services menu only; see `MacServicesProvider.swift`.
     @NSApplicationDelegateAdaptor(OpenIntelligenceMacAppDelegate.self) private var macAppDelegate
+    /// The menu bar item, which Settings, Appearance turns off (`MenuBarAsk`).
+    @AppStorage(MenuBarAsk.visibilityKey) private var showsMenuBarItem = true
     #endif
 
     init() {
@@ -72,6 +74,15 @@ struct OpenIntelligenceApp: App {
         .commands {
             OpenIntelligenceCommands()
         }
+        #if os(macOS)
+        MenuBarExtra(isInserted: $showsMenuBarItem) {
+            MenuBarAsk()
+        } label: {
+            Image(systemName: "sparkle.magnifyingglass")
+                .accessibilityLabel("OpenIntelligence")
+        }
+        .menuBarExtraStyle(.window)
+        #endif
     }
 
     private func configureIngestionRuntimeBridge() {
@@ -82,6 +93,7 @@ struct OpenIntelligenceApp: App {
             )
         }
         IngestionRuntimeBridge.shared.beginUserInitiatedIngestionHandler = { title, subtitle in
+            AppStateReporting.importBegan()
             BackgroundTaskService.shared.beginUserInitiatedIngestion(
                 title: title,
                 subtitle: subtitle
@@ -95,6 +107,7 @@ struct OpenIntelligenceApp: App {
             )
         }
         IngestionRuntimeBridge.shared.completeUserInitiatedIngestionHandler = { success in
+            AppStateReporting.importEnded()
             BackgroundTaskService.shared.completeUserInitiatedIngestion(success: success)
             CompletionNotificationService.shared.importFinished(success: success)
         }
@@ -116,19 +129,24 @@ struct OpenIntelligenceApp: App {
                 IngestionLiveActivityService.shared.finish(items: items, containerName: containerName)
             }
             IngestionRuntimeBridge.shared.endLiveActivityHandler = {
+                // Called when the import's tracked items are gone without finishing (stopped,
+                // dismissed or cleared), where the complete handler is not, so the import's state
+                // ends here too.
+                AppStateReporting.importEnded()
                 IngestionLiveActivityService.shared.endCurrentActivity(finalState: nil)
             }
         } else {
             IngestionRuntimeBridge.shared.restoreLiveActivityHandler = nil
             IngestionRuntimeBridge.shared.syncLiveActivityHandler = nil
             IngestionRuntimeBridge.shared.finishLiveActivityHandler = nil
-            IngestionRuntimeBridge.shared.endLiveActivityHandler = nil
+            IngestionRuntimeBridge.shared.endLiveActivityHandler = { AppStateReporting.importEnded() }
         }
 #else
         IngestionRuntimeBridge.shared.restoreLiveActivityHandler = nil
         IngestionRuntimeBridge.shared.syncLiveActivityHandler = nil
         IngestionRuntimeBridge.shared.finishLiveActivityHandler = nil
-        IngestionRuntimeBridge.shared.endLiveActivityHandler = nil
+        // No Live Activity here; the hook still says the import's tracked items are gone.
+        IngestionRuntimeBridge.shared.endLiveActivityHandler = { AppStateReporting.importEnded() }
 #endif
     }
 
@@ -143,6 +161,7 @@ struct OpenIntelligenceApp: App {
             )
         }
         QueryRuntimeBridge.shared.beginUserInitiatedQueryHandler = { title, subtitle in
+            AppStateReporting.answerBegan()
             BackgroundTaskService.shared.beginUserInitiatedQuery(
                 title: title,
                 subtitle: subtitle
@@ -163,6 +182,7 @@ struct OpenIntelligenceApp: App {
             #endif
         }
         QueryRuntimeBridge.shared.completeUserInitiatedQueryHandler = { success in
+            AppStateReporting.answerEnded()
             BackgroundTaskService.shared.completeUserInitiatedQuery(success: success)
             CompletionNotificationService.shared.answerFinished(success: success)
             #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)

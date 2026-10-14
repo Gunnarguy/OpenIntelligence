@@ -26,9 +26,10 @@ nonisolated enum AppDestination: Equatable, Sendable {
     /// The Documents tab, importing files another app handed over ("Open in OpenIntelligence").
     /// The files are already copied into the app. This one has no link form.
     case importFiles([URL])
-    /// The chat with this text in the composer, not sent, so it can be read and changed first: the
-    /// Mac's Services menu (5.7). No link form, so no address carries the text.
-    case ask(String)
+    /// The chat with this text in the composer: not sent, so it can be read and changed first (the
+    /// Mac's Services menu), or sent at once when the person typed it to ask (the Mac's menu bar).
+    /// 5.7. No link form, so no address carries the text.
+    case ask(String, sendsAtOnce: Bool = false)
     /// The library's search, run for this text: "Search OpenIntelligence for ..." from Siri (5.7).
     /// No link form either.
     case searchFor(String)

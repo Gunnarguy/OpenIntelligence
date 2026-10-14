@@ -24,4 +24,12 @@ final class VoiceDictationTests: XCTestCase {
         XCTAssertNil(dictation.problem)
         XCTAssertTrue(VoiceDictation.Problem.microphoneDenied.message.contains("Microphone"))
     }
+
+    /// Text handed to the field from outside waits there unless it was typed to be sent: the Mac's
+    /// Services menu waits, its menu bar sends (5.7).
+    func testTextFromOutsideWaitsInTheFieldUnlessItWasTypedToSend() {
+        XCTAssertFalse(ComposerDraft(text: "Pets?").sendsAtOnce)
+        XCTAssertTrue(ComposerDraft(text: "Pets?", sendsAtOnce: true).sendsAtOnce)
+        XCTAssertNotEqual(ComposerDraft(text: "Pets?").id, ComposerDraft(text: "Pets?").id, "each is applied once")
+    }
 }

@@ -34,7 +34,13 @@ nonisolated enum MetricDiagnostics {
             guard !isStarted else { return }
             isStarted = true
 
-            let manager = MetricKit.MetricManager()
+            // The app's two state domains (`AppStateReporting`), so reports split by import and
+            // answer mode (5.7).
+            let manager = MetricKit.MetricManager(
+                enabledStateReportingDomains: [
+                    StateReportingDomain(rawValue: AppStateReporting.importDomain),
+                    StateReportingDomain(rawValue: AppStateReporting.answerDomain),
+                ])
 
             Task.detached(priority: .utility) {
                 for await report in manager.diagnosticReports {
@@ -56,7 +62,7 @@ nonisolated enum MetricDiagnostics {
     #if canImport(MetricKit)
     @available(iOS 27.0, macOS 27.0, macCatalyst 27.0, *)
     static func recordDiagnosticReport(_ report: MetricKit.DiagnosticReport) {
-        let line = diagnosticLogLine(for: report)
+        let line = diagnosticLogLine(for: report) + statesSuffix(report.environment.states)
         Log.info(line, category: .pipeline)
 
         if let jsonString = compactJSON(report) {
@@ -71,6 +77,16 @@ nonisolated enum MetricDiagnostics {
         if let jsonString = compactJSON(report) {
             try? appendAndTrim(line: jsonString, fileURL: reportsFileURL())
         }
+    }
+
+    /// " during import Importing, answer Deep Think": the states active up to the event, or nothing.
+    @available(iOS 27.0, macOS 27.0, macCatalyst 27.0, *)
+    static func statesSuffix(_ states: [MetricKit.MetricManager.ReportedState]) -> String {
+        guard !states.isEmpty else { return "" }
+        let named = states.map { state in
+            "\(state.domain.split(separator: ".").last.map(String.init) ?? state.domain) \(state.label)"
+        }
+        return " during " + named.joined(separator: ", ")
     }
 
     @available(iOS 27.0, macOS 27.0, macCatalyst 27.0, *)

@@ -9,7 +9,7 @@
   "entry_points": ["OpenIntelligenceApp", "ContentView", "NavigationTiming", "LaunchArguments", "NetworkMonitor"],
   "files": [
     {"path": "OpenIntelligence/App/ContentView.swift", "role": "primary", "blob": "a145ef5bebbaeb5c6d170ad9c6aefdb9f74dcfe9"},
-    {"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "role": "primary", "blob": "4a656b7f423db35eb41734828f5f24b5e51253d3"},
+    {"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "role": "primary", "blob": "3bd516fbf5ba1f696c7887a81ec51b839a9ad33f"},
     {"path": "OpenIntelligence/Core/Extensions/LaunchArguments.swift", "role": "primary", "blob": "ddfbea68300cf090c33a83d8a5f2b8b7927e0154"},
     {"path": "OpenIntelligence/Core/Extensions/NetworkMonitor.swift", "role": "primary", "blob": "299d938960dbe1a96549af4f78b5561ec51784a6"},
     {"path": "OpenIntelligence/Core/Support/NavigationTiming.swift", "role": "primary", "blob": "5dce2d0b1dbf2fc2ff2ee590095fdd8faa8339a4"},
@@ -17,8 +17,10 @@
     {"path": "OpenIntelligence/App/AppCommands.swift", "role": "primary", "blob": "3fbad4d3b6513ff446fc8b8f0ba340f9e1b7b544"},
     {"path": "OpenIntelligence/App/QuickActions.swift", "role": "primary", "blob": "5a80da6b5b48a018d8c956023b564048b36b361f"},
     {"path": "OpenIntelligenceTests/App/LibrarySwitchingTests.swift", "role": "test", "blob": "0c17ef7c1bbe944c7a017930d2604c9fd6326ea5"},
-    {"path": "OpenIntelligence/App/MetricDiagnostics.swift", "role": "primary", "blob": "11b3ca739d3b828c0fba56a827d10444c229e56f"},
-    {"path": "OpenIntelligenceTests/App/MetricDiagnosticsTests.swift", "role": "test", "blob": "eb1bdded6f2ffc493919830f63f3f8110b65e362"}
+    {"path": "OpenIntelligence/App/MetricDiagnostics.swift", "role": "primary", "blob": "89370acaccfe206e90ea7857944bea1aa14699d7"},
+    {"path": "OpenIntelligenceTests/App/MetricDiagnosticsTests.swift", "role": "test", "blob": "eb1bdded6f2ffc493919830f63f3f8110b65e362"},
+    {"path": "OpenIntelligence/App/AppStateReporting.swift", "role": "primary", "blob": "461232473d25ef8d497824a3bf0f4388b985c885"},
+    {"path": "OpenIntelligenceTests/App/AppStateReportingTests.swift", "role": "test", "blob": "922a766fa1b229ba16342675dd4f6e331df7b987"}
   ],
   "nodes": [
     {"id": "OpenIntelligenceApp", "kind": "model", "path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "line": 16, "match": "struct OpenIntelligenceApp: App {", "status": "VERIFIED", "by": "build"},

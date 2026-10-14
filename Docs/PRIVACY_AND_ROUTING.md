@@ -239,6 +239,8 @@ Three things download from the network, and only starting from an address the pe
 
 `MetricDiagnostics` (`OpenIntelligence/App/MetricDiagnostics.swift`) subscribes, on iOS 27 and macOS 27, to MetricKit's `MetricManager` for the reports the system gives an app about itself: hangs, crashes, CPU and disk exceptions, and launch and memory figures. It writes a one-line summary of each to the app's log and appends the report to `metric_reports.jsonl` in the app's local cache folder, keeping the newest 200 lines. The file has no upload code and makes no request, so the app sends these reports nowhere. Whether a person shares analytics with Apple and with developers is a setting of the system's own and is not changed or read by this. No report had been delivered on a device when this was written. `[evidence_level: code_verified; test_verified for the summaries and the 200-line limit (MetricDiagnosticsTests), confidence: high for the code, evidence_source: MetricDiagnostics.swift; a search of that file for URLSession and upload on 2026-10-12 found neither]`
 
+From 5.7 the app also tells the system what it is doing (`AppStateReporting`, iOS and macOS 27), so these reports say whether an import the person started or a question asked in the chat was running (not a question from Siri or Shortcuts, nor an automatic rebuild): two domains with fixed labels, "Importing", and "Standard", "Deep Think" or "Maximum", and no metadata. No document name, question or text is ever a label. The reports, and the states in them, stay where the paragraph above says. `[evidence_level: code_verified, confidence: high, evidence_source: AppStateReporting.swift; MetricDiagnostics.swift]`
+
 ## What the app hands to the system (added 2026-10-14, for 5.7)
 
 5.7 connects the app to Handoff, Siri, Spotlight, Focus and the Lock Screen. Each of these hands the system
@@ -286,6 +288,12 @@ except where it says so below.
   `[evidence_level: code_verified, confidence: high, evidence_source: VoiceDictation.swift]`
 - **Siri's search.** "Search OpenIntelligence for" a phrase opens the app's own search with it; no address
   carries the phrase (`AppDestination.searchFor` has no link form). `[evidence_level: code_verified, confidence: high, evidence_source: SearchInAppIntent.swift; AppNavigationRequest.swift]`
+- **Visual Intelligence.** When the person asks Visual Intelligence about a picture, the system hands the app the
+  picture and its labels. The app reads the picture's text on the device (Vision's `RecognizeTextRequest`),
+  searches its own keyword index, keeps nothing, and hands back the matching documents as items, whose names,
+  library and counts the system shows. `[evidence_level: code_verified, confidence: high, evidence_source: VisualDocumentSearch.swift]`
+- **The Mac's menu bar.** A question typed there goes into the app's own chat, the same as one typed in the
+  chat; no address carries it (`AppDestination.ask` has no link form). `[evidence_level: code_verified, confidence: high, evidence_source: MenuBarAsk.swift]`
 
 ## What the app works out about a library is kept on the device (added 2026-10-13, for 5.7)
 

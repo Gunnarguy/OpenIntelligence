@@ -2117,8 +2117,8 @@ struct ChatScreen: View {
                         duration: 2.5)
                 }
             #endif
-        case .ask(let text):
-            composerDraft = ComposerDraft(text: text)
+        case .ask(let text, let sendsAtOnce):
+            composerDraft = ComposerDraft(text: text, sendsAtOnce: sendsAtOnce)
         default:
             break
         }

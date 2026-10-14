@@ -34,6 +34,10 @@ struct SettingsView: View {
     @State private var isRefreshingSharedWorkspace = false
     @State private var sharedWorkspaceRefreshMessage: String?
     @State private var pccCapability: FoundationModelCapabilitySnapshot?
+    #if os(macOS)
+        /// Whether the menu bar item shows (`MenuBarAsk`); the app reads the same key.
+        @AppStorage(MenuBarAsk.visibilityKey) private var showsMenuBarItem = true
+    #endif
 
     private static let sharedWorkspaceRelativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
@@ -3183,6 +3187,30 @@ Text(deviceService.chipName)
                     .padding(.horizontal)
                     .padding(.vertical, 8)
                 }
+
+                #if os(macOS)
+                    Divider()
+                        .padding(.horizontal)
+
+                    // The menu bar item (5.7), on until it is turned off here.
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Menu Bar")
+                                .font(.subheadline.weight(.medium))
+                            Text("Ask, add documents or search from the menu bar")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: $showsMenuBarItem)
+                            .labelsHidden()
+                            .tint(.purple)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                #endif
             }
         }
         .background(DSColors.surface)

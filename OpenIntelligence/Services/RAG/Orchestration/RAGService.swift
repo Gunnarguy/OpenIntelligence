@@ -4419,12 +4419,23 @@ class RAGService: ObservableObject {
             return Set(ids)
         }()
 
+        // A document recorded as deleted is left out even when this engine still holds it. Two engines
+        // can be alive at once (the app's and one an action made, or two Mac windows), and through 5.6
+        // an engine that had read the list before a delete wrote the deleted document back at its next
+        // save. A deleted document's id never comes back: a re-index adds the file under a new one (5.7).
+        let liveSnapshot = snapshot.filter { !tombstoned.contains($0.id.uuidString) }
+        if liveSnapshot.count != snapshot.count {
+            Log.info(
+                "[RAGService] Left out \(snapshot.count - liveSnapshot.count) document(s) deleted since this engine read the list",
+                category: .ingestion)
+        }
+
         do {
             try WorkspaceSyncService.coordinatedMergeData(at: documentsStorageURL) { existing in
-                var result = snapshot
+                var result = liveSnapshot
 
                 if let existing {
-                    let snapshotIDs = Set(snapshot.map(\.id))
+                    let snapshotIDs = Set(liveSnapshot.map(\.id))
                     let onDisk = (try? JSONDecoder().decode([Document].self, from: existing)) ?? []
                     let unknownToThisProcess = onDisk.filter {
                         !snapshotIDs.contains($0.id) && !tombstoned.contains($0.id.uuidString)

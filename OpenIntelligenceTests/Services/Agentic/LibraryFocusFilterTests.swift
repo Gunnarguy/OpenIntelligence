@@ -33,7 +33,7 @@ final class LibraryFocusFilterTests: XCTestCase {
     }
 
     func testTheFilterTileNamesItsLibraries() {
-        var intent = LibraryFocusFilterIntent()
+        let intent = LibraryFocusFilterIntent()
         XCTAssertEqual(String(localized: intent.displayRepresentation.title), "All libraries")
         intent.libraries = [OILibraryEntityQuery.entity(for: work), OILibraryEntityQuery.entity(for: school)]
         XCTAssertEqual(String(localized: intent.displayRepresentation.title), "Work, School")

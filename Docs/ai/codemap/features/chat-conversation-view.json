@@ -12,8 +12,8 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/ActivityView.swift", "role": "primary", "blob": "87b7e6d4995a131c859f42824fedaceb9334bb79"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/AttachmentPicker.swift", "role": "primary", "blob": "21fce7516bdc093015c921def512b301e9bf1154"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatAnswerNotice.swift", "role": "primary", "blob": "40f7e1575e7e85cc5bf7c549fc3e167868091ee1"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift", "role": "primary", "blob": "0183407e1b1631865115ad0cec8c2d428c435842"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "role": "primary", "blob": "49e85a2eb1291cbecb6108007fab216d7f1b28e5"},
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift", "role": "primary", "blob": "16840ed60ecf288758d475da9bd685d81b71a037"},
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "role": "primary", "blob": "83073f26feeeb7464ea8cea7f0126cba3bbff649"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/EventToasts.swift", "role": "primary", "blob": "03c02a7032d5e4e4144f2015899476122ff9d61b"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/MessageActionsBar.swift", "role": "primary", "blob": "f0eea2e4d10f85aeeeba3a611407a0d0bd8e542c"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/MessageBubbleV2.swift", "role": "primary", "blob": "e3353cbeea06467b90212b57b4612dbffc4b653c"},
@@ -30,7 +30,7 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/VoiceDictation.swift", "role": "primary", "blob": "616021713f0dac42583f1741cbe19eb9d2d4d68f"},
     {"path": "OpenIntelligence/Features/Chat/Response/AnswerCardRenderer.swift", "role": "primary", "blob": "b0f740918ac0b3864afd9ac366bf7e962ff2296a"},
     {"path": "OpenIntelligenceTests/Features/Chat/AnswerCardRendererTests.swift", "role": "test", "blob": "00d412b114f106f5fb0daa0df265517498d6e1df"},
-    {"path": "OpenIntelligenceTests/Features/Chat/VoiceDictationTests.swift", "role": "test", "blob": "73656b56ce782564b075b4fbc52db31fe97d0b69"}
+    {"path": "OpenIntelligenceTests/Features/Chat/VoiceDictationTests.swift", "role": "test", "blob": "cedf26e99c63fe57fa69bfcefe4c83f674275405"}
   ],
   "nodes": [
     {"id": "ChatScreen", "kind": "view", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 212, "match": "struct ChatScreen: View {", "status": "VERIFIED", "by": "build"},
