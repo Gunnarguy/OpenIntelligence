@@ -46,6 +46,8 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Find Passages.** A new action that returns the passages matching a search without writing an answer, so the next step of a shortcut can read them.
 - **Create a library and switch libraries.** Two new actions, "Create Library" and "Set Active Library".
 - **Open a library or a document.** Two new actions, "Open Library" and "Open Document".  Open Document takes you to the document's own page.
+- **Siri's answer card opens its sources.** When Siri or Shortcuts shows an answer, the card has a button for each document it comes from, up to three, and tapping one opens that document.
+- **Check a claim.** A new action, "Check a Claim", takes a sentence and tells you whether the words and figures in your documents hold it up, partly hold it up or don't, and which passage it checked against.  It's the same check an answer gets, without writing an answer, and when one of them says no where the other says yes, it tells you to read the passage.
 - **Delete documents from a shortcut.** "Delete Documents" asks before it deletes anything, and each document's passages and Spotlight entries go with it.
 - **"Add a Document" and "Scan a Document" do what they say.** They used to open the app and stop there.  Now one opens the file picker and the other, on iPhone and iPad, opens Apple's document scanner, the same one Notes uses, and adds what you scan to your library as a PDF.
 - **Documents and libraries carry their details.** A shortcut can read a document's name, type, date added, page count and library, and a library's document count and dates.  Before, it got a title and nothing else.
@@ -70,6 +72,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Services on the Mac.** Select text in any app, then choose Ask OpenIntelligence from the Services menu to put it in the chat, ready to send, or Add Text to OpenIntelligence to save it to your library as a note.  Select files in Finder and choose Add to OpenIntelligence to import them.
 - **The menu bar on the Mac.** OpenIntelligence has a menu bar icon now.  Click it to ask a question, add documents or search, and the app comes forward with it.  Settings, Appearance turns it off.
 - **Long answers on the Lock Screen.** On iPhone and iPad, a question that's still being answered after about ten seconds, like most Deep Think and Maximum questions, shows a Live Activity with the step it's on, and it ends when the answer does.
+- **Put your libraries in your own order.** On iOS 27 and macOS 27, drag a library in the row of libraries on the Documents screen to move it.  The order stays on that device.
 - **Touch and hold the app icon.** Ask, Add Document and Scan Document are on the Home Screen, under the icon.
 - **Keyboard shortcuts.** On the Mac, and on an iPad with a keyboard: Shift-Command-N starts a new conversation, Command-O adds documents, Command-1 and Command-2 switch between Chat and Documents, Command-3 opens the Import Queue, Command-F opens the library's search, Command-] and Command-[ go to the next and previous library, and Command-comma opens Settings.
 

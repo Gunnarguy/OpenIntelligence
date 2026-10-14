@@ -354,6 +354,57 @@ final class ContainerService: ObservableObject {
         }
     }
 
+    /// The order a person dragged the libraries into on this device (5.7): a library's chip dragged
+    /// in a picker on iOS and macOS 27. It is kept apart from the stored list, in this device's
+    /// settings, because the list keeps its own order: the workspace repair and sync put it back in
+    /// creation order (`WorkspaceSyncService.mergeContainers`), and its first library is the home of
+    /// documents stored before libraries existed. So the order stays on this device.
+    static let libraryOrderKey = "libraryDisplayOrder"
+
+    /// The libraries in the order they are shown.
+    var orderedContainers: [KnowledgeContainer] {
+        let stored = (UserDefaults.standard.array(forKey: Self.libraryOrderKey) as? [String] ?? [])
+            .compactMap(UUID.init(uuidString:))
+        let order = Self.ordered(containers.map(\.id), by: stored)
+        let byId = Dictionary(containers.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return order.compactMap { byId[$0] }
+    }
+
+    /// Moves libraries before `target`, or to the end, in the order this device shows.
+    func move(_ ids: [UUID], before target: UUID?) {
+        let current = orderedContainers.map(\.id)
+        let order = Self.reordered(current, moving: ids, before: target)
+        guard order != current else { return }
+        objectWillChange.send()
+        UserDefaults.standard.set(order.map(\.uuidString), forKey: Self.libraryOrderKey)
+    }
+
+    /// `ids` with those `order` names first, in its order, and the rest after them in theirs: a
+    /// library made after the last drag keeps its place at the end.
+    nonisolated static func ordered(_ ids: [UUID], by order: [UUID]) -> [UUID] {
+        guard !order.isEmpty else { return ids }
+        let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        let named = ids.filter { rank[$0] != nil }.sorted { rank[$0, default: 0] < rank[$1, default: 0] }
+        return named + ids.filter { rank[$0] == nil }
+    }
+
+    /// `items` with `moving` taken out, keeping their order, and put back before `target`, or at
+    /// the end when `target` is nil or not in `items`. A drop on one of the moved items changes
+    /// nothing.
+    nonisolated static func reordered(_ items: [UUID], moving: [UUID], before target: UUID?) -> [UUID] {
+        let movingSet = Set(moving).intersection(items)
+        guard !movingSet.isEmpty else { return items }
+        if let target, movingSet.contains(target) { return items }
+        let moved = items.filter { movingSet.contains($0) }
+        var rest = items.filter { !movingSet.contains($0) }
+        if let target, let index = rest.firstIndex(of: target) {
+            rest.insert(contentsOf: moved, at: index)
+        } else {
+            rest.append(contentsOf: moved)
+        }
+        return rest
+    }
+
     /// Writes of the library list land in the order they were asked for.
     ///
     /// Each save used to start its own detached task. An import saves the list many times in a

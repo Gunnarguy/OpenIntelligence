@@ -161,6 +161,8 @@ enum AskActionRunner {
     struct Outcome {
         let answer: OIAnswerEntity
         let response: RAGResponse
+        /// The documents the answer's card offers to open, up to three (`sourceEntities`).
+        let sources: [OIDocumentEntity]
     }
 
     /// - Parameters:
@@ -282,9 +284,45 @@ enum AskActionRunner {
         Log.info(
             "[Shortcuts] Ask complete (mode=\(effectiveMode.rawValue), answerChars=\(response.generatedResponse.count), passages=\(response.retrievedChunks.count), scoped=\(documentIds?.count ?? 0))",
             category: .pipeline)
+        let sources = await MainActor.run {
+            sourceEntities(of: response, documents: engine.documents, libraries: engine.containerService.containers)
+        }
         return Outcome(
             answer: OIAnswerEntity(question: shownQuestion ?? wanted, response: response, mode: effectiveMode),
-            response: response)
+            response: response, sources: sources)
+    }
+
+    /// The card for an answer (5.7): its question, its text and the documents it rests on.
+    static func card(question: String, outcome: Outcome) -> AnswerCardSnippetIntent {
+        AnswerCardSnippetIntent(
+            question: question, answer: AnswerCardSnippetView.shown(outcome.response.generatedResponse),
+            sources: outcome.sources)
+    }
+
+    /// Up to three of the documents an answer rests on (`sourceDocumentIds`), as app items made from
+    /// the engine's own lists, so the card reads no file.
+    static func sourceEntities(
+        of response: RAGResponse, documents: [Document], libraries: [KnowledgeContainer]
+    ) -> [OIDocumentEntity] {
+        let records = Dictionary(documents.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let names = Dictionary(libraries.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let ids = sourceDocumentIds(
+            evidenceIds: response.structuredAnswer?.evidence.map(\.evidenceId) ?? [], passages: response.retrievedChunks)
+        return ids.compactMap { records[$0] }.prefix(3).map { OIDocumentEntityQuery.entity(for: $0, libraryNames: names) }
+    }
+
+    /// The documents an answer rests on, once each: those of the passages its evidence list names,
+    /// in that list's order (`StructuredAnswer.evidence`, which the chat's citation links resolve
+    /// against, narrowed to the passages its accepted claims cite when they cite any). An answer
+    /// with no evidence list falls back to the documents of every passage it was given, in the order
+    /// they were retrieved.
+    nonisolated static func sourceDocumentIds(evidenceIds: [String], passages: [RetrievedChunk]) -> [UUID] {
+        let documentOfPassage = Dictionary(
+            passages.map { ($0.chunk.id.uuidString, $0.chunk.documentId) }, uniquingKeysWith: { first, _ in first })
+        let fromEvidence = evidenceIds.compactMap { documentOfPassage[$0] }
+        let ordered = fromEvidence.isEmpty ? passages.map(\.chunk.documentId) : fromEvidence
+        var seen = Set<UUID>()
+        return ordered.filter { seen.insert($0).inserted }
     }
 
     /// The answer as Siri speaks it: markdown marks removed, and cut at 500 characters with a note
@@ -377,23 +415,17 @@ struct QueryDocumentsIntent: AppIntent {
         }
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
         // Avoid logging user content; keep logs metadata-only.
         Log.info("[Siri] Ask My Documents invoked (questionChars=\(question.count), topK=\(topK))", category: .pipeline)
 
         let outcome = try await AskActionRunner.run(self) { control in
             try await AskActionRunner.ask(question, mode: mode, topK: topK, libraryId: library?.id, control: control)
         }
-        let documentCount = OIDocumentEntityQuery.loadAllDocuments().count
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            view: RAGResponseSnippetView(
-                question: question,
-                answer: outcome.response.generatedResponse,
-                chunkCount: outcome.response.retrievedChunks.count,
-                documentCount: documentCount
-            )
+            snippetIntent: await AskActionRunner.card(question: question, outcome: outcome)
         )
     }
 }
@@ -744,47 +776,87 @@ struct EmbeddingProviderSnippetView: View {
 
 // MARK: - Snippet Views (for Siri and Shortcuts UI)
 
+/// The card Siri and Shortcuts show for an answer (5.7): the question, the answer, and a button for
+/// each of up to three documents it rests on (`AskActionRunner.sourceDocumentIds`), which opens that
+/// document's page. Through 5.6 the card was
+/// a still picture with the passage and document counts. The system may create and perform a
+/// snippet intent many times while its card is up, so `perform` must have no side effects and the
+/// intent should carry the least data it can (Apple's "Displaying static and interactive
+/// snippets", read 2026-10-14): this one only builds the view, from the question, the answer as
+/// the card shows it, and the documents as app items.
 @available(iOS 26.0, macOS 26.0, *)
-struct RAGResponseSnippetView: View {
+struct AnswerCardSnippetIntent: SnippetIntent {
+    static let title: LocalizedStringResource = "Answer"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Question")
+    var question: String
+
+    @Parameter(title: "Answer")
+    var answer: String
+
+    @Parameter(title: "Sources")
+    var sources: [OIDocumentEntity]
+
+    init() {}
+
+    init(question: String, answer: String, sources: [OIDocumentEntity]) {
+        self.question = question
+        self.answer = answer
+        self.sources = sources
+    }
+
+    func perform() async throws -> some IntentResult & ShowsSnippetView {
+        .result(view: AnswerCardSnippetView(question: question, answer: answer, sources: Array(sources.prefix(3))))
+    }
+}
+
+/// The answer arrives already cut (`shown`), so the card stays short; the full answer is the
+/// action's value and in the app.
+@available(iOS 26.0, macOS 26.0, *)
+struct AnswerCardSnippetView: View {
     let question: String
     let answer: String
-    let chunkCount: Int
-    let documentCount: Int
+    let sources: [OIDocumentEntity]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Question
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Question")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(question)
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 10) {
+            Text(question)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Text(answer)
+                .font(.body)
+                .lineLimit(9)
+            if !sources.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(sources, id: \.id) { source in
+                        Button(intent: Self.opening(source)) {
+                            Label(source.filename, systemImage: "doc.text")
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
             }
-
-            Divider()
-
-            // Answer
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Answer")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(answer)
-                    .font(.body)
-            }
-
-            Divider()
-
-            // Metadata
-            HStack {
-                Label("\(chunkCount) chunks", systemImage: "doc.text")
-                Spacer()
-                Label("\(documentCount) docs", systemImage: "folder")
-            }
-            .font(.caption)
-            .foregroundColor(.secondary)
         }
         .padding()
+    }
+
+    /// The answer without its Markdown marks, cut at a word near 600 characters.
+    nonisolated static func shown(_ answer: String) -> String {
+        var text = answer
+        for mark in ["**", "*", "#"] { text = text.replacingOccurrences(of: mark, with: "") }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count > 600 else { return text }
+        let cut = text.prefix(600)
+        return String(cut.lastIndex(of: " ").map { cut[..<$0] } ?? cut) + "…"
+    }
+
+    static func opening(_ document: OIDocumentEntity) -> OpenDocumentIntent {
+        let intent = OpenDocumentIntent()
+        intent.target = document
+        return intent
     }
 }
 
@@ -905,7 +977,7 @@ struct AskDocumentIntent: AppIntent {
     /// Through 5.6 this wrote the file name into the question and searched the whole library, so
     /// the answer could come from any document. The search now runs inside the document, in
     /// Standard, and the runner refuses an answer that rests on any other document's passage.
-    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
         let outcome = try await AskActionRunner.run(self) { control in
             try await AskActionRunner.ask(
                 question, mode: .standard, topK: 6, documentIds: [document.id], control: control)
@@ -913,12 +985,7 @@ struct AskDocumentIntent: AppIntent {
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            view: RAGResponseSnippetView(
-                question: question,
-                answer: outcome.response.generatedResponse,
-                chunkCount: outcome.response.retrievedChunks.count,
-                documentCount: 1
-            )
+            snippetIntent: await AskActionRunner.card(question: question, outcome: outcome)
         )
     }
 }
@@ -940,7 +1007,7 @@ struct SummarizeDocumentIntent: AppIntent {
         Summary("Summarize \(\.$document)")
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
         let prompt = "Provide a concise summary of the main points and key information in the document '\(document.filename)'."
         let outcome = try await AskActionRunner.run(self) { control in
             try await AskActionRunner.ask(
@@ -952,12 +1019,7 @@ struct SummarizeDocumentIntent: AppIntent {
             dialog: IntentDialog(
                 stringLiteral: AskActionRunner.spoken(
                     "Here is a summary of \(document.filename): \(outcome.response.generatedResponse)")),
-            view: RAGResponseSnippetView(
-                question: "Summarize \(document.filename)",
-                answer: outcome.response.generatedResponse,
-                chunkCount: outcome.response.retrievedChunks.count,
-                documentCount: 1
-            )
+            snippetIntent: await AskActionRunner.card(question: "Summarize \(document.filename)", outcome: outcome)
         )
     }
 }
@@ -985,7 +1047,7 @@ struct CompareDocumentsIntent: AppIntent {
         Summary("Compare \(\.$document1) and \(\.$document2) on \(\.$topic)")
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
         guard document1.id != document2.id else {
             throw OIIntentError("Choose two different documents to compare.")
         }
@@ -999,12 +1061,7 @@ struct CompareDocumentsIntent: AppIntent {
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            view: RAGResponseSnippetView(
-                question: shown,
-                answer: outcome.response.generatedResponse,
-                chunkCount: outcome.response.retrievedChunks.count,
-                documentCount: 2
-            )
+            snippetIntent: await AskActionRunner.card(question: shown, outcome: outcome)
         )
     }
 }
@@ -1034,19 +1091,14 @@ struct SearchLibraryIntent: AppIntent {
         }
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
         let outcome = try await AskActionRunner.run(self) { control in
             try await AskActionRunner.ask(query, mode: mode, libraryId: library.id, control: control)
         }
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            view: RAGResponseSnippetView(
-                question: query,
-                answer: outcome.response.generatedResponse,
-                chunkCount: outcome.response.retrievedChunks.count,
-                documentCount: library.totalDocuments
-            )
+            snippetIntent: await AskActionRunner.card(question: query, outcome: outcome)
         )
     }
 }

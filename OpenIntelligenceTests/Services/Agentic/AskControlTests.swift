@@ -60,6 +60,44 @@ final class AskControlTests: XCTestCase {
         XCTAssertNotEqual(progress.localizedDescription, "Writing the answer")
     }
 
+    /// Siri's card shows the answer as plain text, cut at a word to fit the card (5.7).
+    func testTheAnswerCardShowsPlainTextCutAtAWord() {
+        XCTAssertEqual(AnswerCardSnippetView.shown("**Rent** is due on the *5th*."), "Rent is due on the 5th.")
+        let long = String(repeating: "lease ", count: 150)
+        let shown = AnswerCardSnippetView.shown(long)
+        XCTAssertTrue(shown.hasSuffix("lease…"), String(shown.suffix(12)))
+        XCTAssertLessThanOrEqual(shown.count, 601)
+    }
+
+    /// The card's buttons follow the answer's evidence list, and fall back to the retrieved
+    /// passages when it has none (5.7).
+    @MainActor
+    func testTheCardOpensTheDocumentsTheEvidenceNames() {
+        let lease = UUID()
+        let notes = UUID()
+        let manual = UUID()
+        func passage(of document: UUID) -> RetrievedChunk {
+            RetrievedChunk(
+                chunk: DocumentChunk(
+                    documentId: document, content: "Rent is due on the 5th.", embedding: [],
+                    metadata: ChunkMetadata(chunkIndex: 0, wordCount: 6, characterCount: 23)),
+                similarityScore: 0.5, rank: 0, sourceDocument: "", pageNumber: nil)
+        }
+        let first = passage(of: lease)
+        let second = passage(of: notes)
+        let third = passage(of: manual)
+        let fourth = passage(of: lease)
+        let passages = [first, second, third, fourth]
+        XCTAssertEqual(
+            AskActionRunner.sourceDocumentIds(
+                evidenceIds: [third, first, fourth].map(\.chunk.id.uuidString), passages: passages),
+            [manual, lease])
+        XCTAssertEqual(AskActionRunner.sourceDocumentIds(evidenceIds: [], passages: passages), [lease, notes, manual])
+        XCTAssertEqual(
+            AskActionRunner.sourceDocumentIds(evidenceIds: ["not a passage"], passages: passages),
+            [lease, notes, manual], "evidence that names no retrieved passage falls back the same way")
+    }
+
     func testTheReasonIsSaidPlainly() {
         XCTAssertTrue(AskControl.describe("timeout").contains("too long"))
         XCTAssertEqual(AskControl.describe("cancelled"), "The question was stopped.")

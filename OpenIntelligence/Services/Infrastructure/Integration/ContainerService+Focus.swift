@@ -27,7 +27,8 @@ extension ContainerService {
     /// The libraries a picker lists: all of them, or the ones the Focus filter allows. The open
     /// library is always listed, and a filter that names no library that exists hides nothing.
     var pickableContainers: [KnowledgeContainer] {
-        Self.pickable(containers, allowed: focusLibraryIds, active: activeContainerId)
+        // In the order this device shows them (`orderedContainers`, 5.7).
+        Self.pickable(orderedContainers, allowed: focusLibraryIds, active: activeContainerId)
     }
 
     static func pickable(
@@ -50,7 +51,7 @@ extension ContainerService {
         }
         UserDefaults.standard.set(allowed.map(\.uuidString).sorted(), forKey: Self.focusLibraryIdsKey)
         Log.info("[Focus] Library filter: \(allowed.count) librar\(allowed.count == 1 ? "y" : "ies")", category: .ui)
-        if !allowed.contains(activeContainerId), let first = containers.first(where: { allowed.contains($0.id) }) {
+        if !allowed.contains(activeContainerId), let first = orderedContainers.first(where: { allowed.contains($0.id) }) {
             setActive(first.id)
         }
     }

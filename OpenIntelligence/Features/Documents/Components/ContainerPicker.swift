@@ -49,6 +49,7 @@ struct ContainerPickerStrip: View {
                     HStack(spacing: 8) {
                         pillList
                     }
+                    .modifier(LibraryReordering(containerService: containerService))
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -91,6 +92,16 @@ struct ContainerPickerStrip: View {
 
     @ViewBuilder
     private var pillList: some View {
+        // A chip can be dragged to put the libraries in another order on iOS and macOS 27 (5.7).
+        if #available(iOS 27.0, macOS 27.0, *) {
+            pills.reorderable()
+        } else {
+            pills
+        }
+        creationButton
+    }
+
+    private var pills: some DynamicViewContent {
         // The libraries a Focus filter allows while its Focus is on, otherwise all (5.7).
         ForEach(containerService.pickableContainers) { container in
             ContainerPill(
@@ -130,7 +141,10 @@ struct ContainerPickerStrip: View {
             )
             .fixedSize(horizontal: true, vertical: false)
         }
+    }
 
+    @ViewBuilder
+    private var creationButton: some View {
         if allowsCreation {
             Button {
                 onCreateLibrary?()
@@ -282,4 +296,29 @@ struct ContainerPill: View {
 #Preview {
     ContainerPickerStrip(containerService: ContainerService())
         .padding()
+}
+
+/// Applies a dragged chip's new place to the library list, on iOS and macOS 27, where SwiftUI's
+/// `reorderContainer` reports a drag as the dragged ids and the chip they were dropped before
+/// (5.7). Before 27 the chips do not move.
+private struct LibraryReordering: ViewModifier {
+    let containerService: ContainerService
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, macOS 27.0, *) {
+            content.reorderContainer(for: KnowledgeContainer.self) { difference in
+                let target: UUID?
+                if case .before(let id) = difference.destination.position {
+                    target = id
+                } else {
+                    target = nil
+                }
+                withAnimation {
+                    containerService.move(difference.sources, before: target)
+                }
+            }
+        } else {
+            content
+        }
+    }
 }
