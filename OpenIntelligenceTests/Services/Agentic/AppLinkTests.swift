@@ -106,5 +106,9 @@ final class AppLinkTests: XCTestCase {
         XCTAssertEqual(AppDestination.ask("Pets?"), .ask("Pets?", sendsAtOnce: false))
         XCTAssertNotEqual(AppDestination.ask("Pets?"), .ask("Pets?", sendsAtOnce: true))
         XCTAssertEqual(AppLink.url(for: .ask("Pets?", sendsAtOnce: true)).absoluteString, "openintelligence://chat")
+        // Think Deeper on Siri's answer card: the same question, sent at once, in Deep Think.
+        XCTAssertNotEqual(AppDestination.ask("Pets?", sendsAtOnce: true), .ask("Pets?", sendsAtOnce: true, inDeepThink: true))
+        XCTAssertEqual(
+            AppLink.url(for: .ask("Pets?", sendsAtOnce: true, inDeepThink: true)).absoluteString, "openintelligence://chat")
     }
 }

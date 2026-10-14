@@ -13,7 +13,7 @@
     {"path": "OpenIntelligence/Services/Document/Analysis/ReferenceListDetector.swift", "role": "primary", "blob": "defcbfcc0c26d817172b9cc87d1f77816c333818"},
     {"path": "OpenIntelligence/Services/Document/Analysis/SpatialDocumentAnalyzer.swift", "role": "primary", "blob": "3f3a348363a56fa9ba5c01ba3ed017f80cc020f9"},
     {"path": "OpenIntelligence/Services/Document/Analysis/SpecificationDetector.swift", "role": "primary", "blob": "19cb5f6a722a122ffa38d3a6a214fa75467acafe"},
-    {"path": "OpenIntelligence/Services/Document/Analysis/SpeechAnalyzerService.swift", "role": "primary", "blob": "b33cc2607ef5f40ba69c7c4cef4fd735ea2cb572"},
+    {"path": "OpenIntelligence/Services/Document/Analysis/SpeechAnalyzerService.swift", "role": "primary", "blob": "44e8ed744ae830205fe62909ead19c281fd244da"},
     {"path": "OpenIntelligence/Services/Document/Extraction/AudioTranscriptionService.swift", "role": "primary", "blob": "3f2b7636492dc085501bdf848542e8a9771642f9"},
     {"path": "OpenIntelligence/Services/Document/Extraction/GazetteerService.swift", "role": "primary", "blob": "d9b7a9b5f21d25c99fb59d58d5904b64b5d89775"},
     {"path": "OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift", "role": "primary", "blob": "46a6638662facebb2c3614206923b5e6bcb95e8a"},

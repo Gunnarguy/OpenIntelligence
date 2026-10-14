@@ -3,9 +3,13 @@
 //  OpenIntelligence
 //
 
+import CoreGraphics
+import CoreText
 import Foundation
+import UniformTypeIdentifiers
 
-/// Writes a whole conversation to a file: Markdown for reading, JSON Lines for other tools.
+/// Writes a whole conversation to a file: Markdown for reading, JSON Lines for other tools, and
+/// PDF for printing or sending to someone without the app (5.7).
 ///
 /// Through 5.6 the only export was the diagnostic trace of one answer. Each answer here carries the
 /// same source list a shared answer does (`AnswerShareFormatter`). Messages the person hid, and
@@ -14,11 +18,13 @@ nonisolated enum ConversationExporter {
     enum Format: String, CaseIterable, Sendable {
         case markdown
         case jsonLines
+        case pdf
 
         var fileExtension: String {
             switch self {
             case .markdown: return "md"
             case .jsonLines: return "jsonl"
+            case .pdf: return "pdf"
             }
         }
 
@@ -26,6 +32,17 @@ nonisolated enum ConversationExporter {
             switch self {
             case .markdown: return "Markdown"
             case .jsonLines: return "JSON Lines"
+            case .pdf: return "PDF"
+            }
+        }
+
+        /// The file's type, for a shortcut that passes the file on. The system knows `md` and `pdf`;
+        /// a type it does not know for `jsonl` is plain text.
+        var contentType: UTType {
+            switch self {
+            case .markdown: return UTType(filenameExtension: "md") ?? .plainText
+            case .jsonLines: return UTType(filenameExtension: "jsonl") ?? .plainText
+            case .pdf: return .pdf
             }
         }
     }
@@ -135,6 +152,15 @@ nonisolated enum ConversationExporter {
         return "\(base) \(day.string(from: date)).\(format.fileExtension)"
     }
 
+    /// The export's bytes in one format.
+    static func data(messages: [ChatMessage], title: String?, format: Format, date: Date = Date()) -> Data {
+        switch format {
+        case .markdown: return Data(markdown(messages: messages, title: title, exportedAt: date).utf8)
+        case .jsonLines: return Data(jsonLines(messages: messages).utf8)
+        case .pdf: return pdf(messages: messages, title: title, exportedAt: date)
+        }
+    }
+
     /// Writes the export under the temporary directory and returns its address, for the share sheet.
     static func writeTemporaryFile(
         messages: [ChatMessage],
@@ -142,17 +168,117 @@ nonisolated enum ConversationExporter {
         format: Format,
         date: Date = Date()
     ) throws -> URL {
-        let text: String
-        switch format {
-        case .markdown: text = markdown(messages: messages, title: title, exportedAt: date)
-        case .jsonLines: text = jsonLines(messages: messages)
-        }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("ConversationExports", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent(fileName(title: title, format: format, date: date))
-        try Data(text.utf8).write(to: url, options: .atomic)
+        try data(messages: messages, title: title, format: format, date: date).write(to: url, options: .atomic)
         return url
+    }
+
+    // MARK: - PDF
+
+    /// US Letter where the system measures in US units, A4 elsewhere, in points.
+    static var pdfPageSize: CGSize {
+        Locale.current.measurementSystem == .us ? CGSize(width: 612, height: 792) : CGSize(width: 595.28, height: 841.89)
+    }
+
+    /// The same content as the Markdown export, set as text: the title, when it was exported, then
+    /// each message with who wrote it and when, and an answer's sources under it. Markdown marks are
+    /// taken out of the messages. Pages break where the text no longer fits (Core Text), so the
+    /// same code runs on iPhone, iPad and Mac.
+    static func pdf(
+        messages: [ChatMessage],
+        title: String? = nil,
+        exportedAt: Date = Date(),
+        timeZone: TimeZone = .current,
+        pageSize: CGSize = pdfPageSize,
+        appLink: URL = OpenIntelligenceLinks.sharedAppStoreURL
+    ) -> Data {
+        let kept = exportable(messages)
+        let stamp = DateFormatter()
+        stamp.locale = Locale(identifier: "en_US_POSIX")
+        stamp.timeZone = timeZone
+        stamp.dateFormat = "yyyy-MM-dd HH:mm"
+
+        let text = NSMutableAttributedString()
+        func add(_ string: String, size: CGFloat, bold: Bool = false, secondary: Bool = false, after: CGFloat = 4) {
+            let font =
+                CTFontCreateUIFontForLanguage(bold ? .emphasizedSystem : .system, size, nil)
+                ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+            var spacing = after
+            let paragraph = withUnsafePointer(to: &spacing) { pointer in
+                var settings = [
+                    CTParagraphStyleSetting(
+                        spec: .paragraphSpacing, valueSize: MemoryLayout<CGFloat>.size, value: pointer)
+                ]
+                return CTParagraphStyleCreate(&settings, settings.count)
+            }
+            let attributes: [NSAttributedString.Key: Any] = [
+                NSAttributedString.Key(kCTFontAttributeName as String): font,
+                NSAttributedString.Key(kCTForegroundColorAttributeName as String):
+                    CGColor(gray: secondary ? 0.4 : 0, alpha: 1),
+                NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraph,
+            ]
+            text.append(NSAttributedString(string: string + "\n", attributes: attributes))
+        }
+
+        add(cleanTitle(title), size: 20, bold: true, after: 6)
+        add(
+            "Exported from OpenIntelligence on \(stamp.string(from: exportedAt)). "
+                + "\(kept.count) message\(kept.count == 1 ? "" : "s").", size: 10, secondary: true, after: 18)
+        for message in kept {
+            let speaker = message.role == .user ? "You" : "OpenIntelligence"
+            add("\(speaker), \(stamp.string(from: message.timestamp))", size: 12, bold: true, after: 4)
+            add(plain(message.content), size: 11, after: 8)
+            if message.role == .assistant {
+                let sources = sources(of: message)
+                if !sources.isEmpty {
+                    add(
+                        "Sources:\n" + sources.map(AnswerShareFormatter.line(for:)).joined(separator: "\n"),
+                        size: 9.5, secondary: true, after: 8)
+                }
+            }
+            add("", size: 6, after: 6)
+        }
+        add(appLink.absoluteString, size: 9, secondary: true)
+
+        let data = NSMutableData()
+        var mediaBox = CGRect(origin: .zero, size: pageSize)
+        let info = [kCGPDFContextTitle as String: cleanTitle(title), kCGPDFContextCreator as String: "OpenIntelligence"]
+        guard let consumer = CGDataConsumer(data: data as CFMutableData),
+            let context = CGContext(consumer: consumer, mediaBox: &mediaBox, info as CFDictionary)
+        else { return Data() }
+        let framesetter = CTFramesetterCreateWithAttributedString(text)
+        let path = CGPath(rect: mediaBox.insetBy(dx: 54, dy: 54), transform: nil)
+        var location = 0
+        repeat {
+            context.beginPDFPage(nil)
+            let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: location, length: 0), path, nil)
+            CTFrameDraw(frame, context)
+            context.endPDFPage()
+            let shown = CTFrameGetVisibleStringRange(frame).length
+            // A page that took nothing would be followed by the same page forever.
+            guard shown > 0 else { break }
+            location += shown
+        } while location < text.length
+        context.closePDF()
+        return data as Data
+    }
+
+    /// A message without its Markdown marks: emphasis, headings and code ticks.
+    static func plain(_ markdown: String) -> String {
+        markdown
+            .components(separatedBy: "\n")
+            .map { line -> String in
+                var line = line
+                while line.hasPrefix("#") { line.removeFirst() }
+                for mark in ["**", "__", "`"] { line = line.replacingOccurrences(of: mark, with: "") }
+                if line.hasPrefix("* ") { line = "• " + line.dropFirst(2) }
+                return line.replacingOccurrences(of: "*", with: "").trimmingCharacters(in: .whitespaces)
+            }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Helpers

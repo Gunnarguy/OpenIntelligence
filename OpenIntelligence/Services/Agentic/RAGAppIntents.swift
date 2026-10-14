@@ -158,11 +158,19 @@ nonisolated final class AskControl: @unchecked Sendable {
 /// no engine is registered).
 @available(iOS 26.0, macOS 26.0, *)
 enum AskActionRunner {
+    /// The engine a question runs on. A test hands it an engine with a stand-in model, since the
+    /// iOS Simulator has no language model (`ShortcutsActionTests`).
+    static var makeEngine: () -> RAGService = { RAGService() }
+
     struct Outcome {
         let answer: OIAnswerEntity
         let response: RAGResponse
         /// The documents the answer's card offers to open, up to three (`sourceEntities`).
         let sources: [OIDocumentEntity]
+        /// Whether the card offers Think Deeper: a Standard answer from the whole library. A Deep
+        /// Think or Maximum answer has had it, and a question kept to chosen documents would be
+        /// asked of the whole library in the chat.
+        let offersThinkDeeper: Bool
     }
 
     /// - Parameters:
@@ -183,7 +191,7 @@ enum AskActionRunner {
         let wanted = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !wanted.isEmpty else { throw OIIntentError("There was no question to ask.") }
 
-        let engine = await MainActor.run { RAGService() }
+        let engine = await MainActor.run { makeEngine() }
         let (documents, defaultLibraryId) = await MainActor.run {
             (engine.documents, engine.containerService.containers.first?.id)
         }
@@ -289,14 +297,15 @@ enum AskActionRunner {
         }
         return Outcome(
             answer: OIAnswerEntity(question: shownQuestion ?? wanted, response: response, mode: effectiveMode),
-            response: response, sources: sources)
+            response: response, sources: sources,
+            offersThinkDeeper: effectiveMode == .standard && documentIds == nil)
     }
 
     /// The card for an answer (5.7): its question, its text and the documents it rests on.
     static func card(question: String, outcome: Outcome) -> AnswerCardSnippetIntent {
         AnswerCardSnippetIntent(
             question: question, answer: AnswerCardSnippetView.shown(outcome.response.generatedResponse),
-            sources: outcome.sources)
+            sources: outcome.sources, offersThinkDeeper: outcome.offersThinkDeeper)
     }
 
     /// Up to three of the documents an answer rests on (`sourceDocumentIds`), as app items made from
@@ -522,15 +531,16 @@ struct DocumentImportStatusIntent: AppIntent {
         await ragService.restoreIngestionQueueIfNeeded()
 
         let snapshot = await MainActor.run { () -> DocumentImportStatusSnapshot? in
-            let pendingItems = ragService.ingestionItems.filter { !$0.stage.isTerminal }
-            guard !pendingItems.isEmpty else { return nil }
-
-            let activeItem = pendingItems.first(where: { $0.stage != .queued }) ?? pendingItems[0]
+            let items = ragService.ingestionItems
+            let pendingItems = items.filter { !$0.stage.isTerminal }
+            guard let activeItem = ImportProgress.current(in: items) else { return nil }
+            // The same share the background task and the Live Activity show (`ImportProgress`).
+            let done = "\(ImportProgress.percent(of: items))% of the import is done."
             let spokenResponse: String
             if pendingItems.count == 1 {
-                spokenResponse = "One document import is \(activeItem.stage.displayName.lowercased()): \(activeItem.filename)."
+                spokenResponse = "One document import is \(activeItem.stage.displayName.lowercased()): \(activeItem.filename). \(done)"
             } else {
-                spokenResponse = "\(pendingItems.count) document imports are pending. Current stage: \(activeItem.stage.displayName.lowercased()) for \(activeItem.filename)."
+                spokenResponse = "\(pendingItems.count) document imports are pending. Current stage: \(activeItem.stage.displayName.lowercased()) for \(activeItem.filename). \(done)"
             }
 
             return DocumentImportStatusSnapshot(
@@ -778,7 +788,8 @@ struct EmbeddingProviderSnippetView: View {
 
 /// The card Siri and Shortcuts show for an answer (5.7): the question, the answer, and a button for
 /// each of up to three documents it rests on (`AskActionRunner.sourceDocumentIds`), which opens that
-/// document's page. Through 5.6 the card was
+/// document's page, and for a Standard answer from the whole library a Think Deeper button, which
+/// opens the chat in Deep Think with the question (`ThinkDeeperIntent`). Through 5.6 the card was
 /// a still picture with the passage and document counts. The system may create and perform a
 /// snippet intent many times while its card is up, so `perform` must have no side effects and the
 /// intent should carry the least data it can (Apple's "Displaying static and interactive
@@ -798,16 +809,23 @@ struct AnswerCardSnippetIntent: SnippetIntent {
     @Parameter(title: "Sources")
     var sources: [OIDocumentEntity]
 
+    @Parameter(title: "Think Deeper", default: false)
+    var offersThinkDeeper: Bool
+
     init() {}
 
-    init(question: String, answer: String, sources: [OIDocumentEntity]) {
+    init(question: String, answer: String, sources: [OIDocumentEntity], offersThinkDeeper: Bool = false) {
         self.question = question
         self.answer = answer
         self.sources = sources
+        self.offersThinkDeeper = offersThinkDeeper
     }
 
     func perform() async throws -> some IntentResult & ShowsSnippetView {
-        .result(view: AnswerCardSnippetView(question: question, answer: answer, sources: Array(sources.prefix(3))))
+        .result(
+            view: AnswerCardSnippetView(
+                question: question, answer: answer, sources: Array(sources.prefix(3)),
+                offersThinkDeeper: offersThinkDeeper))
     }
 }
 
@@ -818,6 +836,7 @@ struct AnswerCardSnippetView: View {
     let question: String
     let answer: String
     let sources: [OIDocumentEntity]
+    var offersThinkDeeper = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -838,6 +857,12 @@ struct AnswerCardSnippetView: View {
                         .buttonStyle(.bordered)
                     }
                 }
+            }
+            if offersThinkDeeper {
+                Button(intent: ThinkDeeperIntent(question: question)) {
+                    Label("Think Deeper", systemImage: RAGQualityMode.deepThink.icon)
+                }
+                .buttonStyle(.borderedProminent)
             }
         }
         .padding()

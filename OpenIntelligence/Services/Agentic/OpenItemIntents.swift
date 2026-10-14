@@ -36,6 +36,36 @@ struct OpenLibraryIntent: OpenIntent {
     }
 }
 
+/// Opens the chat, switches it to Deep Think and asks the question again: the Think Deeper button
+/// on Siri's answer card (5.7). Deep Think runs for minutes, which is why it opens the app and does
+/// not answer in the card. Not listed in Shortcuts.
+@available(iOS 26.0, macOS 26.0, *)
+struct ThinkDeeperIntent: AppIntent {
+    static var title: LocalizedStringResource = "Think Deeper"
+    static var description: IntentDescription = .init(
+        "Opens OpenIntelligence and asks the question again in Deep Think.",
+        categoryName: "Ask"
+    )
+    static let isDiscoverable = false
+
+    static var openAppWhenRun: Bool = true
+
+    @Parameter(title: "Question")
+    var question: String
+
+    init() {}
+
+    init(question: String) {
+        self.question = question
+    }
+
+    func perform() async throws -> some IntentResult {
+        let asked = question
+        await MainActor.run { AppNavigationRequest.post(.ask(asked, sendsAtOnce: true, inDeepThink: true)) }
+        return .result()
+    }
+}
+
 /// Opens the app on a document's page, in its library.
 ///
 /// Through the first 5.7 builds this went to the document's library only; the Documents screen now

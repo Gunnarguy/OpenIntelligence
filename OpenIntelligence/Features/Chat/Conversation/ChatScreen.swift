@@ -2117,7 +2117,11 @@ struct ChatScreen: View {
                         duration: 2.5)
                 }
             #endif
-        case .ask(let text, let sendsAtOnce):
+        case .ask(let text, let sendsAtOnce, let inDeepThink):
+            if inDeepThink, settings.ragQualityMode != .deepThink {
+                settings.ragQualityMode = .deepThink
+                ragService.resetDeepThinkLiveMetrics()
+            }
             composerDraft = ComposerDraft(text: text, sendsAtOnce: sendsAtOnce)
         default:
             break

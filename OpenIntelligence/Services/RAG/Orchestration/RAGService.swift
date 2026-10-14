@@ -6009,35 +6009,9 @@ class RAGService: ObservableObject {
         IngestionRuntimeBridge.shared.updateContinuedIngestionProgress(
             title: "Importing documents",
             subtitle: "\(filename) • \(stage.displayName)",
-            fraction: overallIngestionProgressFraction(currentItemId: item.id)
+            fraction: ImportProgress.fraction(of: ingestionItems)
         )
         syncIngestionLiveActivity()
-    }
-
-    @MainActor
-    private func overallIngestionProgressFraction(currentItemId: UUID?) -> Double {
-        guard !ingestionItems.isEmpty else { return 0 }
-
-        let completedCount = ingestionItems.filter { $0.stage == .complete }.count
-        let activeContribution: Double
-        if let currentItemId,
-            let activeItem = ingestionItems.first(where: { $0.id == currentItemId })
-        {
-            if let explicitProgress = activeItem.progress {
-                activeContribution = explicitProgress
-            } else if activeItem.stage.isTerminal {
-                activeContribution = activeItem.stage == .complete ? 1 : 0
-            } else if let pipelineIndex = activeItem.stage.pipelineIndex {
-                activeContribution = Double(pipelineIndex + 1) / Double(max(1, IngestionStage.pipelineStages.count))
-            } else {
-                activeContribution = 0
-            }
-        } else {
-            activeContribution = 0
-        }
-
-        let aggregate = Double(completedCount) + activeContribution
-        return aggregate / Double(max(1, ingestionItems.count))
     }
 
     /// Haptic feedback based on ingestion stage

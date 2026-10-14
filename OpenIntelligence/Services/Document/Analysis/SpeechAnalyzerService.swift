@@ -11,6 +11,9 @@
 //  and every recording went to the older recognizer. What was under it also called methods the
 //  framework does not have (`SpeechAnalyzer(locale:)`, `results(for:)`).
 //
+//  On iOS 27 and macOS 27 the file is read through `AssetInputSequenceProvider`, which takes any
+//  audio track AVFoundation decodes, and each audio track is tried in turn until one holds speech.
+//
 
 import AVFoundation
 import Combine
@@ -169,7 +172,15 @@ final class SpeechAnalyzerService: ObservableObject {
 
     /// Returns nil when this path cannot take the file here: the transcriber is not on the device,
     /// the language is not one it supports, the language's model would have to be downloaded first,
-    /// or the file does not open as audio. The caller then uses the older recognizer.
+    /// or the file has no audio this path can read. The caller then uses the older recognizer.
+    ///
+    /// On iOS 27 and macOS 27 the recording is read through `AssetInputSequenceProvider`, a track at
+    /// a time. Measured on a Mac on 2026-10-14 (`BenchmarkRuns/2026-10-14-asset-transcriber-probe`):
+    /// an MP4 whose audio is Opus opened as an `AVAudioFile` and then failed to read (OSStatus -1),
+    /// and the asset input transcribed it; and in a video with a silent first audio track and the
+    /// speech on the second, both inputs read only the first and found nothing, and reading each
+    /// track in turn found the speech. Before 27, and on 27 when the asset input fails, the file is
+    /// opened as an `AVAudioFile` and its first track read.
     ///
     /// A missing model is not downloaded from here. `AssetInventory.assetInstallationRequest`
     /// returns a request only when something has to be installed; `AssetInventory.status` read
@@ -188,49 +199,40 @@ final class SpeechAnalyzerService: ObservableObject {
             let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language))
         else { return nil }
 
-        let transcriber = SpeechTranscriber(
-            locale: locale,
-            transcriptionOptions: [],
-            reportingOptions: [],
-            attributeOptions: [.transcriptionConfidence]
-        )
-        guard try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) == nil else { return nil }
-        guard let audioFile = try? AVAudioFile(forReading: url) else { return nil }
-
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
-        let collecting = Task { () throws -> [AnalyzedUtterance] in
-            var utterances: [AnalyzedUtterance] = []
-            for try await result in transcriber.results where result.isFinal {
-                let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { continue }
-                let confidences = result.text.runs.compactMap { $0.transcriptionConfidence }
-                let confidence = confidences.isEmpty ? 0 : confidences.reduce(0, +) / Double(confidences.count)
-                let utterance = AnalyzedUtterance(
-                    text: text,
-                    startTime: result.range.start.seconds,
-                    endTime: result.range.end.seconds,
-                    confidence: Float(confidence),
-                    speakerLabel: nil
-                )
-                utterances.append(utterance)
-                self.noteTranscribed(utterance, duration: duration)
-            }
-            return utterances
+        func makeTranscriber() -> SpeechTranscriber {
+            SpeechTranscriber(
+                locale: locale,
+                transcriptionOptions: [],
+                reportingOptions: [],
+                attributeOptions: [.transcriptionConfidence]
+            )
+        }
+        guard try await AssetInventory.assetInstallationRequest(supporting: [makeTranscriber()]) == nil else {
+            return nil
         }
 
-        do {
-            if let lastSample = try await analyzer.analyzeSequence(from: audioFile) {
-                try await analyzer.finalizeAndFinish(through: lastSample)
-            } else {
-                await analyzer.cancelAndFinishNow()
+        var transcribed: [AnalyzedUtterance]?
+        if #available(iOS 27.0, macOS 27.0, *) {
+            do {
+                transcribed = try await transcribeEachTrack(of: url, duration: duration, makeTranscriber: makeTranscriber)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                if Task.isCancelled { throw CancellationError() }
+                Log.warning(
+                    "[SpeechAnalyzer] The asset input failed on \(url.lastPathComponent) "
+                        + "(\(error.localizedDescription)): opening it as an audio file",
+                    category: .retrieval)
+                liveTranscript = ""
             }
-        } catch {
-            // Ends the results sequence, so the collecting task cannot wait forever.
-            await analyzer.cancelAndFinishNow()
-            collecting.cancel()
-            throw error
         }
-        let utterances = try await collecting.value
+        if transcribed == nil {
+            guard let audioFile = try? AVAudioFile(forReading: url) else { return nil }
+            transcribed = try await transcribe(with: makeTranscriber(), duration: duration) { analyzer in
+                try await analyzer.analyzeSequence(from: audioFile)
+            }
+        }
+        let utterances = transcribed ?? []
 
         let fullText = utterances.map(\.text).joined(separator: " ")
         let avgConfidence =
@@ -262,6 +264,91 @@ final class SpeechAnalyzerService: ObservableObject {
             confidence: avgConfidence,
             speakerCount: 1
         )
+    }
+
+    /// Each audio track in turn through the asset input, until one holds speech. nil when the file
+    /// has no audio track. A track that fails is passed over; when none held speech and one failed,
+    /// that failure is thrown, and the caller opens the file as an `AVAudioFile`.
+    @available(iOS 27.0, macOS 27.0, *)
+    private func transcribeEachTrack(
+        of url: URL,
+        duration: TimeInterval,
+        makeTranscriber: () -> SpeechTranscriber
+    ) async throws -> [AnalyzedUtterance]? {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .audio)
+        guard !tracks.isEmpty else { return nil }
+        var failure: Error?
+        for (index, track) in tracks.enumerated() {
+            let transcriber = makeTranscriber()
+            do {
+                let utterances = try await transcribe(with: transcriber, duration: duration) { analyzer in
+                    let provider = try await AssetInputSequenceProvider.provider(
+                        from: asset, track: track, compatibleWith: [transcriber])
+                    return try await analyzer.analyzeSequence(provider.analyzerInputs)
+                }
+                if !utterances.isEmpty { return utterances }
+                if tracks.count > 1 {
+                    Log.info(
+                        "[SpeechAnalyzer] No speech in audio track \(index + 1) of \(tracks.count) of "
+                            + "\(url.lastPathComponent)",
+                        category: .retrieval)
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                if Task.isCancelled { throw CancellationError() }
+                Log.warning(
+                    "[SpeechAnalyzer] Audio track \(index + 1) of \(tracks.count) of \(url.lastPathComponent) "
+                        + "could not be read: \(error.localizedDescription)",
+                    category: .retrieval)
+                failure = failure ?? error
+            }
+        }
+        if let failure { throw failure }
+        return []
+    }
+
+    /// One analyzer over what `feed` gives it, and the transcriber's final results, in order.
+    private func transcribe(
+        with transcriber: SpeechTranscriber,
+        duration: TimeInterval,
+        feed: (SpeechAnalyzer) async throws -> CMTime?
+    ) async throws -> [AnalyzedUtterance] {
+        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        let collecting = Task { () throws -> [AnalyzedUtterance] in
+            var utterances: [AnalyzedUtterance] = []
+            for try await result in transcriber.results where result.isFinal {
+                let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+                let confidences = result.text.runs.compactMap { $0.transcriptionConfidence }
+                let confidence = confidences.isEmpty ? 0 : confidences.reduce(0, +) / Double(confidences.count)
+                let utterance = AnalyzedUtterance(
+                    text: text,
+                    startTime: result.range.start.seconds,
+                    endTime: result.range.end.seconds,
+                    confidence: Float(confidence),
+                    speakerLabel: nil
+                )
+                utterances.append(utterance)
+                self.noteTranscribed(utterance, duration: duration)
+            }
+            return utterances
+        }
+
+        do {
+            if let lastSample = try await feed(analyzer) {
+                try await analyzer.finalizeAndFinish(through: lastSample)
+            } else {
+                await analyzer.cancelAndFinishNow()
+            }
+        } catch {
+            // Ends the results sequence, so the collecting task cannot wait forever.
+            await analyzer.cancelAndFinishNow()
+            collecting.cancel()
+            throw error
+        }
+        return try await collecting.value
     }
 
     private func noteTranscribed(_ utterance: AnalyzedUtterance, duration: TimeInterval) {

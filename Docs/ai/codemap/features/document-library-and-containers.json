@@ -24,7 +24,7 @@
     {"path": "OpenIntelligence/Features/Documents/Search/SemanticSearchView.swift", "role": "primary", "blob": "3c48457ad2aac184f2192a278e84c621f8203389"},
     {"path": "OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift", "role": "primary", "blob": "f5077c1a3d9d8254cc2f0ac1064826be56dbb213"},
     {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "35ee961142fd17a08b8c0ae42c0b95aa234f1dab"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "3010a268c637ab1cd5837970ab0b3fb709ee1e5b"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "576c0a8e84fcc9a47bbdb4ba2920a5f0e25ef8f3"},
     {"path": "OpenIntelligence/Features/Documents/Library/PastedContentStaging.swift", "role": "primary", "blob": "b5980664af9c6dc1b8a707148abdb620d31c1ef5"},
     {"path": "OpenIntelligenceTests/Features/Documents/PastedContentStagingTests.swift", "role": "test", "blob": "9d0460da01275f8f7cd562a4c7f5f002a1beafab"},
     {"path": "OpenIntelligence/Services/Infrastructure/Integration/ContainerService+Focus.swift", "role": "primary", "blob": "a8d46c173754bee611e2d22c8f8e06cecf935a07"},

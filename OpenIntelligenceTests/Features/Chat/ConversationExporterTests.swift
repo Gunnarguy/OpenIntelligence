@@ -7,6 +7,7 @@
 //  JSON Lines parses back, since the app imports that format as records.
 //
 
+import PDFKit
 import XCTest
 
 @testable import OpenIntelligence
@@ -148,5 +149,51 @@ final class ConversationExporterTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, "jsonl")
         XCTAssertEqual(
             try String(contentsOf: url, encoding: .utf8), ConversationExporter.jsonLines(messages: conversation()))
+    }
+
+    /// The PDF holds what the Markdown holds, as text a reader can search, and breaks into pages (5.7).
+    func testThePDFHoldsEachKeptTurnAndItsSources() throws {
+        let data = ConversationExporter.pdf(
+            messages: conversation(), title: "When is rent late?", exportedAt: asked.addingTimeInterval(120),
+            timeZone: utc, pageSize: CGSize(width: 612, height: 792), appLink: link)
+        let document = try XCTUnwrap(PDFDocument(data: data), "not a PDF")
+        XCTAssertEqual(document.pageCount, 1)
+        let text = try XCTUnwrap(document.string)
+        XCTAssertTrue(text.contains("When is rent late?"), text)
+        XCTAssertTrue(text.contains("Rent is late after 11:59 p.m. on the 5th"), text)
+        XCTAssertTrue(text.contains("Lease.pdf"), text)
+        XCTAssertFalse(text.contains("A hidden answer."))
+        XCTAssertFalse(text.contains("System note."))
+    }
+
+    func testALongConversationRunsOntoMorePages() throws {
+        let long = (0..<40).map { index in
+            ChatMessage(
+                role: index % 2 == 0 ? .user : .assistant,
+                content: String(repeating: "The deposit is two months of rent and is held in a separate account. ", count: 6),
+                timestamp: asked)
+        }
+        let document = try XCTUnwrap(
+            PDFDocument(
+                data: ConversationExporter.pdf(
+                    messages: long, title: "Long", exportedAt: asked, timeZone: utc,
+                    pageSize: CGSize(width: 612, height: 792), appLink: link)))
+        XCTAssertGreaterThan(document.pageCount, 3)
+        XCTAssertTrue(try XCTUnwrap(document.page(at: document.pageCount - 1)?.string).contains(link.absoluteString))
+    }
+
+    func testMarkdownMarksAreTakenOutForThePDF() {
+        XCTAssertEqual(
+            ConversationExporter.plain("## Rent\n**Due** on the *5th*.\n* first\n`code`"),
+            "Rent\nDue on the 5th.\n• first\ncode")
+    }
+
+    func testEachFormatWritesItsOwnKindOfFile() throws {
+        XCTAssertEqual(ConversationExporter.Format.pdf.contentType, .pdf)
+        let url = try ConversationExporter.writeTemporaryFile(
+            messages: conversation(), title: "Rent", format: .pdf, date: asked)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(url.pathExtension, "pdf")
+        XCTAssertNotNil(PDFDocument(url: url))
     }
 }

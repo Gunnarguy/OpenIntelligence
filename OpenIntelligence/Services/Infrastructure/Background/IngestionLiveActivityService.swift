@@ -241,7 +241,7 @@ final class IngestionLiveActivityService {
     }
 
     private func buildContentState(from items: [IngestionItem]) -> IngestionLiveActivityAttributes.ContentState? {
-        guard let currentItem = items.first(where: { !$0.stage.isTerminal }) ?? items.first else {
+        guard let currentItem = ImportProgress.current(in: items) ?? items.first else {
             return nil
         }
 
@@ -249,7 +249,7 @@ final class IngestionLiveActivityService {
         let activeCount = items.filter { !$0.stage.isTerminal }.count
         let processedCount = items.filter { $0.stage == .complete }.count
         let totalCount = items.count
-        let rawProgress = overallProgress(for: items, currentItem: currentItem)
+        let rawProgress = ImportProgress.fraction(of: items)
         let quantizedProgress = quantize(rawProgress, step: progressQuantum(for: device))
         let remainingDocuments = items
             .filter { !$0.stage.isTerminal }
@@ -272,22 +272,6 @@ final class IngestionLiveActivityService {
             processingMode: processingMode(for: device),
             thermalBucket: thermalBucket
         )
-    }
-
-    private func overallProgress(for items: [IngestionItem], currentItem: IngestionItem) -> Double {
-        guard !items.isEmpty else { return 0 }
-
-        let completedCount = items.filter { $0.stage == .complete }.count
-        let activeContribution: Double
-        if let explicitProgress = currentItem.progress {
-            activeContribution = explicitProgress
-        } else if let pipelineIndex = currentItem.stage.pipelineIndex {
-            activeContribution = Double(pipelineIndex + 1) / Double(max(1, IngestionStage.pipelineStages.count))
-        } else {
-            activeContribution = currentItem.stage.isTerminal ? 1 : 0
-        }
-
-        return min(1, (Double(completedCount) + activeContribution) / Double(items.count))
     }
 
     private func progressQuantum(for device: DeviceCapabilityService) -> Double {

@@ -11,7 +11,7 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIDocumentEntity.swift", "role": "primary", "blob": "b15f6a4fa7a36b9142177241591a2bec17217ae5"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIEntityQueries.swift", "role": "primary", "blob": "f16d408929de7e8dc85e3f21485a5746ec4ea915"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OILibraryEntity.swift", "role": "primary", "blob": "55dd8af91f471bc37c36528f24a8f4b8df3021f7"},
-    {"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "role": "primary", "blob": "58f6079ba2c38891664b57a23f582a2a5cd097a9"},
+    {"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "role": "primary", "blob": "7d7059137191e485e6cfdfdca11ca020034ed737"},
     {"path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "role": "primary", "blob": "a1f27a95b9c3dbdf36a7aad9dbb4b4fc7304d06b"},
     {"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "role": "primary", "blob": "ec5cf990630aba7ea5b8c11ffeb5d0a37637feec"},
     {"path": "OpenIntelligence/Services/Agentic/IntentSupport.swift", "role": "primary", "blob": "a9faca9f7045af177ff4c410b52bf0c475953cb5"},
@@ -23,9 +23,9 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIPassageEntity.swift", "role": "primary", "blob": "6b1c19b2bd5a7acbeb4da62f150659ee894fdb44"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIThreadEntity.swift", "role": "primary", "blob": "6a86a0c2870f0e2f858c19e175ce5bccaa3a446e"},
     {"path": "OpenIntelligenceTests/Services/Agentic/OIEntityMappingTests.swift", "role": "test", "blob": "bfb9b6390b6b199b4f505dcad3267862e4813de1"},
-    {"path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "role": "primary", "blob": "84785b14e96761d90972be432399d16b9fd10ead"},
-    {"path": "OpenIntelligence/Services/Agentic/OpenItemIntents.swift", "role": "primary", "blob": "534910447136365efca91fccf5b6e1255ac6935d"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/AppLinkTests.swift", "role": "test", "blob": "35b6de986efbab0c87fe2094cf216a2660428719"},
+    {"path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "role": "primary", "blob": "98b1d646f3ecfad6ab720667e601b26d9ed05521"},
+    {"path": "OpenIntelligence/Services/Agentic/OpenItemIntents.swift", "role": "primary", "blob": "b0f10547c7e34c36ae9197f01405f1dd56274b9d"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/AppLinkTests.swift", "role": "test", "blob": "d825eb801ec76c301134e302e3e89a01f47dbb50"},
     {"path": "OpenIntelligenceTests/App/AppShortcutsProviderTests.swift", "role": "test", "blob": "74efc7d10db2b1a3d07a42b918e73bc71897e736"},
     {"path": "OpenIntelligence/UI/Components/SiriPhraseTip.swift", "role": "primary", "blob": "38bdd28e6babe9c9ea41d68f766c39fc2eacee7b"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/SiriDonations.swift", "role": "primary", "blob": "1ad864448aea00eae090fdc9f68e8e196261acad"},
@@ -40,7 +40,8 @@
     {"path": "OpenIntelligenceTests/Services/Agentic/DocumentDeletionTests.swift", "role": "test", "blob": "9f5a9d46d192fb67bf13aed24697ab9a79738851"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/SyncableEntities.swift", "role": "primary", "blob": "a8724b12a85240553431046b23b9dbccc5711356"},
     {"path": "OpenIntelligence/Services/Agentic/CheckClaimIntent.swift", "role": "primary", "blob": "9a9e20cd9286e349b814ec9f47784b782d947688"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/ClaimCheckTests.swift", "role": "test", "blob": "bb7e327e9d4345295889f069173a150ffa5a31ae"}
+    {"path": "OpenIntelligenceTests/Services/Agentic/ClaimCheckTests.swift", "role": "test", "blob": "bb7e327e9d4345295889f069173a150ffa5a31ae"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "role": "test", "blob": "6dcf13a268b3d9fbbe65f91ace7f95982f4a79f4"}
   ],
   "nodes": [
     {"id": "RAGAppShortcutsProvider", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 371, "match": "struct RAGAppShortcutsProvider: AppShortcutsProvider {", "status": "VERIFIED", "by": "build"},

@@ -28,8 +28,10 @@ nonisolated enum AppDestination: Equatable, Sendable {
     case importFiles([URL])
     /// The chat with this text in the composer: not sent, so it can be read and changed first (the
     /// Mac's Services menu), or sent at once when the person typed it to ask (the Mac's menu bar).
-    /// 5.7. No link form, so no address carries the text.
-    case ask(String, sendsAtOnce: Bool = false)
+    /// With `inDeepThink` the chat is switched to Deep Think first, as its own "Switch to Deep
+    /// Think" does (the Think Deeper button on Siri's answer card). 5.7. No link form, so no
+    /// address carries the text.
+    case ask(String, sendsAtOnce: Bool = false, inDeepThink: Bool = false)
     /// The library's search, run for this text: "Search OpenIntelligence for ..." from Siri (5.7).
     /// No link form either.
     case searchFor(String)
