@@ -284,7 +284,9 @@ except where it says so below.
   leaving the chat; a stop that comes while dictation is still preparing ends it before the microphone
   starts. Its audio goes to Apple's `DictationTranscriber` on the device and is not saved, and the words go
   into the field unsent.
-  The model is one of Apple's system assets, installed by the system the first time.
+  The model is one of Apple's system assets, installed by the system the first time. On the Mac the app's
+  sandbox allows the microphone only through the `com.apple.security.device.audio-input` entitlement (added
+  2026-10-14), and macOS asks the person the first time, as iOS does.
   `[evidence_level: code_verified, confidence: high, evidence_source: VoiceDictation.swift]`
 - **Siri's search.** "Search OpenIntelligence for" a phrase opens the app's own search with it; no address
   carries the phrase (`AppDestination.searchFor` has no link form). `[evidence_level: code_verified, confidence: high, evidence_source: SearchInAppIntent.swift; AppNavigationRequest.swift]`

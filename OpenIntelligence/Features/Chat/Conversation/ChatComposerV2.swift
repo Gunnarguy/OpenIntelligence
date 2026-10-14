@@ -118,9 +118,8 @@ struct ChatComposerV2: View {
                         .padding(.leading, 16)
 
                     // Dictation: the words go into the field as they are recognised, unsent (5.7).
-                    // iPhone and iPad only for now: the sandboxed Mac app needs the audio-input
-                    // entitlement for the microphone, and that file waits for the owner's word.
-                    #if os(iOS)
+                    // On the Mac the sandbox and the hardened runtime let the app use the microphone
+                    // through `com.apple.security.device.audio-input` in the entitlements file.
                     if !isProcessing || isCheckingAnswer {
                         Button {
                             toggleDictation()
@@ -135,7 +134,6 @@ struct ChatComposerV2: View {
                         .accessibilityLabel(dictation.phase == .listening ? "Stop dictation" : "Dictate a question")
                         .padding(.bottom, 12)
                     }
-                    #endif
 
                     // Attachment button with menu
                     if !isProcessing {

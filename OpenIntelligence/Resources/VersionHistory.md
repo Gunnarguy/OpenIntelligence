@@ -85,7 +85,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Copy works on the Mac.** The Copy button under an answer showed "Copied" on the Mac and copied nothing.  It copies now, and so do the three other copy buttons that had the same problem.
 
 ### Answers
-- **Ask out loud.** On iPhone and iPad, the chat field has a microphone button.  Tap it and talk, and your words show up in the field as you speak.  Tap it again to stop, then send when it looks right.  Dictation runs on your device.
+- **Ask out loud.** On iPhone, iPad and Mac, the chat field has a microphone button.  Tap it and talk, and your words show up in the field as you speak.  Tap it again to stop, then send when it looks right.  Dictation runs on your device.
 - **Open the document a source came from.** The document page a citation opens has a Preview button now, which shows the file itself in Quick Look.  A PDF opens at its first page.
 - **Fact Check quotes the right sentence.** The quote under a claim in Fact Check was the first few lines of the passage, wherever the claim came from.  Now it's the sentence in that passage that matches the claim best.
 - **Without Apple Intelligence, an answer says why it's excerpts.** An answer made of excerpts used to end by saying the model might be rate-limited.  On a device that can't run Apple Intelligence, or with it turned off, that isn't the reason, and now it says the real one.

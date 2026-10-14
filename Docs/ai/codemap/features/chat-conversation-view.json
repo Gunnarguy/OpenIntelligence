@@ -12,7 +12,7 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/ActivityView.swift", "role": "primary", "blob": "87b7e6d4995a131c859f42824fedaceb9334bb79"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/AttachmentPicker.swift", "role": "primary", "blob": "21fce7516bdc093015c921def512b301e9bf1154"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatAnswerNotice.swift", "role": "primary", "blob": "40f7e1575e7e85cc5bf7c549fc3e167868091ee1"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift", "role": "primary", "blob": "0817fe5d6e98fc02ccbc8be1ad6306a7f817a046"},
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift", "role": "primary", "blob": "6c21c21809b7fce94a98c9762e7298c139da3f01"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "role": "primary", "blob": "7f4e2e47b46c09772dceae68ccd0bf95cfd4843e"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/EventToasts.swift", "role": "primary", "blob": "03c02a7032d5e4e4144f2015899476122ff9d61b"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/MessageActionsBar.swift", "role": "primary", "blob": "f0eea2e4d10f85aeeeba3a611407a0d0bd8e542c"},

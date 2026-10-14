@@ -1626,3 +1626,41 @@ in-memory list. Rejected: a delete made on another device while this device's ap
 library entry, as it did before 5.7; its documents' entries go. Passage entries made by 5.6 still expire on their
 own schedule, and a document from another device is listed without passages.
 `[evidence_level: test_verified (SpotlightItemsTests: the list's arithmetic and the preview text), build_verified, not run on a device; confidence: high for the mechanism; evidence_source: SpotlightIndexService.swift documentsLoaded, indexingSwitched, indexDocumentChunks, refreshEntriesMadeBefore57; RAGService.swift applyLoadedDocuments, loadDocumentsSnapshotFromDisk, addDocument]`
+
+## 2026-10-14 - Enhanced Security waits for the capability on the App ID; when it goes in, pointer authentication stays off
+
+**Context.** The owner approved Apple's Enhanced Security capability for 5.7 on 2026-10-14 (the row "Turn on
+Apple's enhanced security for file parsing"). Apple's guide ("Enabling enhanced security for your app",
+developer.apple.com, read that day) and Xcode 27's own reference for it (`audit-xcode-security-settings-ref-*`
+in `IDEIntelligenceChat.framework`) describe it as a build setting, `ENABLE_ENHANCED_SECURITY = YES`, which turns
+on pointer authentication (an `arm64e` slice), zero-initialised stack variables, security warnings, typed
+allocators and C++ library hardening, plus entitlements for the runtime protections:
+`com.apple.security.hardened-process` (true), `...enhanced-security-version-string` ("2", which also turns on
+guard objects), `...hardened-heap`, `...dyld-ro` and `...platform-restrictions-string` ("2").
+`[evidence_level: code_verified for the documents, confidence: high]`
+
+**What was found.** (1) The Rust tokenizer the app links (`swift-tokenizers`, `TokenizersRust.artifactbundle`)
+ships only `arm64` for iPhone and `arm64`/`x86_64` for the Mac, no `arm64e` (`lipo -info`, 2026-10-14), so pointer
+authentication cannot be built for the app target; Xcode's reference says to set
+`ENABLE_POINTER_AUTHENTICATION = NO` on a target in that position. (2) With the five entitlements and the two
+build settings in place, the iPhone build failed: `Provisioning profile "iOS Team Provisioning Profile:
+Gunndamental.OpenIntelligence" doesn't include the Enhanced Security capability`, and with
+`-allowProvisioningUpdates` it failed with `No Accounts` (no Apple account in Xcode on this Mac).
+`[evidence_level: measured, confidence: exact, evidence_source: the device build logs of 2026-10-14]`
+
+**Decision.** The change was taken out the same day, so the tree builds and an Xcode Cloud archive is not put at
+risk, and is ready to go back in as it was: the two build settings on the app target's Debug and Release
+configurations (`ENABLE_ENHANCED_SECURITY = YES`, `ENABLE_POINTER_AUTHENTICATION = NO`) and the five entitlements
+above in `OpenIntelligence.entitlements`. It goes back in once the App ID has the Enhanced Security capability: in
+Xcode with the owner's account signed in (Signing & Capabilities, add Enhanced Security, which registers it), or
+through the App Store Connect key if he says to use it for that.
+
+**Alternatives.** (1) Leave the entitlements in and let Xcode Cloud register the capability. Rejected: whether its
+managed signing adds a capability the App ID lacks was not established, and a failed archive blocks the release.
+(2) Version "1" to avoid guard objects' memory cost. Not chosen: the values Xcode sets are "2", and the memory cost
+on a large library is to be measured on a device instead.
+
+**Consequences.** Until then the row stays open. When it goes in: measure an import of the 88 MB JSON Lines file on
+the iPhone before and after (memory and passages per second), because guard objects and the hardened heap can raise
+memory use, and the app's largest imports already run near the phone's limit; then decide on hardware memory
+tagging (A19 and M5 or later only), which Apple recommends turning on in soft mode first.
