@@ -192,6 +192,15 @@ final class ConversationExporterTests: XCTestCase {
         XCTAssertEqual(ConversationExporter.plain("#hashtag stays"), "#hashtag stays")
     }
 
+    /// The chat menu writes its file off the main actor; it is the same file.
+    func testTheFileWrittenOffTheMainActorIsTheSame() async throws {
+        let url = try await ConversationExporter.writeTemporaryFileOffMainActor(
+            messages: conversation(), title: "Rent", format: .jsonLines, date: asked)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(
+            try String(contentsOf: url, encoding: .utf8), ConversationExporter.jsonLines(messages: conversation()))
+    }
+
     func testEachFormatWritesItsOwnKindOfFile() throws {
         XCTAssertEqual(ConversationExporter.Format.pdf.contentType, .pdf)
         let url = try ConversationExporter.writeTemporaryFile(

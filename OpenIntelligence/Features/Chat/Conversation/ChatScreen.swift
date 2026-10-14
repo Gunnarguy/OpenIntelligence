@@ -2200,19 +2200,22 @@ struct ChatScreen: View {
             if case .user = message.role { return true }
             return false
         }?.content
-        do {
-            let url = try ConversationExporter.writeTemporaryFile(
-                messages: messages,
-                title: firstQuestion,
-                format: format
-            )
-            conversationExport = ConversationExportFile(url: url)
-        } catch {
-            Log.error("[Chat] Conversation export failed: \(error.localizedDescription)", category: .pipeline)
-            toastManager.show(
-                ToastItem(title: "Export failed", icon: "exclamationmark.triangle", tint: .orange),
-                duration: 2.0
-            )
+        let shown = messages
+        Task {
+            do {
+                let url = try await ConversationExporter.writeTemporaryFileOffMainActor(
+                    messages: shown,
+                    title: firstQuestion,
+                    format: format
+                )
+                conversationExport = ConversationExportFile(url: url)
+            } catch {
+                Log.error("[Chat] Conversation export failed: \(error.localizedDescription)", category: .pipeline)
+                toastManager.show(
+                    ToastItem(title: "Export failed", icon: "exclamationmark.triangle", tint: .orange),
+                    duration: 2.0
+                )
+            }
         }
     }
 

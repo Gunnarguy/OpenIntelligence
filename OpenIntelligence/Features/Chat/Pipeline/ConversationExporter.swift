@@ -176,6 +176,17 @@ nonisolated enum ConversationExporter {
         return url
     }
 
+    /// `writeTemporaryFile` off the main actor (5.7), so laying out a long conversation's PDF page by
+    /// page does not hold the chat's screen while it runs. The chat menu's Export uses it.
+    @concurrent static func writeTemporaryFileOffMainActor(
+        messages: [ChatMessage],
+        title: String?,
+        format: Format,
+        date: Date = Date()
+    ) async throws -> URL {
+        try writeTemporaryFile(messages: messages, title: title, format: format, date: date)
+    }
+
     // MARK: - PDF
 
     /// US Letter where the system measures in US units, A4 elsewhere, in points.
