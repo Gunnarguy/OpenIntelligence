@@ -110,5 +110,9 @@ final class AppLinkTests: XCTestCase {
         XCTAssertNotEqual(AppDestination.ask("Pets?", sendsAtOnce: true), .ask("Pets?", sendsAtOnce: true, inDeepThink: true))
         XCTAssertEqual(
             AppLink.url(for: .ask("Pets?", sendsAtOnce: true, inDeepThink: true)).absoluteString, "openintelligence://chat")
+        // Ask a Follow-up on Siri's answer card opens the chat; no address carries the question or the answer.
+        XCTAssertEqual(
+            AppLink.url(for: .continueAnswer(question: "Pets?", answer: "No pets.")).absoluteString,
+            "openintelligence://chat")
     }
 }

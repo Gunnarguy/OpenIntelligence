@@ -8,7 +8,7 @@
   "verified_on": "2026-10-13",
   "entry_points": ["OpenIntelligenceApp", "ContentView", "NavigationTiming", "LaunchArguments", "NetworkMonitor"],
   "files": [
-    {"path": "OpenIntelligence/App/ContentView.swift", "role": "primary", "blob": "a145ef5bebbaeb5c6d170ad9c6aefdb9f74dcfe9"},
+    {"path": "OpenIntelligence/App/ContentView.swift", "role": "primary", "blob": "8d1cc6da76908bbca8a3fd7539257fd29504713c"},
     {"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "role": "primary", "blob": "3bd516fbf5ba1f696c7887a81ec51b839a9ad33f"},
     {"path": "OpenIntelligence/Core/Extensions/LaunchArguments.swift", "role": "primary", "blob": "ddfbea68300cf090c33a83d8a5f2b8b7927e0154"},
     {"path": "OpenIntelligence/Core/Extensions/NetworkMonitor.swift", "role": "primary", "blob": "299d938960dbe1a96549af4f78b5561ec51784a6"},

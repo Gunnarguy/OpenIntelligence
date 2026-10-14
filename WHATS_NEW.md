@@ -43,7 +43,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Find Passages.** A new action that returns the passages matching a search without writing an answer, so the next step of a shortcut can read them.
 - **Create a library and switch libraries.** Two new actions, "Create Library" and "Set Active Library".
 - **Open a library or a document.** Two new actions, "Open Library" and "Open Document".  Open Document takes you to the document's own page.
-- **Siri's answer card opens its sources.** When Siri or Shortcuts shows an answer, the card has a button for each document it comes from, up to three, and tapping one opens that document.  A Standard answer also has a Think Deeper button, which opens the app and asks the question again in Deep Think.
+- **Siri's answer card opens its sources.** When Siri or Shortcuts shows an answer, the card has a button for each document it comes from, up to three, and tapping one opens that document.  A Standard answer also has a Think Deeper button, which opens the app and asks the question again in Deep Think, and every answer has Ask a Follow-up, which opens the app in a new conversation that starts with that question and answer, so your next question picks up from it.
 - **Check a claim.** A new action, "Check a Claim", takes a sentence and tells you whether the words and figures in your documents hold it up, partly hold it up or don't, and which passage it checked against.  It's the same check an answer gets, without writing an answer, and when one of them says no where the other says yes, it tells you to read the passage.
 - **Delete documents from a shortcut.** "Delete Documents" asks before it deletes anything, and each document's passages and Spotlight entries go with it.
 - **"Add a Document" and "Scan a Document" do what they say.** They used to open the app and stop there.  Now one opens the file picker and the other, on iPhone and iPad, opens Apple's document scanner, the same one Notes uses, and adds what you scan to your library as a PDF.
@@ -99,6 +99,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 
 ### Plans
 - **Redeem a code.** The plans screen has a Redeem a Code button.  It opens Apple's sheet for offer codes.
+- **New Chat at your conversation limit keeps the conversation you had.** When a plan's limit on saved conversations was reached, New Chat emptied the screen but kept saving to the old conversation, so your next question replaced everything in it.  Now the conversation stays on screen with a note about the limit, and your next question is added to it.
 
 ### When your device is busy
 - **The app eases off when iOS asks.** iOS 27 can tell apps to use less when the device is under pressure.  When it does, an import leaves a short gap between batches and Deep Think and Maximum leave a second between steps.  The answer isn't cut short.  It takes a little longer.

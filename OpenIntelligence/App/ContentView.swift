@@ -581,7 +581,7 @@ struct ContentView: View {
     /// Nothing is taken here; `route` and the screens do that.
     private func show(_ destination: AppDestination) {
         switch destination {
-        case .chat, .scanDocument, .ask:
+        case .chat, .scanDocument, .ask, .continueAnswer:
             selectedTab = .chat
         case .newConversation(let libraryId):
             if let libraryId { containerService.setActive(libraryId) }
@@ -629,7 +629,7 @@ struct ContentView: View {
         case .addDocument, .importFiles, .search, .searchFor:
             selectedTab = .documents
             return
-        case .scanDocument, .ask:
+        case .scanDocument, .ask, .continueAnswer:
             selectedTab = .chat
             return
         case .newConversation(let libraryId):

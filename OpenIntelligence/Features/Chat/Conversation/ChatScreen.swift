@@ -2095,11 +2095,12 @@ struct ChatScreen: View {
         ragService.persistChatHistory(history, for: containerId)
     }
 
-    /// A request that ends in this screen: a new conversation, the camera, or text to ask about.
+    /// A request that ends in this screen: a new conversation, the camera, text to ask about, or an
+    /// answer from Siri to follow up on.
     private func takeNavigationRequest() {
         let request = AppNavigationRequest.shared.take { destination in
             switch destination {
-            case .newConversation, .scanDocument, .ask: return true
+            case .newConversation, .scanDocument, .ask, .continueAnswer: return true
             default: return false
             }
         }
@@ -2123,6 +2124,37 @@ struct ChatScreen: View {
                 ragService.resetDeepThinkLiveMetrics()
             }
             composerDraft = ComposerDraft(text: text, sendsAtOnce: sendsAtOnce)
+        case .continueAnswer(let question, let answer):
+            // A new conversation that starts with Siri's question and answer, saved as this chat's
+            // history. An answer still being written here is left to finish, and nothing is put
+            // in place of a conversation when a new one cannot be started (`newChat`).
+            guard !isProcessing else {
+                pushToast("Finish this answer first", icon: "hourglass", tint: .orange)
+                return
+            }
+            if !messages.isEmpty, !newChat() { return }
+            let now = Date()
+            messages = [
+                ChatMessage(role: .user, content: question, timestamp: now),
+                ChatMessage(role: .assistant, content: answer, timestamp: now),
+            ]
+            let library = ragService.containerService.activeContainerId
+            persistChatHistory(for: library)
+            // The engine records each answer in the library's conversation memory, and Siri's
+            // question normally reached it that way. When the memory has turns, the next question
+            // is rewritten against them and given them as context instead of the history above,
+            // so it gets this turn if its latest turn is another one.
+            if #available(iOS 26.0, *), settings.enableConversationMemory {
+                let asked = question.trimmingCharacters(in: .whitespacesAndNewlines)
+                let latest = ConversationMemoryService.shared.memory(for: library).recentTurns.last
+                if latest?.userQuery.trimmingCharacters(in: .whitespacesAndNewlines) != asked {
+                    Task {
+                        await ConversationMemoryService.shared.addTurn(
+                            userQuery: question, assistantResponse: answer, for: library)
+                    }
+                }
+            }
+            composerDraft = ComposerDraft(text: "")
         default:
             break
         }
@@ -2177,7 +2209,14 @@ struct ChatScreen: View {
         }
     }
 
-    private func newChat() {
+    /// Starts a new conversation, and says whether one was started. One is refused when the plan's
+    /// conversation limit is reached (`EvidenceThreadQuotaError`); the conversation on screen then
+    /// stays there, and stays the one its next answer is saved to (5.7). Through 5.6 the screen was
+    /// emptied anyway while the old conversation stayed the one being saved, so the next question
+    /// was saved over it with only the new messages.
+    @discardableResult
+    private func newChat() -> Bool {
+        let shown = messages
         // Cancel any in-flight query task
         cancelInFlightQueryWork()
         followUpSuggestionsTask?.cancel()
@@ -2211,15 +2250,20 @@ struct ChatScreen: View {
         requestedExecutionContext = .automatic
         do {
             try ragService.createNewThread(for: ragService.containerService.activeContainerId)
+            return true
         } catch let quotaError as EvidenceThreadQuotaError {
+            messages = shown
             DSHaptics.error()
             toastManager.show(
                 ToastItem(title: quotaError.localizedDescription, icon: "lock.fill", tint: .red),
                 duration: 4.0
             )
+            return false
         } catch {
+            messages = shown
             Log.error(
                 "[ChatScreen] Failed to create new thread: \(error.localizedDescription)", category: .initialization)
+            return false
         }
     }
 

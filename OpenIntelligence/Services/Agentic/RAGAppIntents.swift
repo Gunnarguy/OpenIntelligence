@@ -788,8 +788,10 @@ struct EmbeddingProviderSnippetView: View {
 
 /// The card Siri and Shortcuts show for an answer (5.7): the question, the answer, and a button for
 /// each of up to three documents it rests on (`AskActionRunner.sourceDocumentIds`), which opens that
-/// document's page, and for a Standard answer from the whole library a Think Deeper button, which
-/// opens the chat in Deep Think with the question (`ThinkDeeperIntent`). Through 5.6 the card was
+/// document's page; an Ask a Follow-up button, which opens the chat in a new conversation that
+/// starts with the question and this answer (`AskFollowUpIntent`); and for a Standard answer from
+/// the whole library a Think Deeper button, which opens the chat in Deep Think with the question
+/// (`ThinkDeeperIntent`). Through 5.6 the card was
 /// a still picture with the passage and document counts. The system may create and perform a
 /// snippet intent many times while its card is up, so `perform` must have no side effects and the
 /// intent should carry the least data it can (Apple's "Displaying static and interactive
@@ -858,11 +860,17 @@ struct AnswerCardSnippetView: View {
                     }
                 }
             }
-            if offersThinkDeeper {
-                Button(intent: ThinkDeeperIntent(question: question)) {
-                    Label("Think Deeper", systemImage: RAGQualityMode.deepThink.icon)
+            HStack(spacing: 8) {
+                Button(intent: AskFollowUpIntent(question: question, answer: answer)) {
+                    Label("Ask a Follow-up", systemImage: "bubble.left.and.text.bubble.right")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                if offersThinkDeeper {
+                    Button(intent: ThinkDeeperIntent(question: question)) {
+                        Label("Think Deeper", systemImage: RAGQualityMode.deepThink.icon)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
         }
         .padding()

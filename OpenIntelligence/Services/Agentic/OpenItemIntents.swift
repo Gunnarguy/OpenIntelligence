@@ -66,6 +66,41 @@ struct ThinkDeeperIntent: AppIntent {
     }
 }
 
+/// Opens the chat in a new conversation that starts with Siri's question and the answer it
+/// showed, ready for the next question: the Ask a Follow-up button on Siri's answer card (5.7).
+/// The answer is the card's, cut at a word near 600 characters. Not listed in Shortcuts.
+@available(iOS 26.0, macOS 26.0, *)
+struct AskFollowUpIntent: AppIntent {
+    static var title: LocalizedStringResource = "Ask a Follow-up"
+    static var description: IntentDescription = .init(
+        "Opens OpenIntelligence in a new conversation that starts with this question and answer.",
+        categoryName: "Ask"
+    )
+    static let isDiscoverable = false
+
+    static var openAppWhenRun: Bool = true
+
+    @Parameter(title: "Question")
+    var question: String
+
+    @Parameter(title: "Answer")
+    var answer: String
+
+    init() {}
+
+    init(question: String, answer: String) {
+        self.question = question
+        self.answer = answer
+    }
+
+    func perform() async throws -> some IntentResult {
+        let asked = question
+        let answered = answer
+        await MainActor.run { AppNavigationRequest.post(.continueAnswer(question: asked, answer: answered)) }
+        return .result()
+    }
+}
+
 /// Opens the app on a document's page, in its library.
 ///
 /// Through the first 5.7 builds this went to the document's library only; the Documents screen now

@@ -35,6 +35,10 @@ nonisolated enum AppDestination: Equatable, Sendable {
     /// The library's search, run for this text: "Search OpenIntelligence for ..." from Siri (5.7).
     /// No link form either.
     case searchFor(String)
+    /// The chat, in a new conversation that starts with this question and the answer Siri showed
+    /// for it, so the next question is asked as a follow-up: Ask a Follow-up on Siri's answer card
+    /// (5.7). No link form.
+    case continueAnswer(question: String, answer: String)
 }
 
 /// Links into the app. One form for every surface, so a link made in one place opens the same
@@ -83,7 +87,7 @@ nonisolated enum AppLink {
         case .importFiles:
             // Files are handed over by the system, not by a link; the nearest place is Documents.
             components.host = "documents"
-        case .ask:
+        case .ask, .continueAnswer:
             components.host = "chat"
         case .searchFor:
             components.host = "documents"

@@ -218,6 +218,8 @@ struct ChatComposerV2: View {
             guard let draft, draft.id != appliedDraftID else { return }
             appliedDraftID = draft.id
             isInputFocused = true
+            // An empty draft only puts the cursor in the field (Ask a Follow-up).
+            guard !draft.text.isEmpty else { return }
             let fieldIsInUse =
                 !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty
             guard fieldIsInUse else {
