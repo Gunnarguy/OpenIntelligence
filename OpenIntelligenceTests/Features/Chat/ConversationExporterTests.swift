@@ -184,8 +184,12 @@ final class ConversationExporterTests: XCTestCase {
 
     func testMarkdownMarksAreTakenOutForThePDF() {
         XCTAssertEqual(
-            ConversationExporter.plain("## Rent\n**Due** on the *5th*.\n* first\n`code`"),
-            "Rent\nDue on the 5th.\n• first\ncode")
+            ConversationExporter.plain("## Rent\n**Due** on the *5th*.\n* first\n- second\n`code`"),
+            "Rent\nDue on the 5th.\n• first\n• second\ncode")
+        // What the chat shows as text stays text: a review found the first version deleted every "*".
+        XCTAssertEqual(ConversationExporter.plain("2 * 3 = 6"), "2 * 3 = 6")
+        XCTAssertEqual(ConversationExporter.plain("Set snake_case_name to 5."), "Set snake_case_name to 5.")
+        XCTAssertEqual(ConversationExporter.plain("#hashtag stays"), "#hashtag stays")
     }
 
     func testEachFormatWritesItsOwnKindOfFile() throws {

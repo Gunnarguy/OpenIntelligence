@@ -266,19 +266,26 @@ nonisolated enum ConversationExporter {
         return data as Data
     }
 
-    /// A message without its Markdown marks: emphasis, headings and code ticks.
+    /// A message as the chat shows it, without its Markdown marks. A heading's "#" marks and a
+    /// list's "*", "-" or "+" at the start of a line are taken off (a list item gets "•"); the rest
+    /// is read by the parser the chat's own text uses (`MarkdownText`), so emphasis and code marks
+    /// go where the chat reads them as marks and stay where it does not ("2 * 3 = 6",
+    /// "snake_case_name").
     static func plain(_ markdown: String) -> String {
-        markdown
-            .components(separatedBy: "\n")
-            .map { line -> String in
-                var line = line
-                while line.hasPrefix("#") { line.removeFirst() }
-                for mark in ["**", "__", "`"] { line = line.replacingOccurrences(of: mark, with: "") }
-                if line.hasPrefix("* ") { line = "• " + line.dropFirst(2) }
-                return line.replacingOccurrences(of: "*", with: "").trimmingCharacters(in: .whitespaces)
+        let lines = markdown.components(separatedBy: "\n").map { line -> String in
+            var line = line
+            if let heading = line.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
+                line.removeSubrange(heading)
+            } else if let bullet = line.range(of: #"^(\s*)[*+-]\s+"#, options: .regularExpression) {
+                let indent = line[bullet].prefix { $0 == " " || $0 == "\t" }
+                line.replaceSubrange(bullet, with: indent + "• ")
             }
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            return line
+        }
+        let text = lines.joined(separator: "\n")
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        let read = (try? AttributedString(markdown: text, options: options)).map { String($0.characters) } ?? text
+        return read.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Helpers

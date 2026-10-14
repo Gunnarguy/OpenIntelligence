@@ -2,11 +2,12 @@
 //  ShortcutsActionTests.swift
 //  OpenIntelligenceTests
 //
-//  The first tests that run the actions themselves (5.7): "Add to Library" stores a note and the
-//  app's engine imports it, and "Ask My Documents" answers from it. Each action's own `perform()`
-//  runs in the app the suite is hosted in. Apple's AppIntentsTesting runs actions through the
-//  system instead, and needs a UI-testing target. The iOS Simulator has no language model, so the
-//  question runs on an engine with a stand-in model (`AskActionRunner.makeEngine`).
+//  The first tests that run the actions themselves (5.7), in the app the suite is hosted in: "Add to
+//  Library" and "Export Conversation" through their own `perform()`, and "Ask My Documents" through
+//  the runner its `perform()` calls (`AskActionRunner`), since its `perform()` needs the context the
+//  system gives an action it runs. Apple's AppIntentsTesting runs actions through the system, and
+//  needs a UI-testing target. The iOS Simulator has no language model, so the question runs on an
+//  engine with a stand-in model (`AskActionRunner.makeEngine`).
 //
 
 import AppIntents
@@ -91,6 +92,10 @@ final class ShortcutsActionTests: XCTestCase {
         let card = AskActionRunner.card(question: question, outcome: outcome)
         XCTAssertEqual(card.sources.first?.id, document.id, "the card's first button is not the note")
         XCTAssertTrue(card.offersThinkDeeper, "a Standard answer from the whole library offers Think Deeper")
+        XCTAssertTrue(card.offersFollowUp)
+        XCTAssertEqual(
+            card.library?.id, IntentSupport.engine().containerService.activeContainerId,
+            "the buttons open the chat on the library the question ran in")
     }
 
     /// "Export Conversation" hands a saved conversation back as a file the shortcut can pass on.

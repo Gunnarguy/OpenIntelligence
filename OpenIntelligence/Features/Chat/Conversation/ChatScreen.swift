@@ -2118,13 +2118,20 @@ struct ChatScreen: View {
                         duration: 2.5)
                 }
             #endif
-        case .ask(let text, let sendsAtOnce, let inDeepThink):
-            if inDeepThink, settings.ragQualityMode != .deepThink {
-                settings.ragQualityMode = .deepThink
-                ragService.resetDeepThinkLiveMetrics()
+        case .ask(let text, let sendsAtOnce, let inDeepThink, _):
+            if inDeepThink {
+                // Think Deeper: the mode is not switched under an answer still being written.
+                guard !isProcessing else {
+                    pushToast("Finish this answer first", icon: "hourglass", tint: .orange)
+                    return
+                }
+                if settings.ragQualityMode != .deepThink {
+                    settings.ragQualityMode = .deepThink
+                    ragService.resetDeepThinkLiveMetrics()
+                }
             }
             composerDraft = ComposerDraft(text: text, sendsAtOnce: sendsAtOnce)
-        case .continueAnswer(let question, let answer):
+        case .continueAnswer(let question, let answer, _):
             // A new conversation that starts with Siri's question and answer, saved as this chat's
             // history. An answer still being written here is left to finish, and nothing is put
             // in place of a conversation when a new one cannot be started (`newChat`).
@@ -2210,13 +2217,28 @@ struct ChatScreen: View {
     }
 
     /// Starts a new conversation, and says whether one was started. One is refused when the plan's
-    /// conversation limit is reached (`EvidenceThreadQuotaError`); the conversation on screen then
-    /// stays there, and stays the one its next answer is saved to (5.7). Through 5.6 the screen was
-    /// emptied anyway while the old conversation stayed the one being saved, so the next question
-    /// was saved over it with only the new messages.
+    /// conversation limit is reached (`EvidenceThreadQuotaError`), and the screen is then left as it
+    /// is: the conversation stays on it and stays the one its next answer is saved to (5.7). Through
+    /// 5.6 the screen was emptied first while the old conversation stayed the one being saved, so the
+    /// next question was saved over it with only the new messages. Every caller runs it only while
+    /// no answer is being written.
     @discardableResult
     private func newChat() -> Bool {
-        let shown = messages
+        do {
+            try ragService.createNewThread(for: ragService.containerService.activeContainerId)
+        } catch let quotaError as EvidenceThreadQuotaError {
+            DSHaptics.error()
+            toastManager.show(
+                ToastItem(title: quotaError.localizedDescription, icon: "lock.fill", tint: .red),
+                duration: 4.0
+            )
+            return false
+        } catch {
+            Log.error(
+                "[ChatScreen] Failed to create new thread: \(error.localizedDescription)", category: .initialization)
+            return false
+        }
+
         // Cancel any in-flight query task
         cancelInFlightQueryWork()
         followUpSuggestionsTask?.cancel()
@@ -2248,23 +2270,7 @@ struct ChatScreen: View {
         showRetrievedDetails = false
         thinkingEvents.removeAll()
         requestedExecutionContext = .automatic
-        do {
-            try ragService.createNewThread(for: ragService.containerService.activeContainerId)
-            return true
-        } catch let quotaError as EvidenceThreadQuotaError {
-            messages = shown
-            DSHaptics.error()
-            toastManager.show(
-                ToastItem(title: quotaError.localizedDescription, icon: "lock.fill", tint: .red),
-                duration: 4.0
-            )
-            return false
-        } catch {
-            messages = shown
-            Log.error(
-                "[ChatScreen] Failed to create new thread: \(error.localizedDescription)", category: .initialization)
-            return false
-        }
+        return true
     }
 
     private func clearChat() {

@@ -303,6 +303,8 @@ final class SpeechAnalyzerService: ObservableObject {
                         + "could not be read: \(error.localizedDescription)",
                     category: .retrieval)
                 failure = failure ?? error
+                // What the failed track got as far as is not left on screen as the transcript.
+                liveTranscript = ""
             }
         }
         if let failure { throw failure }

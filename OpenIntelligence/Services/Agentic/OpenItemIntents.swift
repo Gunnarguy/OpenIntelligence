@@ -36,9 +36,10 @@ struct OpenLibraryIntent: OpenIntent {
     }
 }
 
-/// Opens the chat, switches it to Deep Think and asks the question again: the Think Deeper button
-/// on Siri's answer card (5.7). Deep Think runs for minutes, which is why it opens the app and does
-/// not answer in the card. Not listed in Shortcuts.
+/// Opens the chat on the card's library, switches it to Deep Think and asks the question again: the
+/// Think Deeper button on Siri's answer card (5.7). Deep Think runs for minutes, which is why it
+/// opens the app and does not answer in the card. The chat stays in Deep Think afterwards, as after
+/// its own "Switch to Deep Think". Not listed in Shortcuts.
 @available(iOS 26.0, macOS 26.0, *)
 struct ThinkDeeperIntent: AppIntent {
     static var title: LocalizedStringResource = "Think Deeper"
@@ -48,27 +49,36 @@ struct ThinkDeeperIntent: AppIntent {
     )
     static let isDiscoverable = false
 
-    static var openAppWhenRun: Bool = true
+    /// The app comes forward before `perform` runs, so the question is sent while the person
+    /// watches, not at the next time the app opens.
+    static let supportedModes: IntentModes = .foreground(.immediate)
 
     @Parameter(title: "Question")
     var question: String
 
+    @Parameter(title: "Library")
+    var library: OILibraryEntity?
+
     init() {}
 
-    init(question: String) {
+    init(question: String, library: OILibraryEntity? = nil) {
         self.question = question
+        self.library = library
     }
 
     func perform() async throws -> some IntentResult {
         let asked = question
-        await MainActor.run { AppNavigationRequest.post(.ask(asked, sendsAtOnce: true, inDeepThink: true)) }
+        let libraryId = library?.id
+        await MainActor.run {
+            AppNavigationRequest.post(.ask(asked, sendsAtOnce: true, inDeepThink: true, libraryId: libraryId))
+        }
         return .result()
     }
 }
 
-/// Opens the chat in a new conversation that starts with Siri's question and the answer it
-/// showed, ready for the next question: the Ask a Follow-up button on Siri's answer card (5.7).
-/// The answer is the card's, cut at a word near 600 characters. Not listed in Shortcuts.
+/// Opens the chat on the card's library in a new conversation that starts with Siri's question and
+/// the answer it showed, ready for the next question: the Ask a Follow-up button on Siri's answer
+/// card (5.7). The answer is the card's, cut at a word near 600 characters. Not listed in Shortcuts.
 @available(iOS 26.0, macOS 26.0, *)
 struct AskFollowUpIntent: AppIntent {
     static var title: LocalizedStringResource = "Ask a Follow-up"
@@ -78,7 +88,8 @@ struct AskFollowUpIntent: AppIntent {
     )
     static let isDiscoverable = false
 
-    static var openAppWhenRun: Bool = true
+    /// The app comes forward before `perform` runs (`ThinkDeeperIntent`).
+    static let supportedModes: IntentModes = .foreground(.immediate)
 
     @Parameter(title: "Question")
     var question: String
@@ -86,17 +97,24 @@ struct AskFollowUpIntent: AppIntent {
     @Parameter(title: "Answer")
     var answer: String
 
+    @Parameter(title: "Library")
+    var library: OILibraryEntity?
+
     init() {}
 
-    init(question: String, answer: String) {
+    init(question: String, answer: String, library: OILibraryEntity? = nil) {
         self.question = question
         self.answer = answer
+        self.library = library
     }
 
     func perform() async throws -> some IntentResult {
         let asked = question
         let answered = answer
-        await MainActor.run { AppNavigationRequest.post(.continueAnswer(question: asked, answer: answered)) }
+        let libraryId = library?.id
+        await MainActor.run {
+            AppNavigationRequest.post(.continueAnswer(question: asked, answer: answered, libraryId: libraryId))
+        }
         return .result()
     }
 }

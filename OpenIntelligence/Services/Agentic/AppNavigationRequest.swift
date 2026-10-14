@@ -29,16 +29,16 @@ nonisolated enum AppDestination: Equatable, Sendable {
     /// The chat with this text in the composer: not sent, so it can be read and changed first (the
     /// Mac's Services menu), or sent at once when the person typed it to ask (the Mac's menu bar).
     /// With `inDeepThink` the chat is switched to Deep Think first, as its own "Switch to Deep
-    /// Think" does (the Think Deeper button on Siri's answer card). 5.7. No link form, so no
-    /// address carries the text.
-    case ask(String, sendsAtOnce: Bool = false, inDeepThink: Bool = false)
+    /// Think" does, and with `libraryId` that library is made the active one (the Think Deeper
+    /// button on Siri's answer card). 5.7. No link form, so no address carries the text.
+    case ask(String, sendsAtOnce: Bool = false, inDeepThink: Bool = false, libraryId: UUID? = nil)
     /// The library's search, run for this text: "Search OpenIntelligence for ..." from Siri (5.7).
     /// No link form either.
     case searchFor(String)
     /// The chat, in a new conversation that starts with this question and the answer Siri showed
     /// for it, so the next question is asked as a follow-up: Ask a Follow-up on Siri's answer card
-    /// (5.7). No link form.
-    case continueAnswer(question: String, answer: String)
+    /// (5.7). With `libraryId` that library is made the active one first. No link form.
+    case continueAnswer(question: String, answer: String, libraryId: UUID? = nil)
 }
 
 /// Links into the app. One form for every surface, so a link made in one place opens the same

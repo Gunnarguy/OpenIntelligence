@@ -6,7 +6,9 @@
 import Foundation
 
 /// How far an import has got, worked out in one place for everything that shows it (5.7): the
-/// background task the system shows, the Live Activity and "Check Import Status".
+/// background task the system shows, the Live Activity and "Check Import Status", each given the
+/// same list of documents (`RAGService.currentImportItems`). The Live Activity rounds the share to
+/// a step that depends on the device.
 ///
 /// Through the first 5.7 builds the background task and the Live Activity each worked it out. The
 /// task's version took the document it had just been told about as the one in progress, so a
@@ -36,8 +38,9 @@ nonisolated enum ImportProgress {
         return min(1, (Double(finished) + inProgress) / Double(items.count))
     }
 
-    /// The share done as a whole percentage, for a sentence.
+    /// The share done as a whole percentage, for a sentence, rounded as the Live Activity's own
+    /// spoken label rounds it.
     static func percent(of items: [IngestionItem]) -> Int {
-        Int((fraction(of: items) * 100).rounded(.down))
+        Int((fraction(of: items) * 100).rounded())
     }
 }

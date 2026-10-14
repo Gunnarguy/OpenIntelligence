@@ -8,8 +8,8 @@
   "verified_on": "2026-10-09",
   "entry_points": ["IngestionLiveActivityService", "IngestionLiveActivityAttributes", "IngestionLiveActivityWidget", "OpenIntelligenceLiveActivitiesBundle"],
   "files": [
-    {"path": "OpenIntelligence/Core/Models/ImportProgress.swift", "role": "primary", "blob": "0f09a6a4d0735e99a816abb1ba2a6cf856c9f085"},
-    {"path": "OpenIntelligenceTests/Services/Infrastructure/ImportProgressTests.swift", "role": "test", "blob": "916f17124e91fb13853d5fb3507a3bca6497fdb9"},
+    {"path": "OpenIntelligence/Core/Models/ImportProgress.swift", "role": "primary", "blob": "2866efb7338ca52b57286c10687bbff6fdd233ac"},
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/ImportProgressTests.swift", "role": "test", "blob": "e5fddccd83d578820935399f2a64f0473494534b"},
     {"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift", "role": "primary", "blob": "985d9474286cf7b297071d1f23bf67330db528bc"},
     {"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "role": "primary", "blob": "f5828a3b32de635ce81040522cb24d54bf4c7a64"},
     {"path": "OpenIntelligenceLiveActivities/Info.plist", "role": "primary", "blob": "a0e80acbe11d2e3933307915e2448197f1ee763c"},

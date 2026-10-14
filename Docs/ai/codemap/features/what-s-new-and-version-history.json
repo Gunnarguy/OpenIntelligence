@@ -12,7 +12,7 @@
     {"path": "OpenIntelligence/Features/Onboarding/WhatsNewView.swift", "role": "primary", "blob": "92541a5365532957b6286ce8c822b5fc97f11476"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistory.swift", "role": "primary", "blob": "03572f299ce17218afd5b2ff3c91d21ca5053b37"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistoryView.swift", "role": "primary", "blob": "8703818923e30f494f615abc0ae5511a18063779"},
-    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "0dd17573fcc61aaf139500f5d4ca23433c197235"},
+    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "ff69710ca72c347a0f712ca8fe5e6a8c747fc20b"},
     {"path": "OpenIntelligenceTests/Features/Onboarding/WhatsNewCoverageTests.swift", "role": "test", "blob": "e8235b85cafaf1cd22edbf959d0ba893c4c25553"},
     {"path": "OpenIntelligenceTests/Features/Settings/VersionHistoryTests.swift", "role": "test", "blob": "447bee2122be22aaf29b918ba1d1db938786f788"}
   ],

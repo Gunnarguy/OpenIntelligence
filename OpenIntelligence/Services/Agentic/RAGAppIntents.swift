@@ -167,10 +167,24 @@ enum AskActionRunner {
         let response: RAGResponse
         /// The documents the answer's card offers to open, up to three (`sourceEntities`).
         let sources: [OIDocumentEntity]
-        /// Whether the card offers Think Deeper: a Standard answer from the whole library. A Deep
-        /// Think or Maximum answer has had it, and a question kept to chosen documents would be
-        /// asked of the whole library in the chat.
+        /// The library the question ran in, which the card's buttons open the chat on.
+        let library: OILibraryEntity?
+        /// Whether the card offers Ask a Follow-up (`offersFollowUp(scoped:)`).
+        let offersFollowUp: Bool
+        /// Whether the card offers Think Deeper (`offersThinkDeeper(mode:scoped:)`).
         let offersThinkDeeper: Bool
+    }
+
+    /// Ask a Follow-up continues in the chat, which asks a whole library: so not after a question
+    /// kept to chosen documents, which would continue across the library.
+    static func offersFollowUp(scoped: Bool) -> Bool {
+        !scoped
+    }
+
+    /// Think Deeper asks again in Deep Think in the chat: so only after a Standard answer (a Deep
+    /// Think or Maximum one has had it) from a whole library.
+    static func offersThinkDeeper(mode: OIAnswerMode, scoped: Bool) -> Bool {
+        mode == .standard && !scoped
     }
 
     /// - Parameters:
@@ -292,20 +306,28 @@ enum AskActionRunner {
         Log.info(
             "[Shortcuts] Ask complete (mode=\(effectiveMode.rawValue), answerChars=\(response.generatedResponse.count), passages=\(response.retrievedChunks.count), scoped=\(documentIds?.count ?? 0))",
             category: .pipeline)
-        let sources = await MainActor.run {
-            sourceEntities(of: response, documents: engine.documents, libraries: engine.containerService.containers)
+        let askedIn = container
+        let (sources, library) = await MainActor.run { () -> ([OIDocumentEntity], OILibraryEntity?) in
+            let libraries = engine.containerService.containers
+            let answeredIn = askedIn ?? engine.containerService.activeContainerId
+            return (
+                sourceEntities(of: response, documents: engine.documents, libraries: libraries),
+                libraries.first { $0.id == answeredIn }.map(OILibraryEntityQuery.entity(for:))
+            )
         }
         return Outcome(
             answer: OIAnswerEntity(question: shownQuestion ?? wanted, response: response, mode: effectiveMode),
-            response: response, sources: sources,
-            offersThinkDeeper: effectiveMode == .standard && documentIds == nil)
+            response: response, sources: sources, library: library,
+            offersFollowUp: offersFollowUp(scoped: documentIds != nil),
+            offersThinkDeeper: offersThinkDeeper(mode: effectiveMode, scoped: documentIds != nil))
     }
 
     /// The card for an answer (5.7): its question, its text and the documents it rests on.
     static func card(question: String, outcome: Outcome) -> AnswerCardSnippetIntent {
         AnswerCardSnippetIntent(
             question: question, answer: AnswerCardSnippetView.shown(outcome.response.generatedResponse),
-            sources: outcome.sources, offersThinkDeeper: outcome.offersThinkDeeper)
+            sources: outcome.sources, library: outcome.library, offersFollowUp: outcome.offersFollowUp,
+            offersThinkDeeper: outcome.offersThinkDeeper)
     }
 
     /// Up to three of the documents an answer rests on (`sourceDocumentIds`), as app items made from
@@ -531,7 +553,7 @@ struct DocumentImportStatusIntent: AppIntent {
         await ragService.restoreIngestionQueueIfNeeded()
 
         let snapshot = await MainActor.run { () -> DocumentImportStatusSnapshot? in
-            let items = ragService.ingestionItems
+            let items = ragService.currentImportItems
             let pendingItems = items.filter { !$0.stage.isTerminal }
             guard let activeItem = ImportProgress.current(in: items) else { return nil }
             // The same share the background task and the Live Activity show (`ImportProgress`).
@@ -788,10 +810,10 @@ struct EmbeddingProviderSnippetView: View {
 
 /// The card Siri and Shortcuts show for an answer (5.7): the question, the answer, and a button for
 /// each of up to three documents it rests on (`AskActionRunner.sourceDocumentIds`), which opens that
-/// document's page; an Ask a Follow-up button, which opens the chat in a new conversation that
-/// starts with the question and this answer (`AskFollowUpIntent`); and for a Standard answer from
-/// the whole library a Think Deeper button, which opens the chat in Deep Think with the question
-/// (`ThinkDeeperIntent`). Through 5.6 the card was
+/// document's page; for a question asked of a whole library, an Ask a Follow-up button, which opens
+/// the chat on that library in a new conversation that starts with the question and this answer
+/// (`AskFollowUpIntent`); and for a Standard answer from a whole library, a Think Deeper button,
+/// which opens the chat on that library in Deep Think with the question (`ThinkDeeperIntent`). Through 5.6 the card was
 /// a still picture with the passage and document counts. The system may create and perform a
 /// snippet intent many times while its card is up, so `perform` must have no side effects and the
 /// intent should carry the least data it can (Apple's "Displaying static and interactive
@@ -811,23 +833,34 @@ struct AnswerCardSnippetIntent: SnippetIntent {
     @Parameter(title: "Sources")
     var sources: [OIDocumentEntity]
 
+    @Parameter(title: "Library")
+    var library: OILibraryEntity?
+
+    @Parameter(title: "Ask a Follow-up", default: false)
+    var offersFollowUp: Bool
+
     @Parameter(title: "Think Deeper", default: false)
     var offersThinkDeeper: Bool
 
     init() {}
 
-    init(question: String, answer: String, sources: [OIDocumentEntity], offersThinkDeeper: Bool = false) {
+    init(
+        question: String, answer: String, sources: [OIDocumentEntity], library: OILibraryEntity? = nil,
+        offersFollowUp: Bool = false, offersThinkDeeper: Bool = false
+    ) {
         self.question = question
         self.answer = answer
         self.sources = sources
+        self.library = library
+        self.offersFollowUp = offersFollowUp
         self.offersThinkDeeper = offersThinkDeeper
     }
 
     func perform() async throws -> some IntentResult & ShowsSnippetView {
         .result(
             view: AnswerCardSnippetView(
-                question: question, answer: answer, sources: Array(sources.prefix(3)),
-                offersThinkDeeper: offersThinkDeeper))
+                question: question, answer: answer, sources: Array(sources.prefix(3)), library: library,
+                offersFollowUp: offersFollowUp, offersThinkDeeper: offersThinkDeeper))
     }
 }
 
@@ -838,6 +871,8 @@ struct AnswerCardSnippetView: View {
     let question: String
     let answer: String
     let sources: [OIDocumentEntity]
+    var library: OILibraryEntity?
+    var offersFollowUp = false
     var offersThinkDeeper = false
 
     var body: some View {
@@ -860,16 +895,20 @@ struct AnswerCardSnippetView: View {
                     }
                 }
             }
-            HStack(spacing: 8) {
-                Button(intent: AskFollowUpIntent(question: question, answer: answer)) {
-                    Label("Ask a Follow-up", systemImage: "bubble.left.and.text.bubble.right")
-                }
-                .buttonStyle(.bordered)
-                if offersThinkDeeper {
-                    Button(intent: ThinkDeeperIntent(question: question)) {
-                        Label("Think Deeper", systemImage: RAGQualityMode.deepThink.icon)
+            if offersFollowUp || offersThinkDeeper {
+                HStack(spacing: 8) {
+                    if offersFollowUp {
+                        Button(intent: AskFollowUpIntent(question: question, answer: answer, library: library)) {
+                            Label("Ask a Follow-up", systemImage: "bubble.left.and.text.bubble.right")
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.borderedProminent)
+                    if offersThinkDeeper {
+                        Button(intent: ThinkDeeperIntent(question: question, library: library)) {
+                            Label("Think Deeper", systemImage: RAGQualityMode.deepThink.icon)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
             }
         }

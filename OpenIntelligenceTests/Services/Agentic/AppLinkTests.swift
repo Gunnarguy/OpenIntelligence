@@ -110,6 +110,14 @@ final class AppLinkTests: XCTestCase {
         XCTAssertNotEqual(AppDestination.ask("Pets?", sendsAtOnce: true), .ask("Pets?", sendsAtOnce: true, inDeepThink: true))
         XCTAssertEqual(
             AppLink.url(for: .ask("Pets?", sendsAtOnce: true, inDeepThink: true)).absoluteString, "openintelligence://chat")
+        // The card's buttons name the library the question ran in, which the app makes the active one.
+        let library = UUID()
+        XCTAssertNotEqual(
+            AppDestination.ask("Pets?", sendsAtOnce: true, inDeepThink: true),
+            .ask("Pets?", sendsAtOnce: true, inDeepThink: true, libraryId: library))
+        XCTAssertEqual(
+            AppLink.url(for: .continueAnswer(question: "Pets?", answer: "No pets.", libraryId: library)).absoluteString,
+            "openintelligence://chat")
         // Ask a Follow-up on Siri's answer card opens the chat; no address carries the question or the answer.
         XCTAssertEqual(
             AppLink.url(for: .continueAnswer(question: "Pets?", answer: "No pets.")).absoluteString,

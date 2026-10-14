@@ -43,6 +43,6 @@ final class ImportProgressTests: XCTestCase {
     func testAStageWithoutItsOwnProgressCountsItsPlace() {
         let stages = IngestionStage.pipelineStages
         XCTAssertEqual(ImportProgress.fraction(of: [item(.loading)]), 1 / Double(stages.count), accuracy: 1e-9)
-        XCTAssertEqual(ImportProgress.percent(of: [item(.complete), item(.complete), item(.queued)]), 66)
+        XCTAssertEqual(ImportProgress.percent(of: [item(.complete), item(.complete), item(.queued)]), 67)
     }
 }

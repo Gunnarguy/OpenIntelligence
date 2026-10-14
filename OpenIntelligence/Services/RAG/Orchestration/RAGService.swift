@@ -6009,7 +6009,7 @@ class RAGService: ObservableObject {
         IngestionRuntimeBridge.shared.updateContinuedIngestionProgress(
             title: "Importing documents",
             subtitle: "\(filename) • \(stage.displayName)",
-            fraction: ImportProgress.fraction(of: ingestionItems)
+            fraction: ImportProgress.fraction(of: currentImportItems)
         )
         syncIngestionLiveActivity()
     }
@@ -6127,6 +6127,17 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// The import the person is watching: the documents they started that the Live Activity follows,
+    /// finished ones included until the whole import has finished, or every document in the queue
+    /// when none is followed (an import resumed in the background). The background task, the Live
+    /// Activity and "Check Import Status" all count this list (`ImportProgress`), so a document
+    /// finished in an earlier import and not yet cleared from the queue is not counted as done.
+    @MainActor
+    var currentImportItems: [IngestionItem] {
+        let followed = ingestionItems.filter { liveActivityTrackedIngestionIds.contains($0.id) }
+        return followed.isEmpty ? ingestionItems : followed
+    }
+
     @MainActor
     private func pruneCompletedIngestionItems(delay: TimeInterval = 4.0) {
         guard ingestionItems.contains(where: { $0.stage.isTerminal }) else { return }
@@ -6161,9 +6172,11 @@ class RAGService: ObservableObject {
             return
         }
 
+        // A document that has finished stays tracked until the whole import has (5.7). Through 5.6
+        // it was dropped as it finished, so the Live Activity counted only what was left: three
+        // documents read 0/3, then 0/2, then 0/1, and its bar went back as each one ended.
         liveActivityTrackedIngestionIds = liveActivityTrackedIngestionIds.filter { trackedId in
-            guard let item = ingestionItems.first(where: { $0.id == trackedId }) else { return false }
-            return !item.stage.isTerminal
+            ingestionItems.contains { $0.id == trackedId }
         }
 
         let trackedItems = ingestionItems.filter { liveActivityTrackedIngestionIds.contains($0.id) }

@@ -98,6 +98,18 @@ final class AskControlTests: XCTestCase {
             [lease, notes, manual], "evidence that names no retrieved passage falls back the same way")
     }
 
+    /// The card's buttons continue in the chat, which asks a whole library: neither follows a
+    /// question kept to chosen documents, and Think Deeper only follows a Standard answer (5.7).
+    @MainActor
+    func testTheCardOffersItsButtonsOnlyWhereTheChatCanContinue() {
+        XCTAssertTrue(AskActionRunner.offersFollowUp(scoped: false))
+        XCTAssertFalse(AskActionRunner.offersFollowUp(scoped: true))
+        XCTAssertTrue(AskActionRunner.offersThinkDeeper(mode: .standard, scoped: false))
+        XCTAssertFalse(AskActionRunner.offersThinkDeeper(mode: .standard, scoped: true))
+        XCTAssertFalse(AskActionRunner.offersThinkDeeper(mode: .deepThink, scoped: false))
+        XCTAssertFalse(AskActionRunner.offersThinkDeeper(mode: .maximum, scoped: false))
+    }
+
     func testTheReasonIsSaidPlainly() {
         XCTAssertTrue(AskControl.describe("timeout").contains("too long"))
         XCTAssertEqual(AskControl.describe("cancelled"), "The question was stopped.")
