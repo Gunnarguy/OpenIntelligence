@@ -36,6 +36,16 @@
    "path": "OpenIntelligenceTests/Services/Infrastructure/CompletionNotificationPolicyTests.swift",
    "role": "test",
    "blob": ""
+  },
+  {
+   "path": "OpenIntelligence/App/MacServicesProvider.swift",
+   "role": "primary",
+   "blob": "d74dd831ce600c053c302d6ff3a578c86ba5c658"
+  },
+  {
+   "path": "OpenIntelligenceTests/App/MacServicesTests.swift",
+   "role": "test",
+   "blob": "db830d51bb7d92604368e53f20209216ebe47c3e"
   }
  ],
  "nodes": [

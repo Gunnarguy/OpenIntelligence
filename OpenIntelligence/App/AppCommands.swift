@@ -69,7 +69,8 @@ struct OpenIntelligenceCommands: Commands {
 }
 
 /// Which library "Next Library" and "Previous Library" go to: the list in the order the app keeps
-/// it, wrapping at both ends. With one library, or none active, there is nowhere to go.
+/// it, wrapping at both ends, without the libraries a Focus filter hides (5.7). With one library,
+/// or none active, there is nowhere to go.
 enum LibrarySwitching {
     nonisolated static func target(from active: UUID, in libraries: [UUID], step: Int) -> UUID? {
         guard libraries.count > 1, let index = libraries.firstIndex(of: active) else { return nil }
@@ -80,7 +81,7 @@ enum LibrarySwitching {
     @MainActor
     static func post(step: Int) {
         let libraries = IntentSupport.libraries()
-        guard let target = target(from: libraries.activeContainerId, in: libraries.containers.map(\.id), step: step)
+        guard let target = target(from: libraries.activeContainerId, in: libraries.pickableContainers.map(\.id), step: step)
         else { return }
         AppNavigationRequest.post(.library(target))
     }

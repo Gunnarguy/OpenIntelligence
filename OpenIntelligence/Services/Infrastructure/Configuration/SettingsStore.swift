@@ -684,7 +684,12 @@ final class SettingsStore: ObservableObject {
             $enableSharedWorkspaceSync.map { _ in () }.eraseToAnyPublisher(),
             $fmPreference.map { _ in () }.eraseToAnyPublisher(),
         ]
+        // A `@Published` property publishes from its `willSet`, so a sink that runs straight away
+        // reads the value the property had before. Through 5.6 that is what `persistAll` saved:
+        // the setting just changed kept its old value on disk until another setting changed, and
+        // a relaunch brought the old value back. The save now runs once the value is set (5.7).
         Publishers.MergeMany(publishers)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] in
                 guard let self else { return }
                 self.persistAll()

@@ -1068,7 +1068,23 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
 
         return CIImage(cgImage: cgImage)
         #else
-        return nil
+        // The Mac drew nothing here through 5.6, so its Vision pass never ran and a page whose
+        // table, chart or figure only Vision sees was classed simple on the Mac and not on an
+        // iPhone (backlog row 3cb49a74d54f81fbb47cec6d8ed526d8). A bitmap context has its origin at
+        // the bottom left, as a PDF page does, so the page is drawn without the flip UIKit needs.
+        let width = Int(size.width.rounded())
+        let height = Int(size.height.rounded())
+        guard width > 0, height > 0,
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        else { return nil }
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.scaleBy(x: scale, y: scale)
+        page.draw(with: .mediaBox, to: context)
+        guard let cgImage = context.makeImage() else { return nil }
+        return CIImage(cgImage: cgImage)
         #endif
     }
 

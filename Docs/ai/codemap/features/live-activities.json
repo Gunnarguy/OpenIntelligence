@@ -11,11 +11,13 @@
     {"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift", "role": "primary", "blob": "985d9474286cf7b297071d1f23bf67330db528bc"},
     {"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "role": "primary", "blob": "f35f03497f3ecbdd2a7d7cc74d26d49ae8f9fea7"},
     {"path": "OpenIntelligenceLiveActivities/Info.plist", "role": "primary", "blob": "a0e80acbe11d2e3933307915e2448197f1ee763c"},
-    {"path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "role": "primary", "blob": "a1a3dbfdce15d3d6c783eea09d69d4c124f33b39"},
-    {"path": "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift", "role": "primary", "blob": "fe3e4242e37de6163409ae0d849d79932b99d298"},
+    {"path": "OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift", "role": "primary", "blob": "a50bdf996e4185acbd4aba7ce3a78f3e4387936e"},
+    {"path": "OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift", "role": "primary", "blob": "34516f8dc681b8208761c86d475e0aa47cdebaae"},
     {"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "role": "test", "blob": "3e1f11cd4b9489c9bcfe4b4a36a8e3ba4e6209a6"},
     {"path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityStageText.swift", "role": "primary", "blob": "1de65baee2eca252b73d94d67ad815f09ff54a69"},
-    {"path": "OpenIntelligenceTests/Services/Infrastructure/IngestionLiveActivityStageTextTests.swift", "role": "test", "blob": "499f43404f087af8f98319124250da574c58bf33"}
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/IngestionLiveActivityStageTextTests.swift", "role": "test", "blob": "499f43404f087af8f98319124250da574c58bf33"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Background/QueryLiveActivityService.swift", "role": "primary", "blob": "66ffcdd3aab16f9bff25707a399ab276a41ddcf8"},
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/QueryLiveActivityStateTests.swift", "role": "test", "blob": "221fa43ca721173f7570da9e1d8cf436dd282913"}
   ],
   "nodes": [
     {"id": "IngestionLiveActivityService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 7, "match": "final class IngestionLiveActivityService {", "status": "VERIFIED", "by": "build"},

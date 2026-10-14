@@ -10,6 +10,7 @@
 		<string>com.openintelligence.document-ingestion</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).document-ingestion.*</string>
 		<string>com.openintelligence.rag-query</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).rag-query.*</string>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
@@ -51,10 +52,90 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Ask OpenIntelligence</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>askAboutSelection</string>
+			<key>NSPortName</key>
+			<string>OpenIntelligence</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.utf8-plain-text</string>
+			</array>
+			<key>NSServiceDescription</key>
+			<string>Opens OpenIntelligence with the selected text in the chat, ready to ask about.</string>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Add Text to OpenIntelligence</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>addSelectionToLibrary</string>
+			<key>NSPortName</key>
+			<string>OpenIntelligence</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.utf8-plain-text</string>
+			</array>
+			<key>NSServiceDescription</key>
+			<string>Adds the selected text to the open library in OpenIntelligence as a note.</string>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Add to OpenIntelligence</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>addFilesToLibrary</string>
+			<key>NSPortName</key>
+			<string>OpenIntelligence</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>com.adobe.pdf</string>
+				<string>public.plain-text</string>
+				<string>net.daringfireball.markdown</string>
+				<string>public.rtf</string>
+				<string>public.comma-separated-values-text</string>
+				<string>public.json</string>
+				<string>public.ndjson</string>
+				<string>org.jsonlines.jsonl</string>
+				<string>public.html</string>
+				<string>org.openxmlformats.wordprocessingml.document</string>
+				<string>org.openxmlformats.spreadsheetml.sheet</string>
+				<string>org.openxmlformats.presentationml.presentation</string>
+				<string>public.png</string>
+				<string>public.jpeg</string>
+				<string>public.heic</string>
+			</array>
+			<key>NSServiceDescription</key>
+			<string>Adds the selected files to the open library in OpenIntelligence.</string>
+		</dict>
+	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>com.openintelligence.chat</string>
+		<string>com.openintelligence.documents</string>
+		<string>com.openintelligence.activity.viewing-document</string>
+	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UTImportedTypeDeclarations</key>

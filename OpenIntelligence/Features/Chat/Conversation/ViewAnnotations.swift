@@ -8,65 +8,52 @@
 import AppIntents
 import SwiftUI
 
-@available(iOS 16.0, macOS 13.0, *)
+/// The items a screen names to Siri and Apple Intelligence, so "this document" or "this
+/// conversation" means what is on screen (5.7).
+extension EntityIdentifier {
+    static func document(_ id: UUID) -> EntityIdentifier {
+        EntityIdentifier(for: OIDocumentEntity.self, identifier: id)
+    }
+
+    static func library(_ id: UUID) -> EntityIdentifier {
+        EntityIdentifier(for: OILibraryEntity.self, identifier: id)
+    }
+
+    static func conversation(_ id: UUID) -> EntityIdentifier {
+        EntityIdentifier(for: OIThreadEntity.self, identifier: id)
+    }
+}
+
 extension View {
-    /// Annotates the view with a document entity so Siri/Apple Intelligence can reference it.
+    /// Annotates the view with a document entity so Siri and Apple Intelligence can refer to it,
+    /// and advertises the document for Handoff.
+    ///
+    /// Written in June 2026 and never called through 5.6, so no screen named its document. The
+    /// document screen calls it from 5.7. Its library twin, also never called, was removed on
+    /// 2026-10-14: the Documents screen names its library in the activity it already had.
     func annotateActiveDocument(_ document: OIDocumentEntity?) -> some View {
         self.modifier(ActiveDocumentAnnotationModifier(document: document))
     }
-    
-    /// Annotates the view with a library/container entity so Siri/Apple Intelligence can reference it.
-    func annotateActiveLibrary(_ library: OILibraryEntity?) -> some View {
-        self.modifier(ActiveLibraryAnnotationModifier(library: library))
-    }
 }
 
-@available(iOS 16.0, macOS 13.0, *)
 private struct ActiveDocumentAnnotationModifier: ViewModifier {
     let document: OIDocumentEntity?
-    
-    func body(content: Content) -> some View {
-        if let document = document {
-            content
-                .userActivity("com.openintelligence.activity.viewing-document", element: document) { docEntity, activity in
-                    activity.title = "Viewing \(docEntity.filename)"
-                    activity.isEligibleForSearch = true
-                    #if os(iOS)
-                    activity.isEligibleForPrediction = true
-                    #endif
-                    #if compiler(>=6.0) || canImport(FoundationModels)
-                    if #available(iOS 18.0, macOS 15.0, *) {
-                        activity.appEntityIdentifier = EntityIdentifier(for: docEntity)
-                    }
-                    #endif
-                }
-        } else {
-            content
-        }
-    }
-}
 
-@available(iOS 16.0, macOS 13.0, *)
-private struct ActiveLibraryAnnotationModifier: ViewModifier {
-    let library: OILibraryEntity?
-    
     func body(content: Content) -> some View {
-        if let library = library {
-            content
-                .userActivity("com.openintelligence.activity.viewing-library", element: library) { libEntity, activity in
-                    activity.title = "Viewing \(libEntity.name) Library"
-                    activity.isEligibleForSearch = true
-                    #if os(iOS)
-                    activity.isEligibleForPrediction = true
-                    #endif
-                    #if compiler(>=6.0) || canImport(FoundationModels)
-                    if #available(iOS 18.0, macOS 15.0, *) {
-                        activity.appEntityIdentifier = EntityIdentifier(for: libEntity)
-                    }
-                    #endif
-                }
-        } else {
-            content
-        }
+        content
+            .userActivity(AppActivity.viewingDocument, element: document) { docEntity, activity in
+                activity.title = "Viewing \(docEntity.filename)"
+                activity.userInfo = AppActivity.userInfo(library: nil, document: docEntity.id)
+                // The title names the file, so it reaches Spotlight and Siri's suggestions only
+                // while the Spotlight switch is on (5.7).
+                activity.isEligibleForSearch = AppActivity.mayShareWithSystemSearch
+                #if os(iOS)
+                    activity.isEligibleForPrediction = AppActivity.mayShareWithSystemSearch
+                #endif
+                activity.appEntityIdentifier = EntityIdentifier(for: docEntity)
+            }
+            // The view names the document as well, which holds whichever of the screen's
+            // activities the system treats as current.
+            .appEntityIdentifier(document.map { EntityIdentifier.document($0.id) })
     }
 }

@@ -239,6 +239,54 @@ Three things download from the network, and only starting from an address the pe
 
 `MetricDiagnostics` (`OpenIntelligence/App/MetricDiagnostics.swift`) subscribes, on iOS 27 and macOS 27, to MetricKit's `MetricManager` for the reports the system gives an app about itself: hangs, crashes, CPU and disk exceptions, and launch and memory figures. It writes a one-line summary of each to the app's log and appends the report to `metric_reports.jsonl` in the app's local cache folder, keeping the newest 200 lines. The file has no upload code and makes no request, so the app sends these reports nowhere. Whether a person shares analytics with Apple and with developers is a setting of the system's own and is not changed or read by this. No report had been delivered on a device when this was written. `[evidence_level: code_verified; test_verified for the summaries and the 200-line limit (MetricDiagnosticsTests), confidence: high for the code, evidence_source: MetricDiagnostics.swift; a search of that file for URLSession and upload on 2026-10-12 found neither]`
 
+## What the app hands to the system (added 2026-10-14, for 5.7)
+
+5.7 connects the app to Handoff, Siri, Spotlight, Focus and the Lock Screen. Each of these hands the system
+something; none of it leaves the person's devices through the app, and none of it carries a document's text
+except where it says so below.
+
+- **Handoff.** The chat ("Chat with Documents"), the Documents screen ("Browse Document Library") and a
+  document's page ("Viewing" and the file's name) each advertise an activity carrying the library's and the
+  document's identifiers, no text. Handoff offers it to the person's own devices. The document page's
+  activity is offered to Spotlight and Siri's suggestions only while the Settings switch "Spotlight
+  Indexing" is on, because its title names the file (`AppActivity.mayShareWithSystemSearch`); the two
+  generic ones were offered before 5.7 as well. `[evidence_level: code_verified, confidence: high, evidence_source: AppNavigationRequest.swift AppActivity; ViewAnnotations.swift; ChatScreen.swift; DocumentLibraryView.swift]`
+- **On screen.** The open document, library or conversation is named to Siri and Apple Intelligence by its
+  identifier (`appEntityIdentifier`); the system resolves it through the app's own queries on the device.
+  `[evidence_level: code_verified, confidence: high, evidence_source: ViewAnnotations.swift]`
+- **Spotlight.** While "Spotlight Indexing" is on, the device's Spotlight index holds, as before 5.7, each
+  library's name and counts; each document's name, its library's name, its page count and the first 500
+  characters of its text; and, for a document imported whole, the first 300 characters of each passage.
+  From 5.7 the entries do not expire, so each is removed with its document: deleting a document removes its
+  passages' entries too (`SpotlightIndexService.deindexDocument(id:containerId:)`), a document deleted on
+  another device is removed when this device next reads the documents (`documentsLoaded`, which keeps a list
+  of document and library identifiers in the device's own folder), and an import that fails removes the
+  entry it wrote. Turning the switch off removes every entry the app made, its saved activities and its
+  Open Library donations (`indexingSwitched(on:)`); through 5.6 it only stopped new ones. A document that
+  arrived from another device is listed with its name and first 500 characters, read from this device's
+  full-text store, and without passages. `[evidence_level: code_verified, confidence: high, evidence_source: SpotlightIndexService.swift; RAGService.swift addDocument, applyLoadedDocuments; ContentView.swift]`
+- **Siri's suggestions.** Picking a library or asking in one donates "Open Library" with that library's name
+  and counts (`SiriDonations`), only while "Spotlight Indexing" is on. `[evidence_level: code_verified, confidence: high, evidence_source: SiriDonations.swift]`
+- **Focus.** A Focus filter keeps the identifiers of the libraries it names in the app's own settings.
+  `[evidence_level: code_verified, confidence: high, evidence_source: ContainerService+Focus.swift]`
+- **The Lock Screen.** The Live Activity for a long answer shows a fixed title, the step it is on
+  ("Searching this library") and how far along it is, never the question: the begin call's subtitle, which
+  is the question's first words, is dropped (`QueryLiveActivityService.begin`). The system's own progress
+  for the background task that keeps an answer going (`BackgroundTaskService.beginUserInitiatedQuery`) is
+  given the question's first 72 characters as its subtitle, as it has been since that task was added; where
+  the system shows that subtitle was not checked. `[evidence_level: code_verified, confidence: high for the Live Activity, low for where the system shows the task's subtitle; evidence_source: QueryLiveActivityService.swift; ChatScreen.swift ContinuedQueryCoordinator.begin]`
+- **The Mac's Services menu.** Selected text or files come to the app only when the person picks the
+  service; text goes into the chat field unsent or into the open library as a note, files into the import
+  review. `[evidence_level: code_verified, confidence: high, evidence_source: MacServicesProvider.swift]`
+- **Dictation.** The microphone runs only from a tap on the field's button until a second tap, a send or
+  leaving the chat; a stop that comes while dictation is still preparing ends it before the microphone
+  starts. Its audio goes to Apple's `DictationTranscriber` on the device and is not saved, and the words go
+  into the field unsent.
+  The model is one of Apple's system assets, installed by the system the first time.
+  `[evidence_level: code_verified, confidence: high, evidence_source: VoiceDictation.swift]`
+- **Siri's search.** "Search OpenIntelligence for" a phrase opens the app's own search with it; no address
+  carries the phrase (`AppDestination.searchFor` has no link form). `[evidence_level: code_verified, confidence: high, evidence_source: SearchInAppIntent.swift; AppNavigationRequest.swift]`
+
 ## What the app works out about a library is kept on the device (added 2026-10-13, for 5.7)
 
 Two small files for each library are kept in the app's local cache folder, beside the keyword index, so the app

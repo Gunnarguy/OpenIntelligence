@@ -2375,13 +2375,12 @@ Text(deviceService.chipName)
             items.append(.init(id: "extract-summary", icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", desc: "Sentence selection via bi-encoder for summarize intent", color: .purple))
             items.append(.init(id: "graph-pack", icon: "rectangle.compress.vertical", label: "Graph Context Packing", desc: "Optimal token budget allocation across evidence", color: .purple))
             items.append(.init(id: "orchestrator", icon: "brain.head.profile", label: "Agentic Orchestrator", desc: "\(max(4, DeviceCapabilityService.shared.optimizedAgenticConfig().maxSteps - 2))–\(DeviceCapabilityService.shared.optimizedAgenticConfig().maxSteps) sessions targeting \(Int(DeviceCapabilityService.shared.optimizedAgenticConfig().confidenceThreshold * 100))% confidence", color: .purple))
-            // Named from `FoundationModelToolRegistry.createTools`, which is the only
-            // place tools are handed to a session. It registers these four. The eight
-            // previously listed here (SearchDocs, ListDocs, GetSummary, CountPattern,
-            // ExactSearch, Stats, Related, Compare) are declared in the same file but
-            // registered nowhere, so the UI was naming the dead set and none of the live
-            // one. Keep this list in sync with `createTools`, not with the struct count.
-            items.append(.init(id: "tool-funcs", icon: "hammer.fill", label: "4 Tool Functions", desc: "RetrieveCorpusEvidence, InspectDocument, CompareTopicAcrossDocuments, GetLibraryOverview", color: .purple))
+            // No tool line here since 2026-10-14. It read "4 Tool Functions" while
+            // `FoundationModelToolRegistry.createTools` registers six, and neither number
+            // was true of these modes: every model call Deep Think and Maximum make passes
+            // `disableTools: true` (the fourteen `generateWithProperConsent` calls in
+            // `AgenticOrchestrator`, the chain sessions through `disableToolsForSession`),
+            // so no tool reaches the model in them. Re-add a line when one does.
             items.append(.init(id: "iterative-ret", icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", desc: "Retrieve → assess gaps → refine query → retrieve more", color: .purple))
         }
 
@@ -2658,11 +2657,15 @@ Text(deviceService.chipName)
                     subtitle: "Summarize, rewrite, proofread"
                 )
 
+                // Voice input is the chat field's dictation button (`VoiceDictation`), built in 5.7;
+                // through 5.6 this line claimed it with no microphone code in the app. The Mac has no
+                // button yet (it waits for the sandbox's audio-input entitlement), so it is not
+                // claimed there.
                 aiFeatureInfoRow(
                     icon: "waveform",
                     color: .green,
                     title: "Speech Analysis",
-                    subtitle: "Audio transcription & voice input"
+                    subtitle: speechAnalysisSubtitle
                 )
 
                 aiFeatureInfoRow(
@@ -3309,6 +3312,14 @@ Text(deviceService.chipName)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    private var speechAnalysisSubtitle: String {
+        #if os(iOS)
+            "Audio transcription & voice input"
+        #else
+            "Audio transcription"
+        #endif
+    }
+
     private func shareApp() {
         let items: [Any] = [
             "I'm using OpenIntelligence for private, on-device AI and RAG search. Check it out on the App Store!",
@@ -3316,7 +3327,9 @@ Text(deviceService.chipName)
         ]
         
         #if canImport(UIKit)
-        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        // The sheet's header shows the app's name and icon rather than the bare address (5.7).
+        let activityVC = UIActivityViewController(
+            activityItems: PreviewedShareItem.items(items, preview: .app), applicationActivities: nil)
         
         // Setup popover for iPad support
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -3332,7 +3345,13 @@ Text(deviceService.chipName)
             rootVC.present(activityVC, animated: true)
         }
         #elseif os(macOS)
-        let picker = NSSharingServicePicker(items: items)
+        let preview = ShareSheetPreview.app
+        let picker = NSSharingServicePicker(items: [
+            items[0],
+            NSPreviewRepresentingActivityItem(
+                item: OpenIntelligenceLinks.sharedAppStoreURL, title: preview.title, image: nil,
+                icon: ShareSheetPreview.appIcon),
+        ])
         if let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow }),
            let contentView = window.contentView {
             picker.show(relativeTo: .zero, of: contentView, preferredEdge: .minY)

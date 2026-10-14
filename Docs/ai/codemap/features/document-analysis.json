@@ -8,7 +8,7 @@
   "verified_on": "2026-10-09",
   "entry_points": ["SpatialDocumentAnalyzer", "DocumentSummaryService", "EntityIndexService", "AudioTranscriptionService", "LanguageDetectionService"],
   "files": [
-    {"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "role": "primary", "blob": "010f7111da3bde0b0ac4914336d372a889691ca9"},
+    {"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "role": "primary", "blob": "33c223d4d291da429b4fc3804c99ffa029b9a6c0"},
     {"path": "OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift", "role": "primary", "blob": "e334a344007c3d57b08b46ffbc589d03bca621b9"},
     {"path": "OpenIntelligence/Services/Document/Analysis/ReferenceListDetector.swift", "role": "primary", "blob": "defcbfcc0c26d817172b9cc87d1f77816c333818"},
     {"path": "OpenIntelligence/Services/Document/Analysis/SpatialDocumentAnalyzer.swift", "role": "primary", "blob": "3f3a348363a56fa9ba5c01ba3ed017f80cc020f9"},

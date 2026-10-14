@@ -4250,11 +4250,16 @@ class RAGService: ObservableObject {
     private func loadDocumentsFromDisk() {
         let loadedDocuments = loadDocumentsSnapshotFromDisk()
         Task { @MainActor [weak self] in
+            guard let loadedDocuments else { return }
             self?.applyLoadedDocuments(loadedDocuments)
         }
     }
 
-    private func loadDocumentsSnapshotFromDisk() -> [Document] {
+    /// The stored documents: none when there is no file yet, and nil when there is one and it
+    /// could not be read or decoded. Through 5.6 a failed read gave an empty list, which emptied
+    /// the library on screen and removed what was kept about every library; since 5.7 it would
+    /// also remove every Spotlight entry, so a failed read now changes nothing.
+    private func loadDocumentsSnapshotFromDisk() -> [Document]? {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: documentsStorageURL.path) else {
             Log.info("  [RAGService] No existing documents metadata found")
@@ -4265,8 +4270,9 @@ class RAGService: ObservableObject {
             let data = try WorkspaceSyncService.coordinatedReadData(from: documentsStorageURL)
             return try JSONDecoder().decode([Document].self, from: data)
         } catch {
-            Log.error(" [RAGService] Failed to load documents metadata: \(error.localizedDescription)")
-            return []
+            Log.error(
+                " [RAGService] Failed to load documents metadata: \(error.localizedDescription); the documents in memory are kept")
+            return nil
         }
     }
 
@@ -4296,6 +4302,9 @@ class RAGService: ObservableObject {
         Task.detached(priority: .utility) {
             LibraryIntelligenceCache.sweep(keeping: current)
         }
+        // The same goes for this device's Spotlight entries, which since 5.7 do not expire.
+        SpotlightIndexService.shared.documentsLoaded(
+            loadedDocuments, defaultLibraryId: containerService.containers.first?.id)
         hasAppliedLoadedDocuments = true
         guard documents != loadedDocuments else { return }
         documents = loadedDocuments
@@ -4336,8 +4345,11 @@ class RAGService: ObservableObject {
         let clearMs = Date().timeIntervalSince(clearStarted) * 1000
 
         let snapshotStarted = Date()
-        let loadedDocuments = loadDocumentsSnapshotFromDisk()
-        applyLoadedDocuments(loadedDocuments)
+        let readDocuments = loadDocumentsSnapshotFromDisk()
+        let loadedDocuments = readDocuments ?? documents
+        if readDocuments != nil {
+            applyLoadedDocuments(loadedDocuments)
+        }
         let snapshotMs = Date().timeIntervalSince(snapshotStarted) * 1000
 
         if !FileManager.default.fileExists(atPath: AppSupportPaths.ingestionQueueURL().path), ingestionTask == nil {
@@ -6473,6 +6485,9 @@ class RAGService: ObservableObject {
             }
         }
 
+        // The document's Spotlight entry, once written, so an import that fails or is cancelled
+        // after it removes it (5.7: entries no longer expire).
+        var listedInSpotlight: UUID?
         do {
             // Step 1: Parse document and extract chunks
             let documentType = documentProcessor.detectDocumentType(url: managedURL)
@@ -6602,6 +6617,7 @@ class RAGService: ObservableObject {
                     textPreview: String(combinedText.prefix(500)),
                     chunkCount: processedChunks.count
                 )
+                listedInSpotlight = document.id
             }
             try Task.checkCancellation()
 
@@ -7583,6 +7599,11 @@ class RAGService: ObservableObject {
             }
 
         } catch {
+            if let listedInSpotlight {
+                await MainActor.run {
+                    SpotlightIndexService.shared.deindexDocument(id: listedInSpotlight, containerId: activeContainerId)
+                }
+            }
             if error is CancellationError {
                 await MainActor.run {
                     if manageProcessingState { isProcessing = false }
@@ -8312,8 +8333,8 @@ class RAGService: ObservableObject {
         await SQLiteFullTextService.shared.deleteChunks(for: document.id)
         await FullTextStorageService.shared.delete(for: document.id)
 
-        // Remove from Spotlight index
-        SpotlightIndexService.shared.deindexDocument(id: document.id)
+        // Remove from Spotlight index, with the document's passages (5.7)
+        SpotlightIndexService.shared.deindexDocument(id: document.id, containerId: targetContainerId)
 
         // Remove entity index entries to prevent ghost entities from deleted documents
         await EntityIndexService.shared.removeDocument(document.id)
@@ -16136,17 +16157,23 @@ class RAGService: ObservableObject {
             guard !snippet.isEmpty else { return nil }
             return "• \(sectionLabel)\(snippet) [S\(idx + 1): \(sourceName)]"
         }
+        // Both texts name the real reason when the model cannot run on this device (5.7).
+        let capabilities = Self.checkDeviceCapabilities()
         let responseText: String
         if snippetBullets.isEmpty {
             responseText =
-                "I can't reach the model right now, but your documents are still available. Please try again in a moment."
+                capabilities.supportsFoundationModels
+                ? "I can't reach the model right now, but your documents are still available. Please try again in a moment."
+                : AppleIntelligenceCopy.chatMessage(for: capabilities.foundationModelUnavailability)
         } else {
+            let closing = AppleIntelligenceCopy.excerptClosing(
+                for: capabilities.foundationModelUnavailability, isAvailable: capabilities.supportsFoundationModels)
             responseText = """
-                I wasn’t able to synthesize a full answer right now. Here are the most relevant excerpts from your documents:
+                Here are the most relevant excerpts from your documents:
 
                 \(snippetBullets.joined(separator: "\n\n"))
 
-                Try asking again — the model may be temporarily rate-limited.
+                \(closing)
                 """
         }
 

@@ -26,6 +26,12 @@ nonisolated enum AppDestination: Equatable, Sendable {
     /// The Documents tab, importing files another app handed over ("Open in OpenIntelligence").
     /// The files are already copied into the app. This one has no link form.
     case importFiles([URL])
+    /// The chat with this text in the composer, not sent, so it can be read and changed first: the
+    /// Mac's Services menu (5.7). No link form, so no address carries the text.
+    case ask(String)
+    /// The library's search, run for this text: "Search OpenIntelligence for ..." from Siri (5.7).
+    /// No link form either.
+    case searchFor(String)
 }
 
 /// Links into the app. One form for every surface, so a link made in one place opens the same
@@ -74,6 +80,11 @@ nonisolated enum AppLink {
         case .importFiles:
             // Files are handed over by the system, not by a link; the nearest place is Documents.
             components.host = "documents"
+        case .ask:
+            components.host = "chat"
+        case .searchFor:
+            components.host = "documents"
+            components.path = "/search"
         }
         // Every case sets a host, so the address always forms.
         return components.url ?? URL(string: "\(scheme)://chat")!
@@ -113,15 +124,78 @@ nonisolated enum AppLink {
     }
 
     /// The destination for a Spotlight result. `SpotlightIndexService` names a library
-    /// `container-<id>` and a document `document-<id>`; a passage (`chunk-<id>`) has no screen of
-    /// its own and returns nil.
+    /// `container-<id>`, a document `document-<id>`, and from 5.7 a passage
+    /// `passage-<document id>-<passage id>`, which opens its document. A passage indexed before 5.7
+    /// (`chunk-<id>`) does not name its document and returns nil.
     static func destination(forSpotlightIdentifier identifier: String) -> AppDestination? {
+        if identifier.hasPrefix("passage-") {
+            let rest = identifier.dropFirst("passage-".count)
+            return UUID(uuidString: String(rest.prefix(36))).map(AppDestination.document)
+        }
         let parts = identifier.split(separator: "-", maxSplits: 1)
         guard parts.count == 2, let id = UUID(uuidString: String(parts[1])) else { return nil }
         switch parts[0] {
         case "container": return .library(id)
         case "document": return .document(id)
         default: return nil
+        }
+    }
+}
+
+/// The activities the app advertises, for Handoff, Spotlight and Siri, and where each one lands
+/// when another device continues it (5.7).
+///
+/// Through 5.6 the chat and the Documents screen advertised an activity that no device could
+/// continue: the types were not declared in Info.plist (`NSUserActivityTypes`) and nothing in the
+/// app received them. 5.6 put the library in `userInfo` as a `UUID`, which `NSUserActivity` allows
+/// (its header lists `NSUUID`); 5.7 writes strings and reads either, so an activity from a device
+/// still on 5.6 lands in its library too.
+nonisolated enum AppActivity {
+    static let chat = "com.openintelligence.chat"
+    static let documents = "com.openintelligence.documents"
+    static let viewingDocument = "com.openintelligence.activity.viewing-document"
+
+    /// Every type, as Info.plist's `NSUserActivityTypes` lists them.
+    static let all = [chat, documents, viewingDocument]
+
+    static let libraryKey = "containerId"
+    static let documentKey = "documentId"
+
+    /// Whether what the person opens may be offered to Spotlight and Siri's suggestions: the
+    /// Settings switch "Spotlight Indexing" (System-wide search integration), on unless turned off.
+    /// The document activity's title names the file, so it follows the switch as the Spotlight
+    /// entries do (5.7).
+    static var mayShareWithSystemSearch: Bool {
+        UserDefaults.standard.object(forKey: "enableSpotlightIndexing") as? Bool ?? true
+    }
+
+    /// What an activity carries: identifiers as strings.
+    static func userInfo(library: UUID?, document: UUID? = nil) -> [AnyHashable: Any] {
+        var info: [AnyHashable: Any] = [:]
+        if let library { info[libraryKey] = library.uuidString }
+        if let document { info[documentKey] = document.uuidString }
+        return info
+    }
+
+    /// Where a continued activity lands, in order: the library first when the activity names one,
+    /// then the screen. Empty for a type that is not this app's.
+    static func destinations(type: String, userInfo: [AnyHashable: Any]?) -> [AppDestination] {
+        func identifier(_ key: String) -> UUID? {
+            switch userInfo?[key] {
+            case let text as String: return UUID(uuidString: text)
+            case let uuid as UUID: return uuid  // as 5.6 sent it
+            default: return nil
+            }
+        }
+        switch type {
+        case chat:
+            return (identifier(libraryKey).map { [AppDestination.library($0)] } ?? []) + [.chat]
+        case documents:
+            return [identifier(libraryKey).map(AppDestination.library) ?? .documents]
+        case viewingDocument:
+            return [identifier(documentKey).map(AppDestination.document) ?? .documents]
+        default:
+            return []
         }
     }
 }
@@ -144,7 +218,14 @@ final class AppNavigationRequest {
 
     var waiting: [AppDestination] { subject.value }
 
+    /// Called as a request is posted, before any screen can take it. The main view sets it to show
+    /// the tab and the library the request is for (5.7): a screen subscribed to `changes` can take a
+    /// request before the main view has seen it, because a subject does not order its subscribers,
+    /// and a request taken that way never switched the tab.
+    var onPost: ((AppDestination) -> Void)?
+
     static func post(_ destination: AppDestination) {
+        shared.onPost?(destination)
         shared.subject.value.append(destination)
     }
 

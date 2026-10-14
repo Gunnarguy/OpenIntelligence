@@ -1594,3 +1594,35 @@ Rejected for that size: it decodes 330 MB and lowercases all of it for each ques
 **Consequences.** A scoped question on the 144,247-passage document reads the text of at most 2,400 passages. A passage far
 from the question whose only match is on words the index does not rank in its best 400 can be missed there.
 `[evidence_level: test_verified (HybridSearchServiceTests), not run on a device, confidence: high for the mechanism, evidence_source: HybridSearchService.swift searchInsideScope; BNNSVectorDatabase.swift similarities]`
+
+## 2026-10-14 - Spotlight entries last as long as their document, and each way a document leaves removes them
+
+**Context.** Through 5.6 a document's Spotlight entry and its passages' entries expired 30 days after they were
+written and nothing wrote them again, so a document imported a month earlier could not be found from Spotlight,
+and a deleted document's passages stayed searchable for up to 30 days. 5.7 makes documents and libraries
+Spotlight's app items (`IndexedEntity`), which Siri and Apple Intelligence use, so an entry that vanishes after a
+month breaks those too. A refuting review on 2026-10-14 found what permanent entries cost: a document deleted on
+another device, an import that failed after its entry was written, and the Settings switch turned off each left
+entries with no end. Core Spotlight cannot list what an app has indexed, and its header does not say whether an
+update (`isUpdate`) moves an entry's expiry (CSSearchableItem.h, read 2026-10-14).
+
+**Decision.** Entries are written with no expiry. Every way a document can leave removes its entries: a delete on
+this device (`deindexDocument`, recursive through the passage domain), a delete on another device (`documentsLoaded`
+compares each read of the document records with a list of the documents this device knows, kept in
+`localCacheDir()/spotlight_documents.json`, identifiers only, and leaves an import in progress alone), an import
+that fails or is cancelled (its catch), a passage write a delete overtook (removed once written), and the switch
+turned off (`deleteAllSearchableItems`, with the saved activities and the Open Library donations). A read of the
+records that fails changes nothing, because an empty list would remove every entry. Entries made by 5.6 are
+written again whole on the first launch of 5.7, with the document's first 500 characters read again from the
+full-text store, rather than refreshed as updates.
+
+**Alternatives.** (1) Keep a 30-day expiry and refresh entries from the background task. Rejected: a refresh can
+re-add documents and libraries from their records but not passages, whose text is in the libraries, and the
+background task runs when the system allows. (2) Rebuild the whole index at each launch. Rejected: it rereads every
+document's text and rewrites every entry for nothing on most launches. (3) Remove entries only from the records'
+in-memory list. Rejected: a delete made on another device while this device's app was closed would never be seen.
+
+**Consequences.** The device keeps one small file of identifiers. A library deleted on another device keeps its own
+library entry, as it did before 5.7; its documents' entries go. Passage entries made by 5.6 still expire on their
+own schedule, and a document from another device is listed without passages.
+`[evidence_level: test_verified (SpotlightItemsTests: the list's arithmetic and the preview text), build_verified, not run on a device; confidence: high for the mechanism; evidence_source: SpotlightIndexService.swift documentsLoaded, indexingSwitched, indexDocumentChunks, refreshEntriesMadeBefore57; RAGService.swift applyLoadedDocuments, loadDocumentsSnapshotFromDisk, addDocument]`

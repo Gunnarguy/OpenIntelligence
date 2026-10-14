@@ -223,8 +223,16 @@ final class BackgroundTaskService: Sendable {
     /// change the count: one sixteenth of a piece of a 45-piece file is about one part in 10,000.
     static let continuedIngestionProgressUnits: Int64 = 100_000
 
+    /// The start of every name an answer's continued-processing task is submitted under, by the
+    /// same rule as `continuedIngestionIdentifierStem` (5.7). Through 5.6 an answer was submitted
+    /// under the fixed name "com.openintelligence.rag-query", the shape the import's task had when
+    /// it was seen accepted and never started on an iPhone on 2026-10-09.
+    static var continuedQueryIdentifierStem: String {
+        "\(Bundle.main.bundleIdentifier ?? "Gunndamental.OpenIntelligence").rag-query."
+    }
+
     private static func continuedQueryRequestIdentifier() -> String {
-        continuedQueryIdentifier
+        continuedQueryIdentifierStem + UUID().uuidString
     }
 
     // MARK: - Task Scheduling
@@ -423,6 +431,24 @@ final class BackgroundTaskService: Sendable {
         request.strategy = preferredSubmissionStrategy()
         if policy.backgroundGPURequested {
             request.requiredResources = .gpu
+        }
+
+        // The handler for this answer, under this answer's name, as the import does it.
+        let registered = BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: requestIdentifier, using: DispatchQueue.main
+        ) { task in
+            guard let continuedTask = task as? BGContinuedProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            MainActor.assumeIsolated {
+                BackgroundTaskService.shared.handleContinuedQuery(task: continuedTask)
+            }
+        }
+        if !registered {
+            Log.warning(
+                "[BackgroundTasks] The system refused a handler for \(requestIdentifier); the answer has no background task",
+                category: .pipeline)
         }
 
         do {
@@ -1414,14 +1440,11 @@ final class BackgroundTaskService: Sendable {
 
         scheduleSpotlightReindex()
 
+        // Through 5.6 this set a flag for the next launch that nothing read. The index is rebuilt
+        // from the library and document records, which need no screen (5.7).
         let reindexTask = Task {
-            // Flag that a Spotlight reindex is needed on next foreground launch
-            // Full reindex requires ContainerService data (only available in foreground)
-            UserDefaults.standard.set(true, forKey: "spotlightReindexNeeded")
-            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastSpotlightReindexRequest")
-
-            Log.info("[BackgroundTasks] Spotlight reindex flagged for next foreground launch", category: .initialization)
-            task.setTaskCompleted(success: true)
+            await SpotlightIndexService.shared.reindexFromStoredRecords(asUpdate: true)
+            task.setTaskCompleted(success: !Task.isCancelled)
         }
 
         task.expirationHandler = {

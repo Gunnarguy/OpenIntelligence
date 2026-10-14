@@ -40,4 +40,17 @@ final class AppleIntelligenceCopyTests: XCTestCase {
         }
         XCTAssertNotNil(AppleIntelligenceCopy.notice(for: nil, isAvailable: false))
     }
+
+    /// An answer of excerpts ends on the real reason (5.7); it said "rate-limited" for every cause.
+    func testAnExcerptAnswerEndsOnTheRealReason() {
+        let reasons: [AppleIntelligenceUnavailability] = [.deviceNotEligible, .notEnabled, .modelNotReady, .unknown]
+        for reason in reasons {
+            let closing = AppleIntelligenceCopy.excerptClosing(for: reason, isAvailable: false)
+            XCTAssertTrue(closing.hasPrefix("These are excerpts"), reason.rawValue)
+            XCTAssertFalse(closing.contains("rate-limited"), reason.rawValue)
+        }
+        XCTAssertTrue(AppleIntelligenceCopy.excerptClosing(for: .deviceNotEligible, isAvailable: false).contains("can't run"))
+        XCTAssertTrue(AppleIntelligenceCopy.excerptClosing(for: .notEnabled, isAvailable: false).contains("Settings"))
+        XCTAssertFalse(AppleIntelligenceCopy.excerptClosing(for: nil, isAvailable: true).contains("excerpts"))
+    }
 }

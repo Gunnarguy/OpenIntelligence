@@ -17,10 +17,10 @@
     {"path": "OpenIntelligence/Features/Settings/Components/ModelPipelineStage.swift", "role": "primary", "blob": "b367a56202f4e16f1ca9e449e5aea1d308c3185d"},
     {"path": "OpenIntelligence/Features/Settings/Components/ModelSelectorSheet.swift", "role": "primary", "blob": "e092ad52701f07d4120a6e0b12c075cd088fd579"},
     {"path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift", "role": "primary", "blob": "9e076ea968683d60a3f25abc151d4474ee6eff78"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "shared", "blob": "4671c98587c24eeb595cd3f5ab1b28411b9976d6"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "shared", "blob": "ce85006c400a57c4d3ada5cfbb58f011b44d0c5a"},
     {"path": "OpenIntelligenceTests/Core/Models/LLMModelTypeTests.swift", "role": "test", "blob": "ad08301a04dc772c0faa108944dd9b7e344a13af"},
-    {"path": "OpenIntelligence/Core/Models/AppleIntelligenceAvailability.swift", "role": "primary", "blob": "4337fd2e6e759e9baa4b69df8180ee207bd04077"},
-    {"path": "OpenIntelligenceTests/Core/Models/AppleIntelligenceCopyTests.swift", "role": "test", "blob": "1c5953fe420660a41120bae906acfe7078c35ad9"}
+    {"path": "OpenIntelligence/Core/Models/AppleIntelligenceAvailability.swift", "role": "primary", "blob": "f4c5189ac3055eb12b03837aca515db0a43a5b1e"},
+    {"path": "OpenIntelligenceTests/Core/Models/AppleIntelligenceCopyTests.swift", "role": "test", "blob": "ad17cb2c261285e8fc6d12ed1968fc91ad5f0abb"}
   ],
   "nodes": [
     {"id": "ModelStatusIndicator", "kind": "view", "path": "OpenIntelligence/UI/Components/ModelStatusIndicator.swift", "line": 11, "match": "struct ModelStatusIndicator: View {", "status": "VERIFIED", "by": "build"},

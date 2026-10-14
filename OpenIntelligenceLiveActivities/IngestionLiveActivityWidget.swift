@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -353,5 +354,137 @@ private struct IngestionLiveActivityLockScreenView: View {
             .font(.system(isActivityFullscreen ? .title2 : .title3, design: .rounded).weight(.bold))
             .monospacedDigit()
             .contentTransition(.numericText())
+    }
+}
+
+// MARK: - A long answer (5.7)
+
+/// A question that is still being answered after about ten seconds: Deep Think and Maximum, or a
+/// long Standard answer. It shows the step the answer is on and ends when the answer does
+/// (`QueryLiveActivityService` in the app). Its views live in this file, which the extension
+/// already compiles, so the project file did not change.
+@available(iOSApplicationExtension 17.0, *)
+struct QueryLiveActivityWidget: Widget {
+    private static let chatURL = URL(string: "openintelligence://chat")!
+
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: QueryLiveActivityAttributes.self) { context in
+            QueryLiveActivityLockScreenView(state: context.state)
+                .activityBackgroundTint(Color.purple.opacity(0.22))
+                .activitySystemActionForegroundColor(.white)
+                .widgetURL(Self.chatURL)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Label("Answering", systemImage: "brain.head.profile")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text("\(Int((context.state.progress * 100).rounded()))%")
+                        .font(.headline.monospacedDigit())
+                        .contentTransition(.numericText())
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(context.state.title)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        Text(context.state.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                        ProgressView(value: context.state.progress, total: 1.0)
+                            .tint(.purple)
+                    }
+                }
+            } compactLeading: {
+                Image(systemName: "brain.head.profile")
+                    .foregroundStyle(.purple)
+            } compactTrailing: {
+                Text("\(Int((context.state.progress * 100).rounded()))%")
+                    .font(.caption2.monospacedDigit())
+                    .contentTransition(.numericText())
+            } minimal: {
+                Image(systemName: "brain.head.profile")
+                    .foregroundStyle(.purple)
+            }
+            .keylineTint(.purple)
+            .widgetURL(Self.chatURL)
+        }
+        .supplementalActivityFamilies([.small, .medium])
+    }
+}
+
+@available(iOSApplicationExtension 17.0, *)
+private struct QueryLiveActivityLockScreenView: View {
+    let state: QueryLiveActivityAttributes.ContentState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("OpenIntelligence", systemImage: "brain.head.profile")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(Int((state.progress * 100).rounded()))%")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Text(state.title)
+                .font(.headline)
+                .lineLimit(1)
+            Text(state.subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            ProgressView(value: state.progress, total: 1.0)
+                .tint(.purple)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Controls (5.7)
+
+/// Buttons for Control Center, the Lock Screen and the Action button. Each opens one of the app's
+/// own links with the system's `OpenURLIntent`, so the action needs no code in this extension and
+/// no project change; the app routes the link (`AppLink`) as it routes any other.
+@available(iOSApplicationExtension 18.0, *)
+struct AskControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.openintelligence.control.ask") {
+            ControlWidgetButton(action: OpenURLIntent(URL(string: "openintelligence://chat")!)) {
+                Label("Ask OpenIntelligence", systemImage: "bubble.left.and.text.bubble.right")
+            }
+        }
+        .displayName("Ask")
+        .description("Opens the chat to ask your documents a question.")
+    }
+}
+
+@available(iOSApplicationExtension 18.0, *)
+struct AddDocumentControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.openintelligence.control.add") {
+            ControlWidgetButton(action: OpenURLIntent(URL(string: "openintelligence://documents/add")!)) {
+                Label("Add Document", systemImage: "doc.badge.plus")
+            }
+        }
+        .displayName("Add Document")
+        .description("Opens the file picker to add a document to the open library.")
+    }
+}
+
+@available(iOSApplicationExtension 18.0, *)
+struct ScanDocumentControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.openintelligence.control.scan") {
+            ControlWidgetButton(action: OpenURLIntent(URL(string: "openintelligence://chat/scan")!)) {
+                Label("Scan Document", systemImage: "doc.viewfinder")
+            }
+        }
+        .displayName("Scan Document")
+        .description("Opens the document scanner and adds the scan to the open library.")
     }
 }

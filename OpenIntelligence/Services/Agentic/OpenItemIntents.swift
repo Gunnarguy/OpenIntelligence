@@ -36,15 +36,15 @@ struct OpenLibraryIntent: OpenIntent {
     }
 }
 
-/// Opens the app on the library that holds a document.
+/// Opens the app on a document's page, in its library.
 ///
-/// The Documents screen has no single-document view to land on, so this goes to the document's
-/// library; it does not scroll to the document.
+/// Through the first 5.7 builds this went to the document's library only; the Documents screen now
+/// opens the document's page (`DocumentLibraryView.takeDocumentRequest`).
 @available(iOS 26.0, macOS 26.0, *)
 struct OpenDocumentIntent: OpenIntent {
     static var title: LocalizedStringResource = "Open Document"
     static var description: IntentDescription = .init(
-        "Opens OpenIntelligence on the library that holds a document.",
+        "Opens a document's page in OpenIntelligence.",
         categoryName: "Documents",
         searchKeywords: ["open", "show", "document"]
     )

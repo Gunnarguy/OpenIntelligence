@@ -9,9 +9,9 @@
   "entry_points": ["RAGAppShortcutsProvider", "QueryDocumentsIntent", "SearchLibraryIntent", "IngestDocumentIntent", "AnalyzeImageIntent"],
   "files": [
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIDocumentEntity.swift", "role": "primary", "blob": "b15f6a4fa7a36b9142177241591a2bec17217ae5"},
-    {"path": "OpenIntelligence/Services/Agentic/Entities/OIEntityQueries.swift", "role": "primary", "blob": "3c1c6aeb801217587328a5218c2bee79ab655dfe"},
+    {"path": "OpenIntelligence/Services/Agentic/Entities/OIEntityQueries.swift", "role": "primary", "blob": "f16d408929de7e8dc85e3f21485a5746ec4ea915"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OILibraryEntity.swift", "role": "primary", "blob": "55dd8af91f471bc37c36528f24a8f4b8df3021f7"},
-    {"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "role": "primary", "blob": "7c337e501a69ebd9c1d37580c286e9c68860e63c"},
+    {"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "role": "primary", "blob": "66f1333d8aa088730df46c579691b81cccf59965"},
     {"path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "role": "primary", "blob": "a1f27a95b9c3dbdf36a7aad9dbb4b4fc7304d06b"},
     {"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "role": "primary", "blob": "ec5cf990630aba7ea5b8c11ffeb5d0a37637feec"},
     {"path": "OpenIntelligence/Services/Agentic/IntentSupport.swift", "role": "primary", "blob": "a9faca9f7045af177ff4c410b52bf0c475953cb5"},
@@ -23,11 +23,17 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIPassageEntity.swift", "role": "primary", "blob": "6b1c19b2bd5a7acbeb4da62f150659ee894fdb44"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIThreadEntity.swift", "role": "primary", "blob": "6a86a0c2870f0e2f858c19e175ce5bccaa3a446e"},
     {"path": "OpenIntelligenceTests/Services/Agentic/OIEntityMappingTests.swift", "role": "test", "blob": "bfb9b6390b6b199b4f505dcad3267862e4813de1"},
-    {"path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "role": "primary", "blob": "2eaf252848491c783ada097dfbc99368485718a0"},
-    {"path": "OpenIntelligence/Services/Agentic/OpenItemIntents.swift", "role": "primary", "blob": "c7c7338320156239071ba37ece5d034c201ae537"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/AppLinkTests.swift", "role": "test", "blob": "7c8aa7fc2a9578311dbfe1f4429c3c90ba140f49"},
+    {"path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "role": "primary", "blob": "bc9b1d60c85cb29c0005c6efd3758956b7ed15d1"},
+    {"path": "OpenIntelligence/Services/Agentic/OpenItemIntents.swift", "role": "primary", "blob": "534910447136365efca91fccf5b6e1255ac6935d"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/AppLinkTests.swift", "role": "test", "blob": "6a6051ed4e9624400be934c4791a9d4f680b2edf"},
     {"path": "OpenIntelligenceTests/App/AppShortcutsProviderTests.swift", "role": "test", "blob": "74efc7d10db2b1a3d07a42b918e73bc71897e736"},
-    {"path": "OpenIntelligence/UI/Components/SiriPhraseTip.swift", "role": "primary", "blob": "38bdd28e6babe9c9ea41d68f766c39fc2eacee7b"}
+    {"path": "OpenIntelligence/UI/Components/SiriPhraseTip.swift", "role": "primary", "blob": "38bdd28e6babe9c9ea41d68f766c39fc2eacee7b"},
+    {"path": "OpenIntelligence/Features/Chat/Conversation/SiriDonations.swift", "role": "primary", "blob": "1ad864448aea00eae090fdc9f68e8e196261acad"},
+    {"path": "OpenIntelligence/Services/Agentic/LibraryFocusFilterIntent.swift", "role": "primary", "blob": "84ffea3ccc7c6b8a1f8ca41bf98ca3ec44a504b4"},
+    {"path": "OpenIntelligence/Services/Agentic/SearchInAppIntent.swift", "role": "primary", "blob": "909f294f321f3a4eb79b592a9da0981669a2eb1b"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/AppActivityTests.swift", "role": "test", "blob": "5b7b388e0879f76de9fdf82f907a22f74c5ca0d4"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/AskControlTests.swift", "role": "test", "blob": "e22c5e42343cbb76879a51523df6df5ff2d166b2"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/LibraryFocusFilterTests.swift", "role": "test", "blob": "3baed105b01696c9462e729370e487cb249483e7"}
   ],
   "nodes": [
     {"id": "RAGAppShortcutsProvider", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 371, "match": "struct RAGAppShortcutsProvider: AppShortcutsProvider {", "status": "VERIFIED", "by": "build"},

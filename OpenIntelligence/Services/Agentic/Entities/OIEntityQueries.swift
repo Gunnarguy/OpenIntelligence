@@ -68,7 +68,8 @@ struct OIDocumentEntityQuery: EntityQuery, EntityStringQuery, EnumerableEntityQu
         return url
     }
 
-    private static func loadDocumentRecords() -> [Document] {
+    /// Every stored document record, read from the documents file.
+    static func loadDocumentRecords() -> [Document] {
         let url = AppSupportPaths.documentsMetadataURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         do {

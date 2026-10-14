@@ -9,6 +9,7 @@
 //
 
 import AppIntents
+import Combine
 import Foundation
 import SwiftUI
 
@@ -53,6 +54,97 @@ enum ShortcutsPlanGate {
     }
 }
 
+/// Lets the system stop an ask action and see how far it has got (5.7).
+///
+/// From iOS and macOS 26.4 the system can cancel an action (`CancellableIntent`): when it has gone
+/// about 30 seconds in the background without reporting progress, or when a person stops it in
+/// Siri, a Live Activity or Shortcuts. Through 5.6 nothing listened, so the model went on writing an
+/// answer nobody would see. From 27 an action that reports progress can also run past those 30
+/// seconds in the background (`LongRunningIntent`), and the system shows its progress as a Live
+/// Activity. One `AskControl` serves one question: the cancel handler the system calls, and the
+/// progress the question reports.
+@available(iOS 26.0, macOS 26.0, *)
+nonisolated final class AskControl: @unchecked Sendable {
+    private let lock = NSLock()
+    private var reason: String?
+    private var handlers: [@Sendable () -> Void] = []
+    /// Set by `finish()`, after which nothing moves the bar.
+    private var isFinished = false
+    /// The action's own progress on 27, nil before.
+    let progress: Progress?
+
+    init(progress: Progress?) {
+        self.progress = progress
+        progress?.totalUnitCount = 100
+    }
+
+    /// "timeout" or "cancelled" once the system has stopped the action.
+    var cancellationReason: String? { lock.withLock { reason } }
+
+    func cancel(because reason: String) {
+        let toRun: [@Sendable () -> Void] = lock.withLock {
+            guard self.reason == nil else { return [] }
+            self.reason = reason
+            return handlers
+        }
+        toRun.forEach { $0() }
+    }
+
+    /// Runs `handler` when the action is stopped, at once if it already was.
+    func whenCancelled(_ handler: @escaping @Sendable () -> Void) {
+        let alreadyStopped: Bool = lock.withLock {
+            if reason != nil { return true }
+            handlers.append(handler)
+            return false
+        }
+        if alreadyStopped { handler() }
+    }
+
+    /// A step the engine reached, as its status line names it. Each step moves the bar.
+    func report(_ status: String) {
+        guard let progress, !lock.withLock({ isFinished }) else { return }
+        let trimmed = status.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { progress.localizedDescription = trimmed }
+        advance(by: 5)
+    }
+
+    /// Called every two seconds while the question runs, so the system sees progress during a
+    /// long model call that changes no status. The system ends a long-running action whose
+    /// progress stops changing, so the count never stops: near the end the total grows and the
+    /// bar slows down instead.
+    func tick() {
+        advance(by: 1)
+    }
+
+    /// The bar fills and stays full: a tick or a status that arrives after this changes nothing.
+    /// Without that, the heartbeat's last tick or a late status grew the total again and the
+    /// finished action's bar fell back to about 91%.
+    func finish() {
+        guard let progress else { return }
+        lock.withLock {
+            isFinished = true
+            progress.completedUnitCount = progress.totalUnitCount
+        }
+    }
+
+    private func advance(by units: Int64) {
+        guard let progress else { return }
+        lock.withLock {
+            guard !isFinished else { return }
+            progress.completedUnitCount += units
+            if progress.completedUnitCount * 100 >= progress.totalUnitCount * 95 {
+                progress.totalUnitCount += max(10, progress.totalUnitCount / 10)
+            }
+        }
+    }
+
+    static func describe(_ reason: String) -> String {
+        reason == "timeout"
+            ? "The question was stopped because it ran too long in the background."
+            : "The question was stopped."
+    }
+}
+
 /// Runs one question for an action and hands back the answer as an item.
 ///
 /// Every ask action goes through here, so they share a mode, the engine's default generation
@@ -83,7 +175,8 @@ enum AskActionRunner {
         mode: OIAnswerMode,
         topK: Int = 3,
         libraryId: UUID? = nil,
-        documentIds: Set<UUID>? = nil
+        documentIds: Set<UUID>? = nil,
+        control: AskControl? = nil
     ) async throws -> Outcome {
         let wanted = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !wanted.isEmpty else { throw OIIntentError("There was no question to ask.") }
@@ -116,17 +209,56 @@ enum AskActionRunner {
             try await MainActor.run { try ShortcutsPlanGate.checkMaximumAvailable() }
         }
 
-        let response: RAGResponse
-        do {
-            response = try await RAGQueryScope.$documentIds.withValue(documentIds) {
+        // The question runs in a task of its own, so a stop from the system can cancel it, and the
+        // engine's status and a two-second tick are its progress.
+        let queryTask = Task { () async throws -> RAGResponse in
+            try await RAGQueryScope.$documentIds.withValue(documentIds) {
                 try await engine.query(
                     wanted, topK: min(max(topK, 1), 12), containerId: container,
                     qualityModeOverride: effectiveMode.qualityMode)
             }
+        }
+        let statusFeed = control.map { control in engine.$processingStatus.sink { control.report($0) } }
+        let heartbeat = control.map { control in
+            Task {
+                // A cancelled sleep ends the loop, so no tick follows the answer.
+                while (try? await Task.sleep(for: .seconds(2))) != nil {
+                    control.tick()
+                }
+            }
+        }
+        control?.whenCancelled {
+            queryTask.cancel()
+            Task { @MainActor in engine.cancelActiveGeneration() }
+        }
+        defer {
+            heartbeat?.cancel()
+            statusFeed?.cancel()
+        }
+
+        let response: RAGResponse
+        do {
+            // The question's task is not a child of this one, so a cancellation of the action's own
+            // task (all that stops an action before 26.4) is passed on to it.
+            response = try await withTaskCancellationHandler {
+                try await queryTask.value
+            } onCancel: {
+                queryTask.cancel()
+            }
         } catch {
+            if let reason = control?.cancellationReason {
+                Log.info("[Shortcuts] Ask stopped by the system (\(reason))", category: .pipeline)
+                throw OIIntentError(AskControl.describe(reason))
+            }
             Log.error("[Shortcuts] Ask failed: \(error.localizedDescription)", category: .pipeline)
             throw OIIntentError("The question could not be answered. \(error.localizedDescription)")
         }
+        if let reason = control?.cancellationReason {
+            // The answer came back after the stop: it is not handed on, as the system has moved on.
+            Log.info("[Shortcuts] Ask stopped by the system (\(reason)) as its answer arrived", category: .pipeline)
+            throw OIIntentError(AskControl.describe(reason))
+        }
+        control?.finish()
 
         // The last check on a question that named documents: the answer must rest on their
         // passages and on nothing else. If the engine answered from other passages, or from none,
@@ -156,8 +288,9 @@ enum AskActionRunner {
     }
 
     /// The answer as Siri speaks it: markdown marks removed, and cut at 500 characters with a note
-    /// that the full answer is on screen. The value an action returns is never cut.
-    static func spoken(_ text: String) -> String {
+    /// that the full answer is on screen. The value an action returns is never cut. Nonisolated: the
+    /// actions call it from `perform`, outside the main actor.
+    nonisolated static func spoken(_ text: String) -> String {
         var formatted = text
         formatted = formatted.replacingOccurrences(of: "**", with: "")
         formatted = formatted.replacingOccurrences(of: "*", with: "")
@@ -166,6 +299,40 @@ enum AskActionRunner {
             formatted = String(formatted.prefix(500)) + "... The full answer is on screen."
         }
         return formatted
+    }
+
+    /// Runs an ask action's question where the system can stop it (iOS and macOS 26.4) and, on 27,
+    /// as a long-running task that reports progress. Before 26.4 it runs as it did through 5.6.
+    static func run<Intent: AppIntent>(
+        _ intent: Intent, _ ask: @escaping (AskControl) async throws -> Outcome
+    ) async throws -> Outcome {
+        if #available(iOS 27.0, macOS 27.0, *), let long = intent as? any (LongRunningIntent & CancellableIntent) {
+            return try await runLong(long, ask)
+        }
+        if #available(iOS 26.4, macOS 26.4, *), let cancellable = intent as? any CancellableIntent {
+            return try await runCancellable(cancellable, ask)
+        }
+        return try await ask(AskControl(progress: nil))
+    }
+
+    @available(iOS 27.0, macOS 27.0, *)
+    private static func runLong<Intent: LongRunningIntent & CancellableIntent>(
+        _ intent: Intent, _ ask: @escaping (AskControl) async throws -> Outcome
+    ) async throws -> Outcome {
+        let control = AskControl(progress: intent.progress)
+        return try await intent.performBackgroundTask(
+            operation: { try await ask(control) },
+            onCancel: { reason in control.cancel(because: reason == .timeout ? "timeout" : "cancelled") })
+    }
+
+    @available(iOS 26.4, macOS 26.4, *)
+    private static func runCancellable<Intent: CancellableIntent>(
+        _ intent: Intent, _ ask: @escaping (AskControl) async throws -> Outcome
+    ) async throws -> Outcome {
+        let control = AskControl(progress: nil)
+        return try await intent.withIntentCancellationHandler(
+            operation: { try await ask(control) },
+            onCancel: { reason in control.cancel(because: reason == .timeout ? "timeout" : "cancelled") })
     }
 }
 
@@ -214,7 +381,9 @@ struct QueryDocumentsIntent: AppIntent {
         // Avoid logging user content; keep logs metadata-only.
         Log.info("[Siri] Ask My Documents invoked (questionChars=\(question.count), topK=\(topK))", category: .pipeline)
 
-        let outcome = try await AskActionRunner.ask(question, mode: mode, topK: topK, libraryId: library?.id)
+        let outcome = try await AskActionRunner.run(self) { control in
+            try await AskActionRunner.ask(question, mode: mode, topK: topK, libraryId: library?.id, control: control)
+        }
         let documentCount = OIDocumentEntityQuery.loadAllDocuments().count
         return .result(
             value: outcome.answer,
@@ -737,7 +906,10 @@ struct AskDocumentIntent: AppIntent {
     /// the answer could come from any document. The search now runs inside the document, in
     /// Standard, and the runner refuses an answer that rests on any other document's passage.
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
-        let outcome = try await AskActionRunner.ask(question, mode: .standard, topK: 6, documentIds: [document.id])
+        let outcome = try await AskActionRunner.run(self) { control in
+            try await AskActionRunner.ask(
+                question, mode: .standard, topK: 6, documentIds: [document.id], control: control)
+        }
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
@@ -770,8 +942,11 @@ struct SummarizeDocumentIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
         let prompt = "Provide a concise summary of the main points and key information in the document '\(document.filename)'."
-        let outcome = try await AskActionRunner.ask(
-            prompt, shownAs: "Summarize \(document.filename)", mode: .standard, topK: 8, documentIds: [document.id])
+        let outcome = try await AskActionRunner.run(self) { control in
+            try await AskActionRunner.ask(
+                prompt, shownAs: "Summarize \(document.filename)", mode: .standard, topK: 8,
+                documentIds: [document.id], control: control)
+        }
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(
@@ -816,8 +991,11 @@ struct CompareDocumentsIntent: AppIntent {
         }
         let prompt = "Compare what is stated in '\(document1.filename)' versus what is stated in '\(document2.filename)' on the topic: \(topic)."
         let shown = "Comparison of \(document1.filename) and \(document2.filename) on \(topic)"
-        let outcome = try await AskActionRunner.ask(
-            prompt, shownAs: shown, mode: .standard, topK: 8, documentIds: [document1.id, document2.id])
+        let outcome = try await AskActionRunner.run(self) { control in
+            try await AskActionRunner.ask(
+                prompt, shownAs: shown, mode: .standard, topK: 8, documentIds: [document1.id, document2.id],
+                control: control)
+        }
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
@@ -857,7 +1035,9 @@ struct SearchLibraryIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetView {
-        let outcome = try await AskActionRunner.ask(query, mode: mode, libraryId: library.id)
+        let outcome = try await AskActionRunner.run(self) { control in
+            try await AskActionRunner.ask(query, mode: mode, libraryId: library.id, control: control)
+        }
         return .result(
             value: outcome.answer,
             dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
@@ -1003,3 +1183,16 @@ struct ThreadListSnippetView: View {
     }
 }
 
+// MARK: - The system can stop the ask actions (26.4) and let them run long (27)
+
+@available(iOS 26.4, macOS 26.4, *) extension QueryDocumentsIntent: CancellableIntent {}
+@available(iOS 26.4, macOS 26.4, *) extension SearchLibraryIntent: CancellableIntent {}
+@available(iOS 26.4, macOS 26.4, *) extension AskDocumentIntent: CancellableIntent {}
+@available(iOS 26.4, macOS 26.4, *) extension SummarizeDocumentIntent: CancellableIntent {}
+@available(iOS 26.4, macOS 26.4, *) extension CompareDocumentsIntent: CancellableIntent {}
+
+@available(iOS 27.0, macOS 27.0, *) extension QueryDocumentsIntent: LongRunningIntent {}
+@available(iOS 27.0, macOS 27.0, *) extension SearchLibraryIntent: LongRunningIntent {}
+@available(iOS 27.0, macOS 27.0, *) extension AskDocumentIntent: LongRunningIntent {}
+@available(iOS 27.0, macOS 27.0, *) extension SummarizeDocumentIntent: LongRunningIntent {}
+@available(iOS 27.0, macOS 27.0, *) extension CompareDocumentsIntent: LongRunningIntent {}

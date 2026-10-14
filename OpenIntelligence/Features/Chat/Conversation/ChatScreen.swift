@@ -5,8 +5,13 @@
 //  Created by Cline on 10/28/25.
 //
 
+import AppIntents
 import Combine
 import Foundation
+#if os(iOS)
+    import PDFKit
+    import VisionKit
+#endif
 import StoreKit
 import SwiftUI
 import Translation
@@ -228,6 +233,10 @@ struct ChatScreen: View {
     @State private var messages: [ChatMessage] = []
     @State private var didSeedScreenshotDemo: Bool = false
     @State private var streamingText: String = ""
+    /// Text another part of the system handed over to ask about, put in the composer unsent (5.7).
+    @State private var composerDraft: ComposerDraft? = nil
+    /// The library's documents for a cited passage's page; one object, so the environment is stable.
+    @State private var documentLookup = LibraryDocumentLookup()
     @State private var streamingBuffer: String = ""
     @State private var streamingPumpTask: Task<Void, Never>? = nil
     @State private var currentQueryTask: Task<Void, Never>? = nil  // Track current query for cancellation
@@ -299,6 +308,9 @@ struct ChatScreen: View {
 
     // Vision Capture overlay
     @State private var showVisionCapture: Bool = false
+    /// Apple's document scanner, for "Scan a Document" (5.7). Not the app's own camera, which
+    /// stays in Debug builds (`visionCaptureAction`).
+    @State private var showDocumentScanner: Bool = false
 
     /// Opens the live camera screen, or nil on a platform that has no camera screen.
     ///
@@ -654,6 +666,21 @@ struct ChatScreen: View {
                     ragService: ragService,
                     containerService: ragService.containerService
                 )
+            }
+            .fullScreenCover(isPresented: $showDocumentScanner) {
+                SystemDocumentScanner(
+                    onScan: { scan in
+                        showDocumentScanner = false
+                        storeScan(scan)
+                    },
+                    onDismiss: { error in
+                        showDocumentScanner = false
+                        if let error {
+                            Log.error("[Scan] The scanner failed: \(error.localizedDescription)", category: .ingestion)
+                        }
+                    }
+                )
+                .ignoresSafeArea()
             }
         #endif
         .navigationTitle("Chat")
@@ -1014,7 +1041,10 @@ struct ChatScreen: View {
 
     var body: some View {
         chatPresentationLayer
+            // A cited passage's sheet asks for the document's own record, file address included.
+            .environment(\.libraryDocumentLookup, documentLookup)
             .onAppear {
+                documentLookup.ragService = ragService
                 let ragService = self.ragService
                 continuedQueryCoordinator.expirationHandler = { [weak ragService] in
                     ragService?.cancelActiveGeneration(resetSession: true)
@@ -1061,16 +1091,19 @@ struct ChatScreen: View {
                 }
             }
             // MARK: - NSUserActivity / Handoff
-            .userActivity("com.openintelligence.chat") { activity in
+            .userActivity(AppActivity.chat) { activity in
                 activity.title = "Chat with Documents"
                 activity.isEligibleForSearch = true
                 activity.isEligibleForHandoff = true
                 #if os(iOS)
                     activity.isEligibleForPrediction = true
                 #endif
-                if let containerId = ragService.containerService.activeContainerId as UUID? {
-                    activity.userInfo = ["containerId": containerId]
-                }
+                activity.userInfo = AppActivity.userInfo(library: ragService.containerService.activeContainerId)
+                // What Siri and Apple Intelligence take "this" to mean here: the open conversation,
+                // or its library before the first answer saves one (5.7).
+                activity.appEntityIdentifier =
+                    ragService.activeThreadId.map(EntityIdentifier.conversation)
+                    ?? .library(ragService.containerService.activeContainerId)
             }
             // MARK: - Translation Overlay
             #if !targetEnvironment(macCatalyst)
@@ -2062,11 +2095,11 @@ struct ChatScreen: View {
         ragService.persistChatHistory(history, for: containerId)
     }
 
-    /// A request that ends in this screen: a new conversation, or the camera.
+    /// A request that ends in this screen: a new conversation, the camera, or text to ask about.
     private func takeNavigationRequest() {
         let request = AppNavigationRequest.shared.take { destination in
             switch destination {
-            case .newConversation, .scanDocument: return true
+            case .newConversation, .scanDocument, .ask: return true
             default: return false
             }
         }
@@ -2076,12 +2109,46 @@ struct ChatScreen: View {
             newChat()
         case .scanDocument:
             #if os(iOS)
-                showVisionCapture = true
+                if SystemDocumentScanner.isSupported {
+                    showDocumentScanner = true
+                } else {
+                    toastManager.show(
+                        ToastItem(title: "This device can't scan documents", icon: "doc.viewfinder", tint: .orange),
+                        duration: 2.5)
+                }
             #endif
+        case .ask(let text):
+            composerDraft = ComposerDraft(text: text)
         default:
             break
         }
     }
+
+    #if os(iOS)
+        /// Saves the scan as one PDF and hands it to the Documents screen's import review, the same
+        /// path as a file opened from another app. Pages are read and compressed one at a time, with
+        /// a yield between them, so a long scan never holds every page image at once and the screen
+        /// keeps drawing while it is saved.
+        private func storeScan(_ scan: VNDocumentCameraScan) {
+            Log.info("[Scan] \(scan.pageCount) page(s) scanned", category: .ingestion)
+            Task {
+                let document = PDFDocument()
+                for index in 0..<scan.pageCount {
+                    autoreleasepool { ScannedDocument.append(scan.imageOfPage(at: index), to: document) }
+                    await Task.yield()
+                }
+                do {
+                    let file = try ScannedDocument.store(document, title: scan.title)
+                    AppNavigationRequest.post(.importFiles([file]))
+                } catch {
+                    Log.error("[Scan] The scan could not be saved: \(error.localizedDescription)", category: .ingestion)
+                    toastManager.show(
+                        ToastItem(title: "The scan could not be saved", icon: "exclamationmark.triangle", tint: .orange),
+                        duration: 2.5)
+                }
+            }
+        }
+    #endif
 
     /// Writes the conversation to a temporary file and opens the share sheet on it. The title is
     /// the first question, because a chat has no name of its own here.
@@ -2425,7 +2492,8 @@ struct ChatScreen: View {
                 onAttach: nil,
                 onSendWithAttachments: sendMessageWithAttachments,
                 onVisionCapture: visionCaptureAction,
-                isCheckingAnswer: isCheckingFinishedAnswer && questionAfterCheck == nil
+                isCheckingAnswer: isCheckingFinishedAnswer && questionAfterCheck == nil,
+                draft: composerDraft
             )
         }
     }
@@ -2953,6 +3021,9 @@ struct ChatScreen: View {
         userMessage.containerId = usedContainerId
         messages.append(userMessage)
         persistChatHistory(for: usedContainerId)
+        // Which library is asked in, and when, for Siri's suggestions (5.7): the one the question
+        // goes to, which a one-question override can make other than the open one.
+        SiriDonations.libraryUsed(ragService.containerService.containers.first { $0.id == usedContainerId })
         // Reset override after one use
         self.messageContainerOverride = nil
 
@@ -3920,7 +3991,8 @@ struct CompactChatHeader: View {
 
     @ViewBuilder
     private var libraryPillList: some View {
-        ForEach(containerService.containers) { container in
+        // The libraries a Focus filter allows while its Focus is on, otherwise all (5.7).
+        ForEach(containerService.pickableContainers) { container in
             ContainerPill(
                 container: container,
                 isSelected: containerService.activeContainerId == container.id,
@@ -3931,6 +4003,7 @@ struct CompactChatHeader: View {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     containerService.setActive(container.id)
                 }
+                SiriDonations.libraryUsed(container)
             }
             .fixedSize(horizontal: true, vertical: false)
         }

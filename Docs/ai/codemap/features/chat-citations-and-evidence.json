@@ -9,12 +9,12 @@
   "entry_points": ["GroundedAnswerView", "SourceChipsView", "ChatResponseDetailsView", "VerificationGatesOverlayView", "ThinkingStreamView", "UnifiedMetricsBar"],
   "files": [
     {"path": "OpenIntelligence/Core/Models/RAGStructuredResponse.swift", "role": "primary", "blob": "a339998865bdccb852efb852bf6ef27e54ccf19b"},
-    {"path": "OpenIntelligence/Core/Models/StructuredAnswer.swift", "role": "primary", "blob": "3beefb92fc564ec49df58670b1f22b0e45927568"},
+    {"path": "OpenIntelligence/Core/Models/StructuredAnswer.swift", "role": "primary", "blob": "47d15d6e3efece050ce36fbf049da25a7c08b0c1"},
     {"path": "OpenIntelligence/Core/Models/ThinkingEvent.swift", "role": "primary", "blob": "5df5671f3f6757ac7bdeb280c23580f0e8673d94"},
     {"path": "OpenIntelligence/Features/Chat/Response/AnswerIntelligenceView.swift", "role": "primary", "blob": "5a57fbb67355543102424f8d4e722dad41fb4c91"},
     {"path": "OpenIntelligence/Features/Chat/Response/ContextUsageIndicator.swift", "role": "primary", "blob": "4d1de5c18b7f1811aea0060904f0c01a8d00e6d7"},
     {"path": "OpenIntelligence/Features/Chat/Response/EnhancedCodeBlock.swift", "role": "primary", "blob": "ace37a4ec46fcf26646812341585b3e01a01b0af"},
-    {"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "role": "primary", "blob": "756cb3ac4dab6cf85a1ab77e1659fd724c4a3363"},
+    {"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "role": "primary", "blob": "555209c0071ffc843b3aeddd2ae8024684708031"},
     {"path": "OpenIntelligence/Features/Chat/Response/ReportMessageSheet.swift", "role": "primary", "blob": "dea8b4c2d421e730d3116f98616d7d54b8e2535e"},
     {"path": "OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift", "role": "primary", "blob": "c6a92aa9da827b4af63dca785c1849ab474989cb"},
     {"path": "OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift", "role": "primary", "blob": "0e6251ccb0f3c9c2d323171099e9fff11d86d84d"},
@@ -32,7 +32,10 @@
     {"path": "OpenIntelligence/Features/Chat/Response/CitationLinker.swift", "role": "primary", "blob": "207208be266cd416b43fbff3af4beb3e7ad04c40"},
     {"path": "OpenIntelligenceTests/Features/Chat/CitationLinkerTests.swift", "role": "test", "blob": "5ec9c476fe7cf81671d4fd77e34f7c85b75a2f11"},
     {"path": "OpenIntelligence/Features/Chat/Response/AnswerShareFormatter.swift", "role": "primary", "blob": "698cf31a1c70b8f02ee65621e9db02c3151d060b"},
-    {"path": "OpenIntelligenceTests/Features/Chat/AnswerShareFormatterTests.swift", "role": "test", "blob": "c6e0cf1942ccc1d11580bf68f86d1314ceac72cc"}
+    {"path": "OpenIntelligenceTests/Features/Chat/AnswerShareFormatterTests.swift", "role": "test", "blob": "c6e0cf1942ccc1d11580bf68f86d1314ceac72cc"},
+    {"path": "OpenIntelligence/Features/Chat/Response/CitationSourceDocument.swift", "role": "primary", "blob": "90eb639ca90c7765b69b94edae34e12bc2b0ca1d"},
+    {"path": "OpenIntelligenceTests/Features/Chat/CitationSourceDocumentTests.swift", "role": "test", "blob": "b412cdd940b2d51ab2f09eb925f4dcd3543932fc"},
+    {"path": "OpenIntelligenceTests/Core/FactCheckQuoteTests.swift", "role": "test", "blob": "70bea45ab0fabf4bd7c398e7b731f668e25129c2"}
   ],
   "nodes": [
     {"id": "GroundedAnswerView", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 8, "match": "struct GroundedAnswerView: View {", "status": "VERIFIED", "by": "build"},
@@ -68,7 +71,7 @@
     {"from": "GroundedAnswerView", "type": "renders", "to": "MarkdownText", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 34, "match": "MarkdownText("}], "by": "build", "note": "constructs it"},
     {"from": "GroundedAnswerView", "type": "depends_on", "to": "IdentifiableChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 49, "match": "get: { selectedCitationChunk.map { IdentifiableChunk(chunk: $0) } },"}], "by": "build", "note": "constructs it"},
     {"from": "GroundedAnswerView", "type": "renders", "to": "DocumentDetailsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 53, "match": "DocumentDetailsView("}], "by": "build", "note": "constructs it"},
-    {"from": "GroundedAnswerView", "type": "depends_on", "to": "Document", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 54, "match": "document: Document("}], "by": "build", "note": "constructs it"},
+    {"from": "GroundedAnswerView", "type": "depends_on", "to": "Document", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 55, "match": "document: CitationSourceDocument.resolve("}], "by": "build", "note": "constructs it"},
     {"from": "GroundedAnswerView", "type": "renders", "to": "ClaimCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 92, "match": "ClaimCard("}], "by": "build", "note": "constructs it"},
     {"from": "MessageBubbleV2.body", "type": "renders", "to": "GroundedAnswerView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/MessageBubbleV2.swift", "line": 104, "match": "GroundedAnswerView("}], "by": "build", "note": "constructs it"},
     {"from": "SourceChipsView", "type": "depends_on", "to": "ChipData", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/SourceChipsView.swift", "line": 23, "match": "return ChipData("}], "by": "build", "note": "constructs it"},

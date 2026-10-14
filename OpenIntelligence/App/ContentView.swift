@@ -117,10 +117,18 @@ struct ContentView: View {
             guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
             AppNavigationRequest.post(AppLink.destination(forSpotlightIdentifier: identifier) ?? .documents)
         }
+        // Handoff: what another of the person's devices had open (5.7).
+        .onContinueUserActivity(AppActivity.chat, perform: continueActivity)
+        .onContinueUserActivity(AppActivity.documents, perform: continueActivity)
+        .onContinueUserActivity(AppActivity.viewingDocument, perform: continueActivity)
         .onReceive(AppNavigationRequest.shared.changes) { waiting in
             // One at a time, oldest first. A request this view finishes is removed, which sends the
             // next one; a request a screen has to finish stays first until that screen takes it.
             if let destination = waiting.first { route(destination) }
+        }
+        .onAppear {
+            // Shows each request's tab and library as it is posted, whichever screen takes it.
+            AppNavigationRequest.shared.onPost = { destination in show(destination) }
         }
         .onChange(of: ragService.documents.count, initial: true) { _, _ in
             // Siri's phrases that name a document or a library ("Summarize Lease.pdf in ...") are
@@ -219,6 +227,14 @@ struct ContentView: View {
             if !screenshotMode.isEnabled {
                 whatsNewStore.evaluateOnLaunch()
             }
+            // A Focus that changed while the app was closed (5.7). Not awaited here, so nothing
+            // below waits on the system's answer.
+            if !screenshotMode.isEnabled {
+                let libraries = containerService
+                Task { await LibraryFocusFilterIntent.applyCurrent(to: libraries) }
+                // Spotlight entries made by 5.6 expire after 30 days; refreshed once to last.
+                Task { await SpotlightIndexService.shared.refreshEntriesMadeBefore57() }
+            }
             #if DEBUG
                 let environment = ProcessInfo.processInfo.environment
                 let arguments = ProcessInfo.processInfo.arguments
@@ -316,6 +332,10 @@ struct ContentView: View {
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
             guard hasOverride else { return }
             onboardingStore.markModelSelectionAcknowledged()
+        }
+        // Off removes what the app gave Spotlight and Siri; on lists the libraries again (5.7).
+        .onChange(of: settingsStore.enableSpotlightIndexing) { _, isOn in
+            SpotlightIndexService.shared.indexingSwitched(on: isOn)
         }
     }
 
@@ -520,6 +540,13 @@ struct ContentView: View {
         AppNavigationRequest.post(destination)
     }
 
+    /// An activity continued from another device: the library it names, then its screen.
+    private func continueActivity(_ activity: NSUserActivity) {
+        let destinations = AppActivity.destinations(type: activity.activityType, userInfo: activity.userInfo)
+        Log.info("[Handoff] Continuing \(activity.activityType): \(destinations.count) step(s)", category: .ui)
+        destinations.forEach(AppNavigationRequest.post)
+    }
+
     /// A file another app handed over: "Open in OpenIntelligence" from Files, Mail or a share
     /// sheet, a file dropped on the Mac's Dock icon, or an AirDrop. It is copied into the app at
     /// once, while access to it is certain, and the Documents screen then runs its usual plan
@@ -527,23 +554,51 @@ struct ContentView: View {
     /// was never offered a file, and a file address reaching this handler was discarded.
     private func importOpenedFile(_ url: URL) {
         Log.info("[OpenIn] Received a file: \(url.pathExtension.lowercased())", category: .ingestion)
-        let staged = ImportedFileStaging.copyIntoWorkspace([url])
-        // On iPhone and iPad the system leaves its own copy in this app's Documents/Inbox. Ours is
-        // made, so that one would only sit in the Files app. On the Mac the address is the
-        // person's own file, opened in place, and is never removed.
-        #if os(iOS)
-            if let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-                url.deletingLastPathComponent().standardizedFileURL
-                    == documents.appendingPathComponent("Inbox", isDirectory: true).standardizedFileURL
-            {
-                try? FileManager.default.removeItem(at: url)
+        // Copied off the main actor (5.7): on the Mac the address can be a file in iCloud Drive that
+        // is downloaded while it is copied.
+        Task {
+            let staged = await ImportedFileStaging.copyIntoWorkspaceOffMainActor([url])
+            // On iPhone and iPad the system leaves its own copy in this app's Documents/Inbox. Ours is
+            // made, so that one would only sit in the Files app. On the Mac the address is the
+            // person's own file, opened in place, and is never removed.
+            #if os(iOS)
+                if let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+                    url.deletingLastPathComponent().standardizedFileURL
+                        == documents.appendingPathComponent("Inbox", isDirectory: true).standardizedFileURL
+                {
+                    try? FileManager.default.removeItem(at: url)
+                }
+            #endif
+            guard !staged.isEmpty else {
+                Log.error("[OpenIn] The file could not be copied into the app", category: .ingestion)
+                return
             }
-        #endif
-        guard !staged.isEmpty else {
-            Log.error("[OpenIn] The file could not be copied into the app", category: .ingestion)
-            return
+            AppNavigationRequest.post(.importFiles(staged))
         }
-        AppNavigationRequest.post(.importFiles(staged))
+    }
+
+    /// The tab and the library a request is for, as it is posted (`AppNavigationRequest.onPost`).
+    /// Nothing is taken here; `route` and the screens do that.
+    private func show(_ destination: AppDestination) {
+        switch destination {
+        case .chat, .scanDocument, .ask:
+            selectedTab = .chat
+        case .newConversation(let libraryId):
+            if let libraryId { containerService.setActive(libraryId) }
+            selectedTab = .chat
+        case .documents, .addDocument, .importFiles, .search, .searchFor, .importQueue:
+            selectedTab = .documents
+        case .settings:
+            selectedTab = .settings
+        case .library(let id):
+            containerService.setActive(id)
+            selectedTab = .documents
+        case .document(let id):
+            if let libraryId = ragService.documents.first(where: { $0.id == id })?.containerId {
+                containerService.setActive(libraryId)
+            }
+            selectedTab = .documents
+        }
     }
 
     /// Acts on the oldest waiting request: the tab and the library here. A request that ends here is
@@ -569,10 +624,12 @@ struct ContentView: View {
                 containerService.setActive(libraryId)
             }
             selectedTab = .documents
-        case .addDocument, .importFiles, .search:
+            // The Documents screen opens the document's page (5.7).
+            return
+        case .addDocument, .importFiles, .search, .searchFor:
             selectedTab = .documents
             return
-        case .scanDocument:
+        case .scanDocument, .ask:
             selectedTab = .chat
             return
         case .newConversation(let libraryId):

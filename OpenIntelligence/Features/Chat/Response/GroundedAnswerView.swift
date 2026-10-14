@@ -12,6 +12,7 @@ struct GroundedAnswerView: View {
     
     @State private var expandedClaimIndex: Int? = nil
     @State private var selectedCitationChunk: RetrievedChunk? = nil
+    @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
     
     private var modeColor: Color {
         let mode = modeName?.lowercased() ?? ""
@@ -51,12 +52,8 @@ struct GroundedAnswerView: View {
             )) { identifiableChunk in
                 NavigationView {
                     DocumentDetailsView(
-                        document: Document(
-                            id: identifiableChunk.chunk.chunk.documentId,
-                            filename: identifiableChunk.chunk.sourceDocument,
-                            fileURL: URL(fileURLWithPath: identifiableChunk.chunk.sourceDocument),
-                            contentType: .unknown
-                        ),
+                        document: CitationSourceDocument.resolve(
+                            identifiableChunk.chunk, found: libraryDocumentLookup?.document(identifiableChunk.chunk.chunk.documentId)),
                         embeddingProviderId: nil,
                         highlightedChunk: identifiableChunk.chunk
                     )

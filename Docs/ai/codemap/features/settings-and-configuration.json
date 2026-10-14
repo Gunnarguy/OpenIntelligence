@@ -14,14 +14,15 @@
     {"path": "OpenIntelligence/Features/Settings/Components/FeatureRow.swift", "role": "primary", "blob": "335018f595b4e634e5dfc1a7ebd6f9d3ff8c0bf2"},
     {"path": "OpenIntelligence/Features/Settings/Components/InfoRow.swift", "role": "primary", "blob": "00d600319d137f67ea06b1cc4ea3c8ff32e71bb5"},
     {"path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "role": "primary", "blob": "952ae949d6a438392ed67240fccc52cd5cbd13f9"},
-    {"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "role": "primary", "blob": "9cb3bffd0010f7db7f75d4c23ffaa68d68fcb9a9"},
+    {"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "role": "primary", "blob": "da2b538d17bab80e6f26184393a9c4f2ef8fc812"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift", "role": "primary", "blob": "d9b039aed9f501c45deb30a48ad868ce284969ea"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift", "role": "primary", "blob": "3a79583efee59cf55eca88ea2a4e2e6422b05dc3"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "primary", "blob": "4671c98587c24eeb595cd3f5ab1b28411b9976d6"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "primary", "blob": "ce85006c400a57c4d3ada5cfbb58f011b44d0c5a"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/Configuration/LogShareBufferTests.swift", "role": "test", "blob": "73bb939c4d7ecd073976c65ad4fbff3fb61b4198"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/Configuration/PCCConsentPreferenceMigrationTests.swift", "role": "test", "blob": "18b74f8451492071604e46319b468685dbcafcc2"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/Configuration/RouteLogLineTests.swift", "role": "test", "blob": "6db56ad7be8bc74f1188d1696b1bdea9022836a3"},
-    {"path": "OpenIntelligenceTests/Features/Settings/OpenIntelligenceLinksTests.swift", "role": "test", "blob": "7d6529bd85bcdea78056e3abf1eec76498c98b76"}
+    {"path": "OpenIntelligenceTests/Features/Settings/OpenIntelligenceLinksTests.swift", "role": "test", "blob": "46174a69c7ef439a73a5795e385b2842d9992f4d"},
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/SettingsPersistenceTests.swift", "role": "test", "blob": "336e899b00075f0379866b0894ab0bf2522b5c16"}
   ],
   "nodes": [
     {"id": "SettingsView", "kind": "view", "path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 17, "match": "struct SettingsView: View {", "status": "VERIFIED", "by": "build"},

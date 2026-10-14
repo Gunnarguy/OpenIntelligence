@@ -931,17 +931,21 @@ class DocumentProcessor {
         // and encoding garbage cleaned — so FTS5 search actually finds the right words.
         // Raw extractedText with font encoding errors ("colision", "wil") breaks search.
 
-        // Step A: Split normalized text by page break sentinel to get per-page content
-        let pageTextsFromSentinel = normalizedText.components(separatedBy: Self.pageBreakSentinel)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        // Step A: Split normalized text by page break sentinel to get per-page content, each page
+        // with its own number (`numberedPages`).
+        let startPageNum = pageRange?.lowerBound ?? 0
+        let pageTextsFromSentinel = Self.numberedPages(
+            splitting: normalizedText, separator: Self.pageBreakSentinel,
+            pagesWithText: pageInfo.pageTextRanges.keys.sorted(), firstPageIndex: startPageNum)
+        // A batch of a PDF imported in batches is numbered even when it holds one page, so the
+        // last batch of, say, 31 pages keeps its row (5.7).
+        let isNumbered = pageTextsFromSentinel.count > 1 || (pageRange != nil && !pageTextsFromSentinel.isEmpty)
 
         // Step B: Build human-readable full-doc text with page markers for FTS5
         let storedText: String
-        let startPageNum = pageRange?.lowerBound ?? 0
-        if pageTextsFromSentinel.count > 1 {
-            storedText = pageTextsFromSentinel.enumerated().map { (index, pageContent) in
-                "--- Page \(startPageNum + index + 1) ---\n\(pageContent)"
+        if isNumbered {
+            storedText = pageTextsFromSentinel.map { page in
+                "--- Page \(page.pageNumber) ---\n\(page.content)"
             }.joined(separator: "\n\n")
         } else {
             // Single page or no sentinels (non-PDF) — store as-is without markers
@@ -955,18 +959,15 @@ class DocumentProcessor {
         } else if let containerId = containerId {
             try Task.checkCancellation()
             // Primary path: SQLite FTS5 with container isolation (v1.1.0+)
-            let shouldAppend = pageRange != nil
-            await SQLiteFullTextService.shared.store(text: storedText, for: documentId, containerId: containerId, append: shouldAppend)
+            // Step C, the per-page rows for page-level search and context isolation, goes with it.
+            let pageEntries: [(pageNumber: Int, content: String)] = isNumbered ? pageTextsFromSentinel : []
+            let storedPages = await Self.storeText(
+                storedText, pages: pageEntries, for: documentId, containerId: containerId, append: pageRange != nil)
             Log.debug("[DocumentProcessor] Stored normalized text (\(storedCharCount) chars) to FTS5 for exact query support", category: .ingestion)
-
-            // Step C: Store per-page content for page-level search and context isolation
-            if pageTextsFromSentinel.count > 1 {
-                let pageEntries = pageTextsFromSentinel.enumerated().map { (index, content) in
-                    (pageNumber: startPageNum + index + 1, content: content)
-                }
-                try Task.checkCancellation()
-                await SQLiteFullTextService.shared.storePages(pages: pageEntries, for: documentId, containerId: containerId, append: shouldAppend)
-                Log.info("[DocumentProcessor] Stored \(pageEntries.count) individual pages to FTS5 for page-level context", category: .ingestion)
+            if !pageEntries.isEmpty {
+                Log.info(
+                    "[DocumentProcessor] Stored \(pageEntries.count) individual pages to FTS5 for page-level context (\(storedPages) in all)",
+                    category: .ingestion)
             }
         } else {
             try Task.checkCancellation()
@@ -10464,5 +10465,61 @@ extension DocumentProcessor {
         let tablesFound: Int
         let listsFound: Int
         let headersFound: Int
+    }
+}
+
+// MARK: - The keyword index's text and page rows for one document or one batch (5.7)
+
+extension DocumentProcessor {
+    /// Stores a document's text and its page rows, or, when `append` is set, one batch of a PDF
+    /// imported in batches. Returns how many page rows the document has after it.
+    ///
+    /// An appended batch's text store clears all of the document's page rows
+    /// (`SQLiteFullTextService.store` calls `delete(for:)`, which removes them), and through 5.6
+    /// `storePages(append: true)` then added only the current batch, so a PDF over 10 MB, imported
+    /// fifteen pages at a time, kept page rows for its last batch (backlog row
+    /// 3f549a74d54f8178ad55d3d273cc832a). The rows the batches before this one stored are read first
+    /// and stored again with this batch's; a page this batch stores again (an import resumed from
+    /// its checkpoint) is kept once, as this batch has it. The fix is here and not in the store,
+    /// which is a protected file. Its cost grows with the square of the page count, as the
+    /// appended text's own store already does.
+    @discardableResult
+    nonisolated static func storeText(
+        _ text: String, pages: [(pageNumber: Int, content: String)], for documentId: UUID, containerId: UUID,
+        append: Bool
+    ) async -> Int {
+        let earlier = append ? await SQLiteFullTextService.shared.retrieveAllPages(for: documentId) : []
+        await SQLiteFullTextService.shared.store(text: text, for: documentId, containerId: containerId, append: append)
+        let rows = pageRows(keeping: earlier, adding: pages)
+        guard !rows.isEmpty else { return 0 }
+        await SQLiteFullTextService.shared.storePages(pages: rows, for: documentId, containerId: containerId, append: append)
+        return rows.count
+    }
+
+    /// A PDF's text split at its page breaks, each page with its number. A page with no text gets
+    /// no page break (both PDF extractors insert one only before a page that has text), so the
+    /// n-th piece is the n-th page that has text. Its number is the n-th of `pagesWithText`, the
+    /// pages that had text counted from 1 within the batch, moved by `firstPageIndex`, the batch's
+    /// first page counted from 0. Through 5.6 the number was the piece's place, so every page after
+    /// a blank one was stored as the page before it (5.7). When the counts differ, which neither
+    /// extractor produces, the place is used, as before.
+    nonisolated static func numberedPages(
+        splitting text: String, separator: String, pagesWithText: [Int], firstPageIndex: Int
+    ) -> [(pageNumber: Int, content: String)] {
+        let pieces = text.components(separatedBy: separator).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard pagesWithText.count == pieces.count else {
+            return pieces.filter { !$0.isEmpty }.enumerated().map { (firstPageIndex + $0.offset + 1, $0.element) }
+        }
+        return zip(pagesWithText, pieces).compactMap { number, content in
+            content.isEmpty ? nil : (firstPageIndex + number, content)
+        }
+    }
+
+    /// The earlier rows without the pages the batch brings, then the batch's, in page order.
+    nonisolated static func pageRows(
+        keeping earlier: [(pageNumber: Int, content: String)], adding batch: [(pageNumber: Int, content: String)]
+    ) -> [(pageNumber: Int, content: String)] {
+        let renewed = Set(batch.map(\.pageNumber))
+        return (earlier.filter { !renewed.contains($0.pageNumber) } + batch).sorted { $0.pageNumber < $1.pageNumber }
     }
 }

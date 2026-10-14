@@ -91,7 +91,8 @@ struct ContainerPickerStrip: View {
 
     @ViewBuilder
     private var pillList: some View {
-        ForEach(containerService.containers) { container in
+        // The libraries a Focus filter allows while its Focus is on, otherwise all (5.7).
+        ForEach(containerService.pickableContainers) { container in
             ContainerPill(
                 container: container,
                 displayName: disambiguatedName(for: container),
@@ -107,6 +108,7 @@ struct ContainerPickerStrip: View {
                     withAnimation {
                         containerService.setActive(container.id)
                     }
+                    SiriDonations.libraryUsed(container)
                 },
                 // `.map`, matching `onDelete` directly below, so a nil callback stays nil.
                 //

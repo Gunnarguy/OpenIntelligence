@@ -5,6 +5,7 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
+import AppIntents
 import StoreKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -23,6 +24,13 @@ struct DocumentLibraryView: View {
     @State private var lastProcessedSummary: ProcessingSummary?
     @State private var showingContainerSettings = false
     @State private var showingSemanticSearch = false
+    /// The document a request from outside the screen opened: Spotlight, the Open Document action,
+    /// Handoff (5.7). Through 5.6 those landed on the document's library.
+    @State private var openedDocumentID: UUID?
+    /// The one wait for documents to load that a document request may start (5.7).
+    @State private var documentRequestWait: Task<Void, Never>?
+    /// What a search from Siri asked for, run as the search screen opens (5.7).
+    @State private var handedOverSearch = ""
     @State private var isImportingSamples = false
     /// Display names of samples just refreshed automatically, driving the explanatory
     /// banner. `nil` once dismissed.
@@ -220,6 +228,9 @@ struct DocumentLibraryView: View {
                             ModernDocumentCard(document: document, ragService: ragService)
                         }
                         .buttonStyle(.plain)
+                        // Each card names its document, so Siri and Apple Intelligence know which
+                        // documents are on screen (5.7).
+                        .appEntityIdentifier(.document(document.id))
                     }
                 }
                 .padding()
@@ -1328,14 +1339,46 @@ struct DocumentLibraryView: View {
             } message: {
                 Text(sharedSyncReviewMessage)
             }
-            .userActivity("com.openintelligence.documents") { activity in
+            .userActivity(AppActivity.documents) { activity in
                 activity.title = "Browse Document Library"
                 activity.isEligibleForSearch = true
                 activity.isEligibleForHandoff = true
-                if let containerId = containerService.activeContainerId as UUID? {
-                    activity.userInfo = ["containerId": containerId]
-                }
+                activity.userInfo = AppActivity.userInfo(library: containerService.activeContainerId)
+                activity.appEntityIdentifier = .library(containerService.activeContainerId)
             }
+    }
+
+    /// Opens the page of the document a request names; a document that is gone leaves the screen
+    /// on its library. With no documents listed yet, which is also how the first moments after a
+    /// launch look, the request waits up to three seconds for them, and is then let go: a request
+    /// left in the queue would hold back every request behind it (`ContentView` routes the oldest).
+    private func takeDocumentRequest(afterWaiting waited: Bool = false) {
+        func isDocumentRequest(_ destination: AppDestination) -> Bool {
+            if case .document = destination { return true }
+            return false
+        }
+        guard AppNavigationRequest.shared.waiting.contains(where: isDocumentRequest) else { return }
+        if ragService.documents.isEmpty && !waited {
+            // One wait at a time, so a later request is not let go early by an earlier one's timer.
+            guard documentRequestWait == nil else { return }
+            documentRequestWait = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                documentRequestWait = nil
+                takeDocumentRequest(afterWaiting: true)
+            }
+            return
+        }
+        guard case .document(let id)? = AppNavigationRequest.shared.take(where: isDocumentRequest) else { return }
+        guard let document = ragService.documents.first(where: { $0.id == id }) else {
+            Log.info("[Navigation] The document a request named is not in the library", category: .ui)
+            return
+        }
+        // The document's own library, which the main view could not switch to before the documents
+        // had loaded. A document stored before libraries existed lives in the first one.
+        if let libraryId = document.containerId ?? containerService.containers.first?.id {
+            containerService.setActive(libraryId)
+        }
+        openedDocumentID = id
     }
 
     private var librarySheetView: some View {
@@ -1361,7 +1404,30 @@ struct DocumentLibraryView: View {
                 // "Find in Library" from the menu, a keyboard or a link. The search needs something
                 // to search, as its button on this screen does.
                 if AppNavigationRequest.shared.take(where: { $0 == .search }) != nil, !ragService.documents.isEmpty {
+                    handedOverSearch = ""
                     showingSemanticSearch = true
+                }
+
+                // "Search OpenIntelligence for ..." from Siri: the search screen, run for that text.
+                if case .searchFor(let term)? = AppNavigationRequest.shared.take(where: { destination in
+                    if case .searchFor = destination { return true }
+                    return false
+                }) {
+                    handedOverSearch = term
+                    showingSemanticSearch = true
+                }
+
+                takeDocumentRequest()
+            }
+            // A request that came before the documents were loaded is taken once they are.
+            .onChange(of: ragService.documents.isEmpty) { _, isEmpty in
+                if !isEmpty { takeDocumentRequest() }
+            }
+            .navigationDestination(item: $openedDocumentID) { id in
+                if let document = ragService.documents.first(where: { $0.id == id }) {
+                    DocumentDetailsView(
+                        document: document,
+                        embeddingProviderId: containerService.activeContainer?.embeddingProviderId)
                 }
             }
             .sheet(isPresented: $showingFilePicker) {
@@ -1375,7 +1441,8 @@ struct DocumentLibraryView: View {
             .sheet(isPresented: $showingSemanticSearch) {
                 SemanticSearchView(
                     ragService: ragService,
-                    containerService: containerService
+                    containerService: containerService,
+                    initialQuery: handedOverSearch
                 )
             }
             .sheet(isPresented: $showingPlanSheet) {

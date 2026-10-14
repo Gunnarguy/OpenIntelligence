@@ -8,9 +8,10 @@
   "verified_on": "2026-10-10",
   "entry_points": ["BackgroundTaskService", "SpotlightIndexService", "TranscriptPersistenceService"],
   "files": [
-    {"path": "OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift", "role": "primary", "blob": "1154231df0230091cc38e5cf8cbcd8f56e9aa219"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift", "role": "primary", "blob": "5ba7f42675f41797a732e51ead29fad0551d2f08"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Background/TranscriptPersistenceService.swift", "role": "primary", "blob": "82eec6d9762f713ef548451476012573d4e00885"}
+    {"path": "OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift", "role": "primary", "blob": "e47814024f2203fe979fe92e1c6aa07016c35951"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift", "role": "primary", "blob": "32fd41ff61c3f4921863cebffe14f27292c00dd2"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Background/TranscriptPersistenceService.swift", "role": "primary", "blob": "82eec6d9762f713ef548451476012573d4e00885"},
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/SpotlightItemsTests.swift", "role": "test", "blob": "c769dee1e2eb4d9db317ffe420806617a4d0a51a"}
   ],
   "nodes": [
     {"id": "BackgroundTaskService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift", "line": 129, "match": "final class BackgroundTaskService: Sendable {", "status": "VERIFIED", "by": "build"},
@@ -39,7 +40,6 @@
     {"from": "OpenIntelligenceApp.configureIngestionRuntimeBridge", "type": "depends_on", "to": "BackgroundTaskService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "line": 73, "match": "BackgroundTaskService.shared.configureContinuedIngestion("}], "by": "build", "note": "named there"},
     {"from": "SpotlightIndexService", "type": "calls", "to": "HardwareTelemetryState.pulse", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift", "line": 49, "match": "HardwareTelemetryState.shared.pulse(.dataDecoding, intensity: 0.5, duration: 0.2)"}], "by": "build", "note": "named in the body"},
     {"from": "SpotlightIndexService", "type": "calls", "to": "DSHaptics.soft", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift", "line": 55, "match": "Task { @MainActor in DSHaptics.soft() }"}], "by": "build", "note": "named in the body"},
-    {"from": "SpotlightIndexService", "type": "calls", "to": "HardwareTelemetryState.reportRAGPipeline", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift", "line": 195, "match": "HardwareTelemetryState.shared.reportRAGPipeline(stage: \"Spotlight Reindex\")"}], "by": "build", "note": "named in the body"},
     {"from": "ContentView.refreshSharedWorkspaceIfNeeded", "type": "depends_on", "to": "SpotlightIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 494, "match": "SpotlightIndexService.shared.deindexAllDocuments(in: containerId)"}], "by": "build", "note": "named there"},
     {"from": "ContainerService.createContainer", "type": "depends_on", "to": "SpotlightIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift", "line": 147, "match": "SpotlightIndexService.shared.indexContainer(container)"}], "by": "build", "note": "named there"},
     {"from": "RAGService.addDocument", "type": "depends_on", "to": "SpotlightIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 6197, "match": "SpotlightIndexService.shared.indexDocument("}], "by": "build", "note": "named there"},

@@ -13,7 +13,9 @@
     {"path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "role": "primary", "blob": "beaf60f884dab471b4cc31cadddd4c23794bbbba"},
     {"path": "OpenIntelligence/Features/Camera/CaptureToRAGBridge.swift", "role": "primary", "blob": "09e0ed25e4f3e5f75c86ac5f72779d5f41074151"},
     {"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "role": "primary", "blob": "86f84eb0d5f383d1a3f3588d8865d5a36631fcc2"},
-    {"path": "OpenIntelligenceTests/Features/Camera/CameraOverlayGeometryTests.swift", "role": "test", "blob": "c55a4af97d11ee5b56e490c8574de25b3a2e152f"}
+    {"path": "OpenIntelligenceTests/Features/Camera/CameraOverlayGeometryTests.swift", "role": "test", "blob": "c55a4af97d11ee5b56e490c8574de25b3a2e152f"},
+    {"path": "OpenIntelligence/Features/Camera/SystemDocumentScanner.swift", "role": "primary", "blob": "796d3665b61a190f9581360f5dcd9b306d277a44"},
+    {"path": "OpenIntelligenceTests/Features/Camera/ScannedDocumentTests.swift", "role": "test", "blob": "b2d132c4e85d1878309397781929523a5710a5f6"}
   ],
   "nodes": [
     {"id": "CameraManager", "kind": "model", "path": "OpenIntelligence/Features/Camera/CameraManager.swift", "line": 23, "match": "class CameraManager: NSObject, ObservableObject {", "status": "VERIFIED", "by": "build"},

@@ -32,6 +32,9 @@ struct MessageActionsBar: View {
     /// Called when user taps "Illustrate" to open Image Playground
     var onIllustrate: (() -> Void)?
 
+    /// Called when the user shares the answer as a picture (5.7)
+    var onShareImage: (() -> Void)? = nil
+
     // iOS 26+: Thumbs up/down feedback for Apple Foundation Models
     let onThumbsUp: (() -> Void)?
     let onThumbsDown: (() -> Void)?
@@ -145,6 +148,13 @@ struct MessageActionsBar: View {
                 if let onShare {
                     ActionButton(icon: "square.and.arrow.up", label: "Share", color: .purple) {
                         onShare()
+                    }
+                }
+
+                // Share as a picture (assistant only)
+                if !isUser, let onShareImage {
+                    ActionButton(icon: "photo", label: "Image", color: .purple) {
+                        onShareImage()
                     }
                 }
 

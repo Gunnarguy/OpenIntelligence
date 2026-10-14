@@ -292,6 +292,11 @@ actor DocumentSummaryService {
                 // CRITICAL: Skip continuation for summaries - we want concise output
                 // Continuation was causing 516-word summaries that blew past 510-token embedding limit
                 config.skipContinuation = true
+                // A summary is written from the text in the prompt. Through 5.6 the six library
+                // tools were handed to the model here too, during every import, which spent part of
+                // a 200-token answer's window on their descriptions (backlog row
+                // 3b449a74d54f818486feee1dada5554b).
+                config.disableTools = true
                 return (ragService.llmService, config)
             }
 

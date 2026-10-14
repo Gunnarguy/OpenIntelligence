@@ -4,6 +4,9 @@ struct SemanticSearchView: View {
     @ObservedObject var ragService: RAGService
     @ObservedObject var containerService: ContainerService
 
+    /// Text to search for as the screen opens: a search Siri handed over (5.7).
+    var initialQuery: String = ""
+
     @Environment(\.dismiss) private var dismiss
     @State private var query: String = ""
     @State private var results: [RetrievedChunk] = []
@@ -17,6 +20,19 @@ struct SemanticSearchView: View {
     var body: some View {
         NavigationView {
             content
+                .onAppear {
+                    let handedOver = initialQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !handedOver.isEmpty, query.isEmpty else { return }
+                    query = handedOver
+                    performSearch()
+                }
+                // Another search from Siri while this screen is open runs here.
+                .onChange(of: initialQuery) { _, newQuery in
+                    let handedOver = newQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !handedOver.isEmpty else { return }
+                    query = handedOver
+                    performSearch()
+                }
                 .navigationTitle("Semantic Search")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

@@ -31,7 +31,15 @@ struct ChatComposerV2: View {
     /// button still reads as Stop, which also finishes that answer rather than discarding it.
     var isCheckingAnswer: Bool = false
 
+    /// Text handed over from outside the chat, placed in the field once and not sent (5.7).
+    var draft: ComposerDraft? = nil
+
     @State private var inputText: String = ""
+    @State private var appliedDraftID: UUID?
+    /// Speaking a question into the field (5.7).
+    @StateObject private var dictation = VoiceDictation()
+    /// What the field held when dictation started; the spoken words go after it.
+    @State private var textBeforeDictation = ""
     @FocusState private var isInputFocused: Bool
     @State private var textHeight: CGFloat = 40
 
@@ -109,6 +117,26 @@ struct ChatComposerV2: View {
                         .padding(.vertical, 12)
                         .padding(.leading, 16)
 
+                    // Dictation: the words go into the field as they are recognised, unsent (5.7).
+                    // iPhone and iPad only for now: the sandboxed Mac app needs the audio-input
+                    // entitlement for the microphone, and that file waits for the owner's word.
+                    #if os(iOS)
+                    if !isProcessing || isCheckingAnswer {
+                        Button {
+                            toggleDictation()
+                        } label: {
+                            Image(systemName: dictation.phase == .listening ? "mic.fill" : "mic")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(dictation.phase == .listening ? Color.red : DSColors.accent)
+                                .symbolEffect(.pulse, isActive: dictation.phase != .idle)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(dictation.phase == .preparing)
+                        .accessibilityLabel(dictation.phase == .listening ? "Stop dictation" : "Dictate a question")
+                        .padding(.bottom, 12)
+                    }
+                    #endif
+
                     // Attachment button with menu
                     if !isProcessing {
                         AttachmentMenuButton(
@@ -175,6 +203,23 @@ struct ChatComposerV2: View {
         }
         .background(.ultraThinMaterial)
         .onSubmit(send)
+        .alert(
+            "Dictation",
+            isPresented: Binding(get: { dictation.problem != nil }, set: { if !$0 { dictation.problem = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(dictation.problem?.message ?? "")
+        }
+        .onDisappear {
+            if dictation.phase != .idle { Task { await dictation.stop() } }
+        }
+        .onChange(of: draft, initial: true) { _, draft in
+            guard let draft, draft.id != appliedDraftID else { return }
+            appliedDraftID = draft.id
+            inputText = draft.text
+            isInputFocused = true
+        }
         // Report keyboard typing to HUD (visualizes Taptic Engine activity)
         // iOS keyboard already provides haptics - we just REPORT to telemetry for visualization
         .onChange(of: inputText) { oldValue, newValue in
@@ -235,10 +280,28 @@ struct ChatComposerV2: View {
         DSHaptics.success()
     }
 
+    private func toggleDictation() {
+        if dictation.phase == .idle {
+            textBeforeDictation = inputText
+            dictation.onText = { spoken in
+                inputText = VoiceDictation.joined(textBeforeDictation, spoken)
+            }
+            DSHaptics.selection()
+            Task { await dictation.start() }
+        } else {
+            Task { await dictation.stop() }
+        }
+    }
+
     private func send() {
         // Return in the field reaches here too, and the field is now editable while an answer is
         // being checked, so the button's own rule has to hold for the keyboard as well.
         guard canSend else { return }
+        // Sending ends dictation; the question sent is what the field holds now.
+        if dictation.phase != .idle {
+            dictation.onText = nil
+            Task { await dictation.stop() }
+        }
         let query = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let urls = pendingAttachments.map { $0.url }
         let hasAttachments = !urls.isEmpty
@@ -327,4 +390,10 @@ extension ChatComposerV2 {
         )
     }
     .background(DSColors.background)
+}
+
+/// Text handed to the chat from outside it: the Mac's Services menu (5.7).
+struct ComposerDraft: Equatable {
+    let id = UUID()
+    let text: String
 }

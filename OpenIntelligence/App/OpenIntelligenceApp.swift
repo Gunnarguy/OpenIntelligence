@@ -17,6 +17,9 @@ struct OpenIntelligenceApp: App {
     #if os(iOS)
     /// For Home Screen quick actions only; see `QuickActions.swift`.
     @UIApplicationDelegateAdaptor(OpenIntelligenceAppDelegate.self) private var appDelegate
+    #elseif os(macOS)
+    /// For the Services menu only; see `MacServicesProvider.swift`.
+    @NSApplicationDelegateAdaptor(OpenIntelligenceMacAppDelegate.self) private var macAppDelegate
     #endif
 
     init() {
@@ -130,6 +133,9 @@ struct OpenIntelligenceApp: App {
     }
 
     private func configureQueryRuntimeBridge() {
+        #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+            QueryLiveActivityService.shared.endLeftovers()
+        #endif
         QueryRuntimeBridge.shared.configureContinuedQueryHandler = { run, expiration in
             BackgroundTaskService.shared.configureContinuedQuery(
                 run: run,
@@ -142,6 +148,9 @@ struct OpenIntelligenceApp: App {
                 subtitle: subtitle
             )
             CompletionNotificationService.shared.answerBegan()
+            #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+                QueryLiveActivityService.shared.begin(title: title, subtitle: subtitle)
+            #endif
         }
         QueryRuntimeBridge.shared.updateContinuedQueryProgressHandler = { title, subtitle, fraction in
             BackgroundTaskService.shared.updateContinuedQueryProgress(
@@ -149,10 +158,16 @@ struct OpenIntelligenceApp: App {
                 subtitle: subtitle,
                 fraction: fraction
             )
+            #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+                QueryLiveActivityService.shared.update(title: title, subtitle: subtitle, fraction: fraction)
+            #endif
         }
         QueryRuntimeBridge.shared.completeUserInitiatedQueryHandler = { success in
             BackgroundTaskService.shared.completeUserInitiatedQuery(success: success)
             CompletionNotificationService.shared.answerFinished(success: success)
+            #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+                QueryLiveActivityService.shared.complete(success: success)
+            #endif
         }
         QueryRuntimeBridge.shared.beginForegroundFallbackQueryHandler = { reason in
             BackgroundTaskService.shared.beginForegroundFallbackQueryExtensionIfNeeded(reason: reason)

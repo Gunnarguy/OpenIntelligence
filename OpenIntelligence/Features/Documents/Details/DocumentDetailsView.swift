@@ -5,12 +5,15 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
+import QuickLook
 import SwiftUI
 
 struct DocumentDetailsView: View {
     let document: Document
     let embeddingProviderId: String?
     let highlightedChunk: RetrievedChunk?
+    /// The file shown in Quick Look while it is open (5.7).
+    @State private var quickLookURL: URL?
     
     init(document: Document, embeddingProviderId: String?, highlightedChunk: RetrievedChunk? = nil) {
         self.document = document
@@ -95,6 +98,24 @@ struct DocumentDetailsView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
         #endif
+        .toolbar {
+            // The document itself, in Quick Look, when its file is on this device. Quick Look
+            // opens a PDF at its first page; it has no way to be told which page a passage is on.
+            if CitationSourceDocument.hasFile(document) {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        quickLookURL = document.fileURL
+                    } label: {
+                        Label("Preview Document", systemImage: "eye")
+                    }
+                    .help("Open the document in Quick Look")
+                }
+            }
+        }
+        .quickLookPreview($quickLookURL)
+        // Siri and Apple Intelligence take "this document" to mean this one, and another of the
+        // person's devices can continue it (5.7).
+        .annotateActiveDocument(OIDocumentEntityQuery.entity(for: document, libraryNames: [:]))
     }
 
     // MARK: - Document Header Card

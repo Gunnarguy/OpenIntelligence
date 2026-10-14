@@ -50,7 +50,14 @@ final class AppLinkTests: XCTestCase {
     func testASpotlightResultNamesItsItem() {
         XCTAssertEqual(AppLink.destination(forSpotlightIdentifier: "document-\(id.uuidString)"), .document(id))
         XCTAssertEqual(AppLink.destination(forSpotlightIdentifier: "container-\(id.uuidString)"), .library(id))
-        XCTAssertNil(AppLink.destination(forSpotlightIdentifier: "chunk-\(id.uuidString)"), "a passage has no screen of its own")
+        XCTAssertNil(
+            AppLink.destination(forSpotlightIdentifier: "chunk-\(id.uuidString)"),
+            "a passage indexed before 5.7 does not name its document")
+        // From 5.7 a passage's entry names its document, which a tap opens.
+        let passage = UUID()
+        XCTAssertEqual(
+            AppLink.destination(forSpotlightIdentifier: "passage-\(id.uuidString)-\(passage.uuidString)"), .document(id))
+        XCTAssertNil(AppLink.destination(forSpotlightIdentifier: "passage-not-a-uuid"))
         XCTAssertNil(AppLink.destination(forSpotlightIdentifier: "nonsense"))
     }
 

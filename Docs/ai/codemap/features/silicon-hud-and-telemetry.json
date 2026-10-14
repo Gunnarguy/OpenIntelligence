@@ -16,7 +16,7 @@
     {"path": "OpenIntelligence/Services/Infrastructure/Monitoring/PipelineSignposts.swift", "role": "primary", "blob": "8f8fb53e707481dcb87836eecf2ef2da2f460dfd"},
     {"path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift", "role": "primary", "blob": "d2e36b6c214c9ab11d832bbfb009363920860a11"},
     {"path": "OpenIntelligence/Services/Infrastructure/Monitoring/TelemetryCenter.swift", "role": "primary", "blob": "78705dceff2eef18d83e0ec12aa3ffc11d210b77"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "shared", "blob": "4671c98587c24eeb595cd3f5ab1b28411b9976d6"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "role": "shared", "blob": "ce85006c400a57c4d3ada5cfbb58f011b44d0c5a"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/AppleSiliconGenerationTests.swift", "role": "test", "blob": "f9cfcb8245628f5658300eb2c057c5a6545973f1"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/ExecutionProfileLadderTests.swift", "role": "test", "blob": "a10af09e5fb7af9e2d21d4af1157d0171947b667"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/Monitoring/GPUExecutionProfileTests.swift", "role": "test", "blob": "9de8ca95048a0a9bfbb6717a7e453a7d56cd1c11"},

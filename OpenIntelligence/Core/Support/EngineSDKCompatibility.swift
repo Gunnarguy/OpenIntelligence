@@ -47,9 +47,11 @@ final class SpotlightIndexService {
         contentType _: UTType = .plainText
     ) {}
 
-    func deindexDocument(id _: UUID) {}
+    func deindexDocument(id _: UUID, containerId _: UUID? = nil) {}
 
     func deindexAllDocuments(in _: UUID) {}
+
+    func documentsLoaded(_: [Document], defaultLibraryId _: UUID?) {}
 
     func indexChunk(
         id: UUID,

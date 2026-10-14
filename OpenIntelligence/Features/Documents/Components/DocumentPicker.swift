@@ -14,7 +14,14 @@ import UniformTypeIdentifiers
 /// open panel, and Finder drag-and-drop. Importing by reference instead would
 /// leave the library pointing at files outside the workspace, which neither
 /// syncs across devices nor survives the original being moved.
-enum ImportedFileStaging {
+nonisolated enum ImportedFileStaging {
+    /// The same copy, off the main actor (5.7). A file in iCloud Drive that is not downloaded is
+    /// downloaded while it is copied, which on the main actor freezes the app for as long as that
+    /// takes; the Mac's Services menu and "Open in" use this.
+    @concurrent static func copyIntoWorkspaceOffMainActor(_ urls: [URL]) async -> [URL] {
+        copyIntoWorkspace(urls)
+    }
+
     /// Returns the workspace URLs of everything that copied successfully.
     ///
     /// A failure is logged per file and skipped rather than aborting the batch,

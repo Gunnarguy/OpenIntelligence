@@ -210,6 +210,7 @@ struct MessageBubbleV2: View {
                     onGoDeeper: isUser ? nil : onGoDeeper,
                     onTranslate: (!isUser && onTranslate != nil) ? { onTranslate?(message.content) } : nil,
                     onIllustrate: (!isUser && onIllustrate != nil) ? { onIllustrate?(message.content) } : nil,
+                    onShareImage: isUser ? nil : { shareMessageAsImage() },
                     onThumbsUp: onThumbsUp,
                     onThumbsDown: onThumbsDown
                 )
@@ -302,7 +303,7 @@ struct MessageBubbleV2: View {
             )
         }
         .sheet(item: $sharePayload) { payload in
-            ActivityView(activityItems: payload.items)
+            ActivityView(activityItems: payload.items, preview: payload.preview)
         }
     }
 
@@ -344,7 +345,18 @@ struct MessageBubbleV2: View {
     }
 
     private func shareMessage() {
-        sharePayload = SharePayload(items: [AnswerShareFormatter.shareText(for: message)])
+        sharePayload = SharePayload(
+            items: [AnswerShareFormatter.shareText(for: message)],
+            preview: message.role == .assistant ? .answer : nil)
+    }
+
+    /// The answer as a picture with its sources (`AnswerCardRenderer`). Falls back to the text.
+    private func shareMessageAsImage() {
+        if let card = AnswerCardRenderer.renderFile(for: message) {
+            sharePayload = SharePayload(items: [card])
+        } else {
+            shareMessage()
+        }
     }
 
     private func exportPipelineTrace() {
@@ -432,6 +444,7 @@ struct MessageBubbleV2: View {
     private struct SharePayload: Identifiable {
         let id = UUID()
         let items: [Any]
+        var preview: ShareSheetPreview? = nil
     }
 }
 

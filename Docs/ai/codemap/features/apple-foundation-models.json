@@ -8,7 +8,7 @@
   "verified_on": "2026-10-10",
   "entry_points": ["FoundationModelSessionFactory", "FoundationModelRoutePolicy", "FoundationModelToolRegistry", "FoundationModelStructuredGenerator", "FoundationModelPromptCompiler", "EntitlementChecker"],
   "files": [
-    {"path": "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift", "role": "primary", "blob": "9c27ff78c5990c6babfc6abbe6bd24e170a7d632"},
+    {"path": "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift", "role": "primary", "blob": "9e55b9ec77e91ceea826896a198c81956740bcd6"},
     {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelCapabilityProvider.swift", "role": "primary", "blob": "73fb55dab460a91d691465bc3f25a7b683ae314f"},
     {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelDynamicProfileRegistry.swift", "role": "primary", "blob": "3784a29492134aabb3e8d558251d295965756446"},
     {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelErrorMapper.swift", "role": "primary", "blob": "b9a4c520b9f2c11cc238691591e37d206b7e1317"},

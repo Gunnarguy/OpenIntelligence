@@ -381,6 +381,7 @@ extension StructuredAnswer {
         }
 
         var selectedEvidence: [RetrievedChunk] = []
+        var claimsByEvidence: [UUID: [String]] = [:]
 
         for claim in claims {
             let citedChunks = citedEvidence(for: claim.citations, in: retrievedChunks)
@@ -388,6 +389,7 @@ extension StructuredAnswer {
                 ? supportingEvidence(for: claim.claim, in: retrievedChunks)
                 : citedChunks
             let evidenceIds = supportingChunks.map { $0.chunk.id.uuidString }
+            for chunk in supportingChunks { claimsByEvidence[chunk.chunk.id, default: []].append(claim.claim) }
             let extractionConfidence = confidence(for: claim.claim, evidence: supportingChunks)
             let structuredConfidence = Float(structuredGeneration?.confidence ?? 0) / 100.0
             let claimConfidence = citedChunks.isEmpty
@@ -437,7 +439,7 @@ extension StructuredAnswer {
             _ = builder.addEvidence(
                 id: chunk.chunk.id.uuidString,
                 page: chunk.chunk.metadata.pageNumber,
-                quote: String(quoteSource.prefix(240)),
+                quote: quote(from: quoteSource, supporting: claimsByEvidence[chunk.chunk.id] ?? []),
                 documentName: chunk.sourceDocument.isEmpty ? nil : chunk.sourceDocument,
                 sectionPath: chunk.chunk.metadata.sectionPath
             )
@@ -499,6 +501,7 @@ extension StructuredAnswer {
 
         let structuredConfidence = min(1.0, max(0.0, Float(structuredGeneration.confidence) / 100.0))
         var selectedEvidence: [RetrievedChunk] = []
+        var claimsByEvidence: [UUID: [String]] = [:]
 
         appendUnique(
             citedEvidence(for: structuredGeneration.citations, in: retrievedChunks),
@@ -511,6 +514,7 @@ extension StructuredAnswer {
                 ? supportingEvidence(for: claim.claim, in: retrievedChunks)
                 : citedChunks
             let evidenceIds = supportingChunks.map { $0.chunk.id.uuidString }
+            for chunk in supportingChunks { claimsByEvidence[chunk.chunk.id, default: []].append(claim.claim) }
             let evidenceConfidence = confidence(for: claim.claim, evidence: supportingChunks)
 
             let claimConfidence: Float
@@ -550,7 +554,8 @@ extension StructuredAnswer {
             appendUnique(Array(retrievedChunks.prefix(3)), to: &selectedEvidence)
         }
 
-        addEvidenceEntries(from: selectedEvidence, fallback: retrievedChunks, to: builder)
+        addEvidenceEntries(
+            from: selectedEvidence, fallback: retrievedChunks, claimsByEvidence: claimsByEvidence, to: builder)
         applyVerification(verificationResult, to: builder)
         return sanitizeForVerification(
             builder.build(),
@@ -711,7 +716,56 @@ extension StructuredAnswer {
         }
     }
 
-    nonisolated private static func addEvidenceEntries(from preferredChunks: [RetrievedChunk], fallback: [RetrievedChunk], to builder: Builder) {
+    /// The part of a passage that best matches the claims citing it: the line or sentence that shares
+    /// the most words with them, and what follows it, up to `limit` characters (5.7).
+    /// Through 5.6 every quote was the passage's first 240 characters, wherever the claim's words
+    /// were, so Fact Check could show a claim beside text that never mentioned it (backlog row
+    /// 3ec49a74d54f81059d22d46955b11bc4). With no claim, or no word in common, it is still the start.
+    nonisolated static func quote(from text: String, supporting claims: [String], limit: Int = 240) -> String {
+        let start = String(text.prefix(limit))
+        let claimWords = quoteWords(of: claims.joined(separator: " "))
+        guard !claimWords.isEmpty else { return start }
+        let units = EvidenceLineSplitter.lines(in: text).flatMap(EvidenceLineSplitter.units(in:))
+        var best = -1
+        var bestScore = 0
+        for (index, unit) in units.enumerated() {
+            let score = quoteWords(of: unit).intersection(claimWords).count
+            if score > bestScore {
+                best = index
+                bestScore = score
+            }
+        }
+        guard best >= 0 else { return start }
+        var quote = units[best]
+        var next = best + 1
+        while next < units.count, quote.count + 1 + units[next].count <= limit {
+            quote += " " + units[next]
+            next += 1
+        }
+        guard quote.count > limit else { return quote }
+        let cut = quote.prefix(limit)
+        let atWord = cut.lastIndex(of: " ").map { cut[..<$0] } ?? cut
+        return String(atWord) + "…"
+    }
+
+    /// Words that can tie a claim to a sentence: three letters or more, any number, and none of
+    /// the commonest English words.
+    nonisolated private static func quoteWords(of text: String) -> Set<String> {
+        let common: Set<String> = [
+            "the", "and", "for", "with", "that", "this", "from", "are", "was", "were", "has", "have",
+            "not", "but", "you", "your", "its", "their", "they", "will", "can", "may", "which", "what",
+            "when", "there", "been", "also", "into", "than", "then", "each", "any", "all", "per",
+        ]
+        let tokens = text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        return Set(tokens.filter { token in
+            !common.contains(token) && (token.count >= 3 || token.allSatisfy(\.isNumber))
+        })
+    }
+
+    nonisolated private static func addEvidenceEntries(
+        from preferredChunks: [RetrievedChunk], fallback: [RetrievedChunk],
+        claimsByEvidence: [UUID: [String]] = [:], to builder: Builder
+    ) {
         var seenPoolIds2 = Set<UUID>()
         let evidencePool = (preferredChunks + fallback).reduce(into: [RetrievedChunk]()) { partial, chunk in
             if seenPoolIds2.insert(chunk.chunk.id).inserted {
@@ -724,7 +778,7 @@ extension StructuredAnswer {
             _ = builder.addEvidence(
                 id: chunk.chunk.id.uuidString,
                 page: chunk.chunk.metadata.pageNumber,
-                quote: String(quoteSource.prefix(240)),
+                quote: quote(from: quoteSource, supporting: claimsByEvidence[chunk.chunk.id] ?? []),
                 documentName: chunk.sourceDocument.isEmpty ? nil : chunk.sourceDocument,
                 sectionPath: chunk.chunk.metadata.sectionPath
             )

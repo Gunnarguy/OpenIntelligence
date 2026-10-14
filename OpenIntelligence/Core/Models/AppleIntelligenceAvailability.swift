@@ -57,6 +57,24 @@ nonisolated enum AppleIntelligenceCopy {
         }
     }
 
+    /// The last line of an answer made of excerpts because no answer was written (5.7). Through 5.6
+    /// it said "the model may be temporarily rate-limited" whatever the cause, which on a device
+    /// that cannot run the model is not the reason (backlog row 3e449a74d54f8170a3cbfb570a41d0a5).
+    static func excerptClosing(for reason: AppleIntelligenceUnavailability?, isAvailable: Bool) -> String {
+        guard !isAvailable else { return "The model didn't write an answer this time. Try asking again in a moment." }
+        switch reason {
+        case .deviceNotEligible:
+            return "These are excerpts, not a written answer: this device can't run Apple Intelligence."
+        case .notEnabled:
+            return
+                "These are excerpts, not a written answer: Apple Intelligence is turned off. Turn it on in Settings > Apple Intelligence & Siri for written answers."
+        case .modelNotReady:
+            return "These are excerpts, not a written answer: Apple Intelligence is still downloading its model."
+        case .unknown, nil:
+            return "These are excerpts, not a written answer: Apple Intelligence isn't available right now."
+        }
+    }
+
     /// The notice an empty chat shows before the first question, or nil when the model is available.
     /// It says what still works: documents are read, indexed and searched without the model, and a
     /// Standard question comes back as excerpts from them.
