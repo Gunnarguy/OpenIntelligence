@@ -363,8 +363,17 @@ actor VerificationGateService {
 
         let corpus = buildCorpus(from: chunks)
         let numericEvidence = Self.numericEvidence(from: chunks)
-        let claimResults = claimInputs.map {
-            evaluateClaim($0, in: chunks, corpus: corpus, numericEvidence: numericEvidence, query: query)
+        // Amounts of money and dates the passages contradict, read with Apple's detector (5.7, `DetectedValueCheck`).
+        let detectedEvidence = await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.parentContent ?? $0.chunk.content })
+        var claimResults: [RAGVerificationResult.ClaimResult] = []
+        for claimInput in claimInputs {
+            let contradiction = await DetectedValueCheck.contradictions(
+                in: cleanClaimText(claimInput.claim), evidence: detectedEvidence
+            ).first
+            claimResults.append(
+                evaluateClaim(
+                    claimInput, in: chunks, corpus: corpus, numericEvidence: numericEvidence,
+                    detectedContradiction: contradiction, query: query))
         }
 
         let supportedCount = claimResults.filter { $0.verdict == .supported }.count
@@ -435,20 +444,30 @@ actor VerificationGateService {
             }
         }
 
-        let verification = Float(verifiedCount) / Float(responseNumbers.count)
-        let passed = verification >= 0.70
+        // An amount the passages state only in another currency, or a day of a month they give other days of,
+        // fails the gate however many numbers matched (5.7, `DetectedValueCheck`): the values above match
+        // "€1,200" against "$1,200", and "March 15" against any 15 in the passages.
+        let detected = await DetectedValueCheck.contradictions(
+            in: response,
+            evidence: await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.parentContent ?? $0.chunk.content }))
 
-        let details: String
+        let verification = Float(verifiedCount) / Float(responseNumbers.count)
+        let passed = verification >= 0.70 && detected.isEmpty
+
+        var details: String
         if unverifiedNumbers.isEmpty {
             details = "All \(responseNumbers.count) numbers verified in source"
         } else {
             details = "\(verifiedCount)/\(responseNumbers.count) verified. Unverified: \(unverifiedNumbers.prefix(3).joined(separator: ", "))"
         }
+        if let first = detected.first {
+            details += ". The passages state \(first.stated), not \(first.written)"
+        }
 
         return RAGVerificationResult.GateResult(
             gate: .numericSanity,
             passed: passed,
-            confidence: verification,
+            confidence: detected.isEmpty ? verification : min(verification, 0.5),
             details: details
         )
     }
@@ -1324,6 +1343,7 @@ actor VerificationGateService {
         in chunks: [RetrievedChunk],
         corpus: String,
         numericEvidence: [NumericValueExtractor.Evidence],
+        detectedContradiction: DetectedValueCheck.Contradiction? = nil,
         query: String
     ) -> RAGVerificationResult.ClaimResult {
         let claimText = cleanClaimText(claimInput.claim)
@@ -1390,6 +1410,14 @@ actor VerificationGateService {
             verdict = .partial
             confidence = min(confidence, 0.55)
             details = "The figure \(missing.written) is not stated in the retrieved passages"
+        }
+
+        // Nor while the passages state its amount only in another currency, or give another day of its month and
+        // never this one (5.7, `DetectedValueCheck`). The value check above matches "€1,200" against "$1,200".
+        if verdict == .supported, let contradiction = detectedContradiction {
+            verdict = .partial
+            confidence = min(confidence, 0.55)
+            details = "The passages state \(contradiction.stated), not \(contradiction.written)"
         }
 
         // Nor while the passage it rests on says the opposite: one of the two is negative and the

@@ -455,14 +455,23 @@ final class SourceOnlyAnswerService {
         for warning in reviewAggregation.warnings {
             Log.warning("[SourceOnly] \(warning)", category: .llm)
         }
-        let verifiedClaims = draft.claims.map {
-            mergeClaimDraft(
-                $0,
-                review: reviewAggregation.byClaimId[normalizeClaimIdentifier($0.claimId)],
-                evidenceRecords: evidenceRecords,
-                domainBlocks: draft.domainBlocks,
-                strictDomainMode: verificationMode == .strictScientificDomain
-            )
+        // Amounts of money and dates the evidence contradicts, read with Apple's detector (5.7, `DetectedValueCheck`).
+        let detectedEvidence = await DetectedValueCheck.evidence(
+            from: evidenceRecords.map { $0.chunk.chunk.parentContent ?? $0.chunk.chunk.content })
+        var verifiedClaims: [SourceOnlyVerifiedClaim] = []
+        for claim in draft.claims {
+            let contradiction = await DetectedValueCheck.contradictions(
+                in: claim.claimText, evidence: detectedEvidence
+            ).first
+            verifiedClaims.append(
+                mergeClaimDraft(
+                    claim,
+                    review: reviewAggregation.byClaimId[normalizeClaimIdentifier(claim.claimId)],
+                    evidenceRecords: evidenceRecords,
+                    domainBlocks: draft.domainBlocks,
+                    strictDomainMode: verificationMode == .strictScientificDomain,
+                    detectedContradiction: contradiction
+                ))
         }
 
         let supportedClaims = verifiedClaims.filter { $0.isSupported }
@@ -821,7 +830,8 @@ final class SourceOnlyAnswerService {
         review: SourceOnlyClaimReview?,
         evidenceRecords: [EvidenceRecord],
         domainBlocks: [SourceOnlyDomainBlockDraft],
-        strictDomainMode: Bool
+        strictDomainMode: Bool,
+        detectedContradiction: DetectedValueCheck.Contradiction? = nil
     ) -> SourceOnlyVerifiedClaim {
         let mappedEvidence = Dictionary(uniqueKeysWithValues: evidenceRecords.map { ($0.label, $0) })
         let rawLabels = review?.evidenceLabels.isEmpty == false ? review?.evidenceLabels ?? [] : draft.evidenceLabels
@@ -874,6 +884,14 @@ final class SourceOnlyAnswerService {
             verdict = .unsupported
             fidelity = min(fidelity, 0.2)
             notes.append("A figure is not stated in the cited evidence as a value: \(unstated.written).")
+        }
+
+        // An amount the evidence states only in another currency, or another day of a month it gives (5.7,
+        // `DetectedValueCheck`).
+        if let contradiction = detectedContradiction {
+            verdict = .unsupported
+            fidelity = min(fidelity, 0.2)
+            notes.append("The evidence states \(contradiction.stated), not \(contradiction.written).")
         }
 
         let exactClaimHasHardAnchor = !numericTokens.isEmpty

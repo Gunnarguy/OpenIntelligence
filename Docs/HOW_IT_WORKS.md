@@ -455,7 +455,7 @@ A locked answer skips the source-only check (`:17293`). The scoring rules, and w
 |---|---|---|
 | `A` | Retrieval Confidence | The best evidence clears a threshold *and* beats the runner-up by a margin. A high top score with no margin means the ranking did not actually discriminate. |
 | `B` | Evidence Coverage | Every claim maps to a specific piece of evidence. Uncited assertions are the definition of ungrounded. |
-| `C` | Numeric Sanity | Numbers in the answer appear in the sources. Checked against all retrieved candidates, not just the packed set, so a correct number that lost a packing slot is not falsely flagged. |
+| `C` | Numeric Sanity | Numbers in the answer appear in the sources. Checked against all retrieved candidates, not just the packed set, so a correct number that lost a packing slot is not falsely flagged. From 5.7 Apple's data detector also reads amounts, dates and measurements, and an amount the sources state only in another currency, another day of a month they give, or a value they state only with other units fails it. |
 | `D` | Contradiction Sweep | Conflicting evidence across the retrieved set, including negation. |
 | `E` | Semantic Grounding | How closely the answer resembles the evidence in meaning, on both an absolute and a relative threshold, plus a topical alignment check. The strongest of the nine. |
 | `F` | Quote Faithfulness | Catches an abbreviation being expanded using a different document that happened to be in the same context. |
