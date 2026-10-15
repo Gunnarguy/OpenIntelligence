@@ -22,6 +22,48 @@ nonisolated enum ImportedFileStaging {
         copyIntoWorkspace(urls)
     }
 
+    /// The local cache's `OpenedFiles` folder, where a file "Open in" handed over waits while the person
+    /// looks at it (`OpenedFilesSheet`, 5.7). iCloud sync never sweeps it. `ImportedDocuments`, where
+    /// `copyIntoWorkspace` puts files, is swept of files no document uses once they are 15 minutes old
+    /// (`WorkspaceSyncService`), so a file looked at for longer could be gone when Add was tapped.
+    static func viewingFolder() -> URL {
+        AppSupportPaths.localCacheDir().appendingPathComponent("OpenedFiles", isDirectory: true)
+    }
+
+    /// Copies files into the viewing folder, each in a folder of its own so it keeps its name. Off the
+    /// main actor, for the same reason as `copyIntoWorkspaceOffMainActor`.
+    @concurrent static func copyForViewingOffMainActor(_ urls: [URL]) async -> [URL] {
+        var copied: [URL] = []
+        for url in urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let holder = viewingFolder().appendingPathComponent(UUID().uuidString, isDirectory: true)
+            let name = url.lastPathComponent.replacingOccurrences(of: "/", with: "-")
+            let destination = holder.appendingPathComponent(name.isEmpty ? "Document" : name)
+            do {
+                try FileManager.default.createDirectory(at: holder, withIntermediateDirectories: true)
+                try FileManager.default.copyItem(at: url, to: destination)
+                copied.append(destination)
+            } catch {
+                Log.error("❌ Error copying opened file \(url.lastPathComponent): \(error)", category: .ingestion)
+            }
+        }
+        return copied
+    }
+
+    /// Removes copies made by `copyForViewingOffMainActor`, each with its folder.
+    static func discardViewingCopies(_ urls: [URL]) {
+        let folder = viewingFolder().standardizedFileURL.path
+        for url in urls {
+            let holder = url.deletingLastPathComponent()
+            if holder.deletingLastPathComponent().standardizedFileURL.path == folder {
+                try? FileManager.default.removeItem(at: holder)
+            } else {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
     /// Returns the workspace URLs of everything that copied successfully.
     ///
     /// A failure is logged per file and skipped rather than aborting the batch,

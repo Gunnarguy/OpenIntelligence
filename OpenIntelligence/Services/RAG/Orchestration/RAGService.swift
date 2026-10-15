@@ -363,6 +363,16 @@ class RAGService: ObservableObject {
     @MainActor var bringAppForwardForConsent: (@Sendable () async throws -> Void)?
     /// Set when a consent sheet was given up because no window showed it (`CloudConsentRelay`).
     @MainActor private var consentRequestWentUnseen = false
+    /// Set on the engine an action builds for its question (`AskActionRunner`): its consent requests
+    /// go to `CloudConsentRelay`, which the app's root view shows, because no chat shows this engine.
+    /// Through the first 5.7 builds the relay was chosen by `activePresentedInstance !== self`, and that
+    /// weak pointer can be nil or another window's engine, which sent a chat's own request to the relay
+    /// and left an action's with nothing to show it.
+    @MainActor var asksThroughRelay = false
+    /// Set once a sheet for this engine went unseen: its later steps go on without Private Cloud
+    /// Compute instead of bringing the app forward and waiting again. An action's engine serves one
+    /// question, so this lasts for that question.
+    @MainActor private var consentUnavailableForThisEngine = false
     @MainActor private var transientConsentGrants: Set<CloudProvider> = []
     @MainActor private var pccSuppressedUntil: Date?
 
@@ -1236,20 +1246,30 @@ class RAGService: ObservableObject {
     }
 
     /// The query cache's key (5.7): the normalized question, then a digest of every library's
-    /// documents with their passage counts and of the embedding model, so an import, a deletion, a
-    /// re-import or a new model gives a question a fresh search. Pure, for `QueryCacheKeyTests`.
+    /// documents with their passage counts, of the embedding model and of the app's version, so an
+    /// import, a deletion, a re-import, a new model or an update gives a question a fresh search.
+    /// Pure, for `QueryCacheKeyTests`.
     nonisolated static func queryCacheKey(
         _ normalizedQuestion: String, documents: [(id: UUID, passages: Int)], embeddingProviderId: String,
-        dimension: Int
+        dimension: Int, appVersion: String = RAGService.appVersionForQueryCache
     ) -> String {
         var digest = SHA256()
         for document in documents.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
             digest.update(data: Data("\(document.id.uuidString):\(document.passages)\n".utf8))
         }
-        digest.update(data: Data("\(embeddingProviderId):\(dimension)".utf8))
+        digest.update(data: Data("\(embeddingProviderId):\(dimension)\n\(appVersion)".utf8))
         let hex = digest.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
         return "\(normalizedQuestion) #libraries \(hex)"
     }
+
+    /// The app's version and build, part of the query cache's key: a search cached by an earlier
+    /// version of the app is not reused after an update that changed how searching works.
+    nonisolated static let appVersionForQueryCache: String = {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }()
 
     /// A cached search is used only when every passage in it is from a document still in the
     /// libraries: one that is not would bring a deleted document's text into the answer.
@@ -2440,6 +2460,17 @@ class RAGService: ObservableObject {
                 for: .applePCC,
                 propagateToSettings: false
             )
+        }
+    }
+
+    /// Brings this engine's copy of the stored consent choices up to date (5.7). Each engine reads
+    /// them when it is made; a choice changed in Settings, or made in a sheet another engine showed,
+    /// reached only the app's own engine until a relaunch.
+    @MainActor
+    func refreshCloudConsentFromDefaults() {
+        for (provider, state) in loadPersistedConsentStates() where (cloudConsent[provider] ?? .notDetermined) != state {
+            cloudConsent[provider] = state
+            transientConsentGrants.remove(provider)
         }
     }
 
@@ -4121,9 +4152,40 @@ class RAGService: ObservableObject {
             modelExecutionPlan: modelExecutionPlan
         )
 
+        // The stored choices are read again, so one changed in Settings while this question ran, or
+        // made in a sheet another engine showed, counts here (5.7).
+        refreshCloudConsentFromDefaults()
+
         if await hasTransientGrant(for: provider) {
             await recordTransmission(record, grant: "session")
             return
+        }
+
+        // A choice already made needs no sheet, so nothing has to come forward for it (5.7): Always
+        // Allow sends and Don't Allow refuses, in front or not. Through 5.6 the check for the
+        // foreground came first, so on iPhone a question from the background never used Always Allow.
+        switch cloudConsent[provider] ?? .notDetermined {
+        case .allowed:
+            await recordTransmission(record, grant: "remembered")
+            return
+        case .denied:
+            TelemetryCenter.emit(
+                .system,
+                severity: .warning,
+                title: "Cloud call blocked (denied)",
+                metadata: [
+                    "provider": provider.shortName,
+                    "model": record.modelName,
+                ]
+            )
+            throw RAGServiceError.cloudConsentDenied(provider: provider)
+        case .notDetermined:
+            break
+        }
+
+        // A question whose sheet already went unseen asks no more (5.7).
+        if consentUnavailableForThisEngine {
+            throw RAGServiceError.cloudConsentUnavailable(provider: provider)
         }
 
         #if canImport(UIKit)
@@ -4157,15 +4219,31 @@ class RAGService: ObservableObject {
             }
         #elseif canImport(AppKit)
             // On the Mac the sheet shows in the app's window, which an action's question brings
-            // forward first (5.7). A sheet no window shows is given up (`CloudConsentRelay`).
-            if !NSApplication.shared.isActive, let bringForward = bringAppForwardForConsent {
+            // forward first (5.7). An action's question asks only where it can be seen: when the app
+            // cannot come forward it goes on without Private Cloud Compute, as on iPhone. The chat's
+            // own engine asks in its window as before, in front or not.
+            var inFront = NSApplication.shared.isActive
+            if !inFront, let bringForward = bringAppForwardForConsent {
                 do {
                     try await bringForward()
+                    inFront = true
                 } catch {
                     Log.info(
                         "[Consent] The app could not come forward to ask: \(error.localizedDescription)",
                         category: .pipeline)
                 }
+            }
+            if asksThroughRelay, !inFront {
+                TelemetryCenter.emit(
+                    .system,
+                    severity: .warning,
+                    title: "Cloud consent unavailable outside foreground UI",
+                    metadata: [
+                        "provider": provider.shortName,
+                        "planID": modelExecutionPlan?.id.uuidString ?? "unknown",
+                    ]
+                )
+                throw RAGServiceError.cloudConsentUnavailable(provider: provider)
             }
         #endif
 
@@ -4181,6 +4259,7 @@ class RAGService: ObservableObject {
             // A sheet no window showed is not a refusal, and nothing was remembered.
             if consentRequestWentUnseen {
                 consentRequestWentUnseen = false
+                consentUnavailableForThisEngine = true
                 throw RAGServiceError.cloudConsentUnavailable(provider: provider)
             }
             throw RAGServiceError.cloudConsentDenied(provider: provider)
@@ -4215,16 +4294,6 @@ class RAGService: ObservableObject {
                 pendingConsentContinuation = nil
             }
             pendingCloudConsent = record
-            // The chat shows the sheet for the app's own engine. For an engine an action built for
-            // its question, the app's root view shows it through the relay (5.7); through the first
-            // 5.7 builds nothing showed it, and the question waited for good.
-            if RAGService.activePresentedInstance !== self {
-                let id = record.id
-                CloudConsentRelay.shared.post(
-                    record,
-                    resolve: { [weak self] decision in await self?.resolveCloudConsent(decision: decision) },
-                    abandon: { [weak self] in self?.abandonCloudConsentRequest(id) })
-            }
             TelemetryCenter.emit(
                 .system,
                 title: "Cloud consent requested",
@@ -4237,6 +4306,16 @@ class RAGService: ObservableObject {
             )
             return await withCheckedContinuation { continuation in
                 pendingConsentContinuation = continuation
+                // The chat shows the sheet for its own engine. For an engine an action built for its
+                // question, the app's root view shows it through the relay (5.7). Posted after the
+                // continuation is kept, because the relay can give a request up at once.
+                if asksThroughRelay {
+                    let id = record.id
+                    CloudConsentRelay.shared.post(
+                        record,
+                        resolve: { [weak self] decision in await self?.resolveCloudConsent(decision: decision) },
+                        abandon: { [weak self] in self?.abandonCloudConsentRequest(id) })
+                }
             }
         }
     }
@@ -10319,6 +10398,9 @@ class RAGService: ObservableObject {
             title: "Execution plan: \(initialQueryPlan.executionMode.displayName)",
             detail: initialQueryPlan.reasoning
         )
+
+        // The stored consent choices as they are now, for the plan and the gate (5.7).
+        await MainActor.run { self.refreshCloudConsentFromDefaults() }
 
         // Resolve embedding context first (needed for both agentic and standard paths)
         let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)

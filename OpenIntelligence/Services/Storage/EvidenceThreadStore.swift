@@ -16,7 +16,14 @@ import os.log
 /// a folder sync never read, so a conversation stayed on the device it was had on. Threads found there, or in
 /// the older `<Application Support>/LocalCache/EvidenceThreads/`, are moved here when a store is made, with
 /// their modification dates, which sync compares; when a thread is in both places the newer copy is kept.
+///
+/// A deleted conversation is recorded in `deleted_threads.json` beside the threads folder, and sync removes
+/// it on every device instead of copying it back from iCloud (`WorkspaceSyncService.synchronizeEvidenceThreads`).
 final class EvidenceThreadStore: Sendable {
+    /// The list of deleted conversations' ids, beside the threads folder, as `deleted_documents.json` is
+    /// for documents.
+    nonisolated static let deletedThreadsFileName = "deleted_threads.json"
+
     private let logger = Logger(subsystem: "com.openintelligence", category: "EvidenceThreadStore")
     private let root: URL
 
@@ -151,7 +158,9 @@ final class EvidenceThreadStore: Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         
-        for url in fileURLs where url.pathExtension == "json" {
+        // A deleted conversation stays hidden even while a copy of it is still on its way out.
+        let deleted = deletedThreadIDs()
+        for url in fileURLs where url.pathExtension == "json" && !deleted.contains(url.deletingPathExtension().lastPathComponent) {
             do {
                 let data = try WorkspaceSyncService.coordinatedReadData(from: url)
                 let thread = try decoder.decode(EvidenceThread.self, from: data)
@@ -164,12 +173,36 @@ final class EvidenceThreadStore: Sendable {
         return threads.sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    /// Deletes a thread by ID and container ID.
+    /// Deletes a thread by ID and container ID, and records the deletion for iCloud sync, even when the
+    /// file was already gone, so a copy in iCloud is removed too.
     func deleteThread(id: UUID, containerId: UUID) throws {
         let fileURL = getThreadFileURL(id: id, containerId: containerId)
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try WorkspaceSyncService.coordinatedRemoveItem(at: fileURL)
             logger.debug("Successfully deleted EvidenceThread \(id).")
+        }
+        recordDeletion(of: id)
+    }
+
+    private var deletedThreadsURL: URL {
+        root.deletingLastPathComponent().appendingPathComponent(Self.deletedThreadsFileName)
+    }
+
+    /// The ids of deleted conversations: this device's, and after a sync the other devices' too.
+    func deletedThreadIDs() -> Set<String> {
+        guard let data = try? Data(contentsOf: deletedThreadsURL),
+            let ids = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return Set(ids)
+    }
+
+    private func recordDeletion(of id: UUID) {
+        var ids = deletedThreadIDs()
+        guard ids.insert(id.uuidString).inserted, let data = try? JSONEncoder().encode(ids.sorted()) else { return }
+        do {
+            try WorkspaceSyncService.coordinatedWriteData(data, to: deletedThreadsURL)
+        } catch {
+            logger.error("Could not record the deleted thread \(id): \(error.localizedDescription)")
         }
     }
 

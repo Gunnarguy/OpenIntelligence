@@ -1308,6 +1308,9 @@ struct DocumentLibraryView: View {
                         showingOpenedFiles = false
                     },
                     onDiscard: { showingOpenedFiles = false })
+                // Only Add or Don't Add closes it: a swipe would delete what may be the file's only
+                // copy on the device, as with a file sent by AirDrop.
+                .interactiveDismissDisabled(true)
             }
             .alert("Review Import", isPresented: $showingImportReview) {
                 Button("Cancel", role: .cancel) {
@@ -1704,7 +1707,7 @@ struct DocumentLibraryView: View {
     @MainActor
     private func showOpenedFiles(_ staged: [URL]) {
         guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
-            staged.forEach { try? FileManager.default.removeItem(at: $0) }
+            ImportedFileStaging.discardViewingCopies(staged)
             presentPlanSheet(for: .documentLimit)
             return
         }
@@ -1712,18 +1715,29 @@ struct DocumentLibraryView: View {
         showingOpenedFiles = true
     }
 
-    /// When the viewer closes: Add to Library runs the usual import review on the files; Don't Add,
-    /// or closing it any other way, removes the app's copies.
+    /// When the viewer closes: Add to Library copies the files into the library's folder and runs the
+    /// usual import review on them; Don't Add removes the app's copies. The viewing copies are kept when
+    /// any file could not be copied, so nothing is lost.
     @MainActor
     private func finishOpenedFiles() {
         let files = openedFiles
         let add = addOpenedFiles
         openedFiles = []
         addOpenedFiles = false
-        if add {
-            importOpenedFiles(files)
-        } else {
-            files.forEach { try? FileManager.default.removeItem(at: $0) }
+        guard add else {
+            ImportedFileStaging.discardViewingCopies(files)
+            return
+        }
+        Task { @MainActor in
+            let inWorkspace = await ImportedFileStaging.copyIntoWorkspaceOffMainActor(files)
+            if inWorkspace.count == files.count {
+                ImportedFileStaging.discardViewingCopies(files)
+            } else {
+                Log.error(
+                    "[OpenIn] \(files.count - inWorkspace.count) opened file(s) could not be copied into the library; the copies are kept",
+                    category: .ingestion)
+            }
+            importOpenedFiles(inWorkspace)
         }
     }
 

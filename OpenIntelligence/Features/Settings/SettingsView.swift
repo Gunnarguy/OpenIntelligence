@@ -2662,9 +2662,8 @@ Text(deviceService.chipName)
                 )
 
                 // Voice input is the chat field's dictation button (`VoiceDictation`), built in 5.7;
-                // through 5.6 this line claimed it with no microphone code in the app. The Mac has no
-                // button yet (it waits for the sandbox's audio-input entitlement), so it is not
-                // claimed there.
+                // through 5.6 this line claimed it with no microphone code in the app. The Mac has the
+                // button too since the audio-input entitlement went in (2026-10-14).
                 aiFeatureInfoRow(
                     icon: "waveform",
                     color: .green,
@@ -3341,11 +3340,7 @@ Text(deviceService.chipName)
     }
 
     private var speechAnalysisSubtitle: String {
-        #if os(iOS)
-            "Audio transcription & voice input"
-        #else
-            "Audio transcription"
-        #endif
+        "Audio transcription & voice input"
     }
 
     private func shareApp() {

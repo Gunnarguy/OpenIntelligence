@@ -12,10 +12,11 @@ import Foundation
 /// on a continuation that only the chat's sheet resolved, and the chat shows only its own engine's
 /// requests, so a question from Siri or Shortcuts asked while the app was in front waited for good.
 ///
-/// One request at a time: a new one gives up the one before it. The first window to claim a request
-/// shows it, so a second window on the Mac or iPad does not show it twice. A request that no window
-/// has shown within `deadline` is given up: the engine's question goes on without Private Cloud
-/// Compute, and nothing is remembered, unlike Don't Allow.
+/// One request at a time: a new one gives up one no window has shown yet, and is itself given up
+/// while a sheet is on screen. The first window to claim a request shows it, so a second window on
+/// the Mac or iPad does not show it twice. A request that no window has shown within `deadline` is
+/// given up: the engine's question goes on without Private Cloud Compute, and nothing is
+/// remembered, unlike Don't Allow.
 @MainActor
 final class CloudConsentRelay: ObservableObject {
     static let shared = CloudConsentRelay()
@@ -27,8 +28,12 @@ final class CloudConsentRelay: ObservableObject {
         var id: UUID { record.id }
     }
 
-    /// The request waiting for a window to show it, or being shown.
+    /// The request waiting for a window to show it, or being shown, published for the windows.
+    /// `current` holds the same request and is set first: `@Published` tells subscribers before it
+    /// stores a new value, and a window claims the request inside that call. Through the first 5.7
+    /// builds the claim read the published value, found nothing, and no window ever showed a request.
     @Published private(set) var request: Request?
+    private var current: Request?
     /// How long a request may wait for a window to show it.
     var deadline: Duration = .seconds(15)
 
@@ -41,8 +46,16 @@ final class CloudConsentRelay: ObservableObject {
         resolve: @escaping @MainActor (CloudConsentDecision) async -> Void,
         abandon: @escaping @MainActor () -> Void
     ) {
+        let incoming = Request(record: record, resolve: resolve, abandon: abandon)
+        // A sheet on screen is never taken away while the person answers it. A request that comes in
+        // the meantime is given up at once, and its question goes on without Private Cloud Compute.
+        if current != nil, isShown {
+            incoming.abandon()
+            return
+        }
         giveUp()
-        request = Request(record: record, resolve: resolve, abandon: abandon)
+        current = incoming
+        request = incoming
         let id = record.id
         let deadline = deadline
         watchdog = Task { [weak self] in
@@ -54,7 +67,7 @@ final class CloudConsentRelay: ObservableObject {
 
     /// True for the first window that asks to show the request, false for any other.
     func claim(_ id: UUID, for window: UUID) -> Bool {
-        guard request?.id == id else { return false }
+        guard current?.id == id else { return false }
         if let claimedBy { return claimedBy == window }
         claimedBy = window
         return true
@@ -62,7 +75,7 @@ final class CloudConsentRelay: ObservableObject {
 
     /// The sheet is on screen: the request now waits for the person, however long that takes.
     func markShown(_ id: UUID) {
-        guard request?.id == id else { return }
+        guard current?.id == id else { return }
         isShown = true
         watchdog?.cancel()
         watchdog = nil
@@ -70,31 +83,32 @@ final class CloudConsentRelay: ObservableObject {
 
     /// The person's choice, passed to the engine that asked.
     func decide(_ id: UUID, _ decision: CloudConsentDecision) async {
-        guard let current = request, current.id == id else { return }
+        guard let asked = current, asked.id == id else { return }
         clear()
-        await current.resolve(decision)
+        await asked.resolve(decision)
     }
 
     /// The engine settled the request itself; the relay drops it without calling back.
     func withdraw(_ id: UUID) {
-        guard request?.id == id else { return }
+        guard current?.id == id else { return }
         clear()
     }
 
     private func expire(_ id: UUID) {
-        guard request?.id == id, !isShown else { return }
+        guard current?.id == id, !isShown else { return }
         giveUp()
     }
 
     private func giveUp() {
-        guard let current = request else { return }
+        guard let asked = current else { return }
         clear()
-        current.abandon()
+        asked.abandon()
     }
 
     private func clear() {
         watchdog?.cancel()
         watchdog = nil
+        current = nil
         request = nil
         claimedBy = nil
         isShown = false

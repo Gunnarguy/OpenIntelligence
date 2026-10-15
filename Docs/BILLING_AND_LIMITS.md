@@ -346,7 +346,7 @@ new call's options, has no values in the Xcode 27.0 SDK, so the set passed is em
 
 *Added 2026-10-14, for 5.7.* The in-app privacy policy lives beside the plan screens. Its line on
 diagnostics now reads that telemetry and diagnostics stay on the device and that a crash report
-leaves only if the person chooses to send it from their own mail app, because 5.7 adds a crash report
+leaves only if the person chooses to email or share it, because 5.7 adds a crash report
 the person can email (`CrashReports`; `Docs/PRIVACY_AND_ROUTING.md`, "Diagnostics from the system stay
 on the device"). Nothing about plans, prices or limits changed. `[evidence_level: code_verified,
 confidence: high, evidence_source: PrivacyPolicyView.swift, CrashReports.swift]`

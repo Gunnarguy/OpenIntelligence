@@ -211,7 +211,10 @@ enum AskActionRunner {
 
         let engine = await MainActor.run { makeEngine() }
         let bringForward = control?.bringForward
-        await MainActor.run { engine.bringAppForwardForConsent = bringForward }
+        await MainActor.run {
+            engine.bringAppForwardForConsent = bringForward
+            engine.asksThroughRelay = true
+        }
         let (documents, defaultLibraryId) = await MainActor.run {
             (engine.documents, engine.containerService.containers.first?.id)
         }

@@ -41,6 +41,14 @@ final class QueryCacheKeyTests: XCTestCase {
         XCTAssertNotEqual(before, key([(lease, 14)]), "a re-import with more passages")
         XCTAssertNotEqual(before, key([(lease, 12)], model: "coreai_sentence_embedding"), "another embedding model")
         XCTAssertNotEqual(before, key([(lease, 12)], dimension: 512), "another dimension")
+        XCTAssertNotEqual(
+            RAGService.queryCacheKey(
+                question, documents: [(lease, 12)], embeddingProviderId: "coreml_sentence_embedding", dimension: 384,
+                appVersion: "5.7 (486)"),
+            RAGService.queryCacheKey(
+                question, documents: [(lease, 12)], embeddingProviderId: "coreml_sentence_embedding", dimension: 384,
+                appVersion: "5.7 (487)"),
+            "an update")
     }
 
     private func passage(from document: UUID) -> RetrievedChunk {

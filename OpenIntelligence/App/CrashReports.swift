@@ -3,28 +3,31 @@
 //  OpenIntelligence
 //
 
+import CryptoKit
 import Foundation
 
 #if canImport(MetricKit)
     import MetricKit
 #endif
 
-/// Crash reports the person can send (5.7). MetricKit hands the app a crash diagnostic at the next
-/// launch after it closed unexpectedly (iOS 27 and macOS 27); `MetricDiagnostics` saves each one here as
-/// a file of its own, and the app offers it once, at that launch. Email Report opens a message to the
-/// developer with a short summary in the person's own mail app, and Settings, About shares the whole
+/// Crash reports the person can send (5.7). MetricKit hands the app a crash diagnostic after it
+/// closed unexpectedly (iOS 27 and macOS 27); `MetricDiagnostics` saves each one here as a file of its
+/// own, and the app offers it once. Email Report opens a message to the developer with a short
+/// summary in the person's own mail app, and Settings, About emails it the same way or shares the whole
 /// file. Nothing leaves the device unless the person sends it.
 ///
 /// A saved report holds the app and system versions, the device model, how the app ended (termination
 /// category and reason, exception type and code, signal), which of the app's states were running
 /// (`AppStateReporting`) and the call stack, which names code, not content. It leaves out the message
 /// text of an Objective-C exception and its arguments, which can carry strings the app was handling,
-/// and the region format, process id and signposts. The newest ten are kept.
+/// the memory region description, which can name a mapped file, and the region format, process id
+/// and signposts. The newest ten are kept, and a crash delivered twice is saved and offered once.
 nonisolated enum CrashReports {
     /// Posted on the main thread when a report has been saved.
     static let didSave = Notification.Name("openIntelligence.crashReports.didSave")
     static let pendingKey = "crashReports.pending"
     static let keep = 10
+    private static let lock = NSLock()
 
     static func folder() -> URL {
         AppSupportPaths.localCacheDir().appendingPathComponent("CrashReports", isDirectory: true)
@@ -38,7 +41,8 @@ nonisolated enum CrashReports {
         return files.filter { $0.pathExtension == "json" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
-    /// Writes one report, keeps the newest `keep`, and makes it the one the app offers next.
+    /// Writes one report, keeps the newest `keep`, and makes it the one the app offers next. A report
+    /// already saved, the same crash delivered again, is returned as it is and not offered again.
     @discardableResult
     static func save(
         _ fields: [String: Any], endedAt: Date, in folder: URL = folder(), defaults: UserDefaults = .standard
@@ -48,9 +52,14 @@ nonisolated enum CrashReports {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let name = "crash-\(formatter.string(from: endedAt))-\(UUID().uuidString.prefix(4)).json"
-        let url = folder.appendingPathComponent(name)
         let data = try JSONSerialization.data(withJSONObject: fields, options: [.prettyPrinted, .sortedKeys])
+        // The same crash delivered again gives the same bytes: it is kept once and not offered again.
+        let digest = SHA256.hash(data: data).prefix(4).map { String(format: "%02x", $0) }.joined()
+        if let existing = all(in: folder).first(where: { $0.deletingPathExtension().lastPathComponent.hasSuffix("-\(digest)") }) {
+            return existing
+        }
+        let name = "crash-\(formatter.string(from: endedAt))-\(digest).json"
+        let url = folder.appendingPathComponent(name)
         try data.write(to: url, options: .atomic)
         for old in all(in: folder).dropFirst(keep) {
             try? FileManager.default.removeItem(at: old)
@@ -68,6 +77,15 @@ nonisolated enum CrashReports {
 
     static func markOffered(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: pendingKey)
+    }
+
+    /// The report to offer, taken, so it is offered once however many windows ask.
+    static func takePending(in folder: URL = folder(), defaults: UserDefaults = .standard) -> URL? {
+        lock.lock()
+        defer { lock.unlock() }
+        let report = pending(in: folder, defaults: defaults)
+        defaults.removeObject(forKey: pendingKey)
+        return report
     }
 
     /// The short summary written into the report when it was saved.
@@ -98,7 +116,7 @@ nonisolated enum CrashReports {
 
     #if canImport(MetricKit)
         /// What is saved for a crash diagnostic: how the app ended, without the text of an exception's
-        /// message or its arguments.
+        /// message or its arguments, or the memory region description.
         @available(iOS 27.0, macOS 27.0, macCatalyst 27.0, *)
         static func fields(for report: MetricKit.DiagnosticReport, crash: MetricKit.CrashDiagnostic) -> [String: Any] {
             let environment = report.environment
@@ -142,9 +160,6 @@ nonisolated enum CrashReports {
                 fields["exceptionClass"] = reason.className
                 fields["exceptionKind"] = reason.exceptionType
                 ended.append(reason.exceptionName)
-            }
-            if let value = crash.virtualMemoryRegionInfo {
-                fields["virtualMemoryRegion"] = value
             }
             if let data = try? JSONEncoder().encode(crash.callStackTree),
                 let tree = try? JSONSerialization.jsonObject(with: data)

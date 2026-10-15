@@ -38,7 +38,7 @@ OpenIntelligence is designed privacy-first. Your documents stay on your device b
 **Cloud Processing (With Your Consent or Platform Routing):**
 • Apple-managed platform processing, where available, is governed by Apple's privacy and security policies
 • Explicitly enabled provider paths are governed by the provider's terms and privacy policies
-• All telemetry and diagnostics remain entirely on-device. A crash report leaves only if you choose to send it from your own mail app
+• All telemetry and diagnostics remain entirely on-device. A crash report leaves only if you choose to email or share it
 
 **Billing Data:**
 • Subscription tier and status (processed by Apple, not visible to us)

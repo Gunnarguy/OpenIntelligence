@@ -12,11 +12,11 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "role": "primary", "blob": "01690203b227de272425d14b8a409e0976ed947b"},
     {"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "role": "primary", "blob": "e0a4026632fd13abf9482a399d2812e1dd2935be"},
     {"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugView.swift", "role": "primary", "blob": "827a20eaeb5d330b117c914a195e6e0958748fcf"},
-    {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "d7c46d6fa574bb41e3d10b90f4651eb6fb0ae880"},
+    {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "5a8ca6169a3f48f262c43bb78ed3a857793ce721"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "role": "shared", "blob": "280adf492488b3c93175acbbc2a2bf64c3b6c13e"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "35ee961142fd17a08b8c0ae42c0b95aa234f1dab"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "076693cb42f6d955bc6df7c06e23c4442875dac4"},
-    {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "0b00de48146a79bd3e8c7d38298744963ecb2096"}
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "b1950fc63989082a22374ae1da2dde867ccfd8d3"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "2a517b56d42ca55a5a99626ddb840606bc1bb87c"},
+    {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "6fd5ca7fb3ab94409ddbaf31167bc0af6bb3ff82"}
   ],
   "nodes": [
     {"id": "EvidenceThread", "kind": "model", "path": "OpenIntelligence/Core/Models/EvidenceThread.swift", "line": 10, "match": "struct EvidenceThread: Codable, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},

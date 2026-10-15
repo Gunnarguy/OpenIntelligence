@@ -136,6 +136,8 @@ final class EvidenceThreadStoreTests: XCTestCase {
         return url
     }
 
+    /// On the main actor, where `EvidenceThread`'s `Encodable` conformance is.
+    @MainActor
     @discardableResult
     private func write(_ thread: EvidenceThread, under root: URL, modified: Date) throws -> URL {
         let folder = root.appendingPathComponent(thread.containerId.uuidString, isDirectory: true)
@@ -162,6 +164,7 @@ final class EvidenceThreadStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: saved.path), "the thread is not in \(syncFolder.path)")
     }
 
+    @MainActor
     func testThreadsInTheOldFoldersMoveWithTheirDates() throws {
         let scratch = try makeScratch()
         let old = scratch.appendingPathComponent("EvidenceThreads", isDirectory: true)
@@ -187,6 +190,7 @@ final class EvidenceThreadStoreTests: XCTestCase {
             "sync picks the newer copy by this date")
     }
 
+    @MainActor
     func testTheNewerCopyIsKeptWhenAThreadIsInBothPlaces() throws {
         let scratch = try makeScratch()
         let old = scratch.appendingPathComponent("EvidenceThreads", isDirectory: true)
@@ -215,6 +219,45 @@ final class EvidenceThreadStoreTests: XCTestCase {
         let appFolder = OpenIntelligenceRuntimePaths.applicationSupportRoot()
             .appendingPathComponent("EvidenceThreads", isDirectory: true)
         XCTAssertEqual(EvidenceThreadStore.legacyRoots(for: appFolder).count, 2, "the app's own store moves the old folders")
+    }
+
+    /// A deleted conversation is recorded beside the threads folder for iCloud sync, and a copy that comes
+    /// back before sync has removed it everywhere stays hidden. Without the record, sync copied a deleted
+    /// conversation back from iCloud on its next pass (found by a refuting review, 2026-10-14).
+    func testADeletedConversationIsRecordedAndAReturningCopyStaysHidden() throws {
+        let scratch = try makeScratch()
+        let root = scratch.appendingPathComponent("OpenIntelligence/EvidenceThreads", isDirectory: true)
+        let moved = EvidenceThreadStore(root: root, legacyRoots: [])
+        let library = UUID()
+        let thread = EvidenceThread(containerId: library, title: "Deleted on purpose")
+        try moved.saveThread(thread)
+        let copy = try Data(contentsOf: root.appendingPathComponent("\(library.uuidString)/\(thread.id.uuidString).json"))
+
+        try moved.deleteThread(id: thread.id, containerId: library)
+        XCTAssertEqual(moved.deletedThreadIDs(), [thread.id.uuidString])
+        let record = scratch.appendingPathComponent("OpenIntelligence/\(EvidenceThreadStore.deletedThreadsFileName)")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: record.path), "sync reads the record here")
+
+        try copy.write(to: root.appendingPathComponent("\(library.uuidString)/\(thread.id.uuidString).json"))
+        XCTAssertTrue(try moved.listThreads(containerId: library).isEmpty, "a copy on its way back stays hidden")
+    }
+
+    /// Sync joins the deleted conversations of this device and of iCloud, and writes the whole list to both.
+    func testSyncJoinsTheDeletedConversationsOfBothSides() throws {
+        let scratch = try makeScratch()
+        let local = scratch.appendingPathComponent("local", isDirectory: true)
+        let shared = scratch.appendingPathComponent("shared", isDirectory: true)
+        try FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: shared, withIntermediateDirectories: true)
+        let name = EvidenceThreadStore.deletedThreadsFileName
+        try JSONEncoder().encode(["a"]).write(to: local.appendingPathComponent(name))
+        try JSONEncoder().encode(["b"]).write(to: shared.appendingPathComponent(name))
+
+        XCTAssertEqual(WorkspaceSyncService.mergeDeletedThreads(localRoot: local, sharedRoot: shared), ["a", "b"])
+        for side in [local, shared] {
+            let ids = try JSONDecoder().decode([String].self, from: Data(contentsOf: side.appendingPathComponent(name)))
+            XCTAssertEqual(Set(ids), ["a", "b"], side.lastPathComponent)
+        }
     }
 
     /// The conversation limits the store's callers enforce, which the move does not change: 5 on Free,

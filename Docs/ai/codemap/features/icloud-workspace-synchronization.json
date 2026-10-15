@@ -8,7 +8,7 @@
   "verified_on": "2026-10-10",
   "entry_points": ["WorkspaceSyncService", "WorkspaceSyncService.deleteSharedLibrary", "WorkspaceSyncService.synchronizeEvidenceThreads", "WorkspaceInventory", "SyncBootstrapChoice"],
   "files": [
-    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "primary", "blob": "35ee961142fd17a08b8c0ae42c0b95aa234f1dab"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "primary", "blob": "b1950fc63989082a22374ae1da2dde867ccfd8d3"},
     {"path": "OpenIntelligenceTests/Services/Storage/IngestionQueueTombstoneTests.swift", "role": "test", "blob": "93c549154bf641e72ba7f4ee1a743fc7aeeb4913"},
     {"path": "OpenIntelligenceTests/Services/Storage/WorkspaceSyncImportGuardTests.swift", "role": "test", "blob": "02869f8bbe1e6a8a1429051a6904be766cce6ee5"}
   ],

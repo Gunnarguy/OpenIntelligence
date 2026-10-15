@@ -8,7 +8,7 @@
   "verified_on": "2026-10-13",
   "entry_points": ["OpenIntelligenceApp", "ContentView", "NavigationTiming", "LaunchArguments", "NetworkMonitor"],
   "files": [
-    {"path": "OpenIntelligence/App/ContentView.swift", "role": "primary", "blob": "f5b89e9a71653c0c76445c58f533272e82f0c4b3"},
+    {"path": "OpenIntelligence/App/ContentView.swift", "role": "primary", "blob": "8d00926aeb4122ee1f4d9dfd01f859dd505a7e27"},
     {"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "role": "primary", "blob": "bf20b35705051fd7b6d461c6eabeb33c1d644e81"},
     {"path": "OpenIntelligence/Core/Extensions/LaunchArguments.swift", "role": "primary", "blob": "ddfbea68300cf090c33a83d8a5f2b8b7927e0154"},
     {"path": "OpenIntelligence/Core/Extensions/NetworkMonitor.swift", "role": "primary", "blob": "299d938960dbe1a96549af4f78b5561ec51784a6"},
@@ -18,8 +18,8 @@
     {"path": "OpenIntelligence/App/QuickActions.swift", "role": "primary", "blob": "5a80da6b5b48a018d8c956023b564048b36b361f"},
     {"path": "OpenIntelligenceTests/App/LibrarySwitchingTests.swift", "role": "test", "blob": "0c17ef7c1bbe944c7a017930d2604c9fd6326ea5"},
     {"path": "OpenIntelligence/App/MetricDiagnostics.swift", "role": "primary", "blob": "71e78ec3f145cd3719b0da785e997a5d1b1da220"},
-    {"path": "OpenIntelligence/App/CrashReports.swift", "role": "primary", "blob": "4f3fe0c79c784284dd4575c17c5ab9c2ea6593c8"},
-    {"path": "OpenIntelligenceTests/App/CrashReportsTests.swift", "role": "test", "blob": "c7d541115444f57edf8aea3d14e7e38c00938632"},
+    {"path": "OpenIntelligence/App/CrashReports.swift", "role": "primary", "blob": "79996227a8a2e4657c7152e94496dd01876caca9"},
+    {"path": "OpenIntelligenceTests/App/CrashReportsTests.swift", "role": "test", "blob": "fff4cdaff20355469ea5dcef5cb7aba5060d95f7"},
     {"path": "OpenIntelligenceTests/App/MetricDiagnosticsTests.swift", "role": "test", "blob": "eb1bdded6f2ffc493919830f63f3f8110b65e362"},
     {"path": "OpenIntelligence/App/AppStateReporting.swift", "role": "primary", "blob": "461232473d25ef8d497824a3bf0f4388b985c885"},
     {"path": "OpenIntelligenceTests/App/AppStateReportingTests.swift", "role": "test", "blob": "922a766fa1b229ba16342675dd4f6e331df7b987"}

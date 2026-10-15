@@ -238,13 +238,12 @@ struct ContentView: View {
             presenting: crashReportToOffer
         ) { report in
             Button("Email Report") {
-                CrashReports.markOffered()
                 openURL(CrashReports.mailURL(for: report, to: OpenIntelligenceLinks.feedbackEmailAddress))
             }
-            Button("Not Now", role: .cancel) { CrashReports.markOffered() }
+            Button("Not Now", role: .cancel) {}
         } message: { _ in
             Text(
-                "A report of where it stopped was saved on this device. It has the app and system versions, the device model and the app's code that was running, and none of your documents, questions or answers. You can also share it later from Settings, About."
+                "A report of where it stopped was saved on this device. It has the app and system versions, the device model and the app's code that was running, and none of your documents, questions or answers. You can also email or share it later from Settings, About."
             )
         }
         .onReceive(consentRelay.$request) { request in
@@ -588,10 +587,11 @@ struct ContentView: View {
     }
 
     /// An activity continued from another device: the library it names, then its screen.
-    /// Offers a crash report saved since the last offer, once. Not during screenshot runs.
+    /// Offers a crash report saved since the last offer, once: the first window to ask takes it.
+    /// Not during screenshot runs.
     private func offerCrashReportIfAny() {
         guard !screenshotMode.isEnabled, crashReportToOffer == nil else { return }
-        crashReportToOffer = CrashReports.pending()
+        crashReportToOffer = CrashReports.takePending()
     }
 
     private func continueActivity(_ activity: NSUserActivity) {
@@ -609,9 +609,10 @@ struct ContentView: View {
     private func importOpenedFile(_ url: URL) {
         Log.info("[OpenIn] Received a file: \(url.pathExtension.lowercased())", category: .ingestion)
         // Copied off the main actor (5.7): on the Mac the address can be a file in iCloud Drive that
-        // is downloaded while it is copied.
+        // is downloaded while it is copied. It waits in the viewing folder, which iCloud sync never
+        // sweeps, until the person adds it (`ImportedFileStaging.viewingFolder`).
         Task {
-            let staged = await ImportedFileStaging.copyIntoWorkspaceOffMainActor([url])
+            let staged = await ImportedFileStaging.copyForViewingOffMainActor([url])
             // On iPhone and iPad the system leaves its own copy in this app's Documents/Inbox. Ours is
             // made, so that one would only sit in the Files app. On the Mac the address is the
             // person's own file, opened in place, and is never removed.

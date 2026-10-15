@@ -222,8 +222,9 @@ A Standard question that is not limited to named documents first looks for its o
 embedding and the hybrid search. After a live search the passages are written back (`cacheQuery`).
 
 From 5.7 the key is the normalized question followed by a digest of every library's documents with their
-passage counts and of the embedding model and its dimension (`RAGService.queryCacheKey`), so an import, a
-deletion, a re-import or a change of model gives the question a fresh search, and a hit is used only when
+passage counts, of the embedding model and its dimension, and of the app's version and build
+(`RAGService.queryCacheKey`), so an import, a deletion, a re-import, a change of model or an update gives the
+question a fresh search, and a hit is used only when
 every passage in it is from a document still in the libraries (`cachedResultsAreCurrent`). There is no
 lookup by similarity any more. Through 5.6 the key was the question and the library's id alone, nothing
 cleared an entry, and a question within 0.95 cosine of a cached one also took its passages

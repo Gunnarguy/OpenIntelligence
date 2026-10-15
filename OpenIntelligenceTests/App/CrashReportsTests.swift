@@ -2,8 +2,9 @@
 //  CrashReportsTests.swift
 //  OpenIntelligenceTests
 //
-//  Crash reports the person can send (5.7): a report is saved as a file of its own, offered once,
-//  the newest ten are kept, and the email goes to the given address with the report's summary in it.
+//  Crash reports the person can send (5.7): a report is saved as a file of its own, offered once
+//  however many windows ask, a crash delivered twice is kept once, the newest ten are kept, and the
+//  email goes to the given address with the report's summary in it.
 //  Not covered: MetricKit handing the app a crash diagnostic, which happens only on a device at the
 //  launch after a crash.
 //
@@ -39,6 +40,20 @@ final class CrashReportsTests: XCTestCase {
         CrashReports.markOffered(defaults: defaults)
         XCTAssertNil(CrashReports.pending(in: folder, defaults: defaults), "a report is offered once")
         XCTAssertEqual(CrashReports.all(in: folder), [report], "an offered report stays in Settings, About")
+    }
+
+    func testTheSameCrashDeliveredTwiceIsKeptAndOfferedOnce() throws {
+        let fields: [String: Any] = ["summary": "It ended with: badAccess, signal 11.", "app": "OpenIntelligence 5.7 (486)"]
+        let first = try CrashReports.save(
+            fields, endedAt: Date(timeIntervalSince1970: 1_790_000_000), in: folder, defaults: defaults)
+        XCTAssertEqual(CrashReports.takePending(in: folder, defaults: defaults), first)
+        XCTAssertNil(CrashReports.takePending(in: folder, defaults: defaults), "a second window gets nothing")
+
+        let again = try CrashReports.save(
+            fields, endedAt: Date(timeIntervalSince1970: 1_790_000_000), in: folder, defaults: defaults)
+        XCTAssertEqual(again, first)
+        XCTAssertEqual(CrashReports.all(in: folder).count, 1)
+        XCTAssertNil(CrashReports.pending(in: folder, defaults: defaults), "the same crash is not offered again")
     }
 
     func testOnlyTheNewestTenAreKept() throws {

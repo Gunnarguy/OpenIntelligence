@@ -2877,6 +2877,11 @@ final class WorkspaceSyncService: ObservableObject {
             return
         }
 
+        // Conversations deleted on any device (`deleted_threads.json`, written by
+        // `EvidenceThreadStore.deleteThread`, 5.7) are removed on both sides and never copied back:
+        // without this list a conversation deleted here came back from iCloud on the next pass.
+        let deletedThreads = Self.mergeDeletedThreads(localRoot: localRoot, sharedRoot: sharedRoot)
+
         try? ensureDirectory(localThreadDir)
         try? ensureDirectory(sharedThreadDir)
 
@@ -2889,6 +2894,14 @@ final class WorkspaceSyncService: ObservableObject {
             }
             let sharedCandidates = sourceContainerIDs.map {
                 sharedRoot.appendingPathComponent("EvidenceThreads/\($0.uuidString)/\(filename)")
+            }
+
+            if deletedThreads.contains((filename as NSString).deletingPathExtension) {
+                for url in localCandidates + sharedCandidates + [localTargetURL, sharedTargetURL]
+                where fileManager.fileExists(atPath: url.path) {
+                    try? Self.coordinatedRemoveItem(at: url)
+                }
+                continue
             }
 
             let preferredSource: URL?
@@ -2920,6 +2933,19 @@ final class WorkspaceSyncService: ObservableObject {
             try? Self.coordinatedRemoveItem(at: localOldDir)
             try? Self.coordinatedRemoveItem(at: sharedOldDir)
         }
+    }
+
+    /// The ids in `deleted_threads.json` on both sides, written back to a side that lacks some (5.7).
+    nonisolated static func mergeDeletedThreads(localRoot: URL, sharedRoot: URL) -> Set<String> {
+        let localURL = localRoot.appendingPathComponent(EvidenceThreadStore.deletedThreadsFileName)
+        let sharedURL = sharedRoot.appendingPathComponent(EvidenceThreadStore.deletedThreadsFileName)
+        let local = Set((try? readJSONIfPresent([String].self, from: localURL)) ?? [])
+        let shared = Set((try? readJSONIfPresent([String].self, from: sharedURL)) ?? [])
+        let merged = local.union(shared)
+        let sorted = merged.sorted()
+        if merged != local { try? writeJSON(sorted, to: localURL) }
+        if merged != shared { try? writeJSON(sorted, to: sharedURL) }
+        return merged
     }
 
     nonisolated private func vectorStoreBaseURL(for containerId: UUID, in root: URL) -> URL {
