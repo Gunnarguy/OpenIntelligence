@@ -261,6 +261,10 @@ and digits counts (`RAGService.isEvidenceKeyword`). `[evidence_level: code_verif
 (MMRStoredVectorsTests), confidence: high for the mechanism; no benchmark run yet, evidence_source:
 RAGEngine.swift applyMMR; RAGService.swift storedVectors, isEvidenceKeyword; HybridSearchService.swift]`
 
+## Retrieval's best passage reaches the model (added 2026-10-15, for 5.7)
+
+The answer path reranks the candidates and then, for a lookup question, packs the compact context from sentences that repeat the question's words, ordered by `EvidenceScoringPolicyService.extractivePriorityScore`. A passage can answer a question without repeating its words, so that step could drop the passage the reranker ranked first: on 2026-10-15 "What happened on September 30" ranked the September 30 section of a monthly log first and answered from September 24 and 25. From 5.7 the reranked first passage stays first in the extractive ordering (`RAGService.leadingWithTopRanked`) and goes into the context whole as [S1] (`extractRelevantSentences(leadingCandidateWhole:)`), at most three fifths of the budget and cut at a line or sentence end; chosen sentences from the other passages fill the rest. Not measured on the retrieval benchmark: the lookup cases there, which the extractive ordering was tuned on, may move. `[evidence_level: test_verified (LeadingEvidenceTests), confidence: medium]`
+
 ## Suggested questions
 
 `Services/Query/UX/SuggestedQuestionsService.swift` writes the chips on the Chat tab's empty state.

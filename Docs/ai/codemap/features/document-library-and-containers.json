@@ -31,7 +31,8 @@
     {"path": "OpenIntelligence/Services/Infrastructure/Integration/ContainerService+Focus.swift", "role": "primary", "blob": "a8d46c173754bee611e2d22c8f8e06cecf935a07"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/LibraryOrderTests.swift", "role": "test", "blob": "39c90a00acc7cad2b7e6d00a8175903e325ca529"},
     {"path": "OpenIntelligenceTests/Features/Documents/FolderImportTests.swift", "role": "test", "blob": "36910bae34a1901ef44c6a301605aa219ac5315c"},
-    {"path": "OpenIntelligenceTests/Services/Infrastructure/DeletedLibraryTests.swift", "role": "test", "blob": "4a752fc7a6e669e977f5b42f4bb02d0dcc474bb4"}
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/DeletedLibraryTests.swift", "role": "test", "blob": "4a752fc7a6e669e977f5b42f4bb02d0dcc474bb4"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ImportTargetLibraryTests.swift", "role": "test", "blob": "cc5547659fb4f82d496ecb9f8f98fd2cfcc41222"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView", "kind": "view", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 12, "match": "struct DocumentLibraryView: View {", "status": "VERIFIED", "by": "build"},

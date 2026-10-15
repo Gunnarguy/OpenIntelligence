@@ -69,12 +69,16 @@ struct DocumentLibraryView: View {
     /// `actor`, so this cannot be read synchronously from the menu body and is refreshed instead.
     @State private var cachedDocumentCount = 0
     @State private var pendingImportURLs: [URL] = []
+    /// The library a reviewed import goes to: the one chosen in the Opened File sheet, or nil for the open one.
+    @State private var pendingImportLibraryId: UUID?
     @State private var pendingImportReview: DocumentImportReview?
     @State private var showingImportReview = false
     /// Files "Open in" handed over, shown before anything is added (`OpenedFilesSheet`).
     @State private var openedFiles: [URL] = []
     @State private var showingOpenedFiles = false
     @State private var addOpenedFiles = false
+    /// The library chosen in the Opened File sheet (5.7).
+    @State private var openedFilesLibraryId: UUID?
     @State private var isRefreshingSharedWorkspace = false
     @State private var sharedWorkspaceRefreshMessage: String?
     @State private var showingSharedSyncReviewDialog = false
@@ -1305,8 +1309,11 @@ struct DocumentLibraryView: View {
             .sheet(isPresented: $showingOpenedFiles, onDismiss: finishOpenedFiles) {
                 OpenedFilesSheet(
                     files: openedFiles,
-                    libraryName: containerService.activeContainer?.name ?? "Library",
-                    onAdd: {
+                    libraries: containerService.pickableContainers,
+                    initialLibraryId: containerService.activeContainerId,
+                    documentCount: { containerService.documentCount(for: $0) },
+                    onAdd: { libraryId in
+                        openedFilesLibraryId = libraryId
                         addOpenedFiles = true
                         showingOpenedFiles = false
                     },
@@ -1693,14 +1700,14 @@ struct DocumentLibraryView: View {
     /// and import review as a picked or dropped file. When the plan has no room, the copies are
     /// removed so they do not stay in the app's storage unimported.
     @MainActor
-    private func importOpenedFiles(_ staged: [URL]) {
+    private func importOpenedFiles(_ staged: [URL], into library: UUID? = nil) {
         guard !staged.isEmpty else { return }
         guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
             staged.forEach { try? FileManager.default.removeItem(at: $0) }
             presentPlanSheet(for: .documentLimit)
             return
         }
-        reviewAndEnqueueDocuments(staged)
+        reviewAndEnqueueDocuments(staged, into: library)
     }
 
     /// Files "Open in" handed over: the plan check first, as for any import, then the viewer. Files
@@ -1723,8 +1730,10 @@ struct DocumentLibraryView: View {
     private func finishOpenedFiles() {
         let files = openedFiles
         let add = addOpenedFiles
+        let library = openedFilesLibraryId
         openedFiles = []
         addOpenedFiles = false
+        openedFilesLibraryId = nil
         guard add else {
             ImportedFileStaging.discardViewingCopies(files)
             return
@@ -1738,41 +1747,44 @@ struct DocumentLibraryView: View {
                     "[OpenIn] \(files.count - inWorkspace.count) opened file(s) could not be copied into the library; the copies are kept",
                     category: .ingestion)
             }
-            importOpenedFiles(inWorkspace)
+            importOpenedFiles(inWorkspace, into: library)
         }
     }
 
     /// Ingests a picked document and unlocks the onboarding step once any content exists.
-    private func enqueueDocumentIngestion(_ urls: [URL]) {
+    private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {
         guard !urls.isEmpty else { return }
         DSHaptics.drop()  // Files dropped/selected feedback
-        ragService.enqueueDocuments(urls)
+        ragService.enqueueDocuments(urls, containerId: library)
         Task { @MainActor in
             onboardingStore.markSamplesImported()
         }
     }
 
     @MainActor
-    private func reviewAndEnqueueDocuments(_ urls: [URL]) {
+    private func reviewAndEnqueueDocuments(_ urls: [URL], into library: UUID? = nil) {
         guard !urls.isEmpty else { return }
 
         let review = DocumentImportReview(urls: urls)
         if review.needsReview {
             pendingImportURLs = urls
+            pendingImportLibraryId = library
             pendingImportReview = review
             showingImportReview = true
             return
         }
 
-        enqueueDocumentIngestion(urls)
+        enqueueDocumentIngestion(urls, into: library)
     }
 
     @MainActor
     private func confirmPendingImport() {
         let urls = pendingImportURLs
+        let library = pendingImportLibraryId
         pendingImportURLs = []
+        pendingImportLibraryId = nil
         pendingImportReview = nil
-        enqueueDocumentIngestion(urls)
+        enqueueDocumentIngestion(urls, into: library)
     }
 
     @MainActor
@@ -1782,6 +1794,7 @@ struct DocumentLibraryView: View {
             try? fileManager.removeItem(at: url)
         }
         pendingImportURLs = []
+        pendingImportLibraryId = nil
     }
 
     /// Imports the curated onboarding workspace so the document list is not empty.

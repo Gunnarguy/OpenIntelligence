@@ -1896,6 +1896,13 @@ nonisolated class SemanticChunker {
                             "since", "while", "if", "in", "on", "at", "for", "with", "as", "it", "its", "a", "an",
                             "and", "but", "or", "so", "yet", "after", "before", "each", "every", "some", "many",
                             "most", "such", "please", "note", "see",
+                            "should", "would", "could", "shall", "must", "might", "can", "do", "does", "did",
+                            "is", "are", "was", "were", "be", "has", "have", "had", "not", "no", "all", "any",
+                            "both", "only", "here", "now", "you", "your", "he", "she", "they", "their", "his",
+                            "her", "my", "from", "to", "of", "by", "about", "during", "until", "unless",
+                            "whether", "once", "even", "still", "just", "always", "never", "often", "perhaps",
+                            "indeed", "overall", "similarly", "specifically", "generally", "typically",
+                            "currently", "recently", "later", "lastly", "today", "yes",
                         ]
                         if term.count >= 2, term.count <= 50, !seen.contains(key), !stopWords.contains(key) {
                             seen.insert(key)

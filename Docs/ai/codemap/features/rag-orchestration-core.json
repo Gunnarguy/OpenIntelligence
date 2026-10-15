@@ -23,7 +23,9 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ResponseTailTrimmingTests.swift", "role": "test", "blob": "e7cbe7c1ffedb0838297499dcd78d6a228ad2696"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGQueryScope.swift", "role": "primary", "blob": "806539570d94f13506109b8a130e9068495728eb"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/RAGQueryScopeTests.swift", "role": "test", "blob": "f0bfaa43bfd3f2fc5b6e0390b4574d25e9772700"},
-    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueRelevanceTests.swift", "role": "test", "blob": "9b2082b72f23947dad4d478ae5ad8b669f205973"}
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueRelevanceTests.swift", "role": "test", "blob": "9b2082b72f23947dad4d478ae5ad8b669f205973"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/LaunchNoticeTests.swift", "role": "test", "blob": "bc1d8efcdfe2f28a95d8221bcb36a6db72c30099"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/LeadingEvidenceTests.swift", "role": "test", "blob": "48fedc5f357579fa091e6da551dfad36b5364332"}
   ],
   "nodes": [
     {"id": "RAGService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 333, "match": "class RAGService: ObservableObject {", "status": "VERIFIED", "by": "build"},

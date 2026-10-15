@@ -61,16 +61,14 @@ final class AnswerIntentClassificationTests: XCTestCase {
         XCTAssertEqual(service.classifyAnswerIntent("Compare dopamine versus serotonin"), .compare)
     }
 
-    /// A separate pre-existing defect, found while writing these tests and pinned rather than
-    /// fixed, because it was outside the three changes that were asked for.
-    ///
-    /// `computePatterns` (priority 2) contains the bare substring "sum", so every query containing
-    /// "summary", "summarize", "consume", "presumably" or "assume" is classified as arithmetic
-    /// aggregation before the summarize branch at priority 5 is ever reached. The strings
-    /// "summarize" and "summary" in `summarizePatterns` are consequently unreachable.
-    func testSummaryWordsAreShadowedByTheComputeBranch_knownDefect() {
-        XCTAssertEqual(service.classifyAnswerIntent("Give me a summary of the document"), .compute)
-        XCTAssertEqual(service.classifyAnswerIntent("Summarize the paper for me"), .compute)
+    /// Pinned as a known defect until 5.7: `computePatterns` (priority 2) matched the substring "sum",
+    /// so "summary", "summarize", "consume" and "assume" were classified as arithmetic before the
+    /// summarize branch was reached. Compute words now match whole words only.
+    func testSummaryWordsReachTheSummarizeBranch() {
+        XCTAssertEqual(service.classifyAnswerIntent("Give me a summary of the document"), .summarize)
+        XCTAssertEqual(service.classifyAnswerIntent("Summarize the paper for me"), .summarize)
+        XCTAssertEqual(service.classifyAnswerIntent("What is the sum of the three deposits?"), .compute)
+        XCTAssertEqual(service.classifyAnswerIntent("What is the total cost?"), .compute)
     }
 
     /// The known remaining hole, pinned deliberately rather than left implicit.

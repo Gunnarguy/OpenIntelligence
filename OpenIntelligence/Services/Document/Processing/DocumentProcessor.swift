@@ -753,7 +753,7 @@ class DocumentProcessor {
                     semanticDensity: 0.5,
                     hasNumericData: chunk.text.rangeOfCharacter(from: .decimalDigits) != nil,
                     hasListStructure: chunk.text.contains("\n•") || chunk.text.contains("\n-"),
-                    wordCount: chunk.text.split(separator: " ").count,
+                    wordCount: Self.wordCount(of: chunk.text),
                     characterCount: chunk.text.count,
                     structureType: "streamed_xml",
                     sectionPath: chunk.section.map { [$0] }

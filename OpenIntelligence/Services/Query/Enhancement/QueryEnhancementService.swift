@@ -436,9 +436,13 @@ final class QueryEnhancementService {
             "total", "sum", "add up", "calculate", "compute the", "how much total",
             "combined", "altogether", "in total"
         ]
+        // Whole words only (5.7). As substrings, "sum" matched "summary", "summarize", "consume" and
+        // "assume", so a request for a summary was answered as arithmetic and the summarize branch
+        // below was unreachable for its own two words.
         if !computeFalsePositivePhrases.contains(where: { lower.contains($0) }) {
             for pattern in computePatterns {
-                if lower.contains(pattern) { return .compute }
+                let wholeWords = "\\b" + NSRegularExpression.escapedPattern(for: pattern) + "\\b"
+                if lower.range(of: wholeWords, options: .regularExpression) != nil { return .compute }
             }
         }
 

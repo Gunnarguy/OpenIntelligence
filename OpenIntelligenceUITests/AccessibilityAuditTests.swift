@@ -56,8 +56,9 @@ final class AccessibilityAuditTests: XCTestCase {
                 continue
             }
             button.tap()
-            // The Simulator has no on-device model, and the app says so once at launch in an alert the
-            // Documents screen shows. An alert hides the screen under it from VoiceOver, so it is closed first.
+            // An alert hides the screen under it from VoiceOver, so one that is up is closed first and
+            // noted in the report. Through 5.7's first builds the Documents screen showed one at every
+            // launch in the Simulator, which has no on-device model.
             let alert = app.alerts.firstMatch
             if alert.waitForExistence(timeout: 3) {
                 notes.append("\(tab): closed the alert \"\(alert.label)\" before the audit")

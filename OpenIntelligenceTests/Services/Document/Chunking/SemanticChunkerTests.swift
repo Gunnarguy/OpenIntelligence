@@ -145,6 +145,22 @@ final class SemanticChunkerTests: XCTestCase {
         XCTAssertTrue(entities.contains("Model") || entities.contains("Architecture") || entities.contains("Model Architecture"), "Should extract Model Architecture as capitalized domain term")
     }
 
+    /// Words that open sentences are not names (5.7, roadmap row "Sentence-opening words like However
+    /// become entities"), and the same chunk gives the same entities each time it is read.
+    func testWordsThatOpenSentencesAreNotEntitiesAndRepeatedReadsAgree() {
+        let text =
+            "However, the deposit is due before moving in. Should the tenant leave early, Acme Property keeps it. Generally the office in Cupertino replies within a week."
+        let first = chunker.extractEntities(text)
+        for word in ["However", "Should", "Generally"] {
+            XCTAssertFalse(first.contains(word), "\(word) opens a sentence and is not a name: \(first)")
+        }
+        XCTAssertTrue(first.contains("Acme Property"), "a name is still found: \(first)")
+        XCTAssertTrue(first.contains("Cupertino"), "a name is still found: \(first)")
+        for _ in 0..<5 {
+            XCTAssertEqual(Set(chunker.extractEntities(text)), Set(first))
+        }
+    }
+
     func testExtractEntitiesDeduplication() {
         let text = "Apple makes the iPhone. Apple is a large company."
         let entities = chunker.extractEntities(text)

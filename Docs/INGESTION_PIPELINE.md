@@ -957,6 +957,10 @@ main actor. `[evidence_level: code_verified, confidence: high]`
 
 ---
 
+### Word counts and words that open sentences *(added 2026-10-15, for 5.7)*
+
+The Words figure an import reports is the document's own count of its text as read (`ProcessingMetadata.totalWords`, split at any whitespace by `DocumentProcessor.wordCount(of:)`), not a sum over its passages, which share words at their edges; a streamed XML file's passages are counted the same way. A text file of 600 different words, ten to a line, counts 600 and keeps every word in its passages (WordCountTests). The chunker's capitalized-word entity supplement leaves out words that open sentences and are never names alone: "However", "Should" and the other modal verbs, the pronouns and common sentence adverbs (SemanticChunkerTests reads a chunk five times and gets the same entities). `[evidence_level: test_verified, confidence: medium]`
+
 ## 5b. Token counting, and the invariant that guards it
 
 **The token counter must be asked whether it counts.** `DocumentProcessor.countTokens` returns

@@ -2200,7 +2200,6 @@ class RAGService: ObservableObject {
                 category: .initialization
             )
 
-            let selectedIsApple = (selectedModelRaw == "apple_intelligence")
             // Try to instantiate the user's selected model first
             let primaryService = Self.instantiateService(
                 for: selectedModelRaw,
@@ -2218,9 +2217,6 @@ class RAGService: ObservableObject {
                     category: .initialization
                 )
                 Log.info("✓ Using \(fallback.modelName) as active model", category: .initialization)
-                if selectedIsApple {
-                    lastError = "Apple Intelligence is unavailable or disabled on this device. Using fallback instead."
-                }
                 resolvedService = fallback
                 #if canImport(FoundationModels)
                     if #available(iOS 26.0, *),
@@ -2234,7 +2230,13 @@ class RAGService: ObservableObject {
                     }
                 #endif
             } else {
-                // No LLM available - check for screenshot mode first
+                // No LLM available - check for screenshot mode first.
+                //
+                // Nothing goes into `lastError` here (5.7). The Documents screen shows `lastError` as
+                // "Error Processing Document", and through 5.6 an engine started without the model put
+                // "Apple Intelligence is required but unavailable. Enable it in Settings" there, also on
+                // devices that can never run it, while documents import and search without it. The empty
+                // chat's notice and the mode chip say it by reason (`AppleIntelligenceCopy`).
                 #if targetEnvironment(simulator)
                     if ScreenshotMockLLMService.isScreenshotMode {
                         Log.info("📸 Screenshot mode: Using mock LLM for demo", category: .initialization)
@@ -2244,8 +2246,6 @@ class RAGService: ObservableObject {
                             "No configured LLM available; Apple Intelligence is REQUIRED",
                             category: .initialization
                         )
-                        lastError =
-                            "⚠️ Running in Simulator: Apple Intelligence requires Apple Silicon (A17 Pro+ iPhone, M1+ iPad/Mac)."
                         resolvedService = AppleFoundationLLMServiceUnavailable()
                     }
                 #else
@@ -2253,8 +2253,6 @@ class RAGService: ObservableObject {
                         "No configured LLM available; Apple Intelligence is REQUIRED",
                         category: .initialization
                     )
-                    lastError =
-                        "⚠️ Apple Intelligence is required but unavailable. Enable it in Settings → Apple Intelligence & Siri."
                     // Still need a service instance to avoid nil crashes, but it will always throw
                     resolvedService = AppleFoundationLLMServiceUnavailable()
                 #endif
@@ -3620,13 +3618,16 @@ class RAGService: ObservableObject {
     ///
     /// Universal across all domains — works for any document type.  Uses simple
     /// keyword + spec-pattern matching to score individual sentences.
+    /// - Parameter leadingCandidateWhole: put the first candidate in whole, as `[S1]`, before any
+    ///   chosen sentence (see `extractRelevantSentencesOffMain`).
     func extractRelevantSentences(
         from candidates: [RetrievedChunk],
         query: String,
         maxChars: Int,
         compact: Bool,
         isExtractiveFirst: Bool = false,
-        labelOffset: Int = 0
+        labelOffset: Int = 0,
+        leadingCandidateWhole: Bool = false
     ) async -> SentenceExtractionResult {
         let extractionTask = Task.detached(priority: .utility) {
             Self.extractRelevantSentencesOffMain(
@@ -3635,7 +3636,8 @@ class RAGService: ObservableObject {
                 maxChars: maxChars,
                 compact: compact,
                 isExtractiveFirst: isExtractiveFirst,
-                labelOffset: labelOffset
+                labelOffset: labelOffset,
+                leadingCandidateWhole: leadingCandidateWhole
             )
         }
 
@@ -3646,17 +3648,67 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// The candidates with the passage retrieval ranked first in front, the rest in the order given
+    /// (5.7). The extractive ordering sorts by the question's words, and must not move retrieval's
+    /// best passage out of the context: see `extractRelevantSentencesOffMain`.
+    nonisolated static func leadingWithTopRanked(_ top: RetrievedChunk?, then ordered: [RetrievedChunk])
+        -> [RetrievedChunk]
+    {
+        guard let top else { return ordered }
+        return [top] + ordered.filter { $0.chunk.id != top.chunk.id }
+    }
+
     private nonisolated static func extractRelevantSentencesOffMain(
         from candidates: [RetrievedChunk],
         query: String,
         maxChars: Int,
         compact: Bool,
         isExtractiveFirst: Bool,
-        labelOffset: Int = 0
+        labelOffset: Int = 0,
+        leadingCandidateWhole: Bool = false
     ) -> SentenceExtractionResult {
         if Task.isCancelled {
             return .empty
         }
+
+        // The passage retrieval ranked first goes in whole, ahead of every chosen sentence (5.7).
+        // Sentences are chosen by the question's words, and a passage can answer a question without
+        // repeating them. On 2026-10-15 "What happened on September 30" had the September 30 section
+        // of a monthly log ranked first; its lines name people and events, not "happened", and the
+        // date is in its heading, so the sentences chosen came from September 24 and 25 and the model
+        // was told nothing about the 30th. It takes at most three fifths of the budget, cut at a line
+        // or a sentence end; chosen sentences from the other passages fill the rest.
+        let leadEntry: (label: String, body: String)? = {
+            guard leadingCandidateWhole, let lead = candidates.first else { return nil }
+            let sectionTag: String
+            if let section = lead.chunk.metadata.sectionTitle, !section.isEmpty {
+                sectionTag = " \(section) —"
+            } else {
+                sectionTag = ""
+            }
+            let label: String
+            if compact {
+                let filename = URL(fileURLWithPath: lead.sourceDocument).lastPathComponent
+                label = "[S\(1 + labelOffset)]\(sectionTag) (\(filename))"
+            } else {
+                let page = lead.pageNumber.map { " p.\($0)" } ?? ""
+                label = "[S\(1 + labelOffset)]\(sectionTag) \(lead.sourceDocument)\(page)"
+            }
+            var body = (lead.chunk.parentContent ?? lead.chunk.content).trimmingCharacters(in: .whitespacesAndNewlines)
+            let room = maxChars * 3 / 5 - label.count - 1
+            if body.count > room {
+                let head = room > 0 ? String(body.prefix(room)) : ""
+                if let lineEnd = head.lastIndex(of: "\n") {
+                    body = String(head[..<lineEnd])
+                } else if let stop = head.lastIndex(where: { $0 == "." || $0 == "!" || $0 == "?" }) {
+                    body = String(head[...stop])
+                } else {
+                    body = head
+                }
+            }
+            return body.isEmpty ? nil : (label, body)
+        }()
+        let leadBodyLower = leadEntry?.body.lowercased() ?? ""
 
         // Keep sentence-scoring resources local to this detached task.
         // Shared static Set/regex storage has proven crash-prone on the utility queue.
@@ -3828,6 +3880,8 @@ class RAGService: ObservableObject {
             if Task.isCancelled {
                 return .empty
             }
+            // The leading passage is in already, whole.
+            if leadEntry != nil && chunkIdx == 0 { continue }
 
             let content = candidate.chunk.parentContent ?? candidate.chunk.content
             let source = candidate.sourceDocument
@@ -3884,6 +3938,8 @@ class RAGService: ObservableObject {
                     }
 
                     guard subLine.count > 5 else { continue }
+                    // A line the leading passage already gives, from a neighbouring passage.
+                    if !leadBodyLower.isEmpty, leadBodyLower.contains(subLine.lowercased()) { continue }
                     var headingContext = ""
                     if !isHeading {
                         headingContext = currentHeading
@@ -4005,6 +4061,12 @@ class RAGService: ObservableObject {
         var sentenceCount = 0
         let headerOverhead = compact ? 30 : 80
         let separatorSize = compact ? 5 : 7
+
+        if let leadEntry {
+            builder += leadEntry.label + "\n" + leadEntry.body + "\n"
+            sourcesUsed.insert(0)
+            sentenceCount += EvidenceLineSplitter.lines(in: leadEntry.body).count
+        }
 
         // Group sentences by source into prose paragraphs (not one-per-line lists).
         // When each sentence is its own line, the FM regurgitates them as bullet lists.
@@ -6085,7 +6147,8 @@ class RAGService: ObservableObject {
                     at: next.url,
                     context: context,
                     trackingId: next.id,
-                    manageProcessingState: false
+                    manageProcessingState: false,
+                    containerId: next.containerId
                 )
                 if Task.isCancelled { break }
             } catch let error where error is CancellationError || Task.isCancelled {
@@ -6466,17 +6529,29 @@ class RAGService: ObservableObject {
 
     /// Add a document to the knowledge base
     /// This performs the full ingestion pipeline: parse → chunk → embed → store
+    /// - Parameter containerId: the library to import into. `nil`, or a library that no longer exists,
+    ///   means the active one.
     func addDocument(
         at url: URL,
         context: IngestionContext = .userInitiated,
         trackingId: UUID? = nil,
-        manageProcessingState: Bool = true
+        manageProcessingState: Bool = true,
+        containerId: UUID? = nil
     ) async throws {
         let managedURL = try prepareManagedDocumentURL(from: url)
         try await WorkspaceSyncService.ensureItemAvailableLocally(at: managedURL)
         let filename = managedURL.lastPathComponent
         let managedRelativePath = AppSupportPaths.relativePath(for: managedURL)
-        let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
+        // The library the file was queued for (5.7). Through 5.6 every import went to the library that
+        // was active when the queue reached it, so "Add to Library" naming another library, or a file
+        // queued before the person switched libraries, landed in the open one. The name stays: the
+        // rest of this function and the large-file paths take it as the import's library.
+        let activeContainerId = await MainActor.run { () -> UUID in
+            if let containerId, self.containerService.containers.contains(where: { $0.id == containerId }) {
+                return containerId
+            }
+            return self.containerService.activeContainerId
+        }
 
         let documentHash: String?
         do {
@@ -6850,8 +6925,14 @@ class RAGService: ObservableObject {
             )
             try Task.checkCancellation()
             let extractionTime = Date().timeIntervalSince(extractionStartTime)
-            let totalChars = processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
-            let totalWords = processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
+            // The document's own counts, of its text as it was read (5.7). Summing the passages counted
+            // the words two neighbours share twice (row "Word counts look wrong").
+            let totalChars =
+                document.processingMetadata?.totalCharacters
+                ?? processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
+            let totalWords =
+                document.processingMetadata?.totalWords
+                ?? processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
 
             // Calculate chunk word stats
             let chunkWordCounts = processedChunks.map { $0.metadata.wordCount }
@@ -7770,7 +7851,9 @@ class RAGService: ObservableObject {
             updatedDocument = docWithContainer
 
             // Create processing summary with embedding provider info
-            let activeProviderId = containerService.activeContainer?.embeddingProviderId ?? "coreml_sentence_embedding"
+            let activeProviderId =
+                containerService.containers.first { $0.id == activeContainerId }?.embeddingProviderId
+                ?? "coreml_sentence_embedding"
             let summary = ProcessingSummary(
                 filename: filename,
                 fileSize: fileSizeStr,
@@ -13983,7 +14066,7 @@ class RAGService: ObservableObject {
                             category: .retrieval)
                     }
 
-                    orderedCandidates = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
+                    let byPriority = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
                         let aContent = a.chunk.parentContent ?? a.chunk.content
                         let bContent = b.chunk.parentContent ?? b.chunk.content
                         let aPriority = EvidenceScoringPolicyService.extractivePriorityScore(
@@ -14007,6 +14090,9 @@ class RAGService: ObservableObject {
                             rhsPriority: bPriority, rhsRelevance: b.similarityScore
                         )
                     })
+                    // Retrieval's best passage stays first, whatever the question's words say (5.7):
+                    // the keyword priority orders the rest. Sentence extraction below puts it in whole.
+                    orderedCandidates = Self.leadingWithTopRanked(contextCandidates.first, then: byPriority)
                     Log.info(
                         "[RAG] Extractive query - prioritizing specs (discriminative: [\(discriminativeKeywords.joined(separator: ", "))])",
                         category: .retrieval)
@@ -14043,7 +14129,8 @@ class RAGService: ObservableObject {
                         query: question,
                         maxChars: maxContextChars,
                         compact: useCompactMode,
-                        isExtractiveFirst: answerIntentIsExtractive
+                        isExtractiveFirst: answerIntentIsExtractive,
+                        leadingCandidateWhole: true
                     )
 
                     // Sentence extraction is a narrowing filter, and a filter that matches nothing
