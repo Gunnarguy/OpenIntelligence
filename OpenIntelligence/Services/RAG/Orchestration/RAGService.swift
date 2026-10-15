@@ -1287,6 +1287,51 @@ class RAGService: ObservableObject {
         !results.isEmpty && results.allSatisfy { documentIds.contains($0.chunk.documentId) }
     }
 
+    /// What every cached search's key holds besides the question and the embedding model: each library's
+    /// documents with their passage counts, and the app's version (5.7). While it stays the same a cached
+    /// search can be found again; once it changes, none can.
+    nonisolated static func queryCacheDocumentsToken(
+        _ documents: [(id: UUID, passages: Int)], appVersion: String = RAGService.appVersionForQueryCache
+    ) -> String {
+        var digest = SHA256()
+        for document in documents.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            digest.update(data: Data("\(document.id.uuidString):\(document.passages)\n".utf8))
+        }
+        digest.update(data: Data(appVersion.utf8))
+        return digest.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+
+    nonisolated static let queryCacheTokenKey = "queryCacheDocumentsToken"
+
+    /// Deletes the cached searches once the documents or the app's version have changed since they were
+    /// last deleted, and returns how many went, or nil when nothing had changed (5.7). Runs after the
+    /// documents are saved and at launch. Through 5.6 nothing deleted a cached search: they kept the
+    /// questions and the passages found, a deleted library's text among them, until the app was removed,
+    /// and from 5.7 every import, deletion or update left all of them unreachable.
+    /// `deleteAll` stands in for the database in tests. It is not a default closure that calls the store:
+    /// Swift takes such a closure as the store actor's own, an error in the Swift 6 language mode.
+    @discardableResult
+    static func deleteUnreachableCachedSearches(
+        documents: [(id: UUID, passages: Int)], defaults: UserDefaults = .standard,
+        deleteAll: (() async -> Int)? = nil
+    ) async -> Int? {
+        let token = queryCacheDocumentsToken(documents)
+        guard defaults.string(forKey: queryCacheTokenKey) != token else { return nil }
+        let deleted: Int
+        if let deleteAll {
+            deleted = await deleteAll()
+        } else {
+            deleted = await SQLiteFullTextService.shared.deleteAllCachedQueries()
+        }
+        defaults.set(token, forKey: queryCacheTokenKey)
+        if deleted > 0 {
+            Log.info(
+                "[RAGService] Deleted \(deleted) cached search(es) that no question can reach any more",
+                category: .pipeline)
+        }
+        return deleted
+    }
+
     /// Restore a previously saved transcript to enable conversation continuity.
     ///
     /// Call this when:
@@ -4538,8 +4583,12 @@ class RAGService: ObservableObject {
     private func loadDocumentsFromDisk() {
         let loadedDocuments = loadDocumentsSnapshotFromDisk()
         Task { @MainActor [weak self] in
-            guard let loadedDocuments else { return }
-            self?.applyLoadedDocuments(loadedDocuments)
+            guard let self, let loadedDocuments else { return }
+            self.applyLoadedDocuments(loadedDocuments)
+            // An update changes every cached search's key, as does a document another device added or
+            // removed, so cached searches no question can reach are deleted at launch too (5.7).
+            await Self.deleteUnreachableCachedSearches(
+                documents: self.documents.map { (id: $0.id, passages: $0.totalChunks) })
         }
     }
 
@@ -4791,6 +4840,10 @@ class RAGService: ObservableObject {
         } catch {
             Log.error("[RAGService] Failed to save documents metadata: \(error.localizedDescription)")
         }
+
+        // Every cached search's key names the documents (`queryCacheKey`), so after a save that changed
+        // them none of the cached searches can be found again, and they are deleted (5.7).
+        await Self.deleteUnreachableCachedSearches(documents: snapshot.map { (id: $0.id, passages: $0.totalChunks) })
     }
 
     @MainActor

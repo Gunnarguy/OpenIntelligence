@@ -368,8 +368,9 @@ Each statement in the text was checked against the code on 2026-10-15:
 - Dictation is `DictationTranscriber`, on the device. Turning off Spotlight Indexing calls
   `deleteAllSearchableItems`. Deleting a library removes each of its documents, which clears their passages, keyword
   rows and Spotlight entries (`LibraryDeletion`).
-- Nothing deletes rows of `semantic_query_cache`, so cached questions and the passages found for them outlive their
-  library. The policy says so. Clearing them belongs in `SQLiteFullTextService.swift`, a protected file.
+- Cached questions and the passages found for them (`semantic_query_cache`) are deleted from 5.7 once the
+  documents or the app's version change (`RAGService.deleteUnreachableCachedSearches`, added 2026-10-15). Through
+  5.6 nothing deleted them, and they outlived their library. The policy says what each version does.
 
 `[evidence_level: code_verified, confidence: high, evidence_source: the files named above, read 2026-10-15;
 git log -S'showingPrivacy = true' for the button]`

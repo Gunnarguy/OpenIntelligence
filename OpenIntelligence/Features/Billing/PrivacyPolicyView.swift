@@ -52,7 +52,7 @@ Apple's own privacy policy covers Private Cloud Compute, iCloud, Handoff and the
 """)
                         section(title: "Storage and Retention", content: """
 • **Documents and their passages:** on your device, and in your iCloud for libraries set to iCloud Sync, until you delete them. Deleting a library removes its embeddings and keyword index.
-• **Search cache:** past questions and the passages found for them are kept in the app's database on your device. They do not expire, and deleting a library does not clear them; removing the app does.
+• **Search cache:** past questions and the passages found for them are kept in the app's database on your device, so a question asked again is answered faster. From version 5.7 they're deleted whenever a document is added or deleted and when the app is updated. In earlier versions they stay until the app is removed.
 • **Backups:** your device's iCloud backup may include the app's data if backups are on.
 """)
                         section(title: "Your Controls", content: """

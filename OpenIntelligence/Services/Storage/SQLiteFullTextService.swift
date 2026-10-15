@@ -3453,6 +3453,19 @@ actor SQLiteFullTextService {
         }
     }
 
+    /// Deletes every cached search and returns how many there were (5.7). `RAGService` calls it once the
+    /// documents or the app's version have changed: every cached search's key names both, so from then on
+    /// none of them can be found again. Through 5.6 nothing deleted them, and they hold the questions asked
+    /// and the passages found, a deleted library's text among them.
+    @discardableResult
+    func deleteAllCachedQueries() -> Int {
+        ensureInitialized()
+        guard let db = database, execute(sql: "DELETE FROM semantic_query_cache") else { return 0 }
+        let deleted = Int(sqlite3_changes(db))
+        checkpoint()
+        return deleted
+    }
+
     /// Retrieve a cached query using cosine similarity (>0.95 threshold) on query embedding
     func getCachedQueryBySimilarity(embedding: [Float], containerId: UUID, threshold: Float = 0.95) async -> [RetrievedChunk]? {
         ensureInitialized()

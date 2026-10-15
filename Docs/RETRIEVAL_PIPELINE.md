@@ -230,10 +230,20 @@ lookup by similarity any more. Through 5.6 the key was the question and the libr
 cleared an entry, and a question within 0.95 cosine of a cached one also took its passages
 (`getCachedQueryBySimilarity`, which decodes every cached question's embedding for the library each
 time): a question asked again after an import left the new document out, and after a deletion it brought
-the deleted document's text back into the answer. The rows written through 5.6 stay in the table unused,
-because clearing them needs `SQLiteFullTextService.swift`, which is protected. `[evidence_level:
+the deleted document's text back into the answer. `[evidence_level:
 code_verified+test_verified (QueryCacheKeyTests), confidence: high, evidence_source: RAGService.swift
 queryInternal; SQLiteFullTextService.swift]`
+
+From 5.7 the rows are also deleted once no question can reach them (added 2026-10-15). Every key names every
+library's documents and the app's version, so after any import, deletion, re-import or update no older row
+can be found again. Through 5.6 nothing deleted a row, and the rows kept the questions and the passages found,
+a deleted library's text among them, until the app was removed. After the documents are saved and at launch,
+`RAGService.deleteUnreachableCachedSearches` compares a digest of the documents with their passage counts and
+the app's version (`queryCacheDocumentsToken`) with the one recorded in the app's settings at the last
+deletion, and when they differ deletes every row (`SQLiteFullTextService.deleteAllCachedQueries`, added at the
+owner's word; the table is unchanged). A change of a library's embedding model alone leaves that library's
+rows unreachable until the documents next change. `[evidence_level: test_verified (QueryCacheClearingTests),
+confidence: high]`
 
 ## An extracted value has to be about the question (added 2026-10-15, for 5.7)
 
