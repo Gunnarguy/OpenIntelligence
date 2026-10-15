@@ -124,4 +124,104 @@ final class EvidenceThreadStoreTests: XCTestCase {
             try concurrentStore.deleteThread(id: thread.id, containerId: container)
         }
     }
+
+    // MARK: - Where threads are kept (5.7)
+
+    /// A folder of its own for one test, removed afterwards.
+    private func makeScratch() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("EvidenceThreadStoreTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
+    }
+
+    @discardableResult
+    private func write(_ thread: EvidenceThread, under root: URL, modified: Date) throws -> URL {
+        let folder = root.appendingPathComponent(thread.containerId.uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let url = folder.appendingPathComponent("\(thread.id.uuidString).json")
+        try encoder.encode(thread).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
+        return url
+    }
+
+    /// The app's store saves where iCloud sync reads: `WorkspaceSyncService.synchronizeEvidenceThreads`
+    /// works in `applicationSupportRoot()/EvidenceThreads/<library>/`. Through the first 5.7 builds the
+    /// store saved one level up, where sync never looked.
+    func testTheAppsStoreSavesInTheFolderICloudSyncReads() throws {
+        let syncFolder = OpenIntelligenceRuntimePaths.applicationSupportRoot()
+            .appendingPathComponent("EvidenceThreads", isDirectory: true)
+        guard EvidenceThreadStore.defaultRoot().standardizedFileURL == syncFolder.standardizedFileURL else {
+            throw XCTSkip("a run-path override is active, so the app's own folder is not in use")
+        }
+        try store.saveThread(testThread)
+        let saved = syncFolder.appendingPathComponent("\(testContainerId.uuidString)/\(testThread.id.uuidString).json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saved.path), "the thread is not in \(syncFolder.path)")
+    }
+
+    func testThreadsInTheOldFoldersMoveWithTheirDates() throws {
+        let scratch = try makeScratch()
+        let old = scratch.appendingPathComponent("EvidenceThreads", isDirectory: true)
+        let older = scratch.appendingPathComponent("LocalCache/EvidenceThreads", isDirectory: true)
+        let root = scratch.appendingPathComponent("OpenIntelligence/EvidenceThreads", isDirectory: true)
+        let library = UUID()
+        let fromOld = EvidenceThread(containerId: library, title: "From the old folder")
+        let fromOlder = EvidenceThread(containerId: library, title: "From the older folder")
+        let date = Date(timeIntervalSince1970: 1_790_000_000)
+        try write(fromOld, under: old, modified: date)
+        try write(fromOlder, under: older, modified: date)
+
+        let moved = EvidenceThreadStore(root: root, legacyRoots: [older, old])
+        XCTAssertEqual(
+            Set(try moved.listThreads(containerId: library).map(\.title)),
+            ["From the old folder", "From the older folder"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path), "the old folder was left behind")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: older.path), "the older folder was left behind")
+        let movedFile = root.appendingPathComponent("\(library.uuidString)/\(fromOld.id.uuidString).json")
+        let kept = try movedFile.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        XCTAssertEqual(
+            kept?.timeIntervalSince1970 ?? 0, date.timeIntervalSince1970, accuracy: 1,
+            "sync picks the newer copy by this date")
+    }
+
+    func testTheNewerCopyIsKeptWhenAThreadIsInBothPlaces() throws {
+        let scratch = try makeScratch()
+        let old = scratch.appendingPathComponent("EvidenceThreads", isDirectory: true)
+        let root = scratch.appendingPathComponent("OpenIntelligence/EvidenceThreads", isDirectory: true)
+        let library = UUID()
+        let earlier = Date(timeIntervalSince1970: 1_790_000_000)
+        let later = Date(timeIntervalSince1970: 1_790_000_100)
+        let first = UUID()
+        let second = UUID()
+        try write(EvidenceThread(id: first, containerId: library, title: "newer"), under: old, modified: later)
+        try write(EvidenceThread(id: first, containerId: library, title: "older"), under: root, modified: earlier)
+        try write(EvidenceThread(id: second, containerId: library, title: "older"), under: old, modified: earlier)
+        try write(EvidenceThread(id: second, containerId: library, title: "newer"), under: root, modified: later)
+
+        let moved = EvidenceThreadStore(root: root, legacyRoots: [old])
+        XCTAssertEqual(try moved.getThread(id: first, containerId: library).title, "newer")
+        XCTAssertEqual(try moved.getThread(id: second, containerId: library).title, "newer")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+    }
+
+    /// A store a benchmark or a test points elsewhere never takes the person's threads.
+    func testAStoreSomewhereElseTakesNoThreadsFromTheAppsFolders() {
+        let elsewhere = FileManager.default.temporaryDirectory
+            .appendingPathComponent("benchmark/EvidenceThreads", isDirectory: true)
+        XCTAssertEqual(EvidenceThreadStore.legacyRoots(for: elsewhere), [])
+        let appFolder = OpenIntelligenceRuntimePaths.applicationSupportRoot()
+            .appendingPathComponent("EvidenceThreads", isDirectory: true)
+        XCTAssertEqual(EvidenceThreadStore.legacyRoots(for: appFolder).count, 2, "the app's own store moves the old folders")
+    }
+
+    /// The conversation limits the store's callers enforce, which the move does not change: 5 on Free,
+    /// 20 on Pro, none on Lifetime.
+    func testTheConversationLimitsAreFiveTwentyAndUnlimited() {
+        XCTAssertEqual(QuotaPolicy.evidenceThreadLimit(for: .free), 5)
+        XCTAssertEqual(QuotaPolicy.evidenceThreadLimit(for: .pro), 20)
+        XCTAssertEqual(QuotaPolicy.evidenceThreadLimit(for: .lifetime), .max)
+    }
 }

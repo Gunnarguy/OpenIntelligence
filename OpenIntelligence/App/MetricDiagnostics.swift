@@ -68,6 +68,13 @@ nonisolated enum MetricDiagnostics {
         if let jsonString = compactJSON(report) {
             try? appendAndTrim(line: jsonString, fileURL: reportsFileURL())
         }
+
+        // A crash is also saved as a report of its own, which the app offers to send (`CrashReports`).
+        if case .crash(let crash) = report.result,
+            (try? CrashReports.save(CrashReports.fields(for: report, crash: crash), endedAt: report.timeRange.end)) != nil
+        {
+            DispatchQueue.main.async { NotificationCenter.default.post(name: CrashReports.didSave, object: nil) }
+        }
     }
 
     @available(iOS 27.0, macOS 27.0, macCatalyst 27.0, *)

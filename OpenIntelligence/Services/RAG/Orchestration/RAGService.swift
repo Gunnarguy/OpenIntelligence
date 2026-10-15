@@ -1235,6 +1235,28 @@ class RAGService: ObservableObject {
         TranscriptPersistenceService.shared.saveTranscriptTrimmed(transcript, for: resolvedId)
     }
 
+    /// The query cache's key (5.7): the normalized question, then a digest of every library's
+    /// documents with their passage counts and of the embedding model, so an import, a deletion, a
+    /// re-import or a new model gives a question a fresh search. Pure, for `QueryCacheKeyTests`.
+    nonisolated static func queryCacheKey(
+        _ normalizedQuestion: String, documents: [(id: UUID, passages: Int)], embeddingProviderId: String,
+        dimension: Int
+    ) -> String {
+        var digest = SHA256()
+        for document in documents.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            digest.update(data: Data("\(document.id.uuidString):\(document.passages)\n".utf8))
+        }
+        digest.update(data: Data("\(embeddingProviderId):\(dimension)".utf8))
+        let hex = digest.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "\(normalizedQuestion) #libraries \(hex)"
+    }
+
+    /// A cached search is used only when every passage in it is from a document still in the
+    /// libraries: one that is not would bring a deleted document's text into the answer.
+    nonisolated static func cachedResultsAreCurrent(_ results: [RetrievedChunk], documentIds: Set<UUID>) -> Bool {
+        !results.isEmpty && results.allSatisfy { documentIds.contains($0.chunk.documentId) }
+    }
+
     /// Restore a previously saved transcript to enable conversation continuity.
     ///
     /// Call this when:
@@ -10609,23 +10631,39 @@ class RAGService: ObservableObject {
                 var cachedQueryEmbedding: [Float]? = nil
                 var retrievedChunks: [RetrievedChunk] = []
                 var exactCacheHit = false
-                var similarityCacheHit = false
 
                 let normalizedQueryText = SQLiteFullTextService.normalizeQuery(question)
+                // The cache's key is the question with every library's documents and the embedding
+                // model (5.7), so a cached search is reused only while none of them changed. Through
+                // 5.6 the key was the question alone and nothing ever cleared it: a question asked
+                // again after an import or a deletion got the old passages back, none from the new
+                // document and the deleted document's text with them.
+                let cacheKey = await MainActor.run {
+                    Self.queryCacheKey(
+                        normalizedQueryText, documents: self.documents.map { (id: $0.id, passages: $0.totalChunks) },
+                        embeddingProviderId: embeddingProviderId, dimension: selectedDim)
+                }
                 // A question limited to named documents is searched inside them, so its result is
                 // not the library's result for the same words: it skips the cache both ways.
                 let isDocumentScoped = !(RAGQueryScope.documentIds ?? []).isEmpty
                 if !isDocumentScoped, let cached = await SQLiteFullTextService.shared.getCachedQuery(
-                    normalizedQuery: normalizedQueryText,
+                    normalizedQuery: cacheKey,
                     containerId: selectedId
                 ) {
-                    cachedQueryEmbedding = cached.embedding
-                    retrievedChunks = cached.results
-                    exactCacheHit = true
-                    Log.info("[RAGService] ✅ Exact cache hit for query: '\(normalizedQueryText)'", category: .pipeline)
-                    emitThinkingEvent(
-                        .retrieval, title: "Exact Cache Hit",
-                        detail: "Bypassed rewriting, embedding, and database search")
+                    let knownDocuments = await MainActor.run { Set(self.documents.map(\.id)) }
+                    if Self.cachedResultsAreCurrent(cached.results, documentIds: knownDocuments) {
+                        cachedQueryEmbedding = cached.embedding
+                        retrievedChunks = cached.results
+                        exactCacheHit = true
+                        Log.info("[RAGService] ✅ Exact cache hit for query: '\(normalizedQueryText)'", category: .pipeline)
+                        emitThinkingEvent(
+                            .retrieval, title: "Exact Cache Hit",
+                            detail: "Bypassed rewriting, embedding, and database search")
+                    } else {
+                        Log.info(
+                            "[RAGService] A cached search names a document no longer in the libraries; searching again",
+                            category: .pipeline)
+                    }
                 }
                 // ────────────────────────────────────────────────────────────────────────────
 
@@ -11125,21 +11163,11 @@ class RAGService: ObservableObject {
                         )
                     }
 
-                    // Similarity cache lookup — bypass Step 3 if a near-identical query was cached
-                    if !isDocumentScoped, let simCached = await SQLiteFullTextService.shared.getCachedQueryBySimilarity(
-                        embedding: queryEmbedding,
-                        containerId: selectedId,
-                        threshold: 0.95
-                    ) {
-                        retrievedChunks = simCached
-                        similarityCacheHit = true
-                        Log.info(
-                            "[RAGService] ✅ Similarity cache hit (≥ 0.95 cosine) for query: '\(question)'",
-                            category: .pipeline)
-                        emitThinkingEvent(
-                            .retrieval, title: "Similarity Cache Hit",
-                            detail: "Bypassed database search via embedding similarity")
-                    }
+                    // No lookup by similarity (5.7). Through 5.6 a question whose embedding was within
+                    // 0.95 cosine of any cached one got that question's passages, from whatever the
+                    // library held when it was asked, and finding one decoded every cached question's
+                    // embedding for the library, on every question. Those rows carry no library state
+                    // this code can check (`SQLiteFullTextService.getCachedQueryBySimilarity`).
                 }  // end of fresh-embedding else branch
 
                 // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
@@ -11216,7 +11244,7 @@ class RAGService: ObservableObject {
                     }
                 }
 
-                if !exactCacheHit && !similarityCacheHit {
+                if !exactCacheHit {
                     HardwareTelemetryState.shared.reportRAGPipeline(stage: "Hybrid Search")
                     // UPGRADED: Auto-enable iterative retrieval for multi-hop intents
                     // (compare, investigate, findings) even if user hasn't toggled the setting.
@@ -11421,13 +11449,13 @@ class RAGService: ObservableObject {
                         }
                     }
                 }
-                // end if !exactCacheHit && !similarityCacheHit (Step 3)
+                // end if !exactCacheHit (Step 3)
 
                 // ─ Write to Semantic Cache ─────────────────────────────────────────────────────
                 // Only persist when we actually ran the live search (not on cache hits)
-                if !exactCacheHit && !similarityCacheHit && !retrievedChunks.isEmpty && !isDocumentScoped {
+                if !exactCacheHit && !retrievedChunks.isEmpty && !isDocumentScoped {
                     await SQLiteFullTextService.shared.cacheQuery(
-                        normalizedQuery: normalizedQueryText,
+                        normalizedQuery: cacheKey,
                         containerId: selectedId,
                         embedding: queryEmbedding,
                         results: retrievedChunks

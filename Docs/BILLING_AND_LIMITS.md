@@ -341,3 +341,12 @@ identifier outside `BillingProduct` is dropped by that listener, so a code has t
 app's own products. `[evidence_level: build_verified for the button and sheet, documented for Apple's behaviour; confidence: high; evidence_source: PlanUpgradeSheet.swift, RedeemCodeEntry.swift, RedeemCodeOutcomeTests; developer.apple.com/documentation/swiftui/view/offercoderedemption(options:ispresented:oncompletion:), fetched 2026-10-09; the StoreKit interface in the Xcode 27.0 SDK]`
 No code has been redeemed with it, in the sandbox or anywhere else. `RedeemOption`, the type of the
 new call's options, has no values in the Xcode 27.0 SDK, so the set passed is empty.
+
+## 6. The privacy policy screen (`PrivacyPolicyView`, kept under Features/Billing)
+
+*Added 2026-10-14, for 5.7.* The in-app privacy policy lives beside the plan screens. Its line on
+diagnostics now reads that telemetry and diagnostics stay on the device and that a crash report
+leaves only if the person chooses to send it from their own mail app, because 5.7 adds a crash report
+the person can email (`CrashReports`; `Docs/PRIVACY_AND_ROUTING.md`, "Diagnostics from the system stay
+on the device"). Nothing about plans, prices or limits changed. `[evidence_level: code_verified,
+confidence: high, evidence_source: PrivacyPolicyView.swift, CrashReports.swift]`

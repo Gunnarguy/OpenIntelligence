@@ -215,6 +215,25 @@ Diagnostic and telemetry surfaces are included for inspecting chunks, retrieval 
 
     **Since then (note of 2026-09-29).** On 2026-09-26 the notice question, re-asked on a macOS Debug build of the fix, no longer locked "1 lb.", but Deep Think answered "at least 30 days" where the lease says 60 and still marked it Verified, so the roadmap row stays open. On 2026-09-28 the full iOS 27 simulator suite passed with the four regression tests (504 tests, 0 failures), and Xcode Cloud built it as 5.5, builds 480 and 481, for TestFlight on iOS and macOS. No iPhone has re-asked it. `[evidence_level: test_verified, confidence: high, evidence_source: CHANGELOG.md ## 5.5 Fixed, Retrieval entry; Docs/ai/STATE.md verification of 2026-09-28; App Store Connect build list read 2026-09-28]`
 
+## The query cache (corrected 2026-10-14, for 5.7)
+
+A Standard question that is not limited to named documents first looks for its own earlier search in
+`semantic_query_cache` (`SQLiteFullTextService.getCachedQuery`), and a hit skips query rewriting, the
+embedding and the hybrid search. After a live search the passages are written back (`cacheQuery`).
+
+From 5.7 the key is the normalized question followed by a digest of every library's documents with their
+passage counts and of the embedding model and its dimension (`RAGService.queryCacheKey`), so an import, a
+deletion, a re-import or a change of model gives the question a fresh search, and a hit is used only when
+every passage in it is from a document still in the libraries (`cachedResultsAreCurrent`). There is no
+lookup by similarity any more. Through 5.6 the key was the question and the library's id alone, nothing
+cleared an entry, and a question within 0.95 cosine of a cached one also took its passages
+(`getCachedQueryBySimilarity`, which decodes every cached question's embedding for the library each
+time): a question asked again after an import left the new document out, and after a deletion it brought
+the deleted document's text back into the answer. The rows written through 5.6 stay in the table unused,
+because clearing them needs `SQLiteFullTextService.swift`, which is protected. `[evidence_level:
+code_verified+test_verified (QueryCacheKeyTests), confidence: high, evidence_source: RAGService.swift
+queryInternal; SQLiteFullTextService.swift]`
+
 ## Suggested questions
 
 `Services/Query/UX/SuggestedQuestionsService.swift` writes the chips on the Chat tab's empty state.

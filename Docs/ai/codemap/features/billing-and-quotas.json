@@ -15,7 +15,7 @@
     {"path": "OpenIntelligence/Features/Billing/PlanPriceComparison.swift", "role": "primary", "blob": "1942a79e1982c6020fac980519bc7d8b09f6af5b"},
     {"path": "OpenIntelligence/Features/Billing/PlanUpgradeEntryPoint.swift", "role": "primary", "blob": "df15391872d63e58eb03c9d3deb2c47bc21a0a9a"},
     {"path": "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "role": "primary", "blob": "d85e279645d57d3e35e6ad78bbf5966ec05ad6d2"},
-    {"path": "OpenIntelligence/Features/Billing/PrivacyPolicyView.swift", "role": "primary", "blob": "2ea962f970a2c9354be7efb6263c8f87fda004ce"},
+    {"path": "OpenIntelligence/Features/Billing/PrivacyPolicyView.swift", "role": "primary", "blob": "a0e02e4bb6d4051c478cad8fd9fb3f8d421d0e31"},
     {"path": "OpenIntelligence/Features/Billing/TermsOfServiceView.swift", "role": "primary", "blob": "1291c2fbdf312307cfcb1daaa863f435c3631d83"},
     {"path": "OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit", "role": "primary", "blob": "b2c9bac52003de646f8611afa3fa05846abcadde"},
     {"path": "OpenIntelligence/Resources/StoreKit/StoreKitTestHarness.swift", "role": "primary", "blob": "3c73ff3cb991f2e9a76c7648bd5e331e4b31b5cf"},

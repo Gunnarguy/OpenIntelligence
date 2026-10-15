@@ -57,8 +57,8 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - `RAGAppIntents` utilizes 10 of the 10 available App Shortcuts limit since 5.7 (9 through 5.6). `[evidence_level: test_verified, confidence: exact, evidence_source: AppShortcutsProviderTests, 2026-10-09]`
 
 ## 11. Evidence Threads Canonical Decision
-- **Design B**: Relocated from `LocalCache` to `Application Support/EvidenceThreads/<containerId>/` to support iCloud Drive synchronization. `[evidence: code_verified, exact, EvidenceThreadStore.swift]`
-- **Synchronization**: Thread files are synchronized bidirectionally via `WorkspaceSyncService.swift` on changes, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime) in `QuotaPolicy.swift`. `[evidence: code_verified, exact]`
+- **Design B**: Saved in `<Application Support>/OpenIntelligence/EvidenceThreads/<containerId>/` (`OpenIntelligenceRuntimePaths.baseDirectory()`), the folder iCloud sync reads, since 5.7. **Corrected 2026-10-14:** through 5.6 the store saved one level up, in `<Application Support>/EvidenceThreads/<containerId>/`, which sync never read, so threads stayed on the device that made them; the first store made after the update moves them. `[evidence_level: code_verified+test_verified (EvidenceThreadStoreTests), confidence: high for the location; a thread reaching a second device is not yet observed, evidence_source: EvidenceThreadStore.swift, WorkspaceSyncService.swift synchronizeEvidenceThreads]`
+- **Synchronization** (from 5.7; before it, see the line above): Thread files are synchronized bidirectionally via `WorkspaceSyncService.swift` on changes, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime) in `QuotaPolicy.swift`. `[evidence: code_verified, exact]`
 - Legacy `ChatMessage` remains untouched (EvidenceThread uses ChatMessage array for immutability).
 - RAGService and ChatScreen integration complete. ChatScreen features a slide-out ThreadSidebarView, enabling thread switching, creation, and deletion, with history persistence and loading managed asynchronously by RAGService.
 

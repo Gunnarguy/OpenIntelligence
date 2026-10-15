@@ -31,6 +31,9 @@ struct ContentView: View {
     @State private var relayedConsent: CloudConsentRelay.Request?
     @State private var windowID = UUID()
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
+    /// A crash report saved since the app last offered one (`CrashReports`, 5.7).
+    @State private var crashReportToOffer: URL?
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
@@ -226,6 +229,24 @@ struct ContentView: View {
         ) { release in
             WhatsNewView(release: release)
         }
+        .onReceive(NotificationCenter.default.publisher(for: CrashReports.didSave)) { _ in
+            offerCrashReportIfAny()
+        }
+        .alert(
+            "OpenIntelligence closed unexpectedly",
+            isPresented: Binding(get: { crashReportToOffer != nil }, set: { if !$0 { crashReportToOffer = nil } }),
+            presenting: crashReportToOffer
+        ) { report in
+            Button("Email Report") {
+                CrashReports.markOffered()
+                openURL(CrashReports.mailURL(for: report, to: OpenIntelligenceLinks.feedbackEmailAddress))
+            }
+            Button("Not Now", role: .cancel) { CrashReports.markOffered() }
+        } message: { _ in
+            Text(
+                "A report of where it stopped was saved on this device. It has the app and system versions, the device model and the app's code that was running, and none of your documents, questions or answers. You can also share it later from Settings, About."
+            )
+        }
         .onReceive(consentRelay.$request) { request in
             guard let request else {
                 relayedConsent = nil
@@ -252,6 +273,7 @@ struct ContentView: View {
             if !screenshotMode.isEnabled {
                 whatsNewStore.evaluateOnLaunch()
             }
+            offerCrashReportIfAny()
             // A Focus that changed while the app was closed (5.7). Not awaited here, so nothing
             // below waits on the system's answer.
             if !screenshotMode.isEnabled {
@@ -566,6 +588,12 @@ struct ContentView: View {
     }
 
     /// An activity continued from another device: the library it names, then its screen.
+    /// Offers a crash report saved since the last offer, once. Not during screenshot runs.
+    private func offerCrashReportIfAny() {
+        guard !screenshotMode.isEnabled, crashReportToOffer == nil else { return }
+        crashReportToOffer = CrashReports.pending()
+    }
+
     private func continueActivity(_ activity: NSUserActivity) {
         let destinations = AppActivity.destinations(type: activity.activityType, userInfo: activity.userInfo)
         Log.info("[Handoff] Continuing \(activity.activityType): \(destinations.count) step(s)", category: .ui)

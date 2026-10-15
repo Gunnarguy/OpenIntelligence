@@ -227,6 +227,27 @@ struct AboutView: View {
                             ) {
                                 openEmail()
                             }
+                            // The newest crash report, when there is one (`CrashReports`, 5.7).
+                            if let crashReport = CrashReports.all().first {
+                                externalLinkRow(
+                                    title: "Email the Last Crash Report",
+                                    subtitle: "A summary of where the app stopped, sent from your mail app",
+                                    icon: "exclamationmark.triangle.fill",
+                                    tint: .red
+                                ) {
+                                    openURL(
+                                        CrashReports.mailURL(
+                                            for: crashReport, to: OpenIntelligenceLinks.feedbackEmailAddress))
+                                }
+                                ShareLink(item: crashReport) {
+                                    linkRowLabel(
+                                        title: "Share the Last Crash Report",
+                                        subtitle: "The whole report as a file. It has none of your documents or chats",
+                                        icon: "square.and.arrow.up",
+                                        tint: .red)
+                                }
+                                .buttonStyle(.plain)
+                            }
                             externalLinkRow(
                                 title: "GitHub Repository",
                                 subtitle: "Browse the codebase, releases, and implementation details",
@@ -310,34 +331,39 @@ struct AboutView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(tint.opacity(0.12))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(tint)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DSColors.primaryText)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "arrow.up.forward")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 2)
+            linkRowLabel(title: title, subtitle: subtitle, icon: icon, tint: tint)
         }
         .buttonStyle(.plain)
+    }
+
+    /// The look of every row on this screen, for a button or a share link.
+    private func linkRowLabel(title: String, subtitle: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(tint.opacity(0.12))
+                    .frame(width: 36, height: 36)
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DSColors.primaryText)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "arrow.up.forward")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
     }
 
     private func openEmail() {

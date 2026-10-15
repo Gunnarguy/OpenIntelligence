@@ -10,7 +10,7 @@
   "files": [
     {"path": "OpenIntelligence/Core/Extensions/KeychainStorage.swift", "role": "primary", "blob": "fb4add68eaff0c1194d3c7b52e5420484313740b"},
     {"path": "OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift", "role": "primary", "blob": "72c3a035b1e7d0423bd0cfad011ffc2112ac7c3e"},
-    {"path": "OpenIntelligence/Features/Settings/AboutView.swift", "role": "primary", "blob": "161e5754fba2a8d7a3f8af6d7abb04b37b4897c0"},
+    {"path": "OpenIntelligence/Features/Settings/AboutView.swift", "role": "primary", "blob": "9fcd3cb118f1e4a5c86d4e25f3a32fb931b81630"},
     {"path": "OpenIntelligence/Features/Settings/Components/FeatureRow.swift", "role": "primary", "blob": "335018f595b4e634e5dfc1a7ebd6f9d3ff8c0bf2"},
     {"path": "OpenIntelligence/Features/Settings/Components/InfoRow.swift", "role": "primary", "blob": "00d600319d137f67ea06b1cc4ea3c8ff32e71bb5"},
     {"path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "role": "primary", "blob": "952ae949d6a438392ed67240fccc52cd5cbd13f9"},

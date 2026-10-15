@@ -12,11 +12,11 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "role": "primary", "blob": "01690203b227de272425d14b8a409e0976ed947b"},
     {"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift", "role": "primary", "blob": "e0a4026632fd13abf9482a399d2812e1dd2935be"},
     {"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugView.swift", "role": "primary", "blob": "827a20eaeb5d330b117c914a195e6e0958748fcf"},
-    {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "d95547af52c9334d1bb4a5ff2fc0c68f4279568a"},
+    {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "d7c46d6fa574bb41e3d10b90f4651eb6fb0ae880"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "role": "shared", "blob": "280adf492488b3c93175acbbc2a2bf64c3b6c13e"},
     {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "35ee961142fd17a08b8c0ae42c0b95aa234f1dab"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "7a2544ff322c81be7b7245c3c99a0be417e6cfd8"},
-    {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "adec5c17bc92d6d2d7da9668c327d9c30dbcff39"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "076693cb42f6d955bc6df7c06e23c4442875dac4"},
+    {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "0b00de48146a79bd3e8c7d38298744963ecb2096"}
   ],
   "nodes": [
     {"id": "EvidenceThread", "kind": "model", "path": "OpenIntelligence/Core/Models/EvidenceThread.swift", "line": 10, "match": "struct EvidenceThread: Codable, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
