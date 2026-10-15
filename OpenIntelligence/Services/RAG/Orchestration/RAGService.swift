@@ -10857,16 +10857,20 @@ class RAGService: ObservableObject {
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
         finishAnswerNowRequested = false
-        return try await LLMStreamingContext.$handler.withValue(streamHandler) {
-            try await self.queryInternal(
-                question,
-                topK: topK,
-                config: config,
-                containerId: containerId,
-                qualityModeOverride: qualityModeOverride,
-                externalEvidence: externalEvidence,
-                trace: trace
-            )
+        // Apple's usage for every model call this answer makes is added up (`AnswerUsageTally`, 5.7) and put in
+        // its metadata by `finalizeResponse`.
+        return try await AnswerUsageTally.$current.withValue(AnswerUsageTally()) {
+            try await LLMStreamingContext.$handler.withValue(streamHandler) {
+                try await self.queryInternal(
+                    question,
+                    topK: topK,
+                    config: config,
+                    containerId: containerId,
+                    qualityModeOverride: qualityModeOverride,
+                    externalEvidence: externalEvidence,
+                    trace: trace
+                )
+            }
         }
     }
 
@@ -18821,6 +18825,10 @@ class RAGService: ObservableObject {
         // saved answer or an exported trace never reads as checked when the check was skipped.
         if await MainActor.run(body: { self.finishAnswerNowRequested }) {
             finalizedMetadata = finalizedMetadata.appendingGatingDecision("finished_early_by_person")
+        }
+        // Apple's count for the whole answer (5.7), set by `query`'s tally.
+        if let usage = AnswerUsageTally.current?.total {
+            finalizedMetadata.appleUsage = usage
         }
         var finalResponse = response
         finalResponse = RAGResponse(

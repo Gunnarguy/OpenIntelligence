@@ -69,6 +69,11 @@
    "path": "OpenIntelligenceTests/Services/LLM/ModelErrorClassifierTests.swift",
    "role": "test",
    "blob": ""
+  },
+  {
+   "path": "OpenIntelligenceTests/Services/LLM/AnswerUsageTallyTests.swift",
+   "role": "test",
+   "blob": "fb1ea032f399242c077489fa34979a7fbd7b5ee8"
   }
  ],
  "nodes": [

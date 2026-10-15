@@ -196,6 +196,8 @@ document, transcript or reasoning **content**, which section 8 forbids.
 
 Telemetry may include identifiers, public target names, counts, budgets, hashes, quota categories, reason codes, and verification status. It must not include raw query text, document text, transcript content, or generated reasoning. Historical responses remain readable because receipt metadata is optional. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionReceipt.swift, RAGQuery.swift, LLMService.swift]`
 
+**Kept with the answer (added 2026-10-15, for 5.7).** The usage was logged and kept nowhere. An answer now adds up the usage of every model call it makes (`AnswerUsageTally`, set by `RAGService.query`, added to where `LLMService` reads usage), and `finalizeResponse` saves the total in its metadata (`ResponseMetadata.appleUsage`): counts only, no text, in the conversation already saved on the device. The answer's details show it. `[evidence_level: test_verified (AnswerUsageTallyTests), confidence: high]`
+
 ### The unified-log line, so a TestFlight build can be observed at all
 
 Until 2026-09-14 a Release build wrote **nothing** about routing to the unified logging system.
@@ -319,23 +321,29 @@ when the library is cleared or deleted, and, for every library, each time the ap
 covers a document or a library removed on another device. Nothing about routing changes.
 `[evidence_level: test_verified for what is removed given the documents and for when a vocabulary may be kept (LibraryAnalysisSampleTests), code_verified for where the removal is called from, confidence: high, evidence_source: AdaptiveEmbeddingOptimizer.swift LibraryIntelligenceCache; RAGService.swift refreshIntelligence, removeStaleKeptAnalysis, generateIntelligenceSnapshot, libraryVocabulary, applyLoadedDocuments; ContainerService.swift deleteContainer; ContentView.swift]`
 
-## Adaptive profiles do not change routing (added 2026-09-11)
+## Adaptive profiles and routing (added 2026-09-11, corrected 2026-10-15)
 
 `FoundationModelDynamicProfileRegistry` chooses `temperature` and `maxTokens` from the answer
-intent. It has no effect on **where** a request runs.
+intent when Adapt to the question is on (`InferenceConfig.applyingAdaptiveProfile` replaces both).
 
-Routing stays entirely in `FoundationModelRoutePolicy`, which reads the explicit model preference
-first, then the execution plan, then the context estimate against the on-device window. The
-registry is not consulted there and cannot escalate a request to Private Cloud Compute, cannot
-suppress one, and cannot alter the consent prompt. A profile changes how the chosen model samples,
-not which model is chosen or what leaves the device.
+**Corrected 2026-10-15.** This section said a profile has no effect on where a request runs,
+because `FoundationModelRoutePolicy` never reads it. Answers are routed by `ModelExecutionPlanner`
+(`RAGService.makePostRetrievalModelPlan`), and its on-device budget reserves `max(128, maxTokens)`
+for the answer (`FoundationModelTokenBudget.snapshot`, `outputReserve`). A profile's `maxTokens`
+(400 to 1,400) is that reserve, so a larger one leaves less of the window for passages and, with
+Hybrid and permission, can send to Private Cloud Compute an answer that would have fit on the
+device; a smaller one can keep one on the device. The coupling is deliberate: the reserve has to
+match what the generation will ask for, or the on-device call overflows. A profile does not change
+the consent prompt or what is sent. Found by the 2026-09-24 audit
+(`Docs/AuditArtifacts/DocOverhaul_2026-09-24/README.md`, privacy-routing) and confirmed in the
+code; the effect has not been observed on a device.
 
 This is worth stating because the registry's previous shape could have affected routing
 indirectly: it produced a full replacement `systemPrompt`, and prompt length feeds the token
 estimate that the planless routing branch compares against the on-device context window. Producing
 generation parameters only removes that coupling.
 
-`[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelDynamicProfileRegistry.swift returns FoundationModelGenerationProfile only; FoundationModelRoutePolicy.determineRoute has no reference to it]`
+`[evidence_level: code_verified, confidence: high, evidence_source: FoundationModelDynamicProfileRegistry.swift applyingAdaptiveProfile replaces maxTokens; RAGService.makePostRetrievalModelPlan passes outputReserve: max(128, config.maxTokens); ModelExecutionPlanner sends to PCC when !localBudget.fits]`
 
 
 ## A reasoning profile you write yourself (added 2026-09-11)

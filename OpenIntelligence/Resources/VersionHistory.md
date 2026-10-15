@@ -131,6 +131,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Asking for a summary gets one.**  "Summarize" and "summary" were read as a request to add numbers up.
 - **Excerpts say they weren't checked.**  When the app couldn't write an answer and showed excerpts instead, the badge read Partially Verified, though nothing had checked them.  It reads Not Checked now.
 - **An answer no longer cites a document that isn't there.**  Passages left behind by a deleted document, or by an import that didn't finish, could turn up in an answer credited to "Unknown".  Searches leave them out now, and in a library kept on this device they're removed when the app opens.
+- **An answer's details show Apple's token count.**  On iOS and macOS 27, the details under an answer list what Apple's model spent on the whole answer: tokens in, how many of those it had cached, tokens out, and reasoning tokens when Private Cloud Compute reasoned.
 
 ### Settings
 - **A setting you change stays changed.** The app saved the setting you'd just changed with the value it had before, so the last change you made could come undone the next time the app opened.  It saves the new value now.

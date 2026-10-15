@@ -107,6 +107,9 @@ struct ResponseMetadata: Codable, Sendable {
     /// Durable intended-versus-actual model routing telemetry.
     /// Optional so responses persisted before PCC dynamic routing remain decodable.
     let executionReceipt: ModelExecutionReceipt?
+    /// Apple's count for this answer (5.7): the input, cached input, output and reasoning tokens of every model
+    /// call it made, added up (`AnswerUsageTally`). Nil before iOS and macOS 27 and on answers saved before 5.7.
+    var appleUsage: GenerationUsage? = nil
 
     struct ExecutionRoute: Codable, Sendable, Equatable {
         let path: String // "On-Device", "Private Cloud Compute", etc.
@@ -139,7 +142,8 @@ struct ResponseMetadata: Codable, Sendable {
          reasoningTrace: [String]? = nil,
          executionRoute: ExecutionRoute? = nil,
          tokenBudget: TokenBudget? = nil,
-         executionReceipt: ModelExecutionReceipt? = nil)
+         executionReceipt: ModelExecutionReceipt? = nil,
+         appleUsage: GenerationUsage? = nil)
     {
         self.timeToFirstToken = timeToFirstToken
         self.totalGenerationTime = totalGenerationTime
@@ -158,6 +162,7 @@ struct ResponseMetadata: Codable, Sendable {
         self.executionRoute = executionRoute
         self.tokenBudget = tokenBudget
         self.executionReceipt = executionReceipt
+        self.appleUsage = appleUsage
     }
 
     // MARK: - Computed Properties
@@ -199,7 +204,8 @@ struct ResponseMetadata: Codable, Sendable {
             reasoningTrace: resolvedTrace,
             executionRoute: executionRoute,
             tokenBudget: tokenBudget,
-            executionReceipt: executionReceipt
+            executionReceipt: executionReceipt,
+            appleUsage: appleUsage
         )
     }
 
@@ -223,7 +229,8 @@ struct ResponseMetadata: Codable, Sendable {
             reasoningTrace: reasoningTrace,
             executionRoute: executionRoute,
             tokenBudget: tokenBudget,
-            executionReceipt: executionReceipt
+            executionReceipt: executionReceipt,
+            appleUsage: appleUsage
         )
     }
 
@@ -254,7 +261,8 @@ struct ResponseMetadata: Codable, Sendable {
             reasoningTrace: compactedTrace?.isEmpty == true ? nil : compactedTrace,
             executionRoute: executionRoute,
             tokenBudget: tokenBudget,
-            executionReceipt: executionReceipt
+            executionReceipt: executionReceipt,
+            appleUsage: appleUsage
         )
     }
 }

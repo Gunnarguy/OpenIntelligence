@@ -668,6 +668,10 @@ struct ChatResponseDetailsView: View {
                 PerfMetricRow(label: "Total Time", value: String(format: "%.3fs", metadata.totalGenerationTime))
                 PerfMetricRow(label: "Retrieval Time", value: String(format: "%.3fs", metadata.retrievalTime))
                 PerfMetricRow(label: "Tokens Generated", value: "\(metadata.tokensGenerated)")
+                if let usage = metadata.appleUsage {
+                    // Apple's own count for the whole answer, every model call added up (5.7).
+                    PerfMetricRow(label: "Apple's Count", value: Self.appleUsageText(usage))
+                }
 
                 if let tps = metadata.tokensPerSecond {
                     PerfMetricRow(label: "Tokens/Second", value: String(format: "%.1f", tps))
@@ -717,6 +721,17 @@ struct ChatResponseDetailsView: View {
         case .unsupported:
             return .red
         }
+    }
+
+    /// Apple's count for an answer in a line: tokens in (with how many came from the model's cache), tokens out,
+    /// and reasoning tokens when there were any, which only Private Cloud Compute spends.
+    nonisolated static func appleUsageText(_ usage: GenerationUsage) -> String {
+        var text = "\(usage.inputTokens.formatted()) in (\(usage.cachedInputTokens.formatted()) cached), "
+            + "\(usage.outputTokens.formatted()) out"
+        if usage.reasoningTokens > 0 {
+            text += ", \(usage.reasoningTokens.formatted()) reasoning"
+        }
+        return text
     }
 }
 
