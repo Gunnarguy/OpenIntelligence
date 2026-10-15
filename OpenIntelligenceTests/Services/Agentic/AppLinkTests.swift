@@ -102,6 +102,13 @@ final class AppLinkTests: XCTestCase {
 
     /// A question from the Mac's menu bar is sent at once; one from the Services menu waits in the
     /// field. Neither has a link form, so no address carries the question (5.7).
+    /// A file "Open in" handed over is shown before it is added, from the Documents tab (5.7).
+    func testAnOpenedFileGoesToDocumentsAndCarriesNoAddress() {
+        let file = URL(fileURLWithPath: "/tmp/Lease.pdf")
+        XCTAssertEqual(AppLink.url(for: .openedFiles([file])).absoluteString, "openintelligence://documents")
+        XCTAssertNotEqual(AppDestination.openedFiles([file]), .importFiles([file]))
+    }
+
     func testAQuestionFromTheMenuBarIsSentAndCarriesNoText() {
         XCTAssertEqual(AppDestination.ask("Pets?"), .ask("Pets?", sendsAtOnce: false))
         XCTAssertNotEqual(AppDestination.ask("Pets?"), .ask("Pets?", sendsAtOnce: true))

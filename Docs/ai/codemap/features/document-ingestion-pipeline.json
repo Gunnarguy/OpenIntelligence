@@ -21,7 +21,7 @@
     {"path": "OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift", "role": "primary", "blob": "e11071aac70bd128fe272626dc78a110da666d12"},
     {"path": "OpenIntelligence/Services/Document/Processing/VisualCaptioningService.swift", "role": "primary", "blob": "067be7f6d2898fe4f4b240836bd260fef749f732"},
     {"path": "OpenIntelligence/UI/Components/IngestionQueueOverlay.swift", "role": "primary", "blob": "9b48f92bd4761e653bec617f0328f98b37357596"},
-    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "role": "shared", "blob": "ddf1a8ac121deba7d4d3a767e2ac3dc6d415b04f"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "role": "shared", "blob": "5080a9f7dc14eb0b3d95d05b1bb0a022f2cc01a3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "role": "shared", "blob": "92d078de9d4ff9de6c251e394c7abf01bcdbecd0"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "9bf973d6df08430e661b7263a20e782d1ec67c57"},
     {"path": "OpenIntelligenceTests/Services/Document/Config/OCRLanguageNarrowingTests.swift", "role": "test", "blob": "13a06d1286874ddeee4e2dcf980bb9f8c03f3e6c"},

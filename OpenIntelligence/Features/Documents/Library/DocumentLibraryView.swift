@@ -71,6 +71,10 @@ struct DocumentLibraryView: View {
     @State private var pendingImportURLs: [URL] = []
     @State private var pendingImportReview: DocumentImportReview?
     @State private var showingImportReview = false
+    /// Files "Open in" handed over, shown before anything is added (`OpenedFilesSheet`).
+    @State private var openedFiles: [URL] = []
+    @State private var showingOpenedFiles = false
+    @State private var addOpenedFiles = false
     @State private var isRefreshingSharedWorkspace = false
     @State private var sharedWorkspaceRefreshMessage: String?
     @State private var showingSharedSyncReviewDialog = false
@@ -1295,6 +1299,16 @@ struct DocumentLibraryView: View {
                     Text(error)
                 }
             }
+            .sheet(isPresented: $showingOpenedFiles, onDismiss: finishOpenedFiles) {
+                OpenedFilesSheet(
+                    files: openedFiles,
+                    libraryName: containerService.activeContainer?.name ?? "Library",
+                    onAdd: {
+                        addOpenedFiles = true
+                        showingOpenedFiles = false
+                    },
+                    onDiscard: { showingOpenedFiles = false })
+            }
             .alert("Review Import", isPresented: $showingImportReview) {
                 Button("Cancel", role: .cancel) {
                     discardPendingImportFiles()
@@ -1395,6 +1409,16 @@ struct DocumentLibraryView: View {
                     return []
                 }
                 if !staged.isEmpty { importOpenedFiles(staged) }
+
+                // Files "Open in" handed over: shown first, every waiting batch together.
+                let opened = AppNavigationRequest.shared.takeAll { destination in
+                    if case .openedFiles = destination { return true }
+                    return false
+                }.flatMap { destination -> [URL] in
+                    if case .openedFiles(let urls) = destination { return urls }
+                    return []
+                }
+                if !opened.isEmpty { showOpenedFiles(opened) }
 
                 // "Add a Document" from Siri, Shortcuts or a link ends here, at the file picker.
                 if AppNavigationRequest.shared.take(where: { $0 == .addDocument }) != nil {
@@ -1673,6 +1697,34 @@ struct DocumentLibraryView: View {
             return
         }
         reviewAndEnqueueDocuments(staged)
+    }
+
+    /// Files "Open in" handed over: the plan check first, as for any import, then the viewer. Files
+    /// that come while it is open join it.
+    @MainActor
+    private func showOpenedFiles(_ staged: [URL]) {
+        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
+            staged.forEach { try? FileManager.default.removeItem(at: $0) }
+            presentPlanSheet(for: .documentLimit)
+            return
+        }
+        openedFiles.append(contentsOf: staged)
+        showingOpenedFiles = true
+    }
+
+    /// When the viewer closes: Add to Library runs the usual import review on the files; Don't Add,
+    /// or closing it any other way, removes the app's copies.
+    @MainActor
+    private func finishOpenedFiles() {
+        let files = openedFiles
+        let add = addOpenedFiles
+        openedFiles = []
+        addOpenedFiles = false
+        if add {
+            importOpenedFiles(files)
+        } else {
+            files.forEach { try? FileManager.default.removeItem(at: $0) }
+        }
     }
 
     /// Ingests a picked document and unlocks the onboarding step once any content exists.

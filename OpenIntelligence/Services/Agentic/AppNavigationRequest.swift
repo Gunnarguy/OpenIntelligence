@@ -23,9 +23,12 @@ nonisolated enum AppDestination: Equatable, Sendable {
     case newConversation(libraryId: UUID?)
     case library(UUID)
     case document(UUID)
-    /// The Documents tab, importing files another app handed over ("Open in OpenIntelligence").
-    /// The files are already copied into the app. This one has no link form.
+    /// The Documents tab, importing files: the Mac's Services menu ("Add to OpenIntelligence") and
+    /// the document scanner. The files are already copied into the app. This one has no link form.
     case importFiles([URL])
+    /// The Documents tab, showing files another app handed over ("Open in OpenIntelligence") before
+    /// anything is added (`OpenedFilesSheet`, 5.7). Already copied into the app; no link form.
+    case openedFiles([URL])
     /// The chat with this text in the composer: not sent, so it can be read and changed first (the
     /// Mac's Services menu), or sent at once when the person typed it to ask (the Mac's menu bar).
     /// With `inDeepThink` the chat is switched to Deep Think first, as its own "Switch to Deep
@@ -84,7 +87,7 @@ nonisolated enum AppLink {
         case .document(let id):
             components.host = "document"
             components.path = "/\(id.uuidString)"
-        case .importFiles:
+        case .importFiles, .openedFiles:
             // Files are handed over by the system, not by a link; the nearest place is Documents.
             components.host = "documents"
         case .ask, .continueAnswer:

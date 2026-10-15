@@ -8,6 +8,7 @@
   "verified_on": "2026-10-13",
   "entry_points": ["DocumentLibraryView", "LibraryDeletion.delete", "RAGService.removeDocument", "WorkspaceSyncService.deleteSharedLibrary", "ContainerService", "KnowledgeContainer", "DocumentDetailsView", "SemanticSearchView"],
   "files": [
+    {"path": "OpenIntelligence/Features/Documents/Components/OpenedFilesSheet.swift", "role": "primary", "blob": "95bb9438d1b77a3f6f28b11d0324d423f8bc8926"},
     {"path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "role": "primary", "blob": "33c315785d291cb6a829ec2e5ff725df89db74da"},
     {"path": "OpenIntelligence/Features/Documents/Components/ContainerPicker.swift", "role": "primary", "blob": "68c6f75af3fa00141c0b82d9eabf4d61737309e9"},
     {"path": "OpenIntelligence/Features/Documents/Components/DocumentCard.swift", "role": "primary", "blob": "6e64159270325de62c1d76bcbb6009352e96524c"},
@@ -19,7 +20,7 @@
     {"path": "OpenIntelligence/Features/Documents/Components/StatsFooter.swift", "role": "primary", "blob": "8f639067e90dad6071a2b9591560e9ef4c8aaf89"},
     {"path": "OpenIntelligence/Features/Documents/Details/DocumentDetailsView.swift", "role": "primary", "blob": "f1c758401088630cce2aef6bf56e413be8db405d"},
     {"path": "OpenIntelligence/Features/Documents/Library/CachedDocsView.swift", "role": "primary", "blob": "8ba4955ed47e0adefb7f146694e83ec97dc983b5"},
-    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "role": "primary", "blob": "ddf1a8ac121deba7d4d3a767e2ac3dc6d415b04f"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "role": "primary", "blob": "5080a9f7dc14eb0b3d95d05b1bb0a022f2cc01a3"},
     {"path": "OpenIntelligence/Features/Documents/Library/LibraryDeletion.swift", "role": "primary", "blob": "fb3adc01ca51bc77a699f915ba56542403784e7c"},
     {"path": "OpenIntelligence/Features/Documents/Search/SemanticSearchView.swift", "role": "primary", "blob": "3c48457ad2aac184f2192a278e84c621f8203389"},
     {"path": "OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift", "role": "primary", "blob": "f5077c1a3d9d8254cc2f0ac1064826be56dbb213"},

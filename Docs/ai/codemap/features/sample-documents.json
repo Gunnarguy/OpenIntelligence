@@ -9,7 +9,7 @@
   "entry_points": ["SampleDocumentManager", "SampleDocumentManager.importSamples", "SampleDocumentManager.refreshStaleSamples", "DocumentLibraryView.importSampleWorkspace", "SampleDocumentDescriptor"],
   "files": [
     {"path": "OpenIntelligence/Features/Documents/Library/SampleDocumentManager.swift", "role": "primary", "blob": "946215bbfe01caefd1e7945961e1db333d21ac3b"},
-    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "role": "shared", "blob": "ddf1a8ac121deba7d4d3a767e2ac3dc6d415b04f"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "role": "shared", "blob": "5080a9f7dc14eb0b3d95d05b1bb0a022f2cc01a3"},
     {"path": "OpenIntelligenceTests/Features/Documents/SampleDocumentCopyCleanupTests.swift", "role": "test", "blob": "ea5c8ad90f9057a0876df65ffdfe4faafde56b66"},
     {"path": "OpenIntelligenceTests/Features/Documents/SampleDocumentDescriptorTests.swift", "role": "test", "blob": "e300b251fd3ce1e4e0ffccda2700c502581e50fd"}
   ],

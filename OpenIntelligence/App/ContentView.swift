@@ -549,8 +549,9 @@ struct ContentView: View {
 
     /// A file another app handed over: "Open in OpenIntelligence" from Files, Mail or a share
     /// sheet, a file dropped on the Mac's Dock icon, or an AirDrop. It is copied into the app at
-    /// once, while access to it is certain, and the Documents screen then runs its usual plan
-    /// check and import review on the copy. Through 5.6 the app declared no document types, so it
+    /// once, while access to it is certain, and the Documents screen shows the copy before
+    /// anything is added (`OpenedFilesSheet`, 5.7), then runs its usual plan check and import
+    /// review on it. Through 5.6 the app declared no document types, so it
     /// was never offered a file, and a file address reaching this handler was discarded.
     private func importOpenedFile(_ url: URL) {
         Log.info("[OpenIn] Received a file: \(url.pathExtension.lowercased())", category: .ingestion)
@@ -573,7 +574,7 @@ struct ContentView: View {
                 Log.error("[OpenIn] The file could not be copied into the app", category: .ingestion)
                 return
             }
-            AppNavigationRequest.post(.importFiles(staged))
+            AppNavigationRequest.post(.openedFiles(staged))
         }
     }
 
@@ -586,7 +587,7 @@ struct ContentView: View {
         case .newConversation(let libraryId), .ask(_, _, _, let libraryId), .continueAnswer(_, _, let libraryId):
             if let libraryId { containerService.setActive(libraryId) }
             selectedTab = .chat
-        case .documents, .addDocument, .importFiles, .search, .searchFor, .importQueue:
+        case .documents, .addDocument, .importFiles, .openedFiles, .search, .searchFor, .importQueue:
             selectedTab = .documents
         case .settings:
             selectedTab = .settings
@@ -626,7 +627,7 @@ struct ContentView: View {
             selectedTab = .documents
             // The Documents screen opens the document's page (5.7).
             return
-        case .addDocument, .importFiles, .search, .searchFor:
+        case .addDocument, .importFiles, .openedFiles, .search, .searchFor:
             selectedTab = .documents
             return
         case .scanDocument, .ask, .continueAnswer:
