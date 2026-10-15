@@ -327,8 +327,13 @@ actor VerificationGateService {
         query: String,
         structuredClaims: [StructuredRAGClaim]? = nil
     ) async -> GateBEvaluation {
+        // The answer's own headings are not claims (5.7): the model sometimes lists its title among its claims, and
+        // Fact Check scored "Hotel Address in Lisbon" Partial, so a right answer read "1 of 2 Verified" (demo copy of
+        // e9de06d, 2026-10-15).
+        let headings = Self.headingLines(in: response)
         let structuredClaims = structuredClaims?.filter {
             !$0.claim.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !headings.contains(Self.headingKey($0.claim))
         }
 
         let claimInputs: [VerificationClaimInput]
@@ -1266,6 +1271,29 @@ actor VerificationGateService {
         }
 
         return claims
+    }
+
+    /// The answer's heading lines, as `headingKey` keys (5.7): a Markdown heading ("## Hotel Address in Lisbon"), a
+    /// line in bold on its own, or a short line ending in a colon.
+    nonisolated static func headingLines(in response: String) -> Set<String> {
+        var keys: Set<String> = []
+        for raw in response.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            let isHeading =
+                line.hasPrefix("#")
+                || (line.hasPrefix("**") && line.hasSuffix("**") && line.count > 4)
+                || (line.hasSuffix(":") && line.split(separator: " ").count <= 8)
+            if isHeading {
+                keys.insert(headingKey(line))
+            }
+        }
+        keys.remove("")
+        return keys
+    }
+
+    /// A line or a claim reduced to its words, lowercased, for matching a claim against the answer's headings.
+    nonisolated static func headingKey(_ text: String) -> String {
+        text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
     }
 
     /// Check if sentence contains factual content worth verifying
