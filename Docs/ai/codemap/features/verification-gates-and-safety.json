@@ -20,7 +20,8 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/SemanticGroundingClaimTests.swift", "role": "test", "blob": "be2b6987fc35ec04a20d0b85b21538b6cb1c0b31"},
     {"path": "OpenIntelligence/Services/RAG/Safety/NumericValueExtractor.swift", "role": "primary", "blob": "b4d31fc1fcb048fadf613e104f0515fee8bd6aa5"},
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/NumericSanityGateTests.swift", "role": "test", "blob": "8325590aa63ab290f81487aeb3567c87e41e2a05"},
-    {"path": "OpenIntelligenceTests/Services/Evaluation/ClaimCheckEvaluationTests.swift", "role": "test", "blob": "c716cf1467aaa1eb52c206a1e7cb93d5eb2fcb14"}
+    {"path": "OpenIntelligenceTests/Services/Evaluation/ClaimCheckEvaluationTests.swift", "role": "test", "blob": "c716cf1467aaa1eb52c206a1e7cb93d5eb2fcb14"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Safety/DomainIsolationTests.swift", "role": "test", "blob": "71c6734e5864b6c1f7cc697d948b3120bafd890c"}
   ],
   "nodes": [
     {"id": "VerificationGateService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 127, "match": "actor VerificationGateService {", "status": "VERIFIED", "by": "build"},

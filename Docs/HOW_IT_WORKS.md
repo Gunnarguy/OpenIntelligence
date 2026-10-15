@@ -461,7 +461,7 @@ A locked answer skips the source-only check (`:17293`). The scoring rules, and w
 | `F` | Quote Faithfulness | Catches an abbreviation being expanded using a different document that happened to be in the same context. |
 | `G` | Generation Quality | Structural soundness of the output itself. |
 | `H` | Answer Completeness | Multi-step and comparison answers where each step is individually plausible but the chain is not supported end to end. |
-| `I` | Domain Isolation | Rejects evidence drawn from unrelated subject areas before an answer is written. Relaxed when everything came from one document, since that is not mixing. |
+| `I` | Domain Isolation | Rejects evidence drawn from unrelated subject areas before an answer is written. Relaxed when everything came from one document, since that is not mixing. From 5.7 it steps in only for a question that reads as lab science, two or more of its study-domain keywords as whole words; before, keywords matched inside everyday words ("um" in "number") and right answers about travel documents failed it. |
 
 Thresholds rise with mode: 0.50 in Standard, 0.60 in Deep Think, 0.80 in Maximum. Failing a critical check produces a grounded abstention rather than a hedged answer.
 

@@ -10,6 +10,7 @@
 > **Known drift as of 2026-08-05** — each of these is in the changelog under 4.9 (moved on 2026-09-24 from `CHANGELOG.md` to `Docs/Archive/CHANGELOG_2.0_to_5.2.md`) but not yet reflected below:
 > - Gate E measures query coverage as the better of combined-evidence and best-single-chunk, not the per-chunk maximum.
 > - `DomainIsolationService` relaxes only the cross-domain-mixing clause when the retrieved chunks all come from one `documentId`.
+> - `DomainIsolationService` (5.7, 2026-10-15) matches its keywords as whole words, has no two-letter abbreviations, and engages only when the question scores two or more of them; it had failed right answers about everyday documents by matching "um" inside "number" and "ip" inside "trip".
 > - `executeReasoningChain` retries the user's original wording when a rewrite fuses zero chunks, before any downstream relevance gate judges the library.
 > - `makePostRetrievalModelPlan` takes the maximum similarity over the chunk set rather than reading `chunks.first`, which is not the best chunk after MMR, expansion, and Lost-in-the-Middle reordering.
 > **Source of truth:** the code. The codebase audit this line used to cite in `Docs/AUDIT/` is not in the repository (`Docs/AUDIT/` is gitignored). For anything retrieval-related in 4.8–4.9, read those sections of `Docs/Archive/CHANGELOG_2.0_to_5.2.md`, where they moved from `CHANGELOG.md` on 2026-09-24.

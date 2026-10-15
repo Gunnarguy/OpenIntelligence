@@ -1840,3 +1840,22 @@ removals first or skips them, because their files and passages are still there. 
 removal with undo only in the open app, on the app's own engine (`UndoableIntent`, `isTheAppsEngine`); run with no app
 on screen, it removes at once, because nothing is there to undo it in. A refuting review on the day of the decision
 found eight ways the first version could lose or keep the wrong document, and each is answered in the code.
+
+## 2026-10-15 - Domain isolation engages only for a question that reads as lab science
+
+**Context.** Gate I (`DomainIsolationService`) keeps an answer to a lab-science question from mixing in vitro, in vivo,
+clinical and in silico evidence. It engaged when the question or two passages scored two keywords, and it matched
+keywords inside words. A demo library of travel and hotel documents had ten right answers marked Unverified by this gate
+alone, and one question refused (Simulator, demo copy of e9de06d, 2026-10-15).
+
+**Decision.** Keywords count as whole words or phrases; "um", "ip", "po" and "iv" are no longer keywords; and the gate
+engages only when the question itself scores two or more keywords.
+
+**Alternatives.** Whole words alone: an everyday question over a benefits document ("participants", "human resources")
+ranked first could still be refused as clinical evidence. Engaging on the passages too, as before: a general question
+over a scientific library ("what did the study find?") keeps the protection, at the cost of refusing everyday answers in
+any library whose documents use those words.
+
+**Consequences.** A general question over a scientific library is no longer kept to one study domain; the other gates
+still check every claim against its passages. The decision is reopened if a scientific library's general questions are
+seen mixing domains in answers.

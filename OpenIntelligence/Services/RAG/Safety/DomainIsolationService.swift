@@ -1,5 +1,15 @@
 import Foundation
 
+/// Keeps an answer to a lab-science question from mixing evidence across study domains (in vitro, in vivo,
+/// clinical, in silico), by keywords in the question and the passages.
+///
+/// 5.7 (2026-10-15): a keyword counts only as whole words, and the check engages only when the question itself
+/// reads as lab science. Until then a keyword matched inside any word ("um" in "number", "ip" in "trip", "po" in
+/// "policy", "iv" in "arrive", "cell" in "cancellation"), so a travel insurance question read as cell biology and its
+/// documents as animal studies. In a demo library of travel and hotel documents, ten right answers were marked
+/// Unverified by this gate alone and one was refused outright (Simulator, demo copy of e9de06d). The two-letter
+/// abbreviations "um", "ip", "po" and "iv" are no longer keywords even as words: IP address, PO box and Chapter
+/// IV are everyday text.
 enum DomainIsolationService {
     enum ScientificDomain: String, CaseIterable, Sendable {
         case inVitro = "IN VITRO"
@@ -41,7 +51,7 @@ enum DomainIsolationService {
                 return [
                     "cell", "cells", "cell line", "primary culture", "organoid", "slice", "tissue slice",
                     "incubation", "culture media", "well plate", "confluence", "passage", "mtt assay",
-                    "qpcr", "od reading", "absorbance", "micromolar", "um", "ug/ml", "mg/ml",
+                    "qpcr", "od reading", "absorbance", "micromolar", "ug/ml", "mg/ml",
                     "neuro 2a", "hela", "293t", "fibroblast", "immunofluorescence"
                 ]
             case .inVitroControl:
@@ -52,8 +62,8 @@ enum DomainIsolationService {
             case .inVivo:
                 return [
                     "rat", "rats", "mouse", "mice", "murine", "sprague dawley", "c57bl/6", "zebrafish",
-                    "bccao", "xenograft", "mg/kg", "intraperitoneal", "ip", "oral gavage", "po",
-                    "iv", "tumor volume", "survival curve", "latency", "probe test", "morris water maze",
+                    "bccao", "xenograft", "mg/kg", "intraperitoneal", "oral gavage",
+                    "tumor volume", "survival curve", "latency", "probe test", "morris water maze",
                     "novel object recognition", "open field", "sham operated", "animal cohort"
                 ]
             case .inVivoControl:
@@ -130,7 +140,10 @@ enum DomainIsolationService {
         let strongChunkCount = classifiedChunks.filter {
             $0.classification.domain.family != .generalReference && $0.classification.score >= 2
         }.count
-        let strictModeEnabled = queryClassification.score >= 2 || strongChunkCount >= 2
+        // Only a question that reads as lab science (5.7): through the first 5.7 builds two passages that did
+        // were enough, and an everyday question over a benefits document full of "participants" and "human
+        // resources" could be refused. `strongChunkCount` stays in the details.
+        let strictModeEnabled = queryClassification.score >= 2
         let permitsCrossDomainSynthesis = allowsCrossDomainSynthesis(query: query, answerIntent: answerIntent)
 
         let weightedScores = classifiedChunks.reduce(into: [ScientificDomain: Float]()) { partialResult, item in
@@ -174,7 +187,7 @@ enum DomainIsolationService {
                 crossDomainRisk: crossDomainRisk,
                 shouldAbstain: false,
                 reason: nil,
-                details: "Experimental domain isolation not activated"
+                details: "Domain isolation not engaged: the question does not read as lab science (\(strongChunkCount) passage(s) do)"
             )
         }
 
@@ -273,7 +286,7 @@ enum DomainIsolationService {
         var scoredDomains: [(domain: ScientificDomain, score: Int, matches: [String])] = []
 
         for domain in baseDomains {
-            let matches = domain.keywords.filter { normalized.contains($0) }
+            let matches = domain.keywords.filter { normalized.contains(" \($0) ") }
             let score = matches.count
             if score > 0 {
                 scoredDomains.append((domain, score, Array(matches.prefix(6))))
@@ -309,7 +322,7 @@ enum DomainIsolationService {
             "vehicle", "untreated", "placebo", "standard of care", "sham", "control group",
             "control arm", "comparator", "usual care", "saline"
         ]
-        let looksLikeControl = controlTerms.contains { normalized.contains($0) }
+        let looksLikeControl = controlTerms.contains { normalized.contains(" \($0) ") }
         guard looksLikeControl else { return baseDomain }
 
         switch baseDomain {
@@ -341,9 +354,21 @@ enum DomainIsolationService {
         return parts.joined(separator: " ")
     }
 
-    private nonisolated static func normalize(_ text: String) -> String {
-        text.lowercased()
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: "_", with: " ")
+    /// The text as lowercased words separated by single spaces, with a space at each end, so a keyword is
+    /// found as `" keyword "`: whole words only (5.7). "/" stays inside a word for "mg/kg" and "c57bl/6".
+    nonisolated static func normalize(_ text: String) -> String {
+        let lowered = text.lowercased()
+        var words: [String] = []
+        var current = ""
+        for scalar in lowered.unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) || scalar == "/" {
+                current.unicodeScalars.append(scalar)
+            } else if !current.isEmpty {
+                words.append(current)
+                current = ""
+            }
+        }
+        if !current.isEmpty { words.append(current) }
+        return " " + words.joined(separator: " ") + " "
     }
 }

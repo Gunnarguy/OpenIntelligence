@@ -132,6 +132,16 @@ struct VerificationGatesOverlayView: View {
             let gate = newGates[i]
             
             if let index = events.firstIndex(where: { $0.kind == gate.kind || $0.kind == gate.secondaryKind }) {
+                // A step whose own event says it failed has failed (5.7): verification reports "Gates failed" and
+                // names the gates, with no warning after it, and this read it as passed.
+                if let failedOwn = events[index...].first(where: {
+                    ($0.kind == gate.kind || $0.kind == gate.secondaryKind)
+                        && $0.title.localizedCaseInsensitiveContains("failed")
+                }) {
+                    newGates[i].status = .failed(reason: failedOwn.detail ?? failedOwn.title)
+                    hasFailed = true
+                    continue
+                }
                 // Determine if it failed: look ahead for warnings immediately following
                 let subsequentEvents = events[index...]
                 

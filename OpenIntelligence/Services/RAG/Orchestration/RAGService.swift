@@ -16283,10 +16283,14 @@ class RAGService: ObservableObject {
                                 ])
 
                             // Emit verification thinking event
+                            // A failure names its gates (5.7): the Details panel showed every step green while
+                            // Gate I had failed, because nothing it reads said which.
+                            let failedGateNames = vr.gateResults.filter { !$0.passed }.map(\.gate.rawValue)
                             emitThinkingEvent(
                                 .verification,
                                 title: vr.passed ? "Gates passed ✓" : "Gates failed ✗",
-                                detail: "Confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%"
+                                detail: (failedGateNames.isEmpty ? "" : "Failed: \(failedGateNames.joined(separator: ", ")). ")
+                                    + "Confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%"
                             )
 
                             if !vr.passed {

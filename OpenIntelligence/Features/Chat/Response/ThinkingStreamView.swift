@@ -181,6 +181,10 @@ struct ThinkingStreamView: View {
                     .padding(.vertical, 3)
                     .frame(maxWidth: .infinity)
                     .background(Color.white.opacity(0.03))
+                    // The label stays small, and the whole row takes the tap (5.7): a tap on the 10-point-tall
+                    // label alone missed it in a demo take.
+                    .frame(minHeight: 32)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
