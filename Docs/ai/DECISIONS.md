@@ -1761,3 +1761,55 @@ on request.
 
 **Alternatives.** Keep the key in the file: every build fails signing, the Xcode Cloud archive included.
 
+## 2026-10-15 - Fifteen roadmap rows that waited on a decision, settled or handed back
+
+**Context.** The roadmap reconciliation of 2026-10-14 found fifteen open rows that could not move without a
+decision. The owner asked on 2026-10-14 that they be decided by best practice, with the reasons recorded here. A
+decision that needs his money, his choice of languages or a protected file he has not named is handed back, not
+taken.
+
+**Decided.**
+- *Minimum OS stays iOS and macOS 26* (row "27 SDK deprecations"). Raising it to 27 would clear five deprecated
+  `BGTaskScheduler.submit` calls and drop every iPhone and Mac still on 26; the calls work on 27. Revisit when the
+  App Store's own figures show most of the app's users on 27.
+- *Library sync stays file-based* (row "CKSyncEngine / SwiftData"). 5.7 fixed the measured causes of conflict copies
+  (only changed files are sent, one coordinated replace per file, `WorkspaceSyncService`). A move to CloudKit
+  records is a new App ID service and a migration of every synced library; it is reconsidered only if conflict
+  copies keep growing on devices running 5.7.
+- *The 86 MB model stays a plain git file* (row "86 MB model in git"; `EmbeddingModel.bundle/main.mlirb`, 90,352,203
+  bytes). Git LFS on a public repository spends the owner's LFS bandwidth on every download of the file, Xcode
+  Cloud's included, and a free account includes 10 GiB (docs.github.com, Git LFS billing, read 2026-10-15);
+  rewriting history to move the file breaks every commit id quoted in the docs and the roadmap. No re-export is
+  planned; if one is, the model is fetched at build time instead.
+- *Additive-then-swap re-embedding is required before any release that moves existing libraries to another model by
+  itself* (row "Additive-then-swap migration"). Until then, the only provider change is one the person starts in
+  Library Settings, which asks "Rebuild embeddings now?" first. Stays Future Backlog.
+- *No trigram keyword index* (row "FTS5 weights and trigram index"). It needs `SQLiteFullTextService.swift`'s
+  schema, which is protected and not named for 5.7, and the row's own measurement was 104 to 263 percent more
+  database on disk. The weights half is done.
+- *No voting board* (row "Voting board"). Shared votes need a server, CloudKit's public database or an outside
+  service, and a local-first app sends nothing out unless the person asks. The feature-request email stays.
+- *Apple Notes is covered by Shortcuts* (row "Apple Notes integration"). There is no public Notes API: a DTS
+  engineer answered "No" in developer.apple.com/forums/thread/813810 (January 2026, read 2026-10-15) and pointed to
+  App Intents in a shortcut; the supported route is the app's own actions in a shortcut with Notes' actions, and
+  5.7's "Add to Library" takes a note's text. The row closes when such a shortcut runs on a device.
+- *The custom pipeline row is covered by Library Settings* (row "Custom RAG Pipeline Configuration"). Advanced
+  Controls has minimum similarity, the vector and keyword weights, MMR's λ (which acts from 5.7), minimum confident
+  passages and explicit citations, with four presets. No further control is added without a measurement that it
+  helps.
+- *The Vision OCR demo row is a test idea, not a feature* (row "Multi-Modal Verification (Vision OCR)"). 5.7's
+  pictures are described from the picture, and an image with no readable text imports with its labels and
+  description (`ImageUnderstandingService`, read from code; no test imports such an image yet).
+- *Deep Think keeps its local reasoning chain by default* (row "Decide: long-context PCC pass vs the local reasoning
+  chain"). The local chain sends nothing out; a long-context pass on Private Cloud Compute would send the documents'
+  passages for every Deep Think question. It is reconsidered with an A/B on the owner's documents, which needs a
+  signed build.
+
+**Handed back to the owner.** *Which languages to localize into* (row "Localization"): a choice of markets and of
+who checks the translations. *A per-answer-mode model profile* and *passages by reference* were moved to Future
+Backlog at his word on 2026-10-14. *User-built reasoning profiles* and *visual document retrieval* need protected
+files he has not named (`FoundationModelRoutePolicy.swift`, `BNNSVectorDatabase.swift`) and, for the second, a
+third-party image model, which is his call: on 2026-10-06 he kept the app on Apple's models for generation, and no
+decision covers a third-party model for search.
+
+**Alternatives.** Leave every row waiting: rejected, rows nobody can close accumulate (the roadmap skill's rule).
