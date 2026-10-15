@@ -27,6 +27,8 @@
     {"path": "OpenIntelligence/Services/Agentic/OpenItemIntents.swift", "role": "primary", "blob": "379285178ca907b5448f0cb105c2cd805aa112a8"},
     {"path": "OpenIntelligenceTests/Services/Agentic/AppLinkTests.swift", "role": "test", "blob": "d5892c7ceadf8ed04eb175915b5001f4ad512d5b"},
     {"path": "OpenIntelligenceTests/App/AppShortcutsProviderTests.swift", "role": "test", "blob": "74efc7d10db2b1a3d07a42b918e73bc71897e736"},
+    {"path": "OpenIntelligence/App/UITestSupport.swift", "role": "shared", "blob": "24482644370286351aaf8be12751cb7702619f00"},
+    {"path": "OpenIntelligenceUITests/ShortcutsSystemTests.swift", "role": "test", "blob": "883bfa26ebec4114e05bc9787e2f2147efe317d6"},
     {"path": "OpenIntelligence/UI/Components/SiriPhraseTip.swift", "role": "primary", "blob": "38bdd28e6babe9c9ea41d68f766c39fc2eacee7b"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/SiriDonations.swift", "role": "primary", "blob": "1ad864448aea00eae090fdc9f68e8e196261acad"},
     {"path": "OpenIntelligence/Services/Agentic/LibraryFocusFilterIntent.swift", "role": "primary", "blob": "84ffea3ccc7c6b8a1f8ca41bf98ca3ec44a504b4"},

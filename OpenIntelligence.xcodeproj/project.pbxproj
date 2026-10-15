@@ -41,6 +41,13 @@
 			remoteGlobalIDString = F0A100102F1A000100AA1001;
 			remoteInfo = OpenIntelligenceLiveActivities;
 		};
+		C1A100012F2E000100AA1001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B0D565D62E98AC50001274A2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B0D565DD2E98AC50001274A2;
+			remoteInfo = OpenIntelligence;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -68,6 +75,7 @@
 		F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceLiveActivitiesBundle.swift; sourceTree = "<group>"; };
 		F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OpenIntelligenceActivityIcon.png; sourceTree = "<group>"; };
 		F0A100232F1A000100AA1001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C1A100032F2E000100AA1001 /* OpenIntelligenceUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenIntelligenceUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -238,6 +246,11 @@
 			path = OpenIntelligence/Resources;
 			sourceTree = "<group>";
 		};
+		C1A100042F2E000100AA1001 /* OpenIntelligenceUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligenceUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -268,6 +281,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F0A1000B2F1A000100AA1001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1A100062F2E000100AA1001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -315,6 +335,7 @@
 			isa = PBXGroup;
 			children = (
 				17994961EE4C7527D88E9B5B /* OpenIntelligenceTests */,
+				C1A100042F2E000100AA1001 /* OpenIntelligenceUITests */,
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
 				F0A1000A2F1A000100AA1001 /* OpenIntelligenceLiveActivities */,
 				B0B991682F0F4BC700BBE97E /* Frameworks */,
@@ -327,6 +348,7 @@
 			isa = PBXGroup;
 			children = (
 				AF1C66A44688A7B340182360 /* OpenIntelligenceTests.xctest */,
+				C1A100032F2E000100AA1001 /* OpenIntelligenceUITests.xctest */,
 				B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */,
 				E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */,
 				F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */,
@@ -462,6 +484,27 @@
 			productReference = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C1A100082F2E000100AA1001 /* OpenIntelligenceUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C1A1000B2F2E000100AA1001 /* Build configuration list for PBXNativeTarget "OpenIntelligenceUITests" */;
+			buildPhases = (
+				C1A100052F2E000100AA1001 /* Sources */,
+				C1A100062F2E000100AA1001 /* Frameworks */,
+				C1A100072F2E000100AA1001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C1A100022F2E000100AA1001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C1A100042F2E000100AA1001 /* OpenIntelligenceUITests */,
+			);
+			name = OpenIntelligenceUITests;
+			productName = OpenIntelligenceUITests;
+			productReference = C1A100032F2E000100AA1001 /* OpenIntelligenceUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -472,6 +515,10 @@
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
+					C1A100082F2E000100AA1001 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = B0D565DD2E98AC50001274A2;
+					};
 					B0D565DD2E98AC50001274A2 = {
 						CreatedOnToolsVersion = 26.0;
 					};
@@ -501,6 +548,7 @@
 			projectRoot = "";
 			targets = (
 				0F3C6530C6DDDDF669D8396B /* OpenIntelligenceTests */,
+				C1A100082F2E000100AA1001 /* OpenIntelligenceUITests */,
 				B0D565DD2E98AC50001274A2 /* OpenIntelligence */,
 				E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */,
 				F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */,
@@ -538,6 +586,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C1A100072F2E000100AA1001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -572,6 +627,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C1A100052F2E000100AA1001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -592,6 +654,11 @@
 			platformFilter = ios;
 			target = F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */;
 			targetProxy = F0A100142F1A000100AA1001 /* PBXContainerItemProxy */;
+		};
+		C1A100022F2E000100AA1001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B0D565DD2E98AC50001274A2 /* OpenIntelligence */;
+			targetProxy = C1A100012F2E000100AA1001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1041,6 +1108,45 @@
 			};
 			name = Debug;
 		};
+		C1A100092F2E000100AA1001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 150;
+				DEVELOPMENT_TEAM = Z3E334EXZD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 5.3;
+				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = OpenIntelligence;
+			};
+			name = Debug;
+		};
+		C1A1000A2F2E000100AA1001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 150;
+				DEVELOPMENT_TEAM = Z3E334EXZD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 5.3;
+				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = OpenIntelligence;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1085,6 +1191,15 @@
 			buildConfigurations = (
 				F0A100122F1A000100AA1001 /* Debug */,
 				F0A100132F1A000100AA1001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C1A1000B2F2E000100AA1001 /* Build configuration list for PBXNativeTarget "OpenIntelligenceUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1A1000A2F2E000100AA1001 /* Release */,
+				C1A100092F2E000100AA1001 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

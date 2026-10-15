@@ -29,6 +29,7 @@ struct OpenIntelligenceApp: App {
         DebugRAGValidationHarness.runHeadlessIfNeeded()
         DebugEmbeddingBench.runIfRequested()
         DebugEmbeddingBench.runProvidersIfRequested()
+        UITestSupport.configure()
         #endif
 
         #if targetEnvironment(macCatalyst)

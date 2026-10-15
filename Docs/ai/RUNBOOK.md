@@ -200,6 +200,30 @@ Single suites:
 xcodebuild test -scheme OpenIntelligence -only-testing:OpenIntelligenceTests/HybridSearchServiceTests -derivedDataPath /private/tmp/oi-build -destination "platform=iOS Simulator,id=<UDID>"
 ```
 
+### The actions through the system: the UI-testing target *(added 2026-10-14)*
+
+`OpenIntelligenceUITests` has its own scheme, so the commands above are unchanged. It runs actions the
+way Siri and Shortcuts run them, with Apple's AppIntentsTesting (iOS 27 only), on the iOS 27 simulator:
+
+```bash
+xcodebuild build-for-testing -scheme OpenIntelligenceUITests -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath /private/tmp/oi-build
+```
+
+```bash
+xcodebuild test-without-building -scheme OpenIntelligenceUITests -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath /private/tmp/oi-build
+```
+
+*Recorded 2026-10-14:* 2 tests, 0 failures, 101.8 s. Each test launches the Debug app with
+`--uitest-stand-in-model`, a fixed answer in place of the model the Simulator lacks
+(`OpenIntelligence/App/UITestSupport.swift`), and adds and removes notes whose names start with
+"UITest quillberry" in the simulator's copy of the app, the same copy the unit suite is hosted in.
+Two traps. A library made in the Simulator holds all-zero vectors, so a test that waits on "Find
+Passages" or "Check a Claim" waits forever: their similarity floor drops everything. Wait on the
+document lookup instead (`definitions.entities["OIDocumentEntity"].entities(matching:)`), as
+`ShortcutsSystemTests` does. And what went wrong inside the app shows only in the app's own trace,
+`Documents/pipeline_trace.log` in its simulator data folder
+(`xcrun simctl get_app_container <UDID> Gunndamental.OpenIntelligence data`), not in the xcodebuild log.
+
 ## Retrieval benchmark
 
 The 20-case quality matrix runs the **macOS** app headlessly, once per case, against fixtures in
