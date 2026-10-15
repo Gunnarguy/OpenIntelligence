@@ -250,6 +250,12 @@ struct GetLibraryOverviewTool: Tool {
 /// an image, one searches a Core Spotlight index. Both are off unless their switch is set,
 /// because a tool's description takes room in the model's small window on every request and
 /// neither has been tried on a device with this app's questions yet.
+///
+/// Measured on the Mac on 2026-10-15 (`tokenCount(for: tools)`, an 8,192-token window): the OCR tool takes
+/// 193 tokens and reads only an image attached to the conversation, which an answer never has, so it has
+/// nothing to read here; it and the barcode tool are given to the session that describes an image instead
+/// (`ImageUnderstandingService.describeAttachedImage`). The Spotlight tool's description takes 13,606 tokens,
+/// more than the whole window, so it cannot be offered to the on-device model at all.
 @available(iOS 26.0, macOS 26.0, *)
 nonisolated enum SystemModelTools {
     static let ocrKey = "systemTools.ocr.enabled"

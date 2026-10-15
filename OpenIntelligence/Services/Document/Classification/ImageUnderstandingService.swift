@@ -582,8 +582,10 @@ class ImageUnderstandingService {
         // 2. Find associated caption
         let caption = findAssociatedCaption(for: bounds, in: pageTextObs)
 
-        // 3. Extract text FROM the image (critical for diagrams, screenshots, and annotated figures)
-        let extractedText = await extractTextFromImage(image)
+        // 3. Extract text FROM the image (critical for diagrams, screenshots, and annotated figures), with the
+        // codes in it read by Vision first (5.7, `readCodes`).
+        let codeReading = await Self.readCodes(in: image)
+        let extractedText = Self.textWithCodes(await extractTextFromImage(image), reading: codeReading)
 
         // 4. Find surrounding context
         let (precedingContext, followingContext) = findSurroundingContext(for: bounds, in: pageTextObs)
@@ -599,7 +601,8 @@ class ImageUnderstandingService {
                 extractedText: extractedText,
                 caption: caption,
                 precedingContext: precedingContext,
-                followingContext: followingContext
+                followingContext: followingContext,
+                codeReading: codeReading
             )
         }
 
@@ -642,7 +645,8 @@ class ImageUnderstandingService {
         extractedText: String? = nil,
         caption: String? = nil,
         precedingContext: String? = nil,
-        followingContext: String? = nil
+        followingContext: String? = nil,
+        codeReading: CodeReading = .notAttempted
     ) async -> String? {
         #if canImport(FoundationModels)
         do {
@@ -666,11 +670,19 @@ class ImageUnderstandingService {
                 instructions: Instructions("You describe images found in documents. Be concise and factual.")
             )
 
+            // The codes in the image, read by Vision, unless the caller read them (5.7, `readCodes`).
+            var reading = codeReading
+            var imageText = extractedText
+            if reading == .notAttempted {
+                reading = await Self.readCodes(in: image)
+                imageText = Self.textWithCodes(extractedText, reading: reading)
+            }
+
             // Build context-aware prompt based on content type
             let prompt = buildImageDescriptionPrompt(
                 contentType: contentType,
                 classifications: classifications,
-                extractedText: extractedText,
+                extractedText: imageText,
                 caption: caption,
                 precedingContext: precedingContext,
                 followingContext: followingContext
@@ -685,10 +697,11 @@ class ImageUnderstandingService {
                     let seen = await describeAttachedImage(
                         image,
                         contentType: contentType,
-                        extractedText: extractedText,
+                        extractedText: imageText,
                         caption: caption,
                         precedingContext: precedingContext,
-                        followingContext: followingContext
+                        followingContext: followingContext,
+                        offerReadingTools: reading == .unavailable
                     )
                 {
                     return seen
@@ -724,7 +737,8 @@ class ImageUnderstandingService {
             extractedText: String?,
             caption: String?,
             precedingContext: String?,
-            followingContext: String?
+            followingContext: String?,
+            offerReadingTools: Bool = false
         ) async -> String? {
             guard SystemLanguageModel.default.capabilities.contains(.vision),
                 contentType != .logo,
@@ -732,16 +746,27 @@ class ImageUnderstandingService {
                 let attached = Self.imageSizedForModel(image)
             else { return nil }
 
+            // Apple's tools that read text and codes from an attached image (5.7), offered only where Vision's
+            // barcode reader cannot run, because a call took 25.5 s against 5.1 s without one (measured on the
+            // Mac on 2026-10-15). They cost 193 and 198 tokens of the model's window.
+            var tools: [any Tool] = []
+            #if canImport(_Vision_FoundationModels)
+                if offerReadingTools {
+                    tools = [OCRTool(), BarcodeReaderTool()]
+                }
+            #endif
             let prompt = Self.attachedImagePrompt(
                 extractedText: extractedText,
                 caption: caption,
                 precedingContext: precedingContext,
-                followingContext: followingContext
+                followingContext: followingContext,
+                toolsOffered: !tools.isEmpty
             )
             // A session of its own. The text-only request that follows a failure here must be the
             // request it always was, with no image turn ahead of it in the transcript.
             let session = LanguageModelSession(
                 model: SystemLanguageModel.default,
+                tools: tools,
                 instructions: Instructions("You describe images found in documents. Be concise and factual.")
             )
             do {
@@ -749,7 +774,8 @@ class ImageUnderstandingService {
                     options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 256)
                 ) {
                     prompt
-                    Attachment(attached)
+                    // The tools find an image by its label; an unlabelled one was not found (2026-10-15).
+                    Attachment(attached).label(Self.attachedImageLabel)
                 }
                 let description = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !description.isEmpty else { return nil }
@@ -786,11 +812,15 @@ class ImageUnderstandingService {
     /// What the model is asked when it is shown the image. The notes come from text recognition and
     /// from the page around the image; the classifier's labels are left out, because the model can
     /// see what they were guessing at.
+    /// The label the image is attached under, which the reading tools are given.
+    nonisolated static let attachedImageLabel = "figure"
+
     nonisolated static func attachedImagePrompt(
         extractedText: String?,
         caption: String?,
         precedingContext: String?,
-        followingContext: String?
+        followingContext: String?,
+        toolsOffered: Bool = false
     ) -> String {
         var notes: [String] = []
         if let caption, !caption.isEmpty { notes.append("Caption on the page: \(caption)") }
@@ -809,10 +839,66 @@ class ImageUnderstandingService {
             Describe what it shows: its title or subject, the labels and values that can be read, and how its parts relate.
             Two or three sentences. State only what is visible. Keep words, codes, numbers and units exactly as written.
             """
+        // Shown a QR code, the model wrote a link it held none of, twice (measured on the Mac on 2026-10-15), so a
+        // code's contents come from Vision's reading or from the tools, never from the model's eye.
+        if toolsOffered {
+            prompt += "\nRead a barcode or QR code with readBarcodes, and text you cannot make out with getText, passing the label \(attachedImageLabel). Never guess what a code holds."
+        } else {
+            prompt += "\nNever write what a barcode or QR code holds unless the notes list it."
+        }
         if !notes.isEmpty {
             prompt += "\n\nNotes from the page, to use only where they agree with the image:\n" + notes.joined(separator: "\n")
         }
         return prompt
+    }
+
+    /// What Vision's barcode reader made of an image (5.7).
+    nonisolated enum CodeReading: Sendable, Equatable {
+        /// Not tried yet.
+        case notAttempted
+        /// The reader cannot run here: the iOS Simulator cannot create it.
+        case unavailable
+        /// The codes read, as "QR code: <contents>" lines; empty when there are none.
+        case read([String])
+    }
+
+    /// Reads the barcodes and QR codes in an image with Vision (5.7). A code's contents go into the image's text,
+    /// where a search finds them and the model is given them: shown a QR code without them, the on-device model
+    /// wrote "https://www.apple.com" for one that held "https://example.com/manual/X-200", twice. Vision read it in
+    /// 2.5 s, its first request of the run, and a picture with no code in 12 ms (measured on the Mac on 2026-10-15).
+    nonisolated static func readCodes(in image: CIImage) async -> CodeReading {
+        do {
+            let found = try await DetectBarcodesRequest().perform(on: image)
+            var lines: [String] = []
+            for barcode in found {
+                guard let contents = barcode.payloadString?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    !contents.isEmpty
+                else { continue }
+                let line = "\(codeKind(barcode.symbology)): \(contents)"
+                if !lines.contains(line) { lines.append(line) }
+            }
+            return .read(lines)
+        } catch {
+            return .unavailable
+        }
+    }
+
+    nonisolated static func codeKind(_ symbology: BarcodeSymbology) -> String {
+        switch symbology {
+        case .qr, .microQR: return "QR code"
+        case .dataMatrix: return "Data Matrix code"
+        case .aztec: return "Aztec code"
+        case .pdf417, .microPDF417: return "PDF417 code"
+        default: return "Barcode"
+        }
+    }
+
+    /// The image's text with the codes read in it first, so a prompt that keeps only the start of it keeps them.
+    nonisolated static func textWithCodes(_ text: String?, reading: CodeReading) -> String? {
+        guard case .read(let codes) = reading, !codes.isEmpty else { return text }
+        let lines = codes.joined(separator: "\n")
+        guard let text, !text.isEmpty else { return lines }
+        return lines + "\n" + text
     }
 
     /// Build a context-aware prompt for image description based on content type
@@ -1044,8 +1130,9 @@ class ImageUnderstandingService {
         let classifications = (try? await classifyImage(image)) ?? []
         let contentType = ImageContentType.from(classifications: classifications)
 
-        // 2. Extract text from image (OCR)
-        let extractedText = await extractTextFromImage(image)
+        // 2. Extract text from image (OCR), with the codes in it read by Vision first (5.7, `readCodes`)
+        let codeReading = await Self.readCodes(in: image)
+        let extractedText = Self.textWithCodes(await extractTextFromImage(image), reading: codeReading)
 
         // 3. Generate AI description if available (iOS 26+)
         var aiDescription: String? = nil
@@ -1057,7 +1144,8 @@ class ImageUnderstandingService {
                 extractedText: extractedText,
                 caption: nil,
                 precedingContext: nil,
-                followingContext: nil
+                followingContext: nil,
+                codeReading: codeReading
             )
         }
 

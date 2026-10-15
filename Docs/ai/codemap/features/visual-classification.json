@@ -13,7 +13,8 @@
     {"path": "OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift", "role": "primary", "blob": "aa1246ce45d493def2e5b81b02ed9796bba1920b"},
     {"path": "OpenIntelligence/Services/Document/Classification/LiveObjectDetectionService.swift", "role": "primary", "blob": "385e1f0790bdf16ba138e01ed49f053c3927b504"},
     {"path": "OpenIntelligenceTests/Services/Document/LiveObjectDetectionTests.swift", "role": "test", "blob": "13a8839c22101d777cbddd93ec45bd192ec5d881"},
-    {"path": "OpenIntelligenceTests/Services/Document/Classification/AttachedImageDescriptionTests.swift", "role": "test", "blob": "0ed4bad35ca306339cef3ccb38a3f038c6390db5"}
+    {"path": "OpenIntelligenceTests/Services/Document/Classification/AttachedImageDescriptionTests.swift", "role": "test", "blob": "0ed4bad35ca306339cef3ccb38a3f038c6390db5"},
+    {"path": "OpenIntelligenceTests/Services/Document/ImageCodeReadingTests.swift", "role": "test", "blob": "c59dd8af99ac9fffdd111b92a3ef01295162ebcb"}
   ],
   "nodes": [
     {"id": "CoreMLDocumentClassifier", "kind": "model", "path": "OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift", "line": 152, "match": "actor CoreMLDocumentClassifier {", "status": "VERIFIED", "by": "build"},
