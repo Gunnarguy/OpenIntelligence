@@ -23,6 +23,8 @@ final class DocumentDeletionTests: XCTestCase {
             "Delete 5 documents, “A”, “B”, “C” and 2 more? Their passages and Spotlight entries go with them.")
         XCTAssertEqual(DocumentDeletion.done(count: 1), "Deleted the document.")
         XCTAssertEqual(DocumentDeletion.done(count: 3), "Deleted 3 documents.")
+        XCTAssertEqual(
+            DocumentDeletion.done(count: 1, undoable: true), "Deleted the document. You can undo it for a few seconds.")
     }
 
     /// The safety the action rests on: a document the engine's list does not hold is never handed

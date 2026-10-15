@@ -58,6 +58,7 @@ struct ContentView: View {
         // The app's engine is the one actions reach for imports, lists and conversations. It sets
         // itself here; an engine an action builds for one question registers only when none is set.
         RAGService.activePresentedInstance = ragSvc
+        ragSvc.isTheAppsEngine = true
         _workspaceSyncService = StateObject(wrappedValue: workspaceSyncSvc)
         _containerService = StateObject(wrappedValue: containerSvc)
         _ragService = StateObject(wrappedValue: ragSvc)
@@ -473,6 +474,13 @@ struct ContentView: View {
                 await ragService.persistAllVectorStores()
                 ragService.persistIngestionQueueState()
                 ragService.saveSessionTranscript()
+                // A deletion still in its undo seconds runs now (5.7, `RAGService.scheduleRemoval`): after the
+                // flush above, so a slow removal cannot hold it up, and flushed again after, for the stores it
+                // changed. If iOS ends the app before it finishes, the next launch runs it.
+                if ragService.hasUnfinishedRemovals {
+                    await ragService.commitPendingRemovals()
+                    await ragService.persistAllVectorStores()
+                }
                 #if os(iOS)
                     // Last, so that nothing above waits on it. Not on the Mac: a hidden or
                     // minimised window would pay a full decode at its next question, and

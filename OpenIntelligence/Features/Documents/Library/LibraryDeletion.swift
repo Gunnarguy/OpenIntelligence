@@ -93,6 +93,11 @@ enum LibraryDeletion {
 
         let containerId = container.id
 
+        // A deletion still in its undo seconds runs first (5.7, `RAGService.scheduleRemoval`): its
+        // documents are out of the list, so the loop below would not remove them, and their removal
+        // would otherwise come after the library is gone.
+        await ragService.commitPendingRemovals()
+
         // Stop any in-flight ingestion first, so a document cannot finish importing into a
         // library that is being torn down underneath it.
         await ragService.cancelAndPurgeIngestion(for: containerId)

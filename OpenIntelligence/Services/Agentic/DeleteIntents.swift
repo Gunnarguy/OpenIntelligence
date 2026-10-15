@@ -16,8 +16,12 @@ import Foundation
 /// holds every document asked for, and a document no longer there stops the action before anything
 /// is deleted. A save leaves out a document recorded as deleted, so another engine that read the
 /// list earlier does not write it back (`RAGService.saveDocumentsToDisk`).
+///
+/// Run in the open app, the deletion waits out the seconds a deletion made in the app does, with the
+/// library's Undo bar, and the app's Undo puts the documents back until it runs (`UndoableIntent`,
+/// `RAGService.scheduleRemoval`). Otherwise, with no app on screen to undo it in, it runs at once.
 @available(iOS 26.0, macOS 26.0, *)
-struct DeleteDocumentsIntent: DeleteIntent {
+struct DeleteDocumentsIntent: DeleteIntent, UndoableIntent {
     static var title: LocalizedStringResource = "Delete Documents"
     static var description: IntentDescription = .init(
         "Deletes documents from your libraries, with their passages and their Spotlight entries, after asking.",
@@ -45,6 +49,11 @@ struct DeleteDocumentsIntent: DeleteIntent {
         let wanted = Set(entities.map(\.id))
         let engine = await MainActor.run { IntentSupport.engine() }
         let documents = try await DocumentDeletion.documents(wanted, in: engine)
+        if await scheduleWithUndo(documents, in: engine) {
+            Log.info("[Shortcuts] Deleted \(documents.count) document(s), undoable for a few seconds", category: .pipeline)
+            return .result(
+                dialog: IntentDialog(stringLiteral: DocumentDeletion.done(count: documents.count, undoable: true)))
+        }
         for document in documents {
             do {
                 try await engine.removeDocument(document)
@@ -55,6 +64,16 @@ struct DeleteDocumentsIntent: DeleteIntent {
         }
         Log.info("[Shortcuts] Deleted \(documents.count) document(s)", category: .pipeline)
         return .result(dialog: IntentDialog(stringLiteral: DocumentDeletion.done(count: documents.count)))
+    }
+
+    /// Schedules the removal with undo when the action runs in the open app: the system hands it an undo
+    /// manager there, and the engine deleting is the app's own (`isTheAppsEngine`). An engine built for the
+    /// action, with the app closed, removes at once: it is released when the action ends, and its removal with
+    /// it.
+    @MainActor
+    private func scheduleWithUndo(_ documents: [Document], in engine: RAGService) -> Bool {
+        guard let undoManager, engine.isTheAppsEngine else { return false }
+        return engine.scheduleRemoval(of: documents, undoManager: undoManager, actionName: "Delete Documents") != nil
     }
 }
 
@@ -95,7 +114,8 @@ enum DocumentDeletion {
         }
     }
 
-    nonisolated static func done(count: Int) -> String {
-        count == 1 ? "Deleted the document." : "Deleted \(count) documents."
+    nonisolated static func done(count: Int, undoable: Bool = false) -> String {
+        let done = count == 1 ? "Deleted the document." : "Deleted \(count) documents."
+        return undoable ? done + " You can undo it for a few seconds." : done
     }
 }

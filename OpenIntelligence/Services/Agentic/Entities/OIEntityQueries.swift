@@ -68,13 +68,15 @@ struct OIDocumentEntityQuery: EntityQuery, EntityStringQuery, EnumerableEntityQu
         return url
     }
 
-    /// Every stored document record, read from the documents file.
+    /// Every stored document record, read from the documents file, but those whose deletion is waiting out its
+    /// undo seconds (5.7, `PendingDocumentRemovalLedger`): they are out of the app's list, so not offered here.
     static func loadDocumentRecords() -> [Document] {
         let url = AppSupportPaths.documentsMetadataURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         do {
             let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode([Document].self, from: data)
+            let pending = PendingDocumentRemovalLedger.allIds()
+            return try JSONDecoder().decode([Document].self, from: data).filter { !pending.contains($0.id) }
         } catch {
             return []
         }

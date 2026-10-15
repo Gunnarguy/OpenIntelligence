@@ -369,6 +369,9 @@ class RAGService: ObservableObject {
     /// weak pointer can be nil or another window's engine, which sent a chat's own request to the relay
     /// and left an action's with nothing to show it.
     @MainActor var asksThroughRelay = false
+    /// True on the engine the app's window shows (`ContentView`). `activePresentedInstance` is not that: an
+    /// engine an action builds with the app closed registers there too, when nothing holds the place (5.7).
+    @MainActor var isTheAppsEngine = false
     /// Set once a sheet for this engine went unseen: its later steps go on without Private Cloud
     /// Compute instead of bringing the app forward and waiting again. An action's engine serves one
     /// question, so this lasts for that question.
@@ -2013,6 +2016,11 @@ class RAGService: ObservableObject {
     @MainActor var forceAgenticOnNextQuery: Bool = false
 
     @MainActor @Published var documents: [Document] = []
+    /// Deletions made in the app that can still be undone (5.7, `PendingDocumentRemoval`): their documents are
+    /// out of `documents` and not removed yet.
+    @MainActor @Published private(set) var pendingRemovals: [PendingDocumentRemoval] = []
+    /// Each pending removal's timer, what runs before it, and its entry in an undo manager.
+    @MainActor private var pendingRemovalWork: [UUID: PendingDocumentRemovalWork] = [:]
     @MainActor @Published var isProcessing: Bool = false
     @MainActor @Published var processingStatus: String = ""
     @MainActor @Published var lastError: String? = nil  // User-facing error message
@@ -4603,6 +4611,8 @@ class RAGService: ObservableObject {
             // removed, so cached searches no question can reach are deleted at launch too (5.7).
             await Self.deleteUnreachableCachedSearches(
                 documents: self.documents.map { (id: $0.id, passages: $0.totalChunks) })
+            // Deletions made just before the app last closed, whose undo seconds it did not live through (5.7).
+            await self.removeDocumentsLeftPending()
         }
     }
 
@@ -4657,12 +4667,17 @@ class RAGService: ObservableObject {
         SpotlightIndexService.shared.documentsLoaded(
             loadedDocuments, defaultLibraryId: containerService.containers.first?.id)
         hasAppliedLoadedDocuments = true
-        guard documents != loadedDocuments else { return }
-        documents = loadedDocuments
-        totalChunksStored = loadedDocuments.reduce(0) { $0 + $1.totalChunks }
+        // A document whose removal is waiting out its undo seconds stays out of the list (5.7): it is still on
+        // disk until the removal runs, and a reload in those seconds would otherwise show it again. The
+        // analysis sweep and Spotlight above are given every document, so an undo finds both as they were.
+        let hidden = PendingDocumentRemovalLedger.allIds().union(pendingRemovals.flatMap { $0.documents.map(\.id) })
+        let shown = hidden.isEmpty ? loadedDocuments : loadedDocuments.filter { !hidden.contains($0.id) }
+        guard documents != shown else { return }
+        documents = shown
+        totalChunksStored = shown.reduce(0) { $0 + $1.totalChunks }
         syncAllContainerStats()
-        Log.info("[RAGService] Loaded \(loadedDocuments.count) documents (\(totalChunksStored) chunks)")
-        if !loadedDocuments.isEmpty {
+        Log.info("[RAGService] Loaded \(shown.count) documents (\(totalChunksStored) chunks)")
+        if !shown.isEmpty {
             refreshIntelligence(for: nil)
         }
     }
@@ -9062,6 +9077,198 @@ class RAGService: ObservableObject {
         }
     }
 
+    // MARK: - Deleting with undo (5.7)
+
+    /// Takes documents out of the list now and removes them for good after `window`, unless `undoRemoval` puts
+    /// them back first (5.7, `PendingDocumentRemoval`). `beforeRemoving` runs for each document just before its
+    /// removal, as deleting a shared document's file from iCloud does. With an `undoManager`, its Undo (Edit,
+    /// Undo on the Mac, shaking the iPhone) puts them back too, until the removal runs. Returns the removal's
+    /// id, or nil when none of the documents is in the list.
+    @MainActor
+    @discardableResult
+    func scheduleRemoval(
+        of documentsToRemove: [Document],
+        window: Duration = PendingDocumentRemoval.undoWindow,
+        undoManager: UndoManager? = nil,
+        actionName: String = "Delete Document",
+        beforeRemoving: (@MainActor (Document) async -> Void)? = nil
+    ) -> UUID? {
+        let wanted = Set(documentsToRemove.map(\.id))
+        var taken: [Document] = []
+        var positions: [Int] = []
+        for (position, document) in documents.enumerated() where wanted.contains(document.id) {
+            taken.append(document)
+            positions.append(position)
+        }
+        guard !taken.isEmpty else { return nil }
+        let removal = PendingDocumentRemoval(
+            id: UUID(), documents: taken, positions: positions,
+            deadline: Date().addingTimeInterval(window / .seconds(1)))
+        let takenIds = Set(taken.map(\.id))
+        documents.removeAll { takenIds.contains($0.id) }
+        totalChunksStored -= taken.reduce(0) { $0 + $1.totalChunks }
+        syncContainerStats(forLibrariesOf: taken)
+        PendingDocumentRemovalLedger.add(takenIds)
+
+        let work = PendingDocumentRemovalWork(beforeRemoving: beforeRemoving, undoManager: undoManager)
+        if let undoManager {
+            let removalId = removal.id
+            let target = work.undoTarget
+            // An undo manager does not keep its target alive, so the entry holds it (`[target]`): the work
+            // record that also holds it goes when the removal runs or is undone.
+            undoManager.registerUndo(withTarget: target) { [weak self, target] _ in
+                withExtendedLifetime(target) { _ = self?.undoRemoval(removalId) }
+            }
+            undoManager.setActionName(actionName)
+        }
+        pendingRemovals.append(removal)
+        pendingRemovalWork[removal.id] = work
+        // The timer keeps the engine until it fires, so a Mac window closed in those seconds still has its
+        // removal run, rather than at the next launch.
+        work.timer = Task { @MainActor in
+            try? await Task.sleep(for: window)
+            guard !Task.isCancelled else { return }
+            await self.commitRemoval(removal.id)
+        }
+        Log.info(
+            "[RAGService] Took \(taken.count) document(s) out of the list; removed in \(window) unless undone",
+            category: .ingestion)
+        return removal.id
+    }
+
+    /// Puts back the documents of a removal that has not run, where they were in the list (5.7). Returns false
+    /// when it has run already, or was undone.
+    @MainActor
+    @discardableResult
+    func undoRemoval(_ id: UUID) -> Bool {
+        guard let index = pendingRemovals.firstIndex(where: { $0.id == id }) else { return false }
+        let removal = pendingRemovals.remove(at: index)
+        if let work = pendingRemovalWork.removeValue(forKey: id) {
+            work.timer?.cancel()
+            // Not while the undo manager is running this undo itself.
+            if let undoManager = work.undoManager, !undoManager.isUndoing {
+                undoManager.removeAllActions(withTarget: work.undoTarget)
+            }
+        }
+        // A document already back in the list, from a reload, is not added twice.
+        var listed = Set(documents.map(\.id))
+        for (document, position) in zip(removal.documents, removal.positions) where !listed.contains(document.id) {
+            documents.insert(document, at: min(position, documents.count))
+            totalChunksStored += document.totalChunks
+            listed.insert(document.id)
+        }
+        syncContainerStats(forLibrariesOf: removal.documents)
+        PendingDocumentRemovalLedger.remove(Set(removal.documents.map(\.id)))
+        Log.info("[RAGService] Put back \(removal.documents.count) document(s): the deletion was undone", category: .ingestion)
+        return true
+    }
+
+    /// Removals that have started and not finished, each with its documents (5.7).
+    @MainActor private var removalsRunning: [UUID: (task: Task<Void, Never>, documentIds: Set<UUID>)] = [:]
+
+    /// Runs a pending removal now, and returns when it has finished (5.7). Returns false when there is none by
+    /// that id to start: it was undone, it has run, or it is running, in which case this waits for it.
+    @MainActor
+    @discardableResult
+    func commitRemoval(_ id: UUID) async -> Bool {
+        if let running = removalsRunning[id] {
+            await running.task.value
+            return false
+        }
+        guard let index = pendingRemovals.firstIndex(where: { $0.id == id }) else { return false }
+        let removal = pendingRemovals.remove(at: index)
+        // The timer is not cancelled here: this can be the timer's own call.
+        let work = pendingRemovalWork.removeValue(forKey: id)
+        if let work, let undoManager = work.undoManager {
+            undoManager.removeAllActions(withTarget: work.undoTarget)
+        }
+        // A task of its own: no caller's cancellation stops it halfway, and a caller that must wait for every
+        // removal can (`commitPendingRemovals`).
+        let task = Task { @MainActor in
+            for document in removal.documents {
+                await work?.beforeRemoving?(document)
+                do {
+                    try await self.removeDocument(document)
+                } catch {
+                    Log.error(
+                        "[RAGService] Could not remove \(document.filename): \(error.localizedDescription)",
+                        category: .ingestion)
+                }
+            }
+            PendingDocumentRemovalLedger.remove(Set(removal.documents.map(\.id)))
+            // Cleared by the removal itself, so whoever awaits it finds it gone; a caller clearing it after its
+            // own wait could resume after another waiter (`PendingDocumentRemovalTests`, 2026-10-15).
+            self.removalsRunning[id] = nil
+        }
+        // Set before the task can start: it waits for the main actor, which this holds until the await below.
+        removalsRunning[id] = (task, Set(removal.documents.map(\.id)))
+        await task.value
+        return true
+    }
+
+    /// Whether a removal is waiting or running (5.7).
+    @MainActor
+    var hasUnfinishedRemovals: Bool { !pendingRemovals.isEmpty || !removalsRunning.isEmpty }
+
+    /// Whether this document's removal is waiting or running (5.7).
+    @MainActor
+    func isRemovalPending(_ documentId: UUID) -> Bool {
+        pendingRemovals.contains { $0.documents.contains { $0.id == documentId } }
+            || removalsRunning.values.contains { $0.documentIds.contains(documentId) }
+    }
+
+    /// Runs every waiting removal now and waits for those already running (5.7): when the app goes to the
+    /// background, before a library is deleted or emptied, and before Clear All.
+    @MainActor
+    func commitPendingRemovals() async {
+        for removal in pendingRemovals {
+            pendingRemovalWork[removal.id]?.timer?.cancel()
+            await commitRemoval(removal.id)
+        }
+        for running in removalsRunning.values {
+            await running.task.value
+        }
+    }
+
+    /// Whether this launch has run the removals an earlier run of the app left pending.
+    @MainActor private static var removalsLeftPendingChecked = false
+
+    /// Runs, once a launch, the removals an earlier run of the app scheduled and did not live to run (5.7):
+    /// the app was closed, or ended, in a deletion's undo seconds. Their deletion was asked for and never
+    /// undone, and the documents are out of the list already (`applyLoadedDocuments`). `force` runs it again,
+    /// for a test.
+    @MainActor
+    func removeDocumentsLeftPending(
+        ledgerURL: URL = PendingDocumentRemovalLedger.defaultURL, force: Bool = false
+    ) async {
+        guard force || !Self.removalsLeftPendingChecked else { return }
+        Self.removalsLeftPendingChecked = true
+        let leftOver = PendingDocumentRemovalLedger.earlierRunIds(at: ledgerURL)
+        guard !leftOver.isEmpty, let listed = loadDocumentsSnapshotFromDisk() else { return }
+        let documentsToRemove = listed.filter { leftOver.contains($0.id) }
+        for document in documentsToRemove {
+            do {
+                try await removeDocument(document)
+            } catch {
+                Log.error(
+                    "[RAGService] Could not remove \(document.filename): \(error.localizedDescription)",
+                    category: .ingestion)
+            }
+        }
+        PendingDocumentRemovalLedger.remove(leftOver, at: ledgerURL)
+        Log.info(
+            "[RAGService] Removed \(documentsToRemove.count) document(s) deleted just before the app last closed",
+            category: .ingestion)
+    }
+
+    @MainActor
+    private func syncContainerStats(forLibrariesOf affected: [Document]) {
+        let firstLibrary = containerService.containers.first?.id
+        for containerId in Set(affected.compactMap { $0.containerId ?? firstLibrary }) {
+            syncContainerStats(for: containerId)
+        }
+    }
+
     /// Remove a document from the knowledge base
     func removeDocument(_ document: Document, keepPhysicalFile: Bool = false) async throws {
         registerDeletedDocuments([document])
@@ -9098,8 +9305,12 @@ class RAGService: ObservableObject {
         await SuggestedQuestionsService.shared.removeQuestions(for: document.id, in: targetContainerId)
 
         await MainActor.run {
+            let listedBefore = documents.count
             documents.removeAll { $0.id == document.id }
-            totalChunksStored -= document.totalChunks
+            // A document a pending removal took out of the list had its passages subtracted then (5.7).
+            if documents.count < listedBefore {
+                totalChunksStored -= document.totalChunks
+            }
             syncContainerStats(for: targetContainerId)
         }
 
@@ -9112,6 +9323,9 @@ class RAGService: ObservableObject {
 
     /// Clear all documents from the knowledge base
     func clearAllDocuments() async throws {
+        // A deletion still in its undo seconds runs first (5.7): its document is out of the list, so this would
+        // empty its stores without recording it as deleted, and an Undo would bring back an empty document.
+        await commitPendingRemovals()
         let db = await dbForActiveContainer()
         try await db.clear()
 
@@ -9353,6 +9567,21 @@ class RAGService: ObservableObject {
             }
 
             let trackingId = rebuildItems[index].id
+
+            // A document deleted while the rebuild runs is waiting out its undo seconds with its file still
+            // there, and rebuilding it would import it again under a new id (5.7, `scheduleRemoval`).
+            if await MainActor.run(body: { self.isRemovalPending(document.id) }) {
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: document.filename,
+                        stage: .complete,
+                        detail: "Skipped (deleted)",
+                        progress: 1.0
+                    )
+                }
+                continue
+            }
 
             let targetWindow = container?.chunkingDirective?.targetWordWindow ?? ChunkingDefaults.targetWindow
             let targetOverlap = container?.chunkingDirective?.overlapWords ?? ChunkingDefaults.overlap

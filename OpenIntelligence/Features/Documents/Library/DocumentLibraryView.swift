@@ -1128,6 +1128,8 @@ struct DocumentLibraryView: View {
             sampleRefreshBanner
             libraryAlertView
         }
+        .overlay(alignment: .bottom) { pendingRemovalBar }
+        .animation(DSAnimations.snappySpring, value: ragService.pendingRemovals.map(\.id))
         // Runs once per appearance and returns immediately when nothing has drifted:
         // `staleImportedSamples` compares a recorded hash per sample and exits on the
         // first mismatch check. Deliberately not run during onboarding, which is
@@ -1234,6 +1236,39 @@ struct DocumentLibraryView: View {
             .padding(DSSpacing.md)
             .background(Color.orange.opacity(0.12))
             .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// The last deletion that can still be undone (5.7, `PendingDocumentRemoval`), at the bottom of the
+    /// library until its seconds run out or it is undone. Styled as the chat's stage notices
+    /// (`EventToastView`), with this screen's own banner button.
+    @ViewBuilder
+    private var pendingRemovalBar: some View {
+        if let removal = ragService.pendingRemovals.last {
+            HStack(spacing: DSSpacing.sm) {
+                Image(systemName: "trash")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.red)
+                Text(removal.summary)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(DSColors.primaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: DSSpacing.xs)
+                Button("Undo") {
+                    ragService.undoRemoval(removal.id)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.sm)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.red.opacity(0.3), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.bottom, DSSpacing.md)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
@@ -1969,6 +2004,8 @@ struct DocumentLibraryView: View {
                 isRefreshingSharedWorkspace = true
                 sharedWorkspaceRefreshMessage = nil
             }
+            // A deletion still in its undo seconds runs first (5.7): its documents are out of the list.
+            await ragService.commitPendingRemovals()
 
             let docsToRemove = await MainActor.run {
                 ragService.documents.filter { document in

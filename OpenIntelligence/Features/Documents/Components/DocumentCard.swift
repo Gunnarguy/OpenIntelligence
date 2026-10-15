@@ -11,6 +11,7 @@ struct ModernDocumentCard: View {
     let document: Document
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var workspaceSyncService: WorkspaceSyncService
+    @Environment(\.undoManager) private var undoManager
     @State private var showingDeleteAlert = false
     @State private var deleteMode: DeleteMode = .local
 
@@ -129,16 +130,24 @@ struct ModernDocumentCard: View {
         .alert(alertTitle, isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {}
             Button(confirmButtonTitle, role: .destructive) {
-                Task {
-                    if deleteMode == .everywhere {
-                        try? await workspaceSyncService.deleteDocumentFromICloud(document)
-                    }
-                    try? await ragService.removeDocument(document)
-                }
+                confirmDelete()
             }
         } message: {
             Text(alertMessage)
         }
+    }
+
+    /// Takes the document out of the library at once and removes it when its undo seconds end (5.7,
+    /// `RAGService.scheduleRemoval`). Delete Everywhere also deletes the shared file from iCloud then.
+    private func confirmDelete() {
+        let sync = workspaceSyncService
+        let deleteFromICloud: (@MainActor (Document) async -> Void)?
+        if deleteMode == .everywhere {
+            deleteFromICloud = { document in try? await sync.deleteDocumentFromICloud(document) }
+        } else {
+            deleteFromICloud = nil
+        }
+        ragService.scheduleRemoval(of: [document], undoManager: undoManager, beforeRemoving: deleteFromICloud)
     }
 
     // Both modes delete the document everywhere, so neither is labelled as if it were local.
@@ -148,6 +157,9 @@ struct ModernDocumentCard: View {
     // `.everywhere` removes the shared file immediately while `.local` leaves the tombstone to
     // do it on the next sync pass. That is a timing difference, not a scope one, and calling
     // the first "Remove Local Copy" told users the opposite.
+    //
+    // From 5.7 both run when the deletion's undo seconds end (`RAGService.scheduleRemoval`), so
+    // until then nothing has left iCloud or this device and Undo puts the document back.
     private var alertTitle: String {
         switch deleteMode {
         case .local:
@@ -177,12 +189,12 @@ struct ModernDocumentCard: View {
                 // document from iCloud and from every other device. Promising recovery on a
                 // path that writes a permanent tombstone is the worst kind of wrong copy,
                 // because it is read at the moment someone decides whether to tap Delete.
-                return "This deletes \"\(document.filename)\" here and in iCloud, on every device signed in to this library. This cannot be undone."
+                return "This deletes \"\(document.filename)\" here and in iCloud, on every device signed in to this library. You can undo it for a few seconds."
             } else {
-                return "This will remove \"\(document.filename)\" and all its chunks from your knowledge base on this device."
+                return "This will remove \"\(document.filename)\" and all its chunks from your knowledge base on this device. You can undo it for a few seconds."
             }
         case .everywhere:
-            return "This will permanently delete \"\(document.filename)\" from iCloud Sync and remove it from every device using this shared library. This cannot be undone."
+            return "This will delete \"\(document.filename)\" from iCloud Sync and remove it from every device using this shared library. You can undo it for a few seconds."
         }
     }
 }

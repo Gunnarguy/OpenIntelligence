@@ -1813,3 +1813,30 @@ third-party image model, which is his call: on 2026-10-06 he kept the app on App
 decision covers a third-party model for search.
 
 **Alternatives.** Leave every row waiting: rejected, rows nobody can close accumulate (the roadmap skill's rule).
+
+## 2026-10-15 - A deletion in the app waits a few seconds before it removes anything
+
+**Context.** Through 5.6 a delete removed a document's passages, text, Spotlight entries, file and iCloud copy at once,
+and the catalogue row "Delete with confirmation, undo" asked for an undo. Removing passages and embeddings cannot be
+reversed without importing the file again, which makes new embeddings and a new id.
+
+**Decision.** A deletion takes the documents out of the list at once and runs the removal six seconds later
+(`PendingDocumentRemoval.undoWindow`), unless it is undone (`RAGService.scheduleRemoval`). Nothing is removed in those
+seconds, so an undo puts the documents back exactly as they were. The removal also runs when the app goes to the
+background, before a library is deleted, and at the next launch if the app ended in those seconds; the ids are kept
+per run of the app in `pending_document_removals.json` for that. Six seconds is a default chosen on 2026-10-15, not a
+measurement.
+
+**Alternatives.** A Recently Deleted area that keeps everything for days, as Photos does: every sweep that removes
+passages or text with no document (`removeTextOfUnfinishedImports`, the iCloud sweeps) would have to know about it,
+and a shared library's other devices would keep showing the document. Restoring by importing again: slower, and the
+document comes back with a new id, so conversations citing it lose the link.
+
+**Consequences.** Another device sees the deletion only when the removal runs, since the record of a deleted document
+(`registerDeletedDocuments`) is written then. A Mac app quit in those seconds removes the documents at its next launch;
+a Mac window closed in them keeps its engine until the removal runs. In those seconds Spotlight still finds the
+documents, while Shortcuts and Siri no longer list them. Anything that empties or rebuilds a library runs pending
+removals first or skips them, because their files and passages are still there. "Delete Documents" uses the same
+removal with undo only in the open app, on the app's own engine (`UndoableIntent`, `isTheAppsEngine`); run with no app
+on screen, it removes at once, because nothing is there to undo it in. A refuting review on the day of the decision
+found eight ways the first version could lose or keep the wrong document, and each is answered in the code.
