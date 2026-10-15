@@ -18,6 +18,9 @@ struct DocumentLibraryView: View {
     @ObservedObject var ragService: RAGService
     @ObservedObject var containerService: ContainerService
     @State private var showingFilePicker = false
+    @Environment(\.undoManager) private var undoManager
+    /// A document in an iCloud library that a swipe asked to delete, waiting for the answer (5.7).
+    @State private var swipeDeleteCandidate: Document?
     /// True while a Finder drag hovers the library, driving the drop outline.
     @State private var isDropTargeted = false
     @State private var showingProcessingSummary = false
@@ -242,6 +245,7 @@ struct DocumentLibraryView: View {
                         // Each card names its document, so Siri and Apple Intelligence know which
                         // documents are on screen (5.7).
                         .appEntityIdentifier(.document(document.id))
+                        .modifier(DocumentSwipeToDelete { swipeDelete(document) })
                     }
                 }
                 .padding()
@@ -255,6 +259,32 @@ struct DocumentLibraryView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 20)
             }
+            // The cards carry swipe actions from iOS and macOS 27 (`DocumentSwipeToDelete`).
+            .modifier(SwipeActionsContainerOn27())
+            .alert(
+                "Delete Document?",
+                isPresented: Binding(
+                    get: { swipeDeleteCandidate != nil },
+                    set: { if !$0 { swipeDeleteCandidate = nil } }),
+                presenting: swipeDeleteCandidate
+            ) { document in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    ragService.scheduleRemoval(of: [document], undoManager: undoManager)
+                }
+            } message: { document in
+                Text(ModernDocumentCard.sharedDeleteMessage(for: document.filename))
+            }
+        }
+    }
+
+    /// A swipe deletes a document only this device has at once, because the deletion can be undone for a few
+    /// seconds; one in an iCloud library asks first, as Delete in its menu does (5.7).
+    private func swipeDelete(_ document: Document) {
+        if ragService.syncMode(for: document) == .iCloudShared {
+            swipeDeleteCandidate = document
+        } else {
+            ragService.scheduleRemoval(of: [document], undoManager: undoManager)
         }
     }
 
@@ -2326,3 +2356,33 @@ private enum DocumentImportReadiness {
         func restorePurchases() async {}
     }
 #endif
+
+/// Swipe a document to delete it, where a scroll view's rows can carry swipe actions: iOS and macOS 27, with
+/// `SwipeActionsContainerOn27` on the list (5.7).
+private struct DocumentSwipeToDelete: ViewModifier {
+    let delete: () -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, macOS 27.0, *) {
+            content.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive, action: delete) {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Lets a scroll view's rows carry swipe actions, one row open at a time, the way a List's rows do
+/// (`swipeActionsContainer()`, iOS and macOS 27; developer.apple.com, read 2026-10-15).
+private struct SwipeActionsContainerOn27: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, macOS 27.0, *) {
+            content.swipeActionsContainer()
+        } else {
+            content
+        }
+    }
+}

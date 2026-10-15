@@ -189,13 +189,18 @@ struct ModernDocumentCard: View {
                 // document from iCloud and from every other device. Promising recovery on a
                 // path that writes a permanent tombstone is the worst kind of wrong copy,
                 // because it is read at the moment someone decides whether to tap Delete.
-                return "This deletes \"\(document.filename)\" here and in iCloud, on every device signed in to this library. You can undo it for a few seconds."
+                return Self.sharedDeleteMessage(for: document.filename)
             } else {
                 return "This will remove \"\(document.filename)\" and all its chunks from your knowledge base on this device. You can undo it for a few seconds."
             }
         case .everywhere:
             return "This will delete \"\(document.filename)\" from iCloud Sync and remove it from every device using this shared library. You can undo it for a few seconds."
         }
+    }
+
+    /// What deleting a document in an iCloud library asks first, from its menu or from a swipe (5.7).
+    static func sharedDeleteMessage(for filename: String) -> String {
+        "This deletes \"\(filename)\" here and in iCloud, on every device signed in to this library. You can undo it for a few seconds."
     }
 }
 
