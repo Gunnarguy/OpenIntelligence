@@ -88,6 +88,9 @@ struct DocumentLibraryView: View {
     let onViewVisualizations: (() -> Void)?
 
     private var documentLimit: Int { entitlementStore.documentLimit }
+    /// How many files a dropped or chosen folder may bring in: the room left on the plan, and never
+    /// more than 500 (5.7).
+    private var folderFileRoom: Int { max(0, min(500, documentLimit - ragService.documents.count)) }
     private var isAtDocumentLimit: Bool {
         ragService.documents.count >= documentLimit
     }
@@ -1650,7 +1653,7 @@ struct DocumentLibraryView: View {
             return
         }
         #if os(macOS)
-        MacDocumentImportPanel.present { urls in
+        MacDocumentImportPanel.present(folderFileLimit: folderFileRoom) { urls in
             reviewAndEnqueueDocuments(urls)
         }
         #else
@@ -1667,13 +1670,9 @@ struct DocumentLibraryView: View {
     @MainActor
     @discardableResult
     private func handleDroppedFiles(_ urls: [URL]) -> Bool {
-        // Directories would be copied wholesale by `copyItem`, and the ingestion
-        // pipeline has no concept of a folder document, so drop them here.
-        let fileURLs = urls.filter { url in
-            guard url.isFileURL else { return false }
-            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory
-            return isDirectory != true
-        }
+        // A folder is not a document: it brings in the files inside it that the app imports, through
+        // its subfolders (5.7). Through 5.6 a dropped folder was filtered out here and refused.
+        let fileURLs = urls.filter(\.isFileURL)
         guard !fileURLs.isEmpty else { return false }
 
         guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
@@ -1681,7 +1680,7 @@ struct DocumentLibraryView: View {
             return false
         }
 
-        let staged = ImportedFileStaging.copyIntoWorkspace(fileURLs)
+        let staged = ImportedFileStaging.copyIntoWorkspaceExpandingFolders(fileURLs, limit: folderFileRoom)
         guard !staged.isEmpty else { return false }
 
         reviewAndEnqueueDocuments(staged)

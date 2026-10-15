@@ -111,7 +111,7 @@ final class WhatsNewStore: ObservableObject {
         "5.7": WhatsNewRelease(
             version: "5.7",
             headline:
-                "This one's about getting things in and out of the app.  JSON and JSONL files import as records now, Shortcuts can search your library, add to it and make new libraries, and an answer you share takes its sources with it.",
+                "This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.",
             items: [
                 .init(
                     symbol: "curlybraces",
@@ -126,22 +126,28 @@ final class WhatsNewStore: ObservableObject {
                         "A text or JSONL file used to be read, cleaned up and cut into passages all at once, and iOS closed the app on a big one.  Now a file over 8 MB is read a few megabytes at a time, and each piece is indexed and saved before the next one starts.  If an import gets interrupted it picks up where it was."
                 ),
                 .init(
-                    symbol: "map",
-                    title: "The Atlas names things from your own documents",
+                    symbol: "mic",
+                    title: "Ask out loud",
                     detail:
-                        "Cluster names used to come from a built-in list of subjects, and they changed from one launch to the next.  Now a cluster is named by the words that set it apart from the rest of the library, each axis is labelled at both ends, and the same library gives the same map every time."
-                ),
-                .init(
-                    symbol: "globe",
-                    title: "\"Save a Web Page\" downloads the page",
-                    detail:
-                        "This Shortcuts action was called \"Ingest Webpage\".  It used to say it was extracting the page, and nothing was ever downloaded.  Now it fetches the page, saves its text and imports that."
+                        "The chat field has a microphone button on iPhone, iPad and Mac.  Tap it and talk, and your words show up in the field as you speak.  Tap it again to stop, then send when it looks right.  Dictation runs on your device."
                 ),
                 .init(
                     symbol: "arrow.turn.down.right",
                     title: "Shortcuts actions hand back what they found",
                     detail:
-                        "Asking a question from Shortcuts used to show a card and give the shortcut nothing to work with.  Now the ask actions return the answer with its sources, and \"Ask My Documents\" lets you pick Standard, Deep Think or Maximum."
+                        "Asking a question from Shortcuts used to show a card and give the shortcut nothing to work with.  Now the ask actions return the answer with its sources, and \"Ask My Documents\" and \"Ask a Library\" let you pick Standard, Deep Think or Maximum."
+                ),
+                .init(
+                    symbol: "hand.raised",
+                    title: "Siri asks before using Private Cloud Compute",
+                    detail:
+                        "When a question you ask with Siri or Shortcuts needs Private Cloud Compute and you haven't said yes or no to it yet, the app comes up and shows the same consent screen the chat does.  If the app can't come up, the question stays on your device."
+                ),
+                .init(
+                    symbol: "plus.rectangle.on.folder",
+                    title: "New actions for your libraries",
+                    detail:
+                        "\"Add to Library\" takes a file, a link or text.  \"Find Passages\" returns the passages matching a search without writing an answer, \"Check a Claim\" tells you whether your documents hold a sentence up, and \"Create Library\", \"Set Active Library\", \"Open Library\" and \"Open Document\" are new too."
                 ),
                 .init(
                     symbol: "doc.text.magnifyingglass",
@@ -150,40 +156,52 @@ final class WhatsNewStore: ObservableObject {
                         "It used to put the file's name in the question and search the whole library, so the answer could come from a different document.  Now it's searched inside the one you picked and nowhere else."
                 ),
                 .init(
-                    symbol: "plus.rectangle.on.folder",
-                    title: "One action adds a file, a link or text",
+                    symbol: "camera.viewfinder",
+                    title: "Spotlight and Visual Intelligence find your documents",
                     detail:
-                        "\"Add to Library\" takes any of the three, and you can pick which library it goes into.  \"Create Library\" and \"Set Active Library\" are new too."
-                ),
-                .init(
-                    symbol: "text.magnifyingglass",
-                    title: "Find Passages",
-                    detail:
-                        "A new action that returns the passages matching a search without writing an answer, so the next step of a shortcut can read them."
+                        "Spotlight keeps a document until you delete it, and tapping one opens that document.  Point the camera at a label or a printed page, or take a screenshot, and Visual Intelligence lists the documents in your libraries that mention what's in it."
                 ),
                 .init(
                     symbol: "square.and.arrow.up",
                     title: "A shared answer takes its sources with it",
                     detail:
-                        "Share used to send the answer's text and nothing else, so the [S1] and [S2] in it pointed at nothing.  Now the documents and pages it cites are listed under it, with the app's name and its App Store link at the end."
+                        "Share used to send the answer's text and nothing else, so the [S1] and [S2] in it pointed at nothing.  Now the documents and pages it cites are listed under it, with the app's name and its App Store link at the end.  Image makes a card of an answer to post or send."
                 ),
                 .init(
                     symbol: "arrow.up.doc",
                     title: "Export a conversation",
                     detail:
-                        "The chat menu has Export Conversation, as Markdown to read or as JSON Lines for other tools.  Each answer keeps its source list."
+                        "The chat menu has Export Conversation, as Markdown to read, as JSON Lines for other tools or as a PDF.  Each answer keeps its source list."
                 ),
                 .init(
-                    symbol: "doc.on.doc",
-                    title: "Copy works on the Mac",
+                    symbol: "lock.iphone",
+                    title: "Long answers on the Lock Screen",
                     detail:
-                        "The Copy button under an answer showed \"Copied\" on the Mac and copied nothing.  It copies now, and so do the three other copy buttons that had the same problem."
+                        "On iPhone and iPad, a question that's still being answered after about ten seconds shows a Live Activity with the step it's on.  Settings, Notifications can also tell you when an import or a long answer is done."
                 ),
                 .init(
-                    symbol: "text.alignleft",
-                    title: "Sentences from your documents aren't cut in half",
+                    symbol: "apps.iphone",
+                    title: "A widget",
                     detail:
-                        "Before the model writes, the app picks the sentences that match your question, and it was cutting them at every line break and after things like \"p.m.\"  They stay whole now."
+                        "Add OpenIntelligence to the Home Screen or the Lock Screen.  The small one asks a question, and the medium one has Ask, Add and Scan."
+                ),
+                .init(
+                    symbol: "laptopcomputer",
+                    title: "On the Mac",
+                    detail:
+                        "OpenIntelligence has a menu bar icon for asking, adding documents and searching.  Select text in any app and choose Ask OpenIntelligence from the Services menu, or select files in Finder and choose Add to OpenIntelligence.  The Copy button under an answer copies now, too."
+                ),
+                .init(
+                    symbol: "arrow.triangle.2.circlepath",
+                    title: "Handoff, and conversations that follow your library",
+                    detail:
+                        "What you have open in Chat or Documents on one device can be picked up on your other devices.  In a library set to iCloud Drive, your conversations now sync with it, where before they stayed on the device you had them on."
+                ),
+                .init(
+                    symbol: "map",
+                    title: "The Atlas names things from your own documents",
+                    detail:
+                        "Cluster names used to come from a built-in list of subjects, and they changed from one launch to the next.  Now a cluster is named by the words that set it apart from the rest of the library, each axis is labelled at both ends, and the same library gives the same map every time."
                 ),
             ]
         ),

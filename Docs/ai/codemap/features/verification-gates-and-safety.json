@@ -14,13 +14,13 @@
     {"path": "OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift", "role": "primary", "blob": "18d4f946d8549b7d8ab9a323f643a21713ee046b"},
     {"path": "OpenIntelligence/Services/RAG/Safety/QualityAssuranceService.swift", "role": "primary", "blob": "bb69426a9d16aa8b9753a1a0976cc7cbfbb03e3d"},
     {"path": "OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift", "role": "primary", "blob": "fd16a0fdd1359b1d60df642e7ba9dfe5524b7648"},
-    {"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "role": "primary", "blob": "2dde2d045734d5aea78722660f90e7fda4263d39"},
-    {"path": "OpenIntelligence/Core/Models/VerificationOutcome.swift", "role": "primary", "blob": "9d6406ee5cf69a8426d0516197b8fe3998067be7"},
-    {"path": "OpenIntelligenceTests/Core/Models/VerificationOutcomeTests.swift", "role": "test", "blob": "bc2ff93829e2169f1161fb4c26ef317a9e0598a5"},
+    {"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "role": "primary", "blob": "b4d9d3f9ba0a168cacc71cb016e9c63252899e88"},
+    {"path": "OpenIntelligence/Core/Models/VerificationOutcome.swift", "role": "primary", "blob": "4839692c1023fe5e26c5a305ef4e82245af8fd67"},
+    {"path": "OpenIntelligenceTests/Core/Models/VerificationOutcomeTests.swift", "role": "test", "blob": "f96c9c1a8df8f29ccd66febeeae51865f0412bb0"},
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/SemanticGroundingClaimTests.swift", "role": "test", "blob": "be2b6987fc35ec04a20d0b85b21538b6cb1c0b31"},
     {"path": "OpenIntelligence/Services/RAG/Safety/NumericValueExtractor.swift", "role": "primary", "blob": "b4d31fc1fcb048fadf613e104f0515fee8bd6aa5"},
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/NumericSanityGateTests.swift", "role": "test", "blob": "8325590aa63ab290f81487aeb3567c87e41e2a05"},
-    {"path": "OpenIntelligenceTests/Services/Evaluation/ClaimCheckEvaluationTests.swift", "role": "test", "blob": "b67bed0ca2996f458f7fe19a47a8a014d4c2dfbc"}
+    {"path": "OpenIntelligenceTests/Services/Evaluation/ClaimCheckEvaluationTests.swift", "role": "test", "blob": "c716cf1467aaa1eb52c206a1e7cb93d5eb2fcb14"}
   ],
   "nodes": [
     {"id": "VerificationGateService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 127, "match": "actor VerificationGateService {", "status": "VERIFIED", "by": "build"},

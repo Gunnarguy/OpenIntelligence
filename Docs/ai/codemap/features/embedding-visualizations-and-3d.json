@@ -10,7 +10,7 @@
   "files": [
     {"path": "OpenIntelligence/Features/Telemetry/Visualizations/AdaptiveVisualizationsView.swift", "role": "primary", "blob": "2d7b7e446986d945094424d20a30a053c6080b91"},
     {"path": "OpenIntelligence/Features/Telemetry/Visualizations/Embedding3DView.swift", "role": "primary", "blob": "dab48e4a46c97011cec1c65819ffbdeb3242afbd"},
-    {"path": "OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift", "role": "primary", "blob": "1bd662c09c3e06468de62d4f07132db76f8c8b67"},
+    {"path": "OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift", "role": "primary", "blob": "30908de86af14d0f63d9bc50f5b15a0a1d312e06"},
     {"path": "OpenIntelligence/Services/Infrastructure/Presentation/ClusterLabelService.swift", "role": "primary", "blob": "b39ec51fe9f2509b9c27a159e495460565bef063"},
     {"path": "OpenIntelligence/Services/Infrastructure/Presentation/LibraryIconSuggestionService.swift", "role": "primary", "blob": "9ee77e743dab0f502724e7da3eb059e748188090"},
     {"path": "OpenIntelligence/Services/Infrastructure/Presentation/LibraryVisualizationEngine.swift", "role": "primary", "blob": "b8a638f3b391846e05aab75a5f62b7bcc4a477a1"},

@@ -45,6 +45,10 @@ nonisolated enum VerificationOutcome: Equatable, Sendable {
         if ["low_confidence", "rerank_empty", "mmr_empty", "relevance_gate_failed"].contains(where: { decision.contains($0) }) {
             return .lowConfidence
         }
+        // Excerpts with no model and no check behind them (5.7).
+        if decision.contains("excerpts_only") {
+            return .notChecked
+        }
         if ["reliability_fallback", "high_accuracy_blocked"].contains(where: { decision.contains($0) }) {
             return .partial
         }

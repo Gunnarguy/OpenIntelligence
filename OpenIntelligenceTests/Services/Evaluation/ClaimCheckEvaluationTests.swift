@@ -8,10 +8,10 @@
 //  `VerificationGateService` says. No model runs, so it works in the simulator.
 //
 //  Two figures come out. "Agrees where the check claims to work" is asserted at 100%. "Agrees
-//  overall" also counts four sentences the check is known to get wrong (a flipped "not", an ordinal,
-//  a sentence half of whose words are in the passage without the passage saying it, and one that
-//  shares a third of its words with a passage that says the opposite); that figure is printed, not
-//  asserted, so the gap stays visible in the evaluation report.
+//  overall" also counts three sentences the check is known to get wrong (a flipped "not", an ordinal,
+//  and a sentence half of whose words are in the passage without the passage saying it); that figure
+//  is printed, not asserted, so the gap stays visible in the evaluation report. A fourth, a sentence
+//  that shares a third of its words with a passage that says the opposite, was closed in 5.7.
 //
 
 import Evaluations
@@ -86,11 +86,11 @@ nonisolated enum ClaimCheckDataset {
         .init("A late charge applies on the 16th day.", against: lease, is: notSupported, knownGap: true),
         .init("The landlord may enter with notice.", against: lease, is: notSupported, knownGap: true),
         // The passage says pets are not allowed. Three of this sentence's nine words are in it,
-        // which with a high retrieval score is enough for the check (found by this suite's first
-        // run, 2026-10-09).
+        // which with a high retrieval score was enough for the check (found by this suite's first
+        // run, 2026-10-09). From 5.7 the check reads the passage's sentence as saying the opposite
+        // (`ClaimCheck.negationDiffers`), so this is no longer a gap.
         .init(
-            "Pets are allowed with a refundable deposit of four hundred dollars.", against: lease, is: notSupported,
-            knownGap: true),
+            "Pets are allowed with a refundable deposit of four hundred dollars.", against: lease, is: notSupported),
     ]
 }
 

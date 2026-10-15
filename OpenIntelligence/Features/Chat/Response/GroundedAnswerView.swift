@@ -50,7 +50,7 @@ struct GroundedAnswerView: View {
                 get: { selectedCitationChunk.map { IdentifiableChunk(chunk: $0) } },
                 set: { selectedCitationChunk = $0?.chunk }
             )) { identifiableChunk in
-                NavigationView {
+                NavigationStack {
                     DocumentDetailsView(
                         document: CitationSourceDocument.resolve(
                             identifiableChunk.chunk, found: libraryDocumentLookup?.document(identifiableChunk.chunk.chunk.documentId)),

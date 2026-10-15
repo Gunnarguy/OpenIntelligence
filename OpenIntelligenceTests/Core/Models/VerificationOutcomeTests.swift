@@ -59,4 +59,10 @@ final class VerificationOutcomeTests: XCTestCase {
             XCTAssertEqual(VerificationOutcome.from(gatingDecision: decision), .partial, decision)
         }
     }
+
+    /// An answer of excerpts alone had no model and no check behind it, and read Partially Verified
+    /// through 5.6 (row "The Verified badge shows for answers whose checks failed or never ran").
+    func testAnAnswerOfExcerptsAloneReadsNotChecked() {
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "excerpts_only"), .notChecked)
+    }
 }

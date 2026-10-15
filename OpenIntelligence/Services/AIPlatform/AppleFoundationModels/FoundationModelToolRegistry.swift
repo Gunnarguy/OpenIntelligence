@@ -27,102 +27,15 @@ import _CoreSpotlight_FoundationModels
 #endif
 
 // MARK: - Tool Protocol Implementations for Function Calling
+//
+// Six tools declared here were registered nowhere (SearchDocuments, ListDocuments,
+// GetDocumentSummary, GetCorpusStats, FindRelatedDocuments, CompareDocuments); a tool reaches
+// a model only through `createTools`. They were removed in 5.7 (row "Six agentic tools are
+// declared but registered nowhere"); the RAGService methods they called stay, for the
+// diagnostics screens that use them.
 // TOKEN BUDGET: Apple FM has 4096 token context limit (~10K chars).
 // Each tool output should be ≤1500 chars to leave room for prompt + response.
 // All tools MUST truncate results to respect this budget.
-
-/// Tool for searching user's document library
-@available(iOS 26.0, macOS 26.0, *)
-struct SearchDocumentsTool: Tool {
-    let name = "search_documents"
-    let description =
-        "Search the user's document library for relevant information based on a query. Returns the most relevant text chunks with citations."
-
-    weak var ragService: RAGService?
-
-    @Generable
-    struct Arguments {
-        @Guide(
-            description:
-            "The search query to find relevant document chunks. Be specific and use keywords from the user's question."
-        )
-        var query: String
-        @Guide(
-            description:
-            "Maximum number of chunks to retrieve. Use 2–4 for brief summaries, 8–12 for deep dives.",
-            .range(1 ... 20)
-        )
-        var topK: Int?
-        @Guide(
-            description:
-            "Minimum semantic similarity threshold. Use 0.35 by default; increase to filter noise.",
-            .range(0.0 ... 1.0)
-        )
-        var minSimilarity: Float?
-    }
-
-    func call(arguments: Arguments) async throws -> String {
-        guard let ragService = ragService else {
-            return "Error: Document search service unavailable"
-        }
-        await ToolCallCounter.shared.increment()
-        return try await ragService.searchDocuments(
-            query: arguments.query,
-            topK: arguments.topK,
-            minSimilarity: arguments.minSimilarity
-        )
-    }
-}
-
-/// Tool for listing all available documents
-@available(iOS 26.0, macOS 26.0, *)
-struct ListDocumentsTool: Tool {
-    let name = "list_documents"
-    let description =
-        "List all documents in the user's library. Returns document names, types, page counts, and dates added."
-
-    weak var ragService: RAGService?
-
-    @Generable
-    struct Arguments {
-        // No arguments needed for listing
-    }
-
-    func call(arguments _: Arguments) async throws -> String {
-        guard let ragService = ragService else {
-            return "Error: Document service unavailable"
-        }
-        await ToolCallCounter.shared.increment()
-        return try await ragService.listDocuments()
-    }
-}
-
-/// Tool for getting summary of a specific document
-@available(iOS 26.0, macOS 26.0, *)
-struct GetDocumentSummaryTool: Tool {
-    let name = "get_document_summary"
-    let description =
-        "Get detailed information about a specific document including metadata, content summary, and statistics."
-
-    weak var ragService: RAGService?
-
-    @Generable
-    struct Arguments {
-        @Guide(
-            description:
-            "The exact name of the document to get details about. Use list_documents first to see available names."
-        )
-        var documentName: String
-    }
-
-    func call(arguments: Arguments) async throws -> String {
-        guard let ragService = ragService else {
-            return "Error: Document service unavailable"
-        }
-        await ToolCallCounter.shared.increment()
-        return try await ragService.getDocumentSummary(documentName: arguments.documentName)
-    }
-}
 
 // MARK: - Exact Search Tools (Full-Text, Not Semantic)
 
@@ -195,107 +108,6 @@ struct SearchExactPatternTool: Tool {
 }
 
 // MARK: - Analysis Tools
-
-/// Tool for getting corpus-wide statistics and analysis
-@available(iOS 26.0, macOS 26.0, *)
-struct GetCorpusStatsTool: Tool {
-    let name = "get_corpus_stats"
-    let description = """
-        Get statistics about the entire document library including:
-        - Total documents and pages
-        - Document types breakdown
-        - Total word/character counts
-        - Average document size
-        Use for questions about the library itself.
-        """
-
-    weak var ragService: RAGService?
-
-    @Generable
-    struct Arguments {
-        // No arguments needed for corpus stats
-    }
-
-    func call(arguments _: Arguments) async throws -> String {
-        guard let ragService = ragService else {
-            return "Error: Document service unavailable"
-        }
-        await ToolCallCounter.shared.increment()
-        return try await ragService.getCorpusStats()
-    }
-}
-
-/// Tool for finding documents related to a topic
-@available(iOS 26.0, macOS 26.0, *)
-struct FindRelatedDocumentsTool: Tool {
-    let name = "find_related_documents"
-    let description = """
-        Find documents that are semantically related to a topic or query.
-        Returns document names ranked by relevance, not individual chunks.
-        Use when you need to identify WHICH documents cover a topic.
-        """
-
-    weak var ragService: RAGService?
-
-    @Generable
-    struct Arguments {
-        @Guide(
-            description: "Topic or query to find related documents for"
-        )
-        var topic: String
-        @Guide(
-            description: "Maximum number of documents to return",
-            .range(1 ... 20)
-        )
-        var maxResults: Int?
-    }
-
-    func call(arguments: Arguments) async throws -> String {
-        guard let ragService = ragService else {
-            return "Error: Document service unavailable"
-        }
-        await ToolCallCounter.shared.increment()
-        return try await ragService.findRelatedDocuments(
-            topic: arguments.topic,
-            maxResults: arguments.maxResults ?? 5
-        )
-    }
-}
-
-/// Tool for comparing content across multiple documents
-@available(iOS 26.0, macOS 26.0, *)
-struct CompareDocumentsTool: Tool {
-    let name = "compare_documents"
-    let description = """
-        Compare how multiple documents discuss the same topic.
-        Useful for finding differences, contradictions, or complementary information.
-        """
-
-    weak var ragService: RAGService?
-
-    @Generable
-    struct Arguments {
-        @Guide(
-            description: "Topic to compare across documents"
-        )
-        var topic: String
-        @Guide(
-            description: "Names of specific documents to compare (optional, uses all if empty)"
-        )
-        var documentNames: [String]?
-    }
-
-    func call(arguments: Arguments) async throws -> String {
-        guard let ragService = ragService else {
-            return "Error: Document service unavailable"
-        }
-        await ToolCallCounter.shared.increment()
-        return try await ragService.compareDocumentsOnTopic(
-            topic: arguments.topic,
-            documentNames: arguments.documentNames
-        )
-    }
-}
 
 // MARK: - Consolidated Engine-Native Tool Surface
 
@@ -508,6 +320,7 @@ nonisolated enum SystemModelTools {
 struct FoundationModelToolRegistry {
     static func createTools(toolHandler: RAGToolHandler?) -> [any Tool] {
         guard let ragService = toolHandler as? RAGService else {
+            Log.debug("[Tools] No RAGService handler, so this session gets no tools", category: .pipeline)
             return []
         }
 

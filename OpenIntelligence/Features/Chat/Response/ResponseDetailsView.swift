@@ -26,7 +26,7 @@ struct ChatResponseDetailsView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: DSSpacing.lg) {
                     // 1. Verification Hero

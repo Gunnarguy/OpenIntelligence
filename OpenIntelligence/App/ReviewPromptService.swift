@@ -71,7 +71,7 @@ final class ReviewPromptService: ObservableObject {
         let notVerified = ["no_sources", "no_documents", "context_empty", "verification_gates_failed",
                            "missing_citations", "low_confidence", "rerank_empty", "mmr_empty",
                            "relevance_gate_failed", "reliability_fallback", "high_accuracy_blocked",
-                           "source_only_abstained"]
+                           "source_only_abstained", "excerpts_only"]
         return !notVerified.contains { d.contains($0) }
     }
 }

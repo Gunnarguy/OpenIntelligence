@@ -9,11 +9,11 @@
   "entry_points": ["DeveloperDiagnosticsHubView", "ChunkInspectorView", "CoreValidationView", "RAGAccuracyView", "DatabaseDashboardView", "DebugRAGValidationHarness"],
   "files": [
     {"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "role": "primary", "blob": "58d194c63e7fe6edb0b2085e038c6a0fc1744c59"},
-    {"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "role": "primary", "blob": "4f5cf4d171f907a8650b4754a3ad23faccce9816"},
+    {"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "role": "primary", "blob": "6ff46b7a530c69ddf446995bafc06edfa952404e"},
     {"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "role": "primary", "blob": "84bcb3ce77d098084cb90a51e0ff515adf5975ba"},
     {"path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift", "role": "primary", "blob": "7d8615d8cd3261dd78a6756a5dfe82679a2274d4"},
     {"path": "OpenIntelligence/Features/Diagnostics/Monitoring/LiveSystemMonitorWrapper.swift", "role": "primary", "blob": "9becb9da340e9bb008165cee9415f2434ac0ab4b"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "role": "primary", "blob": "62b3efbc7ad8aa2e5ffd76cf33449d205c6bed30"},
+    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "role": "primary", "blob": "e051c537e8398086a7b9ccfba24b9c7dfbd06e70"},
     {"path": "OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift", "role": "primary", "blob": "bb030c5522675ecae5ac2f6942acdbe56587e5b3"},
     {"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "role": "primary", "blob": "f39e4f936a8c79459550546a30db511d1beebb02"},
     {"path": "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift", "role": "primary", "blob": "9216e029933de9adcfa08614aa50ccdb00ff40fc"},

@@ -12,14 +12,12 @@ enum ChatExecutionLocation {
     case unknown
     case onDevice
     case privateCloudCompute
-    case mlxLocal
 
     var icon: String {
         switch self {
         case .unknown: return "circle.dotted"  // Subtle loading indicator instead of confusing question mark
         case .onDevice: return "iphone"
         case .privateCloudCompute: return "cloud.fill"
-        case .mlxLocal: return "desktopcomputer"
         }
     }
 
@@ -28,7 +26,6 @@ enum ChatExecutionLocation {
         case .unknown: return .gray
         case .onDevice: return .green
         case .privateCloudCompute: return .blue
-        case .mlxLocal: return .indigo
         }
     }
 
@@ -37,7 +34,6 @@ enum ChatExecutionLocation {
         case .unknown: return "Processing"
         case .onDevice: return "On-Device"
         case .privateCloudCompute: return "Private Cloud Compute"
-        case .mlxLocal: return "MLX Local"
         }
     }
 }

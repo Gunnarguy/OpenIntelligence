@@ -1186,7 +1186,7 @@ struct UnifiedMetricsBar: View {
                 .font(.system(size: 10, weight: .semibold))
 
             // Chip specs for on-device (e.g., "A18 Pro • 38T")
-            if execution == .onDevice || execution == .mlxLocal || (execution == .unknown && !isProcessing) {
+            if execution == .onDevice || (execution == .unknown && !isProcessing) {
                 Text("•")
                     .font(.system(size: 5))
                     .opacity(0.4)
@@ -1229,7 +1229,6 @@ struct UnifiedMetricsBar: View {
         switch execution {
         case .onDevice, .unknown: return "cpu"  // Neural Engine icon
         case .privateCloudCompute: return "cloud.fill"
-        case .mlxLocal: return "desktopcomputer"
         }
     }
 
@@ -1237,7 +1236,6 @@ struct UnifiedMetricsBar: View {
         switch execution {
         case .onDevice, .unknown: return "NE"
         case .privateCloudCompute: return "PC"
-        case .mlxLocal: return "MLX"
         }
     }
 
@@ -1245,7 +1243,6 @@ struct UnifiedMetricsBar: View {
         switch execution {
         case .onDevice, .unknown: return .green  // On-device is always green (private)
         case .privateCloudCompute: return .blue
-        case .mlxLocal: return .indigo
         }
     }
 
@@ -3186,8 +3183,6 @@ struct UnifiedMetricsBar: View {
             return "\(device.chipName) Neural Engine • \(device.npuTops) TOPS"
         case .privateCloudCompute:
             return "Private Cloud Compute • Encrypted"
-        case .mlxLocal:
-            return "\(device.chipName) MLX • Local"
         case .unknown:
             return "\(device.chipName) Neural Engine"
         }
@@ -3199,8 +3194,6 @@ struct UnifiedMetricsBar: View {
             return "On-device only"
         case .privateCloudCompute:
             return "End-to-end encrypted"
-        case .mlxLocal:
-            return "Local only"
         case .unknown:
             return "Private"
         }
@@ -4415,8 +4408,6 @@ struct UnifiedMetricsBar: View {
             return "On-Device"
         case .privateCloudCompute:
             return "Private Cloud Compute"
-        case .mlxLocal:
-            return "Local MLX"
         }
     }
 
@@ -4428,8 +4419,6 @@ struct UnifiedMetricsBar: View {
             return "Running locally on Neural Engine. No network required."
         case .privateCloudCompute:
             return "Encrypted processing on Apple's attested servers."
-        case .mlxLocal:
-            return "Local MLX model processing."
         }
     }
 

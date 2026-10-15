@@ -1883,7 +1883,20 @@ nonisolated class SemanticChunker {
                     if let range = Range(match.range, in: text) {
                         let term = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
                         let key = term.lowercased()
-                        let stopWords: Set<String> = ["the", "this", "that", "these", "those", "there", "then", "when", "where", "which", "what", "who", "how", "why", "we", "our", "us", "i"]
+                        // A capitalized word at the start of a sentence is not a name. Through 5.6
+                        // "However" and its like became entities, because this supplement runs on every
+                        // chunk (row "Sentence-opening words like However become entities"); 5.7 adds
+                        // the words that open sentences and are never names on their own.
+                        let stopWords: Set<String> = [
+                            "the", "this", "that", "these", "those", "there", "then", "when", "where", "which", "what",
+                            "who", "how", "why", "we", "our", "us", "i",
+                            "however", "therefore", "moreover", "furthermore", "additionally", "meanwhile",
+                            "nevertheless", "nonetheless", "consequently", "thus", "hence", "also", "instead",
+                            "otherwise", "finally", "first", "second", "third", "next", "although", "because",
+                            "since", "while", "if", "in", "on", "at", "for", "with", "as", "it", "its", "a", "an",
+                            "and", "but", "or", "so", "yet", "after", "before", "each", "every", "some", "many",
+                            "most", "such", "please", "note", "see",
+                        ]
                         if term.count >= 2, term.count <= 50, !seen.contains(key), !stopWords.contains(key) {
                             seen.insert(key)
                             entities.append(term)

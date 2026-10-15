@@ -7,6 +7,7 @@ struct OpenIntelligenceLiveActivitiesBundle: WidgetBundle {
         if #available(iOSApplicationExtension 17.0, *) {
             IngestionLiveActivityWidget()
             QueryLiveActivityWidget()
+            QuickActionsWidget()
         }
         if #available(iOSApplicationExtension 18.0, *) {
             AskControl()

@@ -8,11 +8,11 @@
   "verified_on": "2026-10-13",
   "entry_points": ["WhatsNewStore.evaluateOnLaunch", "WhatsNewStore.releases", "WhatsNewView", "VersionHistoryLoader", "VersionHistoryView"],
   "files": [
-    {"path": "OpenIntelligence/Features/Onboarding/WhatsNewStore.swift", "role": "primary", "blob": "a55a12febd51c93666251deb0b21a743c50ff53c"},
+    {"path": "OpenIntelligence/Features/Onboarding/WhatsNewStore.swift", "role": "primary", "blob": "1195101b5792bc10c0a284773a86128dd870ed03"},
     {"path": "OpenIntelligence/Features/Onboarding/WhatsNewView.swift", "role": "primary", "blob": "92541a5365532957b6286ce8c822b5fc97f11476"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistory.swift", "role": "primary", "blob": "03572f299ce17218afd5b2ff3c91d21ca5053b37"},
     {"path": "OpenIntelligence/Features/Settings/VersionHistoryView.swift", "role": "primary", "blob": "8703818923e30f494f615abc0ae5511a18063779"},
-    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "520651c453e0327d87ed9f4110d20f9ab9061e36"},
+    {"path": "OpenIntelligence/Resources/VersionHistory.md", "role": "primary", "blob": "a5df04d7c864252b85cbc2f21189a7ab80038b23"},
     {"path": "OpenIntelligenceTests/Features/Onboarding/WhatsNewCoverageTests.swift", "role": "test", "blob": "e8235b85cafaf1cd22edbf959d0ba893c4c25553"},
     {"path": "OpenIntelligenceTests/Features/Settings/VersionHistoryTests.swift", "role": "test", "blob": "447bee2122be22aaf29b918ba1d1db938786f788"}
   ],

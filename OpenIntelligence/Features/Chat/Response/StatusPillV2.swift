@@ -140,8 +140,6 @@ private struct ExecutionChip: View {
             return ("iphone", "Device", .blue)
         case .privateCloudCompute:
             return ("cloud", "PCC", .green)
-        case .mlxLocal:
-            return ("desktopcomputer", "MLX", .indigo)
         case .unknown:
             if let ttft = ttft {
                 return ttft < 0.5 ? ("iphone", "Device", .blue) : ("cloud", "PCC", .green)

@@ -1924,15 +1924,10 @@ final class WorkspaceSyncService: ObservableObject {
             )
 
             storeOpens += 1
-            let mergedDatabase = await MainActor.run {
-                BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: sharedVectorURL)
-            }
-            try await mergedDatabase.clear()
             if !mergedChunks.isEmpty {
                 storeWrites += 1
-                try await mergedDatabase.storeBatch(chunks: mergedChunks)
-                try await mergedDatabase.persist()
             }
+            try await persistVectorChunksIntoICloud(mergedChunks, dimension: container.embeddingDim, to: sharedVectorURL)
         }
     }
 
@@ -2393,6 +2388,14 @@ final class WorkspaceSyncService: ObservableObject {
             )
         }
 
+        let conflictCopies = Self.conflictCopyCount(in: sharedRoot)
+        if conflictCopies > 0 {
+            Log.info(
+                "[WorkspaceSync] The iCloud folder holds \(conflictCopies) conflict copies of library files (\"<name> 2.json\" and the like); the app reads none of them.",
+                category: .ingestion
+            )
+        }
+
         for container in syncedContainers {
             let allowedDocumentIds = documentIdsByContainer[container.id] ?? []
             let sourceContainerIDs = Set(sourceContainerIDsByCanonicalID[container.id] ?? [container.id])
@@ -2684,7 +2687,7 @@ final class WorkspaceSyncService: ObservableObject {
                 category: .vectorDB
             )
         } else {
-            try await persistVectorChunks(resolvedChunks, dimension: container.embeddingDim, to: sharedVectorURL)
+            try await persistVectorChunksIntoICloud(resolvedChunks, dimension: container.embeddingDim, to: sharedVectorURL)
         }
 
         for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
@@ -2789,6 +2792,23 @@ final class WorkspaceSyncService: ObservableObject {
             try await database.storeBatch(chunks: chunks)
             try await database.persist()
         }
+    }
+
+    /// Writes a vector store that lives in iCloud (5.7): the store is written in a replacement folder
+    /// on the same volume, then its files take the place of the ones in iCloud in one coordinated
+    /// step (`coordinatedReplaceItems`). An empty `chunks` removes the store's files, as the
+    /// `clear()` this replaces did.
+    nonisolated private func persistVectorChunksIntoICloud(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
+        let staging = try fileManager.url(
+            for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: url, create: true)
+        defer { try? fileManager.removeItem(at: staging) }
+        let stagedURL = staging.appendingPathComponent(url.lastPathComponent)
+        try await persistVectorChunks(chunks, dimension: dimension, to: stagedURL)
+        // The three files `clear()` removes and a save writes; the legacy single-file store, if one
+        // is still there, is left alone, as before.
+        try await Self.coordinatedReplaceItems(
+            at: BNNSVectorDatabase.binaryFileURLs(from: url).filter { $0 != url },
+            with: BNNSVectorDatabase.binaryFileURLs(from: stagedURL).filter { $0 != stagedURL })
     }
 
     nonisolated private func synchronizeAuxiliaryFile(
@@ -3953,18 +3973,17 @@ final class WorkspaceSyncService: ObservableObject {
         var coordinationError: NSError?
         var copyError: Error?
 
+        var wrote = false
+
         coordinator.coordinate(
             readingItemAt: source,
             options: [],
             writingItemAt: destination,
-            options: [],
+            options: .forReplacing,
             error: &coordinationError
         ) { coordinatedSourceURL, coordinatedDestinationURL in
             do {
-                if FileManager.default.fileExists(atPath: coordinatedDestinationURL.path) {
-                    try FileManager.default.removeItem(at: coordinatedDestinationURL)
-                }
-                try FileManager.default.copyItem(at: coordinatedSourceURL, to: coordinatedDestinationURL)
+                wrote = try replaceItemIfDifferent(at: coordinatedDestinationURL, withCopyOf: coordinatedSourceURL)
             } catch {
                 copyError = error
             }
@@ -3977,10 +3996,109 @@ final class WorkspaceSyncService: ObservableObject {
             throw copyError
         }
 
-        if destination.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+        if wrote,
+           destination.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
            !WorkspaceSyncService.isSyncWriteInProgress {
             NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
         }
+    }
+
+    /// Puts a copy of `source` at `destination` unless `destination` already holds the same bytes,
+    /// and says whether it wrote (5.7). Call it inside a coordinated write of `destination`.
+    ///
+    /// Through 5.6 every sync pass deleted the destination and copied the source in again, whether
+    /// or not anything had changed, so each library's chat history, transcript and conversation
+    /// memory went up to iCloud again on every pass from every device. Two devices doing that at
+    /// once is how iCloud ends up keeping both versions as "chat_history_<id> 2.json": on
+    /// 2026-10-14 the owner's container held 500 such copies, all in the six per-library file
+    /// families. An unchanged file is now left alone, and a changed one is replaced in place
+    /// (`replaceItemAt`), so it keeps its identity instead of being deleted and created again. The
+    /// result keeps the source's modification date, as the old delete-and-copy did (measured
+    /// 2026-10-14 with a probe of both), so every newest-wins choice that reads it decides as before.
+    nonisolated static func replaceItemIfDifferent(at destination: URL, withCopyOf source: URL) throws -> Bool {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: destination.path) else {
+            try fileManager.copyItem(at: source, to: destination)
+            return true
+        }
+        if fileManager.contentsEqual(atPath: source.path, andPath: destination.path) {
+            return false
+        }
+        let staging: URL
+        do {
+            staging = try fileManager.url(
+                for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: destination, create: true)
+        } catch {
+            // No replacement folder on this volume: fall back to what every earlier build did.
+            try fileManager.removeItem(at: destination)
+            try fileManager.copyItem(at: source, to: destination)
+            return true
+        }
+        defer { try? fileManager.removeItem(at: staging) }
+        let staged = staging.appendingPathComponent(destination.lastPathComponent)
+        try fileManager.copyItem(at: source, to: staged)
+        _ = try fileManager.replaceItemAt(destination, withItemAt: staged)
+        return true
+    }
+
+    /// Replaces a vector store's files in iCloud with the ones in `staged`, under one coordinated
+    /// claim on all of them (5.7), so neither iCloud nor another reader on this device sees a mix
+    /// of old and new files. A file missing from `staged` is removed. `destinations[i]` takes
+    /// `staged[i]`.
+    ///
+    /// Through 5.6 sync wrote a store into iCloud by opening it there, clearing it (which deletes
+    /// its files) and writing new ones, with no coordination, so iCloud could upload a store whose
+    /// vectors and passages came from different moments, and a device that read it got a store
+    /// that loads empty.
+    nonisolated static func coordinatedReplaceItems(at destinations: [URL], with staged: [URL]) async throws {
+        precondition(destinations.count == staged.count)
+        let intents = destinations.map { NSFileAccessIntent.writingIntent(with: $0, options: .forReplacing) }
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        let queue = OperationQueue()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            coordinator.coordinate(with: intents, queue: queue) { coordinationError in
+                if let coordinationError {
+                    continuation.resume(throwing: coordinationError)
+                    return
+                }
+                let fileManager = FileManager.default
+                do {
+                    for (intent, source) in zip(intents, staged) {
+                        let destination = intent.url
+                        if fileManager.fileExists(atPath: source.path) {
+                            if fileManager.fileExists(atPath: destination.path) {
+                                _ = try fileManager.replaceItemAt(destination, withItemAt: source)
+                            } else {
+                                try fileManager.moveItem(at: source, to: destination)
+                            }
+                        } else if fileManager.fileExists(atPath: destination.path) {
+                            try fileManager.removeItem(at: destination)
+                        }
+                    }
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// How many iCloud conflict copies of the per-library files sit in `root`: names such as
+    /// "chat_history_<id> 2.json" or "vector_database_<id>_vectors 3.bin", which iCloud makes when
+    /// two devices change one file at the same time. The app reads none of them. Logged once a pass
+    /// so a device session can show whether a build still adds them (5.7).
+    nonisolated static func conflictCopyCount(in root: URL) -> Int {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: root.path) else { return 0 }
+        return names.filter(isConflictCopyName).count
+    }
+
+    nonisolated static func isConflictCopyName(_ name: String) -> Bool {
+        let families = ["chat_history_", "transcript_", "conversation_memory_", "vector_database_"]
+        guard families.contains(where: { name.hasPrefix($0) }) else { return false }
+        let stem = (name as NSString).deletingPathExtension
+        guard let space = stem.lastIndex(of: " ") else { return false }
+        let suffix = stem[stem.index(after: space)...]
+        return !suffix.isEmpty && suffix.allSatisfy(\.isNumber)
     }
 
     nonisolated private static func readJSONIfPresent<T: Decodable>(_ type: T.Type, from url: URL) throws -> T? {

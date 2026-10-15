@@ -20,6 +20,8 @@ final class ReviewPromptServiceTests: XCTestCase {
         for decision in [
             "no_sources", "unverified:missing_citations", "low_confidence", "verification_gates_failed",
             "relevance_gate_failed", "high_accuracy_blocked", "context_empty",
+            // An answer of excerpts alone, which no check stood behind (5.7).
+            "excerpts_only",
         ] {
             XCTAssertFalse(ReviewPromptService.isVerified(decision, retrievedSourceCount: 5), decision)
         }

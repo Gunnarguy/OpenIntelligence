@@ -753,35 +753,34 @@ class HybridSearchService {
         }
         guard !allChunks.isEmpty else { return [] }
 
-        var results: [RetrievedChunk] = []
-        results.reserveCapacity(min(maxCandidates, allChunks.count))
+        var matched: [DocumentChunk] = []
+        matched.reserveCapacity(min(maxCandidates, allChunks.count))
 
         for chunk in allChunks {
-            if results.count >= maxCandidates { break }
-            guard chunk.embedding.count == embedding.count else { continue }
+            if matched.count >= maxCandidates { break }
 
             let contentLower = chunk.content.lowercased()
             if requiresDigits {
                 let hasDigitMatch = digitTerms.contains(where: { contentLower.contains($0) })
                 if !hasDigitMatch { continue }
             }
+            guard queryTerms.contains(where: { contentLower.contains($0) }) else { continue }
+            matched.append(chunk)
+        }
+        guard !matched.isEmpty else { return [] }
 
-            var matched = false
-            for term in queryTerms {
-                if contentLower.contains(term) {
-                    matched = true
-                    break
-                }
-            }
-            guard matched else { continue }
-
-            let similarity = cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm)
-            results.append(
-                RetrievedChunk(
-                    chunk: chunk,
-                    similarityScore: similarity,
-                    rank: 0
-                )
+        // The store hands passages back without their vectors, so through 5.6 the length check that
+        // stood here skipped every passage and this path kept none (5.7). A passage's similarity now
+        // comes from the store by id; one the store has no comparable vector for still counts as a
+        // keyword match, with a similarity of 0.
+        let stored = await vectorDatabase.similarities(to: embedding, forChunkIDs: matched.map(\.id))
+        let results = zip(matched, stored).map { chunk, storedSimilarity in
+            RetrievedChunk(
+                chunk: chunk,
+                similarityScore: chunk.embedding.count == embedding.count
+                    ? cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm)
+                    : (storedSimilarity ?? 0),
+                rank: 0
             )
         }
 

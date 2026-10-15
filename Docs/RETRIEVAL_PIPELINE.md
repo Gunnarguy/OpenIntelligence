@@ -235,6 +235,28 @@ because clearing them needs `SQLiteFullTextService.swift`, which is protected. `
 code_verified+test_verified (QueryCacheKeyTests), confidence: high, evidence_source: RAGService.swift
 queryInternal; SQLiteFullTextService.swift]`
 
+## MMR and the passages' vectors (corrected 2026-10-14, for 5.7)
+
+The vector store hands passages back without their vectors (`BNNSVectorDatabase` keeps the vectors in
+their own file), and two steps after it compared the vectors on the passages they were handed:
+
+- **MMR** (`RAGEngine.applyMMR`) measured how alike two passages are with those vectors, so every pair
+  measured 0 alike and MMR kept passages in score order whatever λ said, in every answer mode, in 5.6
+  and before. From 5.7 the two callers fetch the candidates' vectors by id (`RAGService.storedVectors`,
+  `getEmbeddings(forChunkIDs:)`) and pass them in, so a passage that is nearly the same as one already
+  picked gives way to a different one when their scores are close. Every figure in
+  `BenchmarkRuns/LEDGER.md` was measured with MMR doing nothing; a paired run is the measure of the change.
+  Each answer mode's own λ is still read only by logging.
+- **Lexical recall** (`HybridSearchService.lexicalRecallCandidates`), the path a search takes when no
+  library has keyword rows, skipped every passage without a vector of the question's length and so kept
+  none. From 5.7 it scores the passages it matches with `similarities(to:forChunkIDs:)`.
+
+Sentence selection (stage 13 above) also dropped every two-character word from the question and from each
+line, so a code such as "E1" never counted as a keyword. From 5.7 a two-character word that mixes letters
+and digits counts (`RAGService.isEvidenceKeyword`). `[evidence_level: code_verified+test_verified
+(MMRStoredVectorsTests), confidence: high for the mechanism; no benchmark run yet, evidence_source:
+RAGEngine.swift applyMMR; RAGService.swift storedVectors, isEvidenceKeyword; HybridSearchService.swift]`
+
 ## Suggested questions
 
 `Services/Query/UX/SuggestedQuestionsService.swift` writes the chips on the Chat tab's empty state.

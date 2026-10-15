@@ -20,7 +20,7 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift", "role": "primary", "blob": "e2a18f94dbd507c79c7f6ad87ecf54a9be3567a1"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ViewAnnotations.swift", "role": "primary", "blob": "0d7e9985974299480cebbab8d82570704a509f40"},
     {"path": "OpenIntelligence/Features/Chat/Pipeline/PipelineTraceExporter.swift", "role": "primary", "blob": "2ff49158a990d1f15d705ff70b44ee5a15a1fe49"},
-    {"path": "OpenIntelligence/Features/Chat/Pipeline/ProcessingModels.swift", "role": "primary", "blob": "63cdfdb3fd91c15a23884e1ebce50d87573bc9bc"},
+    {"path": "OpenIntelligence/Features/Chat/Pipeline/ProcessingModels.swift", "role": "primary", "blob": "aecf0611347ea277cf66e1422f3baeb0bdea464d"},
     {"path": "OpenIntelligence/Core/Extensions/StreamingMarkdown.swift", "role": "primary", "blob": "30b3a8e3e3c7aed41bd76409fec7bec129013104"},
     {"path": "OpenIntelligenceTests/Core/Models/StreamingMarkdownTests.swift", "role": "test", "blob": "ae5757fe114448d93565017e19a96bd538cfc018"},
     {"path": "OpenIntelligence/Features/Chat/Pipeline/ConversationExporter.swift", "role": "primary", "blob": "a4b91186b0c2d3504d8a4011caad4bfd486abd1f"},

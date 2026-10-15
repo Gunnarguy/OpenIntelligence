@@ -25,6 +25,13 @@ import AppKit
 
 /// Service responsible for parsing documents and chunking them for embedding
 class DocumentProcessor {
+    /// The number of words in `text`, split at spaces, tabs and line breaks (5.7). Through 5.6 the
+    /// Words figure split at spaces only, so two words either side of a line break counted as one and
+    /// a document's count read low (row "Word counts look wrong and ingested text may be truncated").
+    nonisolated static func wordCount(of text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
+    }
+
     struct ProcessedChunk: Sendable {
         let text: String
         let parentText: String?
@@ -764,7 +771,7 @@ class DocumentProcessor {
             let metadata = ProcessingMetadata(
                 fileSizeMB: fileSizeMB,
                 totalCharacters: storedText.count,
-                totalWords: storedText.split(separator: " ").count,
+                totalWords: Self.wordCount(of: storedText),
                 extractionTimeSeconds: totalTime,
                 chunkingTimeSeconds: 0,
                 embeddingTimeSeconds: 0,
@@ -860,7 +867,7 @@ class DocumentProcessor {
 
         let extractionTime = Date().timeIntervalSince(startTime)
         let charCount = extractedText.count
-        let wordCount = extractedText.split(separator: " ").count
+        let wordCount = Self.wordCount(of: extractedText)
 
         Log.debug(
             "[DocumentProcessor] Extracted \(charCount) chars (\(wordCount) words) in \(String(format: "%.2f", extractionTime))s",
@@ -4373,13 +4380,14 @@ class DocumentProcessor {
             // GPU ACCELERATION: Apply preprocessing filters for better OCR accuracy
             // ADAPTIVE: Only render images for pages that need Vision layout detection
 
-            // Emit GPU rendering progress
-            let gpuActive = DeviceCapabilityService.shared.useGPUForPDFRendering
-            let gpuLabel = gpuActive ? "[Metal GPU]" : "[CPU]"
+            // Rendering progress. Through 5.6 the line said "[Metal GPU]" whenever the GPU rendering
+            // setting was on and "[ANE]" for the Vision steps below, as fixed text: neither was a
+            // measurement of where the work ran (row "PDF page renders are logged as GPU-accelerated on
+            // a macOS path whose expensive stages run on CPU"), so the lines name the step only (5.7).
             await MainActor.run {
                 self.emitProgress(
                     stage: "render",
-                    detail: "🎨 \(gpuLabel) Rendering pages \(renderStart + 1)-\(renderEnd)/\(pageCount)",
+                    detail: "🎨 Rendering pages \(renderStart + 1)-\(renderEnd)/\(pageCount)",
                     page: renderStart,
                     totalPages: pageCount
                 )
@@ -4528,11 +4536,11 @@ class DocumentProcessor {
             // This properly handles multi-column layouts by detecting columns spatially
             let pagesNeedingVision = batchRenderData.filter { $0.pageImage != nil && $0.layoutText == nil }
             if useHybridMode && !pagesNeedingVision.isEmpty {
-                // Emit layout extraction progress - Vision uses Neural Engine (ANE)
+                // Emit layout extraction progress. Vision chooses the hardware it runs on.
                 await MainActor.run {
                     self.emitProgress(
                         stage: "layout",
-                        detail: "📐 [ANE] Detecting columns for \(pagesNeedingVision.count) complex pages",
+                        detail: "📐 Detecting columns for \(pagesNeedingVision.count) complex pages",
                         page: batchStart,
                         totalPages: pageCount
                     )
@@ -4603,11 +4611,11 @@ class DocumentProcessor {
                 }
             }
 
-            // Emit structured extraction progress - Vision uses Neural Engine
+            // Emit structured extraction progress. Vision chooses the hardware it runs on.
             await MainActor.run {
                 self.emitProgress(
                     stage: "structure",
-                    detail: "🔍 [ANE] Tables/lists \(batchStart + 1)-\(batchEnd)/\(pageCount)",
+                    detail: "🔍 Tables/lists \(batchStart + 1)-\(batchEnd)/\(pageCount)",
                     page: batchStart,
                     totalPages: pageCount
                 )

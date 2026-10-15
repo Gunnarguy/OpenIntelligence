@@ -11,7 +11,7 @@
     {"path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "role": "primary", "blob": "f3439db5ca9b658ace1542d71920beed04ad7d1b"},
     {"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "role": "primary", "blob": "014901b8ec6c5669b4211368b8a5e66c80fa2097"},
     {"path": "OpenIntelligence/Services/Document/Chunking/PageComplexityAnalyzer.swift", "role": "primary", "blob": "9c23da6fdd2a40379ba3e994513f37cbceffa814"},
-    {"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "role": "primary", "blob": "4a775f0702f0c32847dfe86e3c37a06fbd360dea"},
+    {"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "role": "primary", "blob": "9c2f90e37891f739ff8ce53c9be8f2d49e2fa133"},
     {"path": "OpenIntelligenceTests/Services/Document/Chunking/ChunkingLimitsTests.swift", "role": "test", "blob": "7d9a8cb33c6c44d630eb5ab6a2cea117cbf5fd3c"},
     {"path": "OpenIntelligenceTests/Services/Document/Chunking/SemanticChunkerTests.swift", "role": "test", "blob": "5113611fa3ce87cf85bfd97748dfbd75ab62fc0f"},
     {"path": "OpenIntelligenceTests/Services/Embedding/LibraryIntelligenceCenterVarianceTests.swift", "role": "test", "blob": "cb9fa2f4db7707046bc18456309317dc95927a82"},

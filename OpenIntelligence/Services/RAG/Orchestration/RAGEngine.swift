@@ -127,13 +127,21 @@ actor RAGEngine {
     ///   - queryEmbedding: Original query embedding for relevance scoring (unused here; uses stored similarityScore)
     ///   - topK: Number of diverse chunks to select
     ///   - lambda: Balance between relevance (1.0) and diversity (0.0). Default 0.7 = 70% relevance, 30% diversity
+    ///   - vectors: The candidates' vectors by passage id, for passages handed over without one.
+    ///     The vector store returns passages without their vectors (`BNNSVectorDatabase` keeps them in
+    ///     its own file), so through 5.6 every similarity here was 0 and MMR kept passages in score
+    ///     order whatever λ said. Callers fetch the vectors by id first (5.7).
     /// - Returns: Diverse set of chunks balancing relevance and novelty
     func applyMMR(
         candidates: [RetrievedChunk],
         queryEmbedding _: [Float],
         topK: Int,
-        lambda: Float = 0.7
+        lambda: Float = 0.7,
+        vectors: [UUID: [Float]] = [:]
     ) async -> [RetrievedChunk] {
+        func vector(of candidate: RetrievedChunk) -> [Float] {
+            candidate.chunk.embedding.isEmpty ? (vectors[candidate.chunk.id] ?? []) : candidate.chunk.embedding
+        }
         // Report CPU activity for MMR computation
         Task { @MainActor in
             HardwareTelemetryReporter.pulse(.ragOrchestration, intensity: 0.7, duration: 0.3)
@@ -167,7 +175,7 @@ actor RAGEngine {
                 HardwareTelemetryReporter.reportGPUCompute()
             }
 
-            let embeddings = candidates.map { $0.chunk.embedding }
+            let embeddings = candidates.map { vector(of: $0) }
             let matrix = gpuCompute.mmrDiversityMatrix(embeddings: embeddings)
             // Validate matrix is N×N matching candidate count — malformed matrix causes subscript crash
             if matrix.count == candidates.count, matrix.first?.count == candidates.count {
@@ -214,8 +222,8 @@ actor RAGEngine {
                     // CPU PATH: Compute similarities on-the-fly
                     for selectedChunk in selected {
                         let similarity = cosineSimilarityAccelerated(
-                            candidate.chunk.embedding,
-                            selectedChunk.chunk.embedding
+                            vector(of: candidate),
+                            vector(of: selectedChunk)
                         )
                         maxSimilarityToSelected = max(maxSimilarityToSelected, similarity)
                     }

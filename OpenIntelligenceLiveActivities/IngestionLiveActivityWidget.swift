@@ -488,3 +488,101 @@ struct ScanDocumentControl: ControlWidget {
         .description("Opens the document scanner and adds the scan to the open library.")
     }
 }
+
+// MARK: - Home Screen and Lock Screen widget (5.7)
+
+/// Ask, Add Document and Scan Document on the Home Screen and the Lock Screen. Each opens one of the
+/// app's own links, as the controls above do, so the widget needs no data from the app and no app
+/// group. A widget that shows the document count or the last question needs an app group shared with
+/// the app, which needs a provisioning profile this Mac's Xcode can't make (row "Home Screen & Lock
+/// Screen Widgets").
+@available(iOSApplicationExtension 17.0, *)
+struct QuickActionsWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.openintelligence.widget.quickactions", provider: QuickActionsTimeline()) { _ in
+            QuickActionsWidgetView()
+        }
+        .configurationDisplayName("Ask OpenIntelligence")
+        .description("Ask your documents a question, add a document or scan one.")
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
+struct QuickActionsEntry: TimelineEntry {
+    let date: Date
+}
+
+/// One entry that never changes: the widget shows the same three links whatever the app holds.
+struct QuickActionsTimeline: TimelineProvider {
+    func placeholder(in context: Context) -> QuickActionsEntry { QuickActionsEntry(date: .now) }
+
+    func getSnapshot(in context: Context, completion: @escaping (QuickActionsEntry) -> Void) {
+        completion(QuickActionsEntry(date: .now))
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<QuickActionsEntry>) -> Void) {
+        completion(Timeline(entries: [QuickActionsEntry(date: .now)], policy: .never))
+    }
+}
+
+@available(iOSApplicationExtension 17.0, *)
+struct QuickActionsWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+
+    private static let ask = URL(string: "openintelligence://chat")!
+    private static let add = URL(string: "openintelligence://documents/add")!
+    private static let scan = URL(string: "openintelligence://chat/scan")!
+    private static let askSymbol = "bubble.left.and.text.bubble.right"
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            Image(systemName: Self.askSymbol)
+                .font(.title3)
+                .widgetURL(Self.ask)
+                .containerBackground(for: .widget) { AccessoryWidgetBackground() }
+        case .accessoryRectangular:
+            Label("Ask your documents", systemImage: Self.askSymbol)
+                .font(.headline)
+                .widgetURL(Self.ask)
+                .containerBackground(for: .widget) { Color.clear }
+        case .systemMedium:
+            HStack(spacing: 10) {
+                action("Ask", symbol: Self.askSymbol, url: Self.ask)
+                action("Add", symbol: "doc.badge.plus", url: Self.add)
+                action("Scan", symbol: "doc.viewfinder", url: Self.scan)
+            }
+            .containerBackground(for: .widget) { Color(.systemBackground) }
+        default:
+            VStack(alignment: .leading, spacing: 4) {
+                Image(systemName: Self.askSymbol)
+                    .font(.title2)
+                    .foregroundStyle(.purple)
+                Spacer(minLength: 0)
+                Text("Ask your documents")
+                    .font(.headline)
+                    .lineLimit(2)
+                Text("OpenIntelligence")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .widgetURL(Self.ask)
+            .containerBackground(for: .widget) { Color(.systemBackground) }
+        }
+    }
+
+    private func action(_ title: String, symbol: String, url: URL) -> some View {
+        Link(destination: url) {
+            VStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.title2)
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.purple)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.purple.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+}

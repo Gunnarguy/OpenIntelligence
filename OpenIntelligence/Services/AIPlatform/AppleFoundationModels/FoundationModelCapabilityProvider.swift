@@ -85,6 +85,16 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
                 unavailabilityReason: reason
             )
         }
+        // This build has Private Cloud Compute and the system is older than 27. Through 5.6 this
+        // case fell through to the sentence below, so Settings on iOS 26 said the build was compiled
+        // without it (5.7).
+        #if os(macOS)
+        let reasonWithoutPCC = "Private Cloud Compute needs macOS 27"
+        #else
+        let reasonWithoutPCC = "Private Cloud Compute needs iOS 27 or iPadOS 27"
+        #endif
+        #else
+        let reasonWithoutPCC = "This build was compiled without Private Cloud Compute (requires Xcode 27)"
         #endif
 
         return FoundationModelCapabilitySnapshot(
@@ -97,10 +107,9 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
             pccQuota: .unsupported,
             pccContextSize: nil,
             source: .sdkExact,
-            // Names the build, not the OS. The compiler gate above is what removed PCC from this
-            // binary, so on an iOS 27 device the old string ("PCC requires iOS/macOS 27") was read
-            // by the one user who would care as a contradiction of what their phone was running.
-            unavailabilityReason: "This build was compiled without Private Cloud Compute (requires Xcode 27)"
+            // Names the build when the compiler gate removed PCC from this binary, and the system
+            // when the build has it and the system is too old (`reasonWithoutPCC` above).
+            unavailabilityReason: reasonWithoutPCC
         )
         #endif
     }

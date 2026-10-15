@@ -887,6 +887,30 @@ When the last piece is in, the kept text is stored once (`SQLiteFullTextService.
 
 **Not done, and known.** The other whole-piece passes in `processDocument` still run on the main actor, a piece at a time. The vector store rewrites its metadata and vectors whole at every `persist()`, which is once a piece, and holds every chunk's text in memory, so the app's memory still grows with what a library holds; what no longer happens is the whole file being held at once. The kept text is read whole when it is stored at the end. The text chunker counts a passage's size in tokenizer words and its overlap in space-separated words, so on text with few spaces (JSON, code) consecutive passages overlap far more than the configured figure; that is what made the 88.50 MB file project to about 88,000 chunks as plain text, and it is not changed here.
 
+### Folders, empty vectors and the progress line *(added 2026-10-14, for 5.7)*
+
+**Folders.** A folder dropped on a library, or chosen in the Mac's open panel, brings in the files
+inside it whose type the app imports, through its subfolders, without hidden files or packages
+(`ImportedFileStaging.copyIntoWorkspaceExpandingFolders`, `importableFiles`). A folder brings in no
+more than the room left on the plan and never more than 500 files. Through 5.6 a dropped folder was
+filtered out and refused, and the open panel couldn't choose one. `[evidence_level: test_verified
+(FolderImportTests), confidence: medium, no drop on a device yet]`
+
+**Empty vectors.** After the embedding call of every import path (an import, a rebuild, a PDF over
+10 MB, a large text file), `EmbeddingVectorCheck.requireUsable` stops the import when more than half of
+a batch's vectors are unusable (all zero, empty or not finite) and names the file in its message;
+fewer are logged and stored. Through 5.6 nothing checked, and a model that returned zeros built a
+library that could be searched only by its words. In the iOS Simulator, where the Core ML copy of
+the model returned zeros on the units a device asks for, Core ML runs on the CPU
+(`DeviceCapabilityService.simulatorComputeUnits`). `[evidence_level: test_verified
+(LibraryVectorHealthTests and the full suite in the Simulator), confidence: medium]`
+
+**Word counts.** A document's Words figure splits at any whitespace (`DocumentProcessor.wordCount(of:)`); through 5.6 it split at spaces only. A large text file counts each piece's own text and a PDF over 10 MB each batch's text as read, where both had summed their passages' counts, which counted every overlap twice. `[evidence_level: build_verified, confidence: high, evidence_source: DocumentProcessor.swift, RAGService+TextStreaming.swift, RAGService+Streaming.swift]`
+
+**The progress line.** The PDF steps' progress lines named "[Metal GPU]" from a setting and "[ANE]" as
+fixed text, neither measured; from 5.7 they name the step only. `[evidence_level: code_verified,
+confidence: high, evidence_source: DocumentProcessor.swift]`
+
 ---
 
 ## 5b. Token counting, and the invariant that guards it

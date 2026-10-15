@@ -18,7 +18,7 @@ struct SemanticSearchView: View {
     @FocusState private var isQueryFocused: Bool
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             content
                 .onAppear {
                     let handedOver = initialQuery.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -169,6 +169,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Platforms:** iOS, macOS
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION on both platforms (read through the App Store Connect API on 2026-10-12 at about 20:25 PT). No 5.7 build exists yet.
 - **Final release notes commit:** the 2026-10-12 `[ci skip]` commit that adds this entry and `fastlane/review_notes/5.7.txt`
+- **Second copy (2026-10-14):** written after the roadmap was reconciled and 5.7 had grown past the first copy: Siri asking before Private Cloud Compute, Spotlight and Visual Intelligence, dictation, the Mac menu bar and Services, Lock Screen progress, Handoff and conversation sync, Check a Claim, PDF export, and the evening's fixes (iCloud sending only changed files, the empty-vector check, MMR). 3,331 characters for the Mac and 3,362 for iPhone and iPad. Not yet pushed when this entry was written; the push and its time are recorded here when it happens. The 2026-10-12 copy below is kept as it was.
 - **Notes:** the first copy written for 5.7. It was pushed to the two 5.7 records on 2026-10-12 with `fastlane push_metadata version:5.7`, macOS at 20:11 PT and iOS at 20:16 PT (the swap procedure in `Docs/ai/RUNBOOK.md`); each log names its platform and `app_version` 5.7, and `fastlane/report.xml` held no failure after either. Nothing was submitted. The two platforms' notes differ in four places: iPhone and iPad say "Open in", the Mac says a file can be dropped on the app's icon; iPhone and iPad have the line about new libraries using the faster copy of the search model, which does not apply to the Mac; iPhone and iPad have "Touch and hold the app icon", the Mac has the keyboard shortcuts; and the Mac has "Copy works on the Mac". The description, keywords, subtitle and promotional text are unchanged from 5.6. The description is 3,997 of 4,000 characters, so it does not name JSON import, Shortcuts results or sharing, and adding any of them means cutting something. `fastlane/review_notes/5.7.txt` (946 characters) was appended to App Review's notes on both records with `scripts/asc_listing_extras.rb 5.7 --apply` (HTTP 200 for each), which took them from 3,042 to 3,990 characters of Apple's 4,000; a first draft of 1,431 characters did not fit. The next version's addition will not fit until the additions for versions already reviewed are taken out of those notes. Two lines describe behaviour that has been built and not yet seen where a person would use it, and each needs seeing before 5.7 is submitted: "Open in" on an iPhone or iPad, and dropping a file on the app's icon on a Mac. `[evidence_level: measured for the pushes and the character counts (the two fastlane logs and the script's output of 2026-10-12); code_verified for the two lines named last, confidence: high, evidence_source: fastlane/report.xml; scripts/asc_listing_extras.rb output; CHANGELOG.md, the "Open in" entry]`
 
 **Release notes (`fastlane/metadata/`, the macOS copy):**
@@ -305,6 +306,140 @@ Everything still runs on your device, unless you okay Apple's Private Cloud Comp
 
 ```text
 Ask your own PDFs, contracts and notes, and see the passage each answer came from.  It needs Apple Intelligence: iPhone 15 Pro, iPhone 16 or later, or an M1 iPad or Mac.
+```
+
+**Second copy, release notes (`fastlane/metadata/`, the macOS copy, 2026-10-14):**
+
+```text
+This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.
+
+
+YOUR DOCUMENTS
+
+• JSON and JSONL files import as records, each with its field names and numbers kept exactly as the file has them.
+
+• Very large text and JSONL files import a piece at a time, and an interrupted import picks up where it was.  An 88 MB file used to take 2.8 GB of memory on an iPhone, and iOS closed the app before it was a fifth done.
+
+• You can drop a file on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
+
+• Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• An import stops and says so if the search model comes back empty, and a document that went missing from search is rebuilt when you open its library.
+
+
+LARGE LIBRARIES
+
+• A very large library doesn't hold the app up.  With 144,247 passages in one library, the app read all of it twice every time it opened.  Now it's read once, and those steps work from an even sample.
+
+• The Atlas opens on a very large library, and it names its clusters and axes from your own documents.
+
+
+SIRI, SHORTCUTS AND SPOTLIGHT
+
+• Actions hand back what they found, so the next step of a shortcut can use the answer and its sources.  "Ask My Documents" and "Ask a Library" have a Mode menu.
+
+• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Open Library, Open Document and Export Conversation.
+
+• When a question from Siri needs Private Cloud Compute and you haven't said yes or no to it yet, the app comes up and asks first.
+
+• Spotlight keeps your documents until you delete them, and tapping one opens it.  Visual Intelligence lists the documents in your libraries that mention what the camera sees.
+
+• On the Mac: a menu bar icon, Ask and Add in the Services menu, and keyboard shortcuts, like Shift-Command-N for a new conversation and Command-O to add documents.
+
+
+SHARING
+
+• A shared answer takes its sources with it, Image makes a card of an answer to post, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.
+
+• Copy works on the Mac.  The Copy button under an answer showed "Copied" and copied nothing.
+
+
+ANSWERS
+
+• Ask out loud: the chat field has a microphone, and dictation runs on your device.
+
+• The step that passes over a passage repeating one already picked never did anything before the model wrote.  It works now, so an answer sees more than one part of your documents.
+
+• Sentences from your documents aren't cut in half before the model reads them, numbers are checked as numbers, and a code like E1 counts as a keyword.
+
+
+ALSO
+
+• Handoff, and conversations in an iCloud library sync with it.  iCloud only sends a library's files when they change.
+
+• A notification when an import or a long answer is done, if you turn it on.  On iOS 27 and macOS 27 the app can offer to email me a crash report, and it only goes anywhere if you send it.
+
+• Redeem a Code on the plans screen.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+**Second copy, release notes (`fastlane/metadata-ios/`, 2026-10-14):**
+
+```text
+This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.
+
+
+YOUR DOCUMENTS
+
+• JSON and JSONL files import as records, each with its field names and numbers kept exactly as the file has them.
+
+• Very large text and JSONL files import a piece at a time, and an interrupted import picks up where it was.  An 88 MB file used to take 2.8 GB of memory on an iPhone, and iOS closed the app before it was a fifth done.
+
+• OpenIntelligence shows up under "Open in" from Files, Mail and the share sheet, and the Documents screen has a Paste button for a copied file, a web address or text.
+
+• Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• An import stops and says so if the search model comes back empty, and a document that went missing from search is rebuilt when you open its library.
+
+• New libraries on iPhone and iPad use the faster copy of the search model.
+
+
+LARGE LIBRARIES
+
+• A very large library doesn't hold the app up.  With 144,247 passages in one library, the app read all of it twice every time it opened.  Now it's read once, and those steps work from an even sample.
+
+• The Atlas opens on a very large library, and it names its clusters and axes from your own documents.
+
+
+SIRI, SHORTCUTS AND SPOTLIGHT
+
+• Actions hand back what they found, so the next step of a shortcut can use the answer and its sources.  "Ask My Documents" and "Ask a Library" have a Mode menu.
+
+• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Open Library, Open Document and Export Conversation.
+
+• When a question from Siri needs Private Cloud Compute and you haven't said yes or no to it yet, the app comes up and asks first.
+
+• Spotlight keeps your documents until you delete them, and tapping one opens it.  Visual Intelligence lists the documents in your libraries that mention what the camera sees.
+
+• Touch and hold the app icon for Ask, Add Document and Scan Document, add the widget to the Home Screen or the Lock Screen, and long answers show their progress there too.
+
+
+SHARING
+
+• A shared answer takes its sources with it, Image makes a card of an answer to post, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.
+
+
+ANSWERS
+
+• Ask out loud: the chat field has a microphone, and dictation runs on your device.
+
+• The step that passes over a passage repeating one already picked never did anything before the model wrote.  It works now, so an answer sees more than one part of your documents.
+
+• Sentences from your documents aren't cut in half before the model reads them, numbers are checked as numbers, and a code like E1 counts as a keyword.
+
+
+ALSO
+
+• Handoff, and conversations in an iCloud library sync with it.  iCloud only sends a library's files when they change.
+
+• A notification when an import or a long answer is done, if you turn it on.  On iOS 27 and macOS 27 the app can offer to email me a crash report, and it only goes anywhere if you send it.
+
+• Redeem a Code on the plans screen.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
 ```
 
 ### 5.6

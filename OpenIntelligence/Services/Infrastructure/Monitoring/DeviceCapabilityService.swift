@@ -791,12 +791,25 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Core ML compute preference for the active execution profile.
     var preferredComputeUnits: MLComputeUnits {
+        #if targetEnvironment(simulator)
+        return Self.simulatorComputeUnits
+        #else
         if isBackgroundCPUSafeIngestionActive {
             return .cpuOnly
         }
 
         return Self.coreMLComputeUnits(for: activeGPUExecutionProfile)
+        #endif
     }
+
+    /// Core ML runs on the CPU in the iOS Simulator (5.7). On the units the app asks for on a device,
+    /// the Core ML copy of the embedding model handed back all-zero vectors there: a library of the
+    /// ten sample documents held 127 passages with every vector zero, and with the model limited to
+    /// the CPU the same library held 2,375 passages with every norm 1.000 (both measured 2026-10-08,
+    /// row "A library is built from all-zero vectors when the embedding model fails"). From 5.7 an
+    /// import refuses empty vectors (`EmbeddingVectorCheck`), so without this every import in the
+    /// Simulator would stop, and libraries built there can now be searched by meaning.
+    nonisolated static let simulatorComputeUnits: MLComputeUnits = .cpuOnly
 
     /// Core ML compute units for a profile.
     ///
@@ -822,6 +835,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Embedding compute preference used when an ingestion session loads its model.
     var embeddingComputeUnitsDuringIngestion: MLComputeUnits {
+        #if targetEnvironment(simulator)
+        return Self.simulatorComputeUnits
+        #else
         if isBackgroundCPUSafeIngestionActive {
             return .cpuOnly
         }
@@ -831,6 +847,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
 
         return Self.embeddingComputeUnits(for: activeGPUExecutionProfile)
+        #endif
     }
 
     /// Embedding compute units for a profile. Extracted for the same reason as

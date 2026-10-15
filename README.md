@@ -59,6 +59,8 @@ an answer is more trustworthy when you can see what it was built from.
 | **Shows its work** | A live pipeline view names each stage as it runs, and every claim links back to the excerpt behind it. |
 | **Explains its own vocabulary** | Every figure it shows defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and says that it is a per-chip rating rather than a measurement. |
 | **Answers offline** | Airplane mode included. |
+| **Works with Siri, Shortcuts and Spotlight** | From 5.7, Shortcuts actions ask a library in any answer mode and hand the answer and its sources to the next step, and others find passages, check a claim, add a file, a link or text, and create, open and switch libraries. A question from Siri that needs Private Cloud Compute brings the app forward to ask first. Spotlight opens the document you tap, and Visual Intelligence lists the documents that mention what the camera sees. |
+| **Follows you between devices** | From 5.7, Handoff carries what's open, conversations in an iCloud library sync with it, and on the Mac there's a menu bar item, Services menu entries and keyboard shortcuts. |
 
 ### Quality modes
 
@@ -214,8 +216,10 @@ Shipping on the App Store for iPhone, iPad, and Mac. **5.6 is live on both platf
 synced from the same database the work is planned in.
 
 **5.7 is in preparation and is not on the App Store yet.** It adds JSON and JSON Lines import as records,
-imports of very large text files in pieces, Shortcuts actions that return their results, and sharing an
-answer with its sources. Statements in this file marked "from 5.7" describe that release.
+imports of very large text files in pieces, Shortcuts actions that return their results, Siri that asks
+before using Private Cloud Compute, Spotlight and Visual Intelligence that find documents, Handoff, a Mac
+menu bar item and Services, dictation, and sharing or exporting an answer with its sources. Statements in
+this file marked "from 5.7" describe that release.
 
 **Private Cloud Compute shipped in 5.2**, live on both platforms since 2026-09-10, and execution is
 confirmed on a physical device. The release pipeline enforces the claim rather than trusting it:

@@ -64,6 +64,82 @@ nonisolated enum ImportedFileStaging {
         }
     }
 
+    /// The file types the app imports: the Mac's open panel takes these, the iOS picker's list is
+    /// kept in step with them, and a folder's files are picked by them (5.7).
+    static let importableTypes: [UTType] = {
+        var types: [UTType] = [
+            .pdf, .plainText, .text, .rtf, .commaSeparatedText,
+            .image, .sourceCode, .json, .html,
+            .audio, .mp3, .wav,
+            .movie, .mpeg4Movie, .quickTimeMovie,
+        ]
+        let byExtension = [
+            "md", "markdown",
+            "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+            "pages", "numbers", "key",
+            "xml", "yaml", "yml", "css", "scss", "sass", "sql", "sh", "zsh",
+            "swift", "py", "js", "ts",
+            "jsonl", "ndjson",
+            "m4a", "aiff", "caf",
+        ]
+        types.append(contentsOf: byExtension.compactMap { UTType(filenameExtension: $0) })
+        return types
+    }()
+
+    /// Copies files into the workspace, and for each folder among `urls`, the files inside it,
+    /// through its subfolders, whose type the app imports (5.7). Through 5.6 a dropped folder was
+    /// refused and the Mac's open panel couldn't choose one. Hidden files and packages are skipped,
+    /// and at most `limit` files come from folders, so a large folder dropped by mistake doesn't
+    /// queue thousands of files.
+    static func copyIntoWorkspaceExpandingFolders(_ urls: [URL], limit: Int = 500) -> [URL] {
+        var files: [URL] = []
+        var folders: [URL] = []
+        for url in urls where url.isFileURL {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+            if values?.isDirectory == true {
+                if values?.isPackage != true { folders.append(url) }
+            } else {
+                files.append(url)
+            }
+        }
+        var copied = copyIntoWorkspace(files)
+        var taken = 0
+        for folder in folders where taken < limit {
+            let scoped = folder.startAccessingSecurityScopedResource()
+            let inside = importableFiles(in: folder, limit: limit - taken)
+            taken += inside.count
+            copied += copyIntoWorkspace(inside)
+            if scoped { folder.stopAccessingSecurityScopedResource() }
+        }
+        if !folders.isEmpty, taken >= limit {
+            Log.warning(
+                "[Import] Folders held at least \(limit) importable files; the first \(limit) were taken",
+                category: .ingestion)
+        }
+        return copied
+    }
+
+    /// The files under `folder`, through its subfolders, whose type the app imports, in name order,
+    /// at most `limit` of them. Hidden files and the insides of packages are skipped.
+    static func importableFiles(in folder: URL, limit: Int) -> [URL] {
+        guard limit > 0,
+            let walker = FileManager.default.enumerator(
+                at: folder, includingPropertiesForKeys: [.isRegularFileKey, .contentTypeKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        else { return [] }
+        var found: [URL] = []
+        for case let file as URL in walker {
+            let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey])
+            guard values?.isRegularFile == true,
+                let type = values?.contentType ?? UTType(filenameExtension: file.pathExtension),
+                importableTypes.contains(where: { type.conforms(to: $0) })
+            else { continue }
+            found.append(file)
+            if found.count >= limit { break }
+        }
+        return found.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+    }
+
     /// Returns the workspace URLs of everything that copied successfully.
     ///
     /// A failure is logged per file and skipped rather than aborting the batch,
@@ -226,16 +302,19 @@ enum MacDocumentImportPanel {
     ///
     /// `completion` receives an empty array when the user cancels, so callers
     /// can treat cancellation and "nothing usable was selected" identically.
+    /// `folderFileLimit` caps the files a chosen folder brings in (5.7).
     static func present(
         contentTypes: [UTType] = acceptedContentTypes,
+        folderFileLimit: Int = 500,
         completion: @escaping ([URL]) -> Void
     ) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
-        panel.canChooseDirectories = false
+        // A folder brings in the files inside it that the app imports (5.7).
+        panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = contentTypes
-        panel.message = "Select documents to add to this library"
+        panel.message = "Select documents or folders to add to this library"
         panel.prompt = "Import"
 
         let handle: (NSApplication.ModalResponse) -> Void = { response in
@@ -247,7 +326,7 @@ enum MacDocumentImportPanel {
                 "📚 Processing \(panel.urls.count) selected file(s)...",
                 category: .ingestion
             )
-            completion(ImportedFileStaging.copyIntoWorkspace(panel.urls))
+            completion(ImportedFileStaging.copyIntoWorkspaceExpandingFolders(panel.urls, limit: folderFileLimit))
         }
 
         // Attaching to the key window makes this a document-modal sheet, which
@@ -265,26 +344,8 @@ enum MacDocumentImportPanel {
         }
     }
 
-    /// Kept in sync with the iOS picker's accepted types.
-    static let acceptedContentTypes: [UTType] = {
-        var types: [UTType] = [
-            .pdf, .plainText, .text, .rtf, .commaSeparatedText,
-            .image, .sourceCode, .json, .html,
-            .audio, .mp3, .wav,
-            .movie, .mpeg4Movie, .quickTimeMovie,
-        ]
-        let byExtension = [
-            "md", "markdown",
-            "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-            "pages", "numbers", "key",
-            "xml", "yaml", "yml", "css", "scss", "sass", "sql", "sh", "zsh",
-            "swift", "py", "js", "ts",
-            "jsonl", "ndjson",
-            "m4a", "aiff", "caf",
-        ]
-        types.append(contentsOf: byExtension.compactMap { UTType(filenameExtension: $0) })
-        return types
-    }()
+    /// Kept in sync with the iOS picker's accepted types (`ImportedFileStaging.importableTypes`).
+    static let acceptedContentTypes: [UTType] = ImportedFileStaging.importableTypes
 }
 
 /// SwiftUI wrapper kept so shared call sites and `#Preview` still compile on

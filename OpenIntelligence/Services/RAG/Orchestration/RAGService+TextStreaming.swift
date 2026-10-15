@@ -497,6 +497,7 @@ extension RAGService {
                     throw TextStreamingImportError(
                         message: "\(label) of \(filename): \(vectors.count) embeddings came back for \(slice.count) passages")
                 }
+                try EmbeddingVectorCheck.requireUsable(vectors, of: filename)
                 try await TextPieceVectors.append(vectors, to: vectorsURL, key: vectorsKey, startsFile: embeddings.isEmpty)
                 embeddings.append(contentsOf: vectors)
 
@@ -555,7 +556,9 @@ extension RAGService {
             next.completedPieces += 1
             next.recordsDone += recordsInPiece
             next.totalChunks += processedChunks.count
-            next.totalWords += processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
+            // The piece's own text, not its passages: passages overlap, so their counts summed counted
+            // the overlap twice (5.7).
+            next.totalWords += DocumentProcessor.wordCount(of: pieceText)
             next.totalChars += processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
             next.keptTextBytes += kept.bytes
             next.keptTextChars += kept.characters

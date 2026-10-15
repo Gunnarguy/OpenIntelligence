@@ -115,7 +115,10 @@ extension RAGService {
             let batchMetadata = Self.documentNumbered(
                 processedChunks.map(\.metadata), chunkBase: totalChunks, positionBase: 0)
 
-            let batchWordCount = processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
+            // The batch's own text, counted when it was read, not its passages: passages overlap, so
+            // their counts summed counted the overlap twice (5.7).
+            let batchWordCount =
+                doc.processingMetadata?.totalWords ?? processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
             totalChunks += processedChunks.count
             totalWords += batchWordCount
             totalChars += processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
@@ -154,6 +157,7 @@ extension RAGService {
             }
             
             let batchEmbeddings = try await containerEmbeddingService.generateEmbeddings(for: textsToEmbed)
+            try EmbeddingVectorCheck.requireUsable(batchEmbeddings, of: doc.filename)
             
             // 3. Store in DB
             var dbChunks: [DocumentChunk] = []

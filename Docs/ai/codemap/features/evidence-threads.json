@@ -14,8 +14,8 @@
     {"path": "OpenIntelligence/Features/Debug/EvidenceThreadDebugView.swift", "role": "primary", "blob": "827a20eaeb5d330b117c914a195e6e0958748fcf"},
     {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "5a8ca6169a3f48f262c43bb78ed3a857793ce721"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "role": "shared", "blob": "280adf492488b3c93175acbbc2a2bf64c3b6c13e"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "b1950fc63989082a22374ae1da2dde867ccfd8d3"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "2a517b56d42ca55a5a99626ddb840606bc1bb87c"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "14cebe517e6ae37a0d0c96a3082da8dae83d6731"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "30283e91b2de8844318eb060a81e2bb1088408b2"},
     {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "6fd5ca7fb3ab94409ddbaf31167bc0af6bb3ff82"}
   ],
   "nodes": [

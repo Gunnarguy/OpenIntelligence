@@ -456,6 +456,13 @@ class RAGService: ObservableObject {
     @MainActor private var ingestionQueueTombstones: [IngestionQueueTombstone] = []
     @MainActor private var selfHealingRebuildTask: Task<Void, Never>?
     @MainActor private var pendingSelfHealingContainerIds: [UUID] = []
+    /// The documents a pending self-healing rebuild is limited to, by library (5.7). A library with
+    /// no entry is rebuilt whole, as before.
+    @MainActor private var selfHealingDocumentIds: [UUID: Set<UUID>] = [:]
+    /// Repairs `evaluateSemanticIndexHealth` started this launch, so one that can't succeed (a source
+    /// file that is gone, a model that keeps failing) is tried once and then left as a banner instead
+    /// of starting again at every library switch (5.7).
+    @MainActor private var indexRepairsTriedThisLaunch: Set<String> = []
     @MainActor private var requestedIngestionCancellationIds: Set<UUID> = []
     @MainActor private var liveActivityTrackedIngestionIds: Set<UUID> = []
     @MainActor private var lastLocalIndexSyncFingerprint: String? {
@@ -3628,7 +3635,7 @@ class RAGService: ObservableObject {
             tokens.reserveCapacity(16)
 
             for rawToken in lowercasedText.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) {
-                guard rawToken.count > 2 else { continue }
+                guard Self.isEvidenceKeyword(rawToken) else { continue }
 
                 let token = String(rawToken)
                 guard !lexicalStopWords.contains(token) else { continue }
@@ -3667,7 +3674,7 @@ class RAGService: ObservableObject {
         let queryKeywords =
             queryLower
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 && !lexicalStopWords.contains($0) }
+            .filter { Self.isEvidenceKeyword($0) && !lexicalStopWords.contains($0) }
 
         guard !queryKeywords.isEmpty else {
             // Fallback: no usable keywords, return empty
@@ -7196,6 +7203,7 @@ class RAGService: ObservableObject {
                 }
             )
             try Task.checkCancellation()
+            try EmbeddingVectorCheck.requireUsable(embeddings, of: filename)
 
             let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
@@ -8028,8 +8036,132 @@ class RAGService: ObservableObject {
             // attempt the repair at all.
             enqueueSelfHealingRebuild(for: containerId)
         } else {
-            librariesNeedingIndexRebuild.remove(containerId)
+            await checkVectorsAndDocuments(of: container, passageCount: indexedChunkCount)
         }
+    }
+
+    /// The two ways a library whose store holds passages still can't be searched by meaning (5.7).
+    ///
+    /// Its vectors are empty: a model that returned zeros for every passage built a library that
+    /// read as healthy (row "A library is built from all-zero vectors when the embedding model
+    /// fails"; seen in the iOS 27 Simulator on 2026-10-08, 127 of 127 vectors zero). A sample of the
+    /// vectors decides it; a real vector is never all zeros.
+    ///
+    /// A listed document has no passages: the owner's backup of 2026-09-10 held a document of 455
+    /// passages with none in the store and none in the keyword index, so it could not be found at
+    /// all, and this check looked only at whether the whole store was empty. A document whose import
+    /// hasn't finished is skipped, since an import saves its passages before its record only for
+    /// small files.
+    ///
+    /// Either one starts the same repair as an empty store, limited to the documents that need it,
+    /// once a launch; a repair that didn't take leaves the rebuild banner up.
+    @MainActor
+    private func checkVectorsAndDocuments(of container: KnowledgeContainer, passageCount: Int) async {
+        let containerId = container.id
+        let db = vectorRouter.db(for: container)
+
+        let sample = await db.getEmbeddings(forIndices: Self.sampleIndices(count: passageCount))
+        if Self.vectorsLookEmpty(sample) {
+            Log.warning(
+                "[RAGService] Library \(containerId): \(EmbeddingVectorCheck.unusableCount(sample)) of \(sample.count) "
+                    + "sampled vectors are empty, so it can't be searched by meaning; re-embedding it.",
+                category: .ingestion)
+            librariesNeedingIndexRebuild.insert(containerId)
+            let key = "vectors:\(containerId.uuidString)"
+            if !indexRepairsTriedThisLaunch.contains(key) {
+                indexRepairsTriedThisLaunch.insert(key)
+                enqueueSelfHealingRebuild(for: containerId)
+            }
+            return
+        }
+
+        let records: [PassageRecord]
+        do {
+            records = try await db.passageRecords()
+        } catch {
+            // Not proven missing, the same rule as the count above.
+            librariesNeedingIndexRebuild.remove(containerId)
+            return
+        }
+        var passagesByDocument: [UUID: Int] = [:]
+        for record in records {
+            passagesByDocument[record.documentId, default: 0] += 1
+        }
+        let eligible = Self.documentsEligibleForRebuild(
+            in: documents,
+            targetContainerId: containerId,
+            blockingURLs: Self.blockingIngestionURLs(in: ingestionItems),
+            fallbackContainerId: containerService.containers.first?.id)
+        let missing = Self.documentsMissingPassages(eligible, passagesByDocument: passagesByDocument)
+        guard !missing.isEmpty else {
+            librariesNeedingIndexRebuild.remove(containerId)
+            return
+        }
+        Log.warning(
+            "[RAGService] Library \(containerId): \(missing.count) document(s) have no passages in the store, "
+                + "so search can't find them: \(missing.map(\.filename).joined(separator: ", ")). Rebuilding those.",
+            category: .ingestion)
+        librariesNeedingIndexRebuild.insert(containerId)
+        let untried = missing.filter { !indexRepairsTriedThisLaunch.contains("document:\($0.id.uuidString)") }
+        guard !untried.isEmpty else { return }
+        for document in untried {
+            indexRepairsTriedThisLaunch.insert("document:\(document.id.uuidString)")
+        }
+        enqueueSelfHealingRebuild(for: containerId, onlyDocuments: Set(untried.map(\.id)))
+    }
+
+    /// The stored vectors of the candidates that came without one, by passage id, for MMR (5.7).
+    ///
+    /// The store hands passages back without their vectors, so through 5.6 MMR compared empty
+    /// vectors, found every pair 0 alike and kept passages in score order whatever λ said, in every
+    /// mode, while Settings said MMR diversified. A passage from another library, or one whose vector
+    /// is empty, gets none and counts as unlike everything, as before.
+    func storedVectors(for candidates: [RetrievedChunk], in containerId: UUID) async -> [UUID: [Float]] {
+        let ids = candidates.filter { $0.chunk.embedding.isEmpty }.map(\.chunk.id)
+        guard !ids.isEmpty else { return [:] }
+        let vectors = await dbFor(containerId).getEmbeddings(forChunkIDs: ids)
+        var byId: [UUID: [Float]] = [:]
+        for (id, vector) in zip(ids, vectors) where EmbeddingVectorCheck.isUsable(vector) {
+            byId[id] = vector
+        }
+        return byId
+    }
+
+    /// Whether a word of a question, or of a line of evidence, counts when lines are matched to the
+    /// question: three characters or more, or a two-character code that mixes letters and digits
+    /// ("E1", "F2", "3D") (5.7).
+    ///
+    /// Through 5.6 every word of two characters was dropped, so in "What does E1 mean on the air
+    /// fryer?" the one word that names the answer never counted, and the lines picked for the answer
+    /// were the ones about the air fryer in general. The sample library's air fryer answer was wrong
+    /// on 2026-10-01 and again on real vectors on 2026-10-08 (row "Wrong answers from the sample
+    /// library"); this is the likely cause, not yet confirmed on a device.
+    nonisolated static func isEvidenceKeyword(_ word: some StringProtocol) -> Bool {
+        if word.count > 2 { return true }
+        guard word.count == 2 else { return false }
+        return word.contains(where: \.isLetter) && word.contains(where: \.isNumber)
+    }
+
+    /// Evenly spread positions in a store of `count` passages, at most `limit` of them.
+    nonisolated static func sampleIndices(count: Int, limit: Int = 64) -> [Int] {
+        guard count > 0, limit > 0 else { return [] }
+        let taken = min(count, limit)
+        return (0..<taken).map { $0 * count / taken }
+    }
+
+    /// True when a sample of a store's vectors says the model failed for the library: at least nine
+    /// in ten unusable, out of a sample of at least eight (or the whole store, if smaller).
+    nonisolated static func vectorsLookEmpty(_ sample: [[Float]]) -> Bool {
+        guard !sample.isEmpty else { return false }
+        let unusable = EmbeddingVectorCheck.unusableCount(sample)
+        return unusable * 10 >= sample.count * 9
+    }
+
+    /// Listed documents that had passages when they were imported and have none in the store now.
+    nonisolated static func documentsMissingPassages(
+        _ documents: [Document], passagesByDocument: [UUID: Int]
+    ) -> [Document] {
+        documents.filter { $0.totalChunks > 0 && (passagesByDocument[$0.id] ?? 0) == 0 }
     }
 
     /// A readable snapshot of a library's index state, for the trace a user shares from a response.
@@ -8122,7 +8254,7 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
-    private func enqueueSelfHealingRebuild(for containerId: UUID) {
+    private func enqueueSelfHealingRebuild(for containerId: UUID, onlyDocuments: Set<UUID>? = nil) {
         guard !isSelfHealingSuppressed(for: containerId) else {
             // Suppressed, and previously that meant silently giving up: the
             // library kept its documents, kept its text index, and permanently
@@ -8143,12 +8275,21 @@ class RAGService: ObservableObject {
             librariesNeedingIndexRebuild.insert(containerId)
             return
         }
-        guard !pendingSelfHealingContainerIds.contains(containerId) else { return }
+        guard !pendingSelfHealingContainerIds.contains(containerId) else {
+            // Already waiting: a whole-library repair covers any documents; two limited ones join.
+            if let onlyDocuments, let waiting = selfHealingDocumentIds[containerId] {
+                selfHealingDocumentIds[containerId] = waiting.union(onlyDocuments)
+            } else {
+                selfHealingDocumentIds[containerId] = nil
+            }
+            return
+        }
         let alreadyQueued = ingestionItems.contains { item in
             item.containerId == containerId && !item.stage.isTerminal && Self.isAutomaticSelfHealingItem(item)
         }
         guard !alreadyQueued else { return }
 
+        selfHealingDocumentIds[containerId] = onlyDocuments
         pendingSelfHealingContainerIds.append(containerId)
         guard selfHealingRebuildTask == nil else { return }
         selfHealingRebuildTask = Task { @MainActor [weak self] in
@@ -8161,11 +8302,14 @@ class RAGService: ObservableObject {
         defer { selfHealingRebuildTask = nil }
         while !pendingSelfHealingContainerIds.isEmpty {
             let containerId = pendingSelfHealingContainerIds.removeFirst()
+            let onlyDocuments = selfHealingDocumentIds.removeValue(forKey: containerId)
             guard !isSelfHealingSuppressed(for: containerId) else { continue }
             do {
                 try await reembedDocuments(
                     in: containerId,
-                    reason: "Self-healing: empty vector store"
+                    reason: onlyDocuments == nil
+                        ? "Self-healing: empty vector store" : "Self-healing: documents without passages",
+                    onlyDocumentIds: onlyDocuments
                 )
                 if isSelfHealingSuppressed(for: containerId) {
                     Log.info(
@@ -8595,6 +8739,7 @@ class RAGService: ObservableObject {
     func reembedDocuments(
         in containerId: UUID? = nil,
         reason: String? = nil,
+        onlyDocumentIds: Set<UUID>? = nil,
         progressHandler: (@MainActor (ReembedProgress) -> Void)? = nil
     ) async throws {
         let targetContainerId: UUID
@@ -8638,6 +8783,7 @@ class RAGService: ObservableObject {
                 blockingURLs: Self.blockingIngestionURLs(in: self.ingestionItems),
                 fallbackContainerId: self.containerService.containers.first?.id
             )
+            .filter { onlyDocumentIds?.contains($0.id) ?? true }
         }
 
         guard !documentsToRebuild.isEmpty else {
@@ -8928,6 +9074,7 @@ class RAGService: ObservableObject {
                         }
                     }
                 )
+                try EmbeddingVectorCheck.requireUsable(embeddings, of: document.filename)
 
                 if isAutomaticSelfHealing,
                     await MainActor.run(body: { self.isSelfHealingSuppressed(for: targetContainerId) })
@@ -12510,7 +12657,8 @@ class RAGService: ObservableObject {
                         candidates: filteredChunks,
                         queryEmbedding: queryEmbedding,
                         topK: effectiveTopK,  // Clamped for short queries
-                        lambda: mmrLambda
+                        lambda: mmrLambda,
+                        vectors: await storedVectors(for: filteredChunks, in: selectedId)
                     )
                     auditMMRSelectedCount = diverseChunks.count
                     mmrTime = Date().timeIntervalSince(mmrStartTime)
@@ -16354,7 +16502,10 @@ class RAGService: ObservableObject {
             modelUsed: llmService.modelName,
             retrievalTime: retrievalTime,
             retrievalConfigSummary: retrievalConfig.summary,
-            gatingDecision: "reliability_fallback",
+            // An answer of excerpts alone: no model wrote it and no check ran, so it reads Not
+            // Checked. Through 5.6 it carried "reliability_fallback", which reads Partially Verified,
+            // the label of a best-effort answer that was checked (5.7).
+            gatingDecision: "excerpts_only",
             toolCallsMade: 0,
             embeddingProvider: embeddingProviderId
         )
@@ -20555,7 +20706,8 @@ extension RAGService: RAGToolHandler {
             candidates: retrievedChunks,
             queryEmbedding: queryEmbedding,
             topK: topK,
-            lambda: mmrLambda
+            lambda: mmrLambda,
+            vectors: await storedVectors(for: retrievedChunks, in: embeddingContext.containerId)
         )
 
         await onDetailedEvent?(.mmr, "Diversity optimized", "\(retrievedChunks.count) chunks after MMR")

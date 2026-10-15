@@ -8,9 +8,10 @@
   "verified_on": "2026-10-10",
   "entry_points": ["WorkspaceSyncService", "WorkspaceSyncService.deleteSharedLibrary", "WorkspaceSyncService.synchronizeEvidenceThreads", "WorkspaceInventory", "SyncBootstrapChoice"],
   "files": [
-    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "primary", "blob": "b1950fc63989082a22374ae1da2dde867ccfd8d3"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "primary", "blob": "14cebe517e6ae37a0d0c96a3082da8dae83d6731"},
     {"path": "OpenIntelligenceTests/Services/Storage/IngestionQueueTombstoneTests.swift", "role": "test", "blob": "93c549154bf641e72ba7f4ee1a743fc7aeeb4913"},
-    {"path": "OpenIntelligenceTests/Services/Storage/WorkspaceSyncImportGuardTests.swift", "role": "test", "blob": "02869f8bbe1e6a8a1429051a6904be766cce6ee5"}
+    {"path": "OpenIntelligenceTests/Services/Storage/WorkspaceSyncImportGuardTests.swift", "role": "test", "blob": "02869f8bbe1e6a8a1429051a6904be766cce6ee5"},
+    {"path": "OpenIntelligenceTests/Services/Storage/WorkspaceSyncFileWriteTests.swift", "role": "test", "blob": "6c0cfeac144ac30ca9d0d54504c31654c77e354c"}
   ],
   "nodes": [
     {"id": "WorkspaceSyncService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 220, "match": "final class WorkspaceSyncService: ObservableObject {", "status": "VERIFIED", "by": "build"},

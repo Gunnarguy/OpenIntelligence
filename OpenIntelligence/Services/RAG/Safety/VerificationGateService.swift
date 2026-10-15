@@ -564,6 +564,17 @@ actor VerificationGateService {
                 details: "No chunk embeddings to ground against"
             )
         }
+        // Vectors that are all zeros give a cosine of 0 against anything, so every answer from a
+        // library built from them failed this gate whatever it said (seen in the iOS 27 Simulator on
+        // 2026-10-08). With nothing to compare, the gate says so, as it does for no vectors (5.7).
+        guard chunkEmbeddings.contains(where: EmbeddingVectorCheck.isUsable) else {
+            return RAGVerificationResult.GateResult(
+                gate: .semanticGrounding,
+                passed: true,
+                confidence: 1.0,
+                details: "The passages' vectors are empty, so there is nothing to ground against"
+            )
+        }
 
         // ── Step 1: Compute response ↔ chunk similarities ──────────────────
         var responseMaxSim: Float = 0.0
@@ -1351,6 +1362,23 @@ actor VerificationGateService {
             verdict = .partial
             confidence = min(confidence, 0.55)
             details = "The figure \(missing.written) is not stated in the retrieved passages"
+        }
+
+        // Nor while the passage it rests on says the opposite: one of the two is negative and the
+        // other isn't. The overlap above counted "Pets are allowed with a refundable deposit of four
+        // hundred dollars" as Supported by a lease that says pets are not allowed, because three of
+        // its nine words are in it (ClaimCheckEvaluationTests, 2026-10-09). The rule is the one
+        // "Check a Claim" has used since 5.7 began (`ClaimCheck.negationDiffers`), applied to the
+        // sentence of the passage that shares the most words with the claim (5.7).
+        if verdict == .supported,
+            let passage = supportingChunks.first,
+            let sentence = ClaimCheck.matchingSentence(
+                for: claimText, in: passage.chunk.parentContent ?? passage.chunk.content),
+            ClaimCheck.negationDiffers(claimText, sentence)
+        {
+            verdict = .partial
+            confidence = min(confidence, 0.5)
+            details = "The passage it rests on says the opposite"
         }
 
         return RAGVerificationResult.ClaimResult(
