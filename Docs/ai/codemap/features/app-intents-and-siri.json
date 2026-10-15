@@ -11,7 +11,7 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIDocumentEntity.swift", "role": "primary", "blob": "b15f6a4fa7a36b9142177241591a2bec17217ae5"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIEntityQueries.swift", "role": "primary", "blob": "f16d408929de7e8dc85e3f21485a5746ec4ea915"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OILibraryEntity.swift", "role": "primary", "blob": "55dd8af91f471bc37c36528f24a8f4b8df3021f7"},
-    {"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "role": "primary", "blob": "3a4cf972341affe78dafa771e474f249e8b5a693"},
+    {"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "role": "primary", "blob": "070bfac0db2b1354ed18b7879266b385f4b06435"},
     {"path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "role": "primary", "blob": "a1f27a95b9c3dbdf36a7aad9dbb4b4fc7304d06b"},
     {"path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "role": "primary", "blob": "ec5cf990630aba7ea5b8c11ffeb5d0a37637feec"},
     {"path": "OpenIntelligence/Services/Agentic/IntentSupport.swift", "role": "primary", "blob": "a9faca9f7045af177ff4c410b52bf0c475953cb5"},

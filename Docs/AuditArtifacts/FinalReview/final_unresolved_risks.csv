@@ -1,6 +1,6 @@
 risk_id,risk,severity,likelihood,affected_area,blocker_yes_no,mitigation,owner_or_next_action,evidence,confidence,current_status,notes
 R06,PCC consent suspension exact file/symbol,High,Medium,Routing,no,Keep PCC isolated during Phase 1A,Phase 1B Implementation,FoundationModelRoutePolicy.swift,exact,accepted_residual,Non-blocking for Phase 1A
-R07,App Intent PCC risk,Medium,Medium,Routing,no,Do not expose threads to intents yet,Phase 1B Implementation,RAGAppIntents.swift,exact,accepted_residual,Non-blocking for Phase 1A
+R07,App Intent PCC risk,Medium,Medium,Routing,no,Do not expose threads to intents yet,Phase 1B Implementation,RAGAppIntents.swift; RAGService.swift; CloudConsentRelay.swift,exact,fixed_in_source_pending_device,"2026-10-14 (5.7): an action's question that reached the consent step with the app in front waited on a sheet only the chat could show; its request now goes through CloudConsentRelay, and an ask action can come forward to ask. Device validation pending."
 R08,Keychain/StoreKit recovery path,Medium,Low,Billing,no,Rely on UserDefaults for Phase 1A,Future Audit,EntitlementStore.swift,exact,accepted_residual,Non-blocking for Phase 1A
 R09,BNNS memory mapping claim,Medium,Low,Storage,no,Do not alter vector engine,Future Audit,BNNSVectorDatabase.swift,exact,accepted_residual,Non-blocking for Phase 1A
 R19,Risk of relying on old audit docs as truth,High,Medium,Governance,no,Use final_canonical_file_index.md,Future Agents,final_canonical_file_index.md,exact,accepted_residual,Non-blocking for Phase 1A

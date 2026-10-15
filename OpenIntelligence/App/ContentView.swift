@@ -25,6 +25,11 @@ struct ContentView: View {
     @ObservedObject private var reviewPrompt = ReviewPromptService.shared
     /// Answers that finished while another tab was showing; badges the Chat tab.
     @ObservedObject private var chatAnswerNotice = ChatAnswerNotice.shared
+    /// A Private Cloud Compute consent request from an engine the chat does not show, such as the one
+    /// an action builds for its question (5.7). The first window to claim it shows it.
+    @ObservedObject private var consentRelay = CloudConsentRelay.shared
+    @State private var relayedConsent: CloudConsentRelay.Request?
+    @State private var windowID = UUID()
     @Environment(\.requestReview) private var requestReview
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
@@ -220,6 +225,26 @@ struct ContentView: View {
             }
         ) { release in
             WhatsNewView(release: release)
+        }
+        .onReceive(consentRelay.$request) { request in
+            guard let request else {
+                relayedConsent = nil
+                return
+            }
+            if consentRelay.claim(request.id, for: windowID) { relayedConsent = request }
+        }
+        .sheet(item: $relayedConsent) { request in
+            CloudConsentPromptView(record: request.record) { decision in
+                Task { await consentRelay.decide(request.id, decision) }
+            }
+            .interactiveDismissDisabled(true)
+            .onAppear { consentRelay.markShown(request.id) }
+            #if os(iOS)
+                .presentationDetents([.height(580), .large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(24)
+                .presentationBackground(.ultraThinMaterial)
+            #endif
         }
         .task {
             // Screenshot runs wipe their defaults suite on launch, which would read as

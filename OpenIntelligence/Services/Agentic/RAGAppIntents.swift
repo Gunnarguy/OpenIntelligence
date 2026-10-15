@@ -72,9 +72,13 @@ nonisolated final class AskControl: @unchecked Sendable {
     private var isFinished = false
     /// The action's own progress on 27, nil before.
     let progress: Progress?
+    /// Brings the app forward when the question needs the Private Cloud Compute consent sheet
+    /// (`AskActionRunner.foregroundRequest`); nil when the system would not let the action come forward.
+    let bringForward: (@Sendable () async throws -> Void)?
 
-    init(progress: Progress?) {
+    init(progress: Progress?, bringForward: (@Sendable () async throws -> Void)? = nil) {
         self.progress = progress
+        self.bringForward = bringForward
         progress?.totalUnitCount = 100
     }
 
@@ -206,6 +210,8 @@ enum AskActionRunner {
         guard !wanted.isEmpty else { throw OIIntentError("There was no question to ask.") }
 
         let engine = await MainActor.run { makeEngine() }
+        let bringForward = control?.bringForward
+        await MainActor.run { engine.bringAppForwardForConsent = bringForward }
         let (documents, defaultLibraryId) = await MainActor.run {
             (engine.documents, engine.containerService.containers.first?.id)
         }
@@ -371,24 +377,39 @@ enum AskActionRunner {
     }
 
     /// Runs an ask action's question where the system can stop it (iOS and macOS 26.4) and, on 27,
-    /// as a long-running task that reports progress. Before 26.4 it runs as it did through 5.6.
+    /// as a long-running task that reports progress. Before 26.4 it runs as it did through 5.6. On
+    /// every version the question can bring the app forward for the consent sheet (`foregroundRequest`).
     static func run<Intent: AppIntent>(
         _ intent: Intent, _ ask: @escaping (AskControl) async throws -> Outcome
     ) async throws -> Outcome {
+        let bringForward = foregroundRequest(for: intent)
         if #available(iOS 27.0, macOS 27.0, *), let long = intent as? any (LongRunningIntent & CancellableIntent) {
-            return try await runLong(long, ask)
+            return try await runLong(long, bringForward: bringForward, ask)
         }
         if #available(iOS 26.4, macOS 26.4, *), let cancellable = intent as? any CancellableIntent {
-            return try await runCancellable(cancellable, ask)
+            return try await runCancellable(cancellable, bringForward: bringForward, ask)
         }
-        return try await ask(AskControl(progress: nil))
+        return try await ask(AskControl(progress: nil, bringForward: bringForward))
+    }
+
+    /// What brings the app forward when the question's engine needs the Private Cloud Compute
+    /// consent sheet (`RAGService.bringAppForwardForConsent`, 5.7). Nil when the system would not let
+    /// the action come forward, as on a locked iPhone: the question then uses Private Cloud Compute
+    /// only with consent given before. The ask actions allow it with `.foreground(.dynamic)`.
+    static func foregroundRequest<Intent: AppIntent>(for intent: Intent) -> (@Sendable () async throws -> Void)? {
+        guard intent.systemContext.currentMode.canContinueInForeground else { return nil }
+        return {
+            try await intent.continueInForeground(
+                "Private Cloud Compute needs your OK before this question goes to it.", alwaysConfirm: false)
+        }
     }
 
     @available(iOS 27.0, macOS 27.0, *)
     private static func runLong<Intent: LongRunningIntent & CancellableIntent>(
-        _ intent: Intent, _ ask: @escaping (AskControl) async throws -> Outcome
+        _ intent: Intent, bringForward: (@Sendable () async throws -> Void)?,
+        _ ask: @escaping (AskControl) async throws -> Outcome
     ) async throws -> Outcome {
-        let control = AskControl(progress: intent.progress)
+        let control = AskControl(progress: intent.progress, bringForward: bringForward)
         return try await intent.performBackgroundTask(
             operation: { try await ask(control) },
             onCancel: { reason in control.cancel(because: reason == .timeout ? "timeout" : "cancelled") })
@@ -396,9 +417,10 @@ enum AskActionRunner {
 
     @available(iOS 26.4, macOS 26.4, *)
     private static func runCancellable<Intent: CancellableIntent>(
-        _ intent: Intent, _ ask: @escaping (AskControl) async throws -> Outcome
+        _ intent: Intent, bringForward: (@Sendable () async throws -> Void)?,
+        _ ask: @escaping (AskControl) async throws -> Outcome
     ) async throws -> Outcome {
-        let control = AskControl(progress: nil)
+        let control = AskControl(progress: nil, bringForward: bringForward)
         return try await intent.withIntentCancellationHandler(
             operation: { try await ask(control) },
             onCancel: { reason in control.cancel(because: reason == .timeout ? "timeout" : "cancelled") })
@@ -418,7 +440,9 @@ struct QueryDocumentsIntent: AppIntent {
         searchKeywords: ["ask", "question", "answer", "search", "documents"]
     )
 
-    static var openAppWhenRun: Bool = false // Can run in background
+    /// In the background, and in front only when the question needs the Private Cloud Compute consent
+    /// sheet (`AskActionRunner.foregroundRequest`, 5.7). Through 5.6 it could not come forward.
+    static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
 
     @Parameter(title: "Question", description: "What would you like to know?")
     var question: String
@@ -1034,7 +1058,9 @@ struct AskDocumentIntent: AppIntent {
         categoryName: "Ask"
     )
 
-    static var openAppWhenRun: Bool = false
+    /// In the background, and in front only when the question needs the Private Cloud Compute consent
+    /// sheet (`AskActionRunner.foregroundRequest`, 5.7). Through 5.6 it could not come forward.
+    static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
 
     @Parameter(title: "Document")
     var document: OIDocumentEntity
@@ -1070,7 +1096,9 @@ struct SummarizeDocumentIntent: AppIntent {
         categoryName: "Ask"
     )
 
-    static var openAppWhenRun: Bool = false
+    /// In the background, and in front only when the question needs the Private Cloud Compute consent
+    /// sheet (`AskActionRunner.foregroundRequest`, 5.7). Through 5.6 it could not come forward.
+    static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
 
     @Parameter(title: "Document")
     var document: OIDocumentEntity
@@ -1104,7 +1132,9 @@ struct CompareDocumentsIntent: AppIntent {
         categoryName: "Ask"
     )
 
-    static var openAppWhenRun: Bool = false
+    /// In the background, and in front only when the question needs the Private Cloud Compute consent
+    /// sheet (`AskActionRunner.foregroundRequest`, 5.7). Through 5.6 it could not come forward.
+    static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
 
     @Parameter(title: "First Document")
     var document1: OIDocumentEntity
@@ -1146,7 +1176,9 @@ struct SearchLibraryIntent: AppIntent {
         categoryName: "Ask"
     )
 
-    static var openAppWhenRun: Bool = false
+    /// In the background, and in front only when the question needs the Private Cloud Compute consent
+    /// sheet (`AskActionRunner.foregroundRequest`, 5.7). Through 5.6 it could not come forward.
+    static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
 
     @Parameter(title: "Library")
     var library: OILibraryEntity

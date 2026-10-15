@@ -357,6 +357,12 @@ class RAGService: ObservableObject {
     @MainActor private weak var settingsStore: SettingsStore?
     @MainActor private var queryRuntimeCoordinator: QueryRuntimeCoordinator?
     @MainActor private var pendingConsentContinuation: CheckedContinuation<CloudConsentDecision, Never>?
+    /// Brings the app forward so the consent sheet can be shown: set on the engine an action builds
+    /// for its question, when the system lets that action come forward (`AskActionRunner`, 5.7).
+    /// Nil on the app's own engine.
+    @MainActor var bringAppForwardForConsent: (@Sendable () async throws -> Void)?
+    /// Set when a consent sheet was given up because no window showed it (`CloudConsentRelay`).
+    @MainActor private var consentRequestWentUnseen = false
     @MainActor private var transientConsentGrants: Set<CloudProvider> = []
     @MainActor private var pccSuppressedUntil: Date?
 
@@ -2466,6 +2472,20 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// A consent sheet no window showed (`CloudConsentRelay`): the question goes on without Private
+    /// Cloud Compute and nothing is remembered, unlike Don't Allow. Only the request it names: a newer
+    /// one on this engine is left alone.
+    @MainActor
+    func abandonCloudConsentRequest(_ id: UUID) {
+        guard pendingCloudConsent?.id == id else { return }
+        let continuation = pendingConsentContinuation
+        pendingConsentContinuation = nil
+        pendingCloudConsent = nil
+        consentRequestWentUnseen = true
+        CloudConsentRelay.shared.withdraw(id)
+        continuation?.resume(returning: .deny)
+    }
+
     private func makeTransmissionRecord(
         provider: CloudProvider,
         modelName: String,
@@ -4085,8 +4105,21 @@ class RAGService: ObservableObject {
         }
 
         #if canImport(UIKit)
-            let isForegroundInteractive = await MainActor.run {
+            var isForegroundInteractive = await MainActor.run {
                 UIApplication.shared.applicationState == .active
+            }
+            // An action's question can bring the app forward to ask, when the system lets it
+            // (`bringAppForwardForConsent`, 5.7). When it cannot, the question goes on without
+            // Private Cloud Compute, as before.
+            if !isForegroundInteractive, let bringForward = bringAppForwardForConsent {
+                do {
+                    try await bringForward()
+                    isForegroundInteractive = true
+                } catch {
+                    Log.info(
+                        "[Consent] The app could not come forward to ask: \(error.localizedDescription)",
+                        category: .pipeline)
+                }
             }
             guard isForegroundInteractive else {
                 TelemetryCenter.emit(
@@ -4100,6 +4133,18 @@ class RAGService: ObservableObject {
                 )
                 throw RAGServiceError.cloudConsentUnavailable(provider: provider)
             }
+        #elseif canImport(AppKit)
+            // On the Mac the sheet shows in the app's window, which an action's question brings
+            // forward first (5.7). A sheet no window shows is given up (`CloudConsentRelay`).
+            if !NSApplication.shared.isActive, let bringForward = bringAppForwardForConsent {
+                do {
+                    try await bringForward()
+                } catch {
+                    Log.info(
+                        "[Consent] The app could not come forward to ask: \(error.localizedDescription)",
+                        category: .pipeline)
+                }
+            }
         #endif
 
         let decision = await cloudConsentDecision(for: provider, record: record)
@@ -4111,12 +4156,18 @@ class RAGService: ObservableObject {
         case .allowAndRemember:
             return
         case .deny:
+            // A sheet no window showed is not a refusal, and nothing was remembered.
+            if consentRequestWentUnseen {
+                consentRequestWentUnseen = false
+                throw RAGServiceError.cloudConsentUnavailable(provider: provider)
+            }
             throw RAGServiceError.cloudConsentDenied(provider: provider)
         }
     }
 
+    /// Internal so a test can ask it (`CloudConsentRelayTests`).
     @MainActor
-    private func cloudConsentDecision(
+    func cloudConsentDecision(
         for provider: CloudProvider,
         record: CloudTransmissionRecord
     ) async -> CloudConsentDecision {
@@ -4142,6 +4193,16 @@ class RAGService: ObservableObject {
                 pendingConsentContinuation = nil
             }
             pendingCloudConsent = record
+            // The chat shows the sheet for the app's own engine. For an engine an action built for
+            // its question, the app's root view shows it through the relay (5.7); through the first
+            // 5.7 builds nothing showed it, and the question waited for good.
+            if RAGService.activePresentedInstance !== self {
+                let id = record.id
+                CloudConsentRelay.shared.post(
+                    record,
+                    resolve: { [weak self] decision in await self?.resolveCloudConsent(decision: decision) },
+                    abandon: { [weak self] in self?.abandonCloudConsentRequest(id) })
+            }
             TelemetryCenter.emit(
                 .system,
                 title: "Cloud consent requested",
@@ -17015,6 +17076,11 @@ class RAGService: ObservableObject {
         let transientConsentGranted = await MainActor.run {
             transientConsentGrants.contains(.applePCC)
         }
+        // An action's question that can bring the app forward counts as one a person can be asked
+        // about: the consent gate brings the app forward and shows the sheet before anything is sent
+        // (`bringAppForwardForConsent`, 5.7). Without it, a question from Siri or Shortcuts with the
+        // app in the background could only use Private Cloud Compute after consent remembered earlier.
+        let canAskForConsent = isForegroundInteractive || bringAppForwardForConsent != nil
 
         let constraints = PreRetrievalConstraints(
             allowsPCC: config.allowPrivateCloudCompute && consentState != .denied,
@@ -17022,7 +17088,7 @@ class RAGService: ObservableObject {
             requiresPCC: config.executionContext == .cloudOnly,
             networkAvailable: networkAvailable,
             consentGranted: consentState == .allowed || transientConsentGranted,
-            isForegroundInteractive: isForegroundInteractive,
+            isForegroundInteractive: canAskForConsent,
             qualityMode: config.qualityMode.displayName
         )
 
