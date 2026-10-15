@@ -1332,6 +1332,20 @@ class RAGService: ObservableObject {
         return deleted
     }
 
+    /// Leaves out a passage from the stores whose document is in no library (5.7): its document was deleted,
+    /// or an import stopped before recording it, and an answer cited it as "Unknown". A passage the pipeline
+    /// made itself, such as a camera or barcode capture, carries its own name and is kept. On 2026-10-15 the
+    /// owner's library BDB0BCA5 held 27 such passages and no document.
+    nonisolated static func passagesFromKnownDocuments(
+        _ passages: [RetrievedChunk], knownDocumentIds: Set<UUID>
+    ) -> (kept: [RetrievedChunk], dropped: Int) {
+        let kept = passages.filter { passage in
+            knownDocumentIds.contains(passage.chunk.documentId)
+                || !(passage.sourceDocument.isEmpty || passage.sourceDocument == "Unknown")
+        }
+        return (kept, passages.count - kept.count)
+    }
+
     /// Restore a previously saved transcript to enable conversation continuity.
     ///
     /// Call this when:
@@ -4762,6 +4776,43 @@ class RAGService: ObservableObject {
                 "[RAGService] Removed the stored text of \(removed) document(s) whose import never finished",
                 category: .ingestion)
         }
+        // The vector stores hold such a document's passages too (5.7). Searches leave them out
+        // (`passagesFromKnownDocuments`), and nothing removed them: on 2026-10-15 the owner's library BDB0BCA5
+        // held 27 and no document. Local Only libraries only: an iCloud library's documents can arrive after its
+        // passages, and a removal there would reach the person's other devices.
+        let localStores = containerService.containers
+            .filter { $0.syncMode != .iCloudShared }
+            .map { vectorRouter.db(for: $0) }
+        let removedPassages = await Self.removePassages(notIn: known, from: localStores)
+        if removedPassages > 0 {
+            Log.info(
+                "[RAGService] Removed the passages of \(removedPassages) document(s) in no library",
+                category: .ingestion)
+        }
+    }
+
+    /// Removes from each store, and from the keyword store, the passages of every document `known` does not
+    /// list, and returns how many documents' passages went (5.7). The caller decides which stores and checks
+    /// that `known` came from a document list that was read.
+    static func removePassages(
+        notIn known: Set<UUID>, from stores: [VectorDatabase], keywordStore: SQLiteFullTextService = .shared
+    ) async -> Int {
+        var removed = 0
+        for store in stores {
+            guard let records = try? await store.passageRecords() else { continue }
+            for id in Set(records.map(\.documentId)).subtracting(known) {
+                do {
+                    try await store.deleteChunks(forDocument: id)
+                    await keywordStore.deleteChunks(for: id)
+                    removed += 1
+                } catch {
+                    Log.warning(
+                        "[RAGService] Could not remove the passages of a document in no library: \(error.localizedDescription)",
+                        category: .ingestion)
+                }
+            }
+        }
+        return removed
     }
 
     /// Removes from `store` the text of each id in `stored` that `known` does not list, and returns
@@ -12250,6 +12301,17 @@ class RAGService: ObservableObject {
                             break
                         }
                     }
+                }
+
+                // Passages whose document is in no library are left out (5.7, `passagesFromKnownDocuments`).
+                let liveDocumentIds = await MainActor.run { Set(self.documents.map(\.id)) }
+                let fromKnownDocuments = Self.passagesFromKnownDocuments(
+                    retrievedChunks, knownDocumentIds: liveDocumentIds)
+                if fromKnownDocuments.dropped > 0 {
+                    Log.warning(
+                        "[RAGService] Left out \(fromKnownDocuments.dropped) passage(s) whose document is in no library",
+                        category: .retrieval)
+                    retrievedChunks = fromKnownDocuments.kept
                 }
 
                 // Edge case: No relevant chunks found
@@ -21492,6 +21554,10 @@ extension RAGService: RAGToolHandler {
             chunks: retrievedChunks,
             min: minSimilarity ?? retrievalConfig.minSimilarity
         )
+
+        // Passages whose document is in no library are left out (5.7, `passagesFromKnownDocuments`).
+        let liveDocumentIds = await MainActor.run { Set(self.documents.map(\.id)) }
+        retrievedChunks = Self.passagesFromKnownDocuments(retrievedChunks, knownDocumentIds: liveDocumentIds).kept
 
         // Enrich with source document names
         var enrichedChunks: [RetrievedChunk] = []

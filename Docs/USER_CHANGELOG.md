@@ -130,6 +130,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **The best passage the search finds always reaches the answer.**  "What happened on September 30" found the September 30 section of a monthly log and then answered from September 24 and 25, because the step that fits passages into Apple's model kept only sentences repeating the question's words, and that day's lines didn't repeat them.  The passage the search ranks first now goes in whole, and the rest of the room is filled as before.
 - **Asking for a summary gets one.**  "Summarize" and "summary" were read as a request to add numbers up.
 - **Excerpts say they weren't checked.**  When the app couldn't write an answer and showed excerpts instead, the badge read Partially Verified, though nothing had checked them.  It reads Not Checked now.
+- **An answer no longer cites a document that isn't there.**  Passages left behind by a deleted document, or by an import that didn't finish, could turn up in an answer credited to "Unknown".  Searches leave them out now, and in a library kept on this device they're removed when the app opens.
 
 ### Settings
 - **A setting you change stays changed.** The app saved the setting you'd just changed with the value it had before, so the last change you made could come undone the next time the app opened.  It saves the new value now.

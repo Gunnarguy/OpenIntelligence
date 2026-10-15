@@ -938,8 +938,11 @@ before its record, so an app ended in the middle of one left text with no docume
 after the queue is restored and with no import queued or running, `removeTextOfUnfinishedImports`
 removes the stored text of every document the keyword store holds and the document list read from
 disk does not, through the store's own `getAllDocumentIds` and `delete(for:)` (its file is not
-changed). A list that is empty or can't be read removes nothing. `[evidence_level: test_verified
-(UnfinishedImportTextTests), confidence: medium]`
+changed). A list that is empty or can't be read removes nothing. From 5.7 the same check removes, from the vector
+stores of Local Only libraries, the passages of every document the list doesn't have (`removePassages`), with their
+keyword rows: on 2026-10-15 the owner's library BDB0BCA5 held 27 and no document. iCloud libraries are left alone,
+because their documents can arrive after their passages and a removal would reach the other devices. `[evidence_level:
+test_verified (UnfinishedImportTextTests, PassagesFromKnownDocumentsTests), confidence: medium]`
 
 **Text set sideways along the page.** `LayoutAwareExtractor.isMarginStrip` leaves out a text box far
 taller than it is wide that sits at the left or right edge or runs most of the page's height, in
