@@ -748,11 +748,20 @@ final class AgenticOrchestrator: Sendable {
                 // the guard added to `runVerificationLoop` did not fire here, and the case still
                 // answered "No evidence of a dataset of rumors in the provided context." in 59
                 // characters, from a 2000-character slice, having discarded the chain's synthesis.
+                let agreesWithSynthesis = Self.researchMayReplaceSynthesis(
+                    question: query, synthesis: chainResult.finalAnswer, research: cleanRecursiveAnswer)
+                if recursiveResult != nil, !cleanRecursiveAnswer.isEmpty, !agreesWithSynthesis {
+                    Log.warning(
+                        "[Agentic] Kept the synthesis (\(chainResult.finalAnswer.count) chars): research's "
+                            + "\(cleanRecursiveAnswer.count)-char answer says things the synthesis does not",
+                        category: .llm)
+                }
                 if let recursiveResult,
                     !cleanRecursiveAnswer.isEmpty,
                     !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer),
                     !looksLikeRawEvidenceDump(cleanRecursiveAnswer),
-                    Self.shouldAcceptReplacement(previous: chainResult.finalAnswer, replacement: cleanRecursiveAnswer)
+                    Self.shouldAcceptReplacement(previous: chainResult.finalAnswer, replacement: cleanRecursiveAnswer),
+                    agreesWithSynthesis
                 {
                     Log.info(
                         "[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps",
@@ -3651,6 +3660,66 @@ final class AgenticOrchestrator: Sendable {
     /// totalCitations > 0`, while an answer with no citations has its grounding forced to 0.5 and
     /// skips the check. So an uncited replacement always verifies cleaner than the cited original
     /// it displaced, and the loop preferred it for precisely that reason.
+    /// Whether research's answer may take the place of the chain's synthesis (5.7, roadmap row "Deep
+    /// Think replaces a full synthesis with a one-line research answer when the synthesis hedges, and
+    /// the one line can be wrong").
+    ///
+    /// Research runs when the synthesis hedges, and its answer replaced the synthesis whenever
+    /// `shouldAcceptReplacement` passed, which a synthesis without citation markers always lets
+    /// through. Measured on 2026-09-23 (macOS, Deep Think, one document): a 3,372-character synthesis
+    /// gave way to "OpenIntelligence handles file types such as notes, warnings, exceptions, and
+    /// documents.", which is wrong. Now a synthesis of 400 characters or more gives way to an answer
+    /// under a quarter of its length only when what that answer adds beyond the question's own words
+    /// is mostly in the synthesis too (60 percent of those words or more): the short answer has to
+    /// agree with what the person was already shown, not bring a claim of its own. "Nine verification
+    /// checks run." can replace a synthesis that names nine checks; the file-type line can't replace
+    /// one that never mentions warnings or exceptions. A longer research answer is a rewrite, and the
+    /// rules before decide it.
+    nonisolated static func researchMayReplaceSynthesis(question: String, synthesis: String, research: String) -> Bool {
+        let synthesisText = synthesis.trimmingCharacters(in: .whitespacesAndNewlines)
+        let researchText = research.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard synthesisText.count >= 400, researchText.count * 4 < synthesisText.count else { return true }
+        let added = answerWords(in: researchText).subtracting(answerWords(in: question))
+        guard !added.isEmpty else { return false }
+        let shown = answerWords(in: synthesisText)
+        let agreed = added.filter { shown.contains($0) }.count
+        return Double(agreed) / Double(added.count) >= 0.6
+    }
+
+    /// The words of an answer that carry its content: lowercased, three letters or more or a number,
+    /// without stop words, and a number written as a word ("nine") counted as its digits ("9").
+    nonisolated static func answerWords(in text: String) -> Set<String> {
+        let numberWords = [
+            "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
+            "eight": "8", "nine": "9", "ten": "10", "eleven": "11", "twelve": "12", "thirteen": "13",
+            "fourteen": "14", "fifteen": "15", "sixteen": "16", "seventeen": "17", "eighteen": "18",
+            "nineteen": "19", "twenty": "20",
+        ]
+        let words = text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .map { numberWords[$0] ?? $0 }
+            .filter { word in
+                guard !word.isEmpty else { return false }
+                if word.allSatisfy(\.isNumber) { return true }
+                return word.count >= 3 && !answerStopWords.contains(word)
+            }
+        return Set(words)
+    }
+
+    /// The stop words `answerWords` leaves out: the lexical check's list, plus the words any short
+    /// answer opens with.
+    nonisolated private static let answerStopWords: Set<String> = [
+        "the", "are", "was", "were", "been", "being", "have", "has", "had", "does", "did", "will",
+        "would", "could", "should", "may", "might", "must", "shall", "can", "for", "with", "from",
+        "into", "through", "during", "before", "after", "above", "below", "between", "under", "again",
+        "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "each", "few",
+        "more", "most", "other", "some", "such", "nor", "not", "only", "own", "same", "than", "too",
+        "very", "just", "also", "now", "what", "which", "who", "whom", "this", "that", "these",
+        "those", "its", "myself", "our", "ours", "ourselves", "you", "your", "yours", "him", "his",
+        "her", "hers", "they", "them", "their", "and", "but", "any", "both", "include", "includes",
+        "including", "like",
+    ]
+
     nonisolated static func shouldAcceptReplacement(previous: String, replacement: String) -> Bool {
         let previousCitations = citationCount(in: previous)
         let replacementCitations = citationCount(in: replacement)

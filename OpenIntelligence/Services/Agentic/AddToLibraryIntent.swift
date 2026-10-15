@@ -111,7 +111,8 @@ struct AddToLibraryIntent: AppIntent {
         // with both lists, so a shortcut does not run on as if everything went in.
         guard failures.isEmpty else {
             throw OIIntentError(
-                "Added \(names.joined(separator: ", ")) to \(target). Not added: \(failures.joined(separator: " "))")
+                "Added \(names.joined(separator: ", ")) to \(target). Not added: \(failures.joined(separator: " "))",
+                kind: .partial)
         }
         let message =
             "Added \(names.count) item\(names.count == 1 ? "" : "s") to \(target). Importing continues in OpenIntelligence."

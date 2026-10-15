@@ -61,4 +61,59 @@ final class AnswerReplacementGuardTests: XCTestCase {
     func testAcceptsReplacementThatAddsCitations() {
         XCTAssertTrue(AgenticOrchestrator.shouldAcceptReplacement(previous: "One source [S1].", replacement: "Two sources [S1][S2]."))
     }
+    // MARK: - Research may replace a synthesis only when it agrees with it (5.7)
+
+    private let fileTypesSynthesis = """
+        OpenIntelligence imports PDF files, Word documents, Markdown and plain text files, CSV and \
+        spreadsheet files, JSON and JSON Lines records, images with text in them, and audio recordings, \
+        which it transcribes on the device. Each file is cut into passages and indexed so a question can \
+        find the passage that answers it. The documentation does not explicitly list every file type it \
+        accepts, so formats that are not named here may also work through the same import path.
+        """
+
+    private let checksSynthesis = """
+        OpenIntelligence runs nine verification checks on a Standard answer before it shows it. They \
+        compare the answer with the passages it rests on: whether its words and numbers appear there, \
+        whether its citations point at real passages, and whether a sentence says the opposite of its \
+        source. The documents do not say how long each check takes, but every answer is checked the same way.
+        """
+
+    /// The wrong line measured on 2026-09-23 says things the synthesis never said: kept out.
+    func testAOneLineAnswerThatSaysSomethingNewDoesNotReplaceTheSynthesis() {
+        XCTAssertFalse(
+            AgenticOrchestrator.researchMayReplaceSynthesis(
+                question: "What file types does OpenIntelligence handle?",
+                synthesis: fileTypesSynthesis,
+                research: "OpenIntelligence handles file types such as notes, warnings, exceptions, and documents."))
+    }
+
+    /// The right line from the same day agrees with the synthesis: it may replace it.
+    func testAOneLineAnswerThatAgreesWithTheSynthesisReplacesIt() {
+        XCTAssertTrue(
+            AgenticOrchestrator.researchMayReplaceSynthesis(
+                question: "How many verification checks does OpenIntelligence run?",
+                synthesis: checksSynthesis, research: "Nine verification checks run."))
+    }
+
+    func testAShortSynthesisOrALongResearchAnswerIsLeftToTheOtherRules() {
+        XCTAssertTrue(
+            AgenticOrchestrator.researchMayReplaceSynthesis(
+                question: "Q?", synthesis: "A short synthesis.", research: "Something else entirely."))
+        XCTAssertTrue(
+            AgenticOrchestrator.researchMayReplaceSynthesis(
+                question: "What file types does OpenIntelligence handle?", synthesis: fileTypesSynthesis,
+                research: String(fileTypesSynthesis.prefix(fileTypesSynthesis.count / 2))))
+    }
+
+    func testAnAnswerThatOnlyRepeatsTheQuestionDoesNotReplaceTheSynthesis() {
+        XCTAssertFalse(
+            AgenticOrchestrator.researchMayReplaceSynthesis(
+                question: "What file types does OpenIntelligence handle?", synthesis: fileTypesSynthesis,
+                research: "OpenIntelligence handles file types."))
+    }
+
+    func testNumbersCountTheSameWrittenEitherWay() {
+        XCTAssertEqual(AgenticOrchestrator.answerWords(in: "Nine checks"), ["9", "checks"])
+        XCTAssertTrue(AgenticOrchestrator.answerWords(in: "It runs 9 checks").contains("9"))
+    }
 }

@@ -44,7 +44,11 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+TextStreaming.swift", "role": "primary", "blob": "85a248c753eddc31f4446ec6b80cd2caea8fa006"},
     {"path": "OpenIntelligenceTests/Services/Document/Processing/TextPieceImportTests.swift", "role": "test", "blob": "843326f837a7916e5e7ab5eaaa47a78a81cec8a2"},
     {"path": "OpenIntelligenceTests/Services/Document/Processing/IngestionAccuracyTests.swift", "role": "test", "blob": "1483995f043dd8ac277b0baf56d7c8b444e2195a"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/EmbeddingVectorCheck.swift", "role": "primary", "blob": "081ef785d88d42b4411d11f1a1916770eb9a11c1"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/EmbeddingVectorCheck.swift", "role": "primary", "blob": "081ef785d88d42b4411d11f1a1916770eb9a11c1"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/PauseIngestionTests.swift", "role": "test", "blob": "148db94a8145769a64eb390c821127e7e8020ab2"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/UnfinishedImportTextTests.swift", "role": "test", "blob": "b998a336379255a6bfed8f6e20b1da23b7764ce4"},
+    {"path": "OpenIntelligenceTests/Services/Document/LayoutMarginStripTests.swift", "role": "test", "blob": "5148145115bd14a9b5a62dd0b21dd88555557827"},
+    {"path": "OpenIntelligenceTests/Services/Document/TextEntityDetectionTests.swift", "role": "test", "blob": "fad9419e2a93b23a3239cca34f0fd80a77a06fa3"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1612, "match": "private func enqueueDocumentIngestion(_ urls: [URL]) {", "status": "VERIFIED", "by": "build"},

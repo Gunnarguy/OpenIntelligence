@@ -1568,7 +1568,9 @@ struct DocumentLibraryView: View {
             onCancelAll: { ragService.cancelAllIngestion() },
             onContinuePaused: { ragService.continuePausedIngestionQueue() },
             onDiscardPaused: { ragService.discardPausedIngestionQueue() },
-            onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() }
+            onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() },
+            onPause: { ragService.pauseIngestionQueue() },
+            pausedByPerson: ragService.ingestionPausedByPerson
         )
         .padding(.horizontal, 16)
         .padding(.bottom, ingestionQueueBottomPadding)

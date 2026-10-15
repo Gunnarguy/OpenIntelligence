@@ -429,6 +429,21 @@ class DocumentProcessor {
     /// Contains emails, phone numbers, URLs, dates, etc. extracted via DataDetection
     private(set) var lastDetectedEntities: [(type: String, value: String)] = []
 
+    /// How much of a document's text Apple's detector reads for entities (5.7): about a second on
+    /// the Mac, off the main actor.
+    static let textEntityCharacterLimit = 1_000_000
+
+    /// Adds entities found in the text to the ones found in table cells, leaving out repeats.
+    func mergeDetectedEntities(_ found: [DetectedEntity]) {
+        guard !found.isEmpty else { return }
+        var seen = Set(lastDetectedEntities.map { "\($0.type)|\($0.value)" })
+        for entity in found {
+            let key = "\(entity.type.rawValue)|\(entity.value)"
+            guard seen.insert(key).inserted else { continue }
+            lastDetectedEntities.append((type: entity.type.rawValue, value: entity.value))
+        }
+    }
+
     /// Tokenizer for accurate token counting (matches embedding model tokenization)
     /// CRITICAL: NLTokenizer word count ≠ Tokenizer tokens for technical content
     /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
@@ -1195,9 +1210,11 @@ class DocumentProcessor {
 
         // CONTENT COVERAGE VERIFICATION: Ensure we captured all the source content
         // This catches bugs where content is silently dropped during chunking
-        verifyContentCoverage(
+        // Off the main actor (5.7): it splits the whole extracted text and every passage into words,
+        // which held the main thread for as long as a large file took.
+        await Self.verifyContentCoverage(
             original: extractedText,
-            chunks: processedChunks,
+            chunkTexts: processedChunks.map(\.text),
             documentId: documentId
         )
 
@@ -1223,6 +1240,14 @@ class DocumentProcessor {
             .map { Double($0.metadata.semanticDensity ?? 0) }
             .reduce(0.0, +) / Double(max(1, processedChunks.count))
             Log.debug("      - Avg semantic density: \(String(format: "%.3f", avgSemanticDensity))", category: .ingestion)
+
+        // Apple's detector on the document's text as well (5.7, roadmap row "Entities come from
+        // table cells only"): it read table cells and nothing else, and a page read from its text
+        // layer never reached it. Its matches join the cells' ones, without repeats, and go where
+        // theirs go (the library's vocabulary, through `lastDetectedEntities`).
+        mergeDetectedEntities(
+            await StructuredDocumentParser.detectedEntities(
+                inText: chunkableText, characterLimit: Self.textEntityCharacterLimit))
 
         // Print chunk statistics
         if !processedChunks.isEmpty {
@@ -6933,11 +6958,12 @@ class DocumentProcessor {
 
     /// Verify that chunking captured all content from the original document
     /// This is a diagnostic check - logs warnings if significant content is missing
-    private func verifyContentCoverage(
+    @concurrent
+    nonisolated private static func verifyContentCoverage(
         original: String,
-        chunks: [ProcessedChunk],
+        chunkTexts: [String],
         documentId: UUID
-    ) {
+    ) async {
         // Count words in original (normalize whitespace)
         let originalWords = Set(
             original.lowercased()
@@ -6948,8 +6974,8 @@ class DocumentProcessor {
 
         // Count unique words in all chunks combined
         var chunkWords = Set<String>()
-        for chunk in chunks {
-            let words = chunk.text.lowercased()
+        for text in chunkTexts {
+            let words = text.lowercased()
                 .components(separatedBy: .whitespacesAndNewlines)
                 .map { $0.trimmingCharacters(in: .punctuationCharacters) }
                 .filter { $0.count >= 3 }
@@ -6964,7 +6990,7 @@ class DocumentProcessor {
         // Volume, as opposed to vocabulary. Whitespace is excluded from both sides so reflow and
         // re-indentation cannot move the number.
         let originalChars = original.filter { !$0.isWhitespace }.count
-        let chunkChars = chunks.reduce(0) { $0 + $1.text.filter { !$0.isWhitespace }.count }
+        let chunkChars = chunkTexts.reduce(0) { $0 + $1.filter { !$0.isWhitespace }.count }
         // Account for overlap - chunks may duplicate some content
         let charRatio = originalChars > 0 ? Double(chunkChars) / Double(originalChars) * 100 : 100
 

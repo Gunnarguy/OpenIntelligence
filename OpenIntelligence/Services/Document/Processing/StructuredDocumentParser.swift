@@ -1378,6 +1378,31 @@ actor StructuredDocumentParser {
         return formatter
     }()
 
+    /// Apple's detector on plain text (5.7, roadmap row "Entities come from table cells only").
+    ///
+    /// Vision's detection ran only on table cells (`extractDetectedData` has one caller,
+    /// `parseTable`), and a page read from its text layer never reaches Vision, so the addresses,
+    /// phone numbers, dates and amounts the 5.3 notes describe were found nowhere else. From iOS
+    /// and macOS 26 any text can go through the same detector (`StringProtocol.dataDetectorMatches`,
+    /// read from the iOS 27 SDK on 2026-10-14), with the same matches the cells give, and the regex
+    /// sweep fills a type the detector found none of, as for a cell. Only the first
+    /// `characterLimit` characters are read. Measured on the Mac (M3 Pro) that day: 0.7 to 1.1
+    /// million characters a second, 672,860 in 0.61 s.
+    @concurrent
+    nonisolated static func detectedEntities(inText text: String, characterLimit: Int) async -> [DetectedEntity] {
+        let read = text.count > characterLimit ? String(text.prefix(characterLimit)) : text
+        guard !read.isEmpty else { return [] }
+        var entities: [DetectedEntity] = []
+        for await match in read.dataDetectorMatches() {
+            if let entity = entity(from: match, in: read) {
+                entities.append(entity)
+            }
+        }
+        let covered = Set(entities.map(\.type))
+        entities.append(contentsOf: patternEntities(in: read, excluding: covered))
+        return entities
+    }
+
     /// The original regex sweep, kept as a fallback and run per type only when Apple's detector
     /// returned nothing of that type. `extractDetectedData` records why it is not simply deleted.
     nonisolated private static func patternEntities(

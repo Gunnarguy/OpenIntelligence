@@ -57,7 +57,7 @@ struct ExportConversationIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> & ProvidesDialog {
         let id = conversation.id
         guard let thread = await Self.thread(id: id) else {
-            throw OIIntentError("That conversation is no longer saved.")
+            throw OIIntentError("That conversation is no longer saved.", kind: .itemNotFound)
         }
         guard !ConversationExporter.exportable(thread.messages).isEmpty else {
             throw OIIntentError("That conversation has no messages to export.")

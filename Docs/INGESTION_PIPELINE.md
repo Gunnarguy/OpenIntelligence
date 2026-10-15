@@ -477,6 +477,18 @@ that gap means carrying a page-level entity list through `StructuredPageContent`
 `DocumentProcessor`'s chunk metadata, which touches several element-construction paths including the
 markdown-table and PDF-text lanes. It is tracked separately rather than bundled in here.
 
+**From 5.7 the whole text goes through the detector too** *(added 2026-10-14)*. From iOS and macOS 26
+any string can (`StringProtocol.dataDetectorMatches`, in the same `DataDetection.swiftinterface`), so
+`DocumentProcessor` runs `StructuredDocumentParser.detectedEntities(inText:characterLimit:)` on the
+document's chunkable text after chunking, off the main actor, over the first 1,000,000 characters
+(`textEntityCharacterLimit`), with the regex sweep for types the detector found none of, and merges
+the matches into `lastDetectedEntities` without repeats; the library's vocabulary learns them as it
+learns the cells'. Paragraphs, pages read from their PDF text layer, and text files are covered that
+way; chunk metadata still carries no per-chunk entity list. Measured on the Mac on 2026-10-14: 0.7 to
+1.1 million characters a second, and a test sentence gave two phone numbers (one British), a postal
+address, an amount in euros, a flight number, a link and a date. `[evidence_level: measured for the
+speed and the sentence, test_verified (TextEntityDetectionTests), confidence: medium]`
+
 `[evidence_level: code_verified, confidence: exact, evidence_source: StructuredDocumentParser.swift extractDetectedData/entity(from:in:)/patternEntities; iPhoneOS27.0.sdk DataDetection.swiftinterface SemanticDetails; Vision.swiftinterface DocumentObservation.Container.Text.detectedData]`
 
 ## 2.8 Object detection: the model it looked for was never in the bundle
@@ -910,6 +922,38 @@ the model returned zeros on the units a device asks for, Core ML runs on the CPU
 **The progress line.** The PDF steps' progress lines named "[Metal GPU]" from a setting and "[ANE]" as
 fixed text, neither measured; from 5.7 they name the step only. `[evidence_level: code_verified,
 confidence: high, evidence_source: DocumentProcessor.swift]`
+
+### Pause, text left by an unfinished import, and text set sideways *(added 2026-10-14, for 5.7)*
+
+**Pause.** The import queue has a Pause button while an import runs (`RAGService.pauseIngestionQueue`).
+The file being imported stops the way it does when iOS ends the app's background time: a file
+imported in pieces keeps its checkpoint and goes on from its last saved piece, any other file starts
+over, and the paused item says which. Waiting files are paused too, and the queue waits for Continue
+or Discard, as after a restart. `ingestionPausedByPerson` keeps the end of the stopped import from
+queueing it again (`handleContinuedIngestionExpiration` returns at once while it is set).
+`[evidence_level: test_verified (PauseIngestionTests), confidence: medium; not paused on a device]`
+
+**Text left by an unfinished import.** An import stores the document's text in the keyword store
+before its record, so an app ended in the middle of one left text with no document. Once a launch,
+after the queue is restored and with no import queued or running, `removeTextOfUnfinishedImports`
+removes the stored text of every document the keyword store holds and the document list read from
+disk does not, through the store's own `getAllDocumentIds` and `delete(for:)` (its file is not
+changed). A list that is empty or can't be read removes nothing. `[evidence_level: test_verified
+(UnfinishedImportTextTests), confidence: medium]`
+
+**Text set sideways along the page.** `LayoutAwareExtractor.isMarginStrip` leaves out a text box far
+taller than it is wide that sits at the left or right edge or runs most of the page's height, in
+both the Vision and the PDF text-layer paths. Measured with Vision on a journal article on
+2026-10-14: the publisher's download notice down the right edge of pages 2 to 8 was one box 0.011 to
+0.013 wide and 0.958 tall, and it was read into the page's text. Rotated labels inside figures and
+every body line stay. The journal's logo at the top of page 1, which a device import read as "IN
+Pychatry an" and made a section heading, is horizontal and not touched by this. `[evidence_level:
+measured for the boxes, test_verified (LayoutMarginStripTests); confidence: medium]`
+
+**The coverage check off the main thread.** `verifyContentCoverage`, which splits the whole extracted
+text and every passage into words to compare them, runs off the main actor (`@concurrent`). It held
+the main thread for as long as that took on a large file. Structure-aware chunking still runs on the
+main actor. `[evidence_level: code_verified, confidence: high]`
 
 ---
 

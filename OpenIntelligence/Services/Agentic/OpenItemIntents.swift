@@ -11,8 +11,12 @@ import Foundation
 /// An item with an open action is one Siri and Spotlight can open by name ("Open Home in
 /// OpenIntelligence"). Through 5.6 the app had none, so a library or a document found from outside
 /// the app could be listed and not opened.
+///
+/// The app donates this action for the library the person opens or asks in
+/// (`SiriDonations.libraryUsed`), and `predictionConfiguration` is how the system shows the
+/// suggestion it learns from those donations: "Open Taxes" (5.7, `PredictableIntent`).
 @available(iOS 26.0, macOS 26.0, *)
-struct OpenLibraryIntent: OpenIntent {
+struct OpenLibraryIntent: OpenIntent, PredictableIntent {
     static var title: LocalizedStringResource = "Open Library"
     static var description: IntentDescription = .init(
         "Opens OpenIntelligence on a library's documents and makes it the active library.",
@@ -27,6 +31,12 @@ struct OpenLibraryIntent: OpenIntent {
 
     static var parameterSummary: some ParameterSummary {
         Summary("Open \(\.$target)")
+    }
+
+    static var predictionConfiguration: some IntentPredictionConfiguration {
+        IntentPrediction(parameters: \.$target) { library in
+            DisplayRepresentation(title: "Open \(library.name)", subtitle: "Library in OpenIntelligence")
+        }
     }
 
     func perform() async throws -> some IntentResult {

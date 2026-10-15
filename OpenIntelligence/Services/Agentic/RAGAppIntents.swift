@@ -70,7 +70,7 @@ nonisolated final class AskControl: @unchecked Sendable {
     private var handlers: [@Sendable () -> Void] = []
     /// Set by `finish()`, after which nothing moves the bar.
     private var isFinished = false
-    /// The action's own progress on 27, nil before.
+    /// The action's own progress (`ProgressReportingIntent`), nil when it reports none.
     let progress: Progress?
     /// Brings the app forward when the question needs the Private Cloud Compute consent sheet
     /// (`AskActionRunner.foregroundRequest`); nil when the system would not let the action come forward.
@@ -227,7 +227,7 @@ enum AskActionRunner {
         if let documentIds {
             let named = documents.filter { documentIds.contains($0.id) }
             guard named.count == documentIds.count else {
-                throw OIIntentError("That document is no longer in your libraries.")
+                throw OIIntentError("That document is no longer in your libraries.", kind: .itemNotFound)
             }
             // A document stored before libraries existed has no library id and lives in the first one.
             let homes = Set(named.compactMap { $0.containerId ?? defaultLibraryId })
@@ -389,10 +389,13 @@ enum AskActionRunner {
         if #available(iOS 27.0, macOS 27.0, *), let long = intent as? any (LongRunningIntent & CancellableIntent) {
             return try await runLong(long, bringForward: bringForward, ask)
         }
+        // Before 27 an ask action still reports its progress (`ProgressReportingIntent`, 5.7), which
+        // Shortcuts shows while the question runs. It does not lengthen the time the system allows.
+        let progress = (intent as? any ProgressReportingIntent)?.progress
         if #available(iOS 26.4, macOS 26.4, *), let cancellable = intent as? any CancellableIntent {
-            return try await runCancellable(cancellable, bringForward: bringForward, ask)
+            return try await runCancellable(cancellable, progress: progress, bringForward: bringForward, ask)
         }
-        return try await ask(AskControl(progress: nil, bringForward: bringForward))
+        return try await ask(AskControl(progress: progress, bringForward: bringForward))
     }
 
     /// What brings the app forward when the question's engine needs the Private Cloud Compute
@@ -420,10 +423,10 @@ enum AskActionRunner {
 
     @available(iOS 26.4, macOS 26.4, *)
     private static func runCancellable<Intent: CancellableIntent>(
-        _ intent: Intent, bringForward: (@Sendable () async throws -> Void)?,
+        _ intent: Intent, progress: Progress?, bringForward: (@Sendable () async throws -> Void)?,
         _ ask: @escaping (AskControl) async throws -> Outcome
     ) async throws -> Outcome {
-        let control = AskControl(progress: nil, bringForward: bringForward)
+        let control = AskControl(progress: progress, bringForward: bringForward)
         return try await intent.withIntentCancellationHandler(
             operation: { try await ask(control) },
             onCancel: { reason in control.cancel(because: reason == .timeout ? "timeout" : "cancelled") })
@@ -1349,6 +1352,14 @@ struct ThreadListSnippetView: View {
 @available(iOS 26.4, macOS 26.4, *) extension AskDocumentIntent: CancellableIntent {}
 @available(iOS 26.4, macOS 26.4, *) extension SummarizeDocumentIntent: CancellableIntent {}
 @available(iOS 26.4, macOS 26.4, *) extension CompareDocumentsIntent: CancellableIntent {}
+
+/// The ask actions report progress on every version the app runs on, so before 27 Shortcuts shows
+/// the bar too (5.7). On 27 they are long-running tasks, which report it the same way.
+@available(iOS 26.0, macOS 26.0, *) extension QueryDocumentsIntent: ProgressReportingIntent {}
+@available(iOS 26.0, macOS 26.0, *) extension SearchLibraryIntent: ProgressReportingIntent {}
+@available(iOS 26.0, macOS 26.0, *) extension AskDocumentIntent: ProgressReportingIntent {}
+@available(iOS 26.0, macOS 26.0, *) extension SummarizeDocumentIntent: ProgressReportingIntent {}
+@available(iOS 26.0, macOS 26.0, *) extension CompareDocumentsIntent: ProgressReportingIntent {}
 
 @available(iOS 27.0, macOS 27.0, *) extension QueryDocumentsIntent: LongRunningIntent {}
 @available(iOS 27.0, macOS 27.0, *) extension SearchLibraryIntent: LongRunningIntent {}

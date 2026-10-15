@@ -1725,3 +1725,39 @@ similarity. The protected file is unchanged, so rows written through 5.6 stay in
 
 **Alternatives.** Delete stale rows: needs the protected file, not named. Keep the similarity lookup and check its
 rows: its results carry no library state that `RAGService` can check.
+
+## 2026-10-14 - Deep Think and Maximum run the verification gates as a label, and do not abstain on them
+
+**Context.** Every answer mode was listed as verifying (`RAGQualityMode.usesVerificationGates` is true for all
+three, and Settings lists Verify for each), while Deep Think and Maximum returned before the gates ran, so their
+answers read Not Checked unless the source-only check ran. The App Store description says the app checks its
+answers. Standard abstains when its gates fail below its threshold.
+
+**Decision.** From 5.7 a Deep Think or Maximum answer that the source-only check did not check runs the same
+`VerificationGateService.verify` and confidence policy as Standard (`RAGService.verifyAgenticAnswer`), and its
+status string reads `verified:NN%` or `unverified:<gates>`, so the badge shows Verified or Unverified and the
+failed gates are listed as warnings. The answer stays as written: the result is not passed into the structured
+answer, because a structured answer rebuilt from a failed check can turn into a refusal, and these answers take
+minutes of the person's time.
+
+**Alternatives.** Abstain on a failed check, as Standard does: rejected for these modes, where a refusal after
+minutes reads as the app failing, and the badge already says the check failed. Run the source-only check on every
+answer instead: it rewrites the answer, which is a larger change than labelling it.
+
+## 2026-10-14 - The background inference entitlement waits for Xcode or the developer portal to offer it
+
+**Context.** Apple documents `com.apple.developer.background-tasks.continued-processing.inference` (developer.apple.com,
+read 2026-10-14: required for any Neural Engine access while the app is in the background, iOS and macOS 27). It
+was added to `OpenIntelligence.entitlements` at the owner's word, and the iPhone build with
+`-allowProvisioningUpdates` refused it: "Entitlement ... not found and could not be included in profile. This
+likely is not a valid entitlement and should be removed from your entitlements file." The iOS 27.0 SDK's
+BackgroundTasks headers name only the `.gpu` key, Xcode 27.0's capability list has Background GPU Access and
+nothing for inference, and the App ID's capabilities read through the App Store Connect API are In-App Purchase,
+Background GPU Access, Private Cloud Compute and iCloud.
+
+**Decision.** The key is not in the entitlements. Background imports keep asking for the GPU, which the App ID
+has. The key goes in when Xcode's Signing & Capabilities or the developer portal lists it, or when Apple grants it
+on request.
+
+**Alternatives.** Keep the key in the file: every build fails signing, the Xcode Cloud archive included.
+

@@ -161,6 +161,7 @@ final class ContainerService: ObservableObject {
     func deleteContainer(id: UUID) {
         // Prevent deleting the last container; ensure at least one remains
         guard containers.count > 1 else { return }
+        Self.rememberDeleted(id)
         containers.removeAll { $0.id == id }
         if activeContainerId == id, let first = containers.first {
             activeContainerId = first.id
@@ -305,17 +306,26 @@ final class ContainerService: ObservableObject {
     }
 
     private static func loadContainers() -> [KnowledgeContainer] {
+        // Every write queued before this read lands first: the queue is serial, so an empty block
+        // on it returns once they have. Without it, a reload right after a delete read the list
+        // from before the delete.
+        listWriteQueue.sync {}
         let url = AppSupportPaths.containersListURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         do {
             let data = try WorkspaceSyncService.coordinatedReadData(from: url)
             var decoded = try JSONDecoder().decode([KnowledgeContainer].self, from: data)
+            // A library deleted here is left out, and the list is saved without it.
+            let deleted = deletedContainerIds()
+            let countBefore = decoded.count
+            if !deleted.isEmpty { decoded.removeAll { deleted.contains($0.id) } }
+            let leftOutDeleted = decoded.count != countBefore
 
             // MIGRATION: Fix containers with incorrect embedding dimensions or unsupported providers
             // nl_contextual_embedding is not a supported provider - it falls back to CoreML at runtime
             // which causes dimension mismatch rebuilds after document import
             let validDimensions: Set<Int> = [384, 512, 1024]
-            var needsSave = false
+            var needsSave = leftOutDeleted
 
             for (idx, container) in decoded.enumerated() {
                 var fixed = container
@@ -414,8 +424,32 @@ final class ContainerService: ObservableObject {
     private static let listWriteQueue = DispatchQueue(
         label: "Gunndamental.OpenIntelligence.container-list-write", qos: .utility)
 
+    /// Libraries deleted on this device (5.7, roadmap row "Deleted library comes back").
+    ///
+    /// A deleted library could come back two ways. Each window on the Mac, and the SDK engine, holds
+    /// its own list, so a window that did not do the delete wrote the library back with its next
+    /// save. And a reload right after a delete could read the list from before it, because the
+    /// delete's write is queued (`listWriteQueue`), and the next save wrote that back too. Saving
+    /// and loading leave out every id here, and a load waits for the writes queued before it. A
+    /// library's id is never reused, so an id stays; the newest 500 are kept. Its documents were
+    /// already kept deleted (`deleted_documents.json`), so a library that came back came back empty.
+    private static let deletedIdsKey = "deletedContainerIds"
+    private static let deletedIdsLimit = 500
+
+    nonisolated static func deletedContainerIds() -> Set<UUID> {
+        Set((UserDefaults.standard.stringArray(forKey: deletedIdsKey) ?? []).compactMap(UUID.init(uuidString:)))
+    }
+
+    private static func rememberDeleted(_ id: UUID) {
+        var ids = (UserDefaults.standard.stringArray(forKey: deletedIdsKey) ?? []).filter { $0 != id.uuidString }
+        ids.append(id.uuidString)
+        UserDefaults.standard.set(Array(ids.suffix(deletedIdsLimit)), forKey: deletedIdsKey)
+    }
+
     private static func saveContainers(_ containers: [KnowledgeContainer]) {
         let url = AppSupportPaths.containersListURL()
+        let deleted = deletedContainerIds()
+        let containers = deleted.isEmpty ? containers : containers.filter { !deleted.contains($0.id) }
         recordLocalFingerprints(of: containers)
         do {
             let enc = JSONEncoder()

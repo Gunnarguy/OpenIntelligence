@@ -295,6 +295,10 @@ struct IngestionQueueOverlay: View {
     var onContinuePaused: (() -> Void)? = nil
     var onDiscardPaused: (() -> Void)? = nil
     var onStopAndDismiss: (() -> Void)? = nil
+    /// Pauses the queue (5.7). The button shows while an import runs.
+    var onPause: (() -> Void)? = nil
+    /// Whether the paused queue was paused by the person rather than stopped by a restart.
+    var pausedByPerson: Bool = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isMinimized = false
     @State private var isDismissed = false
@@ -630,6 +634,23 @@ struct IngestionQueueOverlay: View {
                     }
                     .buttonStyle(.plain)
                 } else {
+                    if let onPause, activeCount > 0 {
+                        Button {
+                            DSHaptics.tick()
+                            onPause()
+                        } label: {
+                            Image(systemName: "pause.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.orange)
+                                .frame(width: 28, height: 28)
+                                .background(Color.orange.opacity(0.14))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Pause importing")
+                        .accessibilityHint("Stops the import until you continue it. A large file goes on from where it stopped.")
+                    }
+
                     Button {
                         DSHaptics.light()
                         withAnimation { isMinimized.toggle() }
@@ -671,12 +692,18 @@ struct IngestionQueueOverlay: View {
                     .foregroundStyle(.orange)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(pausedItems.count == 1 ? "Interrupted upload paused" : "\(pausedItems.count) interrupted uploads paused")
+                    Text(
+                        pausedByPerson
+                            ? (pausedItems.count == 1 ? "Upload paused" : "\(pausedItems.count) uploads paused")
+                            : (pausedItems.count == 1 ? "Interrupted upload paused" : "\(pausedItems.count) interrupted uploads paused"))
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(DSColors.primaryText)
                         .lineLimit(2)
 
-                    Text("Continue processing or discard the saved queue.")
+                    Text(
+                        pausedByPerson
+                            ? "Continue picks up where it stopped. A file that isn't saved in pieces starts over."
+                            : "Continue processing or discard the saved queue.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(DSColors.secondaryText)
                         .lineLimit(2)
@@ -742,7 +769,7 @@ struct IngestionQueueOverlay: View {
 
     private var headerTitle: String {
         if hasPausedItems {
-            return "Resume interrupted upload?"
+            return pausedByPerson ? "Uploads paused" : "Resume interrupted upload?"
         }
 
         if activeCount > 0 {

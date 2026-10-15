@@ -87,11 +87,20 @@
             let final = QueryLiveActivityAttributes.ContentState(
                 progress: success ? 1 : latest.progress,
                 title: success ? "Answer ready" : "Stopped",
-                subtitle: success ? "Open OpenIntelligence to read it." : "The answer did not finish.")
+                subtitle: success ? "Open OpenIntelligence to read it." : "The answer did not finish.",
+                finished: true)
             Task {
                 await activity.end(
                     ActivityContent(state: final, staleDate: nil), dismissalPolicy: .after(.now + 300))
             }
+        }
+
+        /// Whether `sessionID` names the Live Activity of the answer still running. The Stop button
+        /// (`StopLongAnswerIntent`) stops the chat only then, so a Stop tapped on an ended answer's
+        /// Live Activity, which stays up a few minutes, cannot stop a newer answer.
+        func isRunningActivity(sessionID: String) -> Bool {
+            guard isRunning, let activity else { return false }
+            return activity.attributes.sessionID.uuidString == sessionID
         }
 
         /// `leaving`: called as the app leaves the front, when the request has to be made now. At

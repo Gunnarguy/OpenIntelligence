@@ -70,10 +70,12 @@ struct IngestDocumentIntent: AppIntent {
 
         return .result(
             value: stored.lastPathComponent,
-            dialog: IntentDialog(stringLiteral: "I've started ingesting your document into OpenIntelligence."),
+            dialog: IntentDialog(
+                stringLiteral:
+                    "Added \(stored.lastPathComponent) to the active library. Importing continues in OpenIntelligence."),
             view: ScreenAwarenessSnippetView(
-                title: "Ingestion Started",
-                message: "Processing file in the background.",
+                title: "Import Started",
+                message: "The file is importing in the background.",
                 isSuccess: true
             )
         )

@@ -59,8 +59,12 @@ struct CreateLibraryIntent: AppIntent {
 }
 
 /// Makes a library the active one, the library questions and imports go to by default.
+///
+/// Run from the app, the switch can be undone (5.7, `UndoableIntent`): undo makes the library that
+/// was active before the active one again, if it still exists. The system gives an action an undo
+/// manager only where the app has one to give, and it never undoes anything by itself.
 @available(iOS 26.0, macOS 26.0, *)
-struct SetActiveLibraryIntent: AppIntent {
+struct SetActiveLibraryIntent: AppIntent, UndoableIntent {
     static var title: LocalizedStringResource = "Set Active Library"
     static var description: IntentDescription = .init(
         "Chooses the library that questions and imports use by default.",
@@ -79,20 +83,35 @@ struct SetActiveLibraryIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<OILibraryEntity> & ProvidesDialog {
         let id = library.id
-        let found = await MainActor.run { () -> Bool in
+        let previous = await MainActor.run { () -> UUID? in
             let libraries = IntentSupport.libraries()
             // A library created on another device, or by another action, is on disk before this
             // list has seen it.
             if !libraries.containers.contains(where: { $0.id == id }) {
                 libraries.reloadFromDisk()
             }
-            guard libraries.containers.contains(where: { $0.id == id }) else { return false }
+            guard libraries.containers.contains(where: { $0.id == id }) else { return nil }
+            let before = libraries.activeContainerId
             libraries.setActive(id)
-            return true
+            return before
         }
-        guard found else {
-            throw OIIntentError("That library no longer exists.")
+        guard let previous else {
+            throw OIIntentError("That library no longer exists.", kind: .itemNotFound)
+        }
+        if previous != id {
+            await registerUndo(returningTo: previous)
         }
         return .result(value: library, dialog: "\(library.name) is now the active library.")
+    }
+
+    @MainActor
+    private func registerUndo(returningTo previous: UUID) {
+        guard let undoManager else { return }
+        undoManager.registerUndo(withTarget: IntentSupport.libraries()) { libraries in
+            guard libraries.containers.contains(where: { $0.id == previous }) else { return }
+            libraries.setActive(previous)
+        }
+        let name: String = "Set Active Library"
+        undoManager.setActionName(name)
     }
 }

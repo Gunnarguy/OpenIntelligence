@@ -326,6 +326,14 @@ actor RAGEngine {
         // Always at least 100 to maintain existing behavior for normal queries.
         let adaptiveCeiling = min(chunks.count, max(100, min(250, topK * 5)))
         let candidateChunks = Array(chunks.prefix(adaptiveCeiling))
+        // Say when the ceiling leaves candidates out (roadmap F-03, 5.7): a passage past it never
+        // reaches the reranker, whatever its score would have been, and nothing showed it happening.
+        if adaptiveCeiling < chunks.count {
+            Log.warning(
+                "[RAGEngine] Rerank ceiling: \(chunks.count - adaptiveCeiling) of \(chunks.count) candidates past "
+                    + "position \(adaptiveCeiling) were not reranked",
+                category: .retrieval)
+        }
 
         // Wait for the load rather than racing it. `await` releases the actor, so the setup task
         // is free to run; if the model failed to load, `setupReRanker` swallows the error and the

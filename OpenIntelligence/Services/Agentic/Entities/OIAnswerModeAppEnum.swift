@@ -24,6 +24,15 @@ enum OIAnswerMode: String, AppEnum, CaseIterable, Sendable {
         .maximum: DisplayRepresentation(title: "Maximum"),
     ]
 
+    /// The name the menu shows, for a sentence.
+    var name: String {
+        switch self {
+        case .standard: return "Standard"
+        case .deepThink: return "Deep Think"
+        case .maximum: return "Maximum"
+        }
+    }
+
     /// The engine's mode for this menu item.
     var qualityMode: RAGQualityMode {
         switch self {

@@ -255,6 +255,7 @@ actor LayoutAwareExtractor {
                 // Extract ALL data from observations NOW before they're released
                 return observations.compactMap { observation -> TextBlock? in
                     guard observation.confidence >= minConf,
+                          !LayoutAwareExtractor.isMarginStrip(observation.boundingBox),
                           let text = observation.topCandidates(1).first?.string,
                           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                         return nil
@@ -305,6 +306,10 @@ actor LayoutAwareExtractor {
                     width: bounds.width / pageBounds.width,
                     height: bounds.height / pageBounds.height
                 )
+                if Self.isMarginStrip(normalizedBounds) {
+                    searchStart = range.upperBound
+                    continue
+                }
 
                 blocks.append(TextBlock(
                     text: trimmedLine,
@@ -318,6 +323,19 @@ actor LayoutAwareExtractor {
         }
 
         return blocks
+    }
+
+    /// Whether a text box is a strip of text set sideways along the page (5.7): far taller than it
+    /// is wide, and at the left or right edge or running most of the page's height. Publishers
+    /// print a download notice or a journal's name that way, and it was read into the page's
+    /// text, where it could open a column or become a section heading. Measured on 2026-10-14 with
+    /// Vision on a journal article's pages, rendered at the app's scale: the notice down the right
+    /// edge of pages 2 to 8 was one box 0.011 to 0.013 of the page wide and 0.958 tall, at x 0.968
+    /// to 0.981; rotated labels inside a figure (0.015 by 0.042, 0.013 by 0.094) and every body
+    /// line stay. Boxes are in Vision's normalized page coordinates.
+    nonisolated static func isMarginStrip(_ box: CGRect) -> Bool {
+        guard box.height > box.width * 3 else { return false }
+        return box.minX < 0.06 || box.maxX > 0.94 || box.height > 0.5
     }
 
     // MARK: - Column Detection Algorithm

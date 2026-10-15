@@ -12,15 +12,49 @@ import Foundation
 /// shortcut receives the apology as if it were the value. An action that throws this stops the
 /// shortcut with the message instead.
 @available(iOS 16.0, macOS 13.0, *)
-struct OIIntentError: Error, CustomLocalizedStringResourceConvertible {
-    let message: String
+nonisolated struct OIIntentError: Error, CustomLocalizedStringResourceConvertible {
+    /// What kind of failure it is, which the system reads from iOS and macOS 27
+    /// (`CustomAppIntentErrorConvertible`). The message is what the person sees either way.
+    nonisolated enum Kind: Sendable {
+        /// Something went wrong; the message says what.
+        case general
+        /// A document, library or conversation the action was given no longer exists.
+        case itemNotFound
+        /// Some of the work was done and some was not, and the message lists both.
+        case partial
+    }
 
-    init(_ message: String) {
+    let message: String
+    let kind: Kind
+
+    init(_ message: String, kind: Kind = .general) {
         self.message = message
+        self.kind = kind
     }
 
     var localizedStringResource: LocalizedStringResource {
         "\(message)"
+    }
+}
+
+/// From iOS and macOS 27 an action's failure also tells the system what kind it is (5.7): an item
+/// that is gone is Apple's "entity not found", work done in part is "partial failure", anything
+/// else is the message alone. Measured on macOS 27 on 2026-10-14: the text the system shows for
+/// each is the message unchanged. Before 27 the system gets the message only. Apple's "feature
+/// currently restricted" is not used for the free plan's limits: its own text names Screen Time and
+/// device management.
+@available(iOS 27.0, macOS 27.0, *)
+extension OIIntentError: CustomAppIntentErrorConvertible {
+    nonisolated var appIntentError: AppIntentError {
+        let shown: LocalizedStringResource = "\(message)"
+        switch kind {
+        case .general:
+            return AppIntentError(description: shown)
+        case .itemNotFound:
+            return AppIntentError(predefinedError: .Unrecoverable.entityNotFound, description: shown)
+        case .partial:
+            return AppIntentError(predefinedError: .Unrecoverable.partialFailure, description: shown)
+        }
     }
 }
 

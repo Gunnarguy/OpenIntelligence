@@ -600,6 +600,12 @@ supposed to be agentic.
   retrieval that confidently returned the wrong subject, where every sub-question reads as answered.
   Research is now aimed at the unanswered sub-questions rather than re-running the original query.
   `[evidence: code_verified, exact, AgenticOrchestrator.swift ReasoningChainResult and the recursive-research gate; FactBank.subQuestionConfidence]`
+  **Changed 2026-10-14, for 5.7:** research's answer replaced the chain's synthesis whenever it kept
+  a citation, and a synthesis without citation markers had none to keep, so on 2026-09-23 a
+  3,372-character synthesis gave way to a wrong one-line answer. `researchMayReplaceSynthesis` now
+  lets an answer under a quarter of a synthesis of 400 characters or more replace it only when what
+  the answer adds beyond the question's own words is mostly (60 percent) in the synthesis too; a
+  number written as a word counts as its digits. `[evidence: test_verified, AnswerReplacementGuardTests; not run on a Deep Think benchmark]`
 
 - **Synthesis truncation was removing the highest-ranked chunk, and it is now budgeted rather than
   cut.** `executeDirectSynthesis` and `executeSynthesisStep` each ended in a hardcoded

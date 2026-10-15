@@ -73,7 +73,8 @@ enum DocumentDeletion {
         throw OIIntentError(
             wanted.count == 1
                 ? "That document is no longer in your libraries."
-                : "One of those documents is no longer in your libraries. Nothing was deleted.")
+                : "One of those documents is no longer in your libraries. Nothing was deleted.",
+            kind: .itemNotFound)
     }
 
     /// The confirmation: the names, up to three, and what goes with them.

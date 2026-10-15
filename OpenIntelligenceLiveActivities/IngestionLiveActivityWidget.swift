@@ -369,7 +369,7 @@ struct QueryLiveActivityWidget: Widget {
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: QueryLiveActivityAttributes.self) { context in
-            QueryLiveActivityLockScreenView(state: context.state)
+            QueryLiveActivityLockScreenView(state: context.state, sessionID: context.attributes.sessionID)
                 .activityBackgroundTint(Color.purple.opacity(0.22))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(Self.chatURL)
@@ -394,8 +394,18 @@ struct QueryLiveActivityWidget: Widget {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
-                        ProgressView(value: context.state.progress, total: 1.0)
-                            .tint(.purple)
+                        HStack(spacing: 10) {
+                            ProgressView(value: context.state.progress, total: 1.0)
+                                .tint(.purple)
+                            if context.state.finished != true {
+                                // Stops the answer and keeps what is written (5.7).
+                                Button(intent: StopLongAnswerIntent(sessionID: context.attributes.sessionID)) {
+                                    Label("Stop", systemImage: "stop.fill")
+                                        .labelStyle(.iconOnly)
+                                }
+                                .tint(.purple)
+                            }
+                        }
                     }
                 }
             } compactLeading: {
@@ -419,6 +429,9 @@ struct QueryLiveActivityWidget: Widget {
 @available(iOSApplicationExtension 17.0, *)
 private struct QueryLiveActivityLockScreenView: View {
     let state: QueryLiveActivityAttributes.ContentState
+    let sessionID: UUID
+
+    @Environment(\.activityFamily) private var activityFamily
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -438,8 +451,19 @@ private struct QueryLiveActivityLockScreenView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
-            ProgressView(value: state.progress, total: 1.0)
-                .tint(.purple)
+            HStack(spacing: 12) {
+                ProgressView(value: state.progress, total: 1.0)
+                    .tint(.purple)
+                // Stops the answer and keeps what is written (5.7). Not in the watch's small
+                // layout, which has no room for it.
+                if state.finished != true, activityFamily != .small {
+                    Button(intent: StopLongAnswerIntent(sessionID: sessionID)) {
+                        Label("Stop", systemImage: "stop.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .tint(.purple)
+                }
+            }
         }
         .padding()
     }

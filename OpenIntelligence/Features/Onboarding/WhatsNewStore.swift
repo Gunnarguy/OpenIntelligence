@@ -123,7 +123,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "tray.and.arrow.down",
                     title: "Very large text and JSONL files import a piece at a time",
                     detail:
-                        "A text or JSONL file used to be read, cleaned up and cut into passages all at once, and iOS closed the app on a big one.  Now a file over 8 MB is read a few megabytes at a time, and each piece is indexed and saved before the next one starts.  If an import gets interrupted it picks up where it was."
+                        "A text or JSONL file used to be read, cleaned up and cut into passages all at once, and iOS closed the app on a big one.  Now a file over 8 MB is read a few megabytes at a time, and each piece is indexed and saved before the next one starts.  If an import gets interrupted it picks up where it was, and the import queue has a Pause button."
                 ),
                 .init(
                     symbol: "mic",
@@ -147,7 +147,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "plus.rectangle.on.folder",
                     title: "New actions for your libraries",
                     detail:
-                        "\"Add to Library\" takes a file, a link or text.  \"Find Passages\" returns the passages matching a search without writing an answer, \"Check a Claim\" tells you whether your documents hold a sentence up, and \"Create Library\", \"Set Active Library\", \"Open Library\" and \"Open Document\" are new too."
+                        "\"Add to Library\" takes a file, a link or text.  \"Find Passages\" returns the passages matching a search without writing an answer, \"Check a Claim\" tells you whether your documents hold a sentence up, and \"Create Library\", \"Set Active Library\", \"Set Answer Mode\", \"Open Library\" and \"Open Document\" are new too."
                 ),
                 .init(
                     symbol: "doc.text.magnifyingglass",
@@ -177,7 +177,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "lock.iphone",
                     title: "Long answers on the Lock Screen",
                     detail:
-                        "On iPhone and iPad, a question that's still being answered after about ten seconds shows a Live Activity with the step it's on.  Settings, Notifications can also tell you when an import or a long answer is done."
+                        "On iPhone and iPad, a question that's still being answered after about ten seconds shows a Live Activity with the step it's on and a Stop button.  Settings, Notifications can also tell you when an import or a long answer is done."
                 ),
                 .init(
                     symbol: "apps.iphone",

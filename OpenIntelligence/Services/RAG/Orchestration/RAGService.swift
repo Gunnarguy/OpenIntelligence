@@ -452,6 +452,9 @@ class RAGService: ObservableObject {
     /// Counts the queue loops started. A loop that finds a later one has been started leaves the
     /// queue's task and its items alone on its way out: they are the later loop's by then.
     @MainActor private var ingestionLoopID = 0
+    /// Whether the person paused the import queue (`pauseIngestionQueue`, 5.7). While it is set, the
+    /// queue waits for Continue or Discard, and the end of the stopped import doesn't queue it again.
+    @MainActor @Published private(set) var ingestionPausedByPerson = false
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
     @MainActor private var ingestionQueueTombstones: [IngestionQueueTombstone] = []
     @MainActor private var selfHealingRebuildTask: Task<Void, Never>?
@@ -1769,8 +1772,57 @@ class RAGService: ObservableObject {
         savePersistedIngestionQueueState()
     }
 
+    /// Pauses the import queue at the person's word (5.7, roadmap row "Ingestion has no pause
+    /// control"). A tester three hours into a five-hour import asked for it on 2026-08-29.
+    ///
+    /// The file being imported stops the way it does when iOS ends the app's background time: a
+    /// file imported in pieces (a PDF over 10 MB; a text, Markdown or JSON Lines file over 8 MB)
+    /// keeps its checkpoint and goes on from its last saved piece, and any other file starts over,
+    /// which the paused item says. Every file still waiting is paused too. The queue then waits for
+    /// Continue (`continuePausedIngestionQueue`) or Discard, as it does after the app was closed in
+    /// the middle of an import.
+    @MainActor
+    func pauseIngestionQueue() {
+        let activeIndices = ingestionItems.indices.filter {
+            !ingestionItems[$0].stage.isTerminal && ingestionItems[$0].stage != .paused
+        }
+        guard !activeIndices.isEmpty else { return }
+        ingestionPausedByPerson = true
+        cancelIngestionTaskAndSetItAside()
+        isProcessing = false
+        processingStatus = ""
+
+        for index in activeIndices {
+            let restored = documentProcessor.restoredIngestionProgress(
+                for: ingestionItems[index].url, knownPageCount: ingestionItems[index].metrics.pageCount)
+            ingestionItems[index].stage = .paused
+            ingestionItems[index].detail = restored == nil ? Self.pausedStartsOverDetail : Self.pausedKeepsPlaceDetail
+            ingestionItems[index].progress = restored?.fraction
+            ingestionItems[index].startedAt = nil
+            ingestionItems[index].finishedAt = nil
+            ingestionItems[index].errorMessage = nil
+            ingestionItems[index].clearLease()
+            ingestionItems[index].events.append(
+                IngestionEvent(stage: .paused, title: "Paused", detail: ingestionItems[index].detail))
+        }
+
+        Log.info("[RAGService] The person paused \(activeIndices.count) import(s)", category: .ingestion)
+        savePersistedIngestionQueueState()
+        syncIngestionLiveActivity()
+    }
+
+    /// What a paused import says about continuing (5.7).
+    static let pausedKeepsPlaceDetail = "Paused. Continues from where it stopped"
+    static let pausedStartsOverDetail = "Paused. Starts over when you continue"
+
     @MainActor
     private func handleContinuedIngestionExpiration(backgroundTimeRanOut: Bool = false) {
+        // A queue the person paused stays paused: the import their pause stopped ends through here.
+        guard !ingestionPausedByPerson else {
+            savePersistedIngestionQueueState()
+            syncIngestionLiveActivity()
+            return
+        }
         let activeIndices = ingestionItems.indices.filter { !ingestionItems[$0].stage.isTerminal }
         guard !activeIndices.isEmpty else {
             savePersistedIngestionQueueState()
@@ -2399,6 +2451,11 @@ class RAGService: ObservableObject {
         defaults.synchronize()
         Log.info("[Consent] Persisted \(provider.shortName) = \(state.rawValue)", category: .initialization)
     }
+
+    /// The settings the app's screens use, once `registerSettingsStore` has run. An action changes
+    /// these so the open chat follows at once (`SetAnswerModeIntent`, 5.7).
+    @MainActor
+    var registeredSettingsStore: SettingsStore? { settingsStore }
 
     @MainActor
     func registerSettingsStore(_ store: SettingsStore) {
@@ -4536,6 +4593,7 @@ class RAGService: ObservableObject {
                     + "\(String(format: "%.0f", Date().timeIntervalSince(queueStarted) * 1000))ms",
                 category: .pipeline
             )
+            await removeTextOfUnfinishedImports()
         }
 
         Log.info(
@@ -4561,6 +4619,50 @@ class RAGService: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Whether this launch has looked for the text of imports that never finished.
+    @MainActor private static var unfinishedImportTextChecked = false
+
+    /// Removes, once a launch, the text of documents that never finished importing (5.7, roadmap row
+    /// "Text from an unfinished import is never removed").
+    ///
+    /// An import stores the document's text in the keyword store before it cuts it into passages,
+    /// and the document's record is saved only at the end. An app that ended in the middle of an
+    /// import (closed by the person or by iOS) left that text with no document to go with it: in no
+    /// search, and taking room, since nothing removed it. 5.7 already removes it when an import is
+    /// cancelled or stops at the passage limit. This removes the text of every document the keyword
+    /// store holds and the document list does not, using the store's own calls
+    /// (`SQLiteFullTextService` is not changed). It does nothing while an import is queued or running,
+    /// whose text is stored before its record, and nothing when the list read from disk is empty or
+    /// could not be read; the next launch looks again. The file shrinks only when Optimize Database
+    /// runs.
+    @MainActor
+    func removeTextOfUnfinishedImports() async {
+        guard !Self.unfinishedImportTextChecked else { return }
+        guard ingestionTask == nil, !ingestionItems.contains(where: { !$0.stage.isTerminal }) else { return }
+        Self.unfinishedImportTextChecked = true
+        guard let listed = loadDocumentsSnapshotFromDisk(), !listed.isEmpty else { return }
+        let known = Set(listed.map(\.id)).union(documents.map(\.id))
+        let stored = await SQLiteFullTextService.shared.getAllDocumentIds()
+        let removed = await Self.removeStoredText(of: stored, notIn: known, using: SQLiteFullTextService.shared)
+        if removed > 0 {
+            Log.info(
+                "[RAGService] Removed the stored text of \(removed) document(s) whose import never finished",
+                category: .ingestion)
+        }
+    }
+
+    /// Removes from `store` the text of each id in `stored` that `known` does not list, and returns
+    /// how many it removed.
+    nonisolated static func removeStoredText(
+        of stored: [UUID], notIn known: Set<UUID>, using store: SQLiteFullTextService
+    ) async -> Int {
+        let leftOver = Set(stored).subtracting(known)
+        for id in leftOver {
+            await store.delete(for: id)
+        }
+        return leftOver.count
     }
 
     func saveDocumentsToDisk() async {
@@ -5784,6 +5886,8 @@ class RAGService: ObservableObject {
 
     @MainActor
     func continuePausedIngestionQueue() {
+        let continuedFromPause = ingestionPausedByPerson
+        ingestionPausedByPerson = false
         let pausedIndices = ingestionItems.indices.filter { ingestionItems[$0].stage == .paused }
         guard !pausedIndices.isEmpty else {
             startIngestionTaskIfNeeded()
@@ -5802,7 +5906,10 @@ class RAGService: ObservableObject {
             item.finishedAt = nil
             item.errorMessage = nil
             item.clearLease()
-            item.events.append(IngestionEvent(stage: .queued, title: "Queued", detail: "Resumed after app restart"))
+            item.events.append(
+                IngestionEvent(
+                    stage: .queued, title: "Queued",
+                    detail: continuedFromPause ? "Continued after a pause" : "Resumed after app restart"))
             ingestionItems[index] = item
         }
 
@@ -5816,6 +5923,7 @@ class RAGService: ObservableObject {
 
     @MainActor
     func discardPausedIngestionQueue() {
+        ingestionPausedByPerson = false
         let pausedItems = ingestionItems.filter { $0.stage == .paused }
         let pausedIds = Set(pausedItems.map(\.id))
         guard !pausedIds.isEmpty else { return }
@@ -10255,6 +10363,31 @@ class RAGService: ObservableObject {
                         : min(result.confidence, max(sourceOnlyOutcome.fidelityScore, 0.75))
                 }
             #endif
+
+            // Deep Think and Maximum run the verification gates too (5.7, roadmap row "The Verified
+            // badge shows for answers whose checks failed or never ran, and Deep Think and Maximum
+            // run no verification gates"). Every mode was listed as verifying
+            // (`RAGQualityMode.usesVerificationGates`), and these two returned before the gates, so
+            // their answers read Not Checked unless the source-only check ran. The gates label the
+            // answer and leave it as written: the badge and the warnings say what passed. Standard
+            // abstains when its gates fail, but these answers took minutes, and a structured answer
+            // rebuilt from a failed check can turn into a refusal (`resolvedDisplayResponse`), so the
+            // result is not passed into it. Skipped when the source-only check ran, which is a check.
+            if gatingDecision == nil, qualityMode.usesVerificationGates {
+                let gated = await verifyAgenticAnswer(
+                    question: question,
+                    answer: agenticAnswer,
+                    chunks: result.retrievedChunks,
+                    containerId: containerId,
+                    answerIntent: agenticAnswerIntent,
+                    qualityMode: qualityMode)
+                gatingDecision = gated.summary
+                if let gates = gated.result, !gates.passed {
+                    for gateResult in gates.gateResults where !gateResult.passed {
+                        agenticWarnings.append("Verification \(gateResult.gate.rawValue): \(gateResult.details)")
+                    }
+                }
+            }
 
             let displayResponseText = resolvedDisplayResponse(
                 fallback: agenticAnswer,
@@ -17110,6 +17243,61 @@ class RAGService: ObservableObject {
         // so downstream Markdown rendering can format them properly
         let compacted = chosen.joined(separator: "\n\n")
         return normalizeMalformedResponseArtifacts(compacted)
+    }
+
+    /// The verification gates for a Deep Think or Maximum answer, and the status string the badge
+    /// reads (5.7): `verified:NN%` when they pass, `unverified:<gates>` when they don't, and
+    /// `verification_skipped` when there is nothing to check. The same `VerificationGateService.verify`
+    /// and confidence policy Standard uses, on the passages the reasoning ended with, with the
+    /// answer's and the question's vectors and the passages' stored vectors for the grounding gate.
+    private func verifyAgenticAnswer(
+        question: String,
+        answer: String,
+        chunks: [RetrievedChunk],
+        containerId: UUID,
+        answerIntent: AnswerIntent,
+        qualityMode: RAGQualityMode
+    ) async -> (summary: String, result: RAGVerificationResult?) {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !chunks.isEmpty else { return ("verification_skipped", nil) }
+
+        let policy = ConfidencePolicyService.policy(for: question, answerIntent: answerIntent, qualityMode: qualityMode)
+        let gates = VerificationGateService(config: policy.verificationConfig)
+        let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
+        let responseEmbedding = try? await embeddingContext.service.generateEmbedding(
+            for: boundedVerificationResponseText(trimmed, answerIntent: answerIntent))
+        let queryEmbedding = try? await embeddingContext.service.generateEmbedding(for: question)
+        let vdb = await dbFor(embeddingContext.containerId)
+        let chunkEmbeddings = await vdb.getEmbeddings(forChunkIDs: chunks.map(\.chunk.id))
+        let scores = chunks.map(\.similarityScore).sorted(by: >)
+        let averageTopFive = scores.isEmpty ? 0 : scores.prefix(5).reduce(0, +) / Float(min(5, scores.count))
+        let topScores = [scores.first ?? 0, scores.count > 1 ? scores[1] : 0, averageTopFive].filter { $0 > 0 }
+
+        let result = await gates.verify(
+            response: trimmed,
+            query: question,
+            retrievedChunks: chunks,
+            topScores: topScores,
+            allCandidateChunks: chunks,
+            responseEmbedding: responseEmbedding,
+            queryEmbedding: queryEmbedding,
+            chunkEmbeddings: chunkEmbeddings.allSatisfy(\.isEmpty) ? nil : chunkEmbeddings,
+            answerIntent: answerIntent)
+        Log.info(
+            "[RAGService] \(qualityMode.canonical == .maximum ? "Maximum" : "Deep Think") answer gates: "
+                + (result.passed ? "passed" : "failed")
+                + " (\(result.gateResults.map { "\($0.gate.rawValue):\($0.passed ? "pass" : "fail")" }.joined(separator: " ")))",
+            category: .pipeline)
+        return (Self.verificationSummary(for: result), result)
+    }
+
+    /// The status string Standard writes for a verification result: `verified:NN%` or
+    /// `unverified:<failed gates>`.
+    nonisolated static func verificationSummary(for result: RAGVerificationResult) -> String {
+        if result.passed {
+            return "verified:\(String(format: "%.0f", result.overallConfidence * 100))%"
+        }
+        return "unverified:" + result.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: "+")
     }
 
     private func boundedVerificationResponseText(

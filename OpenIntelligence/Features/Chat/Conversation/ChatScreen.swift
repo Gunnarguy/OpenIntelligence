@@ -614,7 +614,9 @@ struct ChatScreen: View {
                 onCancelAll: { ragService.cancelAllIngestion() },
                 onContinuePaused: { ragService.continuePausedIngestionQueue() },
                 onDiscardPaused: { ragService.discardPausedIngestionQueue() },
-                onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() }
+                onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() },
+                onPause: { ragService.pauseIngestionQueue() },
+                pausedByPerson: ragService.ingestionPausedByPerson
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 88)
@@ -1077,6 +1079,16 @@ struct ChatScreen: View {
             }
             .onDisappear {
                 isAppeared = false
+            }
+            // The Stop button on the answer's Live Activity (5.7, `StopLongAnswerIntent`): stops the
+            // answer like the chat's own stop button, only if the Live Activity is the running one's.
+            .onReceive(NotificationCenter.default.publisher(for: .stopLongAnswer)) { notification in
+                #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+                    guard let sessionID = notification.userInfo?["sessionID"] as? String,
+                        QueryLiveActivityService.shared.isRunningActivity(sessionID: sessionID)
+                    else { return }
+                    stopGeneration()
+                #endif
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ActiveModelRouteResolved"))) {
                 notification in
