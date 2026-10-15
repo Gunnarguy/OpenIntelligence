@@ -2921,7 +2921,7 @@ Text(deviceService.chipName)
                 "List Documents": "Returns the documents in your libraries, or in one.",
                 "List Conversations": "Returns the saved conversations in a library.",
                 "Open Library": "Opens the app on a library.",
-                "Open Document": "Opens the app on the library that holds a document.",
+                "Open Document": "Opens a document's page in its library.",
             ]
         ),
         (

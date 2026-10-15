@@ -24,6 +24,17 @@ import NaturalLanguage
 // MARK: - Specification Extraction Result
 
 /// Result of specification extraction - the answer span found in source text
+extension SpecificationExtractor {
+    /// Words a question can use for the same subject (5.7). The extractor adds them to the question's
+    /// keywords, and `RAGService.extractedValueAnswersQuestion` to its subject, so "How much gas does it
+    /// hold?" is about the line "Fuel tank: 14.3 US gal (54 L)" in both.
+    nonisolated static let subjectSynonyms: [(word: String, synonyms: [String])] = [
+        ("gas", ["fuel", "gasoline"]),
+        ("fuel", ["gas"]),
+        ("gasoline", ["gas"]),
+    ]
+}
+
 struct SpecificationExtractionResult: Sendable {
     /// The extracted answer span (e.g., "0W-20", "4.5 liters")
     let answerSpan: String
@@ -1503,11 +1514,9 @@ actor SpecificationExtractor {
         if tokens.contains("capacity") || (asksForQuantity && tokens.contains(where: isMeasurementAnchorKeyword(_:))) {
             descriptiveKeywords.append(contentsOf: ["liters", "quarts", "gallons", "capacity", "volume"])
         }
-        if tokens.contains("gas") {
-            descriptiveKeywords.append(contentsOf: ["fuel", "gasoline"])
-        }
-        if tokens.contains("fuel") || tokens.contains("gasoline") {
-            descriptiveKeywords.append(contentsOf: ["gas"])
+        // One table for the extractor and for the check that a value is about the question (5.7).
+        for (word, synonyms) in Self.subjectSynonyms where tokens.contains(word) {
+            descriptiveKeywords.append(contentsOf: synonyms)
         }
         if tokens.contains("hold") || tokens.contains("holds") || tokens.contains("holding") {
             descriptiveKeywords.append(contentsOf: ["capacity", "volume"])

@@ -961,6 +961,12 @@ private struct SiliconLegend: View {
         /// them on top of the welcome screen, where they read as a debug overlay.
         private var isWelcomeScreenVisible = false
         private var hudEnabled = true
+        /// True while the app shows a sheet, a cover or an alert (5.7). The legend floats in a window
+        /// above the app's, so over a sheet it covered the sheet's buttons and took their taps: on
+        /// 2026-10-15 it sat on the Opened File sheet's Don't Add. UIKit announces no presentation, so
+        /// the app's windows are looked at twice a second.
+        private var isSomethingPresented = false
+        private var presentationTimer: Timer?
 
         /// Called by the root view whenever the welcome screen appears or closes.
         func setWelcomeScreenVisible(_ visible: Bool) {
@@ -969,7 +975,24 @@ private struct SiliconLegend: View {
         }
 
         private func applyVisibility() {
-            window?.isHidden = !hudEnabled || isWelcomeScreenVisible
+            window?.isHidden = !hudEnabled || isWelcomeScreenVisible || isSomethingPresented
+        }
+
+        private func watchPresentations() {
+            presentationTimer?.invalidate()
+            presentationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.checkPresentations() }
+            }
+        }
+
+        private func checkPresentations() {
+            guard let legend = window, let scene = legend.windowScene else { return }
+            let presented = scene.windows.contains { candidate in
+                candidate !== legend && candidate.rootViewController?.presentedViewController != nil
+            }
+            guard presented != isSomethingPresented else { return }
+            isSomethingPresented = presented
+            applyVisibility()
         }
 
         func ensureVisible(settings: SettingsStore) {
@@ -990,6 +1013,7 @@ private struct SiliconLegend: View {
             hudEnabled = settings.showSiliconHUD
             window = w
             applyVisibility()
+            watchPresentations()
 
             let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
             host.view.addGestureRecognizer(pan)

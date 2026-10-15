@@ -6188,6 +6188,7 @@ class RAGService: ObservableObject {
             self.syncIngestionLiveActivity()
             self.pruneCompletedIngestionItems()
             self.kickPendingReembedIfNeeded()
+            self.runDeferredEnrichmentsIfNeeded()
             if isLatestLoop, shouldRestartQueueAfterUserCancellation,
                 self.ingestionItems.contains(where: { $0.stage == .queued })
             {
@@ -7649,124 +7650,10 @@ class RAGService: ObservableObject {
                 ]
             )
 
-            // Step 4.5: Generate document summary (RAPTOR-lite)
-            // Creates a level-1 summary chunk for efficient overview queries
-            // Controlled by settings.enableDocumentSummaries
-            // Skipped for onboarding samples. This is a language-model call with a 12s
-            // timeout (`DocumentSummaryService.summaryGenerationTimeoutSeconds`) and it
-            // runs once per document. Together with content tagging below, it was the
-            // reason importing three small curated markdown files took **1.3 minutes** on
-            // an A18 Pro: 3,168 words and 38 chunks, of which the embedding work is a
-            // fraction of a second and the enrichment is up to 20s per document.
-            //
-            // The samples exist to demonstrate the pipeline, and the theater the user is
-            // watching shows Extract, Chunk, Embed and Index. An auto-generated overview
-            // of a document the app itself wrote adds nothing to that, and a first
-            // impression that takes over a minute costs more than the summary is worth.
-            // Anything the user imports themselves is unaffected.
-            let summariesEnabled =
-                await MainActor.run { self.settingsStore?.enableDocumentSummaries ?? true }
-                && context != .onboarding
-
-            if summariesEnabled {
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .storing,
-                        detail: "Optimizing overview...",
-                        progress: 0.98
-                    )
-                }
-
-                do {
-                    let summaryChunk = try await documentSummaryService.generateDocumentSummary(
-                        documentId: document.id,
-                        documentName: filename,
-                        chunks: documentChunks,
-                        embeddingService: containerEmbeddingService,
-                        embeddingTranslationTarget: translationTargetLanguage(for: container)
-                    )
-
-                    // Store the summary chunk alongside detail chunks
-                    try await db.storeBatch(chunks: [summaryChunk])
-
-                    TelemetryCenter.emit(
-                        .ingestion,
-                        title: "Document summary generated",
-                        metadata: [
-                            "file": filename,
-                            "summaryWords": "\(summaryChunk.metadata.wordCount)",
-                            "abstractionLevel": "L1",
-                        ]
-                    )
-
-                    Log.info("[RAGService] RAPTOR-lite: Generated L1 summary for '\(filename)'", category: .ingestion)
-                } catch {
-                    // Summary generation is optional - log but don't fail ingestion
-                    Log.warning(
-                        "[RAGService] Summary generation failed for '\(filename)': \(error)", category: .ingestion)
-                    TelemetryCenter.emit(
-                        .ingestion,
-                        severity: .warning,
-                        title: "Summary generation skipped",
-                        metadata: [
-                            "file": filename,
-                            "error": error.localizedDescription,
-                        ]
-                    )
-                }
-            } else {
-                Log.debug("[RAGService] Document summaries disabled in settings, skipping", category: .ingestion)
-            }
-
-            // Step 4.9: Persist vector store to disk (single write after all batch stores)
+            // Step 4.9: Persist vector store to disk (single write after all batch stores). Before the
+            // model work in `enrichImportedDocument`, which comes after the document is saved (5.7).
             // Deferred persistence avoids redundant JSON serialization after each storeBatch call
             try await db.persist()
-
-            // Step 5: Generate content tags using Apple's content tagging model (iOS 26+)
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .storing,
-                    detail: "Generating tags...",
-                    progress: 0.99
-                )
-            }
-
-            var generatedContentTags: [String]?
-            // Skipped for onboarding samples, same reasoning as the summary above: this is
-            // a language-model call with an 8s timeout, once per document.
-            let contentTaggingEnabled =
-                await contentTaggingEnabled(for: container)
-                && context != .onboarding
-            if #available(iOS 26.0, *), contentTaggingEnabled {
-                let taggingService = ContentTaggingService.shared
-                if taggingService.isAvailable {
-                    do {
-                        let chunkTexts = processedChunks.map { $0.text }
-                        let tags = try await taggingService.generateTagsForDocument(
-                            chunks: chunkTexts,
-                            documentName: filename
-                        )
-                        if !tags.displayTags.isEmpty {
-                            generatedContentTags = tags.displayTags
-                            TelemetryCenter.emit(
-                                .generation,
-                                title: "Content tags generated",
-                                metadata: [
-                                    "file": filename,
-                                    "tags": tags.displayTags.joined(separator: ", "),
-                                    "count": "\(tags.displayTags.count)",
-                                ]
-                            )
-                        }
-                    } catch {
-                        Log.warning("[RAGService] Content tagging failed for \(filename): \(error)", category: .llm)
-                    }
-                }
-            }
 
             // Calculate total pipeline time
             let totalTime = Date().timeIntervalSince(pipelineStartTime)
@@ -7830,7 +7717,7 @@ class RAGService: ObservableObject {
                     totalChunks: document.totalChunks,
                     processingMetadata: completeMetadata,
                     containerId: document.containerId,
-                    contentTags: generatedContentTags
+                    contentTags: nil
                 )
             }
 
@@ -7846,7 +7733,7 @@ class RAGService: ObservableObject {
                 totalChunks: updatedDocument.totalChunks,
                 processingMetadata: updatedDocument.processingMetadata,
                 containerId: activeContainerId,
-                contentTags: generatedContentTags ?? updatedDocument.contentTags
+                contentTags: updatedDocument.contentTags
             )
             updatedDocument = docWithContainer
 
@@ -7902,21 +7789,23 @@ class RAGService: ObservableObject {
             // Save documents metadata to disk
             await saveDocumentsToDisk()
 
-            // Generate suggested questions for the document
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .storing,
-                    detail: "Generating suggested questions...",
-                    progress: 0.99
-                )
+            // The document is saved and can be searched. What follows is model work that improves it
+            // and is not needed to answer from it (5.7). In the background it waits for the app to be
+            // in front: on 2026-10-15 iOS ended a background import 53 s in, during this work, and the Lock
+            // Screen said "Task failed"; the overview and the tags then came before the save, so an earlier
+            // end would have stopped the import before its document was recorded.
+            let enrichLater = await MainActor.run { Self.appIsInBackground }
+            if enrichLater && context != .onboarding {
+                Self.deferEnrichment(of: updatedDocument.id, in: activeContainerId)
+                Log.info(
+                    "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the app is in front",
+                    category: .ingestion)
+            } else {
+                await enrichImportedDocument(
+                    updatedDocument, chunks: documentChunks, container: container,
+                    embeddingService: containerEmbeddingService, db: db, context: context,
+                    trackingId: trackingId, containerId: activeContainerId)
             }
-            await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument(
-                updatedDocument,
-                chunks: documentChunks,
-                in: activeContainerId
-            )
 
             // Brief yield for UI to catch up before marking complete
             await Task.yield()
@@ -8016,6 +7905,258 @@ class RAGService: ObservableObject {
                 ]
             )
             throw error
+        }
+    }
+
+    /// The model work an import does after its document is saved (5.7): the RAPTOR-lite overview, the
+    /// content tags and the suggested questions. None of it is needed to search or answer from the
+    /// document. Through 5.6 the overview and the tags ran before the save, so iOS ending a background
+    /// import during them stopped it before its document was recorded.
+    private func enrichImportedDocument(
+        _ document: Document,
+        chunks documentChunks: [DocumentChunk],
+        container: KnowledgeContainer?,
+        embeddingService containerEmbeddingService: EmbeddingService,
+        db: VectorDatabase,
+        context: IngestionContext,
+        trackingId: UUID?,
+        containerId activeContainerId: UUID
+    ) async {
+        let filename = document.filename
+        let chunkTexts = documentChunks.map(\.content)
+
+        // Step 4.5: Generate document summary (RAPTOR-lite)
+        // Creates a level-1 summary chunk for efficient overview queries
+        // Controlled by settings.enableDocumentSummaries
+        // Skipped for onboarding samples. This is a language-model call with a 12s
+        // timeout (`DocumentSummaryService.summaryGenerationTimeoutSeconds`) and it
+        // runs once per document. Together with content tagging below, it was the
+        // reason importing three small curated markdown files took **1.3 minutes** on
+        // an A18 Pro: 3,168 words and 38 chunks, of which the embedding work is a
+        // fraction of a second and the enrichment is up to 20s per document.
+        //
+        // The samples exist to demonstrate the pipeline, and the theater the user is
+        // watching shows Extract, Chunk, Embed and Index. An auto-generated overview
+        // of a document the app itself wrote adds nothing to that, and a first
+        // impression that takes over a minute costs more than the summary is worth.
+        // Anything the user imports themselves is unaffected.
+        let summariesEnabled =
+            await MainActor.run { self.settingsStore?.enableDocumentSummaries ?? true }
+            && context != .onboarding
+
+        if summariesEnabled {
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .storing,
+                    detail: "Optimizing overview...",
+                    progress: 0.98
+                )
+            }
+
+            do {
+                let summaryChunk = try await documentSummaryService.generateDocumentSummary(
+                    documentId: document.id,
+                    documentName: filename,
+                    chunks: documentChunks,
+                    embeddingService: containerEmbeddingService,
+                    embeddingTranslationTarget: translationTargetLanguage(for: container)
+                )
+
+                // Store the summary chunk alongside detail chunks
+                try await db.storeBatch(chunks: [summaryChunk])
+                try await db.persist()
+
+                TelemetryCenter.emit(
+                    .ingestion,
+                    title: "Document summary generated",
+                    metadata: [
+                        "file": filename,
+                        "summaryWords": "\(summaryChunk.metadata.wordCount)",
+                        "abstractionLevel": "L1",
+                    ]
+                )
+
+                Log.info("[RAGService] RAPTOR-lite: Generated L1 summary for '\(filename)'", category: .ingestion)
+            } catch {
+                // Summary generation is optional - log but don't fail ingestion
+                Log.warning(
+                    "[RAGService] Summary generation failed for '\(filename)': \(error)", category: .ingestion)
+                TelemetryCenter.emit(
+                    .ingestion,
+                    severity: .warning,
+                    title: "Summary generation skipped",
+                    metadata: [
+                        "file": filename,
+                        "error": error.localizedDescription,
+                    ]
+                )
+            }
+        } else {
+            Log.debug("[RAGService] Document summaries disabled in settings, skipping", category: .ingestion)
+        }
+
+
+        // Step 5: Generate content tags using Apple's content tagging model (iOS 26+)
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .storing,
+                detail: "Generating tags...",
+                progress: 0.99
+            )
+        }
+
+        var generatedContentTags: [String]?
+        // Skipped for onboarding samples, same reasoning as the summary above: this is
+        // a language-model call with an 8s timeout, once per document.
+        let contentTaggingEnabled =
+            await contentTaggingEnabled(for: container)
+            && context != .onboarding
+        if #available(iOS 26.0, *), contentTaggingEnabled {
+            let taggingService = ContentTaggingService.shared
+            if taggingService.isAvailable {
+                do {
+                    let tags = try await taggingService.generateTagsForDocument(
+                        chunks: chunkTexts,
+                        documentName: filename
+                    )
+                    if !tags.displayTags.isEmpty {
+                        generatedContentTags = tags.displayTags
+                        TelemetryCenter.emit(
+                            .generation,
+                            title: "Content tags generated",
+                            metadata: [
+                                "file": filename,
+                                "tags": tags.displayTags.joined(separator: ", "),
+                                "count": "\(tags.displayTags.count)",
+                            ]
+                        )
+                    }
+                } catch {
+                    Log.warning("[RAGService] Content tagging failed for \(filename): \(error)", category: .llm)
+                }
+            }
+        }
+
+        if let tags = generatedContentTags {
+            await MainActor.run {
+                if let index = documents.firstIndex(where: { $0.id == document.id }) {
+                    let saved = documents[index]
+                    documents[index] = Document(
+                        id: saved.id,
+                        filename: saved.filename,
+                        fileURL: saved.fileURL,
+                        storageRelativePath: saved.storageRelativePath,
+                        fileHash: saved.fileHash,
+                        contentType: saved.contentType,
+                        addedAt: saved.addedAt,
+                        totalChunks: saved.totalChunks,
+                        processingMetadata: saved.processingMetadata,
+                        containerId: saved.containerId,
+                        contentTags: tags
+                    )
+                }
+            }
+            await saveDocumentsToDisk()
+        }
+
+        // Generate suggested questions for the document
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .storing,
+                detail: "Generating suggested questions...",
+                progress: 0.99
+            )
+        }
+        await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument(
+            document,
+            chunks: documentChunks,
+            in: activeContainerId
+        )
+    }
+
+    /// Whether the app is in the background, where iOS ends an import that stalls (5.7).
+    @MainActor static var appIsInBackground: Bool {
+        #if canImport(UIKit)
+            UIApplication.shared.applicationState == .background
+        #else
+            false
+        #endif
+    }
+
+    /// Documents whose overview, tags and suggested questions wait for the app to be in front (5.7),
+    /// each as "<library id> <document id>".
+    nonisolated static let deferredEnrichmentKey = "deferredDocumentEnrichment"
+
+    nonisolated static func deferredEnrichments(defaults: UserDefaults = .standard) -> [(document: UUID, library: UUID)] {
+        (defaults.stringArray(forKey: deferredEnrichmentKey) ?? []).compactMap { entry in
+            let parts = entry.split(separator: " ")
+            guard parts.count == 2, let library = UUID(uuidString: String(parts[0])),
+                let document = UUID(uuidString: String(parts[1]))
+            else { return nil }
+            return (document, library)
+        }
+    }
+
+    nonisolated static func deferEnrichment(
+        of document: UUID, in library: UUID, defaults: UserDefaults = .standard
+    ) {
+        let entry = "\(library.uuidString) \(document.uuidString)"
+        var entries = defaults.stringArray(forKey: deferredEnrichmentKey) ?? []
+        guard !entries.contains(entry) else { return }
+        entries.append(entry)
+        defaults.set(entries, forKey: deferredEnrichmentKey)
+    }
+
+    nonisolated static func finishDeferredEnrichment(of document: UUID, defaults: UserDefaults = .standard) {
+        let entries = (defaults.stringArray(forKey: deferredEnrichmentKey) ?? []).filter {
+            !$0.hasSuffix(document.uuidString)
+        }
+        defaults.set(entries, forKey: deferredEnrichmentKey)
+    }
+
+    /// Runs the model work background imports left for later, one document at a time, while the app
+    /// is in front and no import is running (5.7). Called when the app comes to the front and when the
+    /// import queue empties. A document deleted in the meantime is dropped from the list.
+    @MainActor
+    func runDeferredEnrichmentsIfNeeded() {
+        guard !deferredEnrichmentIsRunning, !isProcessing, !Self.appIsInBackground else { return }
+        let pending = Self.deferredEnrichments()
+        guard !pending.isEmpty else { return }
+        deferredEnrichmentIsRunning = true
+        Task { @MainActor in
+            defer {
+                deferredEnrichmentIsRunning = false
+                if !isProcessing { processingStatus = "" }
+            }
+            for item in pending {
+                guard !Self.appIsInBackground, !isProcessing else { return }
+                guard let document = documents.first(where: { $0.id == item.document }) else {
+                    Self.finishDeferredEnrichment(of: item.document)
+                    continue
+                }
+                let container = containerService.containers.first { $0.id == item.library }
+                guard let db = try? await dbForContainer(item.library),
+                    let stored = try? await db.chunks(forDocument: document.id), !stored.isEmpty
+                else { continue }
+                let chunks = stored.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
+                let service = EmbeddingService.forProvider(
+                    id: container?.embeddingProviderId ?? "coreml_sentence_embedding",
+                    targetDimension: container?.embeddingDim ?? 384,
+                    allowFallback: true)
+                Log.info(
+                    "[RAGService] Adding the overview, tags and suggested questions that waited for '\(document.filename)'",
+                    category: .ingestion)
+                await enrichImportedDocument(
+                    document, chunks: chunks, container: container, embeddingService: service, db: db,
+                    context: .userInitiated, trackingId: nil, containerId: item.library)
+                Self.finishDeferredEnrichment(of: document.id)
+            }
         }
     }
 
@@ -19352,7 +19493,8 @@ class RAGService: ObservableObject {
         // extracted value stand in for the answer comes through here.
         guard
             Self.extractedValueAnswersQuestion(
-                question, label: result.matchedLabel, context: result.surroundingContext)
+                question, label: result.matchedLabel,
+                context: Self.valueLine(result.answerSpan, in: result.sourceChunk.chunk) ?? result.surroundingContext)
         else {
             Log.info(
                 "[RAGService] Extracted value not used as the answer: \"\(result.matchedLabel ?? result.answerSpan)\" "
@@ -19379,14 +19521,19 @@ class RAGService: ObservableObject {
     /// question").
     ///
     /// A value locked by score alone: on 2026-09-26 a probe over a car manual's capacities list
-    /// locked the engine oil's 4.5 L for "What is the fuel tank capacity?", and Deep Think answered
-    /// 30 days where the lease says 60. Now the value's label, or the text around it when it has
-    /// none, must share a word with the question's subject: its words without the ones any value
-    /// question uses ("how much", "capacity", a unit). A question with no subject words left is not
-    /// checked. A value that fails is not used, and the model answers as it would without one.
+    /// locked the engine oil's 4.5 L for "What is the fuel tank capacity?" and for "How much fuel does
+    /// the tank hold?", and its 4.8 US qt for "How much coolant does it need?". Now the value's label,
+    /// or the line that holds it (`valueLine`), must share a word with the question's subject: its
+    /// words without the ones any value question uses ("how much", "capacity", a unit, "give"), with
+    /// the extractor's synonyms added (`SpecificationExtractor.subjectSynonyms`). A question with no
+    /// subject words left is not checked. A value that fails is not used, and the model answers as it
+    /// would without one.
     nonisolated static func extractedValueAnswersQuestion(_ question: String, label: String?, context: String) -> Bool {
-        let subject = lookupWords(in: question).subtracting(genericValueWords)
+        var subject = lookupWords(in: question).subtracting(genericValueWords)
         guard !subject.isEmpty else { return true }
+        for (word, synonyms) in SpecificationExtractor.subjectSynonyms where subject.contains(word) {
+            subject.formUnion(synonyms)
+        }
         let trimmedLabel = label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let about = lookupWords(in: trimmedLabel.isEmpty ? context : trimmedLabel)
         return !subject.isDisjoint(with: about)
@@ -19408,8 +19555,28 @@ class RAGService: ObservableObject {
                 })
     }
 
+    /// The sentence of a passage's line that holds an extracted value (5.7). Its label is there, as in
+    /// "Fuel tank: 14.3 US gal (54 L)". The extractor's `surroundingContext` cut sentences at every ".",
+    /// so it never held a value with a decimal point and fell back to 50 characters each side, which in a
+    /// capacities list reached the neighbouring lines' labels. A decimal point is not a sentence end
+    /// here: a sentence ends at ".", "!" or "?" followed by a space.
+    nonisolated static func valueLine(_ value: String, in chunk: DocumentChunk) -> String? {
+        for text in [chunk.content, chunk.parentContent].compactMap({ $0 }) {
+            guard let range = text.range(of: value) else { continue }
+            let start = text[..<range.lowerBound].lastIndex(of: "\n").map { text.index(after: $0) } ?? text.startIndex
+            let end = text[range.upperBound...].firstIndex(of: "\n") ?? text.endIndex
+            let line = String(text[start..<end])
+            let sentences = line.replacingOccurrences(
+                of: #"(?<=[.!?])\s+"#, with: "\n", options: .regularExpression
+            ).split(separator: "\n")
+            return sentences.first { $0.contains(value) }.map(String.init) ?? line
+        }
+        return nil
+    }
+
     /// Words any question about a value can use, which say nothing about which value: question words,
-    /// quantity words and units, in the singular `lookupWords` gives.
+    /// quantity words, units, function words and the verbs a question asks with ("give", "move out"
+    /// keeps "move"), in the singular `lookupWords` gives.
     nonisolated static let genericValueWords: Set<String> = [
         "what", "which", "how", "much", "many", "does", "the", "for", "and", "with", "that", "this", "there",
         "need", "take", "use", "hold", "require", "have", "can", "get", "should", "must", "will", "would",
@@ -19418,6 +19585,11 @@ class RAGService: ObservableObject {
         "specification", "type", "kind", "long", "big", "far", "often", "cost", "price",
         "day", "days", "week", "month", "year", "hour", "minute", "second", "liter", "litre", "quart", "gallon",
         "pound", "ounce", "inch", "foot", "feet", "meter", "metre", "mile", "percent",
+        "are", "was", "were", "been", "has", "had", "did", "could", "may", "might", "not", "but", "out",
+        "off", "over", "under", "into", "from", "about", "before", "after", "during", "between", "through",
+        "these", "those", "here", "then", "than", "when", "where", "who", "why", "all", "any", "each",
+        "every", "some", "only", "also", "just", "very", "your", "you", "our", "their", "they", "them",
+        "his", "her", "him", "she", "its", "give", "got", "put", "make", "know", "tell", "keep", "let",
     ]
 
     private func prioritizedStateLookupCandidates(
@@ -20140,6 +20312,8 @@ class RAGService: ObservableObject {
 // MARK: - Device Capability Detection
 
 @MainActor private var cachedDeviceCapabilities: DeviceCapabilities?
+/// One run of the deferred model work at a time, across every engine in the process (5.7).
+@MainActor private var deferredEnrichmentIsRunning = false
 @MainActor private var isLifecycleObserverRegistered = false
 
 extension RAGService {

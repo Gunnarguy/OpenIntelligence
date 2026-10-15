@@ -961,6 +961,10 @@ main actor. `[evidence_level: code_verified, confidence: high]`
 
 The Words figure an import reports is the document's own count of its text as read (`ProcessingMetadata.totalWords`, split at any whitespace by `DocumentProcessor.wordCount(of:)`), not a sum over its passages, which share words at their edges; a streamed XML file's passages are counted the same way. A text file of 600 different words, ten to a line, counts 600 and keeps every word in its passages (WordCountTests). The chunker's capitalized-word entity supplement leaves out words that open sentences and are never names alone: "However", "Should" and the other modal verbs, the pronouns and common sentence adverbs (SemanticChunkerTests reads a chunk five times and gets the same entities). `[evidence_level: test_verified, confidence: medium]`
 
+### Saved first, improved after *(added 2026-10-15, for 5.7)*
+
+An import writes its passages, their vectors and their keyword rows, saves the vector store and records the document before it calls Apple's model for the RAPTOR-lite overview, the content tags and the suggested questions (`RAGService.enrichImportedDocument`). Through 5.6 the overview and the tags came before the save, and on 2026-10-15 iOS ended a background import 53 s in, during the suggested questions that followed the save. While the app is in the background the three calls are not made: the document is listed (`RAGService.deferEnrichment`, the `deferredDocumentEnrichment` setting) and `runDeferredEnrichmentsIfNeeded` makes them when the app is in front and no import runs. A document deleted meanwhile leaves the list. `[evidence_level: test_verified (DeferredEnrichmentTests) for the list, build_verified for the order, confidence: medium]`
+
 ## 5b. Token counting, and the invariant that guards it
 
 **The token counter must be asked whether it counts.** `DocumentProcessor.countTokens` returns

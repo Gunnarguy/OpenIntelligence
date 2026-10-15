@@ -49,7 +49,8 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/UnfinishedImportTextTests.swift", "role": "test", "blob": "b998a336379255a6bfed8f6e20b1da23b7764ce4"},
     {"path": "OpenIntelligenceTests/Services/Document/LayoutMarginStripTests.swift", "role": "test", "blob": "5148145115bd14a9b5a62dd0b21dd88555557827"},
     {"path": "OpenIntelligenceTests/Services/Document/TextEntityDetectionTests.swift", "role": "test", "blob": "fad9419e2a93b23a3239cca34f0fd80a77a06fa3"},
-    {"path": "OpenIntelligenceTests/Services/Document/Processing/WordCountTests.swift", "role": "test", "blob": "6f0006d63210c8795d4f8e386278f1b22900a7cb"}
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/WordCountTests.swift", "role": "test", "blob": "6f0006d63210c8795d4f8e386278f1b22900a7cb"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/DeferredEnrichmentTests.swift", "role": "test", "blob": "77dc26d7b282d039ffc233bf72f5f2bc8e28ab0c"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1612, "match": "private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {", "status": "VERIFIED", "by": "build"},

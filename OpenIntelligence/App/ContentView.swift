@@ -512,6 +512,8 @@ struct ContentView: View {
             BackgroundTaskService.shared.applyIngestionExecutionProfileForCurrentState()
             // An import that a background limit stopped continues without being asked.
             ragService.resumeIngestionStoppedInBackgroundIfNeeded()
+            // The overview, tags and suggested questions of documents imported in the background (5.7).
+            ragService.runDeferredEnrichmentsIfNeeded()
             Task { @MainActor in
                 await refreshSharedWorkspaceIfNeeded(forceReload: workspaceSyncService.isUsingSharedWorkspace)
             }
