@@ -345,8 +345,9 @@ new call's options, has no values in the Xcode 27.0 SDK, so the set passed is em
 ## 6. The privacy policy screen (`PrivacyPolicyView`, kept under Features/Billing)
 
 *Added 2026-10-14, for 5.7; rewritten 2026-10-15.* The in-app privacy policy carries the same sections as
-gunzino.me/openintelligence/privacy. One script writes both from one text, and with them Gunzino's hand-written copy
-of the page, which its deploy compares the built page with. Settings, About opens it with a Privacy Policy row. From
+gunzino.me/openintelligence/privacy. `scripts/privacy_policy.py` writes both from one text, and with them Gunzino's
+hand-written copy of the page, which its deploy compares the built page with (`Docs/ai/RUNBOOK.md`, "Changing the
+privacy policy"). Settings, About opens it with a Privacy Policy row. From
 2026-05-28 (`a666a9b`) until then nothing opened it: the Plans screen's Privacy Policy button became a link to the
 website, and `PlanUpgradeSheet.showingPrivacy` is still declared and never set to true. The Plans screen keeps the
 website link. Nothing about plans, prices or limits changed.

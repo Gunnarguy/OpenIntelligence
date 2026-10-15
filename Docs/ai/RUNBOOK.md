@@ -1462,6 +1462,32 @@ it. 5.2 is the first build on Xcode 27 / Swift 6.4, and its only job is to turn 
 would need its heading placed above `## 5.2` for one build and moved back. Prefer folding the fix
 into 5.2 unless it loses data.
 
+## Changing the privacy policy (added 2026-10-15)
+
+The policy at gunzino.me/openintelligence/privacy and the app's (`PrivacyPolicyView`, opened from Settings, About,
+Privacy Policy) are one text, kept in `scripts/privacy_policy.py`. Change the text there, check every changed
+statement against the code (`Docs/BILLING_AND_LIMITS.md`, section 6, lists the checks behind the current text), and
+make each statement true of the version on the App Store as well as the next one, saying which version a line is
+about when they differ (the search-cache line is the example). Then:
+
+```bash
+python3 scripts/privacy_policy.py "$PWD" ~/Documents/GitHub/Gunzino
+```
+
+It writes Gunzino's markdown, Gunzino's hand-written `openintelligence/privacy/index.html` (Gunzino's deploy compares
+the built page with it and stops with `LOST` when a paragraph is missing; that stopped `631e537`), and the app's
+view, starting from the committed view. iCloud duplicates such as `Header 2.astro` in the Gunzino folder break a build
+there, so run Gunzino's deploy check in a copy of its tracked files before pushing (a public change, at the owner's
+word):
+
+```bash
+D=$(mktemp -d); (cd ~/Documents/GitHub/Gunzino && git ls-files > "$D/.files" && rsync -a --files-from="$D/.files" ./ "$D/" && rsync -a node_modules "$D/") && (cd "$D" && npm run build && ./scripts/verify-site.sh source)
+```
+
+After the push, read the Deploy run (`GH_PAGER=cat gh run list --workflow Deploy --limit 1` in the Gunzino folder) and
+the live page. `[evidence_level: test_verified (Gunzino Deploy runs 38775401964 and 38785077646, both success),
+confidence: high]`
+
 ## Claude context system
 
 ```bash
