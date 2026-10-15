@@ -35,7 +35,8 @@
     {"path": "OpenIntelligenceTests/Services/Billing/EntitlementProtectionTests.swift", "role": "test", "blob": "4c440d751fbe215dc8eec59db9e57b5afab65fb3"},
     {"path": "OpenIntelligenceTests/Services/Billing/MaximumModeQuotaStoreTests.swift", "role": "test", "blob": "3bf2bd74ceb03e4c6f57561c72fa13c8323d555e"},
     {"path": "OpenIntelligence/Features/Billing/RedeemCodeEntry.swift", "role": "primary", "blob": "4a862c6fdcab22224bb4ee92071423032e9148a6"},
-    {"path": "OpenIntelligenceTests/Features/Billing/RedeemCodeOutcomeTests.swift", "role": "test", "blob": "ac8e04e6a6abead9b1a9dc61597dbfd9cedead65"}
+    {"path": "OpenIntelligenceTests/Features/Billing/RedeemCodeOutcomeTests.swift", "role": "test", "blob": "ac8e04e6a6abead9b1a9dc61597dbfd9cedead65"},
+    {"path": "OpenIntelligenceTests/Services/Billing/SavedEntitlementSnapshotTests.swift", "role": "test", "blob": "caa79520da470e26a2f93bed10256129ec9a515d"}
   ],
   "nodes": [
     {"id": "PlanUpgradeSheet", "kind": "view", "path": "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "line": 9, "match": "struct PlanUpgradeSheet: View {", "status": "VERIFIED", "by": "build"},

@@ -6714,8 +6714,12 @@ class RAGService: ObservableObject {
                     store.documentLimit, skipQuota || store.canAddDocument(currentCount: count), store.activeTier, count
                 )
             } else {
-                let limit = QuotaPolicy.documentLimit()
-                return (limit, skipQuota || count < limit, .free, count)
+                // No entitlement store: an engine a Shortcuts or Siri action built while the app is closed
+                // (`IntentSupport.engine`). Until 5.7 this used the free plan's limit, so Add to Library refused
+                // a Pro or Lifetime library of five documents or more; it reads the plan and the document packs
+                // the app's store last saved (`EntitlementStore.savedDocumentAllowance`).
+                let saved = EntitlementStore.savedDocumentAllowance()
+                return (saved.limit, skipQuota || saved.isUnlimited || count < saved.limit, saved.tier, count)
             }
         }
         let documentLimit = gating.limit

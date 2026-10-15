@@ -267,6 +267,26 @@ final class EntitlementStore: ObservableObject {
         return legacyProtectionState == .none ? activeTier : .lifetime
     }
 
+    /// The snapshot this store would build from what it last saved: the plan, the document packs not yet
+    /// expired and any legacy protection (5.7). For an engine with no store, which is what a Shortcuts or Siri
+    /// action builds while the app is closed (`IntentSupport.engine`). Until 5.7 that engine used the free
+    /// plan's document limit, so Add to Library refused a Pro or Lifetime library of five documents or more.
+    static func savedEntitlementSnapshot(defaults: UserDefaults = .standard) -> EntitlementSnapshot {
+        let tier = WorkspaceTier(rawValue: defaults.string(forKey: Keys.tier) ?? "") ?? .free
+        let packs = pruneExpiredPacks(loadDocumentPacks(from: defaults))
+        let legacy = LegacyProtectionState(rawValue: defaults.string(forKey: Keys.legacyProtection) ?? "") ?? .none
+        return buildSnapshot(activeTier: tier, documentCredits: totalCredits(for: packs), legacyProtectionState: legacy)
+    }
+
+    /// What `RAGService`'s document check needs from that snapshot. A tuple, so the SDK target's stand-in
+    /// (`EngineSDKCompatibility.swift`), which has no plans and no `EntitlementSnapshot`, can answer the same call.
+    static func savedDocumentAllowance(
+        defaults: UserDefaults = .standard
+    ) -> (limit: Int, isUnlimited: Bool, tier: WorkspaceTier) {
+        let saved = savedEntitlementSnapshot(defaults: defaults)
+        return (saved.documentLimit, saved.hasUnlimitedDocuments, saved.activeTier)
+    }
+
     nonisolated static func currentLibraryLimit(defaults: UserDefaults = .standard) -> Int {
         switch currentEffectiveTier(defaults: defaults) {
         case .free:

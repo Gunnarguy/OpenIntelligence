@@ -32,7 +32,15 @@ final class ImportTargetLibraryTests: XCTestCase {
         let engine = RAGService()
         let open = engine.containerService.activeContainerId
         let other = try engine.containerService.createContainer(name: "Import target \(UUID().uuidString.prefix(8))")
-        addTeardownBlock { @MainActor in engine.containerService.deleteContainer(id: other.id) }
+        // The library's documents go first: `deleteContainer` alone leaves them in the document list, and
+        // five runs of this test left five, which filled the free plan's limit on the test simulator
+        // (2026-10-15). `LibraryDeletion` does the same for the app.
+        addTeardownBlock { @MainActor in
+            for document in engine.documents where document.containerId == other.id {
+                try? await engine.removeDocument(document)
+            }
+            engine.containerService.deleteContainer(id: other.id)
+        }
         XCTAssertNotEqual(other.id, open)
 
         let name = "import-target-\(UUID().uuidString.prefix(8))"

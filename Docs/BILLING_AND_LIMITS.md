@@ -381,3 +381,13 @@ Each statement in the text was checked against the code on 2026-10-15:
 
 `[evidence_level: code_verified, confidence: high, evidence_source: the files named above, read 2026-10-15;
 git log -S'showingPrivacy = true' for the button]`
+
+## 7. An action's engine reads the saved plan (added 2026-10-15, for 5.7)
+
+A Shortcuts or Siri action that runs while the app is closed builds its own engine (`IntentSupport.engine`) with no
+entitlement store. Its document check reads `EntitlementStore.savedDocumentAllowance`, from `savedEntitlementSnapshot`: the plan, the document
+packs not yet expired and any legacy protection, as the app's store last saved them, built by the store's own
+`buildSnapshot`. Until 5.7 that check used `QuotaPolicy.documentLimit()`, whose default is the free plan, so Add to
+Library refused a Pro or Lifetime library of five documents or more. The library limit already read the saved plan
+(`currentLibraryLimit`). Nothing about prices or limits changed. `[evidence_level: test_verified
+(SavedEntitlementSnapshotTests), confidence: high]`

@@ -105,6 +105,14 @@ final class EntitlementStore {
     static func currentLibraryLimit(defaults: UserDefaults = .standard) -> Int {
         return 1
     }
+
+    /// The SDK has no plans: the free plan's document limit, as everything else here (5.7; the app's
+    /// `EntitlementStore.savedDocumentAllowance` reads the saved plan).
+    static func savedDocumentAllowance(
+        defaults: UserDefaults = .standard
+    ) -> (limit: Int, isUnlimited: Bool, tier: WorkspaceTier) {
+        (QuotaPolicy.documentLimit(), false, .free)
+    }
 }
 
 enum LegacyProtectionState: String, Codable, Sendable {

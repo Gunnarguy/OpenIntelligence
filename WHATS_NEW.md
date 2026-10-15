@@ -72,6 +72,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Siri suggestions.** The app tells your device which library you open and ask in, and when, so Siri and Spotlight can suggest it at that time of day, as "Open" and the library's name.  It takes some days of use before anything shows up.
 - **Focus filters.** In Settings, Focus, a Focus can have an OpenIntelligence filter that picks which libraries the app shows while it's on, and the first of them opens.  A Work Focus can keep your work library in front.
 - **The Siri phrase shows up where you'd use it.** On iPhone and iPad, the empty Chat screen shows Apple's tip with the phrase for asking a question.  Close it and it stays closed.
+- **Add to Library from Shortcuts and Siri uses your plan.**  With the app closed, it used the free plan's limit of five documents, so a Pro or Lifetime library of five or more refused it.  It uses your plan and any document packs now.
 
 ### Spotlight
 - **A Spotlight result opens what you tapped.** Tapping a document or a library in Spotlight used to open the Documents tab of whatever library was active.  Now a library opens that library and a document opens its own page.
