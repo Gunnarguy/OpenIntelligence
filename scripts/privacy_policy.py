@@ -23,39 +23,43 @@ SECTIONS = [
         "OpenIntelligence reads, indexes, searches and answers from your documents on your device. It sends passages from "
         "your documents to Apple's Private Cloud Compute only when you allow it, under the setting you chose. Libraries you "
         "set to iCloud Sync copy their files, passages, embeddings and conversations to your own iCloud. The app has no "
-        "server of its own, and no third-party AI service, analytics, advertising or tracking code.",
+        "server of its own, and no third-party AI service, analytics, advertising or tracking code. This policy "
+        "describes version 5.7, and says where earlier versions differ.",
     ]),
     ("What stays on your device", [
-        "- Importing a document: reading its text, recognizing text in scans and pictures, cutting it into passages, and "
-        "the embeddings used to search it.",
+        "- Importing a document: reading its text, recognizing text in scans and pictures, transcribing audio, cutting "
+        "it into passages, and the embeddings used to search it.",
         "- Searching, ranking, checking an answer against your documents, and answers written by Apple's on-device model.",
-        "- Dictation in the chat field (Apple's on-device speech recognition).",
+        "- Dictation in the chat field, from 5.7 (Apple's on-device speech recognition).",
         "- The Spotlight entries the app adds (a document's name and a short preview), notifications, Live Activities and "
-        "widgets. Turning off Spotlight Indexing in Settings removes the entries.",
+        "widgets. From 5.7, turning off Spotlight Indexing in Settings removes the entries.",
         "- The app's own diagnostics and timings.",
     ]),
     ("What can leave your device, and when", [
         "**Apple Private Cloud Compute (iOS, iPadOS and macOS 27):** your question with recent conversation context, the "
         "passages chosen as evidence with their document names and page numbers, and the app's instructions to the model. "
-        "Only when you allow it, under Settings, Private Cloud Compute, \"When to allow it\" (ask each time, always, or "
-        "never). When it asks, Show Details on the prompt says why and how much would be sent. It is used when you choose "
-        "Private Cloud Compute in the model picker, and otherwise for an answer that needs more room than the on-device "
-        "model has. With Private Cloud Compute chosen, Deep Think's and Maximum's reasoning steps can go there too, each "
-        "behind the same permission. A question asked through Siri or Shortcuts follows the same rule; when it would need "
-        "your permission first, the app opens to ask. The answer shows which route it used. On iOS and macOS 26, answers "
-        "are always written on your device. Apple states that Private Cloud Compute keeps nothing after answering and "
-        "that neither Apple nor the developer can see the request.",
+        "Only when you allow it, under Settings, Private Cloud Compute, \"When to allow it\" (Never use, Ask when needed, "
+        "or Allow without asking, which versions before 5.7 call \"Allow for Deep Think and Maximum\"). When it asks, Show Details on the prompt says why and how much would be sent. With Private Cloud Compute "
+        "chosen in the model picker, answers are written there whenever it can be reached, and Deep Think's and Maximum's "
+        "reasoning steps can go there too, each behind the same permission. With Hybrid (Automatic), an answer goes there "
+        "when its passages don't fit in the on-device model's window, and a Deep Think or Maximum answer also goes there "
+        "when it draws on more than one document. With On-Device, nothing goes there. A question asked through Siri or "
+        "Shortcuts follows the same rule; when it would need your permission first, the app opens to ask (from 5.7; "
+        "earlier versions write that answer on your device). The answer shows "
+        "which route it used. On iOS and macOS 26, answers are always written on your device. Apple states that Private "
+        "Cloud Compute deletes your data once the answer is returned, keeps none of it, and that no one but you can access "
+        "it, not even Apple.",
         "**iCloud Sync (Pro and Lifetime, per library):** a library's files, passages, embeddings and conversations, "
         "copied to your own iCloud so your other devices signed in to the same Apple Account see the same library. Only "
         "for libraries you set to iCloud Sync; libraries are Local Only unless you change them.",
-        "**A web page you add:** when you give the app a web address (Save a Web Page, the Link field of Add to Library, "
+        "**A web page you add (from 5.7):** when you give the app a web address (Save a Web Page, the Link field of Add to Library, "
         "or a web address pasted on the Documents screen), it downloads that page from its site. The site sees an "
         "ordinary request from your device, which carries nothing from your library. No cookies are sent or kept.",
         "**Handoff:** what you have open in Chat or Documents (which library, which document, and the document's name) "
         "can be picked up on your other devices through Apple's Handoff.",
         "**The App Store rating:** about once a day the app asks Apple's public App Store lookup for its own rating. The "
         "request names the app and carries nothing about you or your documents.",
-        "**Crash reports (iOS and macOS 27):** when the app closes unexpectedly it keeps a report on your device and can "
+        "**Crash reports (from 5.7, on iOS and macOS 27):** when the app closes unexpectedly it keeps a report on your device and can "
         "offer to email it to the developer, and Settings, About can share the whole report. The report holds the app and "
         "system versions, the device model and the part of the app's code that was running, and none of your documents, "
         "questions or answers. It leaves your device only if you send or share it. Apple may also share crash data with "
@@ -72,7 +76,7 @@ SECTIONS = [
         "- **Backups:** your device's iCloud backup may include the app's data if backups are on.",
     ]),
     ("Your controls", [
-        "- Settings, Private Cloud Compute: when to allow it, or never.",
+        "- Settings, Private Cloud Compute: Never use, Ask when needed, or Allow without asking.",
         "- Each library: Local Only or iCloud Sync, in the library's settings.",
         "- Settings: Spotlight Indexing on or off.",
         "- Delete documents, libraries and conversations in the app, or remove the app.",

@@ -127,7 +127,9 @@ extension LLMModelType {
     var privacyLevel: String {
         switch self {
         case .appleIntelligence:
-            return "End-to-end encrypted"
+            // Was "End-to-end encrypted", which is Apple's statement about Private Cloud Compute and says
+            // nothing true of the on-device model, which sends nothing (2026-10-15).
+            return "On-device, or Private Cloud Compute with your permission"
         case .onDeviceAnalysis:
             return "On-device"
         }

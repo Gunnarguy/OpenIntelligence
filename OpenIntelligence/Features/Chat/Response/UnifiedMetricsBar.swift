@@ -4459,14 +4459,15 @@ struct UnifiedMetricsBar: View {
     }
 
     private var contextExplanation: String {
-        // Session context limit is 4,096 tokens regardless of PCC routing
-        // PCC extends input capacity but session accumulation is still limited
+        // The limit is this answer's own (`maxContextTokens`, the window the model reported), as the bar's
+        // ratio already used: 8,192 on the owner's Mac (2026-10-05). These lines named 4,096 until 5.7.
+        let limit = formatTokenLimit(maxContextTokens)
         if contextUsageRatio > 0.85 {
-            return "Near session limit (4,096 tokens)."
+            return "Near the session limit (\(limit) tokens)."
         } else if contextUsageRatio > 0.65 {
-            return "Good context usage. Session limit 4K."
+            return "Good context usage. Session limit \(limit) tokens."
         } else {
-            return "Plenty of headroom. Session limit 4K."
+            return "Plenty of headroom. Session limit \(limit) tokens."
         }
     }
 

@@ -1034,16 +1034,16 @@ extension SettingsStore {
             switch executionContext {
             case .automatic:
                 // Was "prefers PCC for library queries; falls back on-device", which had
-                // the direction backwards. `FoundationModelRoutePolicy.determineRoute`
-                // returns `.onDevice` on every branch of the `.automatic` path unless the
-                // estimated context *exceeds* the on-device window AND PCC is both allowed
-                // and available; `.exactLookup` is unconditionally on-device. So the device
-                // is the default and PCC is the escalation, not the preference.
-                return "On-device first; escalates to Private Cloud Compute only when a question is too large to fit on this device"
+                // the direction backwards: the device is the default. Corrected again
+                // 2026-10-15: `ModelExecutionPlanner`, which routes answers, also sends a
+                // Deep Think or Maximum answer drawn from more than one document
+                // (`complexityRequestsPCC`), not only one too large for the device.
+                return "On-device first; Private Cloud Compute, with your permission, for an answer too large for this device or a Deep Think or Maximum answer from more than one document"
             case .onDeviceOnly:
                 return "On-device only (may fail for complex queries)"
             case .preferCloud:
-                return "Prefer Private Cloud Compute (higher quality)"
+                // The planner reads no preference for the cloud, so this routes as Automatic.
+                return "On-device first; Private Cloud Compute, with your permission, for an answer too large for this device or a Deep Think or Maximum answer from more than one document"
             case .cloudOnly:
                 return "Private Cloud Compute only (requires network)"
             }

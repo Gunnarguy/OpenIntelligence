@@ -128,26 +128,40 @@ struct ModelInfoCard: View {
                 var lines = ["Foundation Models (iOS 26+)"]
                 lines.append(
                     capabilities.supportsPrivateCloudCompute
-                        ? "On-device model + PCC server"
+                        ? "On this device, and Private Cloud Compute with your permission"
                         : "On-device model, runs entirely on this device"
                 )
-                lines.append(contentsOf: [
-                    "4,096 token context window",
-                    "Zero data retention",
-                    "Works offline for simple queries",
-                ])
+                // The window this device's model reports, not a fixed figure: 8,192 tokens on the owner's
+                // Mac on 2026-10-05, where Apple's table says 4,096. "Zero data retention" is gone: the app
+                // keeps your documents, conversations and cached searches on the device, so the line said
+                // something untrue of the app it sat in. The model works offline for every question; only
+                // Private Cloud Compute needs a connection.
+                let window = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+                if window > 0 {
+                    lines.append("\(window.formatted())-token window on this device")
+                }
+                lines.append(
+                    capabilities.supportsPrivateCloudCompute
+                        ? "Works offline; Private Cloud Compute needs a connection"
+                        : "Works offline"
+                )
                 return lines
             }
             var lines = ["Apple Intelligence platform"]
             if capabilities.supportsPrivateCloudCompute {
-                // See the note in SettingsStore.executionSummary: routing is on-device
-                // first, with PCC as the escalation for prompts that do not fit.
+                // Routing is on-device first (`ModelExecutionPlanner`); Apple's retention statement is
+                // said to be Apple's.
                 lines.append(contentsOf: [
-                    "On-device first, escalating to PCC only when a prompt is too large",
-                    "Zero data retention (PCC)",
+                    "On-device first; Private Cloud Compute, with your permission, for an answer too large for this device or a Deep Think or Maximum answer from more than one document",
+                    "Apple states Private Cloud Compute keeps nothing after answering",
                 ])
             } else {
-                lines.append("Runs on this device; Private Cloud Compute is not enabled in this build")
+                // `supportsPrivateCloudCompute` is compiled-in and iOS or macOS 27; from 5.7 the build has it,
+                // so on 26 the reason is the system.
+                lines.append(
+                    DeviceCapabilities.pccRoutingCompiledIn
+                        ? "Runs on this device; Private Cloud Compute needs iOS or macOS 27"
+                        : "Runs on this device; Private Cloud Compute is not in this build")
             }
             lines.append(contentsOf: [
                 "No API key needed",

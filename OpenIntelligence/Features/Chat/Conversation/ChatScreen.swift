@@ -1791,7 +1791,7 @@ struct ChatScreen: View {
                     • **Review**: make citations, source snippets, and warnings easier to inspect
 
                     ## Privacy Architecture
-                    All processing happens **on-device by default**. When additional compute is needed, Apple's Private Cloud Compute ensures your data never leaves Apple's secure enclaves.
+                    Reading, searching and citing happen **on your device**. An answer goes to Apple's Private Cloud Compute only with your permission, and Apple states it keeps nothing after answering.
 
                     The hybrid search combines semantic understanding with keyword matching for accurate, grounded responses. [S1] [S2]
                     """,
@@ -1841,7 +1841,7 @@ struct ChatScreen: View {
                 title: "Privacy Architecture",
                 page: 1,
                 snippet:
-                    "Privacy-first: Data stays on-device or Apple PCC. No third-party cloud. Secure enclave processing.",
+                    "Privacy-first: reading and searching stay on the device; an answer goes to Apple's Private Cloud Compute only with permission. No third-party cloud.",
                 score: 0.88
             ),
             makeChunk(

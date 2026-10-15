@@ -217,6 +217,18 @@ enum PCCSettings: String, CaseIterable, Sendable, Codable {
     case never = "Never use"
     case ask = "Ask when needed"
     case allow = "Allow for Deep Think and Maximum"
+
+    /// The name Settings shows (5.7). The raw values are what is saved, so they stay as they were.
+    /// `.allow` was shown as "Allow for Deep Think and Maximum", and it allows every request without
+    /// asking: `RAGService.cloudConsentDecision` reads no mode, so a Standard answer too large for the
+    /// device goes too (found by the 2026-09-24 audit, `Docs/AuditArtifacts/DocOverhaul_2026-09-24`).
+    var displayName: String {
+        switch self {
+        case .never: return "Never use"
+        case .ask: return "Ask when needed"
+        case .allow: return "Allow without asking"
+        }
+    }
 }
 
 struct DeviceHardware {
@@ -289,11 +301,12 @@ enum ExecutionContext: CaseIterable, Sendable {
         case .automatic:
             return "Automatic (Hybrid)"
         case .onDeviceOnly:
-            return "On-Device Only (4K tokens)"
+            return "On-Device Only"
         case .preferCloud:
-            return "Prefer Cloud (Complex queries)"
+            // ModelExecutionPlanner reads only on-device-only and cloud-only, so this routes as Automatic.
+            return "Prefer Cloud (routes as Automatic)"
         case .cloudOnly:
-            return "Cloud Only (Complex queries)"
+            return "Private Cloud Compute Only"
         }
     }
 

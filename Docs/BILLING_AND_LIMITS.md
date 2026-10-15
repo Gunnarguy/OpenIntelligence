@@ -360,6 +360,12 @@ Each statement in the text was checked against the code on 2026-10-15:
   is inside `#if false`.
 - Private Cloud Compute is iOS, iPadOS and macOS 27 only: `FoundationModelSessionFactory` throws `modelUnavailable`
   before 27. Show Details on `CloudConsentPromptView` gives the reason and the size of what would be sent.
+- When it is used (corrected 2026-10-15): with Hybrid, `ModelExecutionPlanner` sends an answer whose passages don't
+  fit (`!localBudget.fits`) and a Deep Think or Maximum answer drawn from more than one document
+  (`complexityRequestsPCC`); with the picker's Private Cloud Compute, every answer. `cloudConsentDecision` reads no
+  mode, so "Allow without asking" (shown as "Allow for Deep Think and Maximum" through 5.6) allows every request.
+- What differs before 5.7, said in the text: the setting's name, the search cache, dictation, Spotlight removal,
+  web pages, Siri asking first and crash reports (each found with `git log -S` against the `v5.6.0` tag).
 - iCloud Sync needs Pro or Lifetime (`effectiveTier.isAtLeast(.pro)`).
 - A web page comes from Save a Web Page, the Link field of Add to Library, or a web address pasted on the Documents
   screen: the three callers of `WebPageFetchService.fetch`.

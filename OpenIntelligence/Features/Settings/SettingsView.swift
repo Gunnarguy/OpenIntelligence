@@ -946,22 +946,29 @@ Text(label)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Private Cloud Compute")
                         .font(.headline)
-                    Text(DeviceCapabilities.pccRoutingCompiledIn
-                        ? "Apple's servers for the writing step only, after you approve each request"
-                        : "Built, and arrives with iOS and macOS 27. Nothing leaves this device in this version.")
+                    // Corrected 2026-10-15: "after you approve each request" is untrue of Allow without asking,
+                    // and on iOS and macOS 26 the reason it's off is the system, not the build.
+                    Text(deviceCapabilities.supportsPrivateCloudCompute
+                        ? "Apple's servers, for the writing step only, with your permission"
+                        : DeviceCapabilities.pccRoutingCompiledIn
+                            ? "Needs iOS or macOS 27. Every answer is written on this device."
+                            : "Not in this build. Every answer is written on this device.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
 
-                // Status indicator
+                // Status indicator. The live snapshot decides once it has loaded: `supportsPrivateCloudCompute`
+                // is only "compiled in and iOS or macOS 27", so the Simulator said Available above a quota line
+                // saying Private Cloud Compute is unavailable there (2026-10-15).
+                let pccAvailable = pccCapability?.pccAvailable ?? deviceCapabilities.supportsPrivateCloudCompute
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(deviceCapabilities.supportsPrivateCloudCompute ? Color.green : Color.orange)
+                        .fill(pccAvailable ? Color.green : Color.orange)
                         .frame(width: 8, height: 8)
-                    Text(deviceCapabilities.supportsPrivateCloudCompute ? "Available" : "Unavailable")
+                    Text(pccAvailable ? "Available" : "Unavailable")
                         .font(.caption2.weight(.medium))
-                        .foregroundColor(deviceCapabilities.supportsPrivateCloudCompute ? .green : .orange)
+                        .foregroundColor(pccAvailable ? .green : .orange)
                 }
             }
 
@@ -974,7 +981,10 @@ Text(label)
             // 32,768 was hardcoded directly above a block that renders the *live* figure,
             // so the same screen could show two different numbers.
             VStack(alignment: .leading, spacing: DSSpacing.md) {
-                Text("Answers are written on this device. A question reaches Private Cloud Compute only when it needs more room than this device's model has.")
+                // Corrected 2026-10-15: the sentence named only the answer too large for the device.
+                // `ModelExecutionPlanner` also sends a Deep Think or Maximum answer drawn from more than one
+                // document (`complexityRequestsPCC`), and the model picker's Private Cloud Compute sends every one.
+                Text("Answers are written on this device unless Private Cloud Compute is allowed: with Hybrid, for an answer whose passages don't fit in this device's model, or a Deep Think or Maximum answer drawn from more than one document; with Private Cloud Compute chosen in the model picker, for every answer.")
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -1001,7 +1011,7 @@ Text(label)
                     Spacer()
                     Picker("When to allow it", selection: $settings.pccSetting) {
                         ForEach(PCCSettings.allCases, id: \.self) { setting in
-                            Text(setting.rawValue).tag(setting)
+                            Text(setting.displayName).tag(setting)
                         }
                     }
                     .pickerStyle(.menu)
@@ -1506,29 +1516,35 @@ Text(deviceService.chipName)
                 // Dynamic explanation based on mode
                 let agenticConfig = DeviceCapabilityService.shared.optimizedAgenticConfig()
                 if settings.ragQualityMode.canonical == .maximum {
-                    Text("Maximum mode utilizes exhaustive Neural Engine synthesis. It chains multiple reasoning sessions, each with a 4K-token Apple FM window. Compressed insights pass between sessions via Self-RAG 2.0 enrichment.")
+                    // Corrected 2026-10-15: the window is the one this device reports (8,192 on the owner's Mac,
+                    // not 4K), "exhaustive Neural Engine synthesis" named hardware the app can't see, and Self-RAG 2.0
+                    // is Maximum's check of the answer against its sources (`AgenticOrchestrator`), not what passes
+                    // between sessions.
+                    Text("Maximum chains several reasoning sessions on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed findings from the last, and then checks the answer against its sources (Self-RAG 2.0).")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think runs up to \(agenticConfig.maxSteps) serial reasoning sessions on the \(DeviceCapabilityService.shared.chipName), and stops as soon as it has what it needs. Each session gets a fresh 4K-token window carrying compressed insights from the last. It ends early when the documents have nothing new left to add, or at \(Int(agenticConfig.confidenceThreshold * 100))% confidence — whichever comes first, so a straightforward question does not pay for sessions it never needed.")
+                    Text("Deep Think runs up to \(agenticConfig.maxSteps) serial reasoning sessions on the \(DeviceCapabilityService.shared.chipName), and stops as soon as it has what it needs. Each session gets a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed insights from the last. It ends early when the documents have nothing new left to add, or at \(Int(agenticConfig.confidenceThreshold * 100))% confidence, whichever comes first, so a straightforward question does not pay for sessions it never needed.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("Standard mode runs a single 4K-token LLM pass with verification gates and graph context packing. It stays single-pass by default; use Deep Think or Maximum when you want multi-session reasoning.")
+                    Text("Standard runs one pass of Apple's model over the passages that fit its window (\(onDeviceWindowDescription) on this device), with verification gates and graph context packing. Use Deep Think or Maximum when you want several reasoning sessions.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
                 HStack(spacing: 12) {
                     if settings.ragQualityMode.canonical == .maximum {
-                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "flame.fill", label: "Synthesis", value: "Exhaustive")
+                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: onDeviceWindowDescription)
+                        contextInfoPill(icon: "checkmark.seal", label: "Answer Check", value: "Self-RAG 2.0")
                     } else if settings.ragQualityMode.canonical == .deepThink {
-                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "up to \(agenticConfig.maxSteps) (\((agenticConfig.maxSteps * 4096) / 1000)K max)")
+                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: onDeviceWindowDescription)
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "up to \(agenticConfig.maxSteps)")
                     } else {
-                        contextInfoPill(icon: "square.3.layers.3d", label: "Single Pass", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "If Complex", value: "3 sessions (12K)")
+                        // "If Complex: 3 sessions (12K)" was untrue: Standard chains sessions only when a developer
+                        // turns on `forceReasoningChain` (RAGService, `useReasoningChain`).
+                        contextInfoPill(icon: "square.3.layers.3d", label: "Single Pass", value: onDeviceWindowDescription)
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "1")
                     }
                 }
             }
@@ -2367,7 +2383,7 @@ Text(deviceService.chipName)
             // unimplemented row is a false claim, not a roadmap teaser. Both are
             // tracked on the roadmap; re-add each one when it actually runs.
             if DeviceCapabilities.pccRoutingCompiledIn {
-                items.append(.init(id: "pcc-escalation", icon: "cloud.lock.fill", label: "Private Cloud Compute", desc: "An oversized request can be written on Apple's servers, after you approve it", color: .purple))
+                items.append(.init(id: "pcc-escalation", icon: "cloud.lock.fill", label: "Private Cloud Compute", desc: "An answer too large for this device, or a Deep Think or Maximum answer from more than one document, can be written on Apple's servers with your permission", color: .purple))
             }
             items.append(.init(id: "native-spotlight", icon: "magnifyingglass", label: "Spotlight Indexing", desc: "Your documents are indexed into Apple Core Spotlight", color: .purple))
             items.append(.init(id: "intent-route", icon: "signpost.right.and.left", label: "Intent Routing", desc: "Classifies query as lookup/procedure/compare/summarize", color: .purple))
@@ -2403,7 +2419,7 @@ Text(deviceService.chipName)
             // rather than a typical run — `AgenticConfig.unlimited`'s own comment says
             // thermal will stop it first, and 4.9 added convergence stopping specifically
             // so it exits once it stops learning. Describe the mechanism, not a product.
-            items.append(.init(id: "token-budget", icon: "cpu", label: "Up to 50 Sessions", desc: "Each gets a fresh 4K window; stops early once it converges", color: .orange))
+            items.append(.init(id: "token-budget", icon: "cpu", label: "Up to 50 Sessions", desc: "Each gets a fresh window of the on-device model; stops early once it converges", color: .orange))
             items.append(.warning(id: "max-warning", text: "Can take several minutes. Use for complex research tasks."))
         } else if !settings.ragQualityMode.usesAgenticOrchestrator {
             items.append(.init(id: "conv-memory", icon: "brain.head.profile", label: "Conversation Memory", desc: "Remembers context across turns", color: .green))

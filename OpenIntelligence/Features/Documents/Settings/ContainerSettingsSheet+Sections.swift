@@ -1585,7 +1585,10 @@ extension ContainerSettingsSheet {
         let deviceCapabilities = RAGService.checkDeviceCapabilities()
         Section(header: Text("Private Cloud Compute (PCC) Status")) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Escalated query modes (Deep Think/Maximum) and large contexts (>4K tokens) dynamically scale to Apple's Private Cloud Compute enclaves.")
+                // Corrected 2026-10-15: "Deep Think/Maximum and large contexts (>4K tokens) dynamically scale to
+                // Apple's Private Cloud Compute enclaves" named a fixed window (the device reports its own; 8,192 on
+                // the owner's Mac), sent every Deep Think and Maximum answer, and left out the permission.
+                Text("With Hybrid in the model picker, an answer goes to Apple's Private Cloud Compute when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document. With Private Cloud Compute chosen there, every answer does. Each time only with your permission (Settings, Private Cloud Compute).")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.bottom, 4)
@@ -1673,20 +1676,30 @@ extension ContainerSettingsSheet {
     }
     
     private func effectiveFallbackDescription(capabilities: DeviceCapabilities) -> String {
+        // Corrected 2026-10-15, each line checked against the code: the Simulator does not run Apple's model at
+        // all (`AppleFoundationLLMService` is unavailable there, so questions come back as excerpts); the
+        // permission is Private Cloud Compute's, not iCloud's; "Ask when needed" asks rather than staying on
+        // the device; and the planner's two Hybrid cases replace a fixed 4,096-token threshold.
         #if targetEnvironment(simulator)
-        return "Simulators do not support Private Cloud Compute enclaves. Queries will run on-device via local simulation."
+        return "The Simulator can't use Apple's model or Private Cloud Compute, so questions here come back as excerpts from your documents."
         #else
         if capabilities.supportsPrivateCloudCompute {
             let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
             if !hasEntitlement {
-                return "The binary lacks the required com.apple.developer.private-cloud-compute entitlement. Deep Think and Maximum mode queries will automatically fallback to local ANE-accelerated on-device models to prevent crashes."
-            } else if self.settings.applePCCConsent != .allowed {
-                return "iCloud consent is disabled or not determined. Queries will strictly execute locally on-device."
-            } else {
-                return "PCC is fully operational. Queries exceeding 4,096 tokens or using Deep Think/Maximum mode will execute on Apple's secure server enclaves."
+                return "This copy of the app was built without the Private Cloud Compute entitlement, so every answer is written on this device."
+            }
+            switch self.settings.applePCCConsent {
+            case .denied:
+                return "Private Cloud Compute is set to Never use in Settings, so every answer is written on this device."
+            case .notDetermined:
+                return "The app asks you before an answer goes to Private Cloud Compute (Settings, Private Cloud Compute: Ask when needed)."
+            case .allowed:
+                return "Private Cloud Compute is allowed without asking. With Hybrid, an answer goes there when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document."
             }
         } else {
-            return "iOS 26 targets do not have native PCC APIs. Escalated queries will run locally on SystemLanguageModel.default via compatibility wrapper."
+            return DeviceCapabilities.pccRoutingCompiledIn
+                ? "Private Cloud Compute needs iOS or macOS 27. On this version every answer is written on this device."
+                : "Private Cloud Compute isn't in this build, so every answer is written on this device."
         }
         #endif
     }

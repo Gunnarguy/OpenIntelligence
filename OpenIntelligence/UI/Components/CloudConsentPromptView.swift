@@ -128,28 +128,38 @@ struct CloudConsentPromptView: View {
         }
     }
 
+    /// What Apple says about Private Cloud Compute, in Apple's terms and said to be Apple's
+    /// (security.apple.com/blog/private-cloud-compute, read 2026-10-15): the app can't check these, and
+    /// `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` rules out promising them in the app's own voice.
+    /// Through 5.6 the rows read "Your data is never stored" and "Same security as your device"; Apple's
+    /// words are "the same hardware security technologies used in iPhone, including the Secure Enclave and
+    /// Secure Boot" and "no user data is retained in any form after the response is returned".
     private var explanationSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             ConsentFeatureRow(
                 icon: "lock.shield.fill",
                 iconColor: .green,
-                title: "End-to-end encrypted",
-                subtitle: "Your data is never stored"
+                title: "Encrypted end to end",
+                subtitle: "From this device to Apple's servers"
             )
 
             ConsentFeatureRow(
                 icon: "server.rack",
                 iconColor: .blue,
-                title: "Apple Silicon servers",
-                subtitle: "Same security as your device"
+                title: "Apple silicon servers",
+                subtitle: "With the Secure Enclave and Secure Boot from iPhone"
             )
 
             ConsentFeatureRow(
                 icon: "eye.slash.fill",
                 iconColor: .purple,
-                title: "No data retention",
-                subtitle: "Deleted after processing"
+                title: "Deleted after the answer",
+                subtitle: "Kept in no form, and not available to Apple"
             )
+
+            Text("As Apple describes Private Cloud Compute.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .padding(DSSpacing.md)
         .background(
