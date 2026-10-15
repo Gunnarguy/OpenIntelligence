@@ -344,9 +344,32 @@ new call's options, has no values in the Xcode 27.0 SDK, so the set passed is em
 
 ## 6. The privacy policy screen (`PrivacyPolicyView`, kept under Features/Billing)
 
-*Added 2026-10-14, for 5.7.* The in-app privacy policy lives beside the plan screens. Its line on
-diagnostics now reads that telemetry and diagnostics stay on the device and that a crash report
-leaves only if the person chooses to email or share it, because 5.7 adds a crash report
-the person can email (`CrashReports`; `Docs/PRIVACY_AND_ROUTING.md`, "Diagnostics from the system stay
-on the device"). Nothing about plans, prices or limits changed. `[evidence_level: code_verified,
-confidence: high, evidence_source: PrivacyPolicyView.swift, CrashReports.swift]`
+*Added 2026-10-14, for 5.7; rewritten 2026-10-15.* The in-app privacy policy carries the same sections as
+gunzino.me/openintelligence/privacy. One script writes both from one text, and with them Gunzino's hand-written copy
+of the page, which its deploy compares the built page with. Settings, About opens it with a Privacy Policy row. From
+2026-05-28 (`a666a9b`) until then nothing opened it: the Plans screen's Privacy Policy button became a link to the
+website, and `PlanUpgradeSheet.showingPrivacy` is still declared and never set to true. The Plans screen keeps the
+website link. Nothing about plans, prices or limits changed.
+
+Each statement in the text was checked against the code on 2026-10-15:
+
+- No advertising or tracking code: no `AdSupport`, `AppTrackingTransparency`, `SKAdNetwork` or `AdAttributionKit`
+  in the app. `URLSession` is used by `WebPageFetchService` (an ephemeral session that never accepts or sets
+  cookies), by `AppStoreRatingSnapshot`, and by `AdapterManager`, which nothing calls; `LocalOpenAIServerLLMService.swift`
+  is inside `#if false`.
+- Private Cloud Compute is iOS, iPadOS and macOS 27 only: `FoundationModelSessionFactory` throws `modelUnavailable`
+  before 27. Show Details on `CloudConsentPromptView` gives the reason and the size of what would be sent.
+- iCloud Sync needs Pro or Lifetime (`effectiveTier.isAtLeast(.pro)`).
+- A web page comes from Save a Web Page, the Link field of Add to Library, or a web address pasted on the Documents
+  screen: the three callers of `WebPageFetchService.fetch`.
+- A crash report (`CrashReports.fields`) holds the versions, the device model, how the app ended, the app's two state
+  domains (import and answer) and the call stack, and leaves out an exception's message and the memory region
+  description. About can email its summary or share the whole file.
+- Dictation is `DictationTranscriber`, on the device. Turning off Spotlight Indexing calls
+  `deleteAllSearchableItems`. Deleting a library removes each of its documents, which clears their passages, keyword
+  rows and Spotlight entries (`LibraryDeletion`).
+- Nothing deletes rows of `semantic_query_cache`, so cached questions and the passages found for them outlive their
+  library. The policy says so. Clearing them belongs in `SQLiteFullTextService.swift`, a protected file.
+
+`[evidence_level: code_verified, confidence: high, evidence_source: the files named above, read 2026-10-15;
+git log -S'showingPrivacy = true' for the button]`

@@ -13,103 +13,59 @@ struct PrivacyPolicyView: View {
                         .font(.largeTitle.weight(.bold))
                         .padding(.bottom, 8)
 
-                    Text("Last updated: May 13, 2026")
+                    Text("Last updated: October 15, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     Divider()
 
+                    // The same text as gunzino.me/openintelligence/privacy, from one source (5.7). Through
+                    // 5.6 this view had its own text: dated May 2026, naming third-party providers the app
+                    // does not have and a Settings → Privacy that does not exist, with one sentence cut off.
                     Group {
-                        section(title: "Our Privacy Commitment", content: """
-OpenIntelligence is designed privacy-first. Your documents stay on your device by default. Each library can remain Local Only or be set to iCloud Sync. Only libraries you explicitly mark for iCloud are copied into your iCloud Sync container so your own devices can reuse the same imported files and processed libraries. If Apple-managed platform processing or another provider you explicitly enable is used, OpenIntelligence does not store your raw documents on any developer-operated server.
+                        section(title: "Overview", content: """
+OpenIntelligence reads, indexes, searches and answers from your documents on your device. It sends passages from your documents to Apple's Private Cloud Compute only when you allow it, under the setting you chose. Libraries you set to iCloud Sync copy their files, passages, embeddings and conversations to your own iCloud. The app has no server of its own, and no third-party AI service, analytics, advertising or tracking code.
 """)
-
-                        section(title: "Information We Collect", content: """
-**On-Device Processing (Default):**
-• Document content and embeddings stored locally in app sandbox
-• Usage telemetry (feature usage, performance metrics) - stays on-device only
-• No data leaves your device for developer-operated processing unless you explicitly enable an external provider path
-
-**Per-Library iCloud Sync (Optional):**
-• Imported source files, processed libraries, and chat history can be stored in your iCloud Sync app container for libraries you explicitly set to iCloud Sync
-• This sync path is Apple-managed and intended only for sharing your workspace across your own devices signed into the same Apple account
-• OpenIntelligence does not copy this synced workspace to any developer-operated server
-
-**Cloud Processing (With Your Consent or Platform Routing):**
-• Apple-managed platform processing, where available, is governed by Apple's privacy and security policies
-• Explicitly enabled provider paths are governed by the provider's terms and privacy policies
-• All telemetry and diagnostics remain entirely on-device. A crash report leaves only if you choose to email or share it
-
-**Billing Data:**
-• Subscription tier and status (processed by Apple, not visible to us)
-• Purchase receipts validated via StoreKit (Apple-managed)
+                        section(title: "What Stays on Your Device", content: """
+• Importing a document: reading its text, recognizing text in scans and pictures, cutting it into passages, and the embeddings used to search it.
+• Searching, ranking, checking an answer against your documents, and answers written by Apple's on-device model.
+• Dictation in the chat field (Apple's on-device speech recognition).
+• The Spotlight entries the app adds (a document's name and a short preview), notifications, Live Activities and widgets. Turning off Spotlight Indexing in Settings removes the entries.
+• The app's own diagnostics and timings.
 """)
+                        section(title: "What Can Leave Your Device, and When", content: """
+**Apple Private Cloud Compute (iOS, iPadOS and macOS 27):** your question with recent conversation context, the passages chosen as evidence with their document names and page numbers, and the app's instructions to the model. Only when you allow it, under Settings, Private Cloud Compute, "When to allow it" (ask each time, always, or never). When it asks, Show Details on the prompt says why and how much would be sent. It is used when you choose Private Cloud Compute in the model picker, and otherwise for an answer that needs more room than the on-device model has. With Private Cloud Compute chosen, Deep Think's and Maximum's reasoning steps can go there too, each behind the same permission. A question asked through Siri or Shortcuts follows the same rule; when it would need your permission first, the app opens to ask. The answer shows which route it used. On iOS and macOS 26, answers are always written on your device. Apple states that Private Cloud Compute keeps nothing after answering and that neither Apple nor the developer can see the request.
 
-                        section(title: "How We Use Your Information", content: """
-• **Document Processing**: Generate embeddings, perform retrieval, answer questions
-• **Service Improvement**: Analyze aggregated usage patterns to improve performance
-• **Billing**: Validate subscription entitlements via App Store
-• **Support**: Assist with technical issues when you contact us
+**iCloud Sync (Pro and Lifetime, per library):** a library's files, passages, embeddings and conversations, copied to your own iCloud so your other devices signed in to the same Apple Account see the same library. Only for libraries you set to iCloud Sync; libraries are Local Only unless you change them.
 
-We never:
-• Sell your data to third parties
-• Use your documents to train AI models
-• Share identifiable information without consent
-• Store raw document text on developer-operated remote servers
+**A web page you add:** when you give the app a web address (Save a Web Page, the Link field of Add to Library, or a web address pasted on the Documents screen), it downloads that page from its site. The site sees an ordinary request from your device, which carries nothing from your library. No cookies are sent or kept.
+
+**Handoff:** what you have open in Chat or Documents (which library, which document, and the document's name) can be picked up on your other devices through Apple's Handoff.
+
+**The App Store rating:** about once a day the app asks Apple's public App Store lookup for its own rating. The request names the app and carries nothing about you or your documents.
+
+**Crash reports (iOS and macOS 27):** when the app closes unexpectedly it keeps a report on your device and can offer to email it to the developer, and Settings, About can share the whole report. The report holds the app and system versions, the device model and the part of the app's code that was running, and none of your documents, questions or answers. It leaves your device only if you send or share it. Apple may also share crash data with developers if you allow that in your device's settings.
+
+**Purchases:** subscriptions and purchases go through Apple's App Store. The app never sees payment details.
+
+Apple's own privacy policy covers Private Cloud Compute, iCloud, Handoff and the App Store.
 """)
-
-                        section(title: "Data Storage & Security", content: """
-• **Local Storage**: Documents and embeddings are stored in the app sandbox and protected by platform data protection
-• **Optional iCloud Sync**: When a library is set to iCloud Sync, the app stores that library's synced data in your iCloud Sync container so another device can reuse the same imported and processed files
-• **Cloud Providers**: Any enabled provider path is governed by that provider's privacy and security policies
-• **Retention**: Local data persists until you delete it; provider retention is governed by the relevant provider policy
-• **Backups**: iCloud backups may include local app data if enabled in device settings
+                        section(title: "Storage and Retention", content: """
+• **Documents and their passages:** on your device, and in your iCloud for libraries set to iCloud Sync, until you delete them. Deleting a library removes its embeddings and keyword index.
+• **Search cache:** past questions and the passages found for them are kept in the app's database on your device. They do not expire, and deleting a library does not clear them; removing the app does.
+• **Backups:** your device's iCloud backup may include the app's data if backups are on.
 """)
-
-                        section(title: "Your Privacy Controls", content: """
-• **Consent Prompts**: Every cloud provider requires explicit authorization before first use
-• **Data Deletion**: Delete documents, containers, or entire workspace in Settings
-• **Telemetry**: Opt out of anonymous telemetry in Settings → Developer
-• **Cloud Access**: Revoke cloud provider consent anytime in Settings → Privacy
-• **Library Storage**: Choose Local Only or iCloud Sync for each library in Documents → Library Settings
+                        section(title: "Your Controls", content: """
+• Settings, Private Cloud Compute: when to allow it, or never.
+• Each library: Local Only or iCloud Sync, in the library's settings.
+• Settings: Spotlight Indexing on or off.
+• Delete documents, libraries and conversations in the app, or remove the app.
 """)
-
-                        section(title: "Third-Party Services", content: """
-When you enable provider paths:
-• **Apple-managed services**: Governed by Apple's privacy policies
-• **Explicitly enabled third-party providers**: Governed by their own terms and privacy policies
-
-We do not control third-party practices. Review their policies before enabling.
+                        section(title: "Children", content: """
+OpenIntelligence is not directed to children under 13 and does not knowingly collect information from them.
 """)
-
-                        section(title: "Children's Privacy", content: """
-OpenIntelligence is not directed to children under 13. We do not knowingly collect data from children. If we learn we have collected information from a child under 13, we will delete it promptly.
-""")
-
-                        section(title: "International Users", content: """
-Your data may be processed in the United States or other jurisdictions where our service providers operate. By using the App, you consent to this transfer.
-""")
-
-                        section(title: "Changes to This Policy", content: """
-We may update this Privacy Policy as laws or practices change. Significant updates will be announced within the App. Continued use after changes constitutes acceptance.
-""")
-
-                        section(title: "Your Rights", content: """
-Depending on your jurisdiction, you may have rights to:
-• Access your personal data
-• Correct inaccuracies
-• Request deletion
-• Object to processing
-• Port your data to another service
-
-Contact us at Gunnarguy@me.com to exercise these rights.
-""")
-
-                        section(title: "Contact Us", content: """
-For privacy questions or data requests:
-
-• Email: Gunnarguy@me.com
-• Support: Tap "Contact Support" in Settings
+                        section(title: "Contact", content: """
+For privacy questions: Gunnarguy@me.com
 """)
                     }
                 }
@@ -127,6 +83,11 @@ For privacy questions or data requests:
             }
         }
         .accessibilityElement(children: .contain)
+        #if os(macOS)
+            // A Mac sheet takes its size from its content, and a ScrollView has almost none of its own
+            // (`ContainerSettingsSheet` has the same note). Settings, About opens this as a sheet (5.7).
+            .frame(minWidth: 520, idealWidth: 640, maxWidth: 800, minHeight: 560, idealHeight: 720, maxHeight: .infinity)
+        #endif
     }
 
     private func section(title: String, content: String) -> some View {
@@ -134,7 +95,8 @@ For privacy questions or data requests:
             Text(title)
                 .font(.headline)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility3)
-            Text(content)
+            // `LocalizedStringKey` renders the **bold** labels; `Text(String)` showed the asterisks (5.7).
+            Text(LocalizedStringKey(content))
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility3)

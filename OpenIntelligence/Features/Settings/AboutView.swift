@@ -25,7 +25,8 @@ enum OpenIntelligenceLinks {
         components.path = feedbackEmailAddress
         components.queryItems = [
             URLQueryItem(name: "subject", value: "[OpenIntelligence App Feedback] \(source) | v\(version) (\(build))"),
-            URLQueryItem(name: "body", value: "Source: \(source)\nApp Version: \(version) (\(build))\n\nTopic:\n\nDetails:\n")
+            URLQueryItem(
+                name: "body", value: "Source: \(source)\nApp Version: \(version) (\(build))\n\nTopic:\n\nDetails:\n"),
         ]
         return components.url ?? URL(string: "mailto:\(feedbackEmailAddress)")!
     }
@@ -36,6 +37,9 @@ struct AboutView: View {
     @EnvironmentObject private var settings: SettingsStore
     @Environment(\.openURL) private var openURL
     @State private var deviceCapabilities = DeviceCapabilities()
+    /// The privacy policy in the app (`PrivacyPolicyView`, 5.7). Its only way in, a button on the Plans
+    /// screen, became a link to the website on 2026-05-28, and nothing opened it after that.
+    @State private var showingPrivacyPolicy = false
 
     /// Single source of truth for hardware identity. `deviceCapabilities` is still used
     /// for the OS version and the Apple Intelligence availability rows, both of which it
@@ -77,9 +81,11 @@ struct AboutView: View {
                                 .font(.title.bold())
                             Text("Privacy-First RAG Application")
                                 .foregroundColor(.secondary)
-                            Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0") (Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "19"))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            Text(
+                                "Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0") (Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "19"))"
+                            )
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 2)
                     }
@@ -127,9 +133,11 @@ struct AboutView: View {
                                     .buttonStyle(.plain)
                                 }
                             } else {
-                                Text("Release notes for this version aren't available in the app. The App Store listing has the full list.")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                Text(
+                                    "Release notes for this version aren't available in the app. The App Store listing has the full list."
+                                )
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -167,9 +175,13 @@ struct AboutView: View {
                     SurfaceCard {
                         SectionHeader(icon: "brain.head.profile", title: "AI Capabilities")
                         VStack(alignment: .leading, spacing: 8) {
-                            capabilityRow(title: "Apple Intelligence", condition: deviceCapabilities.supportsAppleIntelligence)
-                            capabilityRow(title: "Foundation Models", condition: deviceCapabilities.supportsFoundationModels)
-                            capabilityRow(title: "Private Cloud Compute", condition: deviceCapabilities.supportsPrivateCloudCompute)
+                            capabilityRow(
+                                title: "Apple Intelligence", condition: deviceCapabilities.supportsAppleIntelligence)
+                            capabilityRow(
+                                title: "Foundation Models", condition: deviceCapabilities.supportsFoundationModels)
+                            capabilityRow(
+                                title: "Private Cloud Compute",
+                                condition: deviceCapabilities.supportsPrivateCloudCompute)
                             capabilityRow(title: "Writing Tools", condition: deviceCapabilities.supportsWritingTools)
                         }
                     }
@@ -178,10 +190,18 @@ struct AboutView: View {
                     SurfaceCard {
                         SectionHeader(icon: "star.circle.fill", title: "Features")
                         VStack(alignment: .leading, spacing: 8) {
-                            FeatureRow(icon: "doc.text.fill", title: "Document Processing", description: "Import PDFs, text files, and more")
-                            FeatureRow(icon: "cpu", title: "On-Device Processing", description: "OCR, chunking, and embeddings run locally")
-                            FeatureRow(icon: "brain", title: "Multiple AI Pathways", description: "Apple Foundation Models or extractive QA")
-                            FeatureRow(icon: "lock.shield.fill", title: "Privacy First", description: "Your data stays on your device by default")
+                            FeatureRow(
+                                icon: "doc.text.fill", title: "Document Processing",
+                                description: "Import PDFs, text files, and more")
+                            FeatureRow(
+                                icon: "cpu", title: "On-Device Processing",
+                                description: "OCR, chunking, and embeddings run locally")
+                            FeatureRow(
+                                icon: "brain", title: "Multiple AI Pathways",
+                                description: "Apple Foundation Models or extractive QA")
+                            FeatureRow(
+                                icon: "lock.shield.fill", title: "Privacy First",
+                                description: "Your data stays on your device by default")
                         }
                     }
 
@@ -198,7 +218,8 @@ struct AboutView: View {
                     }
 
                     SurfaceCard {
-                        SectionHeader(icon: "bubble.left.and.exclamationmark.bubble.right.fill", title: "Feature Requests")
+                        SectionHeader(
+                            icon: "bubble.left.and.exclamationmark.bubble.right.fill", title: "Feature Requests")
                         VStack(alignment: .leading, spacing: 10) {
                             externalLinkRow(
                                 title: "Send a Feature Request",
@@ -249,6 +270,14 @@ struct AboutView: View {
                                 .buttonStyle(.plain)
                             }
                             externalLinkRow(
+                                title: "Privacy Policy",
+                                subtitle: "What stays on your device, and what can leave it",
+                                icon: "hand.raised.fill",
+                                tint: .teal
+                            ) {
+                                showingPrivacyPolicy = true
+                            }
+                            externalLinkRow(
                                 title: "GitHub Repository",
                                 subtitle: "Browse the codebase, releases, and implementation details",
                                 icon: "chevron.left.forwardslash.chevron.right",
@@ -290,11 +319,14 @@ struct AboutView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
-            .onAppear {
-                DispatchQueue.main.async {
-                    deviceCapabilities = RAGService.checkDeviceCapabilities()
-                }
+        .onAppear {
+            DispatchQueue.main.async {
+                deviceCapabilities = RAGService.checkDeviceCapabilities()
             }
+        }
+        .sheet(isPresented: $showingPrivacyPolicy) {
+            PrivacyPolicyView()
+        }
     }
 
     private func capabilityRow(title: String, condition: Bool) -> some View {

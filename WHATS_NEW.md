@@ -129,6 +129,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **A setting you change stays changed.** The app saved the setting you'd just changed with the value it had before, so the last change you made could come undone the next time the app opened.  It saves the new value now.
 - **Send me a crash report.** On iOS 27 and macOS 27, if the app closes unexpectedly, it offers afterwards to email me a report of where it stopped.  It has the app and system versions, your device model and the part of the app's code that was running, and none of your documents, questions or answers.  It only goes anywhere if you send it, and Settings, About can email or share the last one later.
 - **On iOS 26, Settings says what Private Cloud Compute needs.**  On a device that isn't on iOS 27 or macOS 27 yet, Settings said this copy of the app was built without Private Cloud Compute.  It says Private Cloud Compute needs 27 now.
+- **The privacy policy is in the app.**  Settings, About has a Privacy Policy row.  It opens the same policy as the website, and it reads without a connection.
 
 ### Notifications
 - **A notification when it's done.** Settings has a new Notifications page with one switch.  With it on, you get a notification when an import finishes, or when an answer that took more than 20 seconds is ready, if OpenIntelligence isn't in front.  It's off until you turn it on, and it never shows your question or a file name.

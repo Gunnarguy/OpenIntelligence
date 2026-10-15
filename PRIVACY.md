@@ -1,7 +1,8 @@
 # OpenIntelligence privacy
 
 The privacy policy is at **https://gunzino.me/openintelligence/privacy**. It is the one the App Store
-listing links to. How the app decides where an answer is written, and what can leave the device, is
+listing links to, and from 5.7 (in preparation, not yet on the App Store) the same text is in the app, in Settings,
+About, Privacy Policy. How the app decides where an answer is written, and what can leave the device, is
 documented against the code in [Docs/PRIVACY_AND_ROUTING.md](Docs/PRIVACY_AND_ROUTING.md).
 
 In short:
@@ -20,7 +21,8 @@ In short:
   if the app can't come forward, the question is answered on the device.
 - From 5.7 on iOS and macOS 27, when the app closes unexpectedly it can offer to email a crash report. The
   report holds the app and system versions, the device model and the part of the app's code that was
-  running, and none of your documents, questions or answers. It leaves the device only if you send it.
+  running, and none of your documents, questions or answers. It leaves the device only if you send it, or share it
+  from Settings, About.
 - The app contains no third-party analytics, advertising or tracking code. Its only package dependency is
   swift-tokenizers.
 
