@@ -200,6 +200,17 @@ Single suites:
 xcodebuild test -scheme OpenIntelligence -only-testing:OpenIntelligenceTests/HybridSearchServiceTests -derivedDataPath /private/tmp/oi-build -destination "platform=iOS Simulator,id=<UDID>"
 ```
 
+**The smoke build on this Mac (2026-10-14).** `scripts/build_simulator_smoke.sh` defaults to a simulator named
+"iPhone 17 Pro", which no longer exists here, and to DerivedData inside the repository. Run it from the tested copy
+in `/private/tmp/oi-src`, with the test simulator and the shared DerivedData, so it builds incrementally:
+`cd /private/tmp/oi-src && OPENINTELLIGENCE_SIMULATOR_DESTINATION="platform=iOS Simulator,id=<UDID>"
+OPENINTELLIGENCE_SIMULATOR_DERIVED_DATA=/private/tmp/oi-build OPENINTELLIGENCE_SIMULATOR_ARTIFACT_DIR=/private/tmp/oi-smoke
+bash scripts/build_simulator_smoke.sh`. *Recorded:* `BUILD SUCCEEDED` on `b4618e0`'s tree, nothing recompiled.
+
+**"The test runner hung before establishing connection" (2026-10-14).** Twice in a row on one build the test host
+started and no test ran, after 398 s each time; the third run of the same build ran all 1,003 tests. Run it again
+before reading a code change into it, and look at the app's own trace (below) for where the launch stopped.
+
 ### The actions through the system: the UI-testing target *(added 2026-10-14)*
 
 `OpenIntelligenceUITests` has its own scheme, so the commands above are unchanged. It runs actions the

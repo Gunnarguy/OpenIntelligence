@@ -1664,3 +1664,64 @@ on a large library is to be measured on a device instead.
 the iPhone before and after (memory and passages per second), because guard objects and the hardened heap can raise
 memory use, and the app's largest imports already run near the phone's limit; then decide on hardware memory
 tagging (A19 and M5 or later only), which Apple recommends turning on in soft mode first.
+
+## 2026-10-14 - A question from Siri or Shortcuts asks for Private Cloud Compute consent in the app, and a choice already made needs no sheet
+
+**Context.** Through the first 5.7 builds an action's question never asked: in the background the planner kept it
+on device unless consent was remembered, and with the app in front it reached the consent step on an engine no
+chat shows and waited for good. The owner approved best practice for consent on 2026-10-14.
+
+**Decision.** The five ask actions declare `[.background, .foreground(.dynamic)]`. When the system lets one come
+forward, the planner may choose Private Cloud Compute for its question, and the consent gate calls
+`continueInForeground` and asks with the same sheet, which `ContentView` shows through `CloudConsentRelay`. A
+stored choice is applied before anything about the foreground (Always Allow sends, Don't Allow refuses, nothing
+comes forward), read again for each question and step. A sheet no window shows within 15 s is given up without
+being remembered, and that question asks no more. Only an action's engine (`asksThroughRelay`) uses the relay.
+
+**Alternatives.** (1) Bring every action question forward while consent is undetermined: rejected, it would pull
+the app forward for questions that never use Private Cloud Compute. (2) Keep the foreground check before the
+stored choice: rejected, it made Always Allow useless for a question from the background on iPhone while the
+planner had already chosen Private Cloud Compute for it, and it brought the app forward for nothing.
+(3) Choose the relay by `activePresentedInstance !== self`: built first, rejected by a refuting review the same
+evening, because that weak pointer can be nil or another window's engine.
+
+**Consequences.** On iPhone a question from Siri with Always Allow now uses Private Cloud Compute in the
+background; before 5.7 it fell back to the device. Not seen on a device.
+
+## 2026-10-14 - Crash reports come from MetricKit inside the app, not from a crash reporter extension
+
+**Context.** The roadmap row planned CrashReportExtension (iOS 27). A new extension target needs a provisioning
+profile for its own App ID, and Xcode on this Mac has no Apple account ("No Accounts").
+
+**Decision.** `MetricDiagnostics` already receives MetricKit's crash diagnostics. `CrashReports` saves each as a
+file of its own, leaving out text that can carry the person's data (an exception's message and arguments, the
+memory region description), and offers it once. Sending is the person's act: a mail they send from their own app,
+or the share sheet.
+
+**Alternatives.** Wait for the extension: rejected while provisioning is blocked, and MetricKit gives the same
+report. Upload automatically: rejected, nothing leaves the device unless the person sends it.
+
+## 2026-10-14 - Conversation deletions sync as a list, the way document deletions do
+
+**Context.** Conversations moved into the folder iCloud sync merges (5.7), and the merge copies the newest file
+each way and keeps no record of deletions, so a deleted conversation came back from iCloud.
+
+**Decision.** `deleted_threads.json` beside the threads folder, joined across devices by
+`WorkspaceSyncService.mergeDeletedThreads` (the file was named for 5.7) and honored on both sides, as
+`deleted_documents.json` is for documents. A conversation stays one file with the newest copy winning, as the
+chat history does; turns added on two devices before they sync are kept from one of them only.
+
+**Alternatives.** Delete the iCloud copy from the store alone: rejected, another device would copy it back.
+
+## 2026-10-14 - The query cache is keyed to what the libraries hold, and the lookup by similarity is off
+
+**Context.** `semantic_query_cache` (`SQLiteFullTextService.swift`, protected as a whole file) was keyed by the
+question and library id and never cleared, so a repeated question ignored new documents and brought deleted ones
+back (since 3.7.0). Its similarity lookup decoded every cached question's embedding on every question.
+
+**Decision.** `RAGService` builds the key from the question and a digest of every library's documents and passage
+counts, the embedding model and the app's version; a hit naming a missing document is not used; no lookup by
+similarity. The protected file is unchanged, so rows written through 5.6 stay in the table unused.
+
+**Alternatives.** Delete stale rows: needs the protected file, not named. Keep the similarity lookup and check its
+rows: its results carry no library state that `RAGService` can check.
