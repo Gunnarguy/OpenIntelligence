@@ -5,11 +5,13 @@ YOUR DOCUMENTS
 
 • JSON and JSONL files import as records, each with its field names and numbers kept exactly as the file has them.
 
-• Very large text and JSONL files import a piece at a time, and an interrupted import picks up where it was.  An 88 MB file used to take 2.8 GB of memory on an iPhone, and iOS closed the app before it was a fifth done.
+• Very large text and JSONL files import a piece at a time, and an interrupted import picks up where it was.  An 88 MB file used to take 2.8 GB of memory on an iPhone, and iOS closed the app before it was a fifth done.  The import queue has a Pause button now too.
 
 • You can drop a file on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
 
 • Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• Addresses, phone numbers, dates and amounts are found anywhere in a document now, not only in its tables.
 
 • An import stops and says so if the search model comes back empty, and a document that went missing from search is rebuilt when you open its library.
 
@@ -25,7 +27,7 @@ SIRI, SHORTCUTS AND SPOTLIGHT
 
 • Actions hand back what they found, so the next step of a shortcut can use the answer and its sources.  "Ask My Documents" and "Ask a Library" have a Mode menu.
 
-• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Open Library, Open Document and Export Conversation.
+• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Set Answer Mode, Get Settings, Open Library, Open Document and Export Conversation.
 
 • When a question from Siri needs Private Cloud Compute and you haven't said yes or no to it yet, the app comes up and asks first.
 
@@ -48,6 +50,8 @@ ANSWERS
 • The step that passes over a passage repeating one already picked never did anything before the model wrote.  It works now, so an answer sees more than one part of your documents.
 
 • Sentences from your documents aren't cut in half before the model reads them, numbers are checked as numbers, and a code like E1 counts as a keyword.
+
+• Deep Think and Maximum answers get the same checks a Standard answer does, and Deep Think keeps its full answer instead of swapping it for one short line that can be wrong.
 
 
 ALSO

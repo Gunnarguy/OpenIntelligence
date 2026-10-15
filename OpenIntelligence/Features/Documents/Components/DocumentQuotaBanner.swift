@@ -24,17 +24,25 @@ struct DocumentQuotaBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Document Quota")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("\(currentCount)/\(limit)")
-                    .font(.caption)
-                    .foregroundStyle(isAtLimit ? .orange : .secondary)
-            }
+            // The title, the count and the bar are one element for VoiceOver, "Document Quota, 0 of 5
+            // documents". Apart, the bar was about 4 points tall and the title row about 20, too small to
+            // find by touch (5.7, accessibility audit).
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Document Quota")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text("\(currentCount)/\(limit)")
+                        .font(.caption)
+                        .foregroundStyle(isAtLimit ? .orange : .secondary)
+                }
 
-            ProgressView(value: progress)
-                .tint(isAtLimit ? .orange : isNearLimit ? .yellow : Color.accentColor)
+                ProgressView(value: progress)
+                    .tint(isAtLimit ? .orange : isNearLimit ? .yellow : Color.accentColor)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Document Quota")
+            .accessibilityValue("\(currentCount) of \(limit) documents")
 
             VStack(alignment: .leading, spacing: 6) {
                 if isAtLimit {

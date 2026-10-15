@@ -235,6 +235,10 @@ because clearing them needs `SQLiteFullTextService.swift`, which is protected. `
 code_verified+test_verified (QueryCacheKeyTests), confidence: high, evidence_source: RAGService.swift
 queryInternal; SQLiteFullTextService.swift]`
 
+## An extracted value has to be about the question (added 2026-10-14, for 5.7)
+
+`SpecificationExtractor` can lock a value as the answer at five places (`highPrecisionLookupOverrideAnswer` is the one function they share), on an additive score of 0.82 and nothing else. From 5.7 the lock also needs `RAGService.extractedValueAnswersQuestion`: the value's label, or the text around it when it has none, shares a word with the question's subject, which is its words of three letters or more with `genericValueWords` (question words, quantity words, units) taken out. A plural's final "s" is dropped only from a word of five letters or more and not after "ss", "us" or "is" (`lookupWords`), so "does" and "this" stay whole and come out as question words (corrected 2026-10-15: folding them to "doe" and "thi" left them as the subject, and every value failed). A question with no subject words left is not checked. A value that fails is not used and the model answers. The answer-type and answerability checks the roadmap row also asks for are not built. `[evidence_level: test_verified (ExtractedValueRelevanceTests), confidence: medium]`
+
 ## MMR and the passages' vectors (corrected 2026-10-14, for 5.7)
 
 The vector store hands passages back without their vectors (`BNNSVectorDatabase` keeps the vectors in

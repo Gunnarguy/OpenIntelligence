@@ -107,7 +107,10 @@ struct ChatComposerV2: View {
 
             HStack(alignment: .bottom, spacing: 12) {
                 // Text input with glass effect
-                HStack(alignment: .bottom, spacing: 8) {
+                // The microphone and the paperclip are 44 points square, Apple's default control size on
+                // iPhone and iPad (Human Interface Guidelines, Accessibility) and the size of the send
+                // button, so they sit edge to edge (5.7, accessibility audit).
+                HStack(alignment: .bottom, spacing: 0) {
                     TextField("Ask anything...", text: $inputText, axis: .vertical)
                         .lineLimit(1...8)
                         .font(.system(size: 16))
@@ -128,11 +131,12 @@ struct ChatComposerV2: View {
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundStyle(dictation.phase == .listening ? Color.red : DSColors.accent)
                                 .symbolEffect(.pulse, isActive: dictation.phase != .idle)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(dictation.phase == .preparing)
                         .accessibilityLabel(dictation.phase == .listening ? "Stop dictation" : "Dictate a question")
-                        .padding(.bottom, 12)
                     }
 
                     // Attachment button with menu
@@ -153,8 +157,6 @@ struct ChatComposerV2: View {
                             onVisionCapture: onVisionCapture,
                             isCameraAvailable: isCameraAvailable
                         )
-                        .padding(.trailing, 12)
-                        .padding(.bottom, 12)
                     }
                 }
                 .background(

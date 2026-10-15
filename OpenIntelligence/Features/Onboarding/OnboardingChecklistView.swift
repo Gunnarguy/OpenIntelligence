@@ -175,8 +175,15 @@ struct OnboardingChecklistView: View {
                     Text("I'll add my own documents")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(palette.ink(0.7))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .padding(.horizontal, 16)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                // The tap area is 44 points tall, Apple's default control size on iPhone and iPad (5.7,
+                // accessibility audit), and reaches 12 points into the space above and below, where there
+                // is no other control, so the screen keeps its layout.
+                .padding(.vertical, -12)
             } else if processingComplete {
                 Button {
                     DSHaptics.medium()

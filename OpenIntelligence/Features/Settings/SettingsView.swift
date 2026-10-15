@@ -2912,6 +2912,7 @@ Text(deviceService.chipName)
                 "Compare Two Documents": "Compares what two documents say about a topic.",
                 "Ask About an Image": "Reads the text in an image and answers a question about it.",
                 "Search with a Photo": "Reads the text in a photo and asks your library about it.",
+                "Check a Claim": "Says whether your active library holds up a sentence, and names the passage it checked.",
             ]
         ),
         (
@@ -2928,6 +2929,14 @@ Text(deviceService.chipName)
                 "Create Library": "Creates a library and returns it.",
                 "Set Active Library": "Chooses the library that questions and imports use.",
                 "Start a Conversation": "Opens the app on a new conversation.",
+                "Export Conversation": "Returns a saved conversation as a Markdown, JSON Lines or PDF file.",
+                "Delete Documents": "Deletes documents with their passages, after asking.",
+            ]
+        ),
+        (
+            "Settings", [
+                "Set Answer Mode": "Sets the chat's answer mode: Standard, Deep Think or Maximum.",
+                "Get Settings": "Returns the answer mode and the active library.",
             ]
         ),
         (

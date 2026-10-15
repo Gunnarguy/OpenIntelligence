@@ -147,7 +147,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "plus.rectangle.on.folder",
                     title: "New actions for your libraries",
                     detail:
-                        "\"Add to Library\" takes a file, a link or text.  \"Find Passages\" returns the passages matching a search without writing an answer, \"Check a Claim\" tells you whether your documents hold a sentence up, and \"Create Library\", \"Set Active Library\", \"Set Answer Mode\", \"Open Library\" and \"Open Document\" are new too."
+                        "\"Add to Library\" takes a file, a link or text.  \"Find Passages\" returns the passages matching a search without writing an answer, \"Check a Claim\" tells you whether your documents hold a sentence up, and \"Create Library\", \"Set Active Library\", \"Set Answer Mode\", \"Get Settings\", \"Open Library\" and \"Open Document\" are new too."
                 ),
                 .init(
                     symbol: "doc.text.magnifyingglass",

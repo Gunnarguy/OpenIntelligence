@@ -19261,6 +19261,19 @@ class RAGService: ObservableObject {
             return nil
         }
 
+        // The value has to be about what was asked (5.7). Every one of the five places that let an
+        // extracted value stand in for the answer comes through here.
+        guard
+            Self.extractedValueAnswersQuestion(
+                question, label: result.matchedLabel, context: result.surroundingContext)
+        else {
+            Log.info(
+                "[RAGService] Extracted value not used as the answer: \"\(result.matchedLabel ?? result.answerSpan)\" "
+                    + "shares no subject word with the question",
+                category: .pipeline)
+            return nil
+        }
+
         let answerSpan = enrichedPrecisionAnswerSpan(for: result)
 
         if let label = result.matchedLabel, !label.isEmpty {
@@ -19273,6 +19286,52 @@ class RAGService: ObservableObject {
 
         return result.formattedAnswer
     }
+
+    /// Whether an extracted value is about what the question asks (5.7, roadmap row "Regex extraction
+    /// can pre-empt or replace the model's answer at five places, with no check that it answers the
+    /// question").
+    ///
+    /// A value locked by score alone: on 2026-09-26 a probe over a car manual's capacities list
+    /// locked the engine oil's 4.5 L for "What is the fuel tank capacity?", and Deep Think answered
+    /// 30 days where the lease says 60. Now the value's label, or the text around it when it has
+    /// none, must share a word with the question's subject: its words without the ones any value
+    /// question uses ("how much", "capacity", a unit). A question with no subject words left is not
+    /// checked. A value that fails is not used, and the model answers as it would without one.
+    nonisolated static func extractedValueAnswersQuestion(_ question: String, label: String?, context: String) -> Bool {
+        let subject = lookupWords(in: question).subtracting(genericValueWords)
+        guard !subject.isEmpty else { return true }
+        let trimmedLabel = label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let about = lookupWords(in: trimmedLabel.isEmpty ? context : trimmedLabel)
+        return !subject.isDisjoint(with: about)
+    }
+
+    /// Lowercased words of three letters or more, with a plural's final "s" dropped from a word of five
+    /// letters or more ("tanks", "quarts"), so "does", "this" and "gas" stay whole, and not after "ss",
+    /// "us" or "is" ("glass", "status", "analysis").
+    nonisolated static func lookupWords(in text: String) -> Set<String> {
+        Set(
+            text.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count >= 3 && !$0.allSatisfy(\.isNumber) }
+                .map { word in
+                    guard word.count >= 5, word.hasSuffix("s"),
+                        !word.hasSuffix("ss"), !word.hasSuffix("us"), !word.hasSuffix("is")
+                    else { return word }
+                    return String(word.dropLast())
+                })
+    }
+
+    /// Words any question about a value can use, which say nothing about which value: question words,
+    /// quantity words and units, in the singular `lookupWords` gives.
+    nonisolated static let genericValueWords: Set<String> = [
+        "what", "which", "how", "much", "many", "does", "the", "for", "and", "with", "that", "this", "there",
+        "need", "take", "use", "hold", "require", "have", "can", "get", "should", "must", "will", "would",
+        "capacity", "size", "amount", "number", "total", "value", "level", "rating", "volume", "weight",
+        "length", "height", "width", "depth", "limit", "maximum", "minimum", "max", "min", "spec",
+        "specification", "type", "kind", "long", "big", "far", "often", "cost", "price",
+        "day", "days", "week", "month", "year", "hour", "minute", "second", "liter", "litre", "quart", "gallon",
+        "pound", "ounce", "inch", "foot", "feet", "meter", "metre", "mile", "percent",
+    ]
 
     private func prioritizedStateLookupCandidates(
         from chunks: [RetrievedChunk],
@@ -20085,7 +20144,6 @@ extension RAGService {
                         capabilities.supportsCoreML = true
                         capabilities.supportsAppIntents = true
                         capabilities.supportsVision = true
-                        capabilities.supportsVisionKit = true
                         capabilities.deviceTier = determineDeviceTier(
                             chip: capabilities.deviceChip,
                             hasAppleIntelligence: capabilities.supportsAppleIntelligence,
@@ -20203,9 +20261,6 @@ extension RAGService {
 
         // Vision framework available on all devices
         capabilities.supportsVision = true
-
-        // VisionKit (document scanning) available on all devices
-        capabilities.supportsVisionKit = true
 
         // Determine device tier
         capabilities.deviceTier = determineDeviceTier(
@@ -20452,7 +20507,6 @@ struct DeviceCapabilities {
     var supportsCoreML = false
     var supportsAppIntents = false
     var supportsVision = false
-    var supportsVisionKit = false
 
     // Hardware Features
     var hasNeuralEngine: Bool {

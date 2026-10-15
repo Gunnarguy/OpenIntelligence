@@ -367,8 +367,11 @@ struct AttachmentMenuButton: View {
             Image(systemName: "paperclip")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(DSColors.accent)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Attach")
     }
 }
 

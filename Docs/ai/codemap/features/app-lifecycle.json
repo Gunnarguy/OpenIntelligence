@@ -22,7 +22,8 @@
     {"path": "OpenIntelligenceTests/App/CrashReportsTests.swift", "role": "test", "blob": "fff4cdaff20355469ea5dcef5cb7aba5060d95f7"},
     {"path": "OpenIntelligenceTests/App/MetricDiagnosticsTests.swift", "role": "test", "blob": "eb1bdded6f2ffc493919830f63f3f8110b65e362"},
     {"path": "OpenIntelligence/App/AppStateReporting.swift", "role": "primary", "blob": "461232473d25ef8d497824a3bf0f4388b985c885"},
-    {"path": "OpenIntelligenceTests/App/AppStateReportingTests.swift", "role": "test", "blob": "922a766fa1b229ba16342675dd4f6e331df7b987"}
+    {"path": "OpenIntelligenceTests/App/AppStateReportingTests.swift", "role": "test", "blob": "922a766fa1b229ba16342675dd4f6e331df7b987"},
+    {"path": "OpenIntelligenceUITests/AccessibilityAuditTests.swift", "role": "test", "blob": "a645ffe1c514c092def048a9097d00579a2daf16"}
   ],
   "nodes": [
     {"id": "OpenIntelligenceApp", "kind": "model", "path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "line": 16, "match": "struct OpenIntelligenceApp: App {", "status": "VERIFIED", "by": "build"},

@@ -45,7 +45,9 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/SyncableEntities.swift", "role": "primary", "blob": "a8724b12a85240553431046b23b9dbccc5711356"},
     {"path": "OpenIntelligence/Services/Agentic/CheckClaimIntent.swift", "role": "primary", "blob": "9a9e20cd9286e349b814ec9f47784b782d947688"},
     {"path": "OpenIntelligenceTests/Services/Agentic/ClaimCheckTests.swift", "role": "test", "blob": "bb7e327e9d4345295889f069173a150ffa5a31ae"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "role": "test", "blob": "4d4c216216a672d5ea51462f68b412e34323f0c5"}
+    {"path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "role": "test", "blob": "4d4c216216a672d5ea51462f68b412e34323f0c5"},
+    {"path": "OpenIntelligence/Features/Chat/Pipeline/OISettingsEntity.swift", "role": "primary", "blob": "1d722baaa53f02f0a8ff99f888feb83dd2c3baa2"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/SettingsEntityTests.swift", "role": "test", "blob": "f29a0bc8d2a92ed3b913540ff09c5338555ebdbc"}
   ],
   "nodes": [
     {"id": "RAGAppShortcutsProvider", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 371, "match": "struct RAGAppShortcutsProvider: AppShortcutsProvider {", "status": "VERIFIED", "by": "build"},

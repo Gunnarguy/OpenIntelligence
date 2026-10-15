@@ -194,6 +194,13 @@ struct ContainerPill: View {
         Color(hex: container.colorHex) ?? .accentColor
     }
 
+    /// The badge as VoiceOver reads it: a count as documents, other badges as they are written.
+    private var accessibilityBadge: String {
+        guard let badgeText else { return "" }
+        guard case .count = badgeStyle, let count = Int(badgeText) else { return badgeText }
+        return count == 1 ? "1 document" : "\(count) documents"
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: container.icon)
@@ -232,6 +239,14 @@ struct ContainerPill: View {
         .onTapGesture {
             onSelect()
         }
+        // One element for VoiceOver, read as a button: the library's name, its document count and whether
+        // it is the active library. Its icon and its name were two small elements with no button trait,
+        // and the icon read "Move", the folder symbol's own label (5.7, accessibility audit).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(displayName ?? container.name)
+        .accessibilityValue(accessibilityBadge)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { onSelect() }
         .glassEffectHelper(isSelected: isSelected, tintColor: containerColor, interactive: true)
         // Press-and-hold is `.contextMenu`, not a manual `onLongPressGesture` plus a
         // confirmation dialog, and that is a behaviour fix rather than a style preference.

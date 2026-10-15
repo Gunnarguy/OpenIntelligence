@@ -22,7 +22,8 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ResponseMetadataGatingTests.swift", "role": "test", "blob": "81e04b7b16c48cd61be96e1a9c67c71319b273dc"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ResponseTailTrimmingTests.swift", "role": "test", "blob": "e7cbe7c1ffedb0838297499dcd78d6a228ad2696"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGQueryScope.swift", "role": "primary", "blob": "806539570d94f13506109b8a130e9068495728eb"},
-    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/RAGQueryScopeTests.swift", "role": "test", "blob": "f0bfaa43bfd3f2fc5b6e0390b4574d25e9772700"}
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/RAGQueryScopeTests.swift", "role": "test", "blob": "f0bfaa43bfd3f2fc5b6e0390b4574d25e9772700"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueRelevanceTests.swift", "role": "test", "blob": "9b2082b72f23947dad4d478ae5ad8b669f205973"}
   ],
   "nodes": [
     {"id": "RAGService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 333, "match": "class RAGService: ObservableObject {", "status": "VERIFIED", "by": "build"},

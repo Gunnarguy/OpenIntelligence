@@ -385,62 +385,59 @@ struct ContentView: View {
         }
     }
 
+    /// The tabs, declared with SwiftUI's `Tab` (iOS 18, macOS 15) in place of `.tabItem` (5.7, roadmap row
+    /// "Liquid Glass UI Refresh"). The older form kept the tab bar from the iOS 26 behaviours, among them
+    /// shrinking while a list scrolls on iPhone (`tabBarMinimizeBehavior`), which this turns on. It is
+    /// `SwiftUI.Tab` because this view has a `Tab` of its own, the selection's type.
     @ViewBuilder
     private var tabViewContent: some View {
         TabView(selection: $selectedTab) {
-            NavigationStack {
-                ChatScreen(ragService: ragService)
-                    .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
-            }
-            .tabItem {
-                Label("Chat", systemImage: "bubble.left.and.bubble.right")
+            SwiftUI.Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: Tab.chat) {
+                NavigationStack {
+                    ChatScreen(ragService: ragService)
+                        .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
+                }
             }
             .badge(chatAnswerNotice.unseenAnswers)
-            .tag(Tab.chat)
 
-            NavigationStack {
-                DocumentLibraryView(
-                    ragService: ragService,
-                    containerService: containerService,
-                    onViewVisualizations: { selectedTab = .visualizations }
-                )
-                .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
+            SwiftUI.Tab("Documents", systemImage: "doc.text.magnifyingglass", value: Tab.documents) {
+                NavigationStack {
+                    DocumentLibraryView(
+                        ragService: ragService,
+                        containerService: containerService,
+                        onViewVisualizations: { selectedTab = .visualizations }
+                    )
+                    .safeAreaInset(edge: .top, spacing: 0) { if !screenshotMode.isEnabled { LaunchSaleBanner() } }
+                }
             }
-            .tabItem {
-                Label("Documents", systemImage: "doc.text.magnifyingglass")
-            }
-            .tag(Tab.documents)
 
-            NavigationStack {
-                AdaptiveVisualizationsView()
-                    .environmentObject(ragService)
-                    .environmentObject(containerService)
+            SwiftUI.Tab("Atlas", systemImage: "globe.americas", value: Tab.visualizations) {
+                NavigationStack {
+                    AdaptiveVisualizationsView()
+                        .environmentObject(ragService)
+                        .environmentObject(containerService)
+                }
             }
-            .tabItem {
-                Label("Atlas", systemImage: "globe.americas")
-            }
-            .tag(Tab.visualizations)
 
-            NavigationStack {
-                DatabaseDashboardView()
-                    .environmentObject(ragService)
-                    .environmentObject(containerService)
+            SwiftUI.Tab("Database", systemImage: "cylinder.split.1x2", value: Tab.database) {
+                NavigationStack {
+                    DatabaseDashboardView()
+                        .environmentObject(ragService)
+                        .environmentObject(containerService)
+                }
             }
-            .tabItem {
-                Label("Database", systemImage: "cylinder.split.1x2")
-            }
-            .tag(Tab.database)
 
-            NavigationStack {
-                SettingsView(ragService: ragService)
+            SwiftUI.Tab("Settings", systemImage: "gearshape", value: Tab.settings) {
+                NavigationStack {
+                    SettingsView(ragService: ragService)
+                }
+                .environmentObject(settingsStore)
+                .environmentObject(entitlementStore)
             }
-            .environmentObject(settingsStore)
-            .environmentObject(entitlementStore)
-            .tabItem {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .tag(Tab.settings)
         }
+        #if os(iOS)
+            .tabBarMinimizeBehavior(.onScrollDown)
+        #endif
     }
 
     @MainActor
