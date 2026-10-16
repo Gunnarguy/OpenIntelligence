@@ -30,10 +30,10 @@ final class ReviewPromptService: ObservableObject {
     nonisolated static let minimumVerifiedAnswers = 1
     private let minimumDaysBetweenAsks = 120.0
 
-    /// Called with the gating decision of every finished answer, and how many
-    /// sources it cited.
-    func noteAnswer(gatingDecision: String?, retrievedSourceCount: Int) {
-        guard Self.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount) else { return }
+    /// Called with the gating decision of every finished answer, how many
+    /// sources it cited, and Fact Check's claims.
+    func noteAnswer(gatingDecision: String?, retrievedSourceCount: Int, claims: [StructuredAnswer.Claim] = []) {
+        guard Self.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount, claims: claims) else { return }
         let n = defaults.integer(forKey: countKey) + 1
         defaults.set(n, forKey: countKey)
         guard n >= Self.minimumVerifiedAnswers, !askedRecently, !isTesting else { return }
@@ -57,21 +57,18 @@ final class ReviewPromptService: ObservableObject {
             || ProcessInfo.processInfo.arguments.contains("-uiTesting")
     }
 
-    /// The same reading of the gating decision the message bubble uses to
-    /// draw its Verified badge. Anything the verifier flagged, or an answer
-    /// with no sources, is not a moment to ask.
+    /// The reading the message bubble uses for its Verified badge (`VerificationOutcome.from(gatingDecision:claims:)`):
+    /// an answer counts only when its badge says Verified. Until 5.7 this kept its own list of failure words, which
+    /// missed the `unverified:<gates>` a failed check writes, so an answer under a red Unverified badge counted.
     ///
     /// Deep Think and Maximum answers leave the gating string nil unless the
     /// source-only refinement ran, so a nil string is read by what it cited:
     /// sources present counts, none does not. Before this, no agentic answer
     /// ever counted, which excluded the most engaged users from ever being asked.
-    nonisolated static func isVerified(_ gatingDecision: String?, retrievedSourceCount: Int) -> Bool {
-        let d = (gatingDecision ?? "").lowercased()
-        guard !d.isEmpty else { return retrievedSourceCount > 0 }
-        let notVerified = ["no_sources", "no_documents", "context_empty", "verification_gates_failed",
-                           "missing_citations", "low_confidence", "rerank_empty", "mmr_empty",
-                           "relevance_gate_failed", "reliability_fallback", "high_accuracy_blocked",
-                           "source_only_abstained", "excerpts_only"]
-        return !notVerified.contains { d.contains($0) }
+    nonisolated static func isVerified(
+        _ gatingDecision: String?, retrievedSourceCount: Int, claims: [StructuredAnswer.Claim] = []
+    ) -> Bool {
+        guard let decision = gatingDecision, !decision.isEmpty else { return retrievedSourceCount > 0 }
+        return VerificationOutcome.from(gatingDecision: decision, claims: claims) == .supported
     }
 }

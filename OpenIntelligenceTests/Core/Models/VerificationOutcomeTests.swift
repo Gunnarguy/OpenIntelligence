@@ -65,4 +65,27 @@ final class VerificationOutcomeTests: XCTestCase {
     func testAnAnswerOfExcerptsAloneReadsNotChecked() {
         XCTAssertEqual(VerificationOutcome.from(gatingDecision: "excerpts_only"), .notChecked)
     }
+
+    /// On 2026-10-15 an answer saying a date was not in the owner's notes passed the gates (0.87) and showed a green
+    /// Verified over Fact Check's "0 of 2 Verified", both claims partial (5.7).
+    func testPassingGatesWithNoSupportedClaimAreNotVerified() {
+        let partial = Self.claim(.partial), unsupported = Self.claim(.unsupported), supported = Self.claim(.supported)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:87%", claims: [partial, partial]), .partial)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:87%", claims: [partial, unsupported]), .partial)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:87%", claims: [unsupported]), .notSupported)
+        // One supported claim keeps the gates' Verified, and so does an answer whose claims were not checked.
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:87%", claims: [partial, supported]), .supported)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:87%", claims: [Self.claim(nil)]), .supported)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:87%", claims: []), .supported)
+        // The claims never raise an outcome the gates did not reach.
+        XCTAssertEqual(
+            VerificationOutcome.from(gatingDecision: "unverified:semantic_grounding", claims: [supported]), .notSupported)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: nil, claims: [supported]), .notChecked)
+    }
+
+    private static func claim(_ verdict: StructuredAnswer.Claim.VerificationVerdict?) -> StructuredAnswer.Claim {
+        StructuredAnswer.Claim(
+            claim: "A claim.", evidenceIds: [], confidence: 0.5, isExtracted: false, verificationVerdict: verdict,
+            verificationDetails: nil)
+    }
 }

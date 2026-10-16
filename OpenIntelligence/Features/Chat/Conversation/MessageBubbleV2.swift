@@ -261,7 +261,7 @@ struct MessageBubbleV2: View {
 
                         // Verification gate inline badge
                         if let decision = meta.gatingDecision {
-                            VerificationBadge(gatingDecision: decision)
+                            VerificationBadge(gatingDecision: decision, claims: message.structuredAnswer?.claims ?? [])
                         }
 
                         // Tool call count badge
@@ -638,9 +638,11 @@ private struct ReasoningStepView: View {
 /// Compact inline badge showing verification gate status parsed from gatingDecision string
 private struct VerificationBadge: View {
     let gatingDecision: String
+    /// Fact Check's claims, so the badge cannot say Verified over "0 of 2 Verified" (5.7).
+    var claims: [StructuredAnswer.Claim] = []
 
     private var status: VerificationStatus {
-        VerificationStatus.from(gatingDecision: gatingDecision)
+        VerificationStatus.from(gatingDecision: gatingDecision, claims: claims)
     }
 
     var body: some View {
@@ -704,8 +706,8 @@ private struct VerificationBadge: View {
         /// Verified only when the gating string says a check ran and passed. Before 5.6 anything
         /// outside a short list of failure words read Verified, including `unverified:<gates>` and
         /// `verification_skipped`.
-        static func from(gatingDecision: String) -> VerificationStatus {
-            switch VerificationOutcome.from(gatingDecision: gatingDecision) {
+        static func from(gatingDecision: String, claims: [StructuredAnswer.Claim] = []) -> VerificationStatus {
+            switch VerificationOutcome.from(gatingDecision: gatingDecision, claims: claims) {
             case .supported: return .verified
             case .notSupported: return .unverified
             case .lowConfidence: return .lowConfidence

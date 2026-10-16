@@ -44,4 +44,20 @@ final class ReviewPromptServiceTests: XCTestCase {
         XCTAssertFalse(ReviewPromptService.isVerified("source_only_abstained", retrievedSourceCount: 2))
         XCTAssertTrue(ReviewPromptService.isVerified("source_only_refined", retrievedSourceCount: 2))
     }
+
+    /// A failed check writes `unverified:<gates>`, which the old list of failure words missed, so an answer under a
+    /// red Unverified badge counted (found 2026-10-15). The rating now follows the badge.
+    func testAnAnswerUnderAnUnverifiedBadge_neverCounts() {
+        XCTAssertFalse(ReviewPromptService.isVerified("unverified:numeric_sanity", retrievedSourceCount: 4))
+        XCTAssertFalse(ReviewPromptService.isVerified("lenient,unverified:evidence_coverage+numeric_sanity", retrievedSourceCount: 4))
+        XCTAssertFalse(ReviewPromptService.isVerified("verification_skipped", retrievedSourceCount: 4))
+    }
+
+    func testPassingGatesWithNoSupportedClaim_doNotCount() {
+        let partial = StructuredAnswer.Claim(
+            claim: "A claim.", evidenceIds: [], confidence: 0.5, isExtracted: false, verificationVerdict: .partial,
+            verificationDetails: nil)
+        XCTAssertFalse(ReviewPromptService.isVerified("verified:87%", retrievedSourceCount: 3, claims: [partial, partial]))
+        XCTAssertTrue(ReviewPromptService.isVerified("verified:87%", retrievedSourceCount: 3, claims: []))
+    }
 }

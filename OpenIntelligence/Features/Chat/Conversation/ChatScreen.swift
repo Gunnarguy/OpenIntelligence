@@ -3365,13 +3365,15 @@ struct ChatScreen: View {
                     // and only when the verifier let it through.
                     ReviewPromptService.shared.noteAnswer(
                         gatingDecision: response.metadata.gatingDecision,
-                        retrievedSourceCount: response.retrievedChunks.count)
+                        retrievedSourceCount: response.retrievedChunks.count,
+                        claims: response.structuredAnswer?.claims ?? [])
                     // And the one unprompted look at the plans, after real use, free tier
                     // only, once per install. See PlanAskService.
                     PlanAskService.shared.noteAnswer(
                         gatingDecision: response.metadata.gatingDecision,
                         retrievedSourceCount: response.retrievedChunks.count,
-                        isFreeTier: !self.entitlementStore.effectiveTier.isAtLeast(.pro))
+                        isFreeTier: !self.entitlementStore.effectiveTier.isAtLeast(.pro),
+                        claims: response.structuredAnswer?.claims ?? [])
 
                     if let genStart = self.generatingStartTS {
                         self.generatingElapsedFinal = Date().timeIntervalSince(genStart)

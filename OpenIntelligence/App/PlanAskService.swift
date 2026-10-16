@@ -61,8 +61,11 @@ final class PlanAskService: ObservableObject {
     }
 
     /// Call after `ReviewPromptService.shared.noteAnswer`, which is what increments the count.
-    func noteAnswer(gatingDecision: String?, retrievedSourceCount: Int, isFreeTier: Bool) {
-        guard ReviewPromptService.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount) else { return }
+    func noteAnswer(
+        gatingDecision: String?, retrievedSourceCount: Int, isFreeTier: Bool, claims: [StructuredAnswer.Claim] = []
+    ) {
+        guard ReviewPromptService.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount, claims: claims)
+        else { return }
         let n = defaults.integer(forKey: verifiedCountKey)
         guard Self.shouldAsk(verifiedAnswers: n, isFreeTier: isFreeTier, alreadyShown: defaults.double(forKey: shownKey) > 0, isTesting: isTesting) else { return }
         wantsAsk = true

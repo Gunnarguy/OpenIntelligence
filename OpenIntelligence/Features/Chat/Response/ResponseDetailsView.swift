@@ -242,7 +242,7 @@ struct ChatResponseDetailsView: View {
     // MARK: - Verification Hero
 
     private var verificationStatus: VerificationInfo {
-        VerificationInfo.from(gatingDecision: metadata.gatingDecision)
+        VerificationInfo.from(gatingDecision: metadata.gatingDecision, claims: structuredAnswer?.claims ?? [])
     }
 
     private var verificationHero: some View {
@@ -683,7 +683,7 @@ struct ChatResponseDetailsView: View {
                     PerfMetricRow(label: "Embeddings", value: provider)
                 }
                 if let decision = metadata.gatingDecision {
-                    PerfMetricRow(label: "Verification", value: VerificationInfo.from(gatingDecision: decision).title)
+                    PerfMetricRow(label: "Verification", value: VerificationInfo.from(gatingDecision: decision, claims: structuredAnswer?.claims ?? []).title)
                 }
                 if metadata.usedAgenticMode {
                     PerfMetricRow(label: "Reasoning", value: "Multi-Session Agentic")
@@ -751,8 +751,8 @@ private struct VerificationInfo {
     /// One reading of the gating string for the bubble and this sheet (`VerificationOutcome`).
     /// Before 5.6 a missing string read "Verified Response: Answer passed all quality checks", and
     /// so did `unverified:<gates>` and `verification_skipped`.
-    static func from(gatingDecision: String?) -> VerificationInfo {
-        switch VerificationOutcome.from(gatingDecision: gatingDecision) {
+    static func from(gatingDecision: String?, claims: [StructuredAnswer.Claim] = []) -> VerificationInfo {
+        switch VerificationOutcome.from(gatingDecision: gatingDecision, claims: claims) {
         case .noSources:
             return VerificationInfo(
                 title: "No Sources Available",

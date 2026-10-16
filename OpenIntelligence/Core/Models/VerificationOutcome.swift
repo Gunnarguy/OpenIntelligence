@@ -22,7 +22,8 @@ nonisolated enum VerificationOutcome: Equatable, Sendable {
     case notSupported
     /// Retrieval found little that matched the question.
     case lowConfidence
-    /// The answer fell back to excerpts, or part of it was blocked.
+    /// The answer fell back to excerpts, or part of it was blocked, or Fact Check supported none of its claims and
+    /// found some partly supported (`from(gatingDecision:claims:)`).
     case partial
     /// Nothing in the library matched.
     case noSources
@@ -57,5 +58,18 @@ nonisolated enum VerificationOutcome: Equatable, Sendable {
             return .supported
         }
         return .notChecked
+    }
+
+    /// The gates' outcome read against the claims Fact Check checked (5.7). Fact Check under an answer counts the
+    /// claims it supported, and the gates can pass an answer whose every checked claim it left partial or
+    /// unsupported: on 2026-10-15 an answer saying a date was not in the owner's notes showed a green Verified over
+    /// "0 of 2 Verified". A passing outcome with no supported claim is partial when any claim is, and not supported
+    /// otherwise. An answer without checked claims reads as `from(gatingDecision:)`.
+    static func from(gatingDecision: String?, claims: [StructuredAnswer.Claim]) -> VerificationOutcome {
+        let outcome = from(gatingDecision: gatingDecision)
+        guard outcome == .supported else { return outcome }
+        let verdicts = claims.compactMap(\.verificationVerdict)
+        guard !verdicts.isEmpty, !verdicts.contains(.supported) else { return outcome }
+        return verdicts.contains(.partial) ? .partial : .notSupported
     }
 }

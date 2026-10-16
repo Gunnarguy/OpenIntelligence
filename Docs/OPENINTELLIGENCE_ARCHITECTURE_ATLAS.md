@@ -342,6 +342,8 @@ graph TD
 ### Query Answering Flow
 
 > **5.6, 2026-10-07: three changes after generation.** (1) The answer cleanup in `LLMService` (`deduplicateProseBlock`, `collapseFuzzySimilarSentences`, `collapseRepetitiveTemplates`) splits with `AnswerSentenceSplitter` and returns the text untouched unless it removes a repeat; sentences whose numbers or codes differ are never repeats. (2) `VerificationGateService.runGateE` passes on Gate B's claims when its similarity ratio is the only condition that failed and every claim is supported. (3) The bubble and the response details read the gating string through one classifier, `VerificationOutcome`, with a Not Checked state; inline citations are linked by chunk id through `CitationLinker`. Entries and evidence: `CHANGELOG.md`, 5.6. `[evidence_level: code_verified, confidence: high for what the code does, unverified on device]`
+
+> **5.7, 2026-10-15: the badge reads Fact Check's claims.** `VerificationOutcome.from(gatingDecision:claims:)` reads a passing gate outcome against the claims Gate B checked: with none supported it is `partial` when any claim is partial and `notSupported` otherwise. The bubble, the response details and the rating and plan prompts (`ReviewPromptService.isVerified`) all read it. Entries and evidence: `CHANGELOG.md`, 5.7. `[evidence_level: test_verified (VerificationOutcomeTests, ReviewPromptServiceTests), confidence: high for what the code does, unverified on device]`
 ```mermaid
 sequenceDiagram
   participant User
