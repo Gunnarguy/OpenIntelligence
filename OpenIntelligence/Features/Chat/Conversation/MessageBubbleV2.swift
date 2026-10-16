@@ -391,6 +391,8 @@ struct MessageBubbleV2: View {
 
     private func toggleHidden() {
         message.isHidden.toggle()
+        // A hidden answer leaves the "Your Library" widget too (5.7, `WidgetSnapshot`).
+        if message.isHidden { WidgetSnapshot.forgetAnswer(messageId: message.id) }
         DSHaptics.selection()
         withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
             showActions = false
@@ -409,6 +411,7 @@ struct MessageBubbleV2: View {
         message.userReportNotes = notes.isEmpty ? nil : notes
         if shouldHide {
             message.isHidden = true
+            WidgetSnapshot.forgetAnswer(messageId: message.id)
         }
 
         // Emit local telemetry (no network transmission).

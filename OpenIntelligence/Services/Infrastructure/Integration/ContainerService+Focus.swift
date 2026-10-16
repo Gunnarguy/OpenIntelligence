@@ -53,6 +53,13 @@ extension ContainerService {
         Log.info("[Focus] Library filter: \(allowed.count) librar\(allowed.count == 1 ? "y" : "ies")", category: .ui)
         if !allowed.contains(activeContainerId), let first = orderedContainers.first(where: { allowed.contains($0.id) }) {
             setActive(first.id)
+            #if !OPENINTELLIGENCE_ENGINE_SDK
+                // The "Your Library" widget follows the open library, and with no screen open nothing else would
+                // tell it (5.7, `WidgetSnapshot`). The count is the library's stored total; the app counts again
+                // when it opens.
+                WidgetSnapshot.recordLibrary(
+                    id: first.id, name: first.name, documentCount: documentCount(for: first.id))
+            #endif
         }
     }
 }

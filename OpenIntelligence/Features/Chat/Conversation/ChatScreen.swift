@@ -2099,12 +2099,24 @@ struct ChatScreen: View {
         if ragService.containerService.activeContainerId == containerId {
             messages.append(message)
             persistChatHistory(for: containerId)
+            recordForLibraryWidget(message, in: containerId)
             return
         }
 
         var history = ragService.chatHistory(for: containerId)
         history.append(message)
         ragService.persistChatHistory(history, for: containerId)
+    }
+
+    /// The "Your Library" widget shows the last question in the open library and the start of its answer (5.7,
+    /// `WidgetSnapshot`). Only an answer counts, which is a message with an answer's metadata: an error, a stopped
+    /// answer or a notice in the chat is not written. Called after the conversation is saved, so it has its id.
+    private func recordForLibraryWidget(_ message: ChatMessage, in containerId: UUID) {
+        guard message.role == .assistant, message.metadata != nil, !message.content.isEmpty else { return }
+        let question = message.traceQuery ?? messages.last(where: { $0.role == .user })?.content
+        WidgetSnapshot.recordAnswer(
+            question: question, answer: message.content, libraryId: containerId,
+            threadId: ragService.activeThreadId, messageId: message.id)
     }
 
     /// A request that ends in this screen: a new conversation, the camera, text to ask about, or an
@@ -2319,6 +2331,8 @@ struct ChatScreen: View {
         thinkingEvents.removeAll()
         requestedExecutionContext = .automatic
         ragService.clearChatHistory(for: ragService.containerService.activeContainerId)
+        // The "Your Library" widget drops the cleared conversation's last answer (5.7).
+        WidgetSnapshot.forgetAnswer(inLibrary: ragService.containerService.activeContainerId)
     }
 
     /// Stops generation immediately and preserves partial response

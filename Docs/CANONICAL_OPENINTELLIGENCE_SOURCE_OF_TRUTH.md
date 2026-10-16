@@ -61,6 +61,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - **Synchronization** (from 5.7; before it, see the line above): Thread files are synchronized bidirectionally via `WorkspaceSyncService.swift` on changes, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime) in `QuotaPolicy.swift`. `[evidence: code_verified, exact]`
 - Legacy `ChatMessage` remains untouched (EvidenceThread uses ChatMessage array for immutability).
 - RAGService and ChatScreen integration complete. ChatScreen features a slide-out ThreadSidebarView, enabling thread switching, creation, and deletion, with history persistence and loading managed asynchronously by RAGService.
+- Clearing a conversation (`ChatScreen.clearChat`), deleting one in `ThreadSidebarView`, hiding the answer (`MessageBubbleV2`), or sync removing the conversation after it was deleted on another device (`ContentView.refreshSharedWorkspaceIfNeeded`) drops that library's last question and answer from the "Your Library" widget's file in the app group (`WidgetSnapshot`, 5.7). The widget is not in the widget bundle until the App ID carries the app group. `[evidence_level: code_verified+test_verified (WidgetSnapshotTests), confidence: medium, evidence_source: WidgetSnapshot.swift, ChatScreen.swift, ThreadSidebarView.swift, MessageBubbleV2.swift, ContentView.swift]`
 
 ## 12. Phase Boundaries
 - Phase 0: Master Operating Rules (Complete)

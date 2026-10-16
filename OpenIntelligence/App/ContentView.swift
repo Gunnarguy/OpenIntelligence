@@ -355,6 +355,12 @@ struct ContentView: View {
         .onChange(of: scenePhase) { oldPhase, newPhase in
             handleScenePhaseChange(from: oldPhase, to: newPhase)
         }
+        // The "Your Library" widget shows the open library and its document count (5.7, `WidgetSnapshot`), written
+        // once an import ends rather than for every document it adds.
+        .onChange(of: widgetLibrary, initial: true) { _, library in
+            guard !library.importing else { return }
+            WidgetSnapshot.recordLibrary(id: library.id, name: library.name, documentCount: library.documentCount)
+        }
         .onChange(
             of: containerService.containers.map { "\($0.id.uuidString):\($0.syncMode.rawValue)" }.joined(separator: "|")
         ) { _, _ in
@@ -452,6 +458,27 @@ struct ContentView: View {
     }
 
     // MARK: - Scene Phase Handling for Transcript Persistence
+
+    /// The open library's name and document count, for the "Your Library" widget (5.7).
+    private struct WidgetLibrary: Equatable {
+        let id: UUID
+        let name: String
+        let documentCount: Int
+        let importing: Bool
+    }
+
+    /// Counted as the library screen counts (`DocumentLibraryView.filteredDocuments`): a document with no library is
+    /// in the first one. Not counted while an import runs, when the count changes with every document.
+    private var widgetLibrary: WidgetLibrary {
+        let activeId = containerService.activeContainerId
+        let name = containerService.activeContainer?.name ?? "Library"
+        guard !ragService.isProcessing else {
+            return WidgetLibrary(id: activeId, name: name, documentCount: 0, importing: true)
+        }
+        let firstId = containerService.containers.first?.id
+        let count = ragService.documents.reduce(0) { $0 + (($1.containerId ?? firstId) == activeId ? 1 : 0) }
+        return WidgetLibrary(id: activeId, name: name, documentCount: count, importing: false)
+    }
 
     /// Handle app lifecycle transitions for transcript persistence.
     ///
@@ -577,6 +604,10 @@ struct ContentView: View {
         }
 
         ragService.reloadWorkspaceData()
+        // A conversation deleted on another device is gone from here now; so is its answer on the widget (5.7).
+        WidgetSnapshot.forgetAnswer(unlessConversationExists: { threadId, libraryId in
+            (try? ragService.threadStore.getThread(id: threadId, containerId: libraryId)) != nil
+        })
     }
 
     @MainActor

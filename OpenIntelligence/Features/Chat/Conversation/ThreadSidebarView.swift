@@ -73,6 +73,8 @@ struct ThreadSidebarView: View {
                                 onThreadSelected(ragService.activeThreadId ?? UUID())
                             }
                         }
+                        // The "Your Library" widget drops a deleted conversation's last answer (5.7).
+                        WidgetSnapshot.forgetAnswer(inLibrary: containerId)
                         loadThreads()
                     }
                 }
