@@ -12,6 +12,7 @@ struct PlanUpgradeSheet: View {
     @EnvironmentObject private var entitlementStore: EntitlementStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var purchasingProduct: BillingProduct?
     @State private var alertMessage: String?
     @State private var isRefreshingProducts: Bool = false
@@ -129,6 +130,10 @@ struct PlanUpgradeSheet: View {
                 .ignoresSafeArea()
             )
             .navigationTitle("Workspace Plans")
+            #if os(iOS)
+            // Inline at accessibility text sizes, where the large title was cut to "Workspace..." (5.7).
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -187,7 +192,7 @@ extension PlanUpgradeSheet {
                 .font(.title2.weight(.semibold))
             Text(entryPoint.subheadline)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DSColors.secondaryText)
             HStack {
                 Label("Current plan: \(entitlementStore.activeTier.displayName)", systemImage: "creditcard")
                     .font(.caption.weight(.semibold))
@@ -205,14 +210,26 @@ extension PlanUpgradeSheet {
     /// `AppStoreRatingSnapshot.minimumRatingCount`. Until 5.4 this banner said "Upgrade anytime,
     /// cancel in App Store settings", which is a footer, not proof.
     fileprivate var socialProofBanner: some View {
+        // The words in the label color and the color in the icons (5.7): gray words on the purple tint measured 3.34
+        // to 1.
         VStack(alignment: .leading, spacing: 6) {
-            Label("App Store privacy label: Data Not Collected", systemImage: "hand.raised.fill")
+            Label {
+                Text("App Store privacy label: Data Not Collected")
+            } icon: {
+                Image(systemName: "hand.raised.fill")
+                    .foregroundStyle(DSColors.readable(.purple))
+            }
             if let rating = AppStoreRatingService.cached(), rating.isWorthShowing {
-                Label(rating.line, systemImage: "star.fill")
+                Label {
+                    Text(rating.line)
+                } icon: {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(DSColors.readable(.purple))
+                }
             }
         }
         .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(DSColors.primaryText)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -291,28 +308,43 @@ extension PlanUpgradeSheet {
         )
     }
 
+    /// As tall as its tallest page plus the page dots (5.7), measured from a hidden copy of the pages behind it. At a
+    /// fixed 170 points the first page's last line ran under the dots at the default text size, and larger text was
+    /// cut.
     fileprivate var storyCarousel: some View {
-        TabView(selection: $selectedStoryIndex) {
+        ZStack {
             ForEach(storySlides.indices, id: \.self) { index in
-                let slide = storySlides[index]
-                storySlideView(slide)
+                storySlideView(storySlides[index])
                     .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(slide.tint.opacity(0.15))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(slide.tint.opacity(0.2), lineWidth: 1)
-                    )
-                    .tag(index)
             }
         }
-        .frame(height: 170)
-        #if os(iOS)
-            .tabViewStyle(.page(indexDisplayMode: .always))
-        #endif
-        .accessibilityLabel("Plan value stories")
+        .padding(.bottom, 36)
+        .hidden()
+        .accessibilityHidden(true)
+        .overlay {
+            TabView(selection: $selectedStoryIndex) {
+                ForEach(storySlides.indices, id: \.self) { index in
+                    let slide = storySlides[index]
+                    storySlideView(slide)
+                        .padding(16)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(slide.tint.opacity(0.15))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(slide.tint.opacity(0.2), lineWidth: 1)
+                        )
+                        .padding(.bottom, 36)
+                        .tag(index)
+                }
+            }
+            #if os(iOS)
+                .tabViewStyle(.page(indexDisplayMode: .always))
+            #endif
+            .accessibilityLabel("Plan value stories")
+        }
     }
 
     fileprivate func storySlideView(_ slide: PlanStorySlide) -> some View {
@@ -327,9 +359,11 @@ extension PlanUpgradeSheet {
             VStack(alignment: .leading, spacing: 6) {
                 Text(slide.title)
                     .font(.headline)
+                // The label color on the slide's tint, where gray measured 4.53 to 1 on the orange one (5.7).
                 Text(slide.subtitle)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DSColors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }

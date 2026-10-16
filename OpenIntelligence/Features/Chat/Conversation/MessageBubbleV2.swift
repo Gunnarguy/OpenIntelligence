@@ -108,9 +108,10 @@ struct MessageBubbleV2: View {
                         )
                     } else {
                         // Message content
+                        // 14 points at the default text size, scaled with Dynamic Type on iPhone and iPad (5.7).
                         MarkdownText(
                             message.content,
-                            font: .system(size: 14, weight: .regular),
+                            scaledSize: 14,
                             foregroundColor: isUser ? .white : DSColors.primaryText
                         )
 
@@ -140,7 +141,7 @@ struct MessageBubbleV2: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: showReasoningTrace ? "chevron.down" : "chevron.right")
-                                        .font(.system(size: 10, weight: .medium))
+                                        .scaledFont(size: 10, weight: .medium)
                                     
                                     let modeIcon: String = {
                                         let mode = message.metadata?.qualityModeName?.lowercased() ?? ""
@@ -150,16 +151,16 @@ struct MessageBubbleV2: View {
                                     }()
                                     
                                     Image(systemName: modeIcon)
-                                        .font(.system(size: 10))
+                                        .scaledFont(size: 10)
                                     
                                     Text("Reasoning Process")
-                                        .font(.system(size: 13, weight: .medium))
+                                        .scaledFont(size: 13, weight: .medium)
                                     Text("(\(displayedReasoningTrace.count) steps)")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
+                                        .scaledFont(size: 11)
+                                        .foregroundStyle(DSColors.secondaryText)
                                     Spacer()
                                 }
-                                .foregroundStyle(DSColors.accent)
+                                .foregroundStyle(DSColors.readable(DSColors.accent))
                             }
                             .buttonStyle(.plain)
 
@@ -229,14 +230,17 @@ struct MessageBubbleV2: View {
                         Button {
                             showDetails = true
                         } label: {
+                            // 44 points tall to tap, Apple's minimum, with the chip drawn as before (5.7).
                             ResponseRouteBadge(descriptor: descriptor)
+                                .frame(minHeight: DSSpacing.tapTarget)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
 
                     Text(relativeTime(message.timestamp))
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.secondary.opacity(0.6))
+                        .scaledFont(size: 10)
+                        .foregroundStyle(DSColors.secondaryText)
 
                     // Mode indicator for assistant messages
                     if !isUser, let meta = message.metadata {
@@ -244,19 +248,19 @@ struct MessageBubbleV2: View {
                             let isMaximum = meta.qualityModeName == "Maximum"
                             HStack(spacing: 2) {
                                 Image(systemName: isMaximum ? "flame.fill" : "brain")
-                                    .font(.system(size: 8, weight: .medium))
+                                    .scaledFont(size: 8, weight: .medium)
                                 Text(isMaximum ? "Max" : "Deep")
-                                    .font(.system(size: 9, weight: .medium))
+                                    .scaledFont(size: 9, weight: .medium)
                             }
-.foregroundStyle(isMaximum ? .orange.opacity(0.8) : .purple.opacity(0.7))
+                            .foregroundStyle(isMaximum ? DSColors.readable(.orange) : DSColors.readable(.purple))
                         } else if meta.canGoDeeper {
                             HStack(spacing: 2) {
                                 Image(systemName: "bolt")
-                                    .font(.system(size: 8, weight: .medium))
+                                    .scaledFont(size: 8, weight: .medium)
                                 Text("Standard")
-                                    .font(.system(size: 9, weight: .medium))
+                                    .scaledFont(size: 9, weight: .medium)
                             }
-                            .foregroundStyle(.blue.opacity(0.6))
+                            .foregroundStyle(DSColors.readable(.blue))
                         }
 
                         // Verification gate inline badge
@@ -312,13 +316,13 @@ struct MessageBubbleV2: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: "eye.slash")
-                    .font(.system(size: 12, weight: .semibold))
+                    .scaledFont(size: 12, weight: .semibold)
                 Text("Message hidden")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(size: 13, weight: .semibold)
             }
             Text("Tap to view actions")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.secondary)
+                .scaledFont(size: 12)
+                .foregroundStyle(DSColors.secondaryText)
         }
         .foregroundStyle(DSColors.primaryText)
     }
@@ -536,9 +540,16 @@ private struct ResponseRouteBadge: View {
     }
 
     var body: some View {
-        Label(descriptor.title, systemImage: descriptor.systemImage)
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(color)
+        // The words in the label color and the route's color in the icon and the tint, as on the other tinted
+        // chips (5.7).
+        Label {
+            Text(descriptor.title)
+        } icon: {
+            Image(systemName: descriptor.systemImage)
+                .foregroundStyle(DSColors.readable(color))
+        }
+            .scaledFont(size: 9, weight: .semibold)
+            .foregroundStyle(DSColors.primaryText)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(color.opacity(0.13), in: Capsule())
@@ -589,8 +600,10 @@ private struct ReasoningStepView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(spacing: 0) {
+                // The step's color in its dot; its name in the label color, because green words measured under 4.5
+                // to 1 even in Apple's high-contrast green (5.7).
                 Circle()
-                    .fill(stepColor.opacity(0.2))
+                    .fill(DSColors.readable(stepColor))
                     .frame(width: 8, height: 8)
                 
                 Rectangle()
@@ -605,12 +618,12 @@ private struct ReasoningStepView: View {
                 let content = parts.count > 1 ? parts.dropFirst().joined(separator: ": ") : step
 
                 Text(label)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(stepColor)
+                    .scaledFont(size: 11, weight: .bold)
+                    .foregroundStyle(DSColors.primaryText)
                     .textCase(.uppercase)
 
                 Text(content)
-                    .font(.system(size: 13))
+                    .scaledFont(size: 13)
                     .foregroundStyle(DSColors.primaryText.opacity(0.8))
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
@@ -646,13 +659,16 @@ private struct VerificationBadge: View {
     }
 
     var body: some View {
+        // The words in the label color and the status color in the icon and the tint, as on the other tinted
+        // chips (5.7).
         HStack(spacing: 3) {
             Image(systemName: status.icon)
-                .font(.system(size: 8, weight: .bold))
+                .scaledFont(size: 8, weight: .bold)
+                .foregroundStyle(DSColors.readable(status.color))
             Text(status.label)
-                .font(.system(size: 10, weight: .medium))
+                .scaledFont(size: 10, weight: .medium)
         }
-        .foregroundStyle(status.color)
+        .foregroundStyle(DSColors.primaryText)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .background(

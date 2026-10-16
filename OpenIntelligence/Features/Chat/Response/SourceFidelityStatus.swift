@@ -74,27 +74,27 @@ struct SourceFidelityStatus: View {
                     .fill(level.color.opacity(0.15))
                     .frame(width: 40, height: 40)
                 Image(systemName: level.icon)
-                    .font(.system(size: 20, weight: .semibold))
+                    .scaledFont(size: 20, weight: .semibold)
                     .foregroundStyle(level.color)
             }
             
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(level.title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(size: 14, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
                     
                     if let score = score, score > 0 {
                         Text(String(format: "(%.0f%% fidelity)", score * 100))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .scaledFont(size: 11)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
                 
                 Text(level.description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .scaledFont(size: 11)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
             Spacer()

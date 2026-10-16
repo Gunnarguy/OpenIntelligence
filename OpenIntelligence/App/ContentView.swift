@@ -114,6 +114,11 @@ struct ContentView: View {
                     onOpenSettings: { selectedTab = .settings },
                     onOpenChat: { selectedTab = .chat }
                 )
+                // Modal for VoiceOver (5.7): the welcome screen covers Chat, and VoiceOver should stay on it.
+                // `accessibilityHidden` on the tabs did not take Chat out of Apple's audit, and this does not either
+                // (it still lists Chat's pills behind the welcome screen); what VoiceOver does here is not checked on a
+                // device.
+                .accessibilityAddTraits(.isModal)
                 .transition(.opacity.combined(with: .scale))
                 .zIndex(1)
             }

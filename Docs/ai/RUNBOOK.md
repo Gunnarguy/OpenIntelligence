@@ -1530,15 +1530,39 @@ text are measured separately, for two reasons found on 2026-10-15 and 16:
   where the screenshot shows it: "PCC Available" at the largest size was reported about 90 points below the pill and
   "measured" 1.13 to 1 on empty card background; where it is drawn it is 14.5 to 16.8 to 1. Measure a reported item
   where the screenshot shows it.
+- **It names no element on a view that changes while it reads** (added 2026-10-16, pass 3). On the import panel while
+  the sample documents imported, all 101 issues at the default size in light came with no element: the rows and the
+  console change faster than its checks. Paused, the panel holds still and most issues name their element (31 of 46 in
+  dark at the default size; scratch run t3, 2026-10-16, `BenchmarkRuns/2026-10-16-accessibility-pass-3/audit-t3-*`). Judge a running panel from its screenshots. At the largest sizes they showed what the
+  audit never named: words broken in the middle ("Pause / d", "Com / plete"), buttons cut to "Conti..." and
+  "Disc...", and files out of reach under a panel that did not scroll.
+- **It audits what an overlay covers.** On the first-run screen it reported Chat's pills, which sit fully behind the
+  welcome screen, as failing contrast at 1.01 to 1, the welcome screen's own pixels (runs t3 and t4).
+  `accessibilityAddTraits(.isModal)` on the welcome screen does not change that; what it does for VoiceOver is not
+  checked on a device. Items whose frame on the screenshot shows only the covering view are not
+  the covered view's defects.
+- **Text hidden from VoiceOver while it shows is an element-check failure.** A "•" separator with
+  `accessibilityHidden(true)` was reported as "Potentially inaccessible text" (`.elementDetection`, which
+  `AccessibilityAuditTests` runs) on a filled library's footer (2026-10-16). Draw separators as shapes, or keep the
+  text readable inside one element.
+- **Tiny text gets offset frames.** A Fact Check line's "•" separators and its "FACT CHECK" heading measured 1.10 to
+  1.17 inside the frames the audit gave them, which fell beside the drawn text. A separate text for each "•" was also
+  what the audit counted one issue each for; one text per line gives it one element.
 
 The four settings are `xcrun simctl ui <sim> appearance light|dark` and `xcrun simctl ui <sim> content_size
 large|accessibility-extra-extra-extra-large`, set after the simulator boots. `.caption2` text is always reported as
 "Dynamic Type partially unsupported" (it never goes below 11 points) although it grows past 200%, which is what Apple's
-Larger Text label asks. Apple's criteria for the labels: developer.apple.com, "Sufficient Contrast evaluation criteria"
+Larger Text label asks. Text drawn with `scaledFont(size:...)` (`Theme.swift`, a fixed design size scaled by
+`@ScaledMetric` relative to Body) gets the same verdict on the question bubble and the answer text (2026-10-16, run
+t4), and grows with Body: Body is 17 points at the default size and 53 at the largest accessibility size, so 14 points
+become about 44. Apple's criteria for the labels: developer.apple.com, "Sufficient Contrast evaluation criteria"
 and "Larger Text evaluation criteria" (read 2026-10-16): 4.5 to 1 for most text, light and dark, by default; text that
 grows to 200% or the system maximum without overlapping or severe truncation. The runs and their numbers are in
-`BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/`, `BenchmarkRuns/2026-10-16-accessibility-pass-1/` and
-`BenchmarkRuns/2026-10-16-accessibility-pass-2/`. Rows that wrap by what fits (`WrappingRowLayout` in Chat's header and
+`BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/`, `BenchmarkRuns/2026-10-16-accessibility-pass-1/`,
+`BenchmarkRuns/2026-10-16-accessibility-pass-2/` and, for the rest of the common tasks (the first-run screen, an
+answer with its sources and a refusal, the import panel, the library, a document's page and the plans screen),
+`BenchmarkRuns/2026-10-16-accessibility-pass-3/`, whose `run_common_tasks.sh` and `AccessibilityLabelMeasurement.swift`
+run them. Rows that wrap by what fits (`WrappingRowLayout` in Chat's header and
 Settings' identity row) also want a run at `extra-extra-extra-large`, the largest size below the accessibility
 sizes, and a look at a screen narrower than the test simulator's 402 points. `[evidence_level: measured (iOS 27.0
 Simulator, 2026-10-15 and 16), confidence: high for the behaviour described, medium for why the audit sees only the

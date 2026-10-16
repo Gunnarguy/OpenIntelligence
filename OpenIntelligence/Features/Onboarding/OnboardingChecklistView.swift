@@ -156,7 +156,10 @@ struct OnboardingChecklistView: View {
                     startWithSamples()
                 } label: {
                     HStack(spacing: 8) {
+                        // Wraps at the largest text sizes instead of being cut to "See It in Act..." (5.7).
                         Text("See It in Action").font(.headline)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                         Image(systemName: "play.fill").font(.system(size: 13))
                     }
                     .foregroundStyle(palette.buttonLabel)
@@ -174,6 +177,9 @@ struct OnboardingChecklistView: View {
                 } label: {
                     Text("I'll add my own documents")
                         .font(.subheadline.weight(.medium))
+                        // Wraps at the largest sizes, under the taller button above it (5.7).
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundStyle(palette.ink(0.7))
                         .frame(minWidth: 44, minHeight: 44)
                         .padding(.horizontal, 16)
@@ -1190,10 +1196,13 @@ private struct UseCaseCard: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(docType).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
-                Text("\"\(exampleQuestion)\"").font(.caption).foregroundStyle(palette.ink(0.6)).italic().lineLimit(2)
+                // 75% ink and no line limit (5.7): at 60% the question measured 4.47 to 1 in light, and two lines cut
+                // one of them mid-sentence; the page scrolls when it needs the room.
+                Text("\"\(exampleQuestion)\"").font(.caption).foregroundStyle(palette.ink(0.75)).italic()
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
-            Image(systemName: "arrow.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(palette.ink(0.3))
+            Image(systemName: "arrow.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(palette.ink(0.55))
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
         .background(

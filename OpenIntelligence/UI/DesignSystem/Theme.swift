@@ -229,6 +229,38 @@ public enum DSTypography {
     public static var code: Font { .system(.caption, design: .monospaced) }
 }
 
+/// A system font at a fixed design size that follows the text size on iPhone and iPad (5.7).
+///
+/// For text drawn at a point size of its own (the answer, its Fact Check, chat metadata), which Apple's audit read as
+/// "Dynamic Type font sizes are unsupported": `size` is what it draws at the default text size, and `@ScaledMetric`
+/// scales it with the setting relative to `relativeTo`, up and down. The Mac has no Dynamic Type, so there it stays
+/// `size`; a text style would have made it smaller there (the Mac's footnote is 10 points, its body 13).
+private struct ScaledSystemFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+    private let design: Font.Design
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design, relativeTo textStyle: Font.TextStyle) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
+        self.weight = weight
+        self.design = design
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: design))
+    }
+}
+
+public extension View {
+    /// `size` points at the default text size, scaled with Dynamic Type on iPhone and iPad (see `ScaledSystemFont`).
+    func scaledFont(
+        size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> some View {
+        modifier(ScaledSystemFont(size: size, weight: weight, design: design, relativeTo: textStyle))
+    }
+}
+
 // MARK: - Spacing
 
 /// A 4-point grid, matching the values the app actually reaches for.
@@ -247,6 +279,16 @@ public enum DSSpacing {
     public static let lg: CGFloat = 16
     public static let xl: CGFloat = 24
     public static let xxl: CGFloat = 32
+    /// What a control takes to tap: 44 by 44 points on iPhone and iPad, Apple's default control size there (Human
+    /// Interface Guidelines, Accessibility, read 2026-10-15). The Mac is clicked with a pointer and keeps 28, the size
+    /// the import panel's circles are drawn at (5.7).
+    public static let tapTarget: CGFloat = {
+#if os(macOS)
+        28
+#else
+        44
+#endif
+    }()
 }
 
 // MARK: - Corners

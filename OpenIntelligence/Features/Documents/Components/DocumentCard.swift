@@ -12,6 +12,7 @@ struct ModernDocumentCard: View {
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var workspaceSyncService: WorkspaceSyncService
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showingDeleteAlert = false
     @State private var deleteMode: DeleteMode = .local
 
@@ -56,33 +57,35 @@ struct ModernDocumentCard: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
+                // The name and its figures grow with the text size, and the figures in the readable gray go onto
+                // further lines when they do not fit across (5.7): gray on this card measured 3.38 to 1.
                 Text(document.filename)
-                    .font(.system(size: 16, weight: .bold))
+                    .scaledFont(size: 16, weight: .bold)
                     .foregroundColor(.primary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
 
-                HStack(spacing: 12) {
+                WrappingRowLayout(spacing: 12, lineSpacing: 4) {
                     HStack(spacing: 4) {
                         Image(systemName: "cube.box.fill")
                         Text("\(document.totalChunks)")
                     }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium)
+                    .foregroundStyle(DSColors.secondaryText)
 
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
                         Text(document.addedAt, style: .relative)
                     }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .scaledFont(size: 11, weight: .medium)
+                    .foregroundStyle(DSColors.secondaryText)
                     
                     if isSharedICloudDocument {
                         HStack(spacing: 4) {
                             Image(systemName: "icloud.fill")
                             Text("Synced")
                         }
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.blue.opacity(0.8))
+                        .scaledFont(size: 11, weight: .bold)
+                        .foregroundStyle(DSColors.readable(.blue))
                     }
                 }
 
@@ -101,9 +104,11 @@ struct ModernDocumentCard: View {
                 .foregroundColor(.secondary.opacity(0.5))
         }
         .padding(12)
+        // The regular material, a little more opaque than the thin one it replaces, so gray text on the card reads at
+        // 4.5 to 1 over the library's background (5.7).
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(.regularMaterial)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -235,11 +240,13 @@ struct ContentTagsRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        // The words in the label color, the tag's color in its tint and edge, and the tags on further lines when they
+        // do not fit across (5.7).
+        WrappingRowLayout(spacing: 6, lineSpacing: 4) {
             ForEach(Array(tags.enumerated()), id: \.offset) { index, tag in
                 Text(tag)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(tagTextColor(for: index).opacity(0.9))
+                    .scaledFont(size: 9, weight: .bold)
+                    .foregroundStyle(DSColors.primaryText)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
@@ -255,8 +262,9 @@ struct ContentTagsRow: View {
             if hasMoreTags {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.secondary.opacity(0.6))
+                    .foregroundStyle(DSColors.secondaryText)
                     .padding(.leading, 2)
+                    .accessibilityLabel("More tags")
             }
         }
     }

@@ -6201,6 +6201,9 @@ class RAGService: ObservableObject {
         liveActivityTrackedIngestionIds.subtract(activeIds)
         isProcessing = false
         processingStatus = ""
+        // Nothing is paused once the queue is gone (5.7). Left set, it made the next import's end of background time
+        // return early in `handleContinuedIngestionExpiration`, so that import was neither set aside nor queued again.
+        ingestionPausedByPerson = false
         savePersistedIngestionQueueState()
         syncIngestionLiveActivity()
         Log.info(
@@ -6407,6 +6410,17 @@ class RAGService: ObservableObject {
         savesQueue: Bool = true,
         metricsUpdate: ((inout PipelineMetrics) -> Void)? = nil
     ) {
+        // A file the person paused stays paused until Continue, Discard or its own Cancel (5.7). The task the pause
+        // cancelled runs on to its next cancellation check, and its progress can land after the pause: on
+        // 2026-10-16, in the Simulator, "Storing" replaced "Paused" on a file whose embedding had just finished, and
+        // Continue, which takes the paused files, left that one at "Storing" with nothing importing it. An end still
+        // lands: a store that finished before the check put the file in the library, and Cancel on a paused file
+        // ends it through here.
+        if let id, let index = ingestionItems.firstIndex(where: { $0.id == id }),
+            ingestionItems[index].stage == .paused, stage != .paused, !stage.isTerminal
+        {
+            return
+        }
         processingStatus = "\(filename) • \(detail)"
         guard let id, let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
 

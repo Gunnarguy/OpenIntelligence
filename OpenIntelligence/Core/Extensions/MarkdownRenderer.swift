@@ -682,6 +682,11 @@ public struct MarkdownText: View {
     public let font: Font
     public let foregroundColor: Color
     private let fontSize: CGFloat
+    /// Set by `init(_:scaledSize:foregroundColor:)`: the text and its headings are drawn at this size at the default
+    /// text size and scale with Dynamic Type on iPhone and iPad (5.7).
+    private let scaledSize: CGFloat?
+    /// 1 at the default text size; how much Dynamic Type scales body text. Always 1 on the Mac.
+    @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
 
     public init(_ text: String, font: Font = .body, foregroundColor: Color = .primary) {
         self.text = text
@@ -689,6 +694,18 @@ public struct MarkdownText: View {
         self.foregroundColor = foregroundColor
         // Extract size from common font patterns, default 15
         self.fontSize = 15
+        self.scaledSize = nil
+    }
+
+    /// The answer's text (5.7): `scaledSize` points at the default text size, scaled with Dynamic Type on iPhone and
+    /// iPad and fixed on the Mac. A fixed `.system(size:)` here is what Apple's audit read as "Dynamic Type font sizes
+    /// are unsupported" on every answer.
+    public init(_ text: String, scaledSize: CGFloat, foregroundColor: Color = .primary) {
+        self.text = text
+        self.font = .system(size: scaledSize)
+        self.foregroundColor = foregroundColor
+        self.fontSize = scaledSize
+        self.scaledSize = scaledSize
     }
 
     /// Initializer with explicit font size for block-level heading scaling
@@ -697,21 +714,25 @@ public struct MarkdownText: View {
         self.font = font
         self.fontSize = fontSize
         self.foregroundColor = foregroundColor
+        self.scaledSize = nil
     }
 
     public var body: some View {
         let blocks = MarkdownParser.parse(text)
+        let size = scaledSize.map { $0 * textScale }
+        let bodyFont = size.map { Font.system(size: $0) } ?? font
+        let headingBase = size ?? fontSize
 
         // Fast path: if it's just one paragraph, render inline-only (no VStack overhead)
         if blocks.count == 1, case .paragraph = blocks[0] {
-            InlineMarkdownText(text: text, font: font, foregroundColor: foregroundColor)
+            InlineMarkdownText(text: text, font: bodyFont, foregroundColor: foregroundColor)
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                     MarkdownBlockView(
                         block: block,
-                        font: font,
-                        fontSize: fontSize,
+                        font: bodyFont,
+                        fontSize: headingBase,
                         foregroundColor: foregroundColor
                     )
                 }

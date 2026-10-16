@@ -32,9 +32,10 @@ struct GroundedAnswerView: View {
                 retrievedChunks: retrievedChunks
             )
             
+            // 14 points at the default text size, scaled with Dynamic Type on iPhone and iPad (5.7).
             MarkdownText(
                 linkedAnswer,
-                font: .system(size: 14, weight: .regular),
+                scaledSize: 14,
                 foregroundColor: DSColors.primaryText
             )
             .environment(\.openURL, OpenURLAction { url in
@@ -65,19 +66,22 @@ struct GroundedAnswerView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("FACT CHECK")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .scaledFont(size: 9, weight: .bold)
+                            .foregroundStyle(DSColors.secondaryText)
                             .tracking(1)
                         
                         Spacer()
                         
+                        // The words in the label color and the mode's color in the icon and the tint, as on the
+                        // other tinted chips (5.7).
                         HStack(spacing: 3) {
                             Image(systemName: "shield.checkered")
-                                .font(.system(size: 9))
+                                .scaledFont(size: 9)
+                                .foregroundStyle(DSColors.readable(modeColor))
                             Text(Self.factCheckSummary(for: answer.claims))
-                                .font(.system(size: 9, weight: .medium))
+                                .scaledFont(size: 9, weight: .medium)
                         }
-                        .foregroundStyle(modeColor)
+                        .foregroundStyle(DSColors.primaryText)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(modeColor.opacity(0.1))
@@ -110,17 +114,17 @@ struct GroundedAnswerView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
                         Image(systemName: "questionmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.orange)
+                            .scaledFont(size: 12)
+                            .foregroundStyle(DSColors.readable(.orange))
                         Text("Information Gaps")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.orange)
+                            .scaledFont(size: 12, weight: .semibold)
+                            .foregroundStyle(DSColors.readable(.orange))
                     }
                     
                     ForEach(answer.missing, id: \.self) { item in
                         Text("• \(item)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .scaledFont(size: 12)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
                 .padding(10)
@@ -157,6 +161,15 @@ private struct ClaimCard: View {
     let evidence: [StructuredAnswer.Evidence]
     let isExpanded: Bool
     let onTap: () -> Void
+
+    /// " • 1 Source", " • 3 Sources", or nothing when no source backs the claim.
+    private var sourcesSuffix: String {
+        switch claim.evidenceIds.count {
+        case 0: return ""
+        case 1: return " • 1 Source"
+        default: return " • \(claim.evidenceIds.count) Sources"
+        }
+    }
     
     var body: some View {
         Button(action: onTap) {
@@ -169,49 +182,38 @@ private struct ClaimCard: View {
                             .frame(width: 20, height: 20)
                         
                         Image(systemName: verdictIcon)
-                            .font(.system(size: 10, weight: .bold))
+                            .scaledFont(size: 10, weight: .bold)
                             .foregroundStyle(verdictColor)
                     }
                     
                     VStack(alignment: .leading, spacing: 1) {
                         Text(GroundedAnswerView.inlineMarkdown(claim.claim))
-                            .font(.system(size: 12, weight: .medium))
+                            .scaledFont(size: 12, weight: .medium)
                             .foregroundStyle(DSColors.primaryText)
-                            .lineLimit(isExpanded ? nil : 2)
+                            // The whole claim, open or closed: opening adds the evidence, and two lines cut a
+                            // claim off at the larger text sizes (5.7).
+                            .fixedSize(horizontal: false, vertical: true)
                             .multilineTextAlignment(.leading)
                         
                         if !isExpanded {
-                            HStack(spacing: 3) {
-                                Text(verdictTitle)
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(verdictColor)
-                                
-                                Text("•")
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(.tertiary)
-                                
-                                Text("\(Int(claim.confidence * 100))% Conf.")
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(.secondary)
-                                
-                                if claim.evidenceIds.count > 0 {
-                                    Text("•")
-                                        .font(.system(size: 8))
-                                        .foregroundStyle(.tertiary)
-                                    
-                                    Text("\(claim.evidenceIds.count) Sources")
-                                        .font(.system(size: 8))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                            // One text, so that at the largest sizes it wraps between words: as five texts side by
+                            // side it was squeezed until "SUPPORTED" broke into "SUPP / ORTE / D" (5.7). The word is
+                            // in the label color, the verdict's color in the icon: Apple's high-contrast green
+                            // measured 4.07 to 1 on the card's gray.
+                            Text(
+                                "\(Text(verdictTitle).fontWeight(.bold).foregroundStyle(DSColors.primaryText)) • \(Int(claim.confidence * 100))% Conf.\(sourcesSuffix)"
+                            )
+                            .scaledFont(size: 8)
+                            .foregroundStyle(DSColors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     
                     Spacer()
                     
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.tertiary)
+                        .scaledFont(size: 9, weight: .bold)
+                        .foregroundStyle(DSColors.secondaryText)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
                 
@@ -219,8 +221,8 @@ private struct ClaimCard: View {
                     VStack(alignment: .leading, spacing: 10) {
                         if let details = claim.verificationDetails {
                             Text(details)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .scaledFont(size: 11)
+                                .foregroundStyle(DSColors.secondaryText)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 6)
                                 .background(verdictColor.opacity(0.05))
@@ -233,26 +235,26 @@ private struct ClaimCard: View {
                         if !relevantEvidence.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("SUPPORTING EVIDENCE")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(.tertiary)
+                                    .scaledFont(size: 8, weight: .bold)
+                                    .foregroundStyle(DSColors.secondaryText)
                                     .padding(.leading, 28)
                                 
                                 ForEach(relevantEvidence, id: \.evidenceId) { ev in
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text("\"\(ev.quote)\"")
-                                            .font(.system(size: 10, weight: .medium, design: .serif))
+                                            .scaledFont(size: 10, weight: .medium, design: .serif)
                                             .foregroundStyle(DSColors.primaryText.opacity(0.9))
                                             .italic()
                                         
                                         HStack(spacing: 3) {
                                             Image(systemName: "doc.fill")
-                                                .font(.system(size: 7))
+                                                .scaledFont(size: 7)
                                             Text(ev.documentName ?? "Unknown")
                                             if let page = ev.page {
                                                 Text("• P.\(page)")
                                             }
                                         }
-                                        .font(.system(size: 8, weight: .bold))
+                                        .scaledFont(size: 8, weight: .bold)
                                         .foregroundStyle(DSColors.accent)
                                     }
                                     .padding(8)
@@ -268,8 +270,8 @@ private struct ClaimCard: View {
                             Spacer().frame(width: 20)
                             
                             Text("CONFIDENCE")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(.tertiary)
+                                .scaledFont(size: 8, weight: .bold)
+                                .foregroundStyle(DSColors.secondaryText)
                             
                             ProgressView(value: claim.confidence)
                                 .progressViewStyle(.linear)
@@ -277,8 +279,8 @@ private struct ClaimCard: View {
                                 .frame(width: 50)
                             
                             Text("\(Int(claim.confidence * 100))%")
-                                .font(.system(size: 9, weight: .bold, design: .rounded))
-                                .foregroundStyle(verdictColor)
+                                .scaledFont(size: 9, weight: .bold, design: .rounded)
+                                .foregroundStyle(DSColors.primaryText)
                         }
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -302,12 +304,14 @@ private struct ClaimCard: View {
         evidence.filter { claim.evidenceIds.contains($0.evidenceId) }
     }
     
+    /// The readable variants (5.7), for the verdict's icon and tints. Its word ("SUPPORTED") is in the label color:
+    /// Apple's high-contrast green measured 4.07 to 1 on the card.
     private var verdictColor: Color {
         switch claim.verificationVerdict {
-        case .supported: return .green
-        case .partial: return .orange
-        case .unsupported: return .red
-        case nil: return .blue
+        case .supported: return DSColors.readable(.green)
+        case .partial: return DSColors.readable(.orange)
+        case .unsupported: return DSColors.readable(.red)
+        case nil: return DSColors.readable(.blue)
         }
     }
     

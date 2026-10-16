@@ -932,8 +932,14 @@ The file being imported stops the way it does when iOS ends the app's background
 imported in pieces keeps its checkpoint and goes on from its last saved piece, any other file starts
 over, and the paused item says which. Waiting files are paused too, and the queue waits for Continue
 or Discard, as after a restart. `ingestionPausedByPerson` keeps the end of the stopped import from
-queueing it again (`handleContinuedIngestionExpiration` returns at once while it is set).
-`[evidence_level: test_verified (PauseIngestionTests), confidence: medium; not paused on a device]`
+queueing it again (`handleContinuedIngestionExpiration` returns at once while it is set). A paused
+file stays paused until Continue, Discard or its own Cancel: `updateIngestionItem` drops any other
+stage for it. The cancelled task runs on to its next cancellation check, and on 2026-10-16 its
+"Storing" landed after the pause on a file whose embedding had just finished, so Continue, which
+takes the paused files, left that one at "Storing" with nothing importing it until the app was
+opened again (a Simulator run of the accessibility audit, `pipeline_trace.log`: "The person paused 3
+import(s)", then "User resumed 2"). An end (done, failed, cancelled) still lands.
+`[evidence_level: test_verified (PauseIngestionTests, four tests), confidence: medium; not paused on a device]`
 
 **Text left by an unfinished import.** An import stores the document's text in the keyword store
 before its record, so an app ended in the middle of one left text with no document. Once a launch,

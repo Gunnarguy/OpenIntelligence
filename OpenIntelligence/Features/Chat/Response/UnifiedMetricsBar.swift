@@ -276,51 +276,56 @@ struct UnifiedMetricsBar: View {
 
     private var mainCompactStrip: some View {
         VStack(spacing: 6) {
-            // Row 1: Primary metrics - adapts per mode
-            HStack(spacing: 6) {
-                // 1. QUALITY MODE BADGE - Distinct per mode
-                premiumQualityBadge
+            // Row 1: Primary metrics - adapts per mode. The mode's badges at the leading edge and the answer's figures
+            // with the chevron at the trailing edge, each group going onto further lines when it does not fit: across
+            // one line, up to eight fixed-size badges ran past the screen at the larger text sizes (5.7).
+            WrappingRowLayout(spacing: 6, lineSpacing: 6, lastAtTrailingEdge: true) {
+                WrappingRowLayout(spacing: 6, lineSpacing: 6) {
+                    // 1. QUALITY MODE BADGE - Distinct per mode
+                    premiumQualityBadge
 
-                // 2. SCORE INDICATOR - Different meaning per mode
-                if sourceCount > 0 || isProcessing {
-                    modeAdaptiveScoreBadge
+                    // 2. SCORE INDICATOR - Different meaning per mode
+                    if sourceCount > 0 || isProcessing {
+                        modeAdaptiveScoreBadge
+                    }
+
+                    // 3. SESSIONS/PROGRESS - Only for Deep Think/Maximum
+                    if isRecursiveRAG || isMaximumMode {
+                        modeProgressIndicator
+                    }
+
+                    // 4. CONTEXT - Input tokens (only for Standard mode)
+                    // Deep Think/Maximum use contextTokens for total agentic tokens, which is redundant
+                    // with tokensGenerated - so we hide this badge for those modes
+                    if contextTokens > 0 && !isRecursiveRAG && !isMaximumMode {
+                        premiumContextBadge
+                    }
                 }
 
-                // 3. SESSIONS/PROGRESS - Only for Deep Think/Maximum
-                if isRecursiveRAG || isMaximumMode {
-                    modeProgressIndicator
+                WrappingRowLayout(spacing: 6, lineSpacing: 6) {
+                    // 5. GENERATION STATS - Speed + output
+                    if tokensGenerated > 0 || isProcessing {
+                        premiumGenerationBadge
+                    }
+
+                    // 6. TIME
+                    if elapsedTime > 0 || isProcessing {
+                        premiumTimeBadge
+                    }
+
+                    // Thermal warning
+                    let currentThermal = systemMonitor.currentState.thermalState
+                    if currentThermal == .serious || currentThermal == .critical {
+                        systemStateBadge
+                    }
+
+                    // Expand chevron
+                    Image(systemName: showExpandedDetails ? "chevron.up.circle.fill" : "chevron.down.circle")
+                        .scaledFont(size: 12, weight: .medium)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
-
-                // 4. CONTEXT - Input tokens (only for Standard mode)
-                // Deep Think/Maximum use contextTokens for total agentic tokens, which is redundant
-                // with tokensGenerated - so we hide this badge for those modes
-                if contextTokens > 0 && !isRecursiveRAG && !isMaximumMode {
-                    premiumContextBadge
-                }
-
-                Spacer(minLength: 0)
-
-                // 5. GENERATION STATS - Speed + output
-                if tokensGenerated > 0 || isProcessing {
-                    premiumGenerationBadge
-                }
-
-                // 6. TIME
-                if elapsedTime > 0 || isProcessing {
-                    premiumTimeBadge
-                }
-
-                // Thermal warning
-                let currentThermal = systemMonitor.currentState.thermalState
-                if currentThermal == .serious || currentThermal == .critical {
-                    systemStateBadge
-                }
-
-                // Expand chevron
-                Image(systemName: showExpandedDetails ? "chevron.up.circle.fill" : "chevron.down.circle")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary.opacity(0.5))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // Row 2: Mode-specific detail row
             modeSpecificDetailRow
@@ -395,12 +400,13 @@ struct UnifiedMetricsBar: View {
         HStack(spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: liveReasoningKind?.systemIconName ?? qualityMode.icon)
-                    .font(.system(size: 8, weight: .semibold))
+                    .scaledFont(size: 8, weight: .semibold)
 
                 Text(isMaximumMode ? "Thinking" : isRecursiveRAG ? "Reasoning" : "Working")
-                    .font(.system(size: 8, weight: .bold))
+                    .scaledFont(size: 8, weight: .bold)
+                    .foregroundStyle(DSColors.primaryText)
             }
-            .foregroundStyle(liveReasoningAccent)
+            .foregroundStyle(DSColors.readable(liveReasoningAccent))
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(
@@ -409,10 +415,9 @@ struct UnifiedMetricsBar: View {
             )
 
             Text(liveReasoningSummary)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
+                .scaledFont(size: 9, weight: .medium)
+                .foregroundStyle(DSColors.secondaryText)
                 .lineLimit(2)
-                .minimumScaleFactor(0.8)
 
             Spacer(minLength: 0)
 
@@ -521,13 +526,13 @@ struct UnifiedMetricsBar: View {
                         .onAppear { pulsePhase = .pi * 2 }
                 }
                 Image(systemName: qualityMode.icon)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(qualityModeColor)
+                    .scaledFont(size: 9, weight: .bold)
+                    .foregroundStyle(DSColors.readable(qualityModeColor))
             }
 
             Text(qualityModeLabel)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(qualityModeColor)
+                .scaledFont(size: 9, weight: .bold)
+                .foregroundStyle(DSColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
         }
@@ -583,8 +588,8 @@ struct UnifiedMetricsBar: View {
             }
 
             Text("\(matchPct)%")
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                .foregroundStyle(matchColor)
+                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
         }
         .padding(.horizontal, 5)
         .padding(.vertical, 3)
@@ -616,13 +621,13 @@ struct UnifiedMetricsBar: View {
             }
 
             Text("\(pct)%")
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                .foregroundStyle(color)
+                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
 
             if targetReached {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 7))
-                    .foregroundStyle(.green)
+                    .scaledFont(size: 7)
+                    .foregroundStyle(DSColors.readable(.green))
             }
         }
         .padding(.horizontal, 5)
@@ -658,13 +663,13 @@ struct UnifiedMetricsBar: View {
             }
 
             Text("\(pct)%")
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                .foregroundStyle(color)
+                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
 
             if targetReached {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 7))
-                    .foregroundStyle(.yellow)
+                    .scaledFont(size: 7)
+                    .foregroundStyle(DSColors.readable(.yellow))
             }
         }
         .padding(.horizontal, 5)
@@ -684,13 +689,14 @@ struct UnifiedMetricsBar: View {
             // Maximum: Unlimited sessions indicator
             HStack(spacing: 1) {
                 Image(systemName: "infinity")
-                    .font(.system(size: 7, weight: .bold))
+                    .scaledFont(size: 7, weight: .bold)
                 if maximumModeSessionCount > 0 {
                     Text("×\(maximumModeSessionCount)")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                        .foregroundStyle(DSColors.primaryText)
                 }
             }
-            .foregroundStyle(.orange)
+            .foregroundStyle(DSColors.readable(.orange))
             .padding(.horizontal, 4)
             .padding(.vertical, 3)
             .background(
@@ -702,11 +708,12 @@ struct UnifiedMetricsBar: View {
             // Deep Think: session count (no max - it goes until confident)
             HStack(spacing: 1) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 7, weight: .semibold))
+                    .scaledFont(size: 7, weight: .semibold)
                 Text("×\(recursiveCallCount)")
-                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                    .foregroundStyle(DSColors.primaryText)
             }
-            .foregroundStyle(.purple)
+            .foregroundStyle(DSColors.readable(.purple))
             .padding(.horizontal, 4)
             .padding(.vertical, 3)
             .background(
@@ -750,11 +757,12 @@ struct UnifiedMetricsBar: View {
     private var premiumSessionsBadge: some View {
         HStack(spacing: 2) {
             Image(systemName: "brain.head.profile")
-                .font(.system(size: 7, weight: .semibold))
+                .scaledFont(size: 7, weight: .semibold)
             Text("×\(recursiveCallCount)")
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
         }
-        .foregroundStyle(.purple)
+        .foregroundStyle(DSColors.readable(.purple))
         .padding(.horizontal, 5)
         .padding(.vertical, 3)
         .background(
@@ -774,11 +782,12 @@ struct UnifiedMetricsBar: View {
     private var premiumContextBadge: some View {
         HStack(spacing: 2) {
             Image(systemName: "arrow.down.doc.fill")
-                .font(.system(size: 7, weight: .semibold))
+                .scaledFont(size: 7, weight: .semibold)
             Text(formatTokenCount(contextTokens))
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
         }
-        .foregroundStyle(contextColor)
+        .foregroundStyle(DSColors.readable(contextColor))
         .padding(.horizontal, 5)
         .padding(.vertical, 3)
         .background(
@@ -796,14 +805,16 @@ struct UnifiedMetricsBar: View {
             // Speed metric
             HStack(spacing: 1) {
                 Image(systemName: "bolt.fill")
-                    .font(.system(size: 7, weight: .bold))
+                    .scaledFont(size: 7, weight: .bold)
                 Text(String(format: "%.0f", tokensPerSecond))
-                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                    .foregroundStyle(DSColors.primaryText)
                 Text("t/s")
-                    .font(.system(size: 6, weight: .medium))
+                    .scaledFont(size: 6, weight: .medium)
+                    .foregroundStyle(DSColors.primaryText)
                     .opacity(0.7)
             }
-            .foregroundStyle(liveTokenMetricColor)
+            .foregroundStyle(DSColors.readable(liveTokenMetricColor))
             .lineLimit(1)
             .fixedSize()
 
@@ -816,11 +827,12 @@ struct UnifiedMetricsBar: View {
                 // Output token count
                 HStack(spacing: 1) {
                     Image(systemName: tokenCounterIcon)
-                        .font(.system(size: 7, weight: .semibold))
+                        .scaledFont(size: 7, weight: .semibold)
                     Text(formatTokenCount(tokensGenerated))
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                        .foregroundStyle(DSColors.primaryText)
                 }
-                .foregroundStyle(tokenCounterColor)
+                .foregroundStyle(DSColors.readable(tokenCounterColor))
                 .lineLimit(1)
                 .fixedSize()
             }
@@ -833,11 +845,12 @@ struct UnifiedMetricsBar: View {
 
                 HStack(spacing: 1) {
                     Image(systemName: "character.cursor.ibeam")
-                        .font(.system(size: 7, weight: .semibold))
+                        .scaledFont(size: 7, weight: .semibold)
                     Text(formatLargeCount(characterCount))
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                        .foregroundStyle(DSColors.primaryText)
                 }
-                .foregroundStyle(.purple)
+                .foregroundStyle(DSColors.readable(.purple))
                 .lineLimit(1)
                 .fixedSize()
             }
@@ -859,12 +872,13 @@ struct UnifiedMetricsBar: View {
     private var premiumTimeBadge: some View {
         HStack(spacing: 2) {
             Image(systemName: isProcessing ? "hourglass" : "checkmark.circle.fill")
-                .font(.system(size: 7, weight: .medium))
+                .scaledFont(size: 7, weight: .medium)
                 .symbolEffect(.pulse, isActive: isProcessing)
             Text(formatElapsed(elapsedTime))
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .scaledFont(size: 8, weight: .semibold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
         }
-        .foregroundStyle(isProcessing ? .orange : .green)
+        .foregroundStyle(DSColors.readable(isProcessing ? .orange : .green))
         .padding(.horizontal, 5)
         .padding(.vertical, 3)
         .background(
@@ -879,11 +893,12 @@ struct UnifiedMetricsBar: View {
     private var premiumSourcesBadge: some View {
         HStack(spacing: 1) {
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 7, weight: .semibold))
+                .scaledFont(size: 7, weight: .semibold)
             Text("\(sourceCount)")
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
         }
-        .foregroundStyle(sourceQualityColor)
+        .foregroundStyle(DSColors.readable(sourceQualityColor))
         .padding(.horizontal, 4)
         .padding(.vertical, 3)
         .background(
@@ -898,11 +913,12 @@ struct UnifiedMetricsBar: View {
     private var premiumToolsBadge: some View {
         HStack(spacing: 2) {
             Image(systemName: "wrench.and.screwdriver.fill")
-                .font(.system(size: 8, weight: .semibold))
+                .scaledFont(size: 8, weight: .semibold)
             Text("\(toolCallCount)")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .scaledFont(size: 9, weight: .bold, design: .monospaced)
+                .foregroundStyle(DSColors.primaryText)
         }
-        .foregroundStyle(.purple)
+        .foregroundStyle(DSColors.readable(.purple))
         .padding(.horizontal, 5)
         .padding(.vertical, 3)
         .background(
@@ -1597,9 +1613,9 @@ struct UnifiedMetricsBar: View {
         // Always show thermal indicator (it's useful info about device state)
         HStack(spacing: 2) {
             Image(systemName: SystemStateMonitor.thermalIcon(for: state.thermalState))
-                .font(.system(size: 9, weight: .semibold))
+                .scaledFont(size: 9, weight: .semibold)
         }
-        .foregroundStyle(thermalColor)
+        .foregroundStyle(DSColors.readable(thermalColor))
         .padding(4)
         .background(thermalColor.opacity(0.1))
         .clipShape(Circle())

@@ -12,25 +12,20 @@ enum ContainerPillBadgeStyle {
     case local
     case iCloud
 
+    /// White on a darker circle on a selected chip, and the label color on the tint otherwise (5.7): a count in 92%
+    /// white on a lighter circle of the chip's color, and gray on a gray tint, measured under 4.5 to 1.
     func foreground(isSelected: Bool) -> Color {
-        switch self {
-        case .count:
-            return isSelected ? .white.opacity(0.92) : .secondary
-        case .local:
-            return isSelected ? .white.opacity(0.95) : .secondary
-        case .iCloud:
-            return isSelected ? .white.opacity(0.95) : .blue
-        }
+        isSelected ? .white : DSColors.primaryText
     }
 
     func background(isSelected: Bool) -> Color {
         switch self {
         case .count:
-            return isSelected ? .white.opacity(0.2) : Color.secondary.opacity(0.14)
+            return isSelected ? .black.opacity(0.18) : Color.secondary.opacity(0.14)
         case .local:
-            return isSelected ? .white.opacity(0.16) : Color.secondary.opacity(0.12)
+            return isSelected ? .black.opacity(0.18) : Color.secondary.opacity(0.12)
         case .iCloud:
-            return isSelected ? .white.opacity(0.16) : Color.blue.opacity(0.12)
+            return isSelected ? .black.opacity(0.18) : Color.blue.opacity(0.12)
         }
     }
 }

@@ -84,6 +84,16 @@ default when the App Store sends a win-back message (`Message` is unavailable on
 offers can be redeemed in the App Store and in Subscription settings on every platform.
 `[evidence_level: code_verified, confidence: exact, evidence_source: PlanUpgradeSheet.swift dealBadge(for:), comparisons(for:), livePrices; PlanPriceComparison.swift; https://developer.apple.com/app-store/subscriptions/ "Billing amount" and https://developer.apple.com/documentation/storekit/supporting-win-back-offers-in-your-app, both fetched 2026-09-29; StoreKit.swiftinterface in the macOS 27 SDK, Message marked unavailable on macOS]`
 
+### Readable at every text size (5.7)
+
+Added 2026-10-16, from Apple's accessibility audit and the screenshots of the plans sheet in light and dark at the
+default and the largest text sizes. The subheading under the headline is in the readable gray
+(`DSColors.secondaryText`, 5.23 to 1 measured, was 3.48); the privacy-label banner's words are in the label color
+with the purple kept in its icons (gray on its purple tint measured 3.34 to 1); each story slide's second line is in
+the label color on its tint; and the title is inline at accessibility sizes, where the large title was cut to
+"Workspace...". Prices, labels and comparisons are unchanged.
+`[evidence_level: measured (iOS 27.0 Simulator, BenchmarkRuns/2026-10-16-accessibility-pass-3/), confidence: high, evidence_source: PlanUpgradeSheet.swift heroSection, socialProofBanner, storySlides]`
+
 ---
 
 ## 3. Document Pack Add-On Mechanics (discontinued product, retained for existing owners)

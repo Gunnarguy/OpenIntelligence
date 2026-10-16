@@ -73,8 +73,8 @@ struct ChatResponseDetailsView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(.secondary.opacity(0.6))
+                            .scaledFont(size: 24)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
                 #else
@@ -83,8 +83,8 @@ struct ChatResponseDetailsView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(.secondary.opacity(0.6))
+                            .scaledFont(size: 24)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
                 #endif
@@ -95,8 +95,8 @@ struct ChatResponseDetailsView: View {
     private func routeTraceSection(_ route: ResponseMetadata.ExecutionRoute) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             Label("Execution Route", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(DSColors.secondaryText)
 
             HStack(spacing: DSSpacing.sm) {
                 Text(route.emoji)
@@ -104,13 +104,13 @@ struct ChatResponseDetailsView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(route.path)
-                        .font(.system(size: 15, weight: .bold))
+                        .scaledFont(size: 15, weight: .bold)
                         .foregroundStyle(DSColors.primaryText)
                     
                     if let policy = route.policyApplied {
                         Text("Policy: \(policy)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(DSColors.accent)
+                            .scaledFont(size: 11, weight: .medium)
+                            .foregroundStyle(DSColors.readable(DSColors.accent))
                     }
                 }
                 
@@ -125,13 +125,13 @@ struct ChatResponseDetailsView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Decision Logic")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .scaledFont(size: 11, weight: .semibold)
+                    .foregroundStyle(DSColors.secondaryText)
                     .textCase(.uppercase)
                 
                 Text(route.reason)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .scaledFont(size: 13)
+                    .foregroundStyle(DSColors.secondaryText)
                     .lineLimit(nil)
             }
         }
@@ -146,8 +146,8 @@ struct ChatResponseDetailsView: View {
     private func tokenBudgetSection(_ budget: ResponseMetadata.TokenBudget) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             Label("Token Capacity Allocation", systemImage: "gauge.medium")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(DSColors.secondaryText)
 
             VStack(spacing: 8) {
                 // Allocation bar
@@ -166,12 +166,12 @@ struct ChatResponseDetailsView: View {
                     Text("0")
                     Spacer()
                     Text("\(budget.totalLimit) tokens")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .scaledFont(size: 11, weight: .bold, design: .rounded)
                     Spacer()
                     Text("Max")
                 }
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                .scaledFont(size: 10)
+                .foregroundStyle(DSColors.secondaryText)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
@@ -194,6 +194,8 @@ struct ChatResponseDetailsView: View {
             .fill(color)
             .frame(width: max(width, 0))
             .overlay(
+                // Drawn inside its segment at a fixed size, so it stays inside the 24-point bar; the grid under the bar
+                // names each part with its count, in text that grows (5.7).
                 Text(label)
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.white)
@@ -209,10 +211,10 @@ struct ChatResponseDetailsView: View {
             
             VStack(alignment: .leading, spacing: 0) {
                 Text(label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .scaledFont(size: 10, weight: .semibold)
+                    .foregroundStyle(DSColors.secondaryText)
                 Text("\(value)")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .scaledFont(size: 14, weight: .bold, design: .rounded)
                     .foregroundStyle(DSColors.primaryText)
             }
         }
@@ -254,17 +256,17 @@ struct ChatResponseDetailsView: View {
                     .fill(info.color.opacity(0.12))
                     .frame(width: 64, height: 64)
                 Image(systemName: info.icon)
-                    .font(.system(size: 28, weight: .semibold))
+                    .scaledFont(size: 28, weight: .semibold)
                     .foregroundStyle(info.color)
             }
 
             Text(info.title)
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(size: 18, weight: .bold)
                 .foregroundStyle(DSColors.primaryText)
 
             Text(info.subtitle)
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
+                .scaledFont(size: 14)
+                .foregroundStyle(DSColors.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, DSSpacing.lg)
         }
@@ -318,8 +320,8 @@ struct ChatResponseDetailsView: View {
     private var answerSummaryCard: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             Label("How this answer was made", systemImage: "info.circle.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .scaledFont(size: 14, weight: .semibold)
+                .foregroundStyle(DSColors.secondaryText)
 
             // Execution method
             HStack(spacing: DSSpacing.sm) {
@@ -328,19 +330,19 @@ struct ChatResponseDetailsView: View {
                         .fill(executionColor.opacity(0.12))
                         .frame(width: 36, height: 36)
                     Image(systemName: executionIcon)
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(size: 16, weight: .semibold)
                         .foregroundStyle(executionColor)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(executionLabel)
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(size: 14, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
 
                     if let mode = metadata.qualityModeName {
                         Text(mode)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .scaledFont(size: 12)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
@@ -349,11 +351,11 @@ struct ChatResponseDetailsView: View {
                 // Time
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(String(format: "%.1fs", metadata.totalGenerationTime))
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .scaledFont(size: 16, weight: .bold, design: .rounded)
                         .foregroundStyle(DSColors.primaryText)
                     Text("total time")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                        .scaledFont(size: 10)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
             }
 
@@ -405,14 +407,14 @@ struct ChatResponseDetailsView: View {
     private func summaryStatItem(value: String, label: String, icon: String, color: Color) -> some View {
         VStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(size: 12, weight: .semibold)
                 .foregroundStyle(color)
             Text(value)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .scaledFont(size: 15, weight: .bold, design: .rounded)
                 .foregroundStyle(DSColors.primaryText)
             Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                .scaledFont(size: 10)
+                .foregroundStyle(DSColors.secondaryText)
         }
         .frame(maxWidth: .infinity)
     }
@@ -423,12 +425,12 @@ struct ChatResponseDetailsView: View {
                 VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Label("Structured Answer", systemImage: "list.bullet.rectangle.portrait")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .scaledFont(size: 14, weight: .semibold)
+                            .foregroundStyle(DSColors.secondaryText)
                         Spacer()
                         Text(structuredAnswer.answerType.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(DSColors.accent)
+                            .scaledFont(size: 11, weight: .semibold)
+                            .foregroundStyle(DSColors.primaryText)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(DSColors.accent.opacity(0.12))
@@ -446,16 +448,16 @@ struct ChatResponseDetailsView: View {
                             ForEach(Array(structuredAnswer.claims.prefix(3).enumerated()), id: \.offset) { index, claim in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Claim \(index + 1)")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundStyle(.tertiary)
+                                        .scaledFont(size: 11, weight: .semibold)
+                                        .foregroundStyle(DSColors.secondaryText)
                                     Text(GroundedAnswerView.inlineMarkdown(claim.claim))
-                                        .font(.system(size: 13))
+                                        .scaledFont(size: 13)
                                         .foregroundStyle(DSColors.primaryText)
                                     HStack(spacing: 6) {
                                         if let verdict = claim.verificationVerdict {
                                             Text(claimVerificationTitle(verdict))
-                                                .font(.system(size: 10, weight: .semibold))
-                                                .foregroundStyle(claimVerificationColor(verdict))
+                                                .scaledFont(size: 10, weight: .semibold)
+                                                .foregroundStyle(DSColors.primaryText)
                                                 .padding(.horizontal, 6)
                                                 .padding(.vertical, 3)
                                                 .background(claimVerificationColor(verdict).opacity(0.12))
@@ -463,8 +465,8 @@ struct ChatResponseDetailsView: View {
                                         }
 
                                         Text("Evidence: \(claim.evidenceIds.count) • Confidence: \(Int(claim.confidence * 100))%")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.secondary)
+                                            .scaledFont(size: 11)
+                                            .foregroundStyle(DSColors.secondaryText)
                                     }
 
                                     if let details = claim.verificationDetails,
@@ -472,8 +474,8 @@ struct ChatResponseDetailsView: View {
                                        verdict != .supported
                                     {
                                         Text(details)
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.secondary)
+                                            .scaledFont(size: 11)
+                                            .foregroundStyle(DSColors.secondaryText)
                                     }
                                 }
                             }
@@ -483,12 +485,12 @@ struct ChatResponseDetailsView: View {
                     if !structuredAnswer.missing.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Open Gaps")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.tertiary)
+                                .scaledFont(size: 11, weight: .semibold)
+                                .foregroundStyle(DSColors.secondaryText)
                             ForEach(Array(structuredAnswer.missing.prefix(2).enumerated()), id: \.offset) { _, item in
                                 Text(item)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
+                                    .scaledFont(size: 12)
+                                    .foregroundStyle(DSColors.secondaryText)
                             }
                         }
                     }
@@ -510,8 +512,8 @@ struct ChatResponseDetailsView: View {
             // Section header
             HStack {
                 Label("Sources", systemImage: "doc.text.magnifyingglass")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
@@ -535,16 +537,16 @@ struct ChatResponseDetailsView: View {
     private var noSourcesCard: some View {
         VStack(spacing: DSSpacing.sm) {
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(.secondary.opacity(0.4))
+                .scaledFont(size: 28, weight: .light)
+                .foregroundStyle(DSColors.secondaryText)
 
             Text("No document sources used")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.secondary)
+                .scaledFont(size: 14, weight: .medium)
+                .foregroundStyle(DSColors.secondaryText)
 
             Text("This response was generated from general knowledge")
-                .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+                .scaledFont(size: 12)
+                .foregroundStyle(DSColors.secondaryText)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -569,14 +571,14 @@ struct ChatResponseDetailsView: View {
             } label: {
                 HStack {
                     Label("Performance Details", systemImage: "gauge.with.dots.needle.67percent")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .scaledFont(size: 14, weight: .semibold)
+                        .foregroundStyle(DSColors.secondaryText)
 
                     Spacer()
 
                     Image(systemName: showPerformance ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+                        .scaledFont(size: 12, weight: .semibold)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
                 .padding(DSSpacing.md)
                 .background(
@@ -614,8 +616,8 @@ struct ChatResponseDetailsView: View {
 
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("Timing")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .scaledFont(size: 12, weight: .semibold)
+                .foregroundStyle(DSColors.secondaryText)
 
             if total > 0 {
                 GeometryReader { geo in
@@ -637,14 +639,14 @@ struct ChatResponseDetailsView: View {
                 HStack(spacing: 4) {
                     Circle().fill(.blue).frame(width: 6, height: 6)
                     Text("Search: \(String(format: "%.2fs", retrievalTime))")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .scaledFont(size: 11)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
                 HStack(spacing: 4) {
                     Circle().fill(.green).frame(width: 6, height: 6)
                     Text("Generate: \(String(format: "%.2fs", genTime))")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .scaledFont(size: 11)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
                 Spacer()
             }
@@ -659,8 +661,8 @@ struct ChatResponseDetailsView: View {
     private var metricsGrid: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("All Metrics")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .scaledFont(size: 12, weight: .semibold)
+                .foregroundStyle(DSColors.secondaryText)
 
             VStack(spacing: 0) {
                 PerfMetricRow(label: "Model", value: metadata.modelUsed.isEmpty ? "Unknown" : metadata.modelUsed)
@@ -825,13 +827,15 @@ private struct MatchQualityPill: View {
     }
 
     var body: some View {
+        // The word in the label color, the color in the dot and the tint (5.7): green on its own tint measured 2.01
+        // to 1.
         HStack(spacing: 3) {
             Circle()
-                .fill(color)
+                .fill(DSColors.readable(color))
                 .frame(width: 6, height: 6)
             Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(color)
+                .scaledFont(size: 11, weight: .semibold)
+                .foregroundStyle(DSColors.primaryText)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -873,15 +877,17 @@ private struct SourceCard: View {
                     Circle()
                         .fill(scoreColor.opacity(0.15))
                         .frame(width: 28, height: 28)
+                    // The rank and the score in the label color, the score's color in the circle's tint and the
+                    // bar (5.7): green numbers measured 1.79 to 1 on the tint and 1.99 on the card.
                     Text("\(rank)")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(scoreColor)
+                        .scaledFont(size: 12, weight: .bold, design: .rounded)
+                        .foregroundStyle(DSColors.primaryText)
                 }
 
                 // File info
                 VStack(alignment: .leading, spacing: 1) {
                     Text(filename)
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(size: 13, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
                         .lineLimit(2)
                         .truncationMode(.middle)
@@ -889,12 +895,12 @@ private struct SourceCard: View {
                     HStack(spacing: 4) {
                         if let page = chunk.pageNumber {
                             Text("Page \(page)")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .scaledFont(size: 11)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         Text("\(chunk.chunk.content.split(separator: " ").count) words")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
+                            .scaledFont(size: 11)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
@@ -902,8 +908,8 @@ private struct SourceCard: View {
 
                 // Match score
                 Text(String(format: "%.0f%%", score * 100))
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(scoreColor)
+                    .scaledFont(size: 14, weight: .bold, design: .rounded)
+                    .foregroundStyle(DSColors.primaryText)
             }
 
             // Score bar
@@ -927,19 +933,22 @@ private struct SourceCard: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(isExpanded ? "Hide excerpt" : "Show excerpt")
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(size: 12, weight: .medium)
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
+                        .scaledFont(size: 10, weight: .semibold)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DSColors.secondaryText)
+                // 44 points to tap on iPhone and iPad; the audit found the line's own 14 too small (5.7).
+                .frame(minHeight: DSSpacing.tapTarget)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
             if isExpanded {
                 ScrollView {
                     Text(chunk.chunk.content)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                        .scaledFont(size: 13)
+                        .foregroundStyle(DSColors.secondaryText)
                         .lineLimit(nil)
                         .textSelection(.enabled)
                 }
@@ -968,11 +977,11 @@ private struct PerfMetricRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .scaledFont(size: 13)
+                .foregroundStyle(DSColors.secondaryText)
             Spacer()
             Text(value)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(size: 13, weight: .medium)
                 .foregroundStyle(DSColors.primaryText)
                 .lineLimit(2)
                 .truncationMode(.tail)

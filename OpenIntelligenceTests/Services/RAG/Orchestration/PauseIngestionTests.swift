@@ -51,4 +51,57 @@ final class PauseIngestionTests: XCTestCase {
         XCTAssertTrue(item.events.contains { $0.detail == "Continued after a pause" })
         engine.cancelAllIngestion()
     }
+
+    /// The task a pause cancels runs on to its next cancellation check, so its progress can land after the pause.
+    /// On 2026-10-16, in the Simulator, "Storing" replaced "Paused" on a file whose embedding had just finished, and
+    /// Continue, which takes the paused files, left that one at "Storing" with nothing importing it.
+    func testProgressAfterThePauseLeavesTheFilePaused() throws {
+        let engine = RAGService()
+        let ids = engine.enqueueDocuments([try file("Late progress")])
+        let id = try XCTUnwrap(ids.first)
+        engine.pauseIngestionQueue()
+
+        engine.updateIngestionItem(
+            id: id, filename: "Late progress.txt", stage: .storing,
+            detail: "Persisting 13 chunks to vector database...", progress: 0.94)
+
+        let paused = try XCTUnwrap(engine.ingestionItems.first { $0.id == id })
+        XCTAssertEqual(paused.stage, .paused)
+        XCTAssertEqual(paused.detail, RAGService.pausedStartsOverDetail)
+
+        engine.continuePausedIngestionQueue()
+        let continued = try XCTUnwrap(engine.ingestionItems.first { $0.id == id })
+        XCTAssertNotEqual(continued.stage, .paused)
+        XCTAssertTrue(continued.events.contains { $0.detail == "Continued after a pause" })
+        engine.cancelAllIngestion()
+    }
+
+    /// Stopping and dismissing the queue leaves nothing paused, so the next import's end of background time is
+    /// handled (`handleContinuedIngestionExpiration` returns at once while the flag is set).
+    func testStoppingThePausedQueueClearsThePause() throws {
+        let engine = RAGService()
+        _ = engine.enqueueDocuments([try file("Stop paused")])
+        engine.pauseIngestionQueue()
+        XCTAssertTrue(engine.ingestionPausedByPerson)
+
+        engine.stopAndDismissIngestionQueue()
+
+        XCTAssertFalse(engine.ingestionPausedByPerson)
+        XCTAssertFalse(engine.ingestionItems.contains { $0.stage == .paused })
+    }
+
+    /// An end still lands on a paused file: Cancel on a paused file ends it through the same update.
+    func testCancellingAPausedFileCancelsIt() throws {
+        let engine = RAGService()
+        let ids = engine.enqueueDocuments([try file("Cancel paused"), try file("Stay paused")])
+        let id = try XCTUnwrap(ids.first)
+        engine.pauseIngestionQueue()
+
+        engine.cancelIngestionItem(id)
+
+        let item = engine.ingestionItems.first { $0.id == id }
+        XCTAssertTrue(item == nil || item?.stage == .cancelled, "the cancelled file is gone or reads Cancelled, not Paused")
+        XCTAssertEqual(engine.ingestionItems.first { $0.id == ids[1] }?.stage, .paused)
+        engine.discardPausedIngestionQueue()
+    }
 }
