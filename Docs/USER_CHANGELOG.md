@@ -104,6 +104,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 ### Accessibility
 - **VoiceOver reads a library as a button.**  Each library in the row of libraries is one button now, read with its name, how many documents it holds and whether it's the one you're in.  Before, VoiceOver read its icon as "Move" and its name as plain text, and never said it could be tapped.  The Document Quota reads as one line too, like "Document Quota, 2 of 5 documents".
 - **Easier to tap.**  The microphone and the paperclip in the chat field are 44 points square, Apple's default size for a control on iPhone and iPad and the size of the send button beside them, and "I'll add my own documents" on the first screen is 44 points tall.
+- **The hardware X-Ray reads clearly.**  Its numbers were faint text on a see-through box.  Now they're white and in color on a solid dark backing, they grow with your text size, and the "Drag me" hint wraps instead of running off the screen.
 
 ### Sharing
 - **A shared answer takes its sources with it.** Share used to send the answer's text and nothing else, so the [S1] and [S2] in it pointed at nothing.  Now the documents and pages it cites are listed under it, with the app's name and its App Store link at the end.

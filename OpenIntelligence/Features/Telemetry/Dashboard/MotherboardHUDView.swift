@@ -539,6 +539,9 @@ struct HardwareXRayOverlay: View {
             // a shortened height, drawing the SoC and Taptic Engine borders above
             // their true hardware locations.
             .ignoresSafeArea()
+            // Decorative for accessibility (5.7): live hardware numbers that change many times a second and
+            // that no task needs. The legend's own window is hidden in UIKit as well (`FloatingLegendWindowManager`).
+            .accessibilityHidden(true)
         }
     }
 
@@ -683,25 +686,28 @@ private struct FloatingTapticIndicator: View {
     var glowMultiplier: Double = 0.6
 
     private let hapticColor = HardwareComponent.haptic.color
+    /// Grows with Dynamic Type, capped like the legend's (`SiliconLegend.scale`).
+    @ScaledMetric(relativeTo: .caption2) private var dynamicScale: CGFloat = 1
+    private var scale: CGFloat { min(dynamicScale, SiliconLegend.maximumScale) }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 6 * scale) {
             // Pulsing dot
             Circle()
                 .fill(hapticColor.opacity(0.6 + 0.4 * intensity))
-                .frame(width: 6, height: 6)
+                .frame(width: 6 * scale, height: 6 * scale)
                 .scaleEffect(0.8 + 0.4 * intensity)
 
             // Label
             Text("Taptic")
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundColor(hapticColor.opacity(0.7))
+                .font(.system(size: 10 * scale, weight: .semibold, design: .monospaced))
+                .foregroundColor(hapticColor)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 10 * scale)
+        .padding(.vertical, 5 * scale)
         .background(
             Capsule()
-                .fill(Color.black.opacity(0.4))
+                .fill(Color.black.opacity(SiliconLegend.backingOpacity))
                 .overlay(
                     Capsule()
                         .strokeBorder(hapticColor.opacity(0.3 * glowMultiplier), lineWidth: 1)
@@ -710,6 +716,10 @@ private struct FloatingTapticIndicator: View {
         .shadow(color: hapticColor.opacity(0.3 * intensity * glowMultiplier), radius: 8)
         // FAST animation for real-time profiler feel
         .animation(.linear(duration: 0.02), value: intensity)
+        // Decorative for accessibility (5.7): live hardware numbers that change many times a second and that
+        // no task needs. On its own this left the text visible to XCUITest (2026-10-15); the legend's window is
+        // hidden in UIKit as well (`FloatingLegendWindowManager`).
+        .accessibilityHidden(true)
     }
 }
 
@@ -718,7 +728,23 @@ private struct FloatingTapticIndicator: View {
 /// Tiny, unobtrusive indicator showing users what the HUD represents.
 /// Shows each triggered component with % contribution bar.
 /// COMPACT: Minimal footprint to avoid interfering with app content.
+///
+/// Readable since 5.7: its text sat at 35 to 65% white on a 25% black wash, and it failed Apple's contrast
+/// audit on every tab (`BenchmarkRuns/2026-10-15-accessibility-audit/`, the only contrast failures there). It
+/// now has a solid backing with white text and full-strength component colors, and its sizes follow Dynamic
+/// Type up to `maximumScale`, past which an overlay that floats over every screen would cover it.
 private struct SiliconLegend: View {
+    /// The backing behind every piece of the X-Ray's text: dark enough for white and the component colors to
+    /// pass the contrast audit in light and dark appearance.
+    static let backingOpacity: Double = 0.9
+    /// The most the X-Ray grows with Dynamic Type (about the AX2 size).
+    static let maximumScale: CGFloat = 1.8
+
+    @ScaledMetric(relativeTo: .caption2) private var dynamicScale: CGFloat = 1
+    private var scale: CGFloat { min(dynamicScale, Self.maximumScale) }
+    /// The drag hint's height, which grows when it wraps at large text sizes.
+    @State private var hintHeight: CGFloat = 0
+
     let chipName: String
     let intensity: Double
     let metricsSummary: String
@@ -738,55 +764,48 @@ private struct SiliconLegend: View {
             : "\(megabytes)M"
     }
 
-    /// Opacity for the whole legend, guaranteed finite.
-    ///
-    /// This was `0.45 + 0.15 * min(intensity, 1.0)`, and that argument order is the bug. Swift's
-    /// `min(x, y)` returns `y < x ? y : x`, and every comparison against NaN is false, so
-    /// `min(nan, 1.0)` returns **nan** while `min(1.0, nan)` returns 1.0. A NaN intensity
-    /// therefore reached every `.opacity()` in this view. `max(0, ...)` first discards a NaN for
-    /// the same reason, which is what makes this order safe rather than merely clamped.
-    /// [evidence_level: measured, confidence: exact, evidence_source: swift probe 2026-09-10 —
-    /// min(nan, 1.0) == nan, min(1.0, nan) == 1.0, max(0.0, nan) == 0.0, max(nan, 0.0) == nan]
-    private var opacity: Double { 0.45 + 0.15 * min(1.0, max(0.0, intensity)) }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 2 * scale) {
             // Chip header - compact single line
-            HStack(spacing: 3) {
+            HStack(spacing: 3 * scale) {
                 Image(systemName: "cpu")
-                    .font(.system(size: 7, weight: .medium))
+                    .font(.system(size: 9 * scale, weight: .medium))
+                    // The icon still brightens with activity; the text does not, so it always reads.
+                    // `min(1.0, max(0.0, x))` in that order: `min(nan, 1.0)` is nan, `max(0.0, nan)` is 0
+                    // (swift probe 2026-09-10), so a NaN intensity cannot reach `.opacity`.
+                    .opacity(0.7 + 0.3 * min(1.0, max(0.0, intensity)))
                 Text(chipName)
-                    .font(.system(size: 7, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 9 * scale, weight: .semibold, design: .monospaced))
             }
-            .foregroundColor(.white.opacity(opacity))
+            .foregroundColor(.white)
 
             // Per-component breakdown with % contribution bars
             if !activities.isEmpty {
                 // Compute components (ANE/GPU/CPU) — show % contribution
                 ForEach(activities.filter { $0.percentage >= 0 }, id: \.name) { activity in
-                    HStack(spacing: 3) {
+                    HStack(spacing: 3 * scale) {
                         // Active indicator dot (glows when firing)
                         Circle()
-                            .fill(componentColor(activity.color).opacity(activity.isActive ? 0.85 : 0.3))
-                            .frame(width: 3, height: 3)
+                            .fill(componentColor(activity.color).opacity(activity.isActive ? 1 : 0.4))
+                            .frame(width: 4 * scale, height: 4 * scale)
 
                         // Component name — compact fixed width
                         Text(activity.name)
-                            .font(.system(size: 6, weight: .semibold, design: .monospaced))
-                            .foregroundColor(componentColor(activity.color).opacity(0.65))
-                            .frame(width: 24, alignment: .leading)
+                            .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
+                            .foregroundColor(componentColor(activity.color))
+                            .frame(width: 28 * scale, alignment: .leading)
 
                         // Mini percentage bar - narrower
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 // Track
                                 RoundedRectangle(cornerRadius: 1, style: .continuous)
-                                    .fill(Color.white.opacity(0.06))
-                                    .frame(height: 2)
+                                    .fill(Color.white.opacity(0.15))
+                                    .frame(height: 2 * scale)
 
                                 // Fill
                                 RoundedRectangle(cornerRadius: 1, style: .continuous)
-                                    .fill(componentColor(activity.color).opacity(activity.isActive ? 0.65 : 0.35))
+                                    .fill(componentColor(activity.color).opacity(activity.isActive ? 1 : 0.5))
                                     .frame(
                                         // `ComponentActivity` guarantees a finite percentage, and
                                         // geo.size.width is finite by construction. The clamp is
@@ -798,78 +817,82 @@ private struct SiliconLegend: View {
                                             min(
                                                 geo.size.width,
                                                 geo.size.width * CGFloat(activity.percentage / 100.0))),
-                                        height: 2)
+                                        height: 2 * scale)
                             }
                             .frame(height: geo.size.height)
                         }
-                        .frame(width: 22, height: 4)
+                        .frame(width: 24 * scale, height: 4 * scale)
 
                         // Percentage text
                         // Int(Double) TRAPS on a non-finite value, and the `>= 0` filter above does
-                            // not screen +infinity. ComponentActivity now guarantees finite,
-                            // so this is the second line of defence rather than the first.
-                            Text("\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
-                            .font(.system(size: 6, weight: .medium, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.45))
-                            .frame(width: 18, alignment: .trailing)
+                        // not screen +infinity. ComponentActivity now guarantees finite,
+                        // so this is the second line of defence rather than the first.
+                        Text("\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
+                            .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
+                            .foregroundColor(.white)
+                            .frame(width: 26 * scale, alignment: .trailing)
                     }
                 }
 
                 // Taptic Engine — separate indicator, not competing with compute %
                 if let taptic = activities.first(where: { $0.name == "Taptic" }) {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 3 * scale) {
                         Circle()
-                            .fill(componentColor(taptic.color).opacity(taptic.isActive ? 0.85 : 0.3))
-                            .frame(width: 3, height: 3)
+                            .fill(componentColor(taptic.color).opacity(taptic.isActive ? 1 : 0.4))
+                            .frame(width: 4 * scale, height: 4 * scale)
 
                         Text("Tap")
-                            .font(.system(size: 6, weight: .semibold, design: .monospaced))
-                            .foregroundColor(componentColor(taptic.color).opacity(0.65))
-                            .frame(width: 24, alignment: .leading)
+                            .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
+                            .foregroundColor(componentColor(taptic.color))
+                            .frame(width: 28 * scale, alignment: .leading)
 
                         // Show fire count instead of % — it's an output device
                         Text("×\(taptic.opsCount)")
-                            .font(.system(size: 6, weight: .regular, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.35))
-                            .frame(width: 40, alignment: .trailing)
+                            .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                            .foregroundColor(.white)
+                            .frame(width: 50 * scale, alignment: .trailing)
                     }
                 }
 
                 // Available RAM. Not a compute percentage, so it follows Taptic in
                 // the read-only group rather than the bar rows above.
-                HStack(spacing: 3) {
+                HStack(spacing: 3 * scale) {
                     Image(systemName: "memorychip")
-                        .font(.system(size: 5, weight: .semibold))
-                        .foregroundColor(.green.opacity(0.65))
-                        .frame(width: 3, alignment: .center)
+                        .font(.system(size: 6 * scale, weight: .semibold))
+                        .foregroundColor(.green)
+                        .frame(width: 4 * scale, alignment: .center)
 
                     Text("RAM")
-                        .font(.system(size: 6, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.green.opacity(0.65))
-                        .frame(width: 24, alignment: .leading)
+                        .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.green)
+                        .frame(width: 28 * scale, alignment: .leading)
 
                     Text(availableRAMText)
-                        .font(.system(size: 6, weight: .regular, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.35))
-                        .frame(width: 40, alignment: .trailing)
+                        .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                        .foregroundColor(.white)
+                        .frame(width: 50 * scale, alignment: .trailing)
                 }
             } else if !metricsSummary.isEmpty {
                 // Fallback to compact summary
                 Text(metricsSummary)
-                    .font(.system(size: 6, weight: .regular, design: .monospaced))
-                    .foregroundColor(.cyan.opacity(opacity * 0.7))
+                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                    .foregroundColor(.cyan)
                     .lineLimit(2)
             } else {
                 Text("idle")
-                    .font(.system(size: 6, weight: .regular, design: .monospaced))
-                    .foregroundColor(.gray.opacity(0.4))
+                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.8))
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 6 * scale)
+        .padding(.vertical, 4 * scale)
         .background(
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(Color.black.opacity(0.25))
+            RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
+                .fill(Color.black.opacity(Self.backingOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
+                )
         )
         // Only animate structural changes (new rows appearing), not every tick
         .animation(.easeOut(duration: 0.4), value: activities.count)
@@ -879,10 +902,20 @@ private struct SiliconLegend: View {
         .overlay(alignment: .topLeading) {
             if !hasDraggedLegend {
                 dragHint
-                    .offset(y: -26)
+                    // Its own width, not the legend's: the hint is one line at the usual text sizes
+                    // and wraps inside this at large ones instead of running off the screen.
+                    .frame(width: 300, alignment: .leading)
+                    // Lifted by its own measured height, so it sits just above the legend however
+                    // many lines it takes.
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { hintHeight = $0 }
+                    .offset(y: -(hintHeight + 4))
                     .transition(.opacity)
             }
         }
+        // Decorative for accessibility (5.7): live hardware numbers that change many times a second and that
+        // no task needs. On its own this left the text visible to XCUITest (2026-10-15); the legend's window is
+        // hidden in UIKit as well (`FloatingLegendWindowManager`).
+        .accessibilityHidden(true)
     }
 
     /// One-time nudge explaining what the floating readout is and that it can be moved.
@@ -892,19 +925,22 @@ private struct SiliconLegend: View {
     /// useful thing to know about it.
     @ViewBuilder
     private var dragHint: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 4 * scale) {
             Image(systemName: "hand.draw")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.system(size: 9 * scale, weight: .semibold))
             Text("Drag me - This is your Device's hardware X-Ray.")
-                .font(.system(size: 8, weight: .semibold))
-                .fixedSize()
+                .font(.system(size: 9 * scale, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .foregroundStyle(.white.opacity(0.9))
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8 * scale)
+        .padding(.vertical, 4 * scale)
         .background(
-            Capsule(style: .continuous)
-                .fill(Color.accentColor.opacity(0.85))
+            RoundedRectangle(cornerRadius: 9 * scale, style: .continuous)
+                .fill(Color.black.opacity(Self.backingOpacity))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9 * scale, style: .continuous)
+                        .strokeBorder(Color.accentColor, lineWidth: 1))
         )
         .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
     }
@@ -1004,6 +1040,13 @@ private struct SiliconLegend: View {
 
             let host = UIHostingController(rootView: FloatingLegendRoot().environmentObject(settings))
             host.view.backgroundColor = .clear
+            // Decorative for accessibility (5.7), set on the window's content in UIKit. The legend's own
+            // `accessibilityHidden(true)` did not keep its text out of XCUITest's accessibility audit; with this,
+            // no audit issue resolves to an X-Ray element (2026-10-15, iOS 27 Simulator). The audit still reports
+            // the drawn text, and while this window is on screen it reports little of the screens behind it
+            // (`BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/`). Whether VoiceOver passes over it is not
+            // yet checked on a device.
+            host.view.accessibilityElementsHidden = true
 
             let w = UIWindow(windowScene: scene)
             w.rootViewController = host
