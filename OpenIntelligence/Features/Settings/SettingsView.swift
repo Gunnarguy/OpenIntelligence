@@ -305,7 +305,8 @@ struct SettingsView: View {
             ForEach(SettingsGroup.allCases) { group in
                 let entries = visibleEntries(in: group)
                 if !entries.isEmpty {
-                    Section(group.title) {
+                    // A header in the readable gray (5.7): the List's own header "nearly passed" Apple's contrast audit.
+                    Section {
                         ForEach(entries) { entry in
                             if entry.id == .advanced {
                                 // Advanced opens the parameters directly. Pushing a screen
@@ -340,6 +341,9 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                    } header: {
+                        Text(group.title)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
@@ -473,8 +477,8 @@ struct SettingsView: View {
                     .font(.headline)
                 Text(statusText)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: DSSpacing.xs) {
                     statusPill(
                         icon: "checkmark.shield.fill",
@@ -669,7 +673,8 @@ struct SettingsView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(active ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
-        .foregroundColor(active ? .accentColor : .secondary)
+        // System blue, not the accent: the AccentColor asset has no high-contrast variant to resolve to.
+        .foregroundStyle(active ? DSColors.readable(.blue) : DSColors.secondaryText)
         .clipShape(Capsule())
     }
 

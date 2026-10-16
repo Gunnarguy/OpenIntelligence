@@ -4160,13 +4160,14 @@ struct QualityModeQuickPicker: View {
                         .font(.caption.weight(.semibold))
                     Text(modeTagline)
                         .font(.caption2)
-                        .foregroundStyle(modeColor.opacity(0.85))
                 }
 
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
             }
-            .foregroundStyle(modeColor)
+            // The mode's color as iOS draws it with Increase Contrast on (5.7): plain blue on the blue-tinted chip
+            // "nearly passed" Apple's contrast audit, and the tagline at 85% "failed".
+            .foregroundStyle(DSColors.readable(modeColor))
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xs)
             // Shared shape and material with the model pill beside it. These two sat
@@ -4279,11 +4280,11 @@ private struct StatChip: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .medium))
+                .font(.caption2.weight(.medium))
             Text(value)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(.caption, design: .rounded).weight(.semibold))
         }
-        .foregroundStyle(color)
+        .foregroundStyle(DSColors.readable(color))
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(

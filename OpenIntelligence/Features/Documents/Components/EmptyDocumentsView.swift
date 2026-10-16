@@ -49,12 +49,12 @@ struct EmptyDocumentsView: View {
 
                 VStack(spacing: 6) {
                     Text("No Documents Yet")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.headline.weight(.bold))
                         .foregroundColor(.primary)
 
                     Text("Start with files that keep their structure")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(DSColors.secondaryText)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
                 }
@@ -64,8 +64,8 @@ struct EmptyDocumentsView: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                         Text("Limit of \(documentLimit) documents reached.")
                     }
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.orange)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(DSColors.readable(.orange))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(Color.orange.opacity(0.1))
@@ -78,7 +78,7 @@ struct EmptyDocumentsView: View {
                         onPickFiles()
                     }) {
                         Label("Add Your Documents", systemImage: "tray.and.arrow.down")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                     }
@@ -95,20 +95,22 @@ struct EmptyDocumentsView: View {
                                     .scaleEffect(0.7)
                                     .padding(.trailing, 2)
                             }
+                            // Primary text on the gray button: the button's own gray label "failed" the audit.
                             Text(hasImportedSamples ? "Re-import Samples" : "Import Sample Workspace")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(DSColors.primaryText)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)
                     }
                     .buttonStyle(.bordered)
-                    .tint(.secondary)
+                    .tint(DSColors.primaryText)
                     .disabled(isImportingSamples)
 
                     if let statusMessage, !statusMessage.isEmpty {
                         Text(statusMessage)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
                 .padding(.horizontal, 2)
@@ -145,9 +147,9 @@ struct EmptyDocumentsView: View {
                 .padding(.horizontal, 4)
                 
                 Text("PDFs, DOCX/XLSX/PPTX, TXT/MD, CSV, images, and transcripts import cleanly. Legacy formats and dense scientific tables may need conversion first.")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary.opacity(0.7))
+                    .foregroundStyle(DSColors.secondaryText)
                     .padding(.horizontal, 24)
             }
             .frame(maxWidth: .infinity)
@@ -175,13 +177,13 @@ struct DocumentFeatureRow: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.primary)
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(DSColors.primaryText)
 
                 Text(description)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

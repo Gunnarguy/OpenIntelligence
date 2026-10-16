@@ -55,7 +55,8 @@ struct ModelStatusIndicator: View {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
             }
-            .foregroundStyle(statusColor)
+            // Readable on the tinted capsule (5.7): "Unavailable" in plain red "failed" Apple's contrast audit.
+            .foregroundStyle(DSColors.readable(statusColor))
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xs)
             // Matches the quality pill: same capsule, same material, same padding scale,
@@ -145,13 +146,12 @@ struct ModelStatusIndicator: View {
             if modelResolution.isProcessing {
                 Text("Using \(modelResolution.currentState.executionPath.displayName)")
                     .font(.caption2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
             } else {
+                // Two lines rather than shrinking (5.7): the shrink is what the audit called partial Dynamic Type.
                 Text(statusText)
                     .font(.caption2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
             }
         }
     }

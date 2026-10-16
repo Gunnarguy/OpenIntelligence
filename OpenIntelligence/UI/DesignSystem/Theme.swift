@@ -96,9 +96,59 @@ public enum DSColors {
     public static var primaryText: Color {
         Color.primary
     }
+    /// Secondary text that meets the 4.5:1 contrast Apple asks for on text (5.7): `systemGray` as iOS draws it with
+    /// Increase Contrast on, in light and dark. `Color.secondary` measures about 3.4:1 on white, and Apple's
+    /// accessibility audit called the small gray text on Chat, Documents and Settings "nearly passed" or "failed"
+    /// (2026-10-15, `BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/`). Apple's criterion: "Sufficient
+    /// Contrast evaluation criteria", developer.apple.com, read 2026-10-16.
     public static var secondaryText: Color {
-        Color.secondary
+        #if canImport(UIKit)
+        return readable(platform: .systemGray)
+        #elseif canImport(AppKit)
+        return readable(platform: .systemGray)
+        #else
+        return Color.secondary
+        #endif
     }
+
+    /// A color as the system draws it with Increase Contrast on, in the current light or dark appearance (5.7):
+    /// Apple's own accessible variant, for colored text that has to meet 4.5:1, such as a blue mode name on a
+    /// blue-tinted chip.
+    public static func readable(_ color: Color) -> Color {
+        #if canImport(UIKit)
+        return readable(platform: UIColor(color))
+        #elseif canImport(AppKit)
+        return readable(platform: NSColor(color))
+        #else
+        return color
+        #endif
+    }
+
+    #if canImport(UIKit)
+    /// `readable(_:)` for a UIKit color, resolved with the high-contrast trait added to the view's own traits.
+    public static func readable(platform color: UIColor) -> Color {
+        Color(
+            UIColor { traits in
+                color.resolvedColor(
+                    with: UITraitCollection(traitsFrom: [traits, UITraitCollection(accessibilityContrast: .high)]))
+            })
+    }
+    #elseif canImport(AppKit)
+    /// `readable(_:)` for an AppKit color, resolved under the high-contrast version of the current appearance.
+    public static func readable(platform color: NSColor) -> Color {
+        Color(
+            NSColor(name: nil) { appearance in
+                let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                let highContrast = NSAppearance(
+                    named: isDark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua)
+                var resolved = color
+                highContrast?.performAsCurrentDrawingAppearance {
+                    resolved = color.usingColorSpace(.sRGB) ?? color
+                }
+                return resolved
+            })
+    }
+    #endif
 
     // Accents
     public static var accent: Color {

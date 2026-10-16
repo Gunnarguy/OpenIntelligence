@@ -31,10 +31,11 @@ struct DocumentQuotaBanner: View {
                 HStack {
                     Text("Document Quota")
                         .font(.subheadline.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Text("\(currentCount)/\(limit)")
                         .font(.caption)
-                        .foregroundStyle(isAtLimit ? .orange : .secondary)
+                        .foregroundStyle(isAtLimit ? DSColors.readable(.orange) : DSColors.secondaryText)
                 }
 
                 ProgressView(value: progress)
@@ -48,15 +49,16 @@ struct DocumentQuotaBanner: View {
                 if isAtLimit {
                     Label("Quota reached. Upgrade or remove documents to keep importing.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(DSColors.readable(.orange))
                 } else if isNearLimit {
                     Label("Almost full. Reserve your next tier before you hit the wall.", systemImage: "hourglass")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(DSColors.readable(.yellow))
                 } else {
                     Text("\(remaining) imports left on your \(tierName) plan.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -69,12 +71,12 @@ struct DocumentQuotaBanner: View {
                             .foregroundStyle(Color.accentColor)
                         Text("Legacy document-pack bonus: +\(bonusDocs) docs")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
 
                     Text("Your previous document-pack purchases are still applied, but document packs are no longer sold in-app.")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
             }
 
@@ -92,9 +94,11 @@ struct DocumentQuotaBanner: View {
                 } label: {
                     Label(isAtLimit ? "Upgrade Now" : "Explore Plans", systemImage: "arrow.up.forward.app")
                         .font(.caption.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .buttonStyle(isAtLimit || isNearLimit ? .borderedProminent : .borderedProminent)
-                .tint(isAtLimit || isNearLimit ? nil : .gray)
+                // A gray dark enough for the white label in light and dark (5.7): `.gray` gave about 3.3 to 1.
+                .tint(isAtLimit || isNearLimit ? nil : Color(white: 0.36))
             }
         }
         .padding(16)

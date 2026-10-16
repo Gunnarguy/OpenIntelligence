@@ -97,7 +97,9 @@ struct ModelConfigTip: Tip {
     }
 
     var message: Text? {
+        // The readable gray (5.7): TipKit's own message color "failed" Apple's contrast audit in Settings.
         Text("Tune retrieval depth, temperature, and context window.")
+            .foregroundStyle(DSColors.secondaryText)
     }
 
     var image: Image? {

@@ -443,13 +443,14 @@ struct DocumentLibraryView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Documents")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(DSColors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(documentSectionSubtitle)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 8)

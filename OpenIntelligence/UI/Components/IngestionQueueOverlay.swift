@@ -413,10 +413,10 @@ struct IngestionQueueOverlay: View {
         overlayAccentColor.opacity(activeCount > 0 ? 0.16 : 0.08)
     }
 
-    var body: some View {
+    /// The panel itself, drawn only while it is visible (`body`).
+    private var panel: some View {
         let visibleItems = Array(sortedItems.prefix(5))
         let hiddenCount = max(0, items.count - visibleItems.count)
-        let isVisible = !items.isEmpty && !isDismissed
 
         return VStack(alignment: .leading, spacing: isMinimized ? 0 : 16) {
             headerView
@@ -469,13 +469,25 @@ struct IngestionQueueOverlay: View {
         )
         .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 12)
         .glassCardEffectHelper(cornerRadius: 20, isSelected: false, interactive: false)
-        .opacity(isVisible ? 1.0 : 0.0)
-        .scaleEffect(isVisible ? 1.0 : 0.95)
-        .offset(y: isVisible ? 0 : 40)
-        .allowsHitTesting(isVisible)
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: isVisible)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
         .animation(.spring(response: 0.25), value: isMinimized)
+    }
+
+    var body: some View {
+        let isVisible = !items.isEmpty && !isDismissed
+
+        // Drawn only while there is something to show (5.7). The panel used to stay in the view at opacity 0 with hit
+        // testing off, so on an empty library's Chat and Documents Apple's accessibility audit, and anything else
+        // reading the accessibility tree, still found "Upload complete" and "0/0 complete" (2026-10-15); an
+        // `accessibilityHidden` on it did not take it out of the audit either (2026-10-16). The same spring brings it
+        // in and out as a transition.
+        return ZStack {
+            if isVisible {
+                panel
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)).combined(with: .offset(y: 40)))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: isVisible)
         .onChange(of: items.isEmpty) { _, isEmpty in
             if isEmpty {
                 isDismissed = false

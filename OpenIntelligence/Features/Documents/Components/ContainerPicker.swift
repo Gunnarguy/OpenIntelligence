@@ -151,9 +151,9 @@ struct ContainerPickerStrip: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                     Text("New Library")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.footnote.weight(.medium))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -161,7 +161,7 @@ struct ContainerPickerStrip: View {
                     Capsule()
                         .strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4]))
                 )
-                .foregroundColor(.secondary)
+                .foregroundStyle(DSColors.secondaryText)
             }
             .buttonStyle(.plain)
             .fixedSize(horizontal: true, vertical: false)
@@ -204,16 +204,16 @@ struct ContainerPill: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: container.icon)
-                .font(.system(size: 11, weight: .medium))
+                .font(.caption2.weight(.medium))
             Text(displayName ?? container.name)
-                .font(.system(size: 13, weight: .medium))
+                .font(.footnote.weight(.medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .minimumScaleFactor(0.9)
                 .layoutPriority(1)
             if let badgeText {
                 Text(badgeText)
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(.caption2, design: .rounded).weight(.bold))
                     .monospacedDigit()
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
