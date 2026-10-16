@@ -211,7 +211,7 @@ struct SettingsView: View {
                 title: "Appearance",
                 subtitle: "Accent colour and the hardware HUD",
                 icon: "paintbrush", tint: .pink,
-                keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "glow", "haptics"]
+                keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud", "x-ray", "xray", "glow", "haptics"]
             ),
             .init(
                 id: .notifications, group: .device,

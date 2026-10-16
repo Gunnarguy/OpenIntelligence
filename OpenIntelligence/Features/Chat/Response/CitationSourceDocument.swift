@@ -39,6 +39,17 @@ final class LibraryDocumentLookup {
     func document(_ id: UUID) -> Document? {
         ragService?.documents.first { $0.id == id }
     }
+
+    /// The whole text of a cited passage, read by its id from its document's library (5.7). A saved conversation
+    /// keeps each passage cut to 600 characters, so its page reads the passage again here. Nil when the library or
+    /// the passage is gone.
+    func passageText(_ id: UUID, in document: Document) async -> String? {
+        guard let ragService, let containerId = document.containerId,
+            ragService.containerService.containers.contains(where: { $0.id == containerId }),
+            let database = try? await ragService.dbForContainer(containerId)
+        else { return nil }
+        return try? await database.chunks(withIDs: [id]).first?.content
+    }
 }
 
 private struct LibraryDocumentLookupKey: EnvironmentKey {

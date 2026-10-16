@@ -51,13 +51,19 @@ struct GroundedAnswerView: View {
                 get: { selectedCitationChunk.map { IdentifiableChunk(chunk: $0) } },
                 set: { selectedCitationChunk = $0?.chunk }
             )) { identifiableChunk in
-                NavigationStack {
-                    DocumentDetailsView(
-                        document: CitationSourceDocument.resolve(
-                            identifiableChunk.chunk, found: libraryDocumentLookup?.document(identifiableChunk.chunk.chunk.documentId)),
-                        embeddingProviderId: nil,
-                        highlightedChunk: identifiableChunk.chunk
-                    )
+                let chunk = identifiableChunk.chunk
+                let document = CitationSourceDocument.resolve(
+                    chunk, found: libraryDocumentLookup?.document(chunk.chunk.documentId))
+                // The page itself when the source is a PDF on this device, with the passage highlighted (5.7);
+                // anything else opens the document's details, as before.
+                if let page = CitationSourceDocument.page(of: chunk, in: document) {
+                    SourcePageView(
+                        document: document, pageNumber: page, passage: chunk.chunk.content, chunk: chunk,
+                        lookup: libraryDocumentLookup)
+                } else {
+                    NavigationStack {
+                        DocumentDetailsView(document: document, embeddingProviderId: nil, highlightedChunk: chunk)
+                    }
                 }
             }
 
@@ -89,10 +95,15 @@ struct GroundedAnswerView: View {
                     }
                     .padding(.top, 2)
                     
+                    let destinations = evidenceDestinations
                     ForEach(Array(answer.claims.enumerated()), id: \.offset) { index, claim in
                         ClaimCard(
                             claim: claim,
                             evidence: answer.evidence,
+                            evidenceDestinations: destinations,
+                            onOpenEvidence: { evidence in
+                                selectedCitationChunk = retrievedChunks.first { $0.chunk.id.uuidString == evidence.evidenceId }
+                            },
                             isExpanded: expandedClaimIndex == index,
                             onTap: {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -137,6 +148,20 @@ struct GroundedAnswerView: View {
 }
 
 extension GroundedAnswerView {
+    /// What tapping each Fact Check quote opens, by evidence id (a passage's id): its page, for a PDF on this device
+    /// with a page number, or else its document's details (5.7). A quote whose passage this answer did not retrieve
+    /// opens nothing.
+    private var evidenceDestinations: [String: EvidenceDestination] {
+        var destinations: [String: EvidenceDestination] = [:]
+        for chunk in retrievedChunks {
+            let document = CitationSourceDocument.resolve(
+                chunk, found: libraryDocumentLookup?.document(chunk.chunk.documentId))
+            destinations[chunk.chunk.id.uuidString] =
+                CitationSourceDocument.page(of: chunk, in: document).map { EvidenceDestination.page($0) } ?? .details
+        }
+        return destinations
+    }
+
     /// "3 Verified" was printed for any three claims. Count the verdicts instead.
     nonisolated static func factCheckSummary(for claims: [StructuredAnswer.Claim]) -> String {
         let supported = claims.filter { $0.verificationVerdict == .supported }.count
@@ -156,9 +181,20 @@ extension GroundedAnswerView {
     }
 }
 
+/// What a Fact Check quote opens when it is tapped (5.7).
+private enum EvidenceDestination: Equatable {
+    /// The quote's page in its PDF, with the passage highlighted.
+    case page(Int)
+    /// Its document's details.
+    case details
+}
+
 private struct ClaimCard: View {
     let claim: StructuredAnswer.Claim
     let evidence: [StructuredAnswer.Evidence]
+    /// What each quote opens, by evidence id; a quote with none opens nothing (5.7).
+    let evidenceDestinations: [String: EvidenceDestination]
+    let onOpenEvidence: (StructuredAnswer.Evidence) -> Void
     let isExpanded: Bool
     let onTap: () -> Void
 
@@ -171,9 +207,20 @@ private struct ClaimCard: View {
         }
     }
     
+    /// What VoiceOver says a quote does when it is opened (5.7).
+    private static func hint(for destination: EvidenceDestination?) -> String {
+        switch destination {
+        case .page(let page): return "Shows page \(page) of the document, with the passage highlighted."
+        case .details: return "Shows the document's details."
+        case nil: return ""
+        }
+    }
+
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
+            // The claim is the card's button, and the card's padding is part of it, so a one-line claim is a target
+            // more than 44 points tall; the quotes under it are buttons of their own (5.7).
+            Button(action: onTap) {
                 HStack(alignment: .top, spacing: 8) {
                     // Verdict Icon
                     ZStack {
@@ -216,36 +263,46 @@ private struct ClaimCard: View {
                         .foregroundStyle(DSColors.secondaryText)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
+                .padding([.horizontal, .top], 12)
+                .padding(.bottom, isExpanded ? 0 : 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
                 
-                if isExpanded {
-                    VStack(alignment: .leading, spacing: 10) {
-                        if let details = claim.verificationDetails {
-                            Text(details)
-                                .scaledFont(size: 11)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let details = claim.verificationDetails {
+                        Text(details)
+                            .scaledFont(size: 11)
+                            .foregroundStyle(DSColors.secondaryText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(verdictColor.opacity(0.05))
+                            .cornerRadius(6)
+                            .padding(.leading, 28)
+                    }
+                    
+                    // Supporting Evidence Quotes
+                    let relevantEvidence = matchingEvidence
+                    if !relevantEvidence.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("SUPPORTING EVIDENCE")
+                                .scaledFont(size: 8, weight: .bold)
                                 .foregroundStyle(DSColors.secondaryText)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(verdictColor.opacity(0.05))
-                                .cornerRadius(6)
                                 .padding(.leading, 28)
-                        }
-                        
-                        // Supporting Evidence Quotes
-                        let relevantEvidence = matchingEvidence
-                        if !relevantEvidence.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("SUPPORTING EVIDENCE")
-                                    .scaledFont(size: 8, weight: .bold)
-                                    .foregroundStyle(DSColors.secondaryText)
-                                    .padding(.leading, 28)
-                                
-                                ForEach(relevantEvidence, id: \.evidenceId) { ev in
+                            
+                            ForEach(relevantEvidence, id: \.evidenceId) { ev in
+                                // Opens the page the quote is on, or its document (5.7).
+                                let destination = evidenceDestinations[ev.evidenceId]
+                                Button {
+                                    onOpenEvidence(ev)
+                                } label: {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text("\"\(ev.quote)\"")
                                             .scaledFont(size: 10, weight: .medium, design: .serif)
                                             .foregroundStyle(DSColors.primaryText.opacity(0.9))
                                             .italic()
-                                        
+
                                         HStack(spacing: 3) {
                                             Image(systemName: "doc.fill")
                                                 .scaledFont(size: 7)
@@ -253,51 +310,64 @@ private struct ClaimCard: View {
                                             if let page = ev.page {
                                                 Text("• P.\(page)")
                                             }
+                                            if destination != nil {
+                                                Image(systemName: "chevron.right")
+                                                    .scaledFont(size: 7, weight: .bold)
+                                            }
                                         }
                                         .scaledFont(size: 8, weight: .bold)
-                                        .foregroundStyle(DSColors.accent)
+                                        // The accent on a quote that opens something, gray on one that does not.
+                                        .foregroundStyle(
+                                            destination == nil ? DSColors.secondaryText : DSColors.readable(DSColors.accent))
                                     }
                                     .padding(8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget, alignment: .leading)
                                     .background(DSColors.background.opacity(0.5))
                                     .cornerRadius(6)
-                                    .padding(.leading, 28)
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .disabled(destination == nil)
+                                .accessibilityHint(Self.hint(for: destination))
+                                .padding(.leading, 28)
                             }
                         }
-                        
-                        HStack(spacing: 6) {
-                            Spacer().frame(width: 20)
-                            
-                            Text("CONFIDENCE")
-                                .scaledFont(size: 8, weight: .bold)
-                                .foregroundStyle(DSColors.secondaryText)
-                            
-                            ProgressView(value: claim.confidence)
-                                .progressViewStyle(.linear)
-                                .tint(verdictColor)
-                                .frame(width: 50)
-                            
-                            Text("\(Int(claim.confidence * 100))%")
-                                .scaledFont(size: 9, weight: .bold, design: .rounded)
-                                .foregroundStyle(DSColors.primaryText)
-                        }
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    
+                    HStack(spacing: 6) {
+                        Spacer().frame(width: 20)
+                        
+                        Text("CONFIDENCE")
+                            .scaledFont(size: 8, weight: .bold)
+                            .foregroundStyle(DSColors.secondaryText)
+                        
+                        ProgressView(value: claim.confidence)
+                            .progressViewStyle(.linear)
+                            .tint(verdictColor)
+                            .frame(width: 50)
+                        
+                        Text("\(Int(claim.confidence * 100))%")
+                            .scaledFont(size: 9, weight: .bold, design: .rounded)
+                            .foregroundStyle(DSColors.primaryText)
+                    }
                 }
+                .padding([.horizontal, .bottom], 12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(DSColors.surface)
-                    .shadow(color: .black.opacity(isExpanded ? 0.08 : 0.02), radius: isExpanded ? 4 : 2, x: 0, y: 1)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(verdictColor.opacity(isExpanded ? 0.3 : 0.1), lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(DSColors.surface)
+                .shadow(color: .black.opacity(isExpanded ? 0.08 : 0.02), radius: isExpanded ? 4 : 2, x: 0, y: 1)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(verdictColor.opacity(isExpanded ? 0.3 : 0.1), lineWidth: 1)
+        )
+        // A tap anywhere else on the card opens or closes the claim, as the whole card did through 5.6, instead of
+        // reaching the message under it, whose tap shows its actions (5.7).
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onTapGesture(perform: onTap)
     }
     
     private var matchingEvidence: [StructuredAnswer.Evidence] {

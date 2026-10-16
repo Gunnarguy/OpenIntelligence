@@ -573,11 +573,13 @@ final class SettingsStore: ObservableObject {
         // Appearance settings
         // Accent color - nil means use system default
         appAccentColorHex = defaults.string(forKey: Keys.appAccentColorHex)
-        // Silicon HUD - defaults to true (show the X-ray overlay). Read with `bool(forKey:)` once a value exists, so a
-        // launch argument (`-showSiliconHUD NO`, which the accessibility UI test passes) reads as the Bool it names;
-        // `as? Bool` saw the string "NO" and fell back to true (5.7).
+        // Silicon HUD - off on a new install (5.7, the owner's word): a hardware monitor over Chat was the first thing a
+        // new person saw, with none of what they came for. Anyone who has opened the app has the setting saved
+        // (`persistAll` writes every setting at launch), so they keep what they had. Read with `bool(forKey:)` once a
+        // value exists, so a launch argument (`-showSiliconHUD NO`, which the accessibility UI test passes) reads as
+        // the Bool it names; `as? Bool` saw the string "NO" and fell back to the default (5.7).
         showSiliconHUD =
-            defaults.object(forKey: Keys.showSiliconHUD) == nil ? true : defaults.bool(forKey: Keys.showSiliconHUD)
+            defaults.object(forKey: Keys.showSiliconHUD) == nil ? false : defaults.bool(forKey: Keys.showSiliconHUD)
         hudGlowIntensity = defaults.object(forKey: Keys.hudGlowIntensity) as? Double ?? 0.6
         hudShowMetrics = defaults.object(forKey: Keys.hudShowMetrics) as? Bool ?? true
         hudShowTaptic = defaults.object(forKey: Keys.hudShowTaptic) as? Bool ?? true

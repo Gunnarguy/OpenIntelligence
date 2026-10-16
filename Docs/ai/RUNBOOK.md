@@ -684,7 +684,8 @@ DEBUG builds only, so use the smoke build's `.app`:
   with its Information Gaps panel, the sources sheet, and the Private Cloud Compute consent sheet.
   Import the samples first so the library chips read 3 documents, and wait about 18 seconds after
   launch before capturing, or the chips still read 0. Hide the HUD with
-  `xcrun simctl spawn <udid> defaults write Gunndamental.OpenIntelligence showSiliconHUD -bool false`,
+  `xcrun simctl spawn <udid> defaults write Gunndamental.OpenIntelligence showSiliconHUD -bool false`
+  (from 5.7 a fresh install starts with it off, so this matters only on an install that has turned it on),
   and pin a clean status bar with `xcrun simctl status_bar <udid> override --time 9:41 ...`.
   Then `python3 scripts/compose_store_screenshots.py <raw> <out>` captions them, and
   `zsh -ic 'ruby scripts/asc_upload_screenshots.rb <version> <out> --apply'` replaces the sets,

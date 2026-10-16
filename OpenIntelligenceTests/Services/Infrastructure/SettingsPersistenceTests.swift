@@ -27,4 +27,16 @@ final class SettingsPersistenceTests: XCTestCase {
 
         XCTAssertEqual(defaults.object(forKey: "enableSpotlightIndexing") as? Bool, !before)
     }
+
+    /// The hardware X-Ray starts off on a new install, and a saved setting is kept (5.7).
+    func testTheXRayStartsOffOnANewInstallAndASavedSettingIsKept() throws {
+        let suite = "SettingsPersistenceTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(SettingsStore(defaults: defaults, ragService: RAGService()).showSiliconHUD)
+
+        defaults.set(true, forKey: "showSiliconHUD")
+        XCTAssertTrue(SettingsStore(defaults: defaults, ragService: RAGService()).showSiliconHUD)
+    }
 }

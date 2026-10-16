@@ -34,6 +34,8 @@ struct MessageBubbleV2: View {
     @State private var sharePayload: SharePayload? = nil
     @State private var showReasoningTrace = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// The library's documents, for the response details' sources (5.7).
+    @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
 
     /// Supplies the library's index state for the shared trace. Optional on purpose.
     ///
@@ -296,6 +298,8 @@ struct MessageBubbleV2: View {
                     retrievedChunks: message.retrievedChunks ?? [],
                     structuredAnswer: message.structuredAnswer
                 )
+                // The library's documents, so a source can open its page (5.7).
+                .environment(\.libraryDocumentLookup, libraryDocumentLookup)
             }
         }
         .sheet(isPresented: $showReportSheet) {

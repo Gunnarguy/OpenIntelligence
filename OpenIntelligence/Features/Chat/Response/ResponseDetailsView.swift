@@ -851,6 +851,16 @@ private struct SourceCard: View {
     let rank: Int
 
     @State private var isExpanded = false
+    @State private var shownPage: SourcePageTarget?
+    @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
+
+    /// The library's document and the page to show, when the source is a PDF on this device (5.7).
+    private var pageTarget: (document: Document, page: Int)? {
+        guard let document = libraryDocumentLookup?.document(chunk.chunk.documentId),
+            let page = CitationSourceDocument.page(of: chunk, in: document)
+        else { return nil }
+        return (document, page)
+    }
 
     private var filename: String {
         if chunk.sourceDocument.isEmpty { return "Document" }
@@ -924,25 +934,42 @@ private struct SourceCard: View {
             }
             .frame(height: 4)
 
-            // Expandable content
-            Button {
-                withAnimation(DSAnimations.snappySpring) {
-                    isExpanded.toggle()
+            // Expandable content, and the page itself when the source is a PDF on this device (5.7), side by side
+            // while they fit.
+            WrappingRowLayout(spacing: DSSpacing.lg, lineSpacing: 0) {
+                Button {
+                    withAnimation(DSAnimations.snappySpring) {
+                        isExpanded.toggle()
+                    }
+                    DSHaptics.selection()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(isExpanded ? "Hide excerpt" : "Show excerpt")
+                            .scaledFont(size: 12, weight: .medium)
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .scaledFont(size: 10, weight: .semibold)
+                    }
+                    .foregroundStyle(DSColors.secondaryText)
+                    // 44 points to tap on iPhone and iPad; the audit found the line's own 14 too small (5.7).
+                    .frame(minHeight: DSSpacing.tapTarget)
+                    .contentShape(Rectangle())
                 }
-                DSHaptics.selection()
-            } label: {
-                HStack(spacing: 4) {
-                    Text(isExpanded ? "Hide excerpt" : "Show excerpt")
-                        .scaledFont(size: 12, weight: .medium)
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .scaledFont(size: 10, weight: .semibold)
+                .buttonStyle(.plain)
+
+                if let target = pageTarget {
+                    Button {
+                        shownPage = SourcePageTarget(document: target.document, page: target.page)
+                    } label: {
+                        Label("Page \(target.page)", systemImage: "doc.text.magnifyingglass")
+                            .scaledFont(size: 12, weight: .semibold)
+                            .foregroundStyle(DSColors.readable(DSColors.accent))
+                            .frame(minHeight: DSSpacing.tapTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Show page \(target.page)")
                 }
-                .foregroundStyle(DSColors.secondaryText)
-                // 44 points to tap on iPhone and iPad; the audit found the line's own 14 too small (5.7).
-                .frame(minHeight: DSSpacing.tapTarget)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
 
             if isExpanded {
                 ScrollView {
@@ -965,6 +992,12 @@ private struct SourceCard: View {
                 .fill(DSColors.surface)
         )
         .padding(.horizontal, DSSpacing.md)
+        // Outside the `if` that draws the Page button, so a redraw that finds no page cannot close an open one (5.7).
+        .sheet(item: $shownPage) { shown in
+            SourcePageView(
+                document: shown.document, pageNumber: shown.page, passage: chunk.chunk.content, chunk: chunk,
+                lookup: libraryDocumentLookup)
+        }
     }
 }
 

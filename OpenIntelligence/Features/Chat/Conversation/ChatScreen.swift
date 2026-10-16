@@ -942,6 +942,8 @@ struct ChatScreen: View {
                         retrievedChunks: currentRetrievedChunks,
                         structuredAnswer: currentStructuredAnswer
                     )
+                    // The library's documents, so a source can open its page (5.7).
+                    .environment(\.libraryDocumentLookup, documentLookup)
                 } else {
                     VStack(alignment: .leading, spacing: DSSpacing.md) {
                         Text("Retrieved Sources")

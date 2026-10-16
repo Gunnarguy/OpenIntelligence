@@ -41,4 +41,29 @@ final class CitationSourceDocumentTests: XCTestCase {
         let other = Document(id: UUID(), filename: "Other.pdf", fileURL: URL(fileURLWithPath: "/tmp/Other.pdf"), contentType: .pdf)
         XCTAssertEqual(CitationSourceDocument.resolve(passage(of: id, source: "Gone.pdf"), found: other).id, id)
     }
+
+    /// A cited passage opens on its page only from a PDF whose file is on this device, with a page number from the
+    /// import; anything else opens the document's details (5.7).
+    func testOnlyAPDFOnThisDeviceWithAPageNumberOpensItsPage() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("IFU-\(UUID().uuidString).pdf")
+        try Data("%PDF-1.4".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let id = UUID()
+        func cited(page: Int?) -> RetrievedChunk {
+            RetrievedChunk(
+                chunk: DocumentChunk(documentId: id, content: "Soak it for 15 minutes.", embedding: [], metadata: ChunkMetadata(chunkIndex: 0)),
+                similarityScore: 0.8, rank: 0, sourceDocument: "IFU.pdf", pageNumber: page)
+        }
+        let pdf = Document(id: id, filename: "IFU.pdf", fileURL: file, contentType: .pdf)
+
+        XCTAssertEqual(CitationSourceDocument.page(of: cited(page: 23), in: pdf), 23)
+        XCTAssertNil(CitationSourceDocument.page(of: cited(page: nil), in: pdf))
+        XCTAssertNil(CitationSourceDocument.page(of: cited(page: 0), in: pdf))
+        let notes = Document(id: id, filename: "Notes.md", fileURL: file.deletingPathExtension().appendingPathExtension("md"), contentType: .markdown)
+        XCTAssertNil(CitationSourceDocument.page(of: cited(page: 23), in: notes))
+        let elsewhere = Document(
+            id: id, filename: "IFU.pdf", fileURL: file.deletingLastPathComponent().appendingPathComponent("Missing-\(UUID().uuidString).pdf"),
+            contentType: .pdf)
+        XCTAssertNil(CitationSourceDocument.page(of: cited(page: 23), in: elsewhere))
+    }
 }
