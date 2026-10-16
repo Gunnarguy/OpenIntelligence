@@ -124,7 +124,7 @@ enum RetrievalActivity: String, CaseIterable {
     }
 }
 
-enum ContentCategory: String, CaseIterable, Identifiable {
+nonisolated enum ContentCategory: String, CaseIterable, Identifiable, Sendable {
     case technical = "Technical"
     case legal = "Legal"
     case academic = "Academic"
@@ -158,6 +158,40 @@ enum ContentCategory: String, CaseIterable, Identifiable {
         case .mixed: return .gray
         }
     }
+
+    /// A passage's category from its words (`AtlasLabeling.terms(in:)`) and its keywords, tried in this order. Whole
+    /// words: through 5.6 each word was searched for inside the passage's text, so "api" matched "capital", "code"
+    /// matched "barcode" and "data" matched "metadata", and a passage that held none of the words was searched 29
+    /// times, which took 3.5 s for 6,000 such passages on the main thread (a Mac, built -O, 2026-10-15). Because a
+    /// whole word no longer matches inside a longer one, the lists carry the plurals and the longer words the old
+    /// search caught on purpose ("database", "researchers", "marketing"). A word glued into an identifier, such as
+    /// `apiClient`, no longer counts.
+    static func of(terms: Set<String>, keywords: [String]) -> ContentCategory {
+        let keywordSet = Set(keywords.map { $0.lowercased() })
+        if technicalWords.contains(where: { terms.contains($0) || keywordSet.contains($0) }) { return .technical }
+        if legalWords.contains(where: { terms.contains($0) }) { return .legal }
+        if academicWords.contains(where: { terms.contains($0) }) { return .academic }
+        if businessWords.contains(where: { terms.contains($0) }) { return .business }
+        return .mixed
+    }
+
+    private static let technicalWords = [
+        "api", "apis", "function", "functions", "functional", "code", "codes", "codebase", "coding", "algorithm",
+        "algorithms", "algorithmic", "implementation", "implementations", "software", "system", "systems", "data",
+        "database", "databases", "dataset", "datasets",
+    ]
+    private static let legalWords = [
+        "agreement", "agreements", "contract", "contracts", "contractual", "liability", "liabilities", "terms",
+        "hereby", "pursuant", "clause", "clauses",
+    ]
+    private static let academicWords = [
+        "research", "researcher", "researchers", "researched", "study", "studies", "hypothesis", "hypotheses",
+        "methodology", "methodologies", "findings", "abstract", "abstracts", "conclusion", "conclusions",
+    ]
+    private static let businessWords = [
+        "revenue", "revenues", "market", "markets", "marketing", "strategy", "strategies", "strategic", "growth",
+        "stakeholder", "stakeholders", "roi", "kpi", "kpis",
+    ]
 }
 
 struct TopicCluster: Identifiable, Equatable {
@@ -437,11 +471,20 @@ final class LibraryVisualizationEngine: ObservableObject {
             libraryCount > chunkCount
             ? Int(Double(countedWords) * Double(libraryCount) / Double(chunkCount)) : countedWords
 
+        // The work for each passage runs off the main actor: clustering the vectors, splitting each passage into
+        // words, naming the clusters and sorting each passage into a content category. Only plain arrays cross.
+        let embeddings = chunks.map { $0.embedding }
+        let texts = chunks.map { $0.content }
+        let keywords = chunks.map { $0.metadata.keywords }
+        let passages = await Task.detached(priority: .userInitiated) {
+            Self.analyzePassages(embeddings: embeddings, texts: texts, keywords: keywords)
+        }.value
+
         // Topic analysis
-        let (topics, diversity) = await analyzeTopics(chunks: chunks)
+        let (topics, diversity) = topicClusters(chunks: chunks, passages: passages)
 
         // Content categorization
-        let contentMix = categorizeContent(chunks: chunks)
+        let contentMix = Self.contentMix(passages.categories)
 
         // Retrieval analysis
         let (activity, hotChunks, coldZones) = analyzeRetrieval(
@@ -483,46 +526,61 @@ final class LibraryVisualizationEngine: ObservableObject {
         )
     }
 
-    private func analyzeTopics(chunks: [DocumentChunk]) async -> ([TopicCluster], Float) {
-        guard !chunks.isEmpty else { return ([], 0) }
+    /// What the Atlas works out for each passage, computed off the main actor (`analyzePassages`).
+    nonisolated struct PassageAnalysis: Sendable {
+        /// The cluster of each passage, in the order of the passages.
+        let clusterMembership: [Int]
+        /// For each cluster, the words that set it apart from the others.
+        let distinguishingTerms: [[String]]
+        let clusterNames: [String]
+        /// The content category of each passage, in the order of the passages.
+        let categories: [ContentCategory]
+    }
 
-        // Cluster membership from embeddings using deterministic k-means
-        let embeddings = chunks.map { $0.embedding }
-        let texts = chunks.map { $0.content }
-        // Off the main actor: clustering the vectors and splitting the passages into words.
-        let (clusterMembership, chunkTerms) = await Task.detached(priority: .userInitiated) {
-            (AtlasLabeling.kMeans(embeddings: embeddings), texts.map { AtlasLabeling.terms(in: $0) })
-        }.value
-
-        let maxCluster = clusterMembership.max() ?? 0
-        let k = maxCluster + 1
-
-        let groupTerms = (0 ..< k).map { c in
-            chunks.indices.filter { clusterMembership[$0] == c }.map { chunkTerms[$0] }
+    /// Clusters the passages' vectors, splits each passage into words, names the clusters and sorts each passage into a
+    /// content category. Pure, and run off the main actor.
+    nonisolated private static func analyzePassages(
+        embeddings: [[Float]], texts: [String], keywords: [[String]]
+    ) -> PassageAnalysis {
+        let terms = texts.map { AtlasLabeling.terms(in: $0) }
+        let membership = AtlasLabeling.kMeans(embeddings: embeddings)
+        let k = (membership.max() ?? -1) + 1
+        var groupTerms = Array(repeating: [Set<String>](), count: k)
+        for (index, cluster) in membership.enumerated() where cluster >= 0 && cluster < k {
+            groupTerms[cluster].append(terms[index])
         }
-
-        let distinguishing = AtlasLabeling.distinguishingTerms(
-            passageTerms: groupTerms,
-            allPassageTerms: chunkTerms
-        )
-
+        let distinguishing = AtlasLabeling.distinguishingTerms(passageTerms: groupTerms, allPassageTerms: terms)
         let names = AtlasLabeling.clusterNames(distinguishingTerms: distinguishing)
+        let categories = terms.indices.map { index in
+            ContentCategory.of(terms: terms[index], keywords: index < keywords.count ? keywords[index] : [])
+        }
+        return PassageAnalysis(
+            clusterMembership: membership, distinguishingTerms: distinguishing, clusterNames: names,
+            categories: categories)
+    }
+
+    private func topicClusters(chunks: [DocumentChunk], passages: PassageAnalysis) -> ([TopicCluster], Float) {
+        guard !chunks.isEmpty, passages.clusterMembership.count == chunks.count else { return ([], 0) }
+
+        let k = passages.clusterNames.count
+        var indicesByCluster = Array(repeating: [Int](), count: k)
+        for (index, cluster) in passages.clusterMembership.enumerated() where cluster >= 0 && cluster < k {
+            indicesByCluster[cluster].append(index)
+        }
 
         let palette: [Color] = [.blue, .purple, .green, .orange, .pink, .teal]
         var topicClusters: [TopicCluster] = []
 
         for c in 0 ..< k {
-            let chunkIndicesInCluster = chunks.indices.filter { clusterMembership[$0] == c }
-            guard !chunkIndicesInCluster.isEmpty else { continue }
+            let chunkIndicesInCluster = indicesByCluster[c]
+            guard let firstIdx = chunkIndicesInCluster.first else { continue }
             let clusterChunkIds = Set(chunkIndicesInCluster.map { chunks[$0].id })
-            let name = names[c]
-            let kw = distinguishing[c].prefix(5).map { $0 }
-            let firstIdx = chunkIndicesInCluster.first ?? 0
+            let kw = c < passages.distinguishingTerms.count ? Array(passages.distinguishingTerms[c].prefix(5)) : []
             let snippet = chunks[firstIdx].content.prefix(100).trimmingCharacters(in: .whitespacesAndNewlines)
 
             topicClusters.append(TopicCluster(
-                name: name,
-                keywords: Array(kw),
+                name: passages.clusterNames[c],
+                keywords: kw,
                 chunkCount: clusterChunkIds.count,
                 percentage: Float(clusterChunkIds.count) / Float(max(chunks.count, 1)),
                 color: palette[c % palette.count],
@@ -556,54 +614,21 @@ final class LibraryVisualizationEngine: ObservableObject {
         return maxEntropy > 0 ? entropy / maxEntropy : 0
     }
 
-    private func categorizeContent(chunks: [DocumentChunk]) -> [ContentCategory: Float] {
-        guard !chunks.isEmpty else { return [:] }
+    private static func contentMix(_ categories: [ContentCategory]) -> [ContentCategory: Float] {
+        guard !categories.isEmpty else { return [:] }
 
         var categoryCounts: [ContentCategory: Int] = [:]
-
-        for chunk in chunks {
-            let category = detectCategory(chunk: chunk)
+        for category in categories {
             categoryCounts[category, default: 0] += 1
         }
 
-        let total = Float(chunks.count)
+        let total = Float(categories.count)
         var mix: [ContentCategory: Float] = [:]
         for (cat, count) in categoryCounts {
             mix[cat] = Float(count) / total
         }
 
         return mix
-    }
-
-    private func detectCategory(chunk: DocumentChunk) -> ContentCategory {
-        let content = chunk.content.lowercased()
-        let keywords = Set(chunk.metadata.keywords.map { $0.lowercased() })
-
-        // Technical indicators
-        let techTerms = ["api", "function", "code", "algorithm", "implementation", "software", "system", "data"]
-        if techTerms.contains(where: { content.contains($0) || keywords.contains($0) }) {
-            return .technical
-        }
-
-        // Legal indicators
-        let legalTerms = ["agreement", "contract", "liability", "terms", "hereby", "pursuant", "clause"]
-        if legalTerms.contains(where: { content.contains($0) }) {
-            return .legal
-        }
-
-        // Academic indicators
-        let academicTerms = ["research", "study", "hypothesis", "methodology", "findings", "abstract", "conclusion"]
-        if academicTerms.contains(where: { content.contains($0) }) {
-            return .academic
-        }
-
-        // Business indicators
-        let businessTerms = ["revenue", "market", "strategy", "growth", "stakeholder", "roi", "kpi"]
-        if businessTerms.contains(where: { content.contains($0) }) {
-            return .business
-        }
-
-        return .mixed
     }
 
     private func analyzeRetrieval(

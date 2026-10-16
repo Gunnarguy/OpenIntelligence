@@ -3211,11 +3211,13 @@ struct EmbeddingSpaceRenderer: View {
                cached.coords.count == sampledEmbeddings.count {
                 coords3D = cached.coords
             } else {
-                coords3D = ProjectionService.shared.project3D(
-                    embeddings: sampledEmbeddings,
-                    method: methodKind,
-                    seed: rngSeed
-                )
+                // Off the main actor: UMAP and t-SNE take seconds on a few thousand passages (`ProjectionService`).
+                let toProject = sampledEmbeddings
+                let method = methodKind
+                let seed = rngSeed
+                coords3D = await Task.detached(priority: .userInitiated) {
+                    ProjectionService.shared.project3D(embeddings: toProject, method: method, seed: seed)
+                }.value
                 // Build counts per doc for legend and cache
                 var perDocCounts: [UUID: Int] = [:]
                 for did in sampledDocIds {

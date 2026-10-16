@@ -216,9 +216,9 @@ struct AdaptiveVisualizationsView: View {
         // appearance as well as on container change, so it covers both cases the pair covered.
         //
         // The duplicate could not be cancelled away: `analysisTask?.cancel()` cannot stop the
-        // in-flight copy because neither `buildProfile` nor `analyzeTopics` checks
-        // `Task.isCancelled`, and `LibraryVisualizationEngine` is `@MainActor` throughout, so
-        // full-text tokenisation of every chunk holds the main actor for the duration — twice.
+        // in-flight copy because `buildProfile` does not check `Task.isCancelled`. Its work for
+        // each passage runs off the main actor since 5.7 (`LibraryVisualizationEngine.analyzePassages`),
+        // so a duplicate costs time, not the screen.
         .task(id: containerService.activeContainerId) {
             await refreshAnalysis()
         }
@@ -2218,11 +2218,11 @@ struct Fullscreen3DAtlasView: View {
 
         // Project to 3D — use deterministic seed (not .hashValue which is randomized per launch)
         let seed = deterministicSeed(from: containerService.activeContainerId.uuidString)
-        let coords3D = ProjectionService.shared.project3D(
-            embeddings: embeddings,
-            method: projectionMethod,
-            seed: seed
-        )
+        // Off the main actor: UMAP and t-SNE take seconds on a few thousand passages (`ProjectionService`).
+        let method = projectionMethod
+        let coords3D = await Task.detached(priority: .userInitiated) {
+            ProjectionService.shared.project3D(embeddings: embeddings, method: method, seed: seed)
+        }.value
 
         // === CLUSTER MEMBERSHIP & NAMING ===
         // Cluster membership derives deterministically from embeddings via k-means.
@@ -2294,6 +2294,11 @@ struct Fullscreen3DAtlasView: View {
 
         // Analyze axis extremes for content-derived semantic labels using AtlasLabeling
         let axisLabels = analyzeAxisLabels(coords: coords3D, chunks: sampledChunks, precomputedTerms: passageTerms)
+
+        // A load for another method or library started while this one worked: that one draws, not this.
+        guard !Task.isCancelled, method == projectionMethod,
+            activeContainer == ragService.containerService.activeContainerId
+        else { return }
 
         await MainActor.run {
             points = scaledPoints
@@ -2711,11 +2716,11 @@ struct CompactAtlasSceneView: View {
 
         // Project to 3D — use deterministic seed (not .hashValue which is randomized per launch)
         let seed = deterministicSeed(from: containerService.activeContainerId.uuidString)
-        let coords3D = ProjectionService.shared.project3D(
-            embeddings: embeddings,
-            method: projectionMethod,
-            seed: seed
-        )
+        // Off the main actor: UMAP and t-SNE take seconds on a few thousand passages (`ProjectionService`).
+        let method = projectionMethod
+        let coords3D = await Task.detached(priority: .userInitiated) {
+            ProjectionService.shared.project3D(embeddings: embeddings, method: method, seed: seed)
+        }.value
 
         // === CLUSTER MEMBERSHIP & NAMING ===
         // Cluster membership derives deterministically from embeddings via k-means.
@@ -2785,6 +2790,10 @@ struct CompactAtlasSceneView: View {
 
         // Analyze axis extremes for content-derived semantic labels
         let axisLabels = analyzeAxisLabelsCompact(coords: coords3D, chunks: sampledChunks, precomputedTerms: passageTerms)
+
+        // A load for another method or library started while this one worked: that one draws, not this.
+        // `.task(id:)` cancels this one when the method changes; a library change starts its own task.
+        guard !Task.isCancelled, activeId == containerService.activeContainerId else { return }
 
         await MainActor.run {
             points = scaledPoints

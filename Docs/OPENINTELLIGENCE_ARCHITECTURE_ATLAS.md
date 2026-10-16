@@ -173,6 +173,19 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   sample, and two-ended axis labels from the lowest and highest tenth of passages on an axis. There is no list of
   subjects and nothing specific to a language. The map views and `LibraryVisualizationEngine` both call it.
   `[evidence: test_verified, AtlasLabelingTests; not yet seen on a device]`
+- **Where the Atlas does its work, changed 2026-10-15 for 5.7**: `LibraryVisualizationEngine.buildProfile` hands
+  plain arrays (vectors, texts, keywords) to `analyzePassages`, which runs detached: k-means, the words of each
+  passage, the cluster names and each passage's content category (`ContentCategory.of(terms:keywords:)`, whole words
+  from `AtlasLabeling.terms(in:)`, plurals and longer forms listed). The main actor only assembles `LibraryProfile`.
+  `ProjectionService` (PCA, random projection, t-SNE, UMAP) is `nonisolated` and `Sendable`, and the three map
+  loaders (`AdaptiveVisualizationsView` twice, `Embedding3DView` once) run `project3D` detached; each loader checks
+  before drawing that no load for another method or library replaced it. On 6,000 vectors of 512 dimensions, built
+  -O on this Mac, PCA took 227 ms, UMAP 13.4 s and t-SNE 30.8 s, and the substring category search it replaced took
+  3.5 s for 6,000 passages (`BenchmarkRuns/2026-10-15-atlas-main-thread/`). Still on the main thread: the axis
+  labels and `Embedding3DView`'s word counts, estimated at well under a second each, not timed. A replaced
+  projection still runs to its end. `[evidence_level: code_verified for where each step runs, measured for the
+  timings (this Mac, synthetic inputs, not a phone), test_verified (AtlasContentCategoryTests); confidence: high;
+  evidence_source: LibraryVisualizationEngine.swift, ProjectionService.swift, AdaptiveVisualizationsView.swift]`
 - **On-device diagnostics and two system model tools, added 2026-10-10 for 5.7**: `MetricDiagnostics`
   (app target, `OpenIntelligence/App/`) writes MetricKit's hang, launch and termination reports to the pipeline log
   and to `metric_reports.jsonl` in the local cache; nothing is sent anywhere. `SystemModelTools` in
