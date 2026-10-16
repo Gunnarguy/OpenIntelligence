@@ -116,23 +116,14 @@ Unfinished catalogue rows, by what each waits on:
 
 ## Exact Next Action
 
-Start the Mac session he approved on 2026-10-15 ("Yes, throwaway library"), for the catalogue rows "Run actions from
-Spotlight on the Mac" and "Folder automations":
+The hardware X-Ray overlay's styling, his choice on 2026-10-15 ("Solid, readable styling"): keep it on by default,
+give its labels (`MotherboardHUDView.swift`: the CPU, GPU, ANE and RAM readouts, the chip name, the "Drag me" hint) a
+solid dark backing and white text that passes Apple's contrast audit, and let that text grow with Dynamic Type. It is
+the only thing failing the contrast audit on Chat, Documents and Settings (`BenchmarkRuns/2026-10-15-accessibility-audit/`).
+Work in the background: build, rerun that audit in the iOS Simulator (light and dark), and show him before-and-after
+Simulator screenshots before committing.
 
-1. Build the Mac app unsigned, so it is not sandboxed and keeps its data in
-   `~/Library/Application Support/OpenIntelligence`, which holds only "General" (empty) and "Home" (ten sample
-   documents from a 2026-10-01 demo), not his libraries: in `/private/tmp/oi-src` (the copy above),
-   `xcodebuild build -project OpenIntelligence.xcodeproj -scheme OpenIntelligence -configuration Debug
-   -destination 'platform=macOS' -derivedDataPath /private/tmp/oi-build-mac -jobs 1 MARKETING_VERSION=5.7
-   CODE_SIGNING_ALLOWED=NO`. Then `open /private/tmp/oi-build-mac/Build/Products/Debug/OpenIntelligence.app` and make a
-   library named "Folder test".
-2. With the computer-use tools (request access for the app, Shortcuts and Finder; Spotlight needs full-screen control):
-   run one of the app's actions from Spotlight, then in Shortcuts make a folder automation ("When files are added to"
-   a scratch folder) that runs Add to Library into "Folder test", drop a text file in the folder, and confirm the file
-   is in the library and the action returned its result.
-3. Delete the automation, the "Folder test" library and the scratch folder, quit the app, and record what was seen in
-   the two catalogue rows, CHANGELOG and the roadmap rows. If macOS does not offer an unsigned build's actions, record
-   that and use a development-signed build only after asking him, since signing moves it into his app container.
-
-Then the phone session (tell him first): install a development build while the app is closed, and check the items
-listed above under "His approval already given".
+The Mac and phone sessions are off. He approved them, then stopped the Mac one a few minutes in ("this is FUCKing my
+space. lets just not do this"). The development Mac build was quit and the phone build cancelled. Don't launch apps on
+his Mac, ask for screen access or start the phone session unless he starts it himself. The rows waiting on those
+sessions are listed under "His approval already given" above.
