@@ -56,6 +56,8 @@ final class AccessibilityAuditTests: XCTestCase {
             }
             guard button.waitForExistence(timeout: 5), button.isHittable else {
                 issues.append("\(tab): the tab button was not found or could not be tapped")
+                // What covered it, for the log: once (2026-10-16) none of the tabs nor the first-run screen was found.
+                print("SCREEN WITHOUT THE \(tab.uppercased()) TAB\n\(app.debugDescription)\nEND SCREEN")
                 continue
             }
             button.tap()
@@ -77,5 +79,81 @@ final class AccessibilityAuditTests: XCTestCase {
         add(attachment)
         print("ACCESSIBILITY AUDIT\n\((notes + [report.isEmpty ? "No issues" : report]).joined(separator: "\n"))\nEND AUDIT")
         XCTAssertTrue(issues.isEmpty, "\(issues.count) accessibility issue(s):\n\(report)")
+    }
+
+    /// Every switch and slider on Settings' Appearance and Apple Intelligence pages has a name VoiceOver reads
+    /// (5.7). Through 5.6 the X-Ray's switches, its glow slider and the Apple Intelligence feature switches had
+    /// none, so VoiceOver read each one as a switch with nothing to say which. Those pages are a tap below the
+    /// Settings list, where the audit above does not go, so this test runs Apple's description check on them too.
+    @MainActor
+    func testTheSwitchesAndSlidersInSettingsHaveNames() throws {
+        continueAfterFailure = true
+        let app = XCUIApplication()
+        app.launchArguments += ["--uitest-stand-in-model", "-showSiliconHUD", "NO"]
+        app.launch()
+
+        let skip = app.buttons["I'll add my own documents"]
+        if skip.waitForExistence(timeout: 10) {
+            skip.tap()
+        }
+        let settingsTab = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(settingsTab.waitForExistence(timeout: 20), "the Settings tab was not found")
+        settingsTab.tap()
+
+        var issues: [String] = []
+        /// The names of the switches and sliders on the open page. A SwiftUI switch also holds the system's own
+        /// switch as an element with no label, one inside each named switch (the first run of this test,
+        /// 2026-10-16); VoiceOver reads the outer one, so whether anything unnamed can be reached is the audit's call.
+        func names(on page: String) -> [String] {
+            (app.switches.allElementsBoundByIndex + app.sliders.allElementsBoundByIndex)
+                .filter { $0.exists && !$0.label.isEmpty }.map(\.label).sorted()
+        }
+        /// Apple's check for elements VoiceOver reaches with no description, on the page that is open.
+        func audit(_ page: String) throws {
+            try app.performAccessibilityAudit(for: [.sufficientElementDescription]) { issue in
+                let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' at \($0.frame)" } ?? "no element"
+                issues.append("\(page): \(issue.compactDescription) [\(element)]")
+                return true
+            }
+        }
+        /// Opens a page from the Settings list, scrolling the list until its row is on screen. A row reads as its
+        /// title and subtitle ("Appearance, Accent colour and the hardware HUD").
+        func open(_ page: String) -> Bool {
+            let row = app.buttons.matching(
+                NSPredicate(format: "label == %@ OR label BEGINSWITH %@", page, page + ",")
+            ).firstMatch
+            for _ in 0..<12 where !(row.exists && row.isHittable) {
+                app.swipeUp()
+            }
+            guard row.exists, row.isHittable else { return false }
+            row.tap()
+            return true
+        }
+
+        XCTAssertTrue(open("Apple Intelligence"), "the Apple Intelligence row was not found")
+        // Its feature switches show only where Apple Intelligence can run; every one shown must have a name.
+        _ = app.switches.firstMatch.waitForExistence(timeout: 5)
+        try audit("Apple Intelligence")
+        print("APPLE INTELLIGENCE CONTROLS: \(names(on: "Apple Intelligence"))")
+        app.navigationBars.buttons.firstMatch.tap()
+
+        // Last, because the X-Ray's window floats over the screen once it is on, and a tap under it reaches it.
+        XCTAssertTrue(open("Appearance"), "the Appearance row was not found")
+        let hud = app.switches["Telemetry HUD"]
+        XCTAssertTrue(hud.waitForExistence(timeout: 5), "the X-Ray's switch has no name: \(names(on: "Appearance"))")
+        try audit("Appearance")
+        if hud.exists {
+            // Its own switches and the glow slider show only while it is on.
+            hud.tap()
+            XCTAssertTrue(app.sliders["Glow Intensity"].waitForExistence(timeout: 5), "the glow slider has no name")
+            XCTAssertTrue(app.switches["Live Metrics"].exists, "the Live Metrics switch has no name")
+            XCTAssertTrue(app.switches["Taptic Engine"].exists, "the Taptic Engine switch has no name")
+            print("APPEARANCE CONTROLS: \(names(on: "Appearance"))")
+            // Off again, as a new install has it: the setting is saved, and the other tests start from it.
+            hud.tap()
+        }
+
+        print("SETTINGS PAGES AUDIT\n\(issues.isEmpty ? "No issues" : issues.joined(separator: "\n"))\nEND AUDIT")
+        XCTAssertTrue(issues.isEmpty, "\(issues.count) element(s) with no description: \(issues)")
     }
 }

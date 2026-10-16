@@ -3066,7 +3066,8 @@ Text(deviceService.chipName)
                     .foregroundColor(.secondary)
             }
             Spacer()
-            Toggle("", isOn: isOn)
+            // The title is the switch's name for VoiceOver; `labelsHidden()` keeps it off the screen (5.7).
+            Toggle(title, isOn: isOn)
                 .labelsHidden()
                 .tint(.accentColor)
                 .onChange(of: isOn.wrappedValue) { _, _ in
@@ -3159,7 +3160,7 @@ Text(deviceService.chipName)
 
                     Spacer()
 
-                    Toggle("", isOn: $settings.showSiliconHUD)
+                    Toggle("Telemetry HUD", isOn: $settings.showSiliconHUD)
                         .labelsHidden()
                         .tint(.purple)
                         .onChange(of: settings.showSiliconHUD) { _, _ in
@@ -3186,6 +3187,9 @@ Text(deviceService.chipName)
                         }
                         Slider(value: $settings.hudGlowIntensity, in: 0.1...1.0, step: 0.1)
                             .tint(.purple)
+                            // Its name and the number shown beside it, for VoiceOver (5.7).
+                            .accessibilityLabel("Glow Intensity")
+                            .accessibilityValue("\(Int(settings.hudGlowIntensity * 100))%")
                             .onChange(of: settings.hudGlowIntensity) { _, _ in
                                 DSHaptics.tick()
                             }
@@ -3206,7 +3210,7 @@ Text(deviceService.chipName)
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
-                        Toggle("", isOn: $settings.hudShowMetrics)
+                        Toggle("Live Metrics", isOn: $settings.hudShowMetrics)
                             .labelsHidden()
                             .tint(.cyan)
                             .onChange(of: settings.hudShowMetrics) { _, _ in
@@ -3229,7 +3233,7 @@ Text(deviceService.chipName)
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
-                        Toggle("", isOn: $settings.hudShowTaptic)
+                        Toggle("Taptic Engine", isOn: $settings.hudShowTaptic)
                             .labelsHidden()
                             .tint(.pink)
                             .onChange(of: settings.hudShowTaptic) { _, _ in
@@ -3256,7 +3260,7 @@ Text(deviceService.chipName)
 
                         Spacer()
 
-                        Toggle("", isOn: $showsMenuBarItem)
+                        Toggle("Menu Bar", isOn: $showsMenuBarItem)
                             .labelsHidden()
                             .tint(.purple)
                     }

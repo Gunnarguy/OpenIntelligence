@@ -318,6 +318,8 @@
                         .foregroundColor(.white.opacity(0.7))
                     Slider(value: $confidenceThreshold, in: 0.1...0.9, step: 0.1)
                         .tint(.white)
+                        .accessibilityLabel("Min Confidence")
+                        .accessibilityValue("\(Int((confidenceThreshold * 100).rounded()))%")
                 }
                 .padding(.horizontal)
             }

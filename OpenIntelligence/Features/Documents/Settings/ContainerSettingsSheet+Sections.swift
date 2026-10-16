@@ -172,6 +172,8 @@ extension ContainerSettingsSheet {
                     in: Double(SemanticChunker.ChunkingConfig.minTargetSize)
                         ... Double(SemanticChunker.ChunkingConfig.maxTargetSize),
                     step: 20)
+                    .accessibilityLabel("Target Words per Chunk")
+                    .accessibilityValue("\(targetWordWindow) words")
 
                     Text("Smaller = more precise matches, larger = more context per chunk. \(SemanticChunker.ChunkingConfig.maxTargetSize) words is the most the embedding model can take with room for its prefix.")
                         .font(.caption2)
@@ -198,6 +200,8 @@ extension ContainerSettingsSheet {
                     ),
                     in: 0 ... Double(SemanticChunker.ChunkingConfig.maxOverlap),
                     step: 5)
+                    .accessibilityLabel("Overlap Words")
+                    .accessibilityValue("\(overlapWords) words")
 
                     Text("How many words to repeat between chunks. More overlap = better context continuity, but more storage.")
                         .font(.caption2)

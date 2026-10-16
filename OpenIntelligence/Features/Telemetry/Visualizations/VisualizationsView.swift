@@ -2575,6 +2575,8 @@ struct SemanticClusteringView: View {
                 set: { selectedK = Int($0) }
             ), in: 2 ... 10, step: 1)
                 .tint(.purple)
+                .accessibilityLabel("Cluster granularity")
+                .accessibilityValue("K = \(selectedK)")
 
             HStack(spacing: 12) {
                 Button {
