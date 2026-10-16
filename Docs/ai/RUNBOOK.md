@@ -210,6 +210,13 @@ bash scripts/build_simulator_smoke.sh`. *Recorded:* `BUILD SUCCEEDED` on `b4618e
 **"The test runner hung before establishing connection" (2026-10-14).** Twice in a row on one build the test host
 started and no test ran, after 398 s each time; the third run of the same build ran all 1,003 tests. Run it again
 before reading a code change into it, and look at the app's own trace (below) for where the launch stopped.
+*Cause, measured 2026-10-15:* the two crash reports from that day's hung runs
+(`~/Library/Logs/DiagnosticReports/OpenIntelligence-2026-10-15-075946.ips` and `-081157.ips`, process path in the test
+simulator) are a `0x8BADF00D` process-launch watchdog kill: the test host used its 30 s of wall-clock time inside
+`dyld_sim` loading libraries, with 1.9 s and 2.5 s of its own CPU, while the Mac's total CPU over those 30 s was 330 s,
+another session's build saturating every core. So it is the machine, not the app's launch code. On 2026-10-15 a second
+attempt, after shutting the simulator down, booting it and waiting for `xcrun simctl bootstatus <UDID> -b`, ran the
+whole suite each of the three times the first attempt failed this way.
 
 ### The actions through the system: the UI-testing target *(added 2026-10-14)*
 
