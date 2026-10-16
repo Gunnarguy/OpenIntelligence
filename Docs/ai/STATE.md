@@ -123,7 +123,7 @@ the only thing failing the contrast audit on Chat, Documents and Settings (`Benc
 Work in the background: build, rerun that audit in the iOS Simulator (light and dark), and show him before-and-after
 Simulator screenshots before committing.
 
-The Mac and phone sessions are off. He approved them, then stopped the Mac one a few minutes in ("this is FUCKing my
-space. lets just not do this"). The development Mac build was quit and the phone build cancelled. Don't launch apps on
-his Mac, ask for screen access or start the phone session unless he starts it himself. The rows waiting on those
-sessions are listed under "His approval already given" above.
+The Mac and phone sessions are paused, not cancelled. He approved them, then paused the Mac one a few minutes in
+("lets just not do this", then "i didnt say dont ever do this. i just said for now"). The development Mac build was
+quit and the phone build cancelled. Pick them up when he says; right before starting, tell him in a line what will
+open on his screen. The rows waiting on those sessions are listed under "His approval already given" above.
