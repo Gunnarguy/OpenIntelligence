@@ -72,7 +72,7 @@ public nonisolated enum AtlasLabeling {
         "whereupon", "wherever", "which", "while", "whither", "who", "whoever",
         "whole", "whom", "whose", "why", "will", "with", "within", "without",
         "won", "wont", "would", "wouldn", "yes", "yet", "you", "youd",
-        "youll", "your", "youre", "yours", "yourself", "yourselves", "youve"
+        "youll", "your", "youre", "yours", "yourself", "yourselves", "youve",
     ]
 
     // MARK: - Tokenization
@@ -91,7 +91,7 @@ public nonisolated enum AtlasLabeling {
         let tokenizer = NLTokenizer(unit: .word)
         tokenizer.string = text
 
-        tokenizer.enumerateTokens(in: text.startIndex ..< text.endIndex) { tokenRange, _ in
+        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { tokenRange, _ in
             let raw = text[tokenRange]
 
             // Drop tokens that look like identifiers or encodings:
@@ -142,13 +142,40 @@ public nonisolated enum AtlasLabeling {
 
     // MARK: - Distinguishing Terms
 
+    /// How strongly a word marks one set of passages against another: its share of the set's passages times the
+    /// log of how many times more often it is found there than in the other set, both shares smoothed by half a
+    /// passage so that a word absent from the other set still has a finite score. Zero when the word is no more
+    /// common in the set than in the other.
+    ///
+    /// Until 2026-10-15 the score was the bare ratio of the two shares. Every word found in only one set then had
+    /// the same score however many of its passages carried it, ties went in alphabetical order, and the owner's
+    /// three-document library was named "Agent & Alert", "Activation & Addition" and "Annual & App" on his
+    /// iPhone. On passages cut from the same three documents this score names the paper's cluster "Dopamine &
+    /// Serotonin" (scratch probe, 2026-10-15).
+    static func contrast(_ count: Int, of size: Int, against otherCount: Int, of otherSize: Int) -> Double {
+        let share = (Double(count) + 0.5) / (Double(size) + 1)
+        let otherShare = (Double(otherCount) + 0.5) / (Double(otherSize) + 1)
+        guard share > otherShare else { return 0 }
+        return share * log(share / otherShare)
+    }
+
+    /// Candidates by score, then by the number of passages carrying them, then alphabetically.
+    private static func ranked(_ candidates: [(term: String, score: Double, count: Int)]) -> [String] {
+        candidates.sorted { a, b in
+            if a.score != b.score { return a.score > b.score }
+            if a.count != b.count { return a.count > b.count }
+            return a.term < b.term
+        }.map(\.term)
+    }
+
     /// Given groups of passages, for each group returns the terms most over-represented in it
-    /// against all the passages together.
-    /// Score = (share of group containing term) / (share of all passages containing term).
+    /// against the passages outside it.
+    /// Score = `contrast` of the group's passages carrying the term against the other passages carrying it.
     /// Below 40 passages, requires term in at least 2 passages of the group (1 when group has fewer than 4).
     /// At 40 or more passages, requires term in at least 5% of group passages and at least 3 passages.
     /// Drop any term in more than 40% of all passages.
-    /// Ties break alphabetically. Iterates dictionaries in sorted key order for determinism.
+    /// Ties go to the term in more of the group's passages, then alphabetically. Iterates dictionaries in
+    /// sorted key order for determinism.
     public static func distinguishingTerms(
         groups: [[String]],
         allPassages: [String]? = nil
@@ -229,7 +256,7 @@ public nonisolated enum AtlasLabeling {
                 minGroupShare = 0.05
             }
 
-            var candidates: [(term: String, score: Double)] = []
+            var candidates: [(term: String, score: Double, count: Int)] = []
 
             // Deterministic iteration: sort dictionary keys before iterating
             for term in groupFreq.keys.sorted() {
@@ -244,22 +271,15 @@ public nonisolated enum AtlasLabeling {
                 let shareAll = Double(aCount) / Double(totalPassages)
                 guard shareAll <= 0.40 else { continue }
 
-                guard shareAll > 0 else { continue }
-                let score = shareGroup / shareAll
-                guard score > 1.0 else { continue }
+                let score = contrast(
+                    gCount, of: groupCount,
+                    against: max(0, aCount - gCount), of: max(0, totalPassages - groupCount))
+                guard score > 0 else { continue }
 
-                candidates.append((term: term, score: score))
+                candidates.append((term: term, score: score, count: gCount))
             }
 
-            // Ties break alphabetically
-            candidates.sort { a, b in
-                if a.score != b.score {
-                    return a.score > b.score
-                }
-                return a.term < b.term
-            }
-
-            result.append(candidates.map { $0.term })
+            result.append(ranked(candidates))
         }
 
         return result
@@ -315,7 +335,7 @@ public nonisolated enum AtlasLabeling {
                     chosenName = topTwo
                 } else {
                     // Try next distinguishing terms with terms[0]: terms[0] & terms[j] for j >= 2
-                    for nextIdx in 2 ..< terms.count {
+                    for nextIdx in 2..<terms.count {
                         let candidate = titleCase(terms[0]) + " & " + titleCase(terms[nextIdx])
                         if !usedNames.contains(candidate) {
                             chosenName = candidate
@@ -331,7 +351,7 @@ public nonisolated enum AtlasLabeling {
                     }
                     // Try terms[1] & terms[j]
                     if chosenName == nil {
-                        for nextIdx in 2 ..< terms.count {
+                        for nextIdx in 2..<terms.count {
                             let candidate = titleCase(terms[1]) + " & " + titleCase(terms[nextIdx])
                             if !usedNames.contains(candidate) {
                                 chosenName = candidate
@@ -404,7 +424,8 @@ public nonisolated enum AtlasLabeling {
     // MARK: - Axis Ends Analysis
 
     /// For one projection axis, takes the tenth of passages with the lowest value and the tenth with
-    /// the highest, and returns the distinguishing terms of each end against the other end (one or two per end).
+    /// the highest, and returns the distinguishing terms of each end against the other end (one or two per end),
+    /// scored with `contrast` and ranked like a cluster's.
     /// For fewer than 20 passages, uses the lowest and highest two.
     /// Below 4 passages, returns nil.
     /// If neither end has a distinguishing term, returns nil.
@@ -432,7 +453,7 @@ public nonisolated enum AtlasLabeling {
         }
 
         // Sort indices by value ascending, tie-breaking by index for determinism
-        let sortedIndices = (0 ..< totalCount).sorted {
+        let sortedIndices = (0..<totalCount).sorted {
             if values[$0] != values[$1] {
                 return values[$0] < values[$1]
             }
@@ -476,10 +497,11 @@ public nonisolated enum AtlasLabeling {
         func distinguishing(
             freq: [String: Int],
             otherFreq: [String: Int],
-            count: Int
+            count: Int,
+            otherCount: Int
         ) -> [String] {
             guard count > 0, bothCount > 0, totalCount > 0 else { return [] }
-            var candidates: [(term: String, score: Double)] = []
+            var candidates: [(term: String, score: Double, count: Int)] = []
 
             for term in freq.keys.sorted() {
                 let f = freq[term]!
@@ -492,27 +514,17 @@ public nonisolated enum AtlasLabeling {
                 let shareAll = Double(aCount) / Double(totalCount)
                 guard shareAll <= 0.40 else { continue }
 
-                let otherF = otherFreq[term] ?? 0
-                let shareBoth = Double(f + otherF) / Double(bothCount)
-                guard shareBoth > 0 else { continue }
-                let score = shareEnd / shareBoth
-                guard score > 1.0 else { continue }
+                let score = contrast(f, of: count, against: otherFreq[term] ?? 0, of: otherCount)
+                guard score > 0 else { continue }
 
-                candidates.append((term: term, score: score))
+                candidates.append((term: term, score: score, count: f))
             }
 
-            candidates.sort { a, b in
-                if a.score != b.score {
-                    return a.score > b.score
-                }
-                return a.term < b.term
-            }
-
-            return Array(candidates.prefix(2).map { $0.term })
+            return Array(ranked(candidates).prefix(2))
         }
 
-        let lowDist = distinguishing(freq: lowFreq, otherFreq: highFreq, count: lowCount)
-        let highDist = distinguishing(freq: highFreq, otherFreq: lowFreq, count: highCount)
+        let lowDist = distinguishing(freq: lowFreq, otherFreq: highFreq, count: lowCount, otherCount: highCount)
+        let highDist = distinguishing(freq: highFreq, otherFreq: lowFreq, count: highCount, otherCount: lowCount)
 
         if lowDist.isEmpty && highDist.isEmpty {
             return nil
@@ -557,7 +569,7 @@ public nonisolated enum AtlasLabeling {
         // Evenly spaced passages in sample's order as initial centres
         var centroids = [[Float]]()
         centroids.reserveCapacity(k)
-        for c in 0 ..< k {
+        for c in 0..<k {
             let index = (c * embeddings.count) / k
             centroids.append(embeddings[index])
         }
@@ -567,23 +579,23 @@ public nonisolated enum AtlasLabeling {
         func squaredDistance(_ a: [Float], _ b: [Float]) -> Float {
             let count = min(a.count, b.count)
             var sum: Float = 0
-            for i in 0 ..< count {
+            for i in 0..<count {
                 let diff = a[i] - b[i]
                 sum += diff * diff
             }
             return sum
         }
 
-        for _ in 0 ..< maxIterations {
+        for _ in 0..<maxIterations {
             var changed = false
 
             // 1. Assign each embedding to nearest centroid
-            for i in 0 ..< embeddings.count {
+            for i in 0..<embeddings.count {
                 let vec = embeddings[i]
                 var bestCluster = 0
                 var bestDistance = Float.greatestFiniteMagnitude
 
-                for c in 0 ..< k {
+                for c in 0..<k {
                     let dist = squaredDistance(vec, centroids[c])
                     if dist < bestDistance {
                         bestDistance = dist
@@ -605,20 +617,20 @@ public nonisolated enum AtlasLabeling {
             var counts = [Int](repeating: 0, count: k)
             var sums = [[Float]](repeating: [Float](repeating: 0, count: dim), count: k)
 
-            for i in 0 ..< embeddings.count {
+            for i in 0..<embeddings.count {
                 let c = assignments[i]
                 counts[c] += 1
                 let vec = embeddings[i]
                 let vecDim = min(vec.count, dim)
-                for d in 0 ..< vecDim {
+                for d in 0..<vecDim {
                     sums[c][d] += vec[d]
                 }
             }
 
-            for c in 0 ..< k {
+            for c in 0..<k {
                 if counts[c] > 0 {
                     let countF = Float(counts[c])
-                    for d in 0 ..< dim {
+                    for d in 0..<dim {
                         centroids[c][d] = sums[c][d] / countF
                     }
                 }

@@ -15,7 +15,8 @@ final class AtlasLabelingTests: XCTestCase {
     // MARK: - Terms Extraction
 
     func testTermsExtractionFiltersTokensWithDigitsAndStopWords() {
-        let text = "GET /api/v1/invoices from customer sha256_hash e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 and valves"
+        let text =
+            "GET /api/v1/invoices from customer sha256_hash e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 and valves"
         let terms = AtlasLabeling.terms(in: text)
 
         // Lowercased, letters only, 3..24
@@ -42,45 +43,46 @@ final class AtlasLabelingTests: XCTestCase {
             "billing ledger records and accounts",
             "invoices sent for customer billing accounts",
             "customer invoices and billing summary",
-            "monthly billing invoices and payments"
+            "monthly billing invoices and payments",
         ]
         let group1 = [
             "hydraulic valves and pressure piping",
             "industrial valves and pressure fluid tubes",
             "pressure valves in hydraulic piping systems",
             "regulating valves and pressure tubing",
-            "valves controlling hydraulic pressure fluid"
+            "valves controlling hydraulic pressure fluid",
         ]
         let group2 = [
             "authentication tokens and secure credentials",
             "user login authentication and security tokens",
             "security tokens for authentication credentials",
             "login tokens verifying secure authentication",
-            "authentication security credentials and tokens"
+            "authentication security credentials and tokens",
         ]
         let group3 = [
             "canvas rendering drawing graphics context",
             "graphics drawing canvas rendering shaders",
             "rendering graphics on the display canvas",
             "canvas graphics rendering and drawing textures",
-            "drawing graphics pipeline on visual canvas"
+            "drawing graphics pipeline on visual canvas",
         ]
         let group4 = [
             "database queries schema tables indexes",
             "relational database schema indexing queries",
             "database tables queries and index optimization",
             "schema tables in relational database queries",
-            "indexing queries across database schema tables"
+            "indexing queries across database schema tables",
         ]
 
         let originalGroups = [group0, group1, group2, group3, group4]
         let baseNames = AtlasLabeling.clusterNames(groups: originalGroups)
 
-        for _ in 0 ..< 20 {
+        for _ in 0..<20 {
             // Shuffle order of passages within each group
             let shuffledGroups = originalGroups.map { $0.shuffled() }
             let shuffledNames = AtlasLabeling.clusterNames(groups: shuffledGroups)
-            XCTAssertEqual(shuffledNames, baseNames, "Cluster names must be identical regardless of passage order within groups")
+            XCTAssertEqual(
+                shuffledNames, baseNames, "Cluster names must be identical regardless of passage order within groups")
         }
     }
 
@@ -124,6 +126,52 @@ final class AtlasLabelingTests: XCTestCase {
         }
     }
 
+    // MARK: - A Word Common in Its Group Ranks First
+
+    /// On the owner's iPhone (2026-10-15) a three-document library's clusters and axes were all named with two words
+    /// starting with "A": every word found in one group alone had the same score however many of its passages
+    /// carried it, and ties went alphabetically. "serotonin" is in all 20 passages of the first group (40% of the
+    /// library, which the 40% rule still allows) and three "A" words are in three passages each; the ratio scored
+    /// all four 2.5 and named the group "Abacus & Acorn".
+    func testClusterNameLeadsWithTheWordInMostOfItsPassages() {
+        let extras = ["abacus", "acorn", "adage"]
+        let group0 = (0..<20).map { i in "serotonin study" + (i < 9 ? " " + extras[i / 3] : "") }
+        let group1 =
+            Array(repeating: "invoices billing study", count: 15) + Array(repeating: "valves pressure study", count: 15)
+
+        let names = AtlasLabeling.clusterNames(groups: [group0, group1])
+
+        XCTAssertTrue(names[0].hasPrefix("Serotonin"), "got \(names)")
+        XCTAssertEqual(names[1], "Billing & Invoices")
+    }
+
+    /// The same tie at an axis end: "dopamine" is in all five of the lowest passages, "amber" and "anvil" in three.
+    func testAxisEndLeadsWithTheWordInMostOfItsPassages() {
+        var texts = (0..<5).map { i in "dopamine" + (i < 3 ? " amber anvil" : "") }
+        texts += Array(repeating: "neutral standard general reference", count: 40)
+        texts += Array(repeating: "valves hydraulic", count: 5)
+        let values = (0..<50).map { Float($0) }
+
+        let ends = AtlasLabeling.axisEnds(values: values, texts: texts)
+
+        XCTAssertEqual(ends?.low.first, "dopamine", "got \(String(describing: ends?.low))")
+        XCTAssertEqual(ends?.high, ["hydraulic", "valves"])
+    }
+
+    func testContrastRewardsAWordInMorePassages() {
+        // Absent from the other set in both cases: more passages scores higher.
+        XCTAssertGreaterThan(
+            AtlasLabeling.contrast(18, of: 19, against: 0, of: 19),
+            AtlasLabeling.contrast(3, of: 19, against: 0, of: 19))
+        // In most of a set and one passage of the other, it still beats a word in three passages and none.
+        XCTAssertGreaterThan(
+            AtlasLabeling.contrast(18, of: 19, against: 1, of: 19),
+            AtlasLabeling.contrast(3, of: 19, against: 0, of: 19))
+        // No more common in the set than in the other: zero.
+        XCTAssertEqual(AtlasLabeling.contrast(5, of: 10, against: 5, of: 10), 0)
+        XCTAssertEqual(AtlasLabeling.contrast(1, of: 10, against: 9, of: 10), 0)
+    }
+
     // MARK: - Axis Ends Analysis
 
     func testAxisEndsWithDistinctThemes() {
@@ -132,17 +180,17 @@ final class AtlasLabelingTests: XCTestCase {
         // Highest 5 passages (values 4.5..4.9) are about valves
         // Middle 40 passages are neutral/generic
         var texts = [String]()
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             texts.append("these passages describe invoices and billing records")
         }
-        for _ in 0 ..< 40 {
+        for _ in 0..<40 {
             texts.append("neutral standard general reference specifications")
         }
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             texts.append("these passages describe valves and hydraulic fluid")
         }
 
-        let values = (0 ..< 50).map { Float($0) * 0.1 }
+        let values = (0..<50).map { Float($0) * 0.1 }
 
         let ends = AtlasLabeling.axisEnds(values: values, texts: texts)
         XCTAssertNotNil(ends, "Axis with distinct extremes must produce valid AxisEnds")
@@ -165,7 +213,7 @@ final class AtlasLabelingTests: XCTestCase {
     func testAxisEndsWithNoDifferenceReturnsNil() {
         // 50 passages with identical content across all coordinates
         let texts = Array(repeating: "neutral standard general reference specifications", count: 50)
-        let values = (0 ..< 50).map { Float($0) * 0.1 }
+        let values = (0..<50).map { Float($0) * 0.1 }
 
         let ends = AtlasLabeling.axisEnds(values: values, texts: texts)
         XCTAssertNil(ends, "An axis with no thematic difference between extremes must return nil")
@@ -179,7 +227,7 @@ final class AtlasLabelingTests: XCTestCase {
             "自然言語処理と機械学習の研究開発を進める",
             "深層学習を用いた自然言語処理モデルの構築",
             "日本語テキストに対する自然言語処理技術の応用",
-            "自然言語処理アルゴリズムの評価と検証"
+            "自然言語処理アルゴリズムの評価と検証",
         ]
         let jpNames = AtlasLabeling.clusterNames(groups: [japanesePassages])
         XCTAssertEqual(jpNames.count, 1)
@@ -197,7 +245,7 @@ final class AtlasLabelingTests: XCTestCase {
             "tratamiento de enfermedades infecciosas en hospitales",
             "pacientes con enfermedades infecciosas graves",
             "diagnóstico temprano de enfermedades infecciosas",
-            "investigación clínica de enfermedades infecciosas avanzadas"
+            "investigación clínica de enfermedades infecciosas avanzadas",
         ]
         let esNames = AtlasLabeling.clusterNames(groups: [spanishPassages])
         XCTAssertEqual(esNames.count, 1)
@@ -206,7 +254,8 @@ final class AtlasLabelingTests: XCTestCase {
         XCTAssertNotEqual(esName, "Group 1", "Spanish passages should produce meaningful terms, got \(esName)")
         let allEsText = spanishPassages.joined().lowercased()
         for word in esName.components(separatedBy: .whitespaces) where word != "&" {
-            XCTAssertTrue(allEsText.contains(word.lowercased()), "Word \(word) in name \(esName) must be from input passages")
+            XCTAssertTrue(
+                allEsText.contains(word.lowercased()), "Word \(word) in name \(esName) must be from input passages")
         }
     }
 
@@ -218,14 +267,14 @@ final class AtlasLabelingTests: XCTestCase {
             "    guard amount > 0 else { return .failure(.invalidAmount) }",
             "    let transactionId = UUID().uuidString",
             "    return .success(PaymentReceipt(id: transactionId, amount: amount))",
-            "}"
+            "}",
         ]
 
         let numberTablePassages = [
             "100.0   200.5   300.2   400.1",
             "0.001   0.002   0.003   0.004",
             "12345   67890   54321   98765",
-            "99.99   88.88   77.77   66.66"
+            "99.99   88.88   77.77   66.66",
         ]
 
         let names = AtlasLabeling.clusterNames(groups: [codePassages, numberTablePassages])
@@ -254,7 +303,7 @@ final class AtlasLabelingTests: XCTestCase {
         let threePassages = [
             "quantum computing algorithms for optimization",
             "quantum algorithms and circuits for entanglement",
-            "quantum processor optimization and error correction"
+            "quantum processor optimization and error correction",
         ]
         let threeCluster = AtlasLabeling.clusterNames(groups: [threePassages])
         XCTAssertEqual(threeCluster.count, 1)
@@ -272,7 +321,7 @@ final class AtlasLabelingTests: XCTestCase {
         XCTAssertFalse(names[0].isEmpty)
 
         // Axis ends with identical passages must not crash or divide by zero: returns nil
-        let values = (0 ..< 25).map { Float($0) }
+        let values = (0..<25).map { Float($0) }
         let ends = AtlasLabeling.axisEnds(values: values, texts: identicalPassages)
         XCTAssertNil(ends, "Identical passages have no contrast and must return nil")
     }
@@ -284,7 +333,7 @@ final class AtlasLabelingTests: XCTestCase {
         var blobA: [[Float]] = []
         var blobB: [[Float]] = []
 
-        for i in 0 ..< 10 {
+        for i in 0..<10 {
             let offset = Float(i) * 0.05
             blobA.append([10.0 + offset, 10.0 - offset, 10.0 + offset])
             blobB.append([-10.0 + offset, -10.0 - offset, -10.0 + offset])
@@ -300,14 +349,14 @@ final class AtlasLabelingTests: XCTestCase {
 
         // Must place all of blob A in one cluster and all of blob B in the other
         let clusterA = run1[0]
-        for i in 0 ..< 10 {
+        for i in 0..<10 {
             XCTAssertEqual(run1[i], clusterA, "Point \(i) in Blob A should belong to cluster \(clusterA)")
         }
 
         let clusterB = run1[10]
         XCTAssertNotEqual(clusterA, clusterB, "Blob A and Blob B must be assigned to different clusters")
 
-        for i in 10 ..< 20 {
+        for i in 10..<20 {
             XCTAssertEqual(run1[i], clusterB, "Point \(i) in Blob B should belong to cluster \(clusterB)")
         }
 
