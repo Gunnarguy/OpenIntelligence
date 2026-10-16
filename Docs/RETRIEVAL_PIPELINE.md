@@ -280,6 +280,10 @@ The answer path reranks the candidates and then, for a lookup question, packs th
 
 A passage stays in its library's vector store after its document is deleted only if something went wrong, and an import that stops before recording its document leaves its passages too. Searches kept such passages: `queryInternal` named them "Unknown" and `searchDocumentsRaw` (Deep Think, Maximum, the model's search tool) named them by `getDocumentName`. Both leave them out now, before naming and before the no-sources check, so a search left with nothing answers as one that found nothing (`RAGService.passagesFromKnownDocuments`). A passage the pipeline made itself, such as a camera or barcode capture, carries its own name and is kept. The launch cleanup that removes them from Local Only libraries is in `Docs/INGESTION_PIPELINE.md`, "Text left by an unfinished import". `[evidence_level: test_verified (PassagesFromKnownDocumentsTests), confidence: high]`
 
+## A day written as an ordinal (added 2026-10-15, for 5.7)
+
+The keyword index (FTS5) keeps "30th" as one word, so a question that writes a day as an ordinal shares no word with notes that write it as a number. On 2026-10-15 "What happened on September 30th" found only "september" (in over 40% of the passages of that library, so discounted) and "happened", and the reranker put September 1's passage first; asked as "September 30", the same question put that day's section first. `DayOrdinals.cardinal` reads a day number with st, nd, rd or th beside a month name as the number, in `queryInternal` before anything else uses the question, and in `executeFullRetrievalPipeline` for the searches Deep Think and Maximum make. Nothing else in the question changes. A document that itself writes "30th" no longer matches that keyword and is left to the vector search and the reranker [inferred]. `[evidence_level: test_verified (DayOrdinalsTests), confidence: medium]`
+
 ## Suggested questions
 
 `Services/Query/UX/SuggestedQuestionsService.swift` writes the chips on the Chat tab's empty state.

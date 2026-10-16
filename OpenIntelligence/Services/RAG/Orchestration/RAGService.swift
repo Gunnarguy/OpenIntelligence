@@ -11164,6 +11164,14 @@ class RAGService: ObservableObject {
         Log.traceQueryStart(question)
         let queryStartTime = CFAbsoluteTimeGetCurrent()
 
+        // A day written beside a month as an ordinal ("September 30th") is searched as its number (`DayOrdinals`,
+        // 5.7): "30th" is a word no passage dated "September 30" contains.
+        let askedQuestion = question
+        let question = DayOrdinals.cardinal(question)
+        if question != askedQuestion {
+            Log.info("[Query] Day read as a number for the search: \"\(question)\"", category: .retrieval)
+        }
+
         // Flush trace on exit regardless of how the function returns
         defer {
             let duration = CFAbsoluteTimeGetCurrent() - queryStartTime
@@ -21336,7 +21344,8 @@ extension RAGService: RAGToolHandler {
         // is holding. That is what makes Deep Think measurable without touching nine call sites.
         let effectiveTrace = trace ?? activeRetrievalTrace
         let chunks = try await performFullRetrievalPipeline(
-            query: query,
+            // Deep Think's and Maximum's own searches read a day the same way as the question (`DayOrdinals`).
+            query: DayOrdinals.cardinal(query),
             topK: topK,
             minSimilarity: minSimilarity,
             qualityMode: qualityMode,
