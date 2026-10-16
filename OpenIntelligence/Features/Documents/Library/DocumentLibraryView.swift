@@ -19,6 +19,7 @@ struct DocumentLibraryView: View {
     @ObservedObject var containerService: ContainerService
     @State private var showingFilePicker = false
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// A document in an iCloud library that a swipe asked to delete, waiting for the answer (5.7).
     @State private var swipeDeleteCandidate: Document?
     /// True while a Finder drag hovers the library, driving the drop outline.
@@ -210,21 +211,26 @@ struct DocumentLibraryView: View {
     /// rendered once, by `libraryContentView`, above this branch entirely.
     private var emptyStateContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                EmptyDocumentsView(
-                    isImportingSamples: isImportingSamples,
-                    hasImportedSamples: onboardingStore.hasImportedSamples,
-                    isAtDocumentLimit: isAtDocumentLimit,
-                    documentLimit: documentLimit,
-                    statusMessage: sampleImportStatusMessage,
-                    onImportSamples: importSampleWorkspace,
-                    onPickFiles: presentDocumentPickerOrUpgrade
-                )
-                .padding(.horizontal)
-            }
-            .padding(.bottom, 24)
+            emptyStateStack
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The empty state itself, scrolled by `emptyStateContent`, or with the header at accessibility text sizes (5.7).
+    private var emptyStateStack: some View {
+        VStack(spacing: 16) {
+            EmptyDocumentsView(
+                isImportingSamples: isImportingSamples,
+                hasImportedSamples: onboardingStore.hasImportedSamples,
+                isAtDocumentLimit: isAtDocumentLimit,
+                documentLimit: documentLimit,
+                statusMessage: sampleImportStatusMessage,
+                onImportSamples: importSampleWorkspace,
+                onPickFiles: presentDocumentPickerOrUpgrade
+            )
+            .padding(.horizontal)
+        }
+        .padding(.bottom, 24)
     }
 
     /// Content shown below the persistent `documentHeader`, for a library with documents.
@@ -232,49 +238,63 @@ struct DocumentLibraryView: View {
     private var documentListContent: some View {
         Group {
             // Document list with modern styling
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(filteredDocuments) { document in
-                        NavigationLink(destination: DocumentDetailsView(
-                            document: document,
-                            embeddingProviderId: containerService.activeContainer?.embeddingProviderId
-                        )) {
-                            ModernDocumentCard(document: document, ragService: ragService)
-                        }
-                        .buttonStyle(.plain)
-                        // Each card names its document, so Siri and Apple Intelligence know which
-                        // documents are on screen (5.7).
-                        .appEntityIdentifier(.document(document.id))
-                        .modifier(DocumentSwipeToDelete { swipeDelete(document) })
-                    }
+            withSwipeDeleteAlert(
+                ScrollView {
+                    documentCards
                 }
-                .padding()
+                // The cards carry swipe actions from iOS and macOS 27 (`DocumentSwipeToDelete`).
+                .modifier(SwipeActionsContainerOn27())
+            )
+        }
+    }
 
-                // Stats footer with Auto Intelligence indicator
-                StatsFooter(
-                    totalDocuments: filteredDocuments.count,
-                    totalChunks: filteredTotalChunks,
-                    autoIntelligenceEnabled: containerService.activeContainer?.autoAdaptDimension ?? true
-                )
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
-            }
-            // The cards carry swipe actions from iOS and macOS 27 (`DocumentSwipeToDelete`).
-            .modifier(SwipeActionsContainerOn27())
-            .alert(
-                "Delete Document?",
-                isPresented: Binding(
-                    get: { swipeDeleteCandidate != nil },
-                    set: { if !$0 { swipeDeleteCandidate = nil } }),
-                presenting: swipeDeleteCandidate
-            ) { document in
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    ragService.scheduleRemoval(of: [document], undoManager: undoManager)
+    /// The document cards and the stats footer, scrolled by `documentListContent`, or with the header at
+    /// accessibility text sizes (5.7).
+    @ViewBuilder
+    private var documentCards: some View {
+        LazyVStack(spacing: 12) {
+            ForEach(filteredDocuments) { document in
+                NavigationLink(destination: DocumentDetailsView(
+                    document: document,
+                    embeddingProviderId: containerService.activeContainer?.embeddingProviderId
+                )) {
+                    ModernDocumentCard(document: document, ragService: ragService)
                 }
-            } message: { document in
-                Text(ModernDocumentCard.sharedDeleteMessage(for: document.filename))
+                .buttonStyle(.plain)
+                // Each card names its document, so Siri and Apple Intelligence know which
+                // documents are on screen (5.7).
+                .appEntityIdentifier(.document(document.id))
+                .modifier(DocumentSwipeToDelete { swipeDelete(document) })
             }
+        }
+        .padding()
+
+        // Stats footer with Auto Intelligence indicator
+        StatsFooter(
+            totalDocuments: filteredDocuments.count,
+            totalChunks: filteredTotalChunks,
+            autoIntelligenceEnabled: containerService.activeContainer?.autoAdaptDimension ?? true
+        )
+            .padding(.horizontal)
+            .padding(.bottom, 20)
+    }
+
+    /// The confirmation a swipe asks for before it deletes a document in an iCloud library (`swipeDelete`), on the
+    /// list's scroll view in either layout.
+    private func withSwipeDeleteAlert<Content: View>(_ content: Content) -> some View {
+        content.alert(
+            "Delete Document?",
+            isPresented: Binding(
+                get: { swipeDeleteCandidate != nil },
+                set: { if !$0 { swipeDeleteCandidate = nil } }),
+            presenting: swipeDeleteCandidate
+        ) { document in
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                ragService.scheduleRemoval(of: [document], undoManager: undoManager)
+            }
+        } message: { document in
+            Text(ModernDocumentCard.sharedDeleteMessage(for: document.filename))
         }
     }
 
@@ -440,7 +460,13 @@ struct DocumentLibraryView: View {
     }
 
     private var documentSectionHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
+        // At accessibility text sizes the picker goes under the title, which beside it broke as "Docu-ments" (5.7).
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout =
+            stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+        return layout {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Documents")
                     .font(.headline.weight(.bold))
@@ -453,7 +479,9 @@ struct DocumentLibraryView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer(minLength: 8)
+            if !stacked {
+                Spacer(minLength: 8)
+            }
 
             HStack(spacing: 8) {
                 if activeLibrary != nil {
@@ -494,6 +522,8 @@ struct DocumentLibraryView: View {
                 }
             }
         }
+        // Stacked, the block is only as wide as its widest line, and the header's stack would center it.
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var documentSectionSubtitle: String {
@@ -1589,7 +1619,9 @@ struct DocumentLibraryView: View {
             .animation(.easeOut(duration: 0.15), value: isDropTargeted)
             .navigationTitle("Documents")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
+            // Inline at accessibility text sizes (5.7): there the large title wrapped to "Docu-" and "ments" and took a
+            // fifth of the screen above the header, which carries the same name.
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
             .ignoresSafeArea(.keyboard, edges: .bottom)
             #endif
             .onAppear {
@@ -1670,13 +1702,35 @@ struct DocumentLibraryView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 12) {
-                documentHeader
+            if dynamicTypeSize.isAccessibilitySize {
+                // At accessibility text sizes the header alone is taller than the screen. Outside a scroll view
+                // its stack was centered and spilled up under the status and navigation bars, so there the header
+                // scrolls with the documents (5.7). The header still sits above the branch, for the reason given
+                // at `emptyStateContent`. Crossing into or out of the accessibility sizes builds the header again,
+                // which closes an alert it had open if the text size changes while one is up.
+                withSwipeDeleteAlert(
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            documentHeader
 
-                if filteredDocuments.isEmpty {
-                    emptyStateContent
-                } else {
-                    documentListContent
+                            if filteredDocuments.isEmpty {
+                                emptyStateStack
+                            } else {
+                                documentCards
+                            }
+                        }
+                    }
+                    .modifier(SwipeActionsContainerOn27())
+                )
+            } else {
+                VStack(spacing: 12) {
+                    documentHeader
+
+                    if filteredDocuments.isEmpty {
+                        emptyStateContent
+                    } else {
+                        documentListContent
+                    }
                 }
             }
 

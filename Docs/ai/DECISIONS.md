@@ -1859,3 +1859,32 @@ any library whose documents use those words.
 **Consequences.** A general question over a scientific library is no longer kept to one study domain; the other gates
 still check every claim against its passages. The decision is reopened if a scientific library's general questions are
 seen mixing domains in answers.
+
+## 2026-10-16 - Text meets 4.5 to 1: a high-contrast gray, label-colored words on tinted chips, a deeper light-mode accent
+
+**Context.** Apple's Sufficient Contrast label asks for 4.5 to 1 on most text in the common tasks, by default, in
+light and dark ("Sufficient Contrast evaluation criteria", developer.apple.com, read 2026-10-16). With the hardware
+X-Ray off, Apple's audit found 31 to 54 issues per setting on Chat, Documents and Settings
+(`BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/`): small `Color.secondary` text, which draws at 3.4 to 1 on
+white; colored words on pale tints of the same color (3.5 to 4.1 even in Apple's high-contrast colors; iOS 27 draws its
+high-contrast blue as (30, 110, 244)); and white on the #007AFF accent at 4.0 to 1. The audit's own contrast verdicts did
+not always follow the drawn pixels, so every item was measured on the screenshot. The owner pulled the work into 5.7
+and chose the two styling changes below.
+
+**Decision.** `DSColors.secondaryText` is `systemGray` resolved with the high-contrast trait (#6C6C70 in light, 5.2 to 1),
+and `DSColors.readable(_:)` resolves any color the same way; on the Mac, where `NSAppearance(named:)` returns nil for the
+high-contrast names, a color is blended toward black or white until it reaches 4.5 to 1 against the window background.
+Words on tinted chips and pills are in the label color, and the color stays in the icon and the tint ("Black/white text,
+color stays"). The accent is #005CDB in light ("Deeper blue #005CDB"; white on it and it on white are both 5.9 to 1) and
+stays #007AFF in dark.
+
+**Alternatives.** Apple's high-contrast colors for the chip words: measured 3.5 to 4.1 on their tints. Responding only to
+the Increase Contrast setting: the criterion asks for contrast by default. A deeper accent in dark as well: blue text on
+black would fall from 5.2 to 3.6 to 1, and in dark no one blue gives both white-on-blue and blue-on-dark 4.5 to 1 against
+the dark cards. Larger type for the small grays: moves the layout more than a darker gray does.
+
+**Consequences.** Gray text everywhere `DSColors.secondaryText` is used is a shade darker; the chips lose their colored
+words but keep their colored icons and tints; the light-mode accent and everything tinted with it is a little deeper.
+White on a filled blue button in dark mode stays at 4.0 to 1. Only Chat, Documents and Settings are audited so far; the
+first-run screen, an answer, adding a document and the purchase sheet come before the labels are declared. Reopen if
+Apple's criteria or the audit change, or if a screen shows a contrast item that measures under 4.5 to 1 on screen.

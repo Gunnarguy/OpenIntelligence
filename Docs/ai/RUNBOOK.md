@@ -1495,6 +1495,55 @@ After the push, read the Deploy run (`GH_PAGER=cat gh run list --workflow Deploy
 the live page. `[evidence_level: test_verified (Gunzino Deploy runs 38775401964 and 38785077646, both success),
 confidence: high]`
 
+## Apple's accessibility audit, with the X-Ray off (added 2026-10-16)
+
+`OpenIntelligenceUITests/AccessibilityAuditTests` runs Apple's audit for the VoiceOver checks (descriptions, tap areas,
+traits, text it cannot find) on the first-run screen, Chat, Documents and Settings. Contrast, Dynamic Type and clipped
+text are measured separately, for two reasons found on 2026-10-15 and 16:
+
+- **The hardware X-Ray hides the screens from the audit.** While its floating window is up, the audit reports mostly
+  that window: Chat, Documents and Settings read 21 to 35 issues with it on and 31 to 54 of their own with it off. Audit
+  with it off. A UI test passes `-showSiliconHUD NO` at launch (SettingsStore reads the setting with `bool(forKey:)`,
+  which takes that argument). SettingsStore saves every setting at launch, so the argument's NO is saved too and the
+  X-Ray stays off in that simulator afterwards; switch it back on in Settings if that simulator is used for anything
+  else. For the app as installed in a simulator, write the preference into its container while the simulator is shut
+  down, because a sandboxed app does not read what `simctl spawn defaults write` writes. The key exists after any
+  launch, so set it, and add it only if it is missing:
+  ```bash
+  C=$(xcrun simctl get_app_container <sim> Gunndamental.OpenIntelligence data); P="$C/Library/Preferences/Gunndamental.OpenIntelligence.plist"; /usr/libexec/PlistBuddy -c "Set :showSiliconHUD false" "$P" || /usr/libexec/PlistBuddy -c "Add :showSiliconHUD bool false" "$P"
+  ```
+  The container moves between test runs, so look it up again before each run, and delete the key afterwards.
+- **Its contrast verdicts do not always follow the pixels.** "Import documents from the Documents tab..." drew at 5.20
+  to 1 and "Import Sample Workspace" at 20 to 1, and both still "failed"; text behind the floating tab bar is judged
+  where it sits. So every contrast item is measured on a screenshot of the same screen before it counts: the
+  0.5th and 99.5th luminance percentiles inside the element's frame (WCAG relative luminance), the method in
+  `BenchmarkRuns/2026-10-16-accessibility-pass-1/pixel_contrast.py` on this Mac.
+- **It misses some of what Larger Text asks.** At the largest size it reported neither Settings' two status pills
+  breaking "PCC" and "Available" in the middle of the word nor the Documents header, taller than the screen there and
+  outside any scroll view, centered up under the status and navigation bars (2026-10-16). Look at every screenshot
+  taken at that size as well.
+- **It reads text in views that `ViewThatFits` swaps as not growing.** With Chat's row built from `ViewThatFits`, a
+  larger size showed a different set of views, and the audit called the row's text "Dynamic Type font sizes are
+  unsupported" at the default size, although the screenshots showed it growing (2026-10-16). A `Layout` that keeps the
+  same views at every size (`WrappingRowLayout`) does not trigger it.
+- **Its frames can be taken mid-scroll.** It scrolls a list during its checks, so an element's frame can lie away from
+  where the screenshot shows it: "PCC Available" at the largest size was reported about 90 points below the pill and
+  "measured" 1.13 to 1 on empty card background; where it is drawn it is 14.5 to 16.8 to 1. Measure a reported item
+  where the screenshot shows it.
+
+The four settings are `xcrun simctl ui <sim> appearance light|dark` and `xcrun simctl ui <sim> content_size
+large|accessibility-extra-extra-extra-large`, set after the simulator boots. `.caption2` text is always reported as
+"Dynamic Type partially unsupported" (it never goes below 11 points) although it grows past 200%, which is what Apple's
+Larger Text label asks. Apple's criteria for the labels: developer.apple.com, "Sufficient Contrast evaluation criteria"
+and "Larger Text evaluation criteria" (read 2026-10-16): 4.5 to 1 for most text, light and dark, by default; text that
+grows to 200% or the system maximum without overlapping or severe truncation. The runs and their numbers are in
+`BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/`, `BenchmarkRuns/2026-10-16-accessibility-pass-1/` and
+`BenchmarkRuns/2026-10-16-accessibility-pass-2/`. Rows that wrap by what fits (`WrappingRowLayout` in Chat's header and
+Settings' identity row) also want a run at `extra-extra-extra-large`, the largest size below the accessibility
+sizes, and a look at a screen narrower than the test simulator's 402 points. `[evidence_level: measured (iOS 27.0
+Simulator, 2026-10-15 and 16), confidence: high for the behaviour described, medium for why the audit sees only the
+X-Ray's window, which is not established]`
+
 ## Claude context system
 
 ```bash

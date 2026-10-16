@@ -4,8 +4,8 @@
   "name": "App Lifecycle",
   "aliases": ["app lifecycle", "app launch", "root view", "main window", "navigation timing", "launch arguments", "network monitor", "screenshot mode"],
   "purpose": "Starts the SwiftUI app on iOS and macOS, reads launch arguments, and presents the root view and its sheets.",
-  "revision": "af71989",
-  "verified_on": "2026-10-15",
+  "revision": "54f0f84",
+  "verified_on": "2026-10-16",
   "entry_points": ["OpenIntelligenceApp", "ContentView", "NavigationTiming", "LaunchArguments", "NetworkMonitor"],
   "files": [
     {"path": "OpenIntelligence/App/ContentView.swift", "role": "primary", "blob": "8ace04dea3e1b21bc56542831ff4025c251802c4"},
@@ -23,12 +23,12 @@
     {"path": "OpenIntelligenceTests/App/MetricDiagnosticsTests.swift", "role": "test", "blob": "eb1bdded6f2ffc493919830f63f3f8110b65e362"},
     {"path": "OpenIntelligence/App/AppStateReporting.swift", "role": "primary", "blob": "461232473d25ef8d497824a3bf0f4388b985c885"},
     {"path": "OpenIntelligenceTests/App/AppStateReportingTests.swift", "role": "test", "blob": "922a766fa1b229ba16342675dd4f6e331df7b987"},
-    {"path": "OpenIntelligenceUITests/AccessibilityAuditTests.swift", "role": "test", "blob": "1be05fb0bfd46914acf372369d3e3e16e07c6cc3"}
+    {"path": "OpenIntelligenceUITests/AccessibilityAuditTests.swift", "role": "test", "blob": "a55ec2d02414c15633fd91deddf135c4a6ed4252"}
   ],
   "nodes": [
     {"id": "OpenIntelligenceApp", "kind": "model", "path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "line": 16, "match": "struct OpenIntelligenceApp: App {", "status": "VERIFIED", "by": "build"},
     {"id": "DebugRAGValidationHarness.runHeadlessIfNeeded", "kind": "function", "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 215, "match": "static func runHeadlessIfNeeded() {", "status": "VERIFIED", "by": "build"},
-    {"id": "AppTipConfiguration.configure", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 190, "match": "static func configure() {", "status": "VERIFIED", "by": "build"},
+    {"id": "AppTipConfiguration.configure", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 191, "match": "static func configure() {", "status": "VERIFIED", "by": "build"},
     {"id": "ContentView", "kind": "view", "path": "OpenIntelligence/App/ContentView.swift", "line": 14, "match": "struct ContentView: View {", "status": "VERIFIED", "by": "build"},
     {"id": "IngestionLiveActivityService.restoreExistingActivityIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 21, "match": "func restoreExistingActivityIfNeeded() {", "status": "VERIFIED", "by": "build"},
     {"id": "IngestionLiveActivityService.sync", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift", "line": 29, "match": "func sync(items: [IngestionItem], containerName: String?) {", "status": "VERIFIED", "by": "build"},
@@ -54,7 +54,7 @@
     {"id": "NavigationTiming", "kind": "model", "path": "OpenIntelligence/Core/Support/NavigationTiming.swift", "line": 19, "match": "enum NavigationTiming {", "status": "VERIFIED", "by": "build"},
     {"id": "ContentView.body", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 107, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerPickerStrip.pillList", "kind": "model", "path": "OpenIntelligence/Features/Documents/Components/ContainerPicker.swift", "line": 94, "match": "private var pillList: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentLibraryView.body", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1155, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.body", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1186, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "LaunchArguments", "kind": "model", "path": "OpenIntelligence/Core/Extensions/LaunchArguments.swift", "line": 5, "match": "enum LaunchArguments {", "status": "VERIFIED", "by": "build"},
     {"id": "LaunchArguments.Parser", "kind": "model", "path": "OpenIntelligence/Core/Extensions/LaunchArguments.swift", "line": 10, "match": "struct Parser {", "status": "VERIFIED", "by": "build"},
     {"id": "ScreenshotMode.current", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 742, "match": "static var current: ScreenshotMode {", "status": "VERIFIED", "by": "build"},
@@ -96,7 +96,7 @@
     {"from": "OpenIntelligenceApp", "type": "calls", "to": "BackgroundTaskService.handleAppRefresh", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/OpenIntelligenceApp.swift", "line": 256, "match": "BackgroundTaskService.shared.handleAppRefresh(task: refreshTask)"}], "by": "build", "note": "named in the body"},
     {"from": "ContentView.body", "type": "depends_on", "to": "NavigationTiming", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 381, "match": "NavigationTiming.begin(String(describing: newTab))"}], "by": "build", "note": "named there"},
     {"from": "ContainerPickerStrip.pillList", "type": "depends_on", "to": "NavigationTiming", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Components/ContainerPicker.swift", "line": 118, "match": "NavigationTiming.begin(\"library\")"}], "by": "build", "note": "named there"},
-    {"from": "DocumentLibraryView.body", "type": "depends_on", "to": "NavigationTiming", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1178, "match": "let sinceTap = NavigationTiming.describe(\"documents\")"}], "by": "build", "note": "named there"},
+    {"from": "DocumentLibraryView.body", "type": "depends_on", "to": "NavigationTiming", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1209, "match": "let sinceTap = NavigationTiming.describe(\"documents\")"}], "by": "build", "note": "named there"},
     {"from": "ScreenshotMode.current", "type": "depends_on", "to": "LaunchArguments", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 744, "match": "let enabled = LaunchArguments.has(\"--screenshot\") || LaunchArguments.has(\"screenshot\")"}], "by": "build", "note": "named there"},
     {"from": "DebugRAGValidationHarness.isVisualModeEnabled", "type": "depends_on", "to": "LaunchArguments", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 113, "match": "&& (LaunchArguments.has(\"--rag-validation-visual\") || LaunchArguments.has(\"rag-validation-visual\"))"}], "by": "build", "note": "named there"},
     {"from": "ChatScreen.effectiveQualityMode", "type": "depends_on", "to": "LaunchArguments", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1249, "match": "if didSeedScreenshotDemo, LaunchArguments.valueEither(for: \"screenshot-store\") == nil {"}], "by": "build", "note": "named there"},

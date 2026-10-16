@@ -4020,32 +4020,44 @@ struct CompactChatHeader: View {
         containerService.activeContainer
     }
 
+    /// The bottom row's two pills. Both are fixed size (5.7), so the row wraps instead of squeezing one
+    /// (`WrappingRowLayout`): the pills and the counts on one line when everything fits, the counts on a line of their
+    /// own when it does not (on a 402-point iPhone a library of 100 passages or more no longer fits beside the pills),
+    /// and the pills on lines of their own when they are wider than the screen together.
+    @ViewBuilder
+    private var bottomRowPills: some View {
+        // Always show quality mode picker - Deep Think is useful for all users
+        QualityModeQuickPicker(
+            selectedMode: $settings.ragQualityMode, onMaximumModeBlocked: onMaximumModeBlocked
+        ) { _, _ in
+            // Reset stale Deep Think/Maximum metrics when mode changes
+            ragService.resetDeepThinkLiveMetrics()
+        }
+
+        // Model indicator (compact)
+        ModelStatusIndicator()
+    }
+
+    /// Stats for active container
+    private var bottomRowCounts: some View {
+        HStack(spacing: 8) {
+            StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
+            StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             // Top row: Library picker strip (scrollable)
             libraryPickerStrip
 
-            // Bottom row: Model status + Quality mode picker + Stats
-            HStack(spacing: 10) {
-                // Always show quality mode picker - Deep Think is useful for all users
-                QualityModeQuickPicker(
-                    selectedMode: $settings.ragQualityMode, onMaximumModeBlocked: onMaximumModeBlocked
-                ) { _, _ in
-                    // Reset stale Deep Think/Maximum metrics when mode changes
-                    ragService.resetDeepThinkLiveMetrics()
-                }
-
-                // Model indicator (compact)
-                ModelStatusIndicator()
-
-                Spacer()
-
-                // Stats for active container
-                HStack(spacing: 8) {
-                    StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
-                    StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
-                }
+            // Bottom row: Quality mode picker + Model status + Stats, on as few lines as fit (see `bottomRowPills`)
+            WrappingRowLayout(spacing: 10, lineSpacing: 8, lastAtTrailingEdge: true) {
+                bottomRowPills
+                bottomRowCounts
             }
+            // Stacked, the row is only as wide as its widest pill, and the header's stack would center it.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 10)
@@ -4153,6 +4165,7 @@ struct QualityModeQuickPicker: View {
                         .frame(width: 20, height: 20)
                     Image(systemName: selectedMode.canonical.icon)
                         .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(modeColor)
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -4165,9 +4178,9 @@ struct QualityModeQuickPicker: View {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
             }
-            // The mode's color as iOS draws it with Increase Contrast on (5.7): plain blue on the blue-tinted chip
-            // "nearly passed" Apple's contrast audit, and the tagline at 85% "failed".
-            .foregroundStyle(DSColors.readable(modeColor))
+            // The words in the label color, the mode's color in the icon and the tint (5.7, the owner's choice). Blue
+            // on the blue-tinted chip measured 3.6 to 1 even in Apple's high-contrast blue; Apple asks for 4.5.
+            .foregroundStyle(DSColors.primaryText)
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xs)
             // Shared shape and material with the model pill beside it. These two sat
@@ -4281,10 +4294,13 @@ private struct StatChip: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.caption2.weight(.medium))
+                .foregroundStyle(color)
+            // The count in the label color, the color in the icon and the tint (5.7): colored digits on the tinted
+            // capsule measured 4.1 to 1.
             Text(value)
                 .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(DSColors.primaryText)
         }
-        .foregroundStyle(DSColors.readable(color))
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(

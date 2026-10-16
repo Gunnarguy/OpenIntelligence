@@ -36,6 +36,14 @@ struct ChatComposerV2: View {
 
     @State private var inputText: String = ""
     @State private var appliedDraftID: UUID?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The field's hint. At accessibility text sizes it is one word, because the longer one was cut to "Ask any..."
+    /// (5.7).
+    private var hint: LocalizedStringKey {
+        dynamicTypeSize.isAccessibilitySize ? "Ask..." : "Ask anything..."
+    }
+
     /// Speaking a question into the field (5.7).
     @StateObject private var dictation = VoiceDictation()
     /// What the field held when dictation started; the spoken words go after it.
@@ -111,9 +119,16 @@ struct ChatComposerV2: View {
                 // iPhone and iPad (Human Interface Guidelines, Accessibility) and the size of the send
                 // button, so they sit edge to edge (5.7, accessibility audit).
                 HStack(alignment: .bottom, spacing: 0) {
-                    TextField("Ask anything...", text: $inputText, axis: .vertical)
+                    TextField(hint, text: $inputText, axis: .vertical)
                         .lineLimit(1...8)
-                        .font(.system(size: 16))
+                        // Callout on iPhone and iPad: 16 points at the default text size, like the fixed 16 it
+                        // replaces, and it grows with the setting (5.7, Apple's audit: the question field's text did
+                        // not). The Mac has no Dynamic Type and its Callout is 12 points, so there it stays 16.
+                        #if os(macOS)
+                            .font(.system(size: 16))
+                        #else
+                            .font(.callout)
+                        #endif
                         .focused($isInputFocused)
                         .disabled(isProcessing && !isCheckingAnswer)
                         .writingToolsBehavior(.complete)

@@ -55,8 +55,9 @@ struct ModelStatusIndicator: View {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
             }
-            // Readable on the tinted capsule (5.7): "Unavailable" in plain red "failed" Apple's contrast audit.
-            .foregroundStyle(DSColors.readable(statusColor))
+            // The words in the label color, the status color in the icon and the tint (5.7, the owner's choice):
+            // "Unavailable" in red on the red-tinted capsule measured 3.5 to 1 even in Apple's high-contrast red.
+            .foregroundStyle(DSColors.primaryText)
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xs)
             // Matches the quality pill: same capsule, same material, same padding scale,
@@ -65,6 +66,8 @@ struct ModelStatusIndicator: View {
             .glassEffect(.regular.tint(statusColor.opacity(0.18)).interactive(), in: Capsule())
         }
         .buttonStyle(.plain)
+        // Fixed size like the quality pill (5.7), so the two keep one height; the row stacks them at large text sizes.
+        .fixedSize()
         .accessibilityLabel("Model routing")
         .accessibilityValue("\(settings.fmPreference.pickerDisplayName), \(statusText)")
         .accessibilityHint("Choose whether answers run on device, in Private Cloud Compute, or automatically")
@@ -119,6 +122,7 @@ struct ModelStatusIndicator: View {
                 .frame(width: 20, height: 20)
             Image(systemName: preferenceIcon(for: settings.fmPreference))
                 .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(statusColor)
         }
         .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
         .onAppear {
@@ -144,15 +148,30 @@ struct ModelStatusIndicator: View {
             // who cannot separate red from green, because the label above names the
             // selected *preference*, never the *status*.
             if modelResolution.isProcessing {
-                Text("Using \(modelResolution.currentState.executionPath.displayName)")
+                // The route's short name (5.7): the pill is fixed size, and "Using Private Cloud Compute" (154
+                // points at the default size) made the row wider than the screen. These are never wider than the
+                // line they replace, so the row does not change shape when an answer starts.
+                Text(Self.routeName(of: modelResolution.currentState.executionPath))
                     .font(.caption2)
-                    .lineLimit(2)
+                    .lineLimit(1)
             } else {
-                // Two lines rather than shrinking (5.7): the shrink is what the audit called partial Dynamic Type.
+                // One line at its full width, not shrunk (5.7): the shrink is what Apple's audit called partial Dynamic
+                // Type, and the pill is fixed size like the quality pill beside it, so it is never cut.
                 Text(statusText)
                     .font(.caption2)
-                    .lineLimit(2)
+                    .lineLimit(1)
             }
+        }
+    }
+
+    /// Where a running query went, in the names the pill's first line gives the preferences.
+    private static func routeName(of path: ModelResolutionState.ExecutionPath) -> String {
+        switch path {
+        case .onDevice: return "On-Device"
+        case .privateCloudCompute: return "PCC"
+        case .hybridAutomatic: return "Hybrid"
+        case .localServer: return "Local Server"
+        case .cloudAPI: return "Cloud API"
         }
     }
 

@@ -171,4 +171,37 @@ final class IngestionStageLedgerTests: XCTestCase {
         XCTAssertEqual(ledger.readings.last?.characterCount, 10)
         XCTAssertEqual(ledger.transitions.first?.ratio, 1.0)
     }
+
+    // MARK: - Counting off the main actor (5.7)
+
+    func testWordCountIsTheCountSplittingGives() {
+        // The count without substrings has to be the count the split gave, or every import's word
+        // readings move: line breaks, CRLF, a no-break space, an ideographic space, a line separator,
+        // a combining mark after a space, Greek and Chinese.
+        let samples = [
+            "", "   ", "x", "a\r\nb", "x y\tz\n\nw", "\u{00A0}", "a\u{00A0}b", "a\u{3000}b",
+            "a\u{2028}b\u{0085}c", " \u{0301}x", " \u{0301} x", "Café naïve e\u{0301}",
+            "Ελληνικά και 中文 lines", "The fee is $75.50 after 11:59 p.m. on September 30th.\n",
+        ]
+        for sample in samples {
+            XCTAssertEqual(
+                IngestionStageLedger.wordCount(of: sample), sample.split(whereSeparator: \.isWhitespace).count,
+                sample.debugDescription)
+        }
+    }
+
+    func testCountsAreWhatRecordingFromTheTextsGives() {
+        let texts = ["alpha beta", "gamma\ndelta epsilon", "zeta"]
+        let counts = IngestionStageLedger.counts(of: texts)
+        XCTAssertEqual(counts.characters, texts.reduce(0) { $0 + $1.count })
+        XCTAssertEqual(counts.words, 6)
+        XCTAssertFalse(counts.uniformLengths)
+        XCTAssertTrue(IngestionStageLedger.counts(of: ["abc", "def", "ghi", "jkl"]).uniformLengths)
+
+        var fromTexts = IngestionStageLedger(documentName: "a.txt")
+        fromTexts.record(.chunked, chunkTexts: texts)
+        var fromCounts = IngestionStageLedger(documentName: "a.txt")
+        fromCounts.record(.chunked, chunkCount: texts.count, counts: counts)
+        XCTAssertEqual(fromTexts.readings, fromCounts.readings)
+    }
 }

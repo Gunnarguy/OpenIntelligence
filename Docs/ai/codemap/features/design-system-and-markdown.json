@@ -4,15 +4,16 @@
   "name": "Design System and Markdown",
   "aliases": ["design system", "DSColors", "surface card", "markdown renderer", "info button"],
   "purpose": "The shared colors, cards and haptics, and the Markdown renderer for answers and pages.",
-  "revision": "e13f664",
+  "revision": "54f0f84",
   "verified_on": "2026-10-16",
   "entry_points": ["DSColors", "SurfaceCard", "MarkdownParser", "MarkdownText"],
   "files": [
     {"path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "role": "primary", "blob": "dde80946a849038382b6a97c42366842ff44e6d2"},
     {"path": "OpenIntelligence/UI/Components/InfoButtonView.swift", "role": "primary", "blob": "46f55d036fac01c01da4140494869d015c02beec"},
     {"path": "OpenIntelligence/UI/DesignSystem/SurfaceCard.swift", "role": "primary", "blob": "d3edea9d7085221bf8bb3ee9967824233060337d"},
-    {"path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "role": "primary", "blob": "bbc5fa85383106b8f7dc4ba30541f91e3456743a"},
-    {"path": "OpenIntelligenceTests/Core/Extensions/MarkdownRendererHorizontalRuleTests.swift", "role": "test", "blob": "59bbf5ae8b4ea55c5f7fb3d98d0054d8223131a9"}
+    {"path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "role": "primary", "blob": "8614835f45fc5aba93eba85044d0a1df96e86d75"},
+    {"path": "OpenIntelligenceTests/Core/Extensions/MarkdownRendererHorizontalRuleTests.swift", "role": "test", "blob": "59bbf5ae8b4ea55c5f7fb3d98d0054d8223131a9"},
+    {"path": "OpenIntelligence/UI/Components/WrappingRowLayout.swift", "role": "primary", "blob": "226f6c1c4e690a5e960e013a5eee9a89aa646877"}
   ],
   "nodes": [
     {"id": "DSColors", "kind": "model", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 23, "match": "public enum DSColors {", "status": "VERIFIED", "by": "build"},
@@ -31,7 +32,8 @@
     {"id": "MessageBubbleV2.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/MessageBubbleV2.swift", "line": 94, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "StreamingBubbleV2.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift", "line": 279, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "GroundedAnswerView.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 24, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "WritingToolsResultSheet.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 24, "match": "var body: some View {", "status": "VERIFIED", "by": "build"}
+    {"id": "WritingToolsResultSheet.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 24, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "WrappingRowLayout", "kind": "util", "path": "OpenIntelligence/UI/Components/WrappingRowLayout.swift", "line": 22, "match": "struct WrappingRowLayout: Layout {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "MarkdownText", "type": "calls", "to": "MarkdownParser.parse", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "line": 703, "match": "let blocks = MarkdownParser.parse(text)"}], "by": "build", "note": "the call names the type"},
@@ -54,5 +56,5 @@
   "entries": ["OpenIntelligence/UI/DesignSystem/Theme.swift::DSColors", "OpenIntelligence/UI/DesignSystem/SurfaceCard.swift::SurfaceCard", "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift::MarkdownParser", "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift::MarkdownText"],
   "owns": ["OpenIntelligence/UI/DesignSystem/**", "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "OpenIntelligence/UI/Components/InfoButtonView.swift"],
   "decisions": [],
-  "traps": []
+  "traps": ["DSColors.readable(_:) and DSColors.secondaryText resolve a color with the high-contrast trait on iOS, but AppKit has no equivalent: NSAppearance(named:) returns nil for the high-contrast names (NSAppearance.h, macOS 27 SDK), so on the Mac they blend the color toward black or white until it reaches 4.5 to 1 against the window background (Theme.swift, legible). A Mac change that skips that path draws plain systemGray at about 3.4 to 1 (2026-10-16).", "Words on a tinted chip or pill are in the label color, with the color kept in the icon and the tint: colored words on a pale tint of themselves measured 3.5 to 4.1 to 1 even in Apple's high-contrast colors (2026-10-16, Docs/ai/DECISIONS.md)."]
 }

@@ -960,6 +960,20 @@ text and every passage into words to compare them, runs off the main actor (`@co
 the main thread for as long as that took on a large file. Structure-aware chunking still runs on the
 main actor. `[evidence_level: code_verified, confidence: high]`
 
+**The stage ledger's counts off the main thread** *(2026-10-16)*. The ledger's four readings
+(extraction, chunked, sanitized, token-limited) counted every passage's characters and words on the
+main actor, and counted words by splitting the text into a substring per word: about 430 ms a
+reading for 8 MB of text on an M3 Pro (built `-O`), about 1.7 s an import, and 1.4 million substrings
+each time. They are counted by `IngestionStageLedger.counts(of:)` on the concurrent pool
+(`DocumentProcessor.ledgerCounts`, `@concurrent`), walking the characters without making substrings,
+and `DocumentProcessor.wordCount(of:)` counts the same way. The counts are the split's
+(`IngestionStageLedgerTests.testWordCountIsTheCountSplittingGives`: line breaks, CRLF, no-break and
+ideographic spaces, a combining mark after a space, Greek and Chinese). The category check counts the
+whole text once (15 ms for 8 MB on the same Mac) and reads a sample of at most 12,000 characters, so it
+stays. Structure-aware chunking still runs on the main actor. `[evidence_level: measured (a scratch
+probe on this Mac, -O, 2 and 8 MB of mixed text), test_verified, confidence: high for the Mac; the
+device's times are not measured]`
+
 ---
 
 ### Word counts and words that open sentences *(added 2026-10-15, for 5.7)*

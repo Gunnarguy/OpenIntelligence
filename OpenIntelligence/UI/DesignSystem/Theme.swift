@@ -97,7 +97,8 @@ public enum DSColors {
         Color.primary
     }
     /// Secondary text that meets the 4.5:1 contrast Apple asks for on text (5.7): `systemGray` as iOS draws it with
-    /// Increase Contrast on, in light and dark. `Color.secondary` measures about 3.4:1 on white, and Apple's
+    /// Increase Contrast on, in light and dark (on the Mac, see `readable(platform:)`). `Color.secondary` measures
+    /// about 3.4:1 on white, and Apple's
     /// accessibility audit called the small gray text on Chat, Documents and Settings "nearly passed" or "failed"
     /// (2026-10-15, `BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/`). Apple's criterion: "Sufficient
     /// Contrast evaluation criteria", developer.apple.com, read 2026-10-16.
@@ -112,8 +113,9 @@ public enum DSColors {
     }
 
     /// A color as the system draws it with Increase Contrast on, in the current light or dark appearance (5.7):
-    /// Apple's own accessible variant, for colored text that has to meet 4.5:1, such as a blue mode name on a
-    /// blue-tinted chip.
+    /// Apple's own accessible variant on iOS, for colored text that has to meet 4.5:1, such as an orange warning.
+    /// On iOS 27 the high-contrast blue draws as (30, 110, 244): 4.57 to 1 on white, about 3.7 on a pale tint of
+    /// itself, which is why text on tinted chips uses the label color instead (2026-10-16).
     public static func readable(_ color: Color) -> Color {
         #if canImport(UIKit)
         return readable(platform: UIColor(color))
@@ -129,24 +131,53 @@ public enum DSColors {
     public static func readable(platform color: UIColor) -> Color {
         Color(
             UIColor { traits in
-                color.resolvedColor(
-                    with: UITraitCollection(traitsFrom: [traits, UITraitCollection(accessibilityContrast: .high)]))
+                color.resolvedColor(with: traits.modifyingTraits { $0.accessibilityContrast = .high })
             })
     }
     #elseif canImport(AppKit)
-    /// `readable(_:)` for an AppKit color, resolved under the high-contrast version of the current appearance.
+    /// `readable(_:)` for an AppKit color. AppKit has no way to draw a color as Increase Contrast would:
+    /// `NSAppearance(named:)` returns nil for the high-contrast names ("Passing any of them to appearanceNamed: will
+    /// return NULL", NSAppearance.h in the macOS 27 SDK). So the color is resolved in the current appearance and
+    /// blended toward black in light or white in dark, in steps of 5%, until it reaches 4.5 to 1 against the window
+    /// background (#ECECEC in light, #323232 in dark). A color that already reaches it is returned as it is.
     public static func readable(platform color: NSColor) -> Color {
         Color(
             NSColor(name: nil) { appearance in
                 let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-                let highContrast = NSAppearance(
-                    named: isDark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua)
                 var resolved = color
-                highContrast?.performAsCurrentDrawingAppearance {
+                appearance.performAsCurrentDrawingAppearance {
                     resolved = color.usingColorSpace(.sRGB) ?? color
                 }
-                return resolved
+                return legible(resolved, isDark: isDark)
             })
+    }
+
+    /// The first blend of `color` toward black (light) or white (dark) that reaches 4.5 to 1 against the window
+    /// background.
+    static func legible(_ color: NSColor, isDark: Bool) -> NSColor {
+        let target = isDark ? NSColor.white : NSColor.black
+        // Relative luminance of #323232 and #ECECEC.
+        let background = isDark ? 0.0319 : 0.8388
+        var candidate = color
+        for step in 0...20 {
+            candidate = color.blended(withFraction: Double(step) / 20, of: target) ?? color
+            let luminance = relativeLuminance(candidate)
+            if (max(luminance, background) + 0.05) / (min(luminance, background) + 0.05) >= 4.5 {
+                return candidate
+            }
+        }
+        return candidate
+    }
+
+    /// WCAG relative luminance of a color in sRGB.
+    static func relativeLuminance(_ color: NSColor) -> Double {
+        guard let srgb = color.usingColorSpace(.sRGB) else { return 0 }
+        func channel(_ value: CGFloat) -> Double {
+            let v = Double(value)
+            return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(srgb.redComponent) + 0.7152 * channel(srgb.greenComponent)
+            + 0.0722 * channel(srgb.blueComponent)
     }
     #endif
 

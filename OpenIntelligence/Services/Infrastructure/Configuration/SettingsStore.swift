@@ -573,8 +573,11 @@ final class SettingsStore: ObservableObject {
         // Appearance settings
         // Accent color - nil means use system default
         appAccentColorHex = defaults.string(forKey: Keys.appAccentColorHex)
-        // Silicon HUD - defaults to true (show the X-ray overlay)
-        showSiliconHUD = defaults.object(forKey: Keys.showSiliconHUD) as? Bool ?? true
+        // Silicon HUD - defaults to true (show the X-ray overlay). Read with `bool(forKey:)` once a value exists, so a
+        // launch argument (`-showSiliconHUD NO`, which the accessibility UI test passes) reads as the Bool it names;
+        // `as? Bool` saw the string "NO" and fell back to true (5.7).
+        showSiliconHUD =
+            defaults.object(forKey: Keys.showSiliconHUD) == nil ? true : defaults.bool(forKey: Keys.showSiliconHUD)
         hudGlowIntensity = defaults.object(forKey: Keys.hudGlowIntensity) as? Double ?? 0.6
         hudShowMetrics = defaults.object(forKey: Keys.hudShowMetrics) as? Bool ?? true
         hudShowTaptic = defaults.object(forKey: Keys.hudShowTaptic) as? Bool ?? true

@@ -219,15 +219,62 @@ struct IngestionStageLedger: Sendable {
     /// Also notes whether every chunk came out the same length, which the reading alone cannot say
     /// because it keeps only the total.
     mutating func record(_ stage: Stage, chunkTexts: [String]) {
+        record(stage, chunkCount: chunkTexts.count, counts: Self.counts(of: chunkTexts))
+    }
+
+    /// Record a chunked stage from counts taken off the main actor with `counts(of:)` (5.7).
+    mutating func record(
+        _ stage: Stage, chunkCount: Int, counts: (characters: Int, words: Int, uniformLengths: Bool)
+    ) {
         readings.append(
             IngestionStageReading(
                 stage: stage.rawValue,
-                chunkCount: chunkTexts.count,
-                characterCount: chunkTexts.reduce(0) { $0 + $1.count },
-                wordCount: chunkTexts.reduce(0) { $0 + $1.split(whereSeparator: \.isWhitespace).count }
+                chunkCount: chunkCount,
+                characterCount: counts.characters,
+                wordCount: counts.words
             )
         )
-        uniformChunkLengths = chunkTexts.count > 3 && Set(chunkTexts.map(\.count)).count == 1
+        uniformChunkLengths = chunkCount > 3 && counts.uniformLengths
+    }
+
+    /// Characters and words in `texts`, and whether every text has the same number of characters.
+    ///
+    /// Nonisolated so an import can count off the main actor (5.7): counted on it, with words split
+    /// into substrings, each recording took about 430 ms for 8 MB of text on an M3 Pro and allocated a
+    /// substring for every word.
+    nonisolated static func counts(of texts: [String]) -> (characters: Int, words: Int, uniformLengths: Bool) {
+        var characters = 0
+        var words = 0
+        var firstLength: Int?
+        var uniformLengths = true
+        for text in texts {
+            let length = text.count
+            characters += length
+            words += wordCount(of: text)
+            if let firstLength {
+                if length != firstLength { uniformLengths = false }
+            } else {
+                firstLength = length
+            }
+        }
+        return (characters, words, uniformLengths)
+    }
+
+    /// Whitespace-separated words in `text`: the runs of characters that are not whitespace, the
+    /// count `text.split(whereSeparator: \.isWhitespace).count` gives, without making a substring for
+    /// each word.
+    nonisolated static func wordCount(of text: String) -> Int {
+        var words = 0
+        var inWord = false
+        for character in text {
+            if character.isWhitespace {
+                inWord = false
+            } else if !inWord {
+                inWord = true
+                words += 1
+            }
+        }
+        return words
     }
 
     /// Every consecutive transition, with its band applied.

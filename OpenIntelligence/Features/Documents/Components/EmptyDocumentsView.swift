@@ -60,12 +60,15 @@ struct EmptyDocumentsView: View {
                 }
 
                 if isAtDocumentLimit {
+                    // The words in the label color and the orange in the icon and the tint, as on the other tinted
+                    // chips (5.7): the readable orange on its own tint measured 4.43 to 1 on the Mac.
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(DSColors.readable(.orange))
                         Text("Limit of \(documentLimit) documents reached.")
                     }
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(DSColors.readable(.orange))
+                    .foregroundStyle(DSColors.primaryText)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(Color.orange.opacity(0.1))

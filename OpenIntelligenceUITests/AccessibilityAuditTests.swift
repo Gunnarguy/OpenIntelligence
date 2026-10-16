@@ -6,8 +6,11 @@
 //  first-run screen when it shows, then Chat, Documents and Settings. It runs the checks a VoiceOver
 //  user meets: an element with no description, a tap area too small to hit, a wrong trait, and
 //  elements the audit cannot find. The audit for an action with no name is macOS only
-//  (XCUIAccessibilityAuditTypes.h in Xcode 27). Contrast, Dynamic Type and clipped text are left out
-//  here: fixing those changes colors and layouts, which the owner looks at first.
+//  (XCUIAccessibilityAuditTypes.h in Xcode 27). The hardware X-Ray is switched off for the run: while its
+//  floating window is up the audit reports mostly that window and little of the screens behind it (2026-10-15).
+//  Contrast, Dynamic Type and clipped text are measured separately, on screenshots, because the audit's
+//  contrast verdicts did not follow the drawn pixels for several elements (Docs/ai/RUNBOOK.md, "Apple's
+//  accessibility audit, with the X-Ray off").
 //  Not covered: navigating the app with VoiceOver on a device, which is what closes the row.
 //
 
@@ -18,7 +21,7 @@ final class AccessibilityAuditTests: XCTestCase {
     func testTheMainScreensPassTheAccessibilityAudit() throws {
         continueAfterFailure = true
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-stand-in-model"]
+        app.launchArguments += ["--uitest-stand-in-model", "-showSiliconHUD", "NO"]
         app.launch()
 
         var issues: [String] = []

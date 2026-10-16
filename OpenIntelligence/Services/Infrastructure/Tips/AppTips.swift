@@ -97,9 +97,7 @@ struct ModelConfigTip: Tip {
     }
 
     var message: Text? {
-        // The readable gray (5.7): TipKit's own message color "failed" Apple's contrast audit in Settings.
         Text("Tune retrieval depth, temperature, and context window.")
-            .foregroundStyle(DSColors.secondaryText)
     }
 
     var image: Image? {
@@ -155,9 +153,10 @@ struct CompactTipViewStyle: TipViewStyle {
                 configuration.title
                     .font(.subheadline.weight(.semibold))
 
+                // The readable gray for every tip (5.7): `.secondary` here "failed" Apple's contrast audit in Settings.
                 configuration.message?
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

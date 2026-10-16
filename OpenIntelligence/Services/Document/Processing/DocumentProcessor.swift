@@ -29,7 +29,17 @@ class DocumentProcessor {
     /// Words figure split at spaces only, so two words either side of a line break counted as one and
     /// a document's count read low (row "Word counts look wrong and ingested text may be truncated").
     nonisolated static func wordCount(of text: String) -> Int {
-        text.split(whereSeparator: \.isWhitespace).count
+        // The same count without a substring for every word (5.7).
+        IngestionStageLedger.wordCount(of: text)
+    }
+
+    /// `IngestionStageLedger.counts(of:)` off the main actor (5.7). Counted on it, the four
+    /// recordings of an import held the main thread for about 1.7 s on 8 MB of text on an M3 Pro.
+    @concurrent
+    nonisolated private static func ledgerCounts(_ texts: [String]) async
+        -> (characters: Int, words: Int, uniformLengths: Bool)
+    {
+        IngestionStageLedger.counts(of: texts)
     }
 
     struct ProcessedChunk: Sendable {
@@ -1008,10 +1018,8 @@ class DocumentProcessor {
         // FINISHED chunks and so can only say that text was lost; this records each transition, so a
         // loss names the stage that caused it. See IngestionStageLedger.swift.
         var stageLedger = IngestionStageLedger(documentName: filename)
-        stageLedger.recordExtraction(
-            characters: chunkableText.count,
-            words: chunkableText.split(whereSeparator: \.isWhitespace).count
-        )
+        let extractionCounts = await Self.ledgerCounts([chunkableText])
+        stageLedger.recordExtraction(characters: extractionCounts.characters, words: extractionCounts.words)
 
         await Task.yield()
         let documentCategory = classifyDocumentCategory(
@@ -1187,7 +1195,8 @@ class DocumentProcessor {
             emitProgress(stage: "chunking", detail: "✅ Created \(processedChunks.count) semantic chunks", page: nil, totalPages: nil)
         }
 
-        stageLedger.record(.chunked, chunkTexts: processedChunks.map(\.text))
+        let chunkedCounts = await Self.ledgerCounts(processedChunks.map(\.text))
+        stageLedger.record(.chunked, chunkCount: processedChunks.count, counts: chunkedCounts)
 
         // A JSON record's title and path are written by `makeJSONRecordChunks` ("Record 12",
         // "Records 12 to 19"), so there is nothing in them to clean, and cleaning a label is not
@@ -1195,7 +1204,8 @@ class DocumentProcessor {
         if jsonRecordPassages == nil {
             processedChunks = await sanitizeProcessedChunkMetadata(processedChunks)
         }
-        stageLedger.record(.sanitized, chunkTexts: processedChunks.map(\.text))
+        let sanitizedCounts = await Self.ledgerCounts(processedChunks.map(\.text))
+        stageLedger.record(.sanitized, chunkCount: processedChunks.count, counts: sanitizedCounts)
 
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
 
@@ -1205,7 +1215,8 @@ class DocumentProcessor {
         await Task.yield()
         try Task.checkCancellation()
         processedChunks = await enforceTokenLimitOnChunks(processedChunks)
-        stageLedger.record(.tokenLimited, chunkTexts: processedChunks.map(\.text))
+        let tokenLimitedCounts = await Self.ledgerCounts(processedChunks.map(\.text))
+        stageLedger.record(.tokenLimited, chunkCount: processedChunks.count, counts: tokenLimitedCounts)
         stageLedger.emit()
 
         // CONTENT COVERAGE VERIFICATION: Ensure we captured all the source content

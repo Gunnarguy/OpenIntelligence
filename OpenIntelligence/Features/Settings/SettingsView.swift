@@ -21,6 +21,7 @@ struct SettingsView: View {
     @EnvironmentObject private var entitlementStore: EntitlementStore
     @EnvironmentObject private var workspaceSyncService: WorkspaceSyncService
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     // Note: SystemStateMonitor moved to LiveSystemMonitorWrapper to avoid full-view redraws
 
@@ -463,11 +464,20 @@ struct SettingsView: View {
     /// single long scroll, and far too much for the first row of a navigation index,
     /// where it pushed the first real section most of a screen down. Settings.app makes
     /// the same trade: the Apple Account card is a compact row, not a hero. The status
-    /// text and both pills survive, laid out horizontally.
+    /// text and both pills survive, laid out horizontally. At accessibility text sizes the
+    /// icon goes above the text, and the two pills stack whenever they do not fit side by side
+    /// (5.7): at the largest size each had about 130 points, and "PCC" and "Available" broke in
+    /// the middle of the word.
     private var heroSummaryRow: some View {
-        HStack(spacing: DSSpacing.md) {
+        let rowLayout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.sm))
+            : AnyLayout(HStackLayout(spacing: DSSpacing.md))
+        return rowLayout {
             Image(systemName: "brain.head.profile")
                 .font(.title2)
+                // Decorative and drawn in a 44-point circle, so it stops growing at the largest standard size.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(DSColors.accent)
                 .frame(width: 44, height: 44)
                 .background(DSColors.accent.opacity(0.12), in: Circle())
@@ -479,21 +489,26 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: DSSpacing.xs) {
-                    statusPill(
-                        icon: "checkmark.shield.fill",
-                        text: "On-Device First",
-                        active: true
-                    )
-                    if deviceCapabilities.supportsPrivateCloudCompute, settings.applePCCConsent != .denied {
-                        statusPill(icon: "cloud.fill", text: "PCC Available", active: true)
-                    }
+                WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
+                    statusPills
                 }
                 .padding(.top, 2)
             }
         }
         .padding(.vertical, DSSpacing.xs)
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var statusPills: some View {
+        statusPill(
+            icon: "checkmark.shield.fill",
+            text: "On-Device First",
+            active: true
+        )
+        if deviceCapabilities.supportsPrivateCloudCompute, settings.applePCCConsent != .denied {
+            statusPill(icon: "cloud.fill", text: "PCC Available", active: true)
+        }
     }
 
     private var trimmedSearch: String {
@@ -667,15 +682,23 @@ struct SettingsView: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.caption2)
+                .foregroundStyle(active ? Color.accentColor : DSColors.secondaryText)
             Text(text)
                 .font(.caption2.weight(.medium))
+                // Its full height for the width it gets, so at large sizes it wraps instead of ending in "Fir..." (5.7).
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(active ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
-        // System blue, not the accent: the AccentColor asset has no high-contrast variant to resolve to.
-        .foregroundStyle(active ? DSColors.readable(.blue) : DSColors.secondaryText)
-        .clipShape(Capsule())
+        // The words in the label color when active, the accent in the icon and the tint (5.7, the owner's choice):
+        // blue on the blue-tinted pill measured 3.8 to 1.
+        .foregroundStyle(active ? DSColors.primaryText : DSColors.secondaryText)
+        // A capsule around one line. At accessibility text sizes the words can take two lines, where a capsule's round
+        // ends cut into them, so there the pill is a rounded rectangle, and only the background is shaped (5.7).
+        .background(
+            active ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1),
+            in: dynamicTypeSize.isAccessibilitySize
+                ? AnyShape(RoundedRectangle(cornerRadius: 12, style: .continuous)) : AnyShape(Capsule()))
     }
 
     private var statusText: String {

@@ -62,5 +62,7 @@ ALSO
 
 • Redeem a Code on the plans screen.
 
+• Easier to read: darker gray text, black or white words on colored labels, a deeper blue in light mode, and text on Chat, Documents and Settings that grows with your text size.
+
 
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
