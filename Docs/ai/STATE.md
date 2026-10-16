@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-10-15, 18:15 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; the 5.7 work since the last handoff is in 12 commits, `3c75a08` through `c300bf8`, each pushed with `[ci skip]`; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, build 485)
+Updated: 2026-10-15, 22:40 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; since the evening handoff four commits, `7f13889` through `01fd0d1`, each pushed with `[ci skip]`; 5.6 has been live on iPhone, iPad and Mac since 2026-10-08, build 485)
 Branch/worktree: `main`, primary checkout
-Last verified commit: c300bf8
+Last verified commit: 01fd0d1
 
 Earlier detail is in git: `git show 3c75a08:Docs/ai/STATE.md` (the morning of 2026-10-15) and older copies named there;
 the long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -15,16 +15,18 @@ until all 5.7 is finished, all backlogs, EVerything", then "Those 13 partly buil
 entirely please or brought to full effect, completely integrated". The work is the Native Surfaces catalogue's
 unfinished rows (below), one at a time, each finished, checked and committed before the next.
 
-## Status (2026-10-15, evening)
+## Status (2026-10-15, night)
 
 | What | Where it stands |
 |---|---|
-| 5.7 source | All pushed (`git rev-list --count origin/main..HEAD` prints 0). Since the morning handoff: `d646afa` consent claims attributed to Apple; `cbaa772` Add to Library from Shortcuts with the app closed; `4c339e9` passages whose document is in no library; `e9de06d` Apple's token count in an answer's details; `e3d8831` delete with undo; `3b15d3f` the lab-science domain check reads whole words and only for lab questions; `eaccacc` an answer's heading is not a claim; `67857ee` money, dates and measurements read with Apple's data detector; `f3bf04f` QR codes and barcodes in a picture read by Vision; `af71989` swipe to delete; `7ac5c28` the "Your Library" widget (held out of the widget list until the app group); `c300bf8` the Atlas's work off the main thread. |
-| Tests | 1,127 run, 0 failures, 6 skipped (two need Core AI, one layout case, the two scale benchmarks, and the QR read that Vision cannot do in the Simulator), 2026-10-15 at 18:09 PT on `c300bf8`'s tree; iOS test build and Mac build succeeded. The first attempt on that build hung before connecting; the second, after a simulator reboot, ran (the cause is in `Docs/ai/RUNBOOK.md`, "The test runner hung before establishing connection"). |
+| Tonight | `7f13889` the hardware X-Ray restyled (solid dark backing, white text, Dynamic Type up to 1.8x) and hidden from accessibility (SwiftUI `accessibilityHidden` plus UIKit `accessibilityElementsHidden` on its window); `32e5179` the Atlas names clusters and axis ends with `AtlasLabeling.contrast` instead of a ratio whose ties went alphabetically (his phone showed "Agent & Alert", "Annual & App"); `227b842` `DayOrdinals`: "September 30th" is searched as "September 30" (his question missed that day twice); `01fd0d1` the Verified badge, the response details and the rating and plan prompts read Fact Check's claims (`VerificationOutcome.from(gatingDecision:claims:)`; his phone showed Verified over "0 of 2 Verified"). |
+| 5.7 source | All pushed (`git rev-list --count origin/main..HEAD` prints 0). Earlier on 2026-10-15: `d646afa` consent claims attributed to Apple; `cbaa772` Add to Library from Shortcuts with the app closed; `4c339e9` passages whose document is in no library; `e9de06d` Apple's token count in an answer's details; `e3d8831` delete with undo; `3b15d3f` the lab-science domain check reads whole words and only for lab questions; `eaccacc` an answer's heading is not a claim; `67857ee` money, dates and measurements read with Apple's data detector; `f3bf04f` QR codes and barcodes in a picture read by Vision; `af71989` swipe to delete; `7ac5c28` the "Your Library" widget (held out of the widget list until the app group); `c300bf8` the Atlas's work off the main thread. |
+| Tests | 1,136 run, 0 failures, 6 skipped (two need Core AI, one layout case, the two scale benchmarks, and the QR read that Vision cannot do in the Simulator), 2026-10-15 at 22:26 PT on `01fd0d1`'s tree; device, iOS test and Mac builds succeeded. The first attempt on that build hung before connecting; the second, after a simulator reboot, ran (`Docs/ai/RUNBOOK.md`, "The test runner hung before establishing connection"). The three commits before it ran 1,133, 0 failures, at 22:07. |
 | TestFlight | No 5.7 build. Every 5.7 push carried `[ci skip]`; a push whose newest commit lacks it starts one. |
-| His iPhone | A development build of `af720fb` installed 2026-10-15 at 09:39 PT; nothing after it. |
-| Catalogue | https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ, version 18: 77 built, 3 checked, 4 partly, 8 needing him, 4 not started (96 rows with a status, 22 more the app already had). |
-| Test simulator | `OI 5.7 tests` `7652732F-FCEA-47A3-B345-7EC57B9EFE67` (iPhone 18 Pro, iOS 27.0), shut down. It holds a scratch build's "Your Library" widget on its Home Screen. Simulators on this Mac are deleted between sessions: check `xcrun simctl list devices` first. |
+| His iPhone | A development build of `01fd0d1` installed 2026-10-15 at 22:27 PT (the 21:14 install before it had everything through `94c4007` and the X-Ray restyle). On it at 21:16 he asked "What happened on September 30th" and got the wrong day; that trace is why `227b842` exists. Nothing tonight is checked there yet. |
+| Catalogue | https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ, version 20: header at `01fd0d1`; the accessibility row says the morning audit mostly measured the X-Ray. |
+| Accessibility audit | While the X-Ray's floating window is up, Apple's audit reports mostly that window. With the X-Ray off (written into the app's container plist; memory `accessibility-audit-blind-behind-the-x-ray`), Chat, Documents and Settings have 54, 44, 35 and 31 issues (light and dark, default and largest text): contrast on secondary text, fixed text sizes, clipping. `BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/` (local). Notion row "With the X-Ray off, Apple's audit finds contrast, text-size and clipping issues on Chat, Documents and Settings", Future Backlog unless he pulls it into 5.7. |
+| Test simulator | `OI 5.7 tests` `E2D49A91-0083-4BE1-831E-7675564CD7BA` (iPhone 18 Pro, iOS 27.0), made 2026-10-15 at about 19:05 after the previous one, `7652732F-...`, was deleted at 18:58 by a request CoreSimulator did not attribute. Simulators on this Mac are deleted between sessions: check `xcrun simctl list devices` first. |
 | Demos session | Confirmed on its own demo library (a demo copy of `eaccacc`, simulator `64C1FEA3`) that the travel-insurance, hotel-address and check-out answers read Verified now. |
 
 Unfinished catalogue rows, by what each waits on:
@@ -83,10 +85,21 @@ Unfinished catalogue rows, by what each waits on:
   (`LibraryWidget` at the end), the hooks in `ContentView.swift`, `ChatScreen.recordForLibraryWidget`,
   `MessageBubbleV2.swift`, `ThreadSidebarView.swift`, `ContainerService+Focus.swift`.
 - Atlas: `LibraryVisualizationEngine.swift` (`analyzePassages`, `ContentCategory.of`), `ProjectionService.swift`,
-  `AdaptiveVisualizationsView.swift`, `Embedding3DView.swift`.
+  `AdaptiveVisualizationsView.swift`, `Embedding3DView.swift`, `AtlasLabeling.swift` (`contrast`, `ranked`).
+- Tonight: `MotherboardHUDView.swift` (`SiliconLegend`, `FloatingLegendWindowManager.ensureVisible`),
+  `DayOrdinals.swift`, `RAGService.queryInternal` (top) and `executeFullRetrievalPipeline`, `VerificationOutcome.swift`,
+  `ReviewPromptService.isVerified`.
 - Undo: `PendingDocumentRemoval.swift`, `RAGService.scheduleRemoval`.
 
 ## Verification (2026-10-15, output read)
+
+- `01fd0d1`: `cycle_full.sh r21` -> device `BUILD SUCCEEDED`, `TEST BUILD SUCCEEDED`, the runner hung before connecting,
+  then `build57.sh test-without-building` after a simulator reboot -> `Executed 1136 tests, with 6 tests skipped and 0
+  failures`; Mac `BUILD SUCCEEDED`. `7f13889`, `32e5179`, `227b842`: `cycle_full.sh r20` -> all three builds succeeded,
+  `Executed 1133 tests, with 6 tests skipped and 0 failures`. `devicectl device install app` -> `App installed` 22:27:12.
+- Atlas names, scratch probe on passages cut from his three Library 3 documents (`scratchpad/atlas-probe`): the paper's
+  cluster "Activation & Activities" before, "Dopamine & Serotonin" after. Not yet seen in the app.
+- `codemap.py check` at `01fd0d1` -> 0 errors, 48 warnings.
 
 - `c300bf8` (Atlas): `build57.sh build-for-testing` -> `TEST BUILD SUCCEEDED`, no warning in the changed files;
   `test-without-building` -> `Executed 1127 tests, with 6 tests skipped and 0 failures`, `AtlasContentCategoryTests` 4
@@ -110,20 +123,22 @@ Unfinished catalogue rows, by what each waits on:
 - **Provisioning.** Xcode here has no Apple account ("No Accounts"), and `xcodebuild -allowProvisioningUpdates` with
   the App Store Connect key failed on 2026-10-14 with "Authentication failed: Make sure a bearer token was provided,
   it is properly configured and signed, and it has not expired". His sign-in in Xcode unblocks the provisioning rows.
-- **Nothing in 5.7 is closed on a device.** The phone's build is `af720fb`.
+- **Nothing in 5.7 is closed on a device.** The phone's build is `01fd0d1`.
+- **Why the audit sees only the X-Ray's window** is not established; VoiceOver on the phone is the check that matters.
 - **Two duplicate roadmap rows wait for him to delete:** https://app.notion.com/p/3f949a74d54f819d9fddd5a90087fb1e
   and https://app.notion.com/p/3fa49a74d54f815a98c9d84ea08d9287.
 
 ## Exact Next Action
 
-The hardware X-Ray overlay's styling, his choice on 2026-10-15 ("Solid, readable styling"): keep it on by default,
-give its labels (`MotherboardHUDView.swift`: the CPU, GPU, ANE and RAM readouts, the chip name, the "Drag me" hint) a
-solid dark backing and white text that passes Apple's contrast audit, and let that text grow with Dynamic Type. It is
-the only thing failing the contrast audit on Chat, Documents and Settings (`BenchmarkRuns/2026-10-15-accessibility-audit/`).
-Work in the background: build, rerun that audit in the iOS Simulator (light and dark), and show him before-and-after
-Simulator screenshots before committing.
+Ask him what tonight's four fixes showed on his iPhone (build `01fd0d1`, installed 22:27): in a new chat, "What happened
+on September 30th" in Library 3 should answer from the September 30 section; Library 3's Atlas should name its
+clusters and axes with words most of each group shares; an answer whose Fact Check supports no claim should not show a
+green Verified. If one did not, pull `Documents/pipeline_trace.log` with `xcrun devicectl device copy from` (memory
+`building-to-gunnars-iphone`) and read that query's block; the day fix logs `[Query] Day read as a number for the search`.
+Then ask whether the screens' accessibility issues go into 5.7; if he says yes, start with the 13 contrast failures in
+light at the default size (`BenchmarkRuns/2026-10-15-accessibility-audit-xray-off/audit-light-large-xray-off.txt`).
 
 The Mac and phone sessions are paused, not cancelled. He approved them, then paused the Mac one a few minutes in
-("lets just not do this", then "i didnt say dont ever do this. i just said for now"). The development Mac build was
-quit and the phone build cancelled. Pick them up when he says; right before starting, tell him in a line what will
-open on his screen. The rows waiting on those sessions are listed under "His approval already given" above.
+("lets just not do this", then "i didnt say dont ever do this. i just said for now"). Pick them up when he says; right
+before starting, tell him in a line what will open on his screen. The rows waiting on those sessions are listed under
+"His approval already given" above.
