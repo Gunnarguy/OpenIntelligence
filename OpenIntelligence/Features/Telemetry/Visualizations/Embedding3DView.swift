@@ -3064,7 +3064,8 @@ struct EmbeddingSpaceRenderer: View {
             let axisTexts = sampledChunks.map(\.content)
             let axisCoords = coords3D
             let axisEnds = await Task.detached(priority: .userInitiated) {
-                AtlasLabeling.axisLabels(coords: axisCoords, texts: axisTexts)
+                await AtlasLabeling.loadWordClasses(for: axisTexts)
+                return AtlasLabeling.axisLabels(coords: axisCoords, texts: axisTexts)
             }.value
             let axisLabels = Embedding3DSceneView.AxisLabels(ends: axisEnds)
 

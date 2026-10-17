@@ -385,6 +385,10 @@ Each statement in the text was checked against the code on 2026-10-15:
 - Dictation is `DictationTranscriber`, on the device. Turning off Spotlight Indexing calls
   `deleteAllSearchableItems`. Deleting a library removes each of its documents, which clears their passages, keyword
   rows and Spotlight entries (`LibraryDeletion`).
+- Language data for the Atlas (added 2026-10-17): `AtlasLabeling.loadWordClasses` calls
+  `NLTagger.requestAssets(for:tagScheme:)` with a language code and `.lexicalClass` only, for the eight languages in
+  `languagesWithWordClasses` that the device lacks, once a launch; nothing from the library goes with it. The policy's
+  date moved to October 17, 2026 with this paragraph; the gunzino.me copy waits on the owner's word for that repository.
 - Cached questions and the passages found for them (`semantic_query_cache`) are deleted from 5.7 once the
   documents or the app's version change (`RAGService.deleteUnreachableCachedSearches`, added 2026-10-15). Through
   5.6 nothing deleted them, and they outlived their library. The policy says what each version does.

@@ -261,6 +261,30 @@ final class AtlasLabelingTests: XCTestCase {
         XCTAssertEqual(ends.high, ["soft", "towel"])
     }
 
+    /// The word classes of a library's languages are asked for only where a language can have them, once a launch,
+    /// and the wait has an end (5.7). Japanese has none, so it is not asked for. Whether the system loads Spanish here
+    /// is printed, not assumed.
+    func testLoadingWordClassesAsksOnlyWhereTheyExistAndWaitsAtMostItsTimeout() async {
+        let texts = [
+            "Gently wipe the tray with a soft towel before you store it.",
+            "自然言語処理の研究を進めるための基礎的な技術",
+            "Limpie suavemente la bandeja con una toalla limpia y seca antes de guardarla.",
+        ]
+
+        let start = ContinuousClock.now
+        let available = await AtlasLabeling.loadWordClasses(for: texts, timeout: .seconds(2))
+        let elapsed = ContinuousClock.now - start
+        print("WORD CLASSES AFTER LOADING: \(available.sorted()) in \(elapsed)")
+
+        XCTAssertTrue(available.contains("en"), "got \(available)")
+        XCTAssertFalse(available.contains("ja"))
+        XCTAssertLessThan(elapsed, .seconds(3))
+        // Asked for once a launch: a second time nothing is asked for, so nothing is waited for.
+        let again = ContinuousClock.now
+        _ = await AtlasLabeling.loadWordClasses(for: texts, timeout: .seconds(2))
+        XCTAssertLessThan(ContinuousClock.now - again, .seconds(1))
+    }
+
     /// A word is tagged where it stands in its passages, each in its own language: "tray" alone came back an adverb
     /// on macOS 27 and in a sentence a noun, and a library of instructions for use is often in several languages. A
     /// language the system has no word classes for keeps its words: in the iOS 27 Simulator (2026-10-16) Spanish and

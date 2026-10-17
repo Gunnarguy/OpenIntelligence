@@ -243,6 +243,20 @@ Measured on 2026-10-15 on a Mac (macOS 27, an 8,192-token window, `tokenCount(fo
 
 Three things download from the network, and only starting from an address the person gave them: "Save a Web Page" (`IngestURLIntent`, called "Ingest Webpage" through 5.6), the Link parameter of "Add to Library" (`AddToLibraryIntent`), and the Paste control on the Documents screen when what was pasted is a web address (`PastedContentStaging`; added to this section 2026-10-12, the control dates from 2026-10-09). All three call `WebPageFetchService.fetch`, which makes a GET to that address on an ephemeral `URLSession` with cookies refused and the cache off, and sends nothing from the library with it. An `http` address is asked for as `https`: the app declares no transport-security exception, so plain `http` is never sent. The session follows the site's redirects, as a browser does, so a `www` variant or a short link can lead to further requests, and to a host other than the one in the address. No request goes to a service of this app. The page's text is stored on the device and indexed there like any imported file. This does not change where a question is answered: retrieval and ranking stay on the device, and Private Cloud Compute is reached only by the route described above. `[evidence_level: code_verified, confidence: exact, evidence_source: WebPageFetchService.swift fetch(_:now:), which builds the session with no delegate; ScreenAwarenessIntents.swift IngestURLIntent.perform; AddToLibraryIntent.swift perform; PastedContentStaging.swift]` Through 5.6 "Ingest Webpage" downloaded nothing, so no build before 5.7 makes this request.
 
+## The Atlas may ask the system for a language's word classes (added 2026-10-17, for 5.7)
+
+Before the Atlas names its axes and clusters, and before the library's topic chips are named, `AtlasLabeling.loadWordClasses`
+reads the languages of about 200 of the passages (`NLLanguageRecognizer`) and, for each of the eight languages
+NaturalLanguage has word classes for (`languagesWithWordClasses`: English, French, German, Italian, Portuguese,
+Simplified Chinese, Spanish, Turkish) that the device does not have yet, calls `NLTagger.requestAssets(for:tagScheme:)`
+with the language and `.lexicalClass`, once a launch, waiting up to 3 seconds. The call carries a language code and a
+tag scheme and nothing from the library. Per `NLTagger.h` the system then loads the assets "at some point", which can
+be a download; where it fetches them from is the system's own business, and the app makes no request of its own. The
+word classes are used to leave adverbs and function words out of the map's labels (`namingTerms`). Added at the
+owner's word on 2026-10-16 ("yes add the requestAssets"), after the iOS 27 Simulator showed no word classes for
+Spanish or German (macOS 27 has them). `[evidence_level: code_verified, confidence: high, evidence_source:
+AtlasLabeling.swift (loadWordClasses, requestWordClasses); NLTagger.h in the iOS 27 SDK]`
+
 ## Diagnostics from the system stay on the device (added 2026-10-12, for 5.7)
 
 `MetricDiagnostics` (`OpenIntelligence/App/MetricDiagnostics.swift`) subscribes, on iOS 27 and macOS 27, to MetricKit's `MetricManager` for the reports the system gives an app about itself: hangs, crashes, CPU and disk exceptions, and launch and memory figures. It writes a one-line summary of each to the app's log and appends the report to `metric_reports.jsonl` in the app's local cache folder, keeping the newest 200 lines. The file has no upload code and makes no request, so the app sends these reports nowhere. Whether a person shares analytics with Apple and with developers is a setting of the system's own and is not changed or read by this. No report had been delivered on a device when this was written. `[evidence_level: code_verified; test_verified for the summaries and the 200-line limit (MetricDiagnosticsTests), confidence: high for the code, evidence_source: MetricDiagnostics.swift; a search of that file for URLSession and upload on 2026-10-12 found neither]`

@@ -194,6 +194,61 @@ public nonisolated enum AtlasLabeling {
         return kept
     }
 
+    // MARK: - Word Classes the System Can Load
+
+    /// The languages NaturalLanguage has word classes for (`NLTagger`'s lexical class), by code: on macOS 27
+    /// (2026-10-17) these eight had them and 49 others had none, and a request for one of those (Japanese, Greek,
+    /// Swedish) went unanswered for the three seconds it was given.
+    static let languagesWithWordClasses: Set<String> = ["en", "fr", "de", "it", "pt", "zh-Hans", "es", "tr"]
+
+    /// Asks the system to load the word classes of each language among `texts` that can have them and that the device
+    /// does not have yet, and waits for the answers up to `timeout` (5.7, at the owner's word on 2026-10-16: "yes add
+    /// the requestAssets"). In the iOS 27 Simulator Spanish and German had none, so their adverbs could name the
+    /// Atlas's axes; macOS 27 has them. The languages are read from about 200 passages spread across `texts`. Each is
+    /// asked for once a launch: one still loading when the wait ends goes on loading, and a later map uses it. The
+    /// request names the language and the tag scheme, nothing from the passages (`NLTagger.requestAssets`). Returns the
+    /// codes of the passages' languages that have word classes afterwards.
+    @discardableResult
+    public static func loadWordClasses(for texts: [String], timeout: Duration = .seconds(3)) async -> Set<String> {
+        var languages = Set<String>()
+        if !texts.isEmpty {
+            for index in stride(from: 0, to: texts.count, by: max(1, texts.count / 200)) {
+                if let language = NLLanguageRecognizer.dominantLanguage(for: texts[index]) {
+                    languages.insert(language.rawValue)
+                }
+            }
+        }
+        func hasWordClasses(_ code: String) -> Bool {
+            NLTagger.availableTagSchemes(for: .word, language: NLLanguage(rawValue: code)).contains(.lexicalClass)
+        }
+        let missing = languages.filter { code in
+            languagesWithWordClasses.contains(code) && !hasWordClasses(code) && WordClassRequests.shared.claim(code)
+        }
+        if !missing.isEmpty {
+            await withTaskGroup(of: Void.self) { group in
+                for code in missing {
+                    group.addTask { _ = await requestWordClasses(code, timeout: timeout) }
+                }
+            }
+        }
+        return languages.filter(hasWordClasses)
+    }
+
+    /// One language's word classes, asked of the system and waited for up to `timeout`; nil when the wait ended first.
+    /// The system's answer can come after that, or never: the wait does not depend on it.
+    private static func requestWordClasses(_ code: String, timeout: Duration) async -> NLTagger.AssetsResult? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<NLTagger.AssetsResult?, Never>) in
+            let once = ResumeOnce(continuation)
+            NLTagger.requestAssets(for: NLLanguage(rawValue: code), tagScheme: .lexicalClass) { result, error in
+                once.resume(error == nil ? result : .error)
+            }
+            Task {
+                try? await Task.sleep(for: timeout)
+                once.resume(nil)
+            }
+        }
+    }
+
     // MARK: - Title Case & Formatting
 
     /// Formats a single lowercased word as Title Case.
@@ -782,5 +837,37 @@ public nonisolated enum AtlasLabeling {
         }
 
         return assignments
+    }
+}
+
+/// The languages whose word classes this launch has asked the system for (5.7), so each is waited for once.
+nonisolated private final class WordClassRequests: @unchecked Sendable {
+    static let shared = WordClassRequests()
+    private let lock = NSLock()
+    private var asked = Set<String>()
+
+    /// True the first time a language is claimed in this launch.
+    func claim(_ code: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return asked.insert(code).inserted
+    }
+}
+
+/// Resumes a continuation once: from the system's answer or from the end of the wait, whichever comes first.
+nonisolated private final class ResumeOnce<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    init(_ continuation: CheckedContinuation<Value, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(_ value: Value) {
+        lock.lock()
+        let waiting = continuation
+        continuation = nil
+        lock.unlock()
+        waiting?.resume(returning: value)
     }
 }

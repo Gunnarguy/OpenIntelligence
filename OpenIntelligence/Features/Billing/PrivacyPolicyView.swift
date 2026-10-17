@@ -13,7 +13,7 @@ struct PrivacyPolicyView: View {
                         .font(.largeTitle.weight(.bold))
                         .padding(.bottom, 8)
 
-                    Text("Last updated: October 15, 2026")
+                    Text("Last updated: October 17, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -39,6 +39,8 @@ OpenIntelligence reads, indexes, searches and answers from your documents on you
 **iCloud Sync (Pro and Lifetime, per library):** a library's files, passages, embeddings and conversations, copied to your own iCloud so your other devices signed in to the same Apple Account see the same library. Only for libraries you set to iCloud Sync; libraries are Local Only unless you change them.
 
 **A web page you add (from 5.7):** when you give the app a web address (Save a Web Page, the Link field of Add to Library, or a web address pasted on the Documents screen), it downloads that page from its site. The site sees an ordinary request from your device, which carries nothing from your library. No cookies are sent or kept.
+
+**Language data for the Atlas (from 5.7):** when a library is written in French, German, Italian, Portuguese, Spanish, Turkish or Chinese and your device doesn't have that language's word classes yet, the Atlas asks your device's system to load them, which it may download, so its labels leave out words such as "gently". The request carries the language and nothing from your library.
 
 **Handoff:** what you have open in Chat or Documents (which library, which document, and the document's name) can be picked up on your other devices through Apple's Handoff.
 

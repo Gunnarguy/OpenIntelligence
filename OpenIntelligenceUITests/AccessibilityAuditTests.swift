@@ -142,15 +142,25 @@ final class AccessibilityAuditTests: XCTestCase {
         let hud = app.switches["Telemetry HUD"]
         XCTAssertTrue(hud.waitForExistence(timeout: 5), "the X-Ray's switch has no name: \(names(on: "Appearance"))")
         try audit("Appearance")
+        /// Sets the X-Ray's switch to `on` by tapping only when it is not already there, and reads it back: a tap
+        /// toggles, so a blind tap leaves it the wrong way round whenever it started out on (2026-10-17).
+        func setHUD(_ on: Bool) {
+            for _ in 0..<3 where (hud.value as? String) != (on ? "1" : "0") {
+                hud.tap()
+                _ = app.sliders["Glow Intensity"].waitForExistence(timeout: on ? 3 : 1)
+            }
+        }
         if hud.exists {
             // Its own switches and the glow slider show only while it is on.
-            hud.tap()
+            setHUD(true)
+            XCTAssertEqual(hud.value as? String, "1", "the X-Ray's switch did not turn on")
             XCTAssertTrue(app.sliders["Glow Intensity"].waitForExistence(timeout: 5), "the glow slider has no name")
             XCTAssertTrue(app.switches["Live Metrics"].exists, "the Live Metrics switch has no name")
             XCTAssertTrue(app.switches["Taptic Engine"].exists, "the Taptic Engine switch has no name")
             print("APPEARANCE CONTROLS: \(names(on: "Appearance"))")
             // Off again, as a new install has it: the setting is saved, and the other tests start from it.
-            hud.tap()
+            setHUD(false)
+            XCTAssertEqual(hud.value as? String, "0", "the X-Ray's switch did not turn off")
         }
 
         print("SETTINGS PAGES AUDIT\n\(issues.isEmpty ? "No issues" : issues.joined(separator: "\n"))\nEND AUDIT")

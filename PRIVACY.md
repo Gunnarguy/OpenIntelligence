@@ -20,6 +20,10 @@ In short:
 - From 5.7 (in preparation, not yet on the App Store) the app downloads a web page when you give it the
   address, with "Save a Web Page", the Link field of "Add to Library" or a web address you paste on the
   Documents screen. The request goes to that site and carries nothing from your library.
+- From 5.7, when a library is written in French, German, Italian, Portuguese, Spanish, Turkish or Chinese and your
+  device doesn't have that language's word classes yet, the Atlas asks the device's system to load them, which it may
+  download, so its labels leave out words such as "gently". The request carries the language and nothing from your
+  library.
 - From 5.7, a question you ask with Siri or Shortcuts that would use Private Cloud Compute brings the app
   forward to ask first, with the same consent screen as the chat, unless you've already said yes or no;
   if the app can't come forward, the question is answered on the device.

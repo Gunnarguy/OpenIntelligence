@@ -9,7 +9,7 @@
 # statement is true of) is in Docs/ai/RUNBOOK.md, "Changing the privacy policy". Added 2026-10-15.
 import html, os, re, subprocess, sys
 OI, GZ = sys.argv[1], sys.argv[2]
-DATE = "October 15, 2026"
+DATE = "October 17, 2026"
 
 INTRO = ("This policy describes how OpenIntelligence handles information. OpenIntelligence is an on-device RAG app built "
          "on Apple Intelligence: your documents are read, indexed, searched and answered from on your device unless you "
@@ -55,6 +55,10 @@ SECTIONS = [
         "**A web page you add (from 5.7):** when you give the app a web address (Save a Web Page, the Link field of Add to Library, "
         "or a web address pasted on the Documents screen), it downloads that page from its site. The site sees an "
         "ordinary request from your device, which carries nothing from your library. No cookies are sent or kept.",
+        "**Language data for the Atlas (from 5.7):** when a library is written in French, German, Italian, Portuguese, "
+        "Spanish, Turkish or Chinese and your device doesn't have that language's word classes yet, the Atlas asks your "
+        "device's system to load them, which it may download, so its labels leave out words such as \"gently\". The "
+        "request carries the language and nothing from your library.",
         "**Handoff:** what you have open in Chat or Documents (which library, which document, and the document's name) "
         "can be picked up on your other devices through Apple's Handoff.",
         "**The App Store rating:** about once a day the app asks Apple's public App Store lookup for its own rating. The "

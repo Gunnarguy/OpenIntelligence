@@ -477,7 +477,9 @@ final class LibraryVisualizationEngine: ObservableObject {
         let texts = chunks.map { $0.content }
         let keywords = chunks.map { $0.metadata.keywords }
         let passages = await Task.detached(priority: .userInitiated) {
-            Self.analyzePassages(embeddings: embeddings, texts: texts, keywords: keywords)
+            // The word classes of the passages' languages first (5.7), as the map's own names do.
+            await AtlasLabeling.loadWordClasses(for: texts)
+            return Self.analyzePassages(embeddings: embeddings, texts: texts, keywords: keywords)
         }.value
 
         // Topic analysis

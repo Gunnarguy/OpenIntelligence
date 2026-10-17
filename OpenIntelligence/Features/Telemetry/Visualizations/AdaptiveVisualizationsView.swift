@@ -2233,6 +2233,8 @@ struct Fullscreen3DAtlasView: View {
         // a phone, so it is done off the main actor; only the results come back to it.
         // The axes' words are read here too (5.7): they were six passes over the sample on the main actor.
         let (clusterIndices, clusterNames, axisEnds) = await Task.detached(priority: .userInitiated) {
+            // The word classes of the passages' languages first (5.7), so an adverb names nothing in them.
+            await AtlasLabeling.loadWordClasses(for: texts)
             let terms = texts.map { AtlasLabeling.terms(in: $0) }
             let indices = AtlasLabeling.kMeans(embeddings: embeddings)
             let names = AtlasLabeling.clusterNames(
@@ -2692,6 +2694,8 @@ struct CompactAtlasSceneView: View {
         // a phone, so it is done off the main actor; only the results come back to it.
         // The axes' words are read here too (5.7): they were six passes over the sample on the main actor.
         let (clusterIndices, clusterNames, axisEnds) = await Task.detached(priority: .userInitiated) {
+            // The word classes of the passages' languages first (5.7), so an adverb names nothing in them.
+            await AtlasLabeling.loadWordClasses(for: texts)
             let terms = texts.map { AtlasLabeling.terms(in: $0) }
             let indices = AtlasLabeling.kMeans(embeddings: embeddings)
             let names = AtlasLabeling.clusterNames(
