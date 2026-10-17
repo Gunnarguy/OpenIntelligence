@@ -126,6 +126,74 @@ public nonisolated enum AtlasLabeling {
         return result
     }
 
+    // MARK: - Words That Can Name Passages
+
+    /// Word classes that cannot name a group of passages: adverbs and function words (5.7). An axis end of the
+    /// owner's library of instructions for use read "Blade & Gently" on his iPhone (2026-10-16).
+    private static let classesThatNameNothing: Set<String> = [
+        NLTag.adverb.rawValue, NLTag.pronoun.rawValue, NLTag.determiner.rawValue, NLTag.particle.rawValue,
+        NLTag.preposition.rawValue, NLTag.conjunction.rawValue,
+    ]
+
+    /// The terms of `ranked`, in order, that can name passages: at most `limit` of them, none of `excluding`, and none
+    /// that the passages carrying it use as an adverb or a function word (5.7). Each word is looked at where it stands
+    /// in the first three of `passages` that carry it (`terms` holds each passage's words), each passage tagged in its
+    /// own language (`NLLanguageRecognizer`), because a library of instructions for use is often written in several,
+    /// and a word most of them tag that way is left out. Tagged on its own a word is often misread: on macOS 27
+    /// (2026-10-16) "tray" alone came back an adverb and "detergent" an interjection, and in a sentence both came back
+    /// nouns, while "gently", "carefully", "thoroughly", Spanish "suavemente" and German "vorsichtig" came back
+    /// adverbs either way. A passage of 1,600 characters took about 1 ms to tag. A passage in a language the tagger has
+    /// no word classes for (Japanese, Greek) has no say, and a word none of its passages has a say on is kept.
+    public static func namingTerms(
+        _ ranked: [String], passages: [String], terms: [Set<String>], limit: Int, excluding: Set<String> = []
+    ) -> [String] {
+        guard passages.count == terms.count else {
+            return Array(ranked.lazy.filter { !excluding.contains($0) }.prefix(limit))
+        }
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        var languages: [Int: NLLanguage?] = [:]
+        func language(of index: Int) -> NLLanguage? {
+            if let known = languages[index] { return known }
+            let found = NLLanguageRecognizer.dominantLanguage(for: passages[index]).flatMap { language in
+                NLTagger.availableTagSchemes(for: .word, language: language).contains(.lexicalClass) ? language : nil
+            }
+            languages[index] = found
+            return found
+        }
+        var kept: [String] = []
+        for term in ranked where !excluding.contains(term) {
+            var looked = 0
+            var uses = 0
+            var namingNothing = 0
+            for index in passages.indices where terms[index].contains(term) {
+                looked += 1
+                if let language = language(of: index) {
+                    let text = passages[index]
+                    tagger.string = text
+                    tagger.setLanguage(language, range: text.startIndex..<text.endIndex)
+                    var found: NLTag?
+                    tagger.enumerateTags(
+                        in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass,
+                        options: [.omitWhitespace, .omitPunctuation]
+                    ) { tag, range in
+                        guard text[range].lowercased() == term else { return true }
+                        found = tag
+                        return false
+                    }
+                    if let found {
+                        uses += 1
+                        if classesThatNameNothing.contains(found.rawValue) { namingNothing += 1 }
+                    }
+                }
+                if looked == 3 { break }
+            }
+            if namingNothing * 2 > uses { continue }
+            kept.append(term)
+            if kept.count == limit { break }
+        }
+        return kept
+    }
+
     // MARK: - Title Case & Formatting
 
     /// Formats a single lowercased word as Title Case.
@@ -405,34 +473,51 @@ public nonisolated enum AtlasLabeling {
         precomputedTerms: [Set<String>]? = nil
     ) -> [String] {
         guard !texts.isEmpty, texts.count == clusterMembership.count else { return [] }
-        let maxCluster = clusterMembership.max() ?? -1
-        guard maxCluster >= 0 else { return [] }
-        let k = maxCluster + 1
-
         let allTerms = precomputedTerms ?? texts.map { terms(in: $0) }
-        var groupTerms = Array(repeating: [Set<String>](), count: k)
-        for (i, c) in clusterMembership.enumerated() {
-            if c >= 0 && c < k {
-                groupTerms[c].append(allTerms[i])
-            }
-        }
-
-        let dist = distinguishingTerms(passageTerms: groupTerms, allPassageTerms: allTerms)
+        let dist = namingDistinguishingTerms(texts: texts, clusterMembership: clusterMembership, passageTerms: allTerms)
         return clusterNames(distinguishingTerms: dist)
+    }
+
+    /// Each cluster's distinguishing terms, at most 12, with the words its own passages use as adverbs or function
+    /// words left out (`namingTerms`, 5.7). The map's names and the library's topic chips both read these, so they
+    /// agree.
+    public static func namingDistinguishingTerms(
+        texts: [String], clusterMembership: [Int], passageTerms: [Set<String>]
+    ) -> [[String]] {
+        guard !texts.isEmpty, texts.count == clusterMembership.count, texts.count == passageTerms.count else {
+            return []
+        }
+        let k = (clusterMembership.max() ?? -1) + 1
+        guard k > 0 else { return [] }
+        var groupTerms = Array(repeating: [Set<String>](), count: k)
+        var groupTexts = Array(repeating: [String](), count: k)
+        for (i, c) in clusterMembership.enumerated() where c >= 0 && c < k {
+            groupTerms[c].append(passageTerms[i])
+            groupTexts[c].append(texts[i])
+        }
+        let ranked = distinguishingTerms(passageTerms: groupTerms, allPassageTerms: passageTerms)
+        return ranked.indices.map { c in
+            namingTerms(ranked[c], passages: groupTexts[c], terms: groupTerms[c], limit: 12)
+        }
     }
 
     // MARK: - Axis Ends Analysis
 
     /// For one projection axis, takes the tenth of passages with the lowest value and the tenth with
     /// the highest, and returns the distinguishing terms of each end against the other end (one or two per end),
-    /// scored with `contrast` and ranked like a cluster's.
+    /// scored with `contrast` and ranked like a cluster's, leaving out `excluding` and the words those passages use as
+    /// adverbs or function words (`namingTerms`).
     /// For fewer than 20 passages, uses the lowest and highest two.
     /// Below 4 passages, returns nil.
     /// If neither end has a distinguishing term, returns nil.
+    /// An end with none at the usual thresholds takes one found in two of its passages that is more common there than
+    /// at the other end (5.7); an end that still has none is empty, and `axisLabels` shows it as "Component N".
+    /// Through 5.6 the second try did not exist, and an empty end drew nothing on the map.
     public static func axisEnds(
         values: [Float],
         texts: [String],
-        passageTerms: [Set<String>]? = nil
+        passageTerms: [Set<String>]? = nil,
+        excluding: Set<String> = []
     ) -> AxisEnds? {
         guard values.count == texts.count, !values.isEmpty else { return nil }
         let totalCount = values.count
@@ -494,20 +579,28 @@ public nonisolated enum AtlasLabeling {
             minEndShare = 0.05
         }
 
+        let lowTexts = lowIndices.map { texts[$0] }
+        let highTexts = highIndices.map { texts[$0] }
+
         func distinguishing(
             freq: [String: Int],
             otherFreq: [String: Int],
             count: Int,
-            otherCount: Int
+            otherCount: Int,
+            minCount: Int,
+            minShare: Double,
+            excluded: Set<String>,
+            passages: [String],
+            passageTerms: [Set<String>]
         ) -> [String] {
             guard count > 0, bothCount > 0, totalCount > 0 else { return [] }
             var candidates: [(term: String, score: Double, count: Int)] = []
 
             for term in freq.keys.sorted() {
                 let f = freq[term]!
-                guard f >= minEndCount else { continue }
+                guard f >= minCount else { continue }
                 let shareEnd = Double(f) / Double(count)
-                guard shareEnd >= minEndShare else { continue }
+                guard shareEnd >= minShare else { continue }
 
                 // Term common to > 40% of the entire library names nothing
                 let aCount = allFreq[term] ?? f
@@ -520,17 +613,68 @@ public nonisolated enum AtlasLabeling {
                 candidates.append((term: term, score: score, count: f))
             }
 
-            return Array(ranked(candidates).prefix(2))
+            return namingTerms(
+                ranked(candidates), passages: passages, terms: passageTerms, limit: 2, excluding: excluded)
         }
 
-        let lowDist = distinguishing(freq: lowFreq, otherFreq: highFreq, count: lowCount, otherCount: highCount)
-        let highDist = distinguishing(freq: highFreq, otherFreq: lowFreq, count: highCount, otherCount: lowCount)
+        // The second try differs only where the usual thresholds are stricter than a word in two passages.
+        let relaxedCount = min(minEndCount, 2)
+        let canRelax = relaxedCount < minEndCount || minEndShare > 0
+
+        var lowDist = distinguishing(
+            freq: lowFreq, otherFreq: highFreq, count: lowCount, otherCount: highCount,
+            minCount: minEndCount, minShare: minEndShare, excluded: excluding,
+            passages: lowTexts, passageTerms: lowTerms)
+        var highDist = distinguishing(
+            freq: highFreq, otherFreq: lowFreq, count: highCount, otherCount: lowCount,
+            minCount: minEndCount, minShare: minEndShare, excluded: excluding,
+            passages: highTexts, passageTerms: highTerms)
+        if lowDist.isEmpty, canRelax {
+            lowDist = distinguishing(
+                freq: lowFreq, otherFreq: highFreq, count: lowCount, otherCount: highCount,
+                minCount: relaxedCount, minShare: 0, excluded: excluding.union(highDist),
+                passages: lowTexts, passageTerms: lowTerms)
+        }
+        if highDist.isEmpty, canRelax {
+            highDist = distinguishing(
+                freq: highFreq, otherFreq: lowFreq, count: highCount, otherCount: lowCount,
+                minCount: relaxedCount, minShare: 0, excluded: excluding.union(lowDist),
+                passages: highTexts, passageTerms: highTerms)
+        }
 
         if lowDist.isEmpty && highDist.isEmpty {
             return nil
         }
 
         return AxisEnds(low: lowDist, high: highDist)
+    }
+
+    // MARK: - A Map's Axis Labels
+
+    /// The six axis-end labels of a three-dimensional map, in the order x low, x high, y low, y high, z low and z
+    /// high (5.7). Each end is named by `axisEnds` with the words already given to an earlier end left out, so no
+    /// word names two ends, and an axis whose ends do not differ, or an end with no word that sets it apart, reads
+    /// "Component N". A library under four passages has no labels.
+    /// Through 5.6 an end with no word of its own drew nothing, and the owner's iPhone showed a map with one axis
+    /// blank at one end (2026-10-16). Pure, for use off the main actor.
+    public static func axisLabels(
+        coords: [SIMD3<Float>], texts: [String], passageTerms: [Set<String>]? = nil
+    ) -> [String] {
+        guard coords.count == texts.count, !coords.isEmpty else { return Array(repeating: "", count: 6) }
+        let allTerms = passageTerms ?? texts.map { terms(in: $0) }
+        var used = Set<String>()
+        var labels: [String] = []
+        for (axis, values) in [coords.map(\.x), coords.map(\.y), coords.map(\.z)].enumerated() {
+            let fallback = "Component \(axis + 1)"
+            guard let ends = axisEnds(values: values, texts: texts, passageTerms: allTerms, excluding: used) else {
+                labels += [fallback, fallback]
+                continue
+            }
+            used.formUnion(ends.low)
+            used.formUnion(ends.high)
+            labels += [ends.low.isEmpty ? fallback : ends.lowLabel, ends.high.isEmpty ? fallback : ends.highLabel]
+        }
+        return labels
     }
 
     // MARK: - Embedding Clustering (Deterministic K-Means)

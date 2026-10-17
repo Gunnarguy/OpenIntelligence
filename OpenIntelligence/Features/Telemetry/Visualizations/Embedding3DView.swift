@@ -2794,224 +2794,6 @@ struct EmbeddingSpaceRenderer: View {
         }
     }
 
-    // MARK: - Intelligent Axis Analysis
-
-    /// Analyze what content appears at the extremes of each projection axis
-    /// Returns content-derived labels like "Baking ↔ Grilling" based on actual chunk content
-    private func analyzeAxisLabels(
-        coords: [SIMD3<Float>],
-        chunks: [DocumentChunk]
-    ) -> Embedding3DSceneView.AxisLabels {
-        guard coords.count >= 6, coords.count == chunks.count else {
-            return .placeholder
-        }
-
-        // For each axis, find the top N chunks at each extreme
-        let extremeSampleSize = max(3, min(10, coords.count / 8)) // 3-10 chunks per extreme
-
-        // Create indexed tuples for sorting
-        let indexed = coords.enumerated().map { (idx: $0.offset, coord: $0.element) }
-
-        // X-axis extremes
-        let sortedByX = indexed.sorted { $0.coord.x < $1.coord.x }
-        let xNegIndices = Array(sortedByX.prefix(extremeSampleSize).map { $0.idx })
-        let xPosIndices = Array(sortedByX.suffix(extremeSampleSize).map { $0.idx })
-
-        // Y-axis extremes
-        let sortedByY = indexed.sorted { $0.coord.y < $1.coord.y }
-        let yNegIndices = Array(sortedByY.prefix(extremeSampleSize).map { $0.idx })
-        let yPosIndices = Array(sortedByY.suffix(extremeSampleSize).map { $0.idx })
-
-        // Z-axis extremes
-        let sortedByZ = indexed.sorted { $0.coord.z < $1.coord.z }
-        let zNegIndices = Array(sortedByZ.prefix(extremeSampleSize).map { $0.idx })
-        let zPosIndices = Array(sortedByZ.suffix(extremeSampleSize).map { $0.idx })
-
-        // Use FTS5 terms as a reference vocabulary - these are proven meaningful
-        let vocabularySet = Set(fts5TopTerms.map { $0.lowercased() })
-
-        // Build corpus-wide word frequencies for TF-IDF contrast scoring
-        // Terms appearing uniformly across ALL chunks are noise, not axis-discriminative
-        let globalFreqs = buildGlobalWordFrequencies(chunks: chunks)
-
-        // Greedy deduplication: each axis endpoint claims a unique label
-        // so the same keyword never appears at multiple axis endpoints
-        var usedLabels = Set<String>()
-
-        let xNegLabel = extractExtremeLabel(indices: xNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !xNegLabel.isEmpty { usedLabels.insert(xNegLabel.lowercased()) }
-        let xPosLabel = extractExtremeLabel(indices: xPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !xPosLabel.isEmpty { usedLabels.insert(xPosLabel.lowercased()) }
-        let yNegLabel = extractExtremeLabel(indices: yNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !yNegLabel.isEmpty { usedLabels.insert(yNegLabel.lowercased()) }
-        let yPosLabel = extractExtremeLabel(indices: yPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !yPosLabel.isEmpty { usedLabels.insert(yPosLabel.lowercased()) }
-        let zNegLabel = extractExtremeLabel(indices: zNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-        if !zNegLabel.isEmpty { usedLabels.insert(zNegLabel.lowercased()) }
-        let zPosLabel = extractExtremeLabel(indices: zPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
-
-        return Embedding3DSceneView.AxisLabels(
-            xNeg: xNegLabel, xPos: xPosLabel,
-            yNeg: yNegLabel, yPos: yPosLabel,
-            zNeg: zNegLabel, zPos: zPosLabel
-        )
-    }
-
-    /// Build word → chunk-count map across entire corpus for IDF scoring
-    private func buildGlobalWordFrequencies(chunks: [DocumentChunk]) -> [String: Int] {
-        var docFreq: [String: Int] = [:]
-        for chunk in chunks {
-            let uniqueWords = Set(
-                chunk.text
-                    .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                    .map { $0.lowercased() }
-                    .filter { $0.count >= 3 }
-            )
-            for word in uniqueWords {
-                docFreq[word, default: 0] += 1
-            }
-            for kw in chunk.metadata.keywords {
-                let clean = kw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                if clean.count >= 3 { docFreq[clean, default: 0] += 1 }
-            }
-        }
-        return docFreq
-    }
-
-    /// Extract the most distinctive keyword from chunks at an axis extreme.
-    /// Uses TF-IDF contrast scoring: penalizes terms appearing uniformly across
-    /// all chunks (corpus noise). Prefers terms concentrated at this specific extreme.
-    private func extractExtremeLabel(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>, excluding: Set<String> = [], globalFreqs: [String: Int] = [:], totalChunks: Int = 1) -> String {
-        guard !indices.isEmpty else { return "" }
-        let extremeCount = Double(indices.count)
-        let totalDocs = max(Double(totalChunks), 1.0)
-
-        // First, try to use chunk metadata keywords (already curated)
-        var metadataKeywords: [String: Int] = [:]
-        for idx in indices {
-            guard idx < chunks.count else { continue }
-            for keyword in chunks[idx].metadata.keywords {
-                let clean = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-                if clean.count >= 3 {
-                    metadataKeywords[clean.lowercased(), default: 0] += 1
-                }
-            }
-        }
-
-        // If we have metadata keywords, prefer those — but REQUIRE FTS5 validation
-        // with TF-IDF contrast scoring to filter corpus-wide noise
-        if !metadataKeywords.isEmpty {
-            let scored = metadataKeywords
-                .filter({ vocabulary.contains($0.key) && !excluding.contains($0.key) })
-                .map { kw, count -> (String, Double) in
-                    let tf = Double(count) / extremeCount
-                    let globalCount = Double(globalFreqs[kw] ?? 1)
-                    let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-                    let concentration = Double(count) / max(globalCount, 1.0)
-                    return (kw, tf * idf * (1.0 + concentration))
-                }
-                .sorted(by: { $0.1 > $1.1 })
-
-            if let topKeyword = scored.first?.0 {
-                return topKeyword.prefix(1).uppercased() + topKeyword.dropFirst()
-            }
-        }
-
-        // Fallback: extract from text content
-        let extremeTexts = indices.compactMap { idx -> String? in
-            guard idx < chunks.count else { return nil }
-            return chunks[idx].text
-        }
-
-        guard !extremeTexts.isEmpty else { return "" }
-
-        // Common stopwords to exclude
-        let stopwords = Set([
-            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "will", "would", "could",
-            "should", "may", "might", "must", "shall", "can", "need", "dare",
-            "ought", "used", "to", "of", "in", "for", "on", "with", "at", "by",
-            "from", "as", "into", "through", "during", "before", "after", "above",
-            "below", "between", "under", "again", "further", "then", "once", "here",
-            "there", "when", "where", "why", "how", "all", "each", "few", "more",
-            "most", "other", "some", "such", "no", "nor", "not", "only", "own",
-            "same", "so", "than", "too", "very", "just", "also", "now", "and",
-            "but", "or", "because", "while", "although", "if", "this", "that",
-            "these", "those", "it", "its", "they", "their", "them", "we", "our",
-            "you", "your", "he", "she", "him", "her", "his", "i", "me", "my",
-            "any", "many", "much", "new", "first", "last", "long", "great", "little",
-            "old", "right", "big", "high", "different", "small", "large", "next",
-            "early", "young", "important", "public", "bad", "good", "like", "make",
-            "get", "see", "know", "take", "come", "think", "look", "want", "give",
-            "use", "find", "tell", "ask", "work", "seem", "feel", "try", "leave",
-            "call", "put", "keep", "let", "begin", "show", "hear", "play", "run",
-            "move", "live", "believe", "hold", "bring", "happen", "write", "provide",
-            "sit", "stand", "lose", "pay", "meet", "include", "continue", "set",
-            "learn", "change", "lead", "understand", "watch", "follow", "stop",
-            "create", "speak", "read", "allow", "add", "spend", "grow", "open",
-            "walk", "win", "offer", "remember", "love", "consider", "appear", "buy",
-            "wait", "serve", "die", "send", "expect", "build", "stay", "fall", "cut",
-            "reach", "kill", "remain", "data", "file", "page", "section", "chapter"
-        ])
-
-        // Extract words and count frequency
-        var wordCounts: [String: Int] = [:]
-        var originalCase: [String: String] = [:] // Store original casing
-
-        for text in extremeTexts {
-            // Split into words - reduced minimum to 3 chars
-            let words = text
-                .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .filter { word in
-                    let lower = word.lowercased()
-                    return word.count >= 3 && // At least 3 chars (was 4)
-                           word.count <= 20 && // Not too long
-                           !stopwords.contains(lower) &&
-                           !word.allSatisfy({ $0.isNumber }) // Not all numbers
-                }
-
-            for word in words {
-                let lower = word.lowercased()
-                wordCounts[lower, default: 0] += 1
-                // Keep the most "proper" looking case (capitalized or original)
-                if originalCase[lower] == nil || (word.first?.isUppercase == true && originalCase[lower]?.first?.isUppercase != true) {
-                    originalCase[lower] = word
-                }
-            }
-        }
-
-        // FTS5-validated terms with TF-IDF contrast scoring
-        var fts5Scored: [(word: String, score: Double)] = []
-        var fallbackScored: [(word: String, score: Double)] = []
-        for (word, count) in wordCounts where !excluding.contains(word) {
-            let tf = Double(count) / extremeCount
-            let globalCount = Double(globalFreqs[word] ?? 1)
-            let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
-            let concentration = Double(count) / max(globalCount, 1.0)
-            let score = tf * idf * (1.0 + concentration)
-
-            if vocabulary.contains(word) {
-                fts5Scored.append((word, score * 2.0))
-            } else {
-                fallbackScored.append((word, score))
-            }
-        }
-
-        // Prefer FTS5-validated, fall back to unvalidated only if empty
-        let scored = fts5Scored.isEmpty ? fallbackScored : fts5Scored
-
-        // Get top scoring word
-        guard let topWord = scored.sorted(by: { $0.score > $1.score }).first?.word else {
-            return ""
-        }
-
-        // Use original casing if available, otherwise capitalize
-        if let original = originalCase[topWord] {
-            return original
-        }
-        return topWord.prefix(1).uppercased() + topWord.dropFirst()
-    }
-
     // MARK: - Data + Projection
 
     private func loadAndProject() async {
@@ -3278,8 +3060,13 @@ struct EmbeddingSpaceRenderer: View {
             let chunkTextList = sampledChunks.map { $0.text }
             let chunkDocNameList = sampledDocIds.map { nameById[$0] ?? "Unknown" }
 
-            // Analyze axis extremes to derive content-specific labels
-            let axisLabels = self.analyzeAxisLabels(coords: coords3D, chunks: sampledChunks)
+            // The same axis words as the Knowledge Atlas (5.7), read off the main actor.
+            let axisTexts = sampledChunks.map(\.content)
+            let axisCoords = coords3D
+            let axisEnds = await Task.detached(priority: .userInitiated) {
+                AtlasLabeling.axisLabels(coords: axisCoords, texts: axisTexts)
+            }.value
+            let axisLabels = Embedding3DSceneView.AxisLabels(ends: axisEnds)
 
             await MainActor.run {
                 self.points = scnPoints
@@ -3470,56 +3257,18 @@ struct SceneViewContainer: UIViewRepresentable {
             updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
         }
 
+        /// The map's labels, found once for each scene: walking every node 20 times a second visits each of up to
+        /// 6,000 points (5.7).
+        private weak var labelledScene: SCNScene?
+        private var labelNodes: [SCNNode] = []
+
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
-            let cameraPos = camera.position
-
-            // Find the labelLayer node
-            scene.rootNode.enumerateChildNodes { node, stop in
-                guard node.name == "labelLayer" else { return }
-
-                // Update each cluster label based on distance
-                node.enumerateChildNodes { labelNode, _ in
-                    // Only process our cluster labels
-                    guard let nodeName = labelNode.name, nodeName.hasPrefix("clusterLabel_") else { return }
-
-                    let distance = simd_distance(
-                        simd_float3(cameraPos.x, cameraPos.y, cameraPos.z),
-                        simd_float3(labelNode.position.x, labelNode.position.y, labelNode.position.z)
-                    )
-
-                    // Smooth LOD transitions - labels always visible but scale with distance
-                    // Closer = smaller scale (more readable), Farther = larger scale (visible from afar)
-                    let (opacity, scale): (Float, Float)
-
-                    if distance < 2.5 {
-                        // Very close - small, crisp, high opacity
-                        opacity = 0.95
-                        scale = 0.8
-                    } else if distance < 4.0 {
-                        // Close - slightly larger
-                        opacity = 0.92
-                        scale = 1.0
-                    } else if distance < 6.0 {
-                        // Medium - normal size
-                        opacity = 0.88
-                        scale = 1.2
-                    } else if distance < 9.0 {
-                        // Far - larger to stay readable
-                        opacity = 0.82
-                        scale = 1.5
-                    } else {
-                        // Very far - largest, slightly faded
-                        opacity = 0.7
-                        scale = 1.8
-                    }
-
-                    labelNode.opacity = CGFloat(opacity)
-                    labelNode.scale = SCNVector3(scale, scale, scale)
-                }
-
-                stop.pointee = true // Found labelLayer, stop enumeration
+            if labelledScene !== scene {
+                labelNodes = mapLabelNodes(in: scene)
+                labelledScene = scene
             }
+            sizeLabelsForScreen(labelNodes, pointOfView: camera)
         }
     }
 }
@@ -3603,54 +3352,83 @@ struct SceneViewContainer: NSViewRepresentable {
             updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
         }
 
+        /// The map's labels, found once for each scene: walking every node 20 times a second visits each of up to
+        /// 6,000 points (5.7).
+        private weak var labelledScene: SCNScene?
+        private var labelNodes: [SCNNode] = []
+
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
-            let cameraPos = camera.position
-
-            // Find the labelLayer node
-            scene.rootNode.enumerateChildNodes { node, stop in
-                guard node.name == "labelLayer" else { return }
-
-                // Update each cluster label based on distance
-                node.enumerateChildNodes { labelNode, _ in
-                    // Only process our cluster labels
-                    guard let nodeName = labelNode.name, nodeName.hasPrefix("clusterLabel_") else { return }
-
-                    let distance = simd_distance(
-                        simd_float3(Float(cameraPos.x), Float(cameraPos.y), Float(cameraPos.z)),
-                        simd_float3(Float(labelNode.position.x), Float(labelNode.position.y), Float(labelNode.position.z))
-                    )
-
-                    // Smooth LOD transitions - labels always visible but scale with distance
-                    let (opacity, scale): (Float, Float)
-
-                    if distance < 2.5 {
-                        opacity = 0.95
-                        scale = 0.8
-                    } else if distance < 4.0 {
-                        opacity = 0.92
-                        scale = 1.0
-                    } else if distance < 6.0 {
-                        opacity = 0.88
-                        scale = 1.2
-                    } else if distance < 9.0 {
-                        opacity = 0.82
-                        scale = 1.5
-                    } else {
-                        opacity = 0.7
-                        scale = 1.8
-                    }
-
-                    labelNode.opacity = CGFloat(opacity)
-                    labelNode.scale = SCNVector3(scale, scale, scale)
-                }
-
-                stop.pointee = true
+            if labelledScene !== scene {
+                labelNodes = mapLabelNodes(in: scene)
+                labelledScene = scene
             }
+            sizeLabelsForScreen(labelNodes, pointOfView: camera)
         }
     }
 }
 #endif
+
+extension Embedding3DSceneView.AxisLabels {
+    /// The six labels in `AtlasLabeling.axisLabels`'s order: x low, x high, y low, y high, z low, z high (5.7).
+    init(ends: [String]) {
+        func end(_ index: Int) -> String { index < ends.count ? ends[index] : "" }
+        self.init(xNeg: end(0), xPos: end(1), yNeg: end(2), yPos: end(3), zNeg: end(4), zPos: end(5))
+    }
+}
+
+// MARK: - Label size
+
+/// How far the camera starts from the middle of the map: |(3.5, 2.5, 6.0)|, `makeCameraNode`.
+nonisolated let startingCameraDistance: Float = 7.38
+
+/// The map's words: the labels at the ends of its axes and the clusters' labels (5.7).
+nonisolated func mapLabelNodes(in scene: SCNScene) -> [SCNNode] {
+    scene.rootNode.childNodes { node, _ in
+        node.name == "axisLabel" || (node.name?.hasPrefix("clusterLabel_") ?? false)
+    }
+}
+
+/// Keeps every label of the map one size on screen however near or far it is (5.7), 20 times a second (the scene's
+/// update is throttled to that). Each was drawn at one size in the scene, so on the owner's iPhone an axis end near the
+/// camera read in letters about four times the height of the one at the far end of the same axis (2026-10-16). The
+/// scale grows with the label's depth along the view and with the camera's field of view, and is 1 at the distance
+/// the camera starts from, between 0.35 and 4; a cluster's label is drawn half as large again, as at that distance
+/// before, and fades a little with depth.
+///
+/// It reads the positions as drawn: a spinning map turns its content with an animation, which moves only the
+/// presentation nodes (SCNNode.h, `presentationNode`: "with any active animations applied"), so a model position
+/// stands still while the map turns. And it uses the depth along the view, not the straight-line distance: a label
+/// off to the side of the screen is no smaller on it for being further along the diagonal.
+nonisolated func sizeLabelsForScreen(_ labels: [SCNNode], pointOfView: SCNNode) {
+    let view = pointOfView.presentation
+    let camera = view.simdWorldPosition
+    let front = view.simdWorldFront
+    let fieldOfView = Float(pointOfView.camera?.fieldOfView ?? 60)
+    for label in labels {
+        let depth = viewDepth(of: label.presentation.simdWorldPosition, camera: camera, front: front)
+        let scale = screenScale(depth: depth, fieldOfView: fieldOfView)
+        if label.name?.hasPrefix("clusterLabel_") ?? false {
+            label.simdScale = SIMD3(repeating: scale * 1.5)
+            label.opacity = depth < 4 ? 0.95 : depth < 9 ? 0.88 : 0.75
+        } else {
+            label.simdScale = SIMD3(repeating: scale)
+        }
+    }
+}
+
+/// How far in front of the camera a point is, along the way it looks: the depth a perspective view divides by, never
+/// under 0.05.
+nonisolated func viewDepth(of position: SIMD3<Float>, camera: SIMD3<Float>, front: SIMD3<Float>) -> Float {
+    max(simd_dot(position - camera, front), 0.05)
+}
+
+/// The scale that keeps a label one size on screen at `depth` with a vertical field of view of `fieldOfView` degrees:
+/// 1 at the distance the camera starts from and the default 60 degrees, between 0.35 and 4.
+nonisolated func screenScale(depth: Float, fieldOfView: Float) -> Float {
+    let viewFactor = tan(fieldOfView * .pi / 360) / tan(Float.pi / 6)
+    return min(max(depth * viewFactor / startingCameraDistance, 0.35), 4)
+}
 
 // MARK: - Scene construction
 
@@ -3667,7 +3445,7 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
 
     // Add intuitive axes with human-readable labels
     if options.showAxes {
-        contentRoot.addChildNode(makeIntuiveAxesNode(projectionMethod: options.projectionMethod, axisLabels: options.axisLabels))
+        contentRoot.addChildNode(makeIntuiveAxesNode(axisLabels: options.axisLabels))
     }
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
@@ -3739,7 +3517,7 @@ private func makeGroundPlane() -> SCNNode {
 
 // MARK: - Clean Arrow Axes (visible, no text clutter)
 
-private func makeIntuiveAxesNode(projectionMethod: ProjectionMethodKind, axisLabels: Embedding3DSceneView.AxisLabels) -> SCNNode {
+private func makeIntuiveAxesNode(axisLabels: Embedding3DSceneView.AxisLabels) -> SCNNode {
     let node = SCNNode()
 
     // Bright axis colors
@@ -3775,8 +3553,8 @@ private func makeIntuiveAxesNode(projectionMethod: ProjectionMethodKind, axisLab
     node.addChildNode(makeOriginMarker())
 
     // === DYNAMIC CONTENT-DERIVED AXIS LABELS ===
-    // Show content-specific labels at each axis endpoint (e.g., "Baking ↔ Grilling")
-    // If labels are empty, fall back to minimal X/Y/Z
+    // Each end of each axis is named by the words of the passages at that end (`AtlasLabeling.axisLabels`), so once the
+    // map has loaded every end has a label (5.7). While it loads, the positive ends read X, Y and Z.
 
     let xPosText = axisLabels.xPos.isEmpty ? "X" : axisLabels.xPos
     let yPosText = axisLabels.yPos.isEmpty ? "Y" : axisLabels.yPos
@@ -3810,27 +3588,8 @@ private func makeIntuiveAxesNode(projectionMethod: ProjectionMethodKind, axisLab
                                         color: zColor))
     }
 
-    // Add a subtle hint near origin explaining the labels represent content themes
-    let hasContentLabels = !axisLabels.xPos.isEmpty || !axisLabels.yPos.isEmpty || !axisLabels.zPos.isEmpty
-    if hasContentLabels {
-        node.addChildNode(makeAxisHintLabel(text: "← themes from content →",
-                                            position: SCNVector3(0, -0.4, 0),
-                                            axis: .x))
-    } else {
-        // Fallback hint based on projection method
-        let hintText: String
-        switch projectionMethod {
-        case .pca, .rp:
-            hintText = "← distance matters →"
-        case .tsne:
-            hintText = "← clusters matter →"
-        case .umap:
-            hintText = "← structure matters →"
-        }
-        node.addChildNode(makeAxisHintLabel(text: hintText,
-                                            position: SCNVector3(0, -0.4, 0),
-                                            axis: .x))
-    }
+    // The hint that sat under the origin ("← themes from content →") went in 5.7: it was drawn over the middle of
+    // the points, where the cluster labels are, and its words said less than the labels do.
 
     return node
 }
@@ -3868,55 +3627,11 @@ private func makeAxisLabel(text: String, position: SCNVector3, color: PlatformCo
     )
 
     let container = SCNNode()
+    container.name = "axisLabel"
     container.addChildNode(textNode)
     container.position = position
 
     // Billboard constraint so it always faces camera
-    let billboard = SCNBillboardConstraint()
-    billboard.freeAxes = [.X, .Y]
-    container.constraints = [billboard]
-
-    return container
-}
-
-/// Creates a smaller hint label near the origin explaining what the axis represents
-private func makeAxisHintLabel(text: String, position: SCNVector3, axis: AxisDirection) -> SCNNode {
-    let textGeo = SCNText(string: text, extrusionDepth: 0.01)
-
-    #if canImport(UIKit)
-    textGeo.font = UIFont.systemFont(ofSize: 0.18, weight: .medium)
-    let textColor = UIColor.white.withAlphaComponent(0.5)
-    #else
-    textGeo.font = NSFont.systemFont(ofSize: 0.18, weight: .medium)
-    let textColor = NSColor.white.withAlphaComponent(0.5)
-    #endif
-    textGeo.flatness = 0.02
-
-    let mat = SCNMaterial()
-    mat.diffuse.contents = textColor
-    mat.emission.contents = textColor
-    mat.emission.intensity = 0.4
-    mat.lightingModel = .constant
-    mat.isDoubleSided = true
-    textGeo.materials = [mat]
-
-    let textNode = SCNNode(geometry: textGeo)
-
-    // Center the text
-    let (minBound, maxBound) = textGeo.boundingBox
-    let textWidth = maxBound.x - minBound.x
-    let textHeight = maxBound.y - minBound.y
-    textNode.pivot = SCNMatrix4MakeTranslation(
-        minBound.x + textWidth / 2,
-        minBound.y + textHeight / 2,
-        0
-    )
-
-    let container = SCNNode()
-    container.addChildNode(textNode)
-    container.position = position
-
-    // Billboard constraint
     let billboard = SCNBillboardConstraint()
     billboard.freeAxes = [.X, .Y]
     container.constraints = [billboard]
@@ -4429,7 +4144,7 @@ private func makeClusterBadge(
         displayText = title
     } else if isDocumentCluster {
         // Main document cluster: Name (count) + keywords
-        let truncatedTitle = String(title.prefix(22)) + (title.count > 22 ? "…" : "")
+        let truncatedTitle = String(title.prefix(32)) + (title.count > 32 ? "…" : "")
         displayText = "\(truncatedTitle) (\(clusterSize))"
         if detailLevel >= 1 && !keywords.isEmpty {
             // Filter out keywords that are substrings of the title (avoid "API API" duplication)
@@ -4453,7 +4168,8 @@ private func makeClusterBadge(
         }
     } else {
         // Sub-cluster: Section name only, smaller
-        let truncatedTitle = String(title.prefix(18)) + (title.count > 18 ? "…" : "")
+        // 28 characters (5.7): at 18, "Cleaning & Detergent" read "Cleaning & Deterge…".
+        let truncatedTitle = String(title.prefix(28)) + (title.count > 28 ? "…" : "")
         displayText = "▸ \(truncatedTitle)"
         if !keywords.isEmpty {
             // Filter keywords that match section title

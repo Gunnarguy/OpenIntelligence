@@ -2127,7 +2127,8 @@ struct Fullscreen3DAtlasView: View {
                 .fill(color.opacity(0.7))
                 .frame(width: 6, height: 6)
 
-            if !neg.isEmpty && !pos.isEmpty {
+            // An axis whose ends do not differ is "Component N" at both ends (5.7): named once.
+            if !neg.isEmpty && !pos.isEmpty && neg != pos {
                 Text("\(neg) ↔ \(pos)")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.75))
@@ -2230,7 +2231,8 @@ struct Fullscreen3DAtlasView: View {
         let texts = sampledChunks.map { $0.content }
         // Splitting 6,000 passages into words and clustering their vectors is seconds of work on
         // a phone, so it is done off the main actor; only the results come back to it.
-        let (passageTerms, clusterIndices, clusterNames) = await Task.detached(priority: .userInitiated) {
+        // The axes' words are read here too (5.7): they were six passes over the sample on the main actor.
+        let (clusterIndices, clusterNames, axisEnds) = await Task.detached(priority: .userInitiated) {
             let terms = texts.map { AtlasLabeling.terms(in: $0) }
             let indices = AtlasLabeling.kMeans(embeddings: embeddings)
             let names = AtlasLabeling.clusterNames(
@@ -2238,7 +2240,7 @@ struct Fullscreen3DAtlasView: View {
                 clusterMembership: indices,
                 precomputedTerms: terms
             )
-            return (terms, indices, names)
+            return (indices, names, AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms))
         }.value
 
         let palette: [PlatformColor] = [
@@ -2292,8 +2294,8 @@ struct Fullscreen3DAtlasView: View {
             palette: palette
         )
 
-        // Analyze axis extremes for content-derived semantic labels using AtlasLabeling
-        let axisLabels = analyzeAxisLabels(coords: coords3D, chunks: sampledChunks, precomputedTerms: passageTerms)
+        // Each end of each axis named by the words of the passages there (5.7).
+        let axisLabels = Embedding3DSceneView.AxisLabels(ends: axisEnds)
 
         // A load for another method or library started while this one worked: that one draws, not this.
         guard !Task.isCancelled, method == projectionMethod,
@@ -2445,46 +2447,6 @@ struct Fullscreen3DAtlasView: View {
         }
 
         return result
-    }
-
-    // MARK: - Semantic Axis Label Analysis
-
-    /// Analyze what content appears at the extremes of each projection axis.
-    /// Returns content-derived labels like "Maintenance ↔ Specifications" for each axis.
-    private func analyzeAxisLabels(
-        coords: [SIMD3<Float>],
-        chunks: [DocumentChunk],
-        precomputedTerms: [Set<String>]? = nil
-    ) -> Embedding3DSceneView.AxisLabels {
-        guard coords.count == chunks.count, !coords.isEmpty else {
-            return .placeholder
-        }
-
-        let texts = chunks.map { $0.content }
-        let allTerms = precomputedTerms ?? texts.map { AtlasLabeling.terms(in: $0) }
-
-        let xValues = coords.map { $0.x }
-        let yValues = coords.map { $0.y }
-        let zValues = coords.map { $0.z }
-
-        let xEnds = AtlasLabeling.axisEnds(values: xValues, texts: texts, passageTerms: allTerms)
-        let yEnds = AtlasLabeling.axisEnds(values: yValues, texts: texts, passageTerms: allTerms)
-        let zEnds = AtlasLabeling.axisEnds(values: zValues, texts: texts, passageTerms: allTerms)
-
-        let xNeg = xEnds?.lowLabel ?? ""
-        let xPos = xEnds != nil ? (xEnds?.highLabel ?? "") : "Component 1"
-
-        let yNeg = yEnds?.lowLabel ?? ""
-        let yPos = yEnds != nil ? (yEnds?.highLabel ?? "") : "Component 2"
-
-        let zNeg = zEnds?.lowLabel ?? ""
-        let zPos = zEnds != nil ? (zEnds?.highLabel ?? "") : "Component 3"
-
-        return Embedding3DSceneView.AxisLabels(
-            xNeg: xNeg, xPos: xPos,
-            yNeg: yNeg, yPos: yPos,
-            zNeg: zNeg, zPos: zPos
-        )
     }
 }
 
@@ -2728,7 +2690,8 @@ struct CompactAtlasSceneView: View {
         let texts = sampledChunks.map { $0.content }
         // Splitting 6,000 passages into words and clustering their vectors is seconds of work on
         // a phone, so it is done off the main actor; only the results come back to it.
-        let (passageTerms, clusterIndices, clusterNames) = await Task.detached(priority: .userInitiated) {
+        // The axes' words are read here too (5.7): they were six passes over the sample on the main actor.
+        let (clusterIndices, clusterNames, axisEnds) = await Task.detached(priority: .userInitiated) {
             let terms = texts.map { AtlasLabeling.terms(in: $0) }
             let indices = AtlasLabeling.kMeans(embeddings: embeddings)
             let names = AtlasLabeling.clusterNames(
@@ -2736,7 +2699,7 @@ struct CompactAtlasSceneView: View {
                 clusterMembership: indices,
                 precomputedTerms: terms
             )
-            return (terms, indices, names)
+            return (indices, names, AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms))
         }.value
 
         let palette: [PlatformColor] = [
@@ -2788,8 +2751,8 @@ struct CompactAtlasSceneView: View {
             ))
         }
 
-        // Analyze axis extremes for content-derived semantic labels
-        let axisLabels = analyzeAxisLabelsCompact(coords: coords3D, chunks: sampledChunks, precomputedTerms: passageTerms)
+        // Each end of each axis named by the words of the passages there (5.7).
+        let axisLabels = Embedding3DSceneView.AxisLabels(ends: axisEnds)
 
         // A load for another method or library started while this one worked: that one draws, not this.
         // `.task(id:)` cancels this one when the method changes; a library change starts its own task.
@@ -2986,47 +2949,6 @@ struct CompactAtlasSceneView: View {
 
         return sampled
     }
-
-    // MARK: - Semantic Axis Label Analysis (Compact)
-
-    /// Analyze what content appears at the extremes of each projection axis.
-    private func analyzeAxisLabelsCompact(
-        coords: [SIMD3<Float>],
-        chunks: [DocumentChunk],
-        precomputedTerms: [Set<String>]? = nil
-    ) -> Embedding3DSceneView.AxisLabels {
-        guard coords.count == chunks.count, !coords.isEmpty else {
-            return .placeholder
-        }
-
-        let texts = chunks.map { $0.content }
-        let allTerms = precomputedTerms ?? texts.map { AtlasLabeling.terms(in: $0) }
-
-        let xValues = coords.map { $0.x }
-        let yValues = coords.map { $0.y }
-        let zValues = coords.map { $0.z }
-
-        let xEnds = AtlasLabeling.axisEnds(values: xValues, texts: texts, passageTerms: allTerms)
-        let yEnds = AtlasLabeling.axisEnds(values: yValues, texts: texts, passageTerms: allTerms)
-        let zEnds = AtlasLabeling.axisEnds(values: zValues, texts: texts, passageTerms: allTerms)
-
-        let xNeg = xEnds?.lowLabel ?? ""
-        let xPos = xEnds != nil ? (xEnds?.highLabel ?? "") : "Component 1"
-
-        let yNeg = yEnds?.lowLabel ?? ""
-        let yPos = yEnds != nil ? (yEnds?.highLabel ?? "") : "Component 2"
-
-        let zNeg = zEnds?.lowLabel ?? ""
-        let zPos = zEnds != nil ? (zEnds?.highLabel ?? "") : "Component 3"
-
-        return Embedding3DSceneView.AxisLabels(
-            xNeg: xNeg, xPos: xPos,
-            yNeg: yNeg, yPos: yPos,
-            zNeg: zNeg, zPos: zPos
-        )
-    }
-
-
 }
 
 #Preview {

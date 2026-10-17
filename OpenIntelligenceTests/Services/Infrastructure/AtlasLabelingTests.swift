@@ -6,6 +6,7 @@
 //  clustering, unique naming, stop-word / noise rejection, and semantic axis analysis.
 //
 
+import NaturalLanguage
 import XCTest
 
 @testable import OpenIntelligence
@@ -208,6 +209,113 @@ final class AtlasLabelingTests: XCTestCase {
             XCTAssertEqual(ends.lowLabel, AtlasLabeling.formatTerms(ends.low))
             XCTAssertEqual(ends.highLabel, AtlasLabeling.formatTerms(ends.high))
         }
+    }
+
+    // MARK: - Every Axis End Has Words (5.7)
+
+    /// An end whose words are each in two of its passages is named by them, so no end of the map is blank. On the
+    /// owner's iPhone one axis had no words at one end (2026-10-16).
+    func testAnEndWhoseWordsAreInTwoOfItsPassagesIsNamedByThem() throws {
+        var texts = [
+            "Inspection checklist for the cabinet.", "Inspection checklist for the harbor.",
+            "An orchard lantern hangs here.", "A glacier formed pottery shards.", "The meadow grows tall grass.",
+        ]
+        texts += Array(repeating: "The general reference section lists the standard parts.", count: 40)
+        texts += Array(repeating: "Hydraulic valves hold the pressure in the line.", count: 5)
+        let values = (0..<50).map { Float($0) }
+
+        let ends = try XCTUnwrap(AtlasLabeling.axisEnds(values: values, texts: texts))
+
+        XCTAssertEqual(ends.low, ["checklist", "inspection"])
+        XCTAssertFalse(ends.high.isEmpty)
+    }
+
+    /// An end whose passages share no word more common there than at the other end reads "Component N", never blank,
+    /// and a word as common at both ends ("device", "ready", "sits") names neither (a refuting review, 2026-10-16).
+    func testAnEndWithNoWordOfItsOwnIsAComponentNotBlank() {
+        var texts = Array(repeating: "The device sits ready.", count: 3)
+        texts += ["A lantern lights the glacier.", "Pottery fills the meadow."]
+        texts += Array(repeating: "The general reference section lists the standard parts.", count: 40)
+        texts += Array(repeating: "The device sits ready with hydraulic valves.", count: 3)
+        texts += Array(repeating: "Hydraulic valves hold the pressure.", count: 2)
+        let coords = (0..<50).map { SIMD3<Float>(Float($0), Float($0), Float($0)) }
+
+        let ends = AtlasLabeling.axisEnds(values: coords.map(\.x), texts: texts)
+        let labels = AtlasLabeling.axisLabels(coords: coords, texts: texts)
+
+        XCTAssertEqual(ends?.low, [])
+        XCTAssertEqual(ends?.high, ["hydraulic", "valves"])
+        XCTAssertEqual(Array(labels.prefix(2)), ["Component 1", "Hydraulic & Valves"])
+        XCTAssertFalse(labels.contains(""), "got \(labels)")
+    }
+
+    /// An adverb does not name an axis end: on the owner's iPhone one read "Blade & Gently".
+    func testAnAdverbDoesNotNameAnAxisEnd() throws {
+        var texts = Array(repeating: "Soak the handpiece in the enzymatic detergent.", count: 5)
+        texts += Array(repeating: "The general reference section lists the standard parts.", count: 40)
+        texts += Array(repeating: "Gently wipe the tray with a soft towel.", count: 5)
+        let values = (0..<50).map { Float($0) }
+
+        let ends = try XCTUnwrap(AtlasLabeling.axisEnds(values: values, texts: texts))
+
+        XCTAssertEqual(ends.high, ["soft", "towel"])
+    }
+
+    /// A word is tagged where it stands in its passages, each in its own language: "tray" alone came back an adverb
+    /// on macOS 27 and in a sentence a noun, and a library of instructions for use is often in several languages. A
+    /// language the system has no word classes for keeps its words: in the iOS 27 Simulator (2026-10-16) Spanish and
+    /// German had none, and on macOS 27 both did.
+    func testNamingTermsDropsWordsTheirPassagesUseAsAdverbs() {
+        let passages = [
+            "Gently wipe the tray, then rinse the blade carefully.", "Rinse the blade gently under running water.",
+            "Limpie suavemente la bandeja con una toalla limpia y seca.",
+            "Wischen Sie das Tablett vorsichtig mit einem weichen Tuch ab.",
+        ]
+        let terms = passages.map { AtlasLabeling.terms(in: $0) }
+
+        func hasWordClasses(_ language: NLLanguage) -> Bool {
+            NLTagger.availableTagSchemes(for: .word, language: language).contains(.lexicalClass)
+        }
+        print("WORD CLASSES: Spanish \(hasWordClasses(.spanish)), German \(hasWordClasses(.german))")
+        var expected = ["tray", "bandeja", "blade", "tablett"]
+        if !hasWordClasses(.german) { expected.insert("vorsichtig", at: 0) }
+        if !hasWordClasses(.spanish) { expected.insert("suavemente", at: 0) }
+        XCTAssertEqual(
+            AtlasLabeling.namingTerms(
+                ["gently", "suavemente", "vorsichtig", "tray", "carefully", "bandeja", "blade", "tablett"],
+                passages: passages, terms: terms, limit: 8),
+            expected)
+        XCTAssertEqual(
+            AtlasLabeling.namingTerms(
+                ["blade", "rinse", "tray"], passages: passages, terms: terms, limit: 2, excluding: ["blade"]),
+            ["rinse", "tray"])
+        // No word classes for Japanese: every word is kept.
+        let japanese = ["自然言語処理の研究"]
+        XCTAssertEqual(
+            AtlasLabeling.namingTerms(
+                ["自然", "処理"], passages: japanese, terms: japanese.map { AtlasLabeling.terms(in: $0) }, limit: 2),
+            ["自然", "処理"])
+    }
+
+    /// A map's six labels: every end has words, no word names two ends, and an axis whose ends do not differ reads
+    /// "Component N" at both ends.
+    func testAMapsAxisLabelsNameEveryEndOnceAndAnUndividedAxisIsAComponent() {
+        var texts = Array(repeating: "Invoices list the billing records for each customer account.", count: 5)
+        texts += Array(repeating: "The general reference section lists the standard parts.", count: 40)
+        texts += Array(repeating: "Hydraulic valves hold the pressure in the line.", count: 5)
+        // x and y order the passages the same way; z puts general passages at both of its ends.
+        let coords = (0..<50).map { i -> SIMD3<Float> in
+            let z: Float = (5..<10).contains(i) ? -10 : (40..<45).contains(i) ? 10 : 0
+            return SIMD3(Float(i), Float(i), z)
+        }
+
+        let labels = AtlasLabeling.axisLabels(coords: coords, texts: texts)
+
+        XCTAssertEqual(labels.count, 6)
+        XCTAssertEqual(Array(labels.suffix(2)), ["Component 3", "Component 3"])
+        XCTAssertFalse(labels.prefix(4).contains { $0.isEmpty || $0.hasPrefix("Component") }, "got \(labels)")
+        let words = labels.prefix(4).flatMap { $0.components(separatedBy: " & ") }
+        XCTAssertEqual(Set(words).count, words.count, "a word names two ends: \(labels)")
     }
 
     func testAxisEndsWithNoDifferenceReturnsNil() {

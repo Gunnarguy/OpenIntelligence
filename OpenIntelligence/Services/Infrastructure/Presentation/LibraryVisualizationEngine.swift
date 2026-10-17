@@ -544,12 +544,9 @@ final class LibraryVisualizationEngine: ObservableObject {
     ) -> PassageAnalysis {
         let terms = texts.map { AtlasLabeling.terms(in: $0) }
         let membership = AtlasLabeling.kMeans(embeddings: embeddings)
-        let k = (membership.max() ?? -1) + 1
-        var groupTerms = Array(repeating: [Set<String>](), count: k)
-        for (index, cluster) in membership.enumerated() where cluster >= 0 && cluster < k {
-            groupTerms[cluster].append(terms[index])
-        }
-        let distinguishing = AtlasLabeling.distinguishingTerms(passageTerms: groupTerms, allPassageTerms: terms)
+        // The same words as the map's own names (5.7), so the chips under it and its legend agree.
+        let distinguishing = AtlasLabeling.namingDistinguishingTerms(
+            texts: texts, clusterMembership: membership, passageTerms: terms)
         let names = AtlasLabeling.clusterNames(distinguishingTerms: distinguishing)
         let categories = terms.indices.map { index in
             ContentCategory.of(terms: terms[index], keywords: index < keywords.count ? keywords[index] : [])
