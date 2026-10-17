@@ -107,6 +107,39 @@ final class HybridSearchServiceTests: XCTestCase {
         )
     }
 
+    /// Passages with the same score come out in the same order whatever order they went in (5.7, row "Two runs of one
+    /// build return different evidence for the same question"): by document name, then by place in the document.
+    func testApplyKeywordMatchBoost_TiesComeOutInOneOrder() {
+        func passage(_ document: String, _ content: String, _ score: Float) -> RetrievedChunk {
+            let base = makeRetrievedChunk(content: content, similarityScore: score)
+            return RetrievedChunk(
+                chunk: base.chunk, similarityScore: score, rank: 0, sourceDocument: document, pageNumber: nil)
+        }
+        let tied = [
+            passage("c.txt", "Notes on the boiler", 0.5),
+            passage("a.txt", "Notes on the furnace", 0.5),
+            passage("b.txt", "Notes on the heat pump", 0.5),
+            passage("d.txt", "The insulin schedule", 0.5),
+        ]
+        let forward = service.applyKeywordMatchBoost(query: "insulin", results: tied)
+        let backward = service.applyKeywordMatchBoost(query: "insulin", results: tied.reversed())
+
+        XCTAssertEqual(forward.map(\.sourceDocument), backward.map(\.sourceDocument))
+        XCTAssertEqual(forward.first?.sourceDocument, "d.txt", "the passage with the keyword is boosted")
+        XCTAssertEqual(forward.dropFirst().map(\.sourceDocument), ["a.txt", "b.txt", "c.txt"])
+
+        // Passages without a name, as vector hits come, at the same place in different documents: the document's id
+        // decides (review of 2026-10-17).
+        let unnamed = (0..<4).map { index in
+            makeRetrievedChunk(content: "Plain text number \(index)", similarityScore: 0.5)
+        }.map { RetrievedChunk(chunk: $0.chunk, similarityScore: 0.5, rank: 0, sourceDocument: "", pageNumber: nil) }
+        let keyword = passage("d.txt", "The insulin schedule", 0.5)
+        let one = service.applyKeywordMatchBoost(query: "insulin", results: unnamed + [keyword])
+        let other = service.applyKeywordMatchBoost(query: "insulin", results: [keyword] + unnamed.reversed())
+        XCTAssertEqual(one.map(\.chunk.documentId), other.map(\.chunk.documentId))
+        XCTAssertEqual(one.first?.chunk.documentId, keyword.chunk.documentId, "the passage with the keyword is boosted")
+    }
+
     func testApplyKeywordMatchBoost_NoKeywords_ReturnsOriginalResults() {
         let chunk1 = makeRetrievedChunk(content: "This is a simple text", similarityScore: 0.5)
         let chunk2 = makeRetrievedChunk(content: "Another simple text", similarityScore: 0.4)

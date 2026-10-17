@@ -412,8 +412,8 @@ actor RAGEngine {
             scored.append((r, score, keywordBoost, proximityBoost, metadataBoost))
         }
 
-        // Sort by rerank score desc
-        scored.sort { $0.score > $1.score }
+        // Sort by rerank score desc, ties in one order from run to run (5.7; see HybridSearchService.byScoreThenId)
+        scored.sort { $0.score != $1.score ? $0.score > $1.score : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk) }
 
         if scored.count > 0 {
             // keep debug parity with existing logs
@@ -898,7 +898,12 @@ actor RAGEngine {
         }
 
         // Sort and take topK
-        let top = scored.sorted { $0.score > $1.score }.prefix(min(topK, scored.count))
+        let top = scored.sorted {
+            $0.score != $1.score
+                ? $0.score > $1.score
+                : ($0.chunk.documentId.uuidString, $0.chunk.metadata.chunkIndex)
+                    < ($1.chunk.documentId.uuidString, $1.chunk.metadata.chunkIndex)
+        }.prefix(min(topK, scored.count))
         return Array(top.enumerated().map { idx, pair in
             RetrievedChunk(
                 chunk: pair.chunk,
@@ -1043,7 +1048,10 @@ actor RAGEngine {
             }
         }
 
-        let ranked = allCandidates.sorted { (scores[$0.chunk.id] ?? 0) > (scores[$1.chunk.id] ?? 0) }
+        let ranked = allCandidates.sorted {
+            let (lhs, rhs) = (scores[$0.chunk.id] ?? 0, scores[$1.chunk.id] ?? 0)
+            return lhs != rhs ? lhs > rhs : HybridSearchService.stableTieBreakKey($0) < HybridSearchService.stableTieBreakKey($1)
+        }
         return ranked
     }
 
@@ -1558,7 +1566,9 @@ actor RAGEngine {
 
             // Reconstruct scored chunks in score-descending order
             var scoredChunks = scored.map { (chunk: chunks[$0.index], score: $0.score) }
-            scoredChunks.sort { $0.score > $1.score }
+            scoredChunks.sort {
+                $0.score != $1.score ? $0.score > $1.score : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk)
+            }
 
             // MS-MARCO cross-encoders output unbounded relevance scores (e.g., -10 to +10).
             // These are meant for ranking, not as probabilities.
@@ -1602,7 +1612,10 @@ actor RAGEngine {
                 let bibliographyPenalty = Self.computeBibliographyPenalty(content: contentForPenalty)
                 let adjustedScore = max(0.01, item.score - tocPenalty - questionBankPenalty - bibliographyPenalty)
                 return (item.chunk, adjustedScore)
-            }.sorted { $0.score > $1.score }
+            }.sorted {
+                // Many scores meet at the 0.01 floor, so ties are common at the cut (5.7).
+                $0.score != $1.score ? $0.score > $1.score : HybridSearchService.stableTieBreakKey($0.chunk) < HybridSearchService.stableTieBreakKey($1.chunk)
+            }
 
             return penalizedScored.prefix(cappedTopK).map { scoredItem in
                 // Propagate cross-encoder score to the chunk so downstream sorting preserves re-ranking order
