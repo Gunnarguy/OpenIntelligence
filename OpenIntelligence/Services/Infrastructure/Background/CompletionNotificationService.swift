@@ -72,6 +72,8 @@ final class CompletionNotificationService: NSObject, UNUserNotificationCenterDel
     /// The Settings switch. Read through `UserDefaults`, so `@AppStorage` sees the same value.
     nonisolated static let enabledKey = "notifyWhenFinished"
     private nonisolated static let linkKey = "link"
+    /// The start of every identifier this service gives a notification.
+    private nonisolated static let identifierPrefix = "completion-"
 
     private var answerStartedAt: Date?
 
@@ -118,13 +120,24 @@ final class CompletionNotificationService: NSObject, UNUserNotificationCenterDel
         notification.sound = .default
         notification.userInfo = [Self.linkKey: AppLink.url(for: content.destination).absoluteString]
         let request = UNNotificationRequest(
-            identifier: "completion-\(UUID().uuidString)", content: notification, trigger: nil)
+            identifier: Self.identifierPrefix + UUID().uuidString, content: notification, trigger: nil)
         Task {
             do {
                 try await UNUserNotificationCenter.current().add(request)
             } catch {
                 Log.warning("[Notifications] Could not post: \(error.localizedDescription)", category: .initialization)
             }
+        }
+    }
+
+    /// Clears the app's delivered notifications once the person is back in the app (5.7). Each says an import or an
+    /// answer finished, which the app then shows, and left in Notification Center after the app was opened they were
+    /// a nuisance (the owner, 2026-10-17). Not on the main actor: the system calls back on a queue of its own.
+    nonisolated func clearDelivered() {
+        UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
+            let finished = notifications.map(\.request.identifier).filter { $0.hasPrefix(Self.identifierPrefix) }
+            guard !finished.isEmpty else { return }
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: finished)
         }
     }
 

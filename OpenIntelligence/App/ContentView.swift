@@ -550,6 +550,13 @@ struct ContentView: View {
         case .active:
             entitlementStore.refreshTransientState()
             BackgroundTaskService.shared.applyIngestionExecutionProfileForCurrentState()
+            // What finished while the app was away is on screen now (5.7): its notifications and the Lock Screen's
+            // card for a finished import or answer go, where they stayed for up to ten minutes after the person was back.
+            CompletionNotificationService.shared.clearDelivered()
+            IngestionLiveActivityService.shared.dismissFinished()
+            #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+                QueryLiveActivityService.shared.endLeftovers()
+            #endif
             // An import that a background limit stopped continues without being asked.
             ragService.resumeIngestionStoppedInBackgroundIfNeeded()
             // The overview, tags and suggested questions of documents imported in the background (5.7).

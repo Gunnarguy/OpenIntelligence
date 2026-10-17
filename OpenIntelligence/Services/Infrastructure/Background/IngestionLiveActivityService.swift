@@ -98,6 +98,17 @@ final class IngestionLiveActivityService {
         }
     }
 
+    /// Ends every import Live Activity but the one running, once the person is back in the app (5.7). A finished
+    /// import's stayed on the Lock Screen for ten minutes (`endCurrentActivity`), and after the app was opened it was a
+    /// leftover (the owner, 2026-10-17). `.immediate` removes an ended Live Activity at once (Apple's
+    /// `ActivityUIDismissalPolicy.immediate`, read 2026-10-17).
+    func dismissFinished() {
+        let running = currentActivity?.id
+        for activity in Activity<IngestionLiveActivityAttributes>.activities where activity.id != running {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
     func endCurrentActivity(finalState: IngestionLiveActivityAttributes.ContentState?) {
         let allActivities = Activity<IngestionLiveActivityAttributes>.activities
         
@@ -389,6 +400,7 @@ final class IngestionLiveActivityService {
     private init() {}
 
     func restoreExistingActivityIfNeeded() {}
+    func dismissFinished() {}
     func sync(items _: [IngestionItem], containerName _: String?) {}
     func endCurrentActivity(finalState _: Any? = nil) {}
     func finish(items _: [IngestionItem], containerName _: String?) {}

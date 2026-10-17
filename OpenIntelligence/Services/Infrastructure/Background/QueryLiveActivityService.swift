@@ -51,9 +51,12 @@
 
         /// Ends any answer's Live Activity still up at launch, where nothing is answering yet: one a
         /// launch left when it ended without closing it.
+        /// Ends every answer's Live Activity but the one running: at launch, and from 5.7 also when the app comes back
+        /// to the front, where an "Answer ready" stayed on the Lock Screen for its five minutes after the person had
+        /// opened the app to read it (the owner, 2026-10-17).
         func endLeftovers() {
-            guard activity == nil, !isRunning else { return }
-            for leftover in Activity<QueryLiveActivityAttributes>.activities {
+            let running = activity?.id
+            for leftover in Activity<QueryLiveActivityAttributes>.activities where leftover.id != running {
                 Task { await leftover.end(nil, dismissalPolicy: .immediate) }
             }
         }
