@@ -1,3 +1,4 @@
+import NaturalLanguage
 import XCTest
 @testable import OpenIntelligenceEngine
 
@@ -51,6 +52,76 @@ final class SemanticChunkerTests: XCTestCase {
         for chunk in chunks {
             XCTAssertEqual(chunk.metadata.documentId, documentId)
         }
+    }
+
+    /// Text with few spaces overlaps by the setting, counted in the tokenizer's words as a passage's size is (5.7). Each
+    /// run between spaces here is three words ("r12a:r12b:r12c"), and through 5.6 an overlap of 20 took 20 runs, which
+    /// is 60 words.
+    func testOverlapInTextWithFewSpacesIsTheSetting() {
+        let text = (1...400).map { "r\($0)a:r\($0)b:r\($0)c" }.joined(separator: " ")
+        var config = SemanticChunker.ChunkingConfig()
+        config.targetSize = 100
+        config.minSize = 50
+        config.maxSize = 150
+        config.overlap = 20
+        config.useTopicDetection = false
+
+        let chunks = chunker.chunkText(text, documentId: UUID(), config: config)
+        XCTAssertGreaterThan(chunks.count, 3)
+
+        let tokenizer = NLTokenizer(unit: .word)
+        for (current, next) in zip(chunks, chunks.dropFirst()) {
+            tokenizer.string = next.content
+            guard let first = tokenizer.tokens(for: next.content.startIndex..<next.content.endIndex).first,
+                let shared = current.content.range(of: String(next.content[first]), options: .backwards)
+            else { continue }
+            let overlap = String(current.content[shared.lowerBound...])
+            tokenizer.string = overlap
+            let words = tokenizer.tokens(for: overlap.startIndex..<overlap.endIndex).count
+            // No sentence ends in this text, so the overlap starts at the point itself. Through 5.6 it was 60 or more, and
+            // with the snap of the time 25 or 26 (review of 2026-10-17).
+            XCTAssertLessThanOrEqual(words, config.overlap + 1, "overlap of \(words) words")
+        }
+    }
+
+    /// A sentence starts at the start of the text, after a line break, or after a sentence's end, quotes allowed; not in
+    /// the middle of a sentence (5.7).
+    func testWhereASentenceCanStart() {
+        let text = "Check the seal. \"Replace it\" yearly!\nThen torque the bolts to spec"
+        func at(_ offset: Int) -> String.Index { text.index(text.startIndex, offsetBy: offset) }
+        XCTAssertTrue(SemanticChunker.canStartSentence(at: text.startIndex, in: text))
+        XCTAssertTrue(SemanticChunker.canStartSentence(at: at(16), in: text), "after a period and a space")
+        XCTAssertTrue(SemanticChunker.canStartSentence(at: at(37), in: text), "after a line break")
+        XCTAssertFalse(SemanticChunker.canStartSentence(at: at(6), in: text), "inside a sentence")
+        XCTAssertFalse(SemanticChunker.canStartSentence(at: at(42), in: text), "after a word and a space")
+
+        // A dot with no space after it is a number or an address, not a sentence's end; a CJK full stop needs no space.
+        let numbers = "Pi is 3.14159 and the site is example.com today"
+        func index(in string: String, _ offset: Int) -> String.Index { string.index(string.startIndex, offsetBy: offset) }
+        XCTAssertFalse(SemanticChunker.canStartSentence(at: index(in: numbers, 8), in: numbers), "after 3.")
+        XCTAssertFalse(SemanticChunker.canStartSentence(at: index(in: numbers, 38), in: numbers), "after example.")
+        let japanese = "これは本です。次の文です"
+        XCTAssertTrue(SemanticChunker.canStartSentence(at: index(in: japanese, 7), in: japanese), "after 。")
+        let quoted = "「止まれ。」次の文"
+        XCTAssertTrue(SemanticChunker.canStartSentence(at: index(in: quoted, 6), in: quoted), "after 。 and 」")
+        let hindi = "यह पहला वाक्य है। यह दूसरा"
+        let afterDanda = hindi.index(after: hindi.firstIndex(of: "\u{0964}")!)
+        XCTAssertTrue(SemanticChunker.canStartSentence(at: hindi.index(after: afterDanda), in: hindi), "after । and a space")
+    }
+
+    /// Merging a small passage into the one before keeps both lists' order and leaves out repeats (5.7).
+    func testMergedKeywordsKeepTheirOrder() {
+        XCTAssertEqual(
+            SemanticChunker.orderedUnion(["valve", "seal", "torque"], ["seal", "gasket", "valve", "bolt"]),
+            ["valve", "seal", "torque", "gasket", "bolt"])
+    }
+
+    /// Keywords with the same count come out in alphabetical order, after those with higher counts (5.7). Through 5.6
+    /// ties kept a dictionary's order, which changes with every launch.
+    func testKeywordsWithTheSameCountAreInAlphabeticalOrder() {
+        let counts = ["zebra": 1, "apple": 1, "mango": 2, "kiwi": 1, "fig": 3]
+        XCTAssertEqual(SemanticChunker.topKeywords(counts, limit: 4), ["fig", "mango", "apple", "kiwi"])
+        XCTAssertEqual(SemanticChunker.topKeywords(counts, limit: 10), ["fig", "mango", "apple", "kiwi", "zebra"])
     }
 
     func testChunkText_WithEmptyString_ReturnsEmptyArray() {

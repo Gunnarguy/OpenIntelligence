@@ -717,13 +717,13 @@ nonisolated class SemanticChunker {
                     sectionPath: prev.metadata.sectionPath.isEmpty ? chunk.metadata.sectionPath : prev.metadata.sectionPath,
                     wordCount: prev.metadata.wordCount + chunk.metadata.wordCount,
                     characterCount: prev.metadata.characterCount + chunk.metadata.characterCount,
-                    topKeywords: Array(Set(prev.metadata.topKeywords + chunk.metadata.topKeywords)),
+                    topKeywords: Self.orderedUnion(prev.metadata.topKeywords, chunk.metadata.topKeywords),
                     semanticDensity: (prev.metadata.semanticDensity + chunk.metadata.semanticDensity) / 2.0,
                     hasNumericData: prev.metadata.hasNumericData || chunk.metadata.hasNumericData,
                     hasListStructure: prev.metadata.hasListStructure || chunk.metadata.hasListStructure,
                     startOffset: prev.metadata.startOffset,
                     endOffset: chunk.metadata.endOffset,
-                    entities: Array(Set(prev.metadata.entities + chunk.metadata.entities)),
+                    entities: Self.orderedUnion(prev.metadata.entities, chunk.metadata.entities),
                     abbreviations: prev.metadata.abbreviations.merging(chunk.metadata.abbreviations) { first, _ in first },
                     documentCategory: prev.metadata.documentCategory ?? chunk.metadata.documentCategory,
                     chunkType: prev.metadata.chunkType == .warning || chunk.metadata.chunkType == .warning ? .warning : prev.metadata.chunkType,
@@ -1608,6 +1608,38 @@ nonisolated class SemanticChunker {
         return nearestIndex
     }
 
+    /// Sentence ends that a space follows: Latin, Devanagari (danda, double danda), Urdu and Arabic.
+    private static let spacedSentenceEnds: Set<Character> = [".", "!", "?", "\u{0964}", "\u{0965}", "\u{06D4}", "\u{061F}"]
+    /// Sentence ends that need no space after them: Chinese and Japanese, full width and half width.
+    private static let unspacedSentenceEnds: Set<Character> = ["\u{3002}", "\u{FF01}", "\u{FF1F}", "\u{FF61}", "\u{FF0E}"]
+    /// Closing quotes and brackets that can stand between a sentence's end and the next sentence.
+    private static let closers: Set<Character> = [
+        "\"", "'", "\u{201D}", "\u{2019}", ")", "]", "\u{00BB}", "\u{203A}", "\u{300D}", "\u{300F}", "\u{FF09}",
+        "\u{300B}", "\u{3009}", "\u{3011}",
+    ]
+
+    /// Whether a sentence can start at `index`: the start of the text, after a line break, or after the end of a
+    /// sentence, with closing quotes or brackets allowed in between (5.7). After `.`, `!`, `?` and the other spaced ends
+    /// there has to be a space as well, so "3.14" and "example.com" aren't sentence ends; after `。` and the other CJK
+    /// ends there needn't be.
+    static func canStartSentence(at index: String.Index, in text: String) -> Bool {
+        guard index > text.startIndex else { return true }
+        var cursor = text.index(before: index)
+        var spaced = false
+        while text[cursor].isWhitespace {
+            if text[cursor].isNewline { return true }
+            spaced = true
+            guard cursor > text.startIndex else { return true }
+            cursor = text.index(before: cursor)
+        }
+        while closers.contains(text[cursor]) {
+            guard cursor > text.startIndex else { return false }
+            cursor = text.index(before: cursor)
+        }
+        if unspacedSentenceEnds.contains(text[cursor]) { return true }
+        return spaced && spacedSentenceEnds.contains(text[cursor])
+    }
+
     /// Find nearest sentence start using NLTokenizer for robust detection.
     /// Handles abbreviations, decimals, URLs correctly.
     private func findNearestSentenceStart(in text: String, near index: String.Index, within distance: Int) -> String.Index? {
@@ -1623,9 +1655,25 @@ nonisolated class SemanticChunker {
         var nearestDistance = Int.max
         var nearestIndex: String.Index?
 
+        var isFirstToken = true
         sentenceTokenizer.enumerateTokens(in: substring.startIndex..<substring.endIndex) { tokenRange, _ in
             // The start of each sentence token is a sentence boundary
             let boundaryInSubstring = tokenRange.lowerBound
+            // The first token "starts" wherever the window does, or after its leading spaces: the tokenizer can't see what
+            // comes before the window, so that start counts only where a sentence really ends before it (5.7). The tokens
+            // after it are the tokenizer's own boundaries, in any script, and count as before. Through 5.6 a window with
+            // no sentence start in it returned its own first character, so a passage could start mid-word (reviews of
+            // 2026-10-17).
+            if isFirstToken {
+                isFirstToken = false
+                let candidate =
+                    text.index(
+                        searchStart, offsetBy: substring.distance(from: substring.startIndex, to: boundaryInSubstring),
+                        limitedBy: text.endIndex) ?? text.endIndex
+                if !Self.canStartSentence(at: candidate, in: text) {
+                    return true
+                }
+            }
             let offset = substring.distance(from: substring.startIndex, to: boundaryInSubstring)
             guard let originalIndex = text.index(searchStart, offsetBy: offset, limitedBy: text.endIndex) else {
                 return true
@@ -2021,6 +2069,23 @@ nonisolated class SemanticChunker {
 
         return abbreviations
     }
+
+    /// The keywords with the highest counts, those with the same count in alphabetical order (5.7). A dictionary's
+    /// order changes with every launch, and through 5.6 ties kept it, so the same passage could keep different keywords
+    /// each time it was imported.
+    static func topKeywords(_ counts: [String: Int], limit: Int) -> [String] {
+        counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            .prefix(limit)
+            .map(\.key)
+    }
+
+    /// Two lists in their order, with the second's repeats left out (5.7). Merging a small passage into the one before
+    /// it took the union of their keywords and entities through a set, whose order changes with every launch.
+    static func orderedUnion(_ first: [String], _ second: [String]) -> [String] {
+        var seen = Set<String>()
+        return (first + second).filter { seen.insert($0).inserted }
+    }
+
     /// Also extracts capitalized multi-word phrases (e.g., "Record Button", "Note Recording")
     /// ENHANCED: Also extracts specification values (SAE 0W-20, API SN, etc.) via SpecificationDetector
     private func extractKeywords(_ text: String, topN: Int) -> [String] {
@@ -2072,44 +2137,44 @@ nonisolated class SemanticChunker {
             counts[specKey, default: 0] += 3 // Boost specs even higher than phrases
         }
 
-        // Return more keywords for richer corpus vocabulary (up to 2x requested)
-        return counts.sorted { $0.value > $1.value }
-.prefix(topN * 2)
-            .map { $0.key }
+        // Return more keywords for richer corpus vocabulary (up to 2x requested).
+        return Self.topKeywords(counts, limit: topN * 2)
     }
 
     /// Advance position with intelligent overlap that snaps to sentence boundaries.
     /// Instead of splitting overlap mid-sentence by raw word count, we find the
     /// nearest sentence boundary within the overlap region.
+    ///
+    /// The overlap is counted in the word tokenizer's words from 5.7, as the cap on a passage's size is (`maxSize`,
+    /// `tokenWordCount`); the passage's target size is still counted in runs of text between spaces. Through 5.6 the
+    /// overlap was counted in those runs too, so text with few spaces overlapped by several times the setting: in
+    /// `id:7,name:alpha` each run is three or more of the tokenizer's words. Only the passage is tokenized, so the cost
+    /// stays with the passage and not the whole text.
     private func advancePosition(
         from start: String.Index,
         chunkEnd: String.Index,
         overlap: Int,
         in text: String
     ) -> String.Index {
-        // Move back by overlap words from chunk end
-        let overlapRange = text[start..<chunkEnd]
-        let words = overlapRange.split(separator: " ")
+        guard overlap > 0, start < chunkEnd else { return chunkEnd }
+        let passage = String(text[start..<chunkEnd])
+        cachedWordTokenizer.string = passage
+        let words = cachedWordTokenizer.tokens(for: passage.startIndex..<passage.endIndex)
+        guard words.count > overlap else { return chunkEnd }
 
-        if words.count > overlap {
-            let overlapWords = words.suffix(overlap)
-            let overlapText = overlapWords.joined(separator: " ")
-            if let overlapStart = text.range(of: overlapText, options: [.backwards], range: start..<chunkEnd) {
-                // Snap to nearest sentence boundary within ±30 chars of the overlap point
-                // This ensures overlap regions start at clean sentence boundaries
-                if let sentenceStart = findNearestSentenceStart(in: text, near: overlapStart.lowerBound, within: 30) {
-                    // Only use sentence boundary if it's still within the overlap region
-                    if sentenceStart > start && sentenceStart < chunkEnd {
-                        return sentenceStart
-                    }
-                }
-                if overlapStart.lowerBound > start {
-                    return overlapStart.lowerBound
-                }
+        // Move back by overlap words from chunk end
+        let offset = passage.distance(from: passage.startIndex, to: words[words.count - overlap].lowerBound)
+        guard let overlapStart = text.index(start, offsetBy: offset, limitedBy: chunkEnd) else { return chunkEnd }
+
+        // Snap to nearest sentence boundary within ±30 chars of the overlap point
+        // This ensures overlap regions start at clean sentence boundaries
+        if let sentenceStart = findNearestSentenceStart(in: text, near: overlapStart, within: 30) {
+            // Only use sentence boundary if it's still within the overlap region
+            if sentenceStart > start && sentenceStart < chunkEnd {
+                return sentenceStart
             }
         }
-
-        return chunkEnd
+        return overlapStart > start ? overlapStart : chunkEnd
     }
 
     /// Print chunk statistics
