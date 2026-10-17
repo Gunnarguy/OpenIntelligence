@@ -1660,6 +1660,10 @@ managed signing adds a capability the App ID lacks was not established, and a fa
 (2) Version "1" to avoid guard objects' memory cost. Not chosen: the values Xcode sets are "2", and the memory cost
 on a large library is to be measured on a device instead.
 
+**Update 2026-10-17.** Back in as recorded: the owner signed in to Xcode, and an iPhone build and a Mac build with
+`-allowProvisioningUpdates` signed with the five entitlements and the two build settings, which registered the
+capability on the App ID. The app group for the "Your Library" widget went in the same commit.
+
 **Consequences.** Until then the row stays open. When it goes in: measure an import of the 88 MB JSON Lines file on
 the iPhone before and after (memory and passages per second), because guard objects and the hardened heap can raise
 memory use, and the app's largest imports already run near the phone's limit; then decide on hardware memory
