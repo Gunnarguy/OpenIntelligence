@@ -190,6 +190,7 @@ private enum EvidenceDestination: Equatable {
 }
 
 private struct ClaimCard: View {
+    @Environment(\.showsTechnicalDetails) private var showsTechnicalDetails
     let claim: StructuredAnswer.Claim
     let evidence: [StructuredAnswer.Evidence]
     /// What each quote opens, by evidence id; a quote with none opens nothing (5.7).
@@ -247,9 +248,16 @@ private struct ClaimCard: View {
                             // side it was squeezed until "SUPPORTED" broke into "SUPP / ORTE / D" (5.7). The word is
                             // in the label color, the verdict's color in the icon: Apple's high-contrast green
                             // measured 4.07 to 1 on the card's gray.
-                            Text(
-                                "\(Text(verdictTitle).fontWeight(.bold).foregroundStyle(DSColors.primaryText)) • \(Int(claim.confidence * 100))% Conf.\(sourcesSuffix)"
-                            )
+                            Group {
+                                if showsTechnicalDetails {
+                                    Text(
+                                        "\(Text(verdictTitle).fontWeight(.bold).foregroundStyle(DSColors.primaryText)) • \(Int(claim.confidence * 100))% Conf.\(sourcesSuffix)"
+                                    )
+                                } else {
+                                    // The plain chat says where the claim was found, not a confidence (5.7).
+                                    Text("\(Text(plainVerdict).fontWeight(.bold).foregroundStyle(DSColors.primaryText))\(foundWhere)")
+                                }
+                            }
                             .scaledFont(size: 8)
                             .foregroundStyle(DSColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -334,21 +342,24 @@ private struct ClaimCard: View {
                         }
                     }
                     
-                    HStack(spacing: 6) {
-                        Spacer().frame(width: 20)
+                    // The confidence goes with the technical view (5.7).
+                    if showsTechnicalDetails {
+                        HStack(spacing: 6) {
+                            Spacer().frame(width: 20)
                         
-                        Text("CONFIDENCE")
-                            .scaledFont(size: 8, weight: .bold)
-                            .foregroundStyle(DSColors.secondaryText)
+                            Text("CONFIDENCE")
+                                .scaledFont(size: 8, weight: .bold)
+                                .foregroundStyle(DSColors.secondaryText)
                         
-                        ProgressView(value: claim.confidence)
-                            .progressViewStyle(.linear)
-                            .tint(verdictColor)
-                            .frame(width: 50)
+                            ProgressView(value: claim.confidence)
+                                .progressViewStyle(.linear)
+                                .tint(verdictColor)
+                                .frame(width: 50)
                         
-                        Text("\(Int(claim.confidence * 100))%")
-                            .scaledFont(size: 9, weight: .bold, design: .rounded)
-                            .foregroundStyle(DSColors.primaryText)
+                            Text("\(Int(claim.confidence * 100))%")
+                                .scaledFont(size: 9, weight: .bold, design: .rounded)
+                                .foregroundStyle(DSColors.primaryText)
+                        }
                     }
                 }
                 .padding([.horizontal, .bottom], 12)
@@ -394,6 +405,26 @@ private struct ClaimCard: View {
         }
     }
     
+    /// The verdict in words for the plain chat (5.7).
+    private var plainVerdict: String {
+        switch claim.verificationVerdict {
+        case .supported: return "Found in your documents"
+        case .partial: return "Partly found in your documents"
+        case .unsupported: return "Not found in your documents"
+        case nil: return "Not checked"
+        }
+    }
+
+    /// Where the plain chat says a claim was found: " · page 23 of Handpiece IFU.pdf" from its first quote with a
+    /// page, else " · 1 source" (5.7).
+    private var foundWhere: String {
+        if let quote = matchingEvidence.first(where: { $0.page != nil }), let page = quote.page {
+            if let name = quote.documentName, !name.isEmpty { return " · page \(page) of \(name)" }
+            return " · page \(page)"
+        }
+        return claim.evidenceIds.isEmpty ? "" : (claim.evidenceIds.count == 1 ? " · 1 source" : " · \(claim.evidenceIds.count) sources")
+    }
+
     private var verdictTitle: String {
         switch claim.verificationVerdict {
         case .supported: return "SUPPORTED"

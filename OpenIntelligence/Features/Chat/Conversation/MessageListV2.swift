@@ -35,10 +35,13 @@ struct MessageListV2: View {
     var libraryStateProvider: ((UUID) async -> String)?
 
     @State private var scrollProxy: ScrollViewProxy?
+    @Environment(\.showsTechnicalDetails) private var showsTechnicalDetails
 
     private var streamingBubbleIdentity: String {
         let phase = streamingText.isEmpty ? "typing" : "text"
-        if streamingText.isEmpty {
+        // The step console is made again at each step, as before. The plain bubble keeps one identity while it waits,
+        // so its words change in place, its spinner keeps turning and VoiceOver keeps its focus (5.7, review).
+        if streamingText.isEmpty, showsTechnicalDetails {
             let latestEventID = thinkingEvents.last?.id.uuidString ?? "empty"
             return "streaming-\(phase)-\(latestEventID)"
         }
@@ -382,6 +385,7 @@ private struct TypingBubbleV2: View {
 
     @State private var pulse = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.showsTechnicalDetails) private var showsTechnicalDetails
 
     private var latestEvent: ThinkingEvent? {
         events.last
@@ -416,6 +420,39 @@ private struct TypingBubbleV2: View {
     }
 
     var body: some View {
+        if showsTechnicalDetails {
+            technicalBody
+        } else {
+            plainBody
+        }
+    }
+
+    /// The plain chat's bubble (5.7): what it is doing, in words, with a spinner, and nothing of the machinery.
+    private var plainBody: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(ChatProgress.phrase(for: latestEvent?.kind, thinksInSteps: mode.canonical != .standard))
+                    .scaledFont(size: 15)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.25), value: latestEvent?.kind)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.updatesFrequently)
+
+            Spacer(minLength: spacerMinLength)
+        }
+    }
+
+    private var technicalBody: some View {
         HStack(alignment: .bottom, spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 // Header: Stage + Progress

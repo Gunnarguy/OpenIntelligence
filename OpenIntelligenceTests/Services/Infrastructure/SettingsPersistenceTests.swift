@@ -39,4 +39,24 @@ final class SettingsPersistenceTests: XCTestCase {
         defaults.set(true, forKey: "showSiliconHUD")
         XCTAssertTrue(SettingsStore(defaults: defaults, ragService: RAGService()).showSiliconHUD)
     }
+
+    /// The chat's technical view starts off on a new install, stays on for an install that ran before (which has its
+    /// model temperature saved), and a saved choice is kept (5.7). The X-Ray's setting alone, as a launch argument or the
+    /// screenshot steps leave it, doesn't make an install one that ran before (review, 2026-10-17).
+    func testTechnicalDetailsStartOffOnANewInstallAndStayOnForOneThatRanBefore() throws {
+        let fresh = "SettingsPersistenceTests.\(UUID().uuidString)"
+        let newInstall = try XCTUnwrap(UserDefaults(suiteName: fresh))
+        defer { newInstall.removePersistentDomain(forName: fresh) }
+        newInstall.set(false, forKey: "showSiliconHUD")
+        XCTAssertFalse(SettingsStore(defaults: newInstall, ragService: RAGService()).showTechnicalDetails)
+
+        let earlier = "SettingsPersistenceTests.\(UUID().uuidString)"
+        let ranBefore = try XCTUnwrap(UserDefaults(suiteName: earlier))
+        defer { ranBefore.removePersistentDomain(forName: earlier) }
+        ranBefore.set(0.7, forKey: "llmTemperature")
+        XCTAssertTrue(SettingsStore(defaults: ranBefore, ragService: RAGService()).showTechnicalDetails)
+
+        ranBefore.set(false, forKey: "showTechnicalDetails")
+        XCTAssertFalse(SettingsStore(defaults: ranBefore, ragService: RAGService()).showTechnicalDetails)
+    }
 }

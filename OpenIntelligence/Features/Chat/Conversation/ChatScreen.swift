@@ -877,12 +877,17 @@ struct ChatScreen: View {
                                 Label("Clear Chat", systemImage: "trash")
                             }
                             .disabled(messages.isEmpty)
+
+                            // The chat's technical view (5.7), also in Settings, Appearance. The menu is open with an
+                            // empty chat for it; the chat actions above stay off until there is a chat.
+                            Divider()
+                            Toggle(isOn: $settings.showTechnicalDetails) {
+                                Label("Technical Details", systemImage: "waveform.path.ecg")
+                            }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                                 .imageScale(.large)
-                                .opacity(messages.isEmpty ? 0.5 : 1.0)
                         }
-                        .disabled(messages.isEmpty)
                         .animation(nil, value: messages.count)
                     }
                 #else
@@ -925,12 +930,17 @@ struct ChatScreen: View {
                                 Label("Clear Chat", systemImage: "trash")
                             }
                             .disabled(messages.isEmpty)
+
+                            // The chat's technical view (5.7), also in Settings, Appearance. The menu is open with an
+                            // empty chat for it; the chat actions above stay off until there is a chat.
+                            Divider()
+                            Toggle(isOn: $settings.showTechnicalDetails) {
+                                Label("Technical Details", systemImage: "waveform.path.ecg")
+                            }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                                 .imageScale(.large)
-                                .opacity(messages.isEmpty ? 0.5 : 1.0)
                         }
-                        .disabled(messages.isEmpty)
                         .animation(nil, value: messages.count)
                     }
                 #endif
@@ -2542,6 +2552,13 @@ struct ChatScreen: View {
     // MARK: - Main Content Area
 
     @ViewBuilder private var mainContentArea: some View {
+        mainContentStack
+            // How much machinery the chat shows (5.7): the step console, the badges under an answer and Fact Check's
+            // numbers read it.
+            .environment(\.showsTechnicalDetails, settings.showTechnicalDetails)
+    }
+
+    @ViewBuilder private var mainContentStack: some View {
         VStack(spacing: 0) {
             CompactChatHeader(
                 containerService: ragService.containerService,
@@ -2552,7 +2569,11 @@ struct ChatScreen: View {
                 onMaximumModeBlocked: presentMaximumModePaywall
             )
 
-            if let metricsData = consolidatedMetricsData {
+            // The stats bar is part of the technical view (5.7); the plain chat says what it is doing in the answer's
+            // own bubble instead.
+            if !settings.showTechnicalDetails {
+                EmptyView()
+            } else if let metricsData = consolidatedMetricsData {
                 primaryMetricsBar(metricsData: metricsData)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 6)
@@ -4044,7 +4065,10 @@ struct CompactChatHeader: View {
     private var bottomRowCounts: some View {
         HStack(spacing: 8) {
             StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
-            StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
+            // The passages are the search's units, not the person's: shown with the technical view (5.7).
+            if settings.showTechnicalDetails {
+                StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
+            }
         }
     }
 

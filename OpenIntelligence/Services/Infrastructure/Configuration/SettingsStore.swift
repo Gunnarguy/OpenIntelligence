@@ -116,6 +116,7 @@ final class SettingsStore: ObservableObject {
         // Appearance
         static let appAccentColorHex = "appAccentColorHex" // nil = system default
         static let showSiliconHUD = "showSiliconHUD" // Bool - Show hardware activity overlay
+        static let showTechnicalDetails = "showTechnicalDetails" // Bool - The chat's console, stats bar and badges
         static let hudGlowIntensity = "hudGlowIntensity" // Double 0.0-1.0 - HUD glow brightness
         static let hudShowMetrics = "hudShowMetrics" // Bool - Show real-time metrics in legend
         static let hudShowTaptic = "hudShowTaptic" // Bool - Show Taptic Engine on HUD
@@ -287,6 +288,12 @@ final class SettingsStore: ObservableObject {
     /// Show the Silicon HUD overlay during processing.
     /// Displays subtle borders at the physical SoC and Taptic Engine locations.
     @Published var showSiliconHUD: Bool
+
+    /// The chat's technical view (5.7): the live stats bar, the step-by-step console while an answer is on its way,
+    /// and the badges and reasoning steps under an answer. Off on a new install, where the chat says what it is doing
+    /// in plain words instead (the owner, 2026-10-17: "I love it personally, but I'm sure it's too complicated feeling
+    /// for the average user"); on for anyone who used an earlier version, so their chat looks as it did.
+    @Published var showTechnicalDetails: Bool
 
     /// HUD glow intensity multiplier (0.0 = invisible, 1.0 = full brightness)
     @Published var hudGlowIntensity: Double
@@ -580,6 +587,15 @@ final class SettingsStore: ObservableObject {
         // the Bool it names; `as? Bool` saw the string "NO" and fell back to the default (5.7).
         showSiliconHUD =
             defaults.object(forKey: Keys.showSiliconHUD) == nil ? false : defaults.bool(forKey: Keys.showSiliconHUD)
+        // An install that ran before has its settings saved (`persistAll` writes every one at launch, as every
+        // version has), so it keeps the chat it had; a new one starts simple (5.7). Read before anything is written
+        // this launch, from the model temperature, which no launch argument and no script sets. The first version
+        // read the X-Ray's setting, and `-showSiliconHUD NO` (the accessibility UI tests) or the screenshot steps'
+        // write of it made a new install look like one that ran before (review, 2026-10-17).
+        showTechnicalDetails =
+            defaults.object(forKey: Keys.showTechnicalDetails) == nil
+            ? defaults.object(forKey: Keys.temperature) != nil
+            : defaults.bool(forKey: Keys.showTechnicalDetails)
         hudGlowIntensity = defaults.object(forKey: Keys.hudGlowIntensity) as? Double ?? 0.6
         hudShowMetrics = defaults.object(forKey: Keys.hudShowMetrics) as? Bool ?? true
         hudShowTaptic = defaults.object(forKey: Keys.hudShowTaptic) as? Bool ?? true
@@ -672,6 +688,7 @@ final class SettingsStore: ObservableObject {
             $enableConversationMemory.map { _ in () }.eraseToAnyPublisher(),
             $appAccentColorHex.map { _ in () }.eraseToAnyPublisher(),
             $showSiliconHUD.map { _ in () }.eraseToAnyPublisher(),
+            $showTechnicalDetails.map { _ in () }.eraseToAnyPublisher(),
             $hudGlowIntensity.map { _ in () }.eraseToAnyPublisher(),
             $hudShowMetrics.map { _ in () }.eraseToAnyPublisher(),
             $hudShowTaptic.map { _ in () }.eraseToAnyPublisher(),
@@ -902,6 +919,7 @@ final class SettingsStore: ObservableObject {
         // Appearance
         defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)
         defaults.set(showSiliconHUD, forKey: Keys.showSiliconHUD)
+        defaults.set(showTechnicalDetails, forKey: Keys.showTechnicalDetails)
         defaults.set(hudGlowIntensity, forKey: Keys.hudGlowIntensity)
         defaults.set(hudShowMetrics, forKey: Keys.hudShowMetrics)
         defaults.set(hudShowTaptic, forKey: Keys.hudShowTaptic)

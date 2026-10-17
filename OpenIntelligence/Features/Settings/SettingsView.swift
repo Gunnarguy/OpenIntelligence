@@ -211,7 +211,7 @@ struct SettingsView: View {
                 title: "Appearance",
                 subtitle: "Accent colour and the hardware HUD",
                 icon: "paintbrush", tint: .pink,
-                keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud", "x-ray", "xray", "glow", "haptics"]
+                keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud", "x-ray", "xray", "glow", "haptics", "technical", "technical details", "console", "stats", "simple"]
             ),
             .init(
                 id: .notifications, group: .device,
@@ -3144,6 +3144,31 @@ Text(deviceService.chipName)
                 AccentColorSettingsRow(accentColorHex: $settings.appAccentColorHex)
                     .padding(.horizontal)
                     .padding(.vertical, 12)
+
+                Divider()
+                    .padding(.horizontal)
+
+                // The chat's technical view (5.7)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Technical Details")
+                            .font(.subheadline.weight(.medium))
+                        Text("In the chat: the live stats, each step as it runs, and the answer mode, reasoning and confidence under an answer")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Toggle("Technical Details", isOn: $settings.showTechnicalDetails)
+                        .labelsHidden()
+                        .tint(.accentColor)
+                        .onChange(of: settings.showTechnicalDetails) { _, _ in
+                            DSHaptics.toggle()
+                        }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
 
                 Divider()
                     .padding(.horizontal)
