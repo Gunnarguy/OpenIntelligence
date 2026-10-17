@@ -232,6 +232,10 @@ struct ChatScreen: View {
     @State private var showThreadSidebar: Bool = false
     @State private var messages: [ChatMessage] = []
     @State private var didSeedScreenshotDemo: Bool = false
+    #if DEBUG
+        /// The listing's page scene: a cited passage open on its PDF page (5.7).
+        @State private var storeScenePage: StoreScenePage? = nil
+    #endif
     @State private var streamingText: String = ""
     /// Text another part of the system handed over to ask about, put in the composer unsent (5.7).
     @State private var composerDraft: ComposerDraft? = nil
@@ -987,6 +991,12 @@ struct ChatScreen: View {
             .sheet(isPresented: $showPlanSheet) {
                 PlanUpgradeSheet(entryPoint: planEntryPoint)
             }
+            #if DEBUG
+                .sheet(item: $storeScenePage) { scene in
+                    SourcePageView(
+                        document: scene.document, pageNumber: scene.page, passage: scene.passage, chunk: scene.chunk)
+                }
+            #endif
             .sheet(item: $activeCloudConsent) { record in
                 CloudConsentPromptView(record: record) { decision in
                     Task { await ragService.resolveCloudConsent(decision: decision) }
@@ -1620,7 +1630,10 @@ struct ChatScreen: View {
         /// sheet, and the Private Cloud Compute consent sheet. The one figure shown, 27 tokens a
         /// second on device, is the measured A18 Pro number. DEBUG only; nothing here ships.
         ///
-        /// `--screenshot --screenshot-tab chat --screenshot-store answer|refusal|sources|consent`
+        /// `--screenshot --screenshot-tab chat --screenshot-store answer|refusal|sources|consent|page`
+        ///
+        /// `page` (added 2026-10-17) opens the first claim's passage on page 7 of a lease PDF drawn for the scene
+        /// (`StoreScenePDF`), as tapping the claim does in 5.7: the real page view with the passage highlighted. iOS only.
         private func seedStoreScene(_ scene: String) {
             streamingText = ""
             currentStructuredAnswer = nil
@@ -1736,6 +1749,13 @@ struct ChatScreen: View {
             case "sources":
                 currentMetadata = answeredMeta
                 showRetrievedDetails = true
+            case "page":
+                #if os(iOS)
+                    if let url = StoreScenePDF.lease(termination: s1, earlyTermination: s2) {
+                        let lease = Document(filename: "Apartment Lease.pdf", fileURL: url, contentType: .pdf)
+                        storeScenePage = StoreScenePage(document: lease, page: 7, passage: s1, chunk: chunks[0])
+                    }
+                #endif
             case "consent":
                 activeCloudConsent = CloudTransmissionRecord(
                     provider: .applePCC,

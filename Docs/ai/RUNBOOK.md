@@ -679,7 +679,8 @@ DEBUG builds only, so use the smoke build's `.app`:
 - `--screenshot` turns the mode on
 - `--screenshot-tab chat | documents | visualizations | database | settings`
 - `--screenshot-import-samples` imports the three sample documents
-- `--screenshot-store answer|refusal|sources|consent` stages the listing scenes (added 2026-09-22):
+- `--screenshot-store answer|refusal|sources|consent|page` stages the listing scenes (added 2026-09-22; `page`, which
+  opens the first claim's passage on its page of a lease PDF drawn for the scene, added 2026-10-17 for 5.7's header):
   a lease question answered with three page-cited claims, a question the documents cannot answer
   with its Information Gaps panel, the sources sheet, and the Private Cloud Compute consent sheet.
   Import the samples first so the library chips read 3 documents, and wait about 18 seconds after
