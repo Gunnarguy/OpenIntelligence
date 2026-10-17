@@ -1268,6 +1268,36 @@ scripts used (`asc_upload_shots.rb`, `asc_delete_old_set.rb`, on top of the JWT 
 
 `[evidence_level: measured, confidence: exact, evidence_source: eight FAILED assets with IMAGE_BAD_FILE_EXTENSION, then eight COMPLETE after PNG conversion, iOS 5.1 localization 3b8a2fff, 2026-09-02]`
 
+## Nominating a release to Apple's editors (added 2026-10-17)
+
+A featuring nomination tells Apple's editorial team what a release brings and when (App Store Connect, the app's
+Featuring Nominations page). `scripts/asc_nominate_release.rb` sends one from `fastlane/nominations/<version>.json`
+(name, description, notes for the editors, device families, locales, the publish window, supplemental links):
+
+```bash
+zsh -ic 'ruby scripts/asc_nominate_release.rb 5.7'
+```
+
+A dry run lists the app's nominations in Drafts and Submitted and prints what it would send. `--apply` saves it as a
+draft; `--apply --submit` sends it. A nomination of the same name already there is updated in place, so the window can
+move when the release date does; a submitted one keeps its type and related apps (App Store Connect Help). An App Store
+Connect write happens only at the owner's word.
+
+- **Lengths.** App Store Connect refuses a description over 1,000 characters and notes over 500 ("The maximum
+  allowable limit is '1000'", then "'500'", on 2026-10-17, for 1,542 and 585). The script checks both before it
+  sends anything.
+- **Lead time.** App Store Connect Help asks for at least 3 weeks ("Nominate your app for featuring"), and
+  developer.apple.com/app-store/getting-featured asks for at least two weeks and suggests up to three months. The
+  script prints the days from now to the start. The API takes a start date and an optional end date
+  (`POST /v1/nominations`, `publishStartDate`, `publishEndDate`), which is the "custom range" the form offers.
+- **Read the whole output.** Ruby holds back what it prints to stdout and not what it prints to stderr, so a refusal
+  appears above the listing; a `tail` of the output hides it.
+- **5.7** was submitted on 2026-10-17 (`659dc182-131c-454e-a191-e9f93b96e64b`): App Enhancements, iPhone, iPad and
+  Mac, en-US, published 2026-11-09 to 2026-11-30, from `fastlane/nominations/5.7.json`. The 5.2 draft from
+  September ("Every Answer Says Where It Ran") was never sent and is still in Drafts.
+`[evidence_level: measured (the refusals and the submission, 2026-10-17); code_verified for the script against the API
+reference read that day; confidence: high]`
+
 ## iOS and macOS need different App Store release notes, and the lane cannot do it yet
 
 *Added 2026-08-31.*

@@ -1,0 +1,23 @@
+{
+  "name": "OpenIntelligence 5.7",
+  "type": "APP_ENHANCEMENTS",
+  "description": "OpenIntelligence is my on-device RAG app for iPhone, iPad and Mac, built completely around Apple Intelligence and the Foundation Models framework.  You add your own documents, ask questions, and every answer cites the passages it came from.  Search and ranking run on the device, and an answer goes to Private Cloud Compute only after you say yes.\n\n5.7 is about getting things in and out of the app, and making an answer easy to check:\n\n- Tap a claim in an answer and the PDF opens on that page with the passage highlighted.\n- Siri and Shortcuts can ask, search and add to your libraries, and hand what they found to the next step.\n- Spotlight and Visual Intelligence find your documents, and Siri knows what's on your screen.\n- JSON and JSONL files import as records, and very large files import a piece at a time.\n- It's in the share sheet and under Open in, and a conversation exports as Markdown, JSON Lines or a PDF.\n- The chat is plainer by default, with the technical view one switch away.",
+  "notes": "I'm a solo developer, and the app is open source (github.com/Gunnarguy/OpenIntelligence).  Everything in the description is in the 5.7 release notes and the public changelog.  Accessibility in 5.7: every switch and slider has a VoiceOver name, gray text is darker, and on iPhone and iPad the text on Chat, Documents and Settings follows the text size.  On the Mac: Services, a menu bar ask box and Handoff from the phone.  Long answers show on the Lock Screen with a Stop button.",
+  "deviceFamilies": [
+    "IPHONE",
+    "IPAD",
+    "MAC"
+  ],
+  "locales": [
+    "en-US"
+  ],
+  "publishStartDate": "2026-11-09T09:00:00-08:00",
+  "publishEndDate": "2026-11-30T09:00:00-08:00",
+  "hasInAppEvents": false,
+  "preOrderEnabled": false,
+  "launchInSelectMarketsFirst": false,
+  "supplementalMaterialsUris": [
+    "https://gunzino.me/openintelligence",
+    "https://github.com/Gunnarguy/OpenIntelligence"
+  ]
+}
