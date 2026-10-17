@@ -34,6 +34,8 @@ struct ContentView: View {
     @Environment(\.openURL) private var openURL
     /// A crash report saved since the app last offered one (`CrashReports`, 5.7).
     @State private var crashReportToOffer: URL?
+    /// What could not be added of what was shared from another app's share sheet, and what was (5.7).
+    @State private var sharedItemsMessage: SharedItemsMessage?
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
@@ -252,6 +254,7 @@ struct ContentView: View {
                 "A report of where it stopped was saved on this device. It has the app and system versions, the device model and the app's code that was running, and none of your documents, questions or answers. You can also email or share it later from Settings, About."
             )
         }
+        .modifier(SharedItemsAlert(message: $sharedItemsMessage))
         .onReceive(consentRelay.$request) { request in
             guard let request else {
                 relayedConsent = nil
@@ -561,6 +564,8 @@ struct ContentView: View {
             ragService.resumeIngestionStoppedInBackgroundIfNeeded()
             // The overview, tags and suggested questions of documents imported in the background (5.7).
             ragService.runDeferredEnrichmentsIfNeeded()
+            // Web pages and text shared from another app's share sheet while the app was away (5.7).
+            takeSharedItems()
             Task { @MainActor in
                 await refreshSharedWorkspaceIfNeeded(forceReload: workspaceSyncService.isUsingSharedWorkspace)
             }
@@ -585,6 +590,20 @@ struct ContentView: View {
 
         @unknown default:
             break
+        }
+    }
+
+    /// What was shared to OpenIntelligence from another app's share sheet (`SharedInbox`, 5.7), stored the way the
+    /// Documents screen's Paste button stores a copied address or text and handed to that screen at once for its plan
+    /// check and import review. What could not be stored is said in an alert afterwards.
+    private func takeSharedItems() {
+        guard let folder = SharedInbox.defaultFolder, SharedInbox.hasItems(in: folder) else { return }
+        Task { @MainActor in
+            let outcome = await SharedInboxImport.takeAndStage(from: folder)
+            if !outcome.staged.isEmpty { AppNavigationRequest.post(.importFiles(outcome.staged)) }
+            if !outcome.failures.isEmpty {
+                sharedItemsMessage = SharedItemsMessage(addedSome: !outcome.staged.isEmpty, failures: outcome.failures)
+            }
         }
     }
 

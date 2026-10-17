@@ -18,8 +18,9 @@ In short:
   it was never limited to those modes).
 - Library sync through your iCloud Drive is available on Pro and Lifetime, and only when you turn it on.
 - From 5.7 (in preparation, not yet on the App Store) the app downloads a web page when you give it the
-  address, with "Save a Web Page", the Link field of "Add to Library" or a web address you paste on the
-  Documents screen. The request goes to that site and carries nothing from your library.
+  address, with "Save a Web Page", the Link field of "Add to Library", a web address you paste on the
+  Documents screen or a page you share to OpenIntelligence from another app's share sheet. The request goes to that
+  site and carries nothing from your library.
 - From 5.7, when a library is written in French, German, Italian, Portuguese, Spanish, Turkish or Chinese and your
   device doesn't have that language's word classes yet, the Atlas asks the device's system to load them, which it may
   download, so its labels leave out words such as "gently". The request carries the language and nothing from your

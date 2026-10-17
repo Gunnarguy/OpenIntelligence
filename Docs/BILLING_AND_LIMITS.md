@@ -378,7 +378,12 @@ Each statement in the text was checked against the code on 2026-10-15:
   web pages, Siri asking first and crash reports (each found with `git log -S` against the `v5.6.0` tag).
 - iCloud Sync needs Pro or Lifetime (`effectiveTier.isAtLeast(.pro)`).
 - A web page comes from Save a Web Page, the Link field of Add to Library, or a web address pasted on the Documents
-  screen: the three callers of `WebPageFetchService.fetch`.
+  screen: the three callers of `WebPageFetchService.fetch`. From 5.7 (added 2026-10-17) a page shared to the app
+  from another app's share sheet is a fourth way in, and the policy names it: the share extension only writes the
+  address to the app group's inbox (`SharedInbox`), and the app downloads it through the Paste control's staging
+  (`SharedInboxImport`, `PastedContentStaging.stage`), so the callers of `fetch` are still those three.
+  `[evidence_level: code_verified, confidence: high, evidence_source: PastedContentStaging.swift:116,
+  ScreenAwarenessIntents.swift:111, AddToLibraryIntent.swift:74, SharedInboxImport.swift]`
 - A crash report (`CrashReports.fields`) holds the versions, the device model, how the app ended, the app's two state
   domains (import and answer) and the call stack, and leaves out an exception's message and the memory region
   description. About can email its summary or share the whole file.

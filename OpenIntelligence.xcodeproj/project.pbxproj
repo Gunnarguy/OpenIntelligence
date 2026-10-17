@@ -17,6 +17,9 @@
 		F0A100242F1A000100AA1001 /* IngestionLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */; };
 		F0A100252F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */; };
 		F0A100262F1A000100AA1001 /* OpenIntelligenceActivityIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */; };
+		F0B100012F1A000100AA1001 /* OpenIntelligenceShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F0B100022F1A000100AA1001 /* OpenIntelligenceShare.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F0B100032F1A000100AA1001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0B100042F1A000100AA1001 /* ShareViewController.swift */; };
+		F0B100162F1A000100AA1001 /* OpenIntelligence/App/SharedInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0B100172F1A000100AA1001 /* OpenIntelligence/App/SharedInbox.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,6 +51,13 @@
 			remoteGlobalIDString = B0D565DD2E98AC50001274A2;
 			remoteInfo = OpenIntelligence;
 		};
+		F0B100142F1A000100AA1001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B0D565D62E98AC50001274A2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F0B100102F1A000100AA1001;
+			remoteInfo = OpenIntelligenceShare;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -58,6 +68,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed Foundation Extensions */,
+				F0B100012F1A000100AA1001 /* OpenIntelligenceShare.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -76,6 +87,11 @@
 		F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OpenIntelligenceActivityIcon.png; sourceTree = "<group>"; };
 		F0A100232F1A000100AA1001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C1A100032F2E000100AA1001 /* OpenIntelligenceUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenIntelligenceUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0B100022F1A000100AA1001 /* OpenIntelligenceShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenIntelligenceShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0B100042F1A000100AA1001 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		F0B100052F1A000100AA1001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F0B100062F1A000100AA1001 /* OpenIntelligenceShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenIntelligenceShare.entitlements; sourceTree = "<group>"; };
+		F0B100172F1A000100AA1001 /* OpenIntelligence/App/SharedInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntelligence/App/SharedInbox.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -294,6 +310,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F0B100092F1A000100AA1001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -319,6 +342,7 @@
 				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
 				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
 				F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */,
+				F0B100172F1A000100AA1001 /* OpenIntelligence/App/SharedInbox.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -338,6 +362,7 @@
 				C1A100042F2E000100AA1001 /* OpenIntelligenceUITests */,
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
 				F0A1000A2F1A000100AA1001 /* OpenIntelligenceLiveActivities */,
+				F0B100072F1A000100AA1001 /* OpenIntelligenceShare */,
 				B0B991682F0F4BC700BBE97E /* Frameworks */,
 				B0D565DF2E98AC50001274A2 /* Products */,
 				B015094A2FA3A465008E428B /* Recovered References */,
@@ -352,6 +377,7 @@
 				B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */,
 				E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */,
 				F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */,
+				F0B100022F1A000100AA1001 /* OpenIntelligenceShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -373,6 +399,16 @@
 				F0A100232F1A000100AA1001 /* Info.plist */,
 			);
 			path = OpenIntelligenceLiveActivities;
+			sourceTree = "<group>";
+		};
+		F0B100072F1A000100AA1001 /* OpenIntelligenceShare */ = {
+			isa = PBXGroup;
+			children = (
+				F0B100042F1A000100AA1001 /* ShareViewController.swift */,
+				F0B100052F1A000100AA1001 /* Info.plist */,
+				F0B100062F1A000100AA1001 /* OpenIntelligenceShare.entitlements */,
+			);
+			path = OpenIntelligenceShare;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -413,6 +449,7 @@
 			);
 			dependencies = (
 				F0A100152F1A000100AA1001 /* PBXTargetDependency */,
+				F0B100152F1A000100AA1001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
@@ -484,6 +521,23 @@
 			productReference = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		F0B100102F1A000100AA1001 /* OpenIntelligenceShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F0B100112F1A000100AA1001 /* Build configuration list for PBXNativeTarget "OpenIntelligenceShare" */;
+			buildPhases = (
+				F0B100082F1A000100AA1001 /* Sources */,
+				F0B100092F1A000100AA1001 /* Frameworks */,
+				F0B1000A2F1A000100AA1001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OpenIntelligenceShare;
+			productName = OpenIntelligenceShare;
+			productReference = F0B100022F1A000100AA1001 /* OpenIntelligenceShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		C1A100082F2E000100AA1001 /* OpenIntelligenceUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C1A1000B2F2E000100AA1001 /* Build configuration list for PBXNativeTarget "OpenIntelligenceUITests" */;
@@ -528,6 +582,9 @@
 					F0A100102F1A000100AA1001 = {
 						CreatedOnToolsVersion = 26.0;
 					};
+					F0B100102F1A000100AA1001 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 				};
 			};
 			buildConfigurationList = B0D565D92E98AC50001274A2 /* Build configuration list for PBXProject "OpenIntelligence" */;
@@ -552,6 +609,7 @@
 				B0D565DD2E98AC50001274A2 /* OpenIntelligence */,
 				E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */,
 				F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */,
+				F0B100102F1A000100AA1001 /* OpenIntelligenceShare */,
 			);
 		};
 /* End PBXProject section */
@@ -587,6 +645,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1A100072F2E000100AA1001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F0B1000A2F1A000100AA1001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -634,6 +699,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F0B100082F1A000100AA1001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0B100032F1A000100AA1001 /* ShareViewController.swift in Sources */,
+				F0B100162F1A000100AA1001 /* OpenIntelligence/App/SharedInbox.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -654,6 +728,12 @@
 			platformFilter = ios;
 			target = F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */;
 			targetProxy = F0A100142F1A000100AA1001 /* PBXContainerItemProxy */;
+		};
+		F0B100152F1A000100AA1001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = F0B100102F1A000100AA1001 /* OpenIntelligenceShare */;
+			targetProxy = F0B100142F1A000100AA1001 /* PBXContainerItemProxy */;
 		};
 		C1A100022F2E000100AA1001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1153,6 +1233,70 @@
 			};
 			name = Release;
 		};
+		F0B100122F1A000100AA1001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = OpenIntelligenceShare/OpenIntelligenceShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 150;
+				DEVELOPMENT_TEAM = Z3E334EXZD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OpenIntelligenceShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 5.3;
+				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F0B100132F1A000100AA1001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = OpenIntelligenceShare/OpenIntelligenceShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 150;
+				DEVELOPMENT_TEAM = Z3E334EXZD;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OpenIntelligenceShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 5.3;
+				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1206,6 +1350,15 @@
 			buildConfigurations = (
 				C1A1000A2F2E000100AA1001 /* Release */,
 				C1A100092F2E000100AA1001 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F0B100112F1A000100AA1001 /* Build configuration list for PBXNativeTarget "OpenIntelligenceShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F0B100122F1A000100AA1001 /* Debug */,
+				F0B100132F1A000100AA1001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

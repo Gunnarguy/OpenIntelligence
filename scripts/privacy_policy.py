@@ -53,7 +53,8 @@ SECTIONS = [
         "copied to your own iCloud so your other devices signed in to the same Apple Account see the same library. Only "
         "for libraries you set to iCloud Sync; libraries are Local Only unless you change them.",
         "**A web page you add (from 5.7):** when you give the app a web address (Save a Web Page, the Link field of Add to Library, "
-        "or a web address pasted on the Documents screen), it downloads that page from its site. The site sees an "
+        "a web address pasted on the Documents screen, or a page shared to OpenIntelligence from another app's share "
+        "sheet), it downloads that page from its site. The site sees an "
         "ordinary request from your device, which carries nothing from your library. No cookies are sent or kept.",
         "**Language data for the Atlas (from 5.7):** when a library is written in French, German, Italian, Portuguese, "
         "Spanish, Turkish or Chinese and your device doesn't have that language's word classes yet, the Atlas asks your "
