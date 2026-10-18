@@ -13,10 +13,10 @@ money. Two things can make it stale:
      move. Nothing in the repo notices.
   2. A permanent price change that nobody mirrored back into the Swift table.
 
-It also re-checks the assumption that makes keying by currency safe at all: that every
-territory sharing a currency carries the same price. That held across all 177 generated
-territories on 2026-09-09, but it is a property of this price schedule, not a promise from
-Apple.
+From 5.7 it checks every territory, not a sample: a currency's price is not one amount
+everywhere (on 2026-09-29, USD 59.99 in 22 territories and EUR 49.99 in Montenegro), so the app
+keeps those territories' prices in `regularLifetimePriceExceptions` and this compares each of the
+175 open-ended prices with what the app would show there.
 
 Run this before scheduling any sale. Exit code 0 means the table matches App Store Connect.
 
@@ -36,9 +36,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SWIFT_TABLE = ROOT / "OpenIntelligence/Features/Billing/LaunchSale.swift"
 LIFETIME_IAP = "6756638872"
 
-# Territories whose currency we record. Restricted to the ones the Swift table covers; the
-# API returns all 175 storefronts and we only need to prove these are internally consistent.
-TERRITORY_CURRENCY = {
+# Kept for reference: the 28 territories the first version of this script mapped. From 5.7 every
+# territory's currency is read from /v1/territories instead (`territory_currencies`).
+TERRITORY_CURRENCY_SAMPLE = {
     "USA": "USD", "GBR": "GBP", "CAN": "CAD", "AUS": "AUD", "IND": "INR",
     "JPN": "JPY", "BRA": "BRL", "MEX": "MXN",
     "DEU": "EUR", "FRA": "EUR", "ITA": "EUR", "ESP": "EUR", "NLD": "EUR", "AUT": "EUR",
@@ -60,6 +60,32 @@ def swift_table():
         m.group(1): float(m.group(2))
         for m in re.finditer(r'"([A-Z]{3})"\s*:\s*([0-9.]+)', block.group(1))
     }
+
+
+def swift_exceptions():
+    """territory -> (currency, price) as the app compiles `regularLifetimePriceExceptions` (5.7)."""
+    text = SWIFT_TABLE.read_text(encoding="utf-8")
+    block = re.search(r"regularLifetimePriceExceptions:[^=]*=\s*\[(.*?)\n\s*\]", text, re.S)
+    if not block:
+        return {}
+    return {
+        m.group(1): (m.group(2), float(m.group(3)))
+        for m in re.finditer(r'"([A-Z]{3})"\s*:\s*\("([A-Z]{3})",\s*([0-9.]+)\)', block.group(1))
+    }
+
+
+def territory_currencies(client):
+    """territory -> currency for every App Store territory (5.7)."""
+    out, url, params = {}, "/v1/territories", {"limit": 200, "fields[territories]": "currency"}
+    for _ in range(5):
+        payload = client.get_json(url, params)
+        for item in payload.get("data", []):
+            out[item["id"]] = item["attributes"].get("currency")
+        nxt = (payload.get("links") or {}).get("next")
+        if not nxt:
+            break
+        url, params = nxt.replace("https://api.appstoreconnect.apple.com", ""), None
+    return out
 
 
 def decode_territory(price_point_id):
@@ -115,8 +141,9 @@ def regular_prices(client):
         params = None
         page += 1
 
+    currencies = territory_currencies(client)
     for territory, price in tail.items():
-        currency = TERRITORY_CURRENCY.get(territory)
+        currency = currencies.get(territory)
         if currency:
             by_currency[currency].add(price)
 
@@ -143,7 +170,8 @@ def regular_prices(client):
         rel = (row.get("relationships", {}).get("inAppPurchasePricePoint") or {}).get("data")
         if rel and rel["id"] in points:
             by_currency["USD"].add(float(points[rel["id"]]["customerPrice"]))
-    return by_currency
+            tail["USA"] = float(points[rel["id"]]["customerPrice"])
+    return by_currency, tail, currencies
 
 
 def scheduled_changes(client):
@@ -184,20 +212,33 @@ def main():
         sys.exit(f"could not import the ASC client from {asc}: {exc}")
 
     recorded = swift_table()
+    exceptions = swift_exceptions()
     client = Client(load_config())
-    live = regular_prices(client)
+    live, tail, currencies = regular_prices(client)
     changes = scheduled_changes(client)
 
     problems = []
 
-    # 1. Does any currency carry more than one price? If so, keying by currency is unsound.
-    for currency, prices in sorted(live.items()):
-        if len(prices) > 1:
-            listed = ", ".join(str(p) for p in sorted(prices))
+    # 1. Every territory: what the app would show as the regular price there against what it is (5.7).
+    shown_ok = silent = 0
+    for territory in sorted(tail):
+        price, currency = tail[territory], currencies.get(territory)
+        if territory in exceptions:
+            ex_currency, ex_price = exceptions[territory]
+            expected = ex_price if ex_currency == currency else None
+        else:
+            expected = recorded.get(currency)
+        if expected is None:
+            silent += 1
+        elif abs(expected - price) < 0.005:
+            shown_ok += 1
+        else:
             problems.append(
-                f"{currency}: territories disagree ({listed}). Keying LaunchSale by currency "
-                f"is no longer safe; key by territory or drop {currency} from the table."
+                f"{territory} ({currency}): the app would show {expected}, App Store Connect says {price}. "
+                f"Add it to LaunchSale.regularLifetimePriceExceptions or correct the table."
             )
+    print(f"{len(tail)} territories: {shown_ok} match the app, {silent} have no recorded price (no banner there), "
+          f"{len(tail) - shown_ok - silent} differ")
 
     # 2. Does the compiled table still match what Apple charges?
     print(f"{'currency':<10}{'in app':>12}{'App Store':>12}   status")
@@ -212,6 +253,8 @@ def main():
             problems.append(f"{currency}: recorded in the app but absent from App Store Connect")
         elif len(apple) == 1 and abs(in_app - apple[0]) < 0.005:
             status = "ok"
+        elif in_app in apple:
+            status = "ok where not listed as an exception (checked per territory above)"
         else:
             status = "DRIFTED"
             problems.append(
@@ -235,7 +278,8 @@ def main():
             print(f"  - {problem}")
         return 1
 
-    print("Every recorded regular price matches App Store Connect, and no currency has two.")
+    print("Every territory's regular price matches what the app would show there, or the app shows nothing. Before")
+    print("it knows the country, a currency with an exception shows nothing and any other has one price everywhere.")
     print("This proves the struck-through price the paywall shows is current. Whether a sale")
     print("is running is the separate question answered by the interval list above.")
     return 0

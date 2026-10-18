@@ -83,6 +83,24 @@ final class LaunchSaleTests: XCTestCase {
         }
     }
 
+    /// A sale's "was" price is the storefront's own regular price, or nothing (5.7, row "The next Lifetime sale would
+    /// show a false discount in Montenegro").
+    func testTheRegularPriceFollowsTheStorefrontsCountryWhereItDiffers() {
+        XCTAssertEqual(LaunchSale.regularLifetimePrice(currency: "USD", territory: "USA"), 49.99)
+        XCTAssertEqual(LaunchSale.regularLifetimePrice(currency: "USD", territory: "ALB"), 59.99)
+        XCTAssertEqual(LaunchSale.regularLifetimePrice(currency: "EUR", territory: "FRA"), 59.99)
+        XCTAssertEqual(LaunchSale.regularLifetimePrice(currency: "EUR", territory: "MNE"), 49.99)
+        XCTAssertEqual(LaunchSale.regularLifetimePrice(currency: "GBP", territory: nil), 49.99)
+        XCTAssertNil(LaunchSale.regularLifetimePrice(currency: "USD", territory: nil), "USD waits for the country")
+        XCTAssertNil(LaunchSale.regularLifetimePrice(currency: "EUR", territory: "ALB"), "a currency the row wasn't read in")
+        XCTAssertEqual(LaunchSale.regularLifetimePriceExceptions.count, 23)
+        XCTAssertEqual(LaunchSale.currenciesPricedByTerritory, ["USD", "EUR"], "every exception's currency waits for the country")
+
+        // Montenegro pays the regular EUR 49.99, so nothing is advertised there.
+        let montenegro = LaunchSale.regularLifetimePrice(currency: "EUR", territory: "MNE")
+        XCTAssertNil(LaunchSale.percentOff(regular: montenegro ?? 0, live: 49.99))
+    }
+
     func testUSDRegularPriceMatchesTheListedPrice() {
         // If this ever fails, either the App Store price changed permanently or the table is
         // stale. Both mean the banner is about to misstate a saving. Re-run

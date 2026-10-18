@@ -158,7 +158,15 @@ $49.99 point does not resolve to one price per currency: USD is 49.99 in 87 terr
 and EUR is 59.99 in 24 and 49.99 in one (MNE). `LaunchSale` keys by currency, so in a future sale window Montenegro
 would be told its regular EUR 49.99 was reduced from EUR 59.99. No build is exposed, because the only window closed on
 2026-09-30 and a new sale needs a new build. Before the next sale, key the table by territory or leave USD and EUR out,
-and make `scripts/verify_sale_prices.py` read every territory rather than its 28.
+and make `scripts/verify_sale_prices.py` read every territory rather than its 28. **Done for 5.7 (2026-10-17):**
+`LaunchSale.regularLifetimePriceExceptions` holds those 23 territories with the currency each was read in, and
+`regularLifetimePrice(currency:territory:)` gives a listed territory its own price, any other its currency's, and USD or
+EUR nothing until the storefront's country is known (`StorefrontTerritory`, read from `Storefront.current` when the app
+comes to the front and when the plans screen opens). `scripts/verify_sale_prices.py` reads every territory's currency
+from `/v1/territories` and compares each open-ended price with what the app would show there; its first run, on
+2026-10-17, found 175 territories, 141 matching, 34 with no recorded price (no banner there) and 0 that differ.
+`[evidence_level: test_verified (LaunchSaleTests), confidence: high for the table, medium for the storefront read, which
+no sale has exercised; evidence_source: LaunchSale.swift]`
 `[evidence_level: measured, confidence: exact, evidence_source: open-ended rows of /v1/inAppPurchasePriceSchedules/6756638872/automaticPrices and manualPrices, 175 territories, grouped by /v1/territories currency, 2026-09-29]`
 `[evidence_level: measured, confidence: exact, evidence_source: POST /v1/inAppPurchasePriceSchedules and GET .../manualPrices, 2026-09-29 12:25 PT; /v1/inAppPurchasePricePoints/<49.99 USA>/equalizations]`
 

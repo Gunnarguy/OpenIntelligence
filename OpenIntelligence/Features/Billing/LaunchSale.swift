@@ -57,6 +57,7 @@
 //  and .../set-up-introductory-offers-for-auto-renewable-subscriptions/, fetched 2026-09-09]
 //
 
+import Combine
 import Foundation
 import StoreKit
 
@@ -131,8 +132,9 @@ enum LaunchSale {
     /// sale window a customer in Montenegro paying the regular EUR 49.99 would be told it was
     /// reduced from EUR 59.99, and the 22 would be shown a "was" price below the one they paid.
     /// Nothing is claimed outside a window, and the window above closed on 2026-09-30, so no build
-    /// is exposed. Before the next sale, key this table by territory (or leave USD and EUR out),
-    /// and make `scripts/verify_sale_prices.py` read every territory, not the 28 it maps.
+    /// was exposed. From 5.7 the territories that differ have their own prices
+    /// (`regularLifetimePriceExceptions`, `regularLifetimePrice(currency:territory:)`), and
+    /// `scripts/verify_sale_prices.py` compares every territory's price with what the app would show there.
     ///
     /// A currency absent from this table yields no offer and no banner, which is the correct
     /// failure: silence rather than a figure converted at a rate Apple did not use.
@@ -148,6 +150,34 @@ enum LaunchSale {
 
     /// The date the price table above was read from App Store Connect, for the drift check.
     static let pricesVerifiedOn = "2026-09-29"
+
+    // MARK: - Regular prices that differ by territory (5.7)
+
+    /// Territories whose regular Lifetime price is not their currency's in `regularLifetimePrices`, from the same read of
+    /// all 175 territories on 2026-09-29 (above): USD 59.99 in 22, EUR 49.99 in Montenegro. Keyed by the App Store
+    /// storefront's three-letter country code (`Storefront.countryCode`), with the currency it was read in.
+    static let regularLifetimePriceExceptions: [String: (currency: String, price: Decimal)] = [
+        "ALB": ("USD", 59.99), "ARM": ("USD", 59.99), "AZE": ("USD", 59.99), "BEN": ("USD", 59.99), "BLR": ("USD", 59.99), "BRB": ("USD", 59.99), "CIV": ("USD", 59.99), "CMR": ("USD", 59.99), "COG": ("USD", 59.99), "GEO": ("USD", 59.99), "GHA": ("USD", 59.99), "ISL": ("USD", 59.99), "KEN": ("USD", 59.99), "MAR": ("USD", 59.99), "MDA": ("USD", 59.99), "MUS": ("USD", 59.99), "NPL": ("USD", 59.99), "SEN": ("USD", 59.99), "UGA": ("USD", 59.99), "UKR": ("USD", 59.99), "ZMB": ("USD", 59.99), "ZWE": ("USD", 59.99),
+        "MNE": ("EUR", 49.99),
+    ]
+
+    /// Currencies whose regular price is not one amount in every territory, so a "was" price in them waits for the
+    /// storefront's country. Taken from the exceptions, so a new one's currency can't be left out (review of 2026-10-17).
+    static var currenciesPricedByTerritory: Set<String> {
+        Set(regularLifetimePriceExceptions.values.map(\.currency))
+    }
+
+    /// The regular Lifetime price in a storefront, or nil to say nothing (5.7). A territory listed above has its own, in
+    /// its own currency; any other has its currency's; a currency priced by territory says nothing until the country is
+    /// known. Through 5.6 a sale keyed the regular price by currency alone, which would have told Montenegro, paying the
+    /// regular EUR 49.99, that it was reduced from EUR 59.99.
+    static func regularLifetimePrice(currency: String, territory: String?) -> Decimal? {
+        if let territory, let exception = regularLifetimePriceExceptions[territory] {
+            return exception.currency == currency ? exception.price : nil
+        }
+        if territory == nil, currenciesPricedByTerritory.contains(currency) { return nil }
+        return regularLifetimePrices[currency]
+    }
 
     // MARK: - The money math, isolated so it can be tested
 
@@ -177,6 +207,7 @@ enum LaunchSale {
     static func offer(
         for product: BillingProduct,
         storeProduct: Product,
+        territory: String?,
         now: Date = Date()
     ) -> LaunchSaleOffer? {
         guard product == .lifetimeCohort else { return nil }
@@ -184,7 +215,7 @@ enum LaunchSale {
         guard let window, window.contains(now) else { return nil }
 
         let currency = storeProduct.priceFormatStyle.currencyCode
-        guard let regular = regularLifetimePrices[currency] else { return nil }
+        guard let regular = regularLifetimePrice(currency: currency, territory: territory) else { return nil }
         guard let percent = percentOff(regular: regular, live: storeProduct.price) else { return nil }
 
         return LaunchSaleOffer(
@@ -217,5 +248,18 @@ enum LaunchSale {
         var style = Date.FormatStyle.dateTime.month(.wide).day()
         style.timeZone = calendar.timeZone
         return lastDay.formatted(style)
+    }
+}
+
+/// The App Store storefront's country (5.7), for the regular prices that differ by territory. Nil until it is read,
+/// and nil when StoreKit has no storefront; the sale then says nothing in a currency priced by territory.
+@MainActor
+final class StorefrontTerritory: ObservableObject {
+    static let shared = StorefrontTerritory()
+
+    @Published private(set) var code: String?
+
+    func refresh() async {
+        code = await Storefront.current?.countryCode
     }
 }

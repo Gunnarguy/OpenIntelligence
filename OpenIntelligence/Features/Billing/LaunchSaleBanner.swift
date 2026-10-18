@@ -16,6 +16,8 @@ struct LaunchSaleBanner: View {
     @EnvironmentObject private var entitlementStore: EntitlementStore
     @AppStorage("launchSaleBanner.dismissedWindowEnd") private var dismissedWindowEnd: Double = 0
     @State private var showPlans = false
+    /// The storefront's country, for the sale's regular price (5.7). The app reads it when it comes to the front.
+    @ObservedObject private var storefront = StorefrontTerritory.shared
 
     var body: some View {
         if let offer = currentOffer, dismissedWindowEnd != offer.endDate.timeIntervalSince1970 {
@@ -55,6 +57,6 @@ struct LaunchSaleBanner: View {
     private var currentOffer: LaunchSaleOffer? {
         guard !entitlementStore.effectiveTier.isAtLeast(.pro) else { return nil }
         guard let product = entitlementStore.product(for: .lifetimeCohort) else { return nil }
-        return LaunchSale.offer(for: .lifetimeCohort, storeProduct: product)
+        return LaunchSale.offer(for: .lifetimeCohort, storeProduct: product, territory: storefront.code)
     }
 }

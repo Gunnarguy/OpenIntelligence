@@ -21,6 +21,8 @@ struct PlanUpgradeSheet: View {
     @State private var selectedStoryIndex = 0
     @State private var showingTerms = false
     @State private var showingPrivacy = false
+    /// The storefront's country, for a sale's regular price (5.7).
+    @ObservedObject private var storefront = StorefrontTerritory.shared
 
     /// Sorted top-to-bottom by level and billing period to match the release catalog.
     /// The UI intentionally surfaces every SKU so we can spot missing App Store Connect
@@ -179,6 +181,7 @@ struct PlanUpgradeSheet: View {
             // keep advertising a discount the customer would not actually be charged. Refreshing
             // here keeps what the banner claims and what checkout charges the same number.
             await entitlementStore.billingService.refreshProducts()
+            await storefront.refresh()
         }
     }
 }
@@ -545,7 +548,7 @@ extension PlanUpgradeSheet {
     /// so no claim is made.
     fileprivate func saleOffer(for product: BillingProduct) -> LaunchSaleOffer? {
         guard let storeProduct = entitlementStore.product(for: product) else { return nil }
-        return LaunchSale.offer(for: product, storeProduct: storeProduct)
+        return LaunchSale.offer(for: product, storeProduct: storeProduct, territory: storefront.code)
     }
 
     fileprivate func priceSuffix(for product: BillingProduct) -> String? {

@@ -566,6 +566,8 @@ struct ContentView: View {
             ragService.runDeferredEnrichmentsIfNeeded()
             // Web pages and text shared from another app's share sheet while the app was away (5.7).
             takeSharedItems()
+            // The storefront's country, for a sale's regular price where it differs by territory (5.7).
+            Task { await StorefrontTerritory.shared.refresh() }
             Task { @MainActor in
                 await refreshSharedWorkspaceIfNeeded(forceReload: workspaceSyncService.isUsingSharedWorkspace)
             }
