@@ -690,7 +690,9 @@ DEBUG builds only, so use the smoke build's `.app`:
   and pin a clean status bar with `xcrun simctl status_bar <udid> override --time 9:41 ...`. From 5.7 a fresh
   install also starts with the plain chat (Technical Details off: no stats bar, progress in words, Fact Check
   without confidence scores); add the launch argument `-showTechnicalDetails YES` for a scene that should show the
-  console. The X-Ray's setting no longer decides it (added 2026-10-17).
+  console. The X-Ray's setting no longer decides it (added 2026-10-17). In `--screenshot-store` scenes the routing
+  pill shows the ready state an iPhone with Apple Intelligence shows; the Simulator reports the model unavailable, and
+  the pill read "Unavailable" in red (`ModelStatusIndicator.shownStatus`, DEBUG only, added 2026-10-17).
   Then `python3 scripts/compose_store_screenshots.py <raw> <out>` captions them, and
   `zsh -ic 'ruby scripts/asc_upload_screenshots.rb <version> <out> --apply'` replaces the sets,
   uploading every new image before deleting any old one.

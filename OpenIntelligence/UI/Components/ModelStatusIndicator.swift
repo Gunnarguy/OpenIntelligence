@@ -181,7 +181,7 @@ struct ModelStatusIndicator: View {
     /// worth reading rather than a redundant "Ready" — these describe where each
     /// preference actually sends work, which is the thing the one-word names elide.
     private var statusText: String {
-        switch modelResolution.currentState.status {
+        switch shownStatus {
         case .loading: return "Preparing"
         case .unavailable: return "Unavailable"
         case .ready:
@@ -201,6 +201,16 @@ struct ModelStatusIndicator: View {
         }
     }
 
+    /// The status the pill shows. In a DEBUG build's App Store scenes (`--screenshot-store`) it is the one an iPhone
+    /// with Apple Intelligence shows, `.ready`: the Simulator always reports `.unavailable`, which put "Unavailable"
+    /// on a red pill in the store images (5.7).
+    private var shownStatus: ModelResolutionState.ModelStatus {
+        #if DEBUG
+            if LaunchArguments.valueEither(for: "screenshot-store") != nil { return .ready }
+        #endif
+        return modelResolution.currentState.status
+    }
+
     private var statusColor: Color {
         if modelResolution.isProcessing {
             switch modelResolution.currentState.executionPath {
@@ -212,7 +222,7 @@ struct ModelStatusIndicator: View {
                 return .purple
             }
         }
-        switch modelResolution.currentState.status {
+        switch shownStatus {
         case .ready:
             switch settings.fmPreference.canonical {
             case .automatic: return .purple
