@@ -78,6 +78,21 @@ final class SharedInboxTests: XCTestCase {
         XCTAssertEqual(last.items.map(\.item.value), [waiting.value])
     }
 
+    /// An item the plan had no room for goes back as it was: no try counted, and it is taken again next time (5.7).
+    func testAnItemReleasedGoesBackAsItWas() throws {
+        let page = item(.link, "https://example.com/manual", at: 1_000)
+        try SharedInbox.save([page], in: folder)
+        let claimed = try XCTUnwrap(SharedInbox.claimAll(from: folder).items.first)
+        XCTAssertEqual(SharedInbox.waitingCount(in: folder), 0, "taken")
+
+        SharedInbox.release(claimed, into: folder)
+        XCTAssertEqual(SharedInbox.waitingCount(in: folder), 1)
+        let again = try XCTUnwrap(SharedInbox.claimAll(from: folder).items.first)
+        XCTAssertEqual(again.item, page, "no try counted")
+        SharedInbox.finish(again)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.path), [], "nothing left behind")
+    }
+
     /// A file that can't be read is removed, so it doesn't wait forever.
     func testAnUnreadableFileIsRemoved() throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

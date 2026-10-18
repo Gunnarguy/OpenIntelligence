@@ -41,20 +41,29 @@ enum SharedInboxImport {
         }
     }
 
-    /// Takes what is waiting and stores it in the imported-documents folder. A failure names the item, and says when
-    /// it will be tried again.
-    static func takeAndStage(from folder: URL) async -> PastedContentStaging.Outcome {
-        guard !isTaking else { return PastedContentStaging.Outcome() }
+    /// Takes what is waiting and stores it in the imported-documents folder, at most `room` items: the Documents screen
+    /// removes a file it can't add, so what the plan has no room for goes back into the inbox as it was and waits
+    /// (review of 2026-10-17). A failure names the item, and says when it will be tried again. Returns how many wait.
+    static func takeAndStage(from folder: URL, room: Int = .max) async -> (
+        outcome: PastedContentStaging.Outcome, waiting: Int
+    ) {
+        guard !isTaking else { return (PastedContentStaging.Outcome(), 0) }
         isTaking = true
         defer { isTaking = false }
 
         var outcome = PastedContentStaging.Outcome()
+        var waiting = 0
         let claim = SharedInbox.claimAll(from: folder)
         for item in claim.letGo {
             outcome.failures.append(
                 "\(label(for: item)): OpenIntelligence closed while adding it \(SharedInbox.maxAttempts) times, so it wasn't added.")
         }
         for claimed in claim.items {
+            guard outcome.staged.count < room else {
+                SharedInbox.release(claimed, into: folder)
+                waiting += 1
+                continue
+            }
             guard let item = pastedItem(claimed.item), let provider = provider(for: item) else {
                 SharedInbox.finish(claimed)
                 continue
@@ -71,7 +80,7 @@ enum SharedInboxImport {
                 outcome.failures += one.failures
             }
         }
-        return outcome
+        return (outcome, waiting)
     }
 }
 

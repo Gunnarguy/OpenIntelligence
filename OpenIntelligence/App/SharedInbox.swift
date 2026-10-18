@@ -164,6 +164,20 @@ nonisolated enum SharedInbox {
         return true
     }
 
+    /// The item goes back into the inbox as it was, with no try counted: the plan had no room for it (5.7). When it
+    /// can't be moved, it stays in this call's folder, and the next `claimAll(from:)` puts it back the same way.
+    static func release(_ claimed: Claimed, into folder: URL) {
+        let destination = folder.appendingPathComponent(claimed.file.lastPathComponent)
+        guard (try? FileManager.default.moveItem(at: claimed.file, to: destination)) != nil else { return }
+        let claim = claimed.file.deletingLastPathComponent()
+        if claim.lastPathComponent.hasPrefix(claimPrefix) { removeIfEmpty(claim) }
+    }
+
+    /// How many items wait in the inbox.
+    static func waitingCount(in folder: URL) -> Int {
+        ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasSuffix(".json") }.count
+    }
+
     /// Whether anything is waiting, or was left half taken, without taking it.
     static func hasItems(in folder: URL) -> Bool {
         let fileManager = FileManager.default

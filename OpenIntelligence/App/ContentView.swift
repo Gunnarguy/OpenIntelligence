@@ -603,13 +603,31 @@ struct ContentView: View {
     private func takeSharedItems() {
         guard let folder = SharedInbox.defaultFolder, SharedInbox.hasItems(in: folder) else { return }
         Task { @MainActor in
-            let outcome = await SharedInboxImport.takeAndStage(from: folder)
+            // Only what the plan has room for: the rest waits in the inbox, and the app says so once for each new
+            // number waiting (review of 2026-10-17).
+            let taken = await SharedInboxImport.takeAndStage(from: folder, room: documentRoom())
+            let outcome = taken.outcome
             if !outcome.staged.isEmpty { AppNavigationRequest.post(.importFiles(outcome.staged)) }
-            if !outcome.failures.isEmpty {
-                sharedItemsMessage = SharedItemsMessage(addedSome: !outcome.staged.isEmpty, failures: outcome.failures)
+            var lines = outcome.failures
+            if taken.waiting > Self.sharedItemsSaidWaiting {
+                let things =
+                    taken.waiting == 1 ? "One thing you shared waits" : "\(taken.waiting) things you shared wait"
+                lines.append(
+                    "\(things) in OpenIntelligence, because your plan has room for no more documents. Remove a document "
+                        + "or upgrade, and \(taken.waiting == 1 ? "it's" : "they're") added the next time you open "
+                        + "OpenIntelligence.")
+            }
+            Self.sharedItemsSaidWaiting = taken.waiting
+            if !lines.isEmpty {
+                sharedItemsMessage = SharedItemsMessage(
+                    addedSome: !outcome.staged.isEmpty, failures: lines,
+                    customTitle: outcome.failures.isEmpty ? "Waiting for Room in Your Plan" : nil)
             }
         }
     }
+
+    /// The number of shared items the app last said were waiting, so it says so once and not at every return.
+    @MainActor private static var sharedItemsSaidWaiting = 0
 
     /// Pages scanned with the Lock Screen's "Scan into Library" (`LockedCaptureImport`, 5.7), handed to the Documents
     /// screen for its plan check and import review, into the library that is open. Only as many as the plan has room
@@ -640,7 +658,8 @@ struct ContentView: View {
     @MainActor private static var lockScreenPagesSaidWaiting = 0
 
     /// How many more documents the plan takes, counted up to `cap` (5.7). The Documents screen removes a handed-over file
-    /// it can't add, so what's taken from the Lock Screen camera is only what fits (review of 2026-10-17).
+    /// it can't add, so what's taken from the Lock Screen camera or the share inbox is only what fits (review of
+    /// 2026-10-17).
     private func documentRoom(cap: Int = 1_000) -> Int {
         let count = ragService.documents.count
         var room = 0
