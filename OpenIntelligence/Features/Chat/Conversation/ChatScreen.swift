@@ -3433,14 +3433,17 @@ struct ChatScreen: View {
                             ChatAnswerNotice.shared.answerFinishedOffScreen()
                         }
 
-                        // Show completion toast with token count
-                        let tokenCount = response.metadata.tokensGenerated
+                        // The token count is a technical detail: the plain chat (5.7) ends on the answer itself
+                        // and the haptic above, and Technical Details keeps the toast.
                         self.toastManager.clearAll()
-                        self.pushToast(
-                            tokenCount > 0 ? "Done • \(tokenCount) tokens" : "Complete",
-                            icon: "checkmark.circle.fill",
-                            tint: .green
-                        )
+                        if self.settings.showTechnicalDetails {
+                            let tokenCount = response.metadata.tokensGenerated
+                            self.pushToast(
+                                tokenCount > 0 ? "Done • \(tokenCount) tokens" : "Complete",
+                                icon: "checkmark.circle.fill",
+                                tint: .green
+                            )
+                        }
 
                         // Mark the foreground answer as complete immediately.
                         // Any smart replies generated after this point are background work.

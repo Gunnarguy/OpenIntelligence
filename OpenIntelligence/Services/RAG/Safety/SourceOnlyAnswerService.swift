@@ -1133,7 +1133,11 @@ final class SourceOnlyAnswerService {
         let evidenceMap = Dictionary(uniqueKeysWithValues: evidenceRecords.map { ($0.label, $0) })
         var addedEvidenceIds: Set<String> = []
 
-        for claim in supportedClaims {
+        // The answer's own headings are not listed as claims (5.7), as in `StructuredAnswer`, unless every claim is one.
+        let headings = VerificationGateService.headingLines(in: finalAnswer)
+        let nonHeadingClaims = supportedClaims.filter { !headings.contains(VerificationGateService.headingKey($0.claimText)) }
+        let listedClaims = nonHeadingClaims.isEmpty ? supportedClaims : nonHeadingClaims
+        for claim in listedClaims {
             _ = builder.addClaim(
                 claim.claimText,
                 evidenceIds: claim.evidenceIds,

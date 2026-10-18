@@ -344,9 +344,11 @@ actor VerificationGateService {
                 VerificationClaimInput(claim: $0.claim, citations: $0.citations)
             }
         } else {
-            claimInputs = extractClaims(from: response).map {
-                VerificationClaimInput(claim: $0, citations: [])
-            }
+            // Headings stay out here too (5.7): with no structured claims, a heading sentence was checked and counted
+            // while the answer's claim list left it out (review, 2026-10-18).
+            claimInputs = extractClaims(from: response)
+                .filter { !headings.contains(Self.headingKey($0)) }
+                .map { VerificationClaimInput(claim: $0, citations: []) }
         }
 
         guard !claimInputs.isEmpty else {
@@ -1293,14 +1295,16 @@ actor VerificationGateService {
     }
 
     /// The answer's heading lines, as `headingKey` keys (5.7): a Markdown heading ("## Hotel Address in Lisbon"), a
-    /// line in bold on its own, or a short line ending in a colon.
+    /// bold line that reads as a title (`isBoldTitle`), or a short line ending in a colon. Citation markers on a line
+    /// are ignored, so "## Notice to Enter [S1]" is the heading "Notice to Enter".
     nonisolated static func headingLines(in response: String) -> Set<String> {
         var keys: Set<String> = []
         for raw in response.split(whereSeparator: \.isNewline) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
+            let line = raw.replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
             let isHeading =
                 line.hasPrefix("#")
-                || (line.hasPrefix("**") && line.hasSuffix("**") && line.count > 4)
+                || isBoldTitle(line)
                 || (line.hasSuffix(":") && line.split(separator: " ").count <= 8)
             if isHeading {
                 keys.insert(headingKey(line))
@@ -1310,9 +1314,23 @@ actor VerificationGateService {
         return keys
     }
 
-    /// A line or a claim reduced to its words, lowercased, for matching a claim against the answer's headings.
+    /// Whether a line is only bold text that reads as a title rather than a sentence (5.7): eight words or fewer, no
+    /// digit, and no full stop, question mark or exclamation mark at its end. "**Check-out**" and "**Notice to Enter**"
+    /// are titles; "**Yes, cats are allowed with a $400 deposit.**" is a claim the answer makes in bold, and treating
+    /// every bold line as a heading took such a claim out of the answer (review, 2026-10-18).
+    nonisolated static func isBoldTitle(_ line: String) -> Bool {
+        guard line.hasPrefix("**"), line.hasSuffix("**"), line.count > 4 else { return false }
+        let inner = line.dropFirst(2).dropLast(2).trimmingCharacters(in: .whitespaces)
+        guard let last = inner.last, inner.split(separator: " ").count <= 8, !inner.contains(where: \.isNumber)
+        else { return false }
+        return !".!?".contains(last)
+    }
+
+    /// A line or a claim reduced to its words, lowercased and without citation markers, for matching a claim against
+    /// the answer's headings: the claim "Notice to Enter [S1]" matches the heading "**Notice to Enter**" (5.7).
     nonisolated static func headingKey(_ text: String) -> String {
-        text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+        text.replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+            .lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
     }
 
     /// Check if sentence contains factual content worth verifying

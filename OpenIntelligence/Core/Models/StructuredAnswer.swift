@@ -367,11 +367,11 @@ extension StructuredAnswer {
         let topScore = retrievedChunks.first?.similarityScore ?? 0
         _ = builder.setTopScore(topScore)
 
-        let claims: [StructuredRAGClaim]
+        let candidateClaims: [StructuredRAGClaim]
         if let structuredGeneration, !structuredGeneration.claims.isEmpty {
-            claims = Array(structuredGeneration.claims.prefix(6))
+            candidateClaims = Array(structuredGeneration.claims.prefix(6))
         } else {
-            claims = extractClaims(from: answerText, answerIntent: answerIntent).prefix(6).map {
+            candidateClaims = extractClaims(from: answerText, answerIntent: answerIntent).prefix(6).map {
                 StructuredRAGClaim(
                     claim: $0,
                     citations: [],
@@ -379,6 +379,7 @@ extension StructuredAnswer {
                 )
             }
         }
+        let claims = droppingHeadings(candidateClaims, of: answerText)
 
         var selectedEvidence: [RetrievedChunk] = []
         var claimsByEvidence: [UUID: [String]] = [:]
@@ -477,7 +478,7 @@ extension StructuredAnswer {
         _ = builder.setTopScore(retrievedChunks.first?.similarityScore ?? 0)
 
         let normalizedClaims: [StructuredRAGClaim] = {
-            let claims = structuredGeneration.claims.compactMap { claim -> StructuredRAGClaim? in
+            let claims = droppingHeadings(structuredGeneration.claims.compactMap { claim -> StructuredRAGClaim? in
                 let claimText = cleanClaimText(claim.claim)
                 guard !claimText.isEmpty else { return nil }
                 return StructuredRAGClaim(
@@ -486,7 +487,7 @@ extension StructuredAnswer {
                     isExtracted: claim.isExtracted
                 )
             }
-            .filter { !isQuestionLikeClaim($0.claim) }
+            .filter { !isQuestionLikeClaim($0.claim) }, of: answerText)
 
             if claims.isEmpty {
                 return [StructuredRAGClaim(
@@ -681,10 +682,31 @@ extension StructuredAnswer {
 
     nonisolated private static func cleanClaimText(_ text: String) -> String {
         text
-            .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+            // A citation goes with the space before it: "an emergency [S1]." read "an emergency ." in Fact Check
+            // (demo copy of 9c0d1dd, 2026-10-18).
+            .replacingOccurrences(of: #"\s*\[S\d+\]"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"^#{1,6}\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            // What a removed citation can leave behind: "11:00 a.m. [S2]." becomes "11:00 a.m..", and "the 5th
+            // [S1], [S2]." becomes "the 5th,.". Exactly two full stops become one (an ellipsis keeps its three), and a
+            // comma, semicolon or colon just before a sentence's last mark goes (review, 2026-10-18).
+            .replacingOccurrences(of: #"(?<!\.)\.\.(?!\.)"#, with: ".", options: .regularExpression)
+            .replacingOccurrences(of: #"[,;:](?=[.!?](?:\s|\*|$))"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The claims that are not one of the answer's own headings (5.7), matched as Gate B matches them
+    /// (`VerificationGateService.headingLines` and `headingKey`), so Fact Check neither lists a heading as
+    /// "Not checked" nor counts it. A right answer read "1 of 2 Verified" for its heading "Notice to Enter" in 2 of 4
+    /// takes of one question (demo copy of 9c0d1dd, 2026-10-18). When every claim would go, the list stays as it was:
+    /// an answer is never left with no claims, which with the checks on turns it into a refusal (review, 2026-10-18).
+    nonisolated private static func droppingHeadings(
+        _ claims: [StructuredRAGClaim], of answerText: String
+    ) -> [StructuredRAGClaim] {
+        let headings = VerificationGateService.headingLines(in: answerText)
+        guard !headings.isEmpty else { return claims }
+        let kept = claims.filter { !headings.contains(VerificationGateService.headingKey($0.claim)) }
+        return kept.isEmpty ? claims : kept
     }
 
     nonisolated private static func citationIndex(from citation: String) -> Int? {
@@ -1224,12 +1246,28 @@ extension StructuredAnswer {
         let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let lastCharacter = trimmed.last else { return citations.joined(separator: " ") }
 
+        // A sentence that ends on an abbreviation keeps that full stop, and the citation gets a full stop of its own,
+        // the way the model writes it: "Check-out is at 11:00 a.m. [S1]." Taking the last mark off gave
+        // "11:00 a.m [S1]." (review, 2026-10-18).
+        if lastCharacter == ".", endsWithAbbreviation(trimmed) {
+            return "\(trimmed) \(citations.joined(separator: " "))."
+        }
+
         if [".", "!", "?"].contains(lastCharacter) {
             let body = String(trimmed.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
             return "\(body) \(citations.joined(separator: " "))\(lastCharacter)"
         }
 
         return "\(trimmed) \(citations.joined(separator: " "))."
+    }
+
+    /// Whether a sentence's last word is an abbreviation with its own full stop: "a.m.", "p.m.", "e.g.", "U.S.",
+    /// "etc.", "Inc." (5.7).
+    nonisolated static func endsWithAbbreviation(_ sentence: String) -> Bool {
+        guard let last = sentence.split(separator: " ").last else { return false }
+        let word = String(last).trimmingCharacters(in: CharacterSet(charactersIn: "\"'\u{201D}\u{2019})]*_"))
+        if word.range(of: #"^(?:[A-Za-z]\.){2,}$"#, options: .regularExpression) != nil { return true }
+        return ["etc.", "inc.", "ltd.", "co.", "corp.", "jr.", "sr.", "vs."].contains(word.lowercased())
     }
 
     nonisolated private static func punctuatedSentence(_ text: String) -> String {
