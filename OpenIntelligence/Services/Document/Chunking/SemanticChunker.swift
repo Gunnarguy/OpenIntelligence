@@ -2157,6 +2157,15 @@ nonisolated class SemanticChunker {
         in text: String
     ) -> String.Index {
         guard overlap > 0, start < chunkEnd else { return chunkEnd }
+        // A passage that reaches the end of the text, or all of it but a short tail with no letter or digit (spaces,
+        // punctuation, symbols), leaves nothing to cut. Stepping back for the overlap there made one more passage of the
+        // overlap alone, wholly inside the one before it, at the end of nearly every document (5.7, measured
+        // 2026-10-17). At most 64 characters are looked at, so this is no pass over the rest of the text.
+        if text.index(chunkEnd, offsetBy: 64, limitedBy: text.endIndex) == nil,
+            !text[chunkEnd...].contains(where: { $0.isLetter || $0.isNumber })
+        {
+            return text.endIndex
+        }
         let passage = String(text[start..<chunkEnd])
         cachedWordTokenizer.string = passage
         let words = cachedWordTokenizer.tokens(for: passage.startIndex..<passage.endIndex)

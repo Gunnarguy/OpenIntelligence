@@ -84,6 +84,32 @@ final class SemanticChunkerTests: XCTestCase {
         }
     }
 
+    /// The last passage isn't the overlap again (5.7, measured 2026-10-17). A passage that reached the end of the text
+    /// still stepped back for the overlap, and the loop cut one more passage of the overlap alone, wholly inside the one
+    /// before it, at the end of nearly every document.
+    func testTheLastPassageIsNotTheOverlapAgain() {
+        let sentence = "The sterilizer cycle must be checked before each use by the operator."
+        for ending in ["", "\n\n", " ."] {
+            let text = Array(repeating: sentence, count: 60).joined(separator: " ") + ending
+            var config = SemanticChunker.ChunkingConfig()
+            config.targetSize = 100
+            config.minSize = 50
+            config.maxSize = 150
+            config.overlap = 20
+            config.useTopicDetection = false
+
+            let chunks = chunker.chunkText(text, documentId: UUID(), config: config)
+            XCTAssertGreaterThan(chunks.count, 2, "ending \(ending.debugDescription)")
+            guard let last = chunks.last else { continue }
+            let previous = chunks[chunks.count - 2]
+            XCTAssertGreaterThan(
+                last.metadata.endOffset, previous.metadata.endOffset,
+                "ending \(ending.debugDescription): the last passage lies inside the one before it")
+            let lastWords = last.content.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+            XCTAssertTrue(lastWords.hasSuffix("by the operator"), "ending \(ending.debugDescription): the text's last words")
+        }
+    }
+
     /// A sentence starts at the start of the text, after a line break, or after a sentence's end, quotes allowed; not in
     /// the middle of a sentence (5.7).
     func testWhereASentenceCanStart() {
