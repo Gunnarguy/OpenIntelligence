@@ -268,6 +268,13 @@ struct ContainerPill: View {
                 Label("Select Library", systemImage: "checkmark.circle")
             }
 
+            // A link that opens this library in OpenIntelligence, as a document's Copy Link does (5.7).
+            Button {
+                SystemClipboard.copy(AppLink.webURL(for: .library(container.id)).absoluteString)
+            } label: {
+                Label("Copy Link", systemImage: "link")
+            }
+
             if let onSetLibraryStorage {
                 Divider()
 

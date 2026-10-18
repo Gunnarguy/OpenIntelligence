@@ -116,6 +116,17 @@ struct ModernDocumentCard: View {
         )
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .contextMenu {
+            // A link that opens this document in OpenIntelligence on any of the person's devices that has it, and the
+            // App Store page where the app isn't installed (5.7). The web form, so Notes, Mail and Messages show it as a
+            // link (`AppLink.webURL(for:)`).
+            Button {
+                SystemClipboard.copy(AppLink.webURL(for: .document(document.id)).absoluteString)
+            } label: {
+                Label("Copy Link", systemImage: "link")
+            }
+
+            Divider()
+
             Button(role: .destructive) {
                 deleteMode = .local
                 showingDeleteAlert = true
