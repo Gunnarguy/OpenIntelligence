@@ -3,9 +3,9 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 
 YOUR DOCUMENTS
 
-• JSON and JSONL files import as records, each with its field names and numbers kept exactly as the file has them.
+• JSON and JSONL files import as records, with their field names and numbers kept as they are.
 
-• Very large text and JSONL files import a piece at a time, and an interrupted import picks up where it was.  An 88 MB file used to take 2.8 GB of memory on an iPhone, and iOS closed the app before it was a fifth done.  The import queue has a Pause button now too.
+• Very large text and JSONL files import a piece at a time, an interrupted import picks up where it was, and the import queue has a Pause button.
 
 • You can drop a file on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
 
@@ -18,7 +18,7 @@ YOUR DOCUMENTS
 
 LARGE LIBRARIES
 
-• A very large library doesn't hold the app up.  With 144,247 passages in one library, the app read all of it twice every time it opened.  Now it's read once, and those steps work from an even sample.
+• A very large library doesn't hold the app up.  With 144,247 passages, the app read them all twice at every launch, and now it's once.
 
 • The Atlas opens on a very large library, and it names its clusters and axes from your own documents.
 
@@ -29,9 +29,9 @@ SIRI, SHORTCUTS AND SPOTLIGHT
 
 • New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Set Answer Mode, Get Settings, Open Library, Open Document and Export Conversation.
 
-• When a question from Siri needs Private Cloud Compute and you haven't said yes or no to it yet, the app comes up and asks first.
+• If a question from Siri needs Private Cloud Compute and you haven't decided yet, the app comes up and asks first.
 
-• Spotlight keeps your documents until you delete them, and tapping one opens it.  Visual Intelligence lists the documents in your libraries that mention what the camera sees.
+• Spotlight keeps your documents until you delete them, and tapping one opens it.  Visual Intelligence lists the documents that mention what the camera sees.
 
 • On the Mac: a menu bar icon, Ask and Add in the Services menu, and keyboard shortcuts, like Shift-Command-N for a new conversation and Command-O to add documents.
 
@@ -40,14 +40,18 @@ SHARING
 
 • A shared answer takes its sources with it, Image makes a card of an answer to post, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.
 
+• Copy Link on a document or a library opens it in the app on your other devices, or the App Store where it isn't.
+
 • Copy works on the Mac.  The Copy button under an answer showed "Copied" and copied nothing.
 
 
 ANSWERS
 
-• Ask out loud: the chat field has a microphone, and dictation runs on your device.
+• Tap a point in an answer and the PDF it came from opens on that page, with the passage highlighted.
 
-• The step that passes over a passage repeating one already picked never did anything before the model wrote.  It works now, so an answer sees more than one part of your documents.
+• The chat is plainer to look at.  Technical Details, under ⋯ or in Settings, brings back the stats and every step, and it stays on if you've used the app before.
+
+• Ask out loud: the chat field has a microphone, and dictation runs on your device.
 
 • Sentences from your documents aren't cut in half before the model reads them, numbers are checked as numbers, and a code like E1 counts as a keyword.
 
@@ -62,7 +66,7 @@ ALSO
 
 • Redeem a Code on the plans screen.
 
-• Easier to read: darker gray text, black or white words on colored labels, and a deeper blue in light mode.
+• Easier to read: darker gray text, black or white words on colored labels, and a deeper blue in light mode.  VoiceOver names every switch and slider.
 
 
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.

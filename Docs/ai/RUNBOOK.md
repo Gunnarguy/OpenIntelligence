@@ -1270,6 +1270,34 @@ scripts used (`asc_upload_shots.rb`, `asc_delete_old_set.rb`, on top of the JWT 
 
 `[evidence_level: measured, confidence: exact, evidence_source: eight FAILED assets with IMAGE_BAD_FILE_EXTENSION, then eight COMPLETE after PNG conversion, iOS 5.1 localization 3b8a2fff, 2026-09-02]`
 
+## Uploading the product page header and search result image (added 2026-10-17)
+
+From iOS 27 the App Store shows a product page header and a search result image, set per version localization through
+the App Asset Library (App Store Connect API reference, "Uploading and managing image assets" and "Placing assets on
+your App Store surfaces", read 2026-10-17). `scripts/asc_upload_listing_art.rb` does it for a version's iOS en-US
+localization:
+
+```bash
+zsh -ic 'ruby scripts/asc_upload_listing_art.rb 5.7 <header.png> <search.png>'
+```
+
+A dry run reads the localization's placements and says what it would upload; `--apply` reserves each image
+(`POST /v1/appAssetLibraryImages`, category `CREATIVE_ASSETS`), sends the bytes to the upload operations, commits with
+`uploaded: true`, waits for `PREPARE_FOR_SUBMISSION`, checks that App Store Connect matched the intended specification,
+and places it (`POST /v1/appAssetLibraryPlacements`, group `DEFAULT_PROFILE`, one of each type per localization). A
+type already placed is left alone; to replace one, delete its placement and run again. The version must be editable.
+
+- **Sizes** (the reference data, `GET /v1/appAssetLibraryRefData`, read 2026-10-17): the header is exactly 3840x1646
+  PNG (21:9); the search image is 3:2, 1920 to 3840 wide, PNG or JPEG; neither may have an alpha channel. A 5244x2950
+  PNG (16:9) fits either.
+- **The images** come from the listing scenes (`--screenshot-store`, "Regenerating App Store screenshots" above) and
+  the compositor in the local, gitignored `Growth/store-assets-<version>/compose_wide.py`; show the owner a contact
+  sheet before uploading.
+- **5.7**, 2026-10-17, at the owner's word after the contact sheet ("A"): header image
+  `cfc00019-2b8e-8947-8028-fea29781e211` (3840x1646) and search image `c6c00019-2b8e-8947-8024-acf51b254f64`
+  (3840x2560), placed on the iOS en-US localization `31bac9d6-082a-4519-9217-1b261b92a1b6`, both placements ACTIVE.
+`[evidence_level: measured (the upload's output and the localization's placements read back), confidence: high]`
+
 ## Nominating a release to Apple's editors (added 2026-10-17)
 
 A featuring nomination tells Apple's editorial team what a release brings and when (App Store Connect, the app's

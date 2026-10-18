@@ -110,7 +110,9 @@ except Exception: print("")' 2>/dev/null || true)"
   for f in $staged_metadata; do
     content="$(git show ":$f" 2>/dev/null || true)"
     [ -n "$content" ] || continue
-    chars="$(printf '%s' "$content" | wc -m | tr -d ' ')"
+    # Characters as App Store Connect counts them. `wc -m` counts bytes when no UTF-8 locale is set, as in a git hook,
+    # so each "•" counted three: 4,037 for iPhone notes App Store Connect accepted and read back as 3,985 (2026-10-17).
+    chars="$(printf '%s' "$content" | LC_ALL=en_US.UTF-8 wc -m | tr -d ' ')"
     case "${f##*/}" in
       release_notes.txt)
         [ "$chars" -le 4000 ] || metadata_fail "release notes are $chars characters; the App Store limit is 4,000" "  $f"

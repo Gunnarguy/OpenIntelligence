@@ -202,6 +202,15 @@ stage "fastlane/metadata/en-US/promotional_text.txt" "$(printf 'x%.0s' $(seq 1 1
 stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9"
 check fail "promotional text over 170 characters is rejected" "limit is 170"
 
+# Characters, not bytes (2026-10-17): 700 bullets are 3,500 characters and, with each "•" three bytes, 4,900 bytes.
+# Under the hook's locale `wc -m` counted the bytes and refused notes App Store Connect had accepted.
+RN_BULLETS="$(printf 'This release is about one thing, said plainly.\n\n\nONE SECTION IN CAPS\n'; for _ in $(seq 1 700); do printf '\n• A\n'; done)"
+new_index
+stage "Docs/SHIPPED_VERSION.json" '{"app_store":"9.8","preparing":"9.9"}'
+stage "fastlane/metadata/en-US/release_notes.txt" "$RN_BULLETS"
+stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9"
+check pass "REGRESSION: release notes under 4,000 characters pass though their bullets make them over 4,000 bytes"
+
 new_index
 stage "OpenIntelligence/Services/Storage/Synthetic.swift" "// changed"
 stage "CHANGELOG.md" "$CL_GOOD"

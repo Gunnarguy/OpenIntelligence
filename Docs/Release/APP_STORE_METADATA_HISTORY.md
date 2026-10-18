@@ -169,6 +169,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Platforms:** iOS, macOS
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION on both platforms (read through the App Store Connect API on 2026-10-12 at about 20:25 PT). No 5.7 build exists yet.
 - **Final release notes commit:** the 2026-10-12 `[ci skip]` commit that adds this entry and `fastlane/review_notes/5.7.txt`
+- **Fifth copy (2026-10-17):** the fourth copy with what was built since, at the owner's word ("Push both"): a cited point opening its PDF page with the passage highlighted, the plainer chat with Technical Details, sharing a web page or text to the app from any app, Scan into Library on the Lock Screen or the Action button (iPhone and iPad), the widget that shows the open library and the last answer (iPhone and iPad), Copy Link, the import queue's Pause button in the large-file line, and VoiceOver names for every switch and slider. To stay within the store's 4,000 characters on iPhone and iPad, the line about new libraries using the faster copy of the search model went (iPhone and iPad), the line about the step that passes over a repeated passage went from both, and several lines were shortened. 3,809 characters for the Mac and 3,985 for iPhone and iPad, as the store counts them. Pushed to the two 5.7 records on 2026-10-17 with `fastlane push_metadata version:5.7`, the Mac copy finishing at 22:40:08 PT and the iPhone and iPad copy at 22:40:22 PT (the iOS run swaps the iOS files in under a trap, and the Mac files' checksums matched afterwards); both runs exited 0 with `submit_for_review` false. Read back through the App Store Connect API right after: both records PREPARE_FOR_SUBMISSION, What's New and promotional text identical to the files. Nothing was submitted. The same evening the 5.7 iPhone record got its product page header and search result image (`scripts/asc_upload_listing_art.rb`, `Docs/ai/RUNBOOK.md`). `[evidence_level: measured, confidence: high, evidence_source: the two fastlane logs and the read-back]`
 - **Fourth copy (2026-10-16):** the third copy with one line added at the end of ALSO for the accessibility work of 2026-10-16 (darker gray text, black or white words on colored labels, a deeper blue in light mode, and on iPhone and iPad text on Chat, Documents and Settings that grows with the text size; the Mac line leaves out the text size, which macOS does not have). 3,803 characters for the Mac and 3,923 for iPhone and iPad, as the store counts them. Pushed to the two 5.7 records on 2026-10-16 with `fastlane push_metadata version:5.7`: the Mac copy finishing at 08:43:51 PT, and, after Claude Code's permission check refused the next step as a production deploy, the iPhone and iPad copy at the owner's word ("yes push the iphone notes too"), finishing at 09:19:36 PT (the iOS run swaps the iOS files in under a trap, and the Mac files' checksums matched afterwards). Each log names its platform, `app_version` 5.7 and `submit_for_review` false. Read back through the App Store Connect API after each push: both records PREPARE_FOR_SUBMISSION, What's New and promotional text identical to the files. Nothing was submitted. `[evidence_level: measured, confidence: high, evidence_source: the two fastlane logs of 2026-10-16; a GET of each record's en-US appStoreVersionLocalization compared with the files]`
 - **Third copy (2026-10-15):** the second copy with what was built after it: the import queue's Pause button, addresses, phone numbers, dates and amounts found anywhere in a document, Set Answer Mode and Get Settings in the list of new actions, the Lock Screen's Stop button for a long answer (iPhone and iPad), and Deep Think and Maximum answers checked like Standard ones. 3,693 characters for the Mac and 3,744 for iPhone and iPad. Pushed to the two 5.7 records on 2026-10-15 with `fastlane push_metadata version:5.7`, macOS finishing at 06:51:12 PT and iOS at 06:52:18 PT (the iOS run swaps the iOS files in under a trap, and the Mac files' checksums matched afterwards); each log names its platform and `app_version` 5.7, `fastlane/report.xml` held no failure after either, and nothing was submitted. Read back through the App Store Connect API right after: both records, still PREPARE_FOR_SUBMISSION, hold What's New and promotional text identical to the files (3,693 and 3,744 characters as the store counts them). The description, keywords, subtitle, promotional text and App Review's notes were not changed. `[evidence_level: measured, confidence: high, evidence_source: the two fastlane logs of 2026-10-15; fastlane/report.xml; a GET of each record's en-US appStoreVersionLocalization compared with the files]` The second copy below is kept as it was.
 - **Second copy (2026-10-14):** written after the roadmap was reconciled and 5.7 had grown past the first copy: Siri asking before Private Cloud Compute, Spotlight and Visual Intelligence, dictation, the Mac menu bar and Services, Lock Screen progress, Handoff and conversation sync, Check a Claim, PDF export, and the evening's fixes (iCloud sending only changed files, the empty-vector check, MMR). 3,331 characters for the Mac and 3,362 for iPhone and iPad. Pushed to the two 5.7 records on 2026-10-14 with `fastlane push_metadata version:5.7`, macOS finishing at 22:19:07 PT and iOS at 22:19:30 PT (the iOS run swaps the iOS files in under a trap, and the Mac files' checksums matched afterwards); each log names its platform and `app_version` 5.7, `fastlane/report.xml` held no failure after either, and nothing was submitted. Read back through the App Store Connect API right after: both records, still PREPARE_FOR_SUBMISSION, hold What's New and promotional text identical to the files. The description, keywords, subtitle, promotional text and App Review's notes were not changed. The 2026-10-12 copy below is kept as it was. `[evidence_level: measured, confidence: high, evidence_source: the two fastlane logs of 2026-10-14; fastlane/report.xml; a GET of each record's en-US appStoreVersionLocalization compared with the files]`
@@ -727,6 +728,161 @@ ALSO
 • Redeem a Code on the plans screen.
 
 • Easier to read: darker gray text, black or white words on colored labels, a deeper blue in light mode, and text on Chat, Documents and Settings that grows with your text size.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+
+**Fifth copy, release notes (`fastlane/metadata/`, the macOS copy, 2026-10-17):**
+
+```text
+This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.
+
+
+YOUR DOCUMENTS
+
+• JSON and JSONL files import as records, with their field names and numbers kept as they are.
+
+• Very large text and JSONL files import a piece at a time, an interrupted import picks up where it was, and the import queue has a Pause button.
+
+• You can drop a file on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
+
+• Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• Addresses, phone numbers, dates and amounts are found anywhere in a document now, not only in its tables.
+
+• An import stops and says so if the search model comes back empty, and a document that went missing from search is rebuilt when you open its library.
+
+
+LARGE LIBRARIES
+
+• A very large library doesn't hold the app up.  With 144,247 passages, the app read them all twice at every launch, and now it's once.
+
+• The Atlas opens on a very large library, and it names its clusters and axes from your own documents.
+
+
+SIRI, SHORTCUTS AND SPOTLIGHT
+
+• Actions hand back what they found, so the next step of a shortcut can use the answer and its sources.  "Ask My Documents" and "Ask a Library" have a Mode menu.
+
+• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Set Answer Mode, Get Settings, Open Library, Open Document and Export Conversation.
+
+• If a question from Siri needs Private Cloud Compute and you haven't decided yet, the app comes up and asks first.
+
+• Spotlight keeps your documents until you delete them, and tapping one opens it.  Visual Intelligence lists the documents that mention what the camera sees.
+
+• On the Mac: a menu bar icon, Ask and Add in the Services menu, and keyboard shortcuts, like Shift-Command-N for a new conversation and Command-O to add documents.
+
+
+SHARING
+
+• A shared answer takes its sources with it, Image makes a card of an answer to post, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.
+
+• Copy Link on a document or a library opens it in the app on your other devices, or the App Store where it isn't.
+
+• Copy works on the Mac.  The Copy button under an answer showed "Copied" and copied nothing.
+
+
+ANSWERS
+
+• Tap a point in an answer and the PDF it came from opens on that page, with the passage highlighted.
+
+• The chat is plainer to look at.  Technical Details, under ⋯ or in Settings, brings back the stats and every step, and it stays on if you've used the app before.
+
+• Ask out loud: the chat field has a microphone, and dictation runs on your device.
+
+• Sentences from your documents aren't cut in half before the model reads them, numbers are checked as numbers, and a code like E1 counts as a keyword.
+
+• Deep Think and Maximum answers get the same checks a Standard answer does, and Deep Think keeps its full answer instead of swapping it for one short line that can be wrong.
+
+
+ALSO
+
+• Handoff, and conversations in an iCloud library sync with it.  iCloud only sends a library's files when they change.
+
+• A notification when an import or a long answer is done, if you turn it on.  On iOS 27 and macOS 27 the app can offer to email me a crash report, and it only goes anywhere if you send it.
+
+• Redeem a Code on the plans screen.
+
+• Easier to read: darker gray text, black or white words on colored labels, and a deeper blue in light mode.  VoiceOver names every switch and slider.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+**Fifth copy, release notes (`fastlane/metadata-ios/`, 2026-10-17):**
+
+```text
+This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.
+
+
+YOUR DOCUMENTS
+
+• JSON and JSONL files import as records, with their field names and numbers kept as they are.
+
+• Very large text and JSONL files import a piece at a time, an interrupted import picks up where it was, and the import queue has a Pause button.
+
+• Share a web page or text to OpenIntelligence from any app, send it files with "Open in", or tap Paste on the Documents screen for a copied file, address or text.
+
+• Scan into Library on the Lock Screen or the Action button takes a page without unlocking.
+
+• Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+
+• Addresses, phone numbers, dates and amounts are found anywhere in a document now, not only in its tables.
+
+• An import stops and says so if the search model comes back empty, and a document that went missing from search is rebuilt when you open its library.
+
+
+LARGE LIBRARIES
+
+• A very large library doesn't hold the app up.  With 144,247 passages, the app read them all twice at every launch, and now it's once.
+
+• The Atlas opens on a very large library, and it names its clusters and axes from your own documents.
+
+
+SIRI, SHORTCUTS AND SPOTLIGHT
+
+• Actions hand back what they found, so the next step of a shortcut can use the answer and its sources.  "Ask My Documents" and "Ask a Library" have a Mode menu.
+
+• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Set Answer Mode, Get Settings, Open Library, Open Document and Export Conversation.
+
+• If a question from Siri needs Private Cloud Compute and you haven't decided yet, the app comes up and asks first.
+
+• Spotlight keeps your documents until you delete them, and tapping one opens it.  Visual Intelligence lists the documents that mention what the camera sees.
+
+• Touch and hold the app icon for Ask, Add Document and Scan Document, add the widgets to the Home Screen or the Lock Screen (one shows the library you have open and your last answer), and long answers show their progress there too, with a Stop button.
+
+
+SHARING
+
+• A shared answer takes its sources with it, Image makes a card of an answer to post, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.
+
+• Copy Link on a document or a library opens it in the app on your other devices, or the App Store where it isn't.
+
+
+ANSWERS
+
+• Tap a point in an answer and the PDF it came from opens on that page, with the passage highlighted.
+
+• The chat is plainer to look at.  Technical Details, under ⋯ or in Settings, brings back the stats and every step, and it stays on if you've used the app before.
+
+• Ask out loud: the chat field has a microphone, and dictation runs on your device.
+
+• Sentences from your documents aren't cut in half before the model reads them, numbers are checked as numbers, and a code like E1 counts as a keyword.
+
+• Deep Think and Maximum answers get the same checks a Standard answer does, and Deep Think keeps its full answer instead of one short line that can be wrong.
+
+
+ALSO
+
+• Handoff, and conversations in an iCloud library sync with it.  iCloud only sends a library's files when they change.
+
+• A notification when an import or a long answer is done, if you turn it on.  On iOS 27 and macOS 27 the app can offer to email me a crash report, and it only goes anywhere if you send it.
+
+• Redeem a Code on the plans screen.
+
+• Easier to read: darker gray text, black or white words on colored labels, a deeper blue in light mode, and text on Chat, Documents and Settings that grows with your text size.  VoiceOver names every switch and slider.
 
 
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
