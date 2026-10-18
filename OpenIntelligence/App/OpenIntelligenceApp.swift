@@ -65,6 +65,9 @@ struct OpenIntelligenceApp: App {
         // Register background tasks for index maintenance
         #if os(iOS)
         registerBackgroundTasks()
+        // "Scan into Library" on an iPhone that isn't locked runs in the app, not in its Lock Screen camera: it opens
+        // the app's scanner then (5.7).
+        ScanIntoLibraryIntent.openCaptureInApp = { AppNavigationRequest.post(.scanDocument) }
         #endif
     }
 

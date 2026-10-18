@@ -15,6 +15,7 @@ struct OpenIntelligenceLiveActivitiesBundle: WidgetBundle {
             AskControl()
             AddDocumentControl()
             ScanDocumentControl()
+            ScanIntoLibraryControl()
         }
     }
 }

@@ -513,6 +513,22 @@ struct ScanDocumentControl: ControlWidget {
     }
 }
 
+/// Scan a page into the open library from the Lock Screen without unlocking (5.7). It opens OpenIntelligence's own
+/// capture extension through `ScanIntoLibraryIntent`, where "Scan Document" above opens the app's scanner after
+/// unlocking.
+@available(iOSApplicationExtension 18.0, *)
+struct ScanIntoLibraryControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.openintelligence.control.lockedscan") {
+            ControlWidgetButton(action: ScanIntoLibraryIntent()) {
+                Label("Scan into Library", systemImage: "camera.viewfinder")
+            }
+        }
+        .displayName("Scan into Library")
+        .description("Takes a photo of a page without unlocking. It's added to the library you have open when you open the app.")
+    }
+}
+
 // MARK: - Home Screen and Lock Screen widget (5.7)
 
 /// Ask, Add Document and Scan Document on the Home Screen and the Lock Screen. Each opens one of the

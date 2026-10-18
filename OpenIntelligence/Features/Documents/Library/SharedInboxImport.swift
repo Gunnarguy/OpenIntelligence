@@ -84,9 +84,11 @@ struct SharedItemsMessage: Identifiable {
     let addedSome: Bool
     /// One line per item that could not be stored.
     let failures: [String]
+    /// A title of its own, for a message about pages from the Lock Screen camera (5.7).
+    var customTitle: String? = nil
 
     var title: String {
-        addedSome ? "Some of What You Shared Was Not Added" : "What You Shared Was Not Added"
+        customTitle ?? (addedSome ? "Some of What You Shared Was Not Added" : "What You Shared Was Not Added")
     }
 }
 

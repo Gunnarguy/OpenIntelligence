@@ -566,6 +566,8 @@ struct ContentView: View {
             ragService.runDeferredEnrichmentsIfNeeded()
             // Web pages and text shared from another app's share sheet while the app was away (5.7).
             takeSharedItems()
+            // Pages scanned from the Lock Screen while the app was away (5.7).
+            takeLockedCaptures()
             // The storefront's country, for a sale's regular price where it differs by territory (5.7).
             Task { await StorefrontTerritory.shared.refresh() }
             Task { @MainActor in
@@ -607,6 +609,43 @@ struct ContentView: View {
                 sharedItemsMessage = SharedItemsMessage(addedSome: !outcome.staged.isEmpty, failures: outcome.failures)
             }
         }
+    }
+
+    /// Pages scanned with the Lock Screen's "Scan into Library" (`LockedCaptureImport`, 5.7), handed to the Documents
+    /// screen for its plan check and import review, into the library that is open. Only as many as the plan has room
+    /// for: the rest wait in the camera's folder, and the app says so once for each new number waiting.
+    private func takeLockedCaptures() {
+        Task { @MainActor in
+            let taken = await LockedCaptureImport.takeFromTheLockScreen(atMost: documentRoom())
+            if !taken.staged.isEmpty { AppNavigationRequest.post(.importFiles(taken.staged)) }
+            if taken.waiting > Self.lockScreenPagesSaidWaiting {
+                let pages =
+                    taken.waiting == 1
+                    ? "A page you scanned from the Lock Screen waits"
+                    : "\(taken.waiting) pages you scanned from the Lock Screen wait"
+                sharedItemsMessage = SharedItemsMessage(
+                    addedSome: !taken.staged.isEmpty,
+                    failures: [
+                        "\(pages) in OpenIntelligence's camera, because your plan has room for no more documents. "
+                            + "Remove a document or upgrade, and \(taken.waiting == 1 ? "it's" : "they're") added the "
+                            + "next time you open OpenIntelligence."
+                    ],
+                    customTitle: "Waiting for Room in Your Plan")
+            }
+            Self.lockScreenPagesSaidWaiting = taken.waiting
+        }
+    }
+
+    /// The number of Lock Screen pages the app last said were waiting, so it says so once and not at every return.
+    @MainActor private static var lockScreenPagesSaidWaiting = 0
+
+    /// How many more documents the plan takes, counted up to `cap` (5.7). The Documents screen removes a handed-over file
+    /// it can't add, so what's taken from the Lock Screen camera is only what fits (review of 2026-10-17).
+    private func documentRoom(cap: Int = 1_000) -> Int {
+        let count = ragService.documents.count
+        var room = 0
+        while room < cap, entitlementStore.canAddDocument(currentCount: count + room) { room += 1 }
+        return room
     }
 
     @MainActor
