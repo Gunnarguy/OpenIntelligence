@@ -28,6 +28,40 @@ final class AppLinkTests: XCTestCase {
         }
     }
 
+    /// Every destination's web link reads back as the same destination (5.7), and only this app's page on its own site
+    /// counts as one.
+    func testEveryDestinationRoundTripsThroughItsWebLink() throws {
+        let destinations: [AppDestination] = [
+            .chat, .documents, .settings, .importQueue, .addDocument, .search, .scanDocument,
+            .newConversation(libraryId: nil), .newConversation(libraryId: id),
+            .library(id), .document(id),
+        ]
+        for destination in destinations {
+            let url = AppLink.webURL(for: destination)
+            XCTAssertEqual(url.scheme, "https")
+            XCTAssertEqual(url.host, "gunzino.me")
+            XCTAssertEqual(url.path, "/openintelligence/open")
+            XCTAssertEqual(AppLink.destination(for: url), destination, url.absoluteString)
+        }
+        XCTAssertEqual(
+            AppLink.webURL(for: .document(id)).absoluteString,
+            "https://gunzino.me/openintelligence/open?to=document/0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0")
+
+        let slash = try XCTUnwrap(URL(string: "https://gunzino.me/openintelligence/open/?to=settings"))
+        XCTAssertEqual(AppLink.destination(for: slash), .settings)
+        for other in [
+            // The entitlement names gunzino.me alone, so a www link never opens the app (review of 2026-10-17).
+            "https://www.gunzino.me/openintelligence/open?to=settings",
+            "http://gunzino.me/openintelligence/open?to=settings",
+            "https://gunzino.me/openintelligence?to=settings",
+            "https://example.com/openintelligence/open?to=settings",
+            "https://gunzino.me/openintelligence/open",
+            "https://gunzino.me/openintelligence/open?to=https://example.com",
+        ] {
+            XCTAssertNil(AppLink.destination(for: try XCTUnwrap(URL(string: other))), other)
+        }
+    }
+
     func testTheAddressesOlderBuildsUsedStillWork() {
         XCTAssertEqual(AppLink.destination(for: URL(string: "openintelligence://documents")!), .documents)
         XCTAssertEqual(AppLink.destination(for: URL(string: "openintelligence://documents/ingestion")!), .importQueue)

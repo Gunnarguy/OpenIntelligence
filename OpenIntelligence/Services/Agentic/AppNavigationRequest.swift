@@ -100,8 +100,48 @@ nonisolated enum AppLink {
         return components.url ?? URL(string: "\(scheme)://chat")!
     }
 
-    /// The destination an address names, or nil when it is not one of this app's links.
+    // MARK: - Web links (5.7)
+
+    /// The site whose association file (`/.well-known/apple-app-site-association`, in the Gunzino repository) names
+    /// this app, so a web link there opens the app where it is installed. The app's entitlements carry
+    /// `applinks:gunzino.me`.
+    static let webHost = "gunzino.me"
+    /// The one page the links point at. Where the app isn't installed it opens in the browser and offers the App Store.
+    static let webPath = "/openintelligence/open"
+
+    /// The web form of a destination's link (5.7): `https://gunzino.me/openintelligence/open?to=document/<id>`, the
+    /// app link's host, path and query in `to`. SwiftUI hands a web link that opens the app to `onOpenURL` as the URL
+    /// itself (developer.apple.com, `onOpenURL(perform:)`, read 2026-10-17), where `destination(for:)` reads it.
+    static func webURL(for destination: AppDestination) -> URL {
+        let app = url(for: destination)
+        var to = (app.host ?? "chat") + app.path
+        if let query = app.query { to += "?" + query }
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~/")
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = webHost
+        components.path = webPath
+        components.percentEncodedQuery = "to=" + (to.addingPercentEncoding(withAllowedCharacters: allowed) ?? to)
+        return components.url ?? URL(string: "https://\(webHost)\(webPath)")!
+    }
+
+    /// The app link a web link carries, or nil when the address isn't one of this app's web links.
+    static func appURL(forWebURL url: URL) -> URL? {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(),
+            host == webHost,
+            url.path == webPath || url.path == webPath + "/",
+            let to = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+                .first(where: { $0.name == "to" })?.value,
+            !to.isEmpty, !to.contains("://")
+        else { return nil }
+        return URL(string: "\(scheme)://\(to)")
+    }
+
+    /// The destination an address names, or nil when it is not one of this app's links. A web link reads as the app link
+    /// it carries (5.7).
     static func destination(for url: URL) -> AppDestination? {
+        if let app = appURL(forWebURL: url) { return destination(for: app) }
         guard url.scheme?.lowercased() == scheme, let host = url.host?.lowercased() else { return nil }
         let path = url.path.split(separator: "/").map(String.init)
         switch host {
