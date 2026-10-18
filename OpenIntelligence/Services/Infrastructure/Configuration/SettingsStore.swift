@@ -705,6 +705,18 @@ final class SettingsStore: ObservableObject {
             $smartReplyCount.map { _ in () }.eraseToAnyPublisher(),
             $enableSharedWorkspaceSync.map { _ in () }.eraseToAnyPublisher(),
             $fmPreference.map { _ in () }.eraseToAnyPublisher(),
+            // Saved by `persistAll` but missing from this list until 5.7 (found by a triage read, 2026-10-18). For a
+            // person, Developer & Diagnostics' Pipeline Trace and Force Reasoning Chain reverted on relaunch, since
+            // their switches change nothing else. Advanced's sampling strategy, top-K and seed were saved anyway,
+            // because its Apply also sets settings that were on the list, and document summaries and query routing
+            // have no control. The quality mode saves through its own sink, and RAG tuning is forced off by its own.
+            $samplingStrategy.map { _ in () }.eraseToAnyPublisher(),
+            $topK.map { _ in () }.eraseToAnyPublisher(),
+            $seed.map { _ in () }.eraseToAnyPublisher(),
+            $forceReasoningChain.map { _ in () }.eraseToAnyPublisher(),
+            $enableDocumentSummaries.map { _ in () }.eraseToAnyPublisher(),
+            $enableQueryRouting.map { _ in () }.eraseToAnyPublisher(),
+            $enablePipelineTrace.map { _ in () }.eraseToAnyPublisher(),
         ]
         // A `@Published` property publishes from its `willSet`, so a sink that runs straight away
         // reads the value the property had before. Through 5.6 that is what `persistAll` saved:

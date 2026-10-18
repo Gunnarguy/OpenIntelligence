@@ -643,6 +643,12 @@ supposed to be agentic.
   lets an answer under a quarter of a synthesis of 400 characters or more replace it only when what
   the answer adds beyond the question's own words is mostly (60 percent) in the synthesis too; a
   number written as a word counts as its digits. `[evidence: test_verified, AnswerReplacementGuardTests; not run on a Deep Think benchmark]`
+  **Changed 2026-10-18, for 5.7:** the Self-RAG loop's research call, the second of
+  `executeRecursiveResearch`'s two call sites and the one Deep Think reaches (`maxIterations: 3`),
+  had kept only `shouldAcceptReplacement`. Both of its replacement points now go through
+  `loopResearchVerdict`, which applies the first site's checks (`researchMayReplaceSynthesis`,
+  `shouldAcceptReplacement`, the evidence-dump and retrieval-miss checks), and the loop stops with its
+  answer when research's answer doesn't agree with it rather than running research again. `[evidence: test_verified for loopResearchVerdict, AnswerReplacementGuardTests; code_verified for the two call sites; not run on a Deep Think question]`
 
 - **Synthesis truncation was removing the highest-ranked chunk, and it is now budgeted rather than
   cut.** `executeDirectSynthesis` and `executeSynthesisStep` each ended in a hardcoded

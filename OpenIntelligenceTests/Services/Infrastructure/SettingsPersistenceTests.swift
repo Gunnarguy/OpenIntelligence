@@ -28,6 +28,58 @@ final class SettingsPersistenceTests: XCTestCase {
         XCTAssertEqual(defaults.object(forKey: "enableSpotlightIndexing") as? Bool, !before)
     }
 
+    /// Each of the settings that were missing from the save list is saved when it alone changes (5.7): before, a
+    /// relaunch brought back the old value of Pipeline Trace, Force Reasoning Chain, the sampling strategy and the rest.
+    func testEverySettingThatPersistAllWritesIsSavedWhenItAloneChanges() async throws {
+        let suite = "SettingsPersistenceTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = SettingsStore(defaults: defaults, ragService: RAGService())
+
+        func saved() async {
+            let done = expectation(description: "the save has run")
+            DispatchQueue.main.async { done.fulfill() }
+            await fulfillment(of: [done], timeout: 5)
+        }
+        // The store saves every setting once as it starts, from saves queued on the main queue; those run first, or the
+        // first change below would be saved by them whether or not it is on the list (review, 2026-10-18).
+        await saved()
+
+        let trace = store.enablePipelineTrace
+        // Its `didSet` sets the process-wide trace flag, which later tests in the run would inherit.
+        defer { store.enablePipelineTrace = trace }
+        store.enablePipelineTrace = !trace
+        await saved()
+        XCTAssertEqual(defaults.object(forKey: "enablePipelineTrace") as? Bool, !trace)
+
+        let chain = store.forceReasoningChain
+        store.forceReasoningChain = !chain
+        await saved()
+        XCTAssertEqual(defaults.object(forKey: "forceReasoningChain") as? Bool, !chain)
+
+        let summaries = store.enableDocumentSummaries
+        store.enableDocumentSummaries = !summaries
+        await saved()
+        XCTAssertEqual(defaults.object(forKey: "enableDocumentSummaries") as? Bool, !summaries)
+
+        let routing = store.enableQueryRouting
+        store.enableQueryRouting = !routing
+        await saved()
+        XCTAssertEqual(defaults.object(forKey: "enableQueryRouting") as? Bool, !routing)
+
+        store.topK = store.topK + 7
+        await saved()
+        XCTAssertEqual(defaults.object(forKey: "llmTopK") as? Int, store.topK)
+
+        store.samplingStrategy = store.samplingStrategy == .greedy ? .topP : .greedy
+        await saved()
+        XCTAssertEqual(defaults.string(forKey: "llmSamplingStrategy"), store.samplingStrategy.rawValue)
+
+        store.seed = 42
+        await saved()
+        XCTAssertEqual(defaults.object(forKey: "llmSamplingSeed") as? Int, 42)
+    }
+
     /// The hardware X-Ray starts off on a new install, and a saved setting is kept (5.7).
     func testTheXRayStartsOffOnANewInstallAndASavedSettingIsKept() throws {
         let suite = "SettingsPersistenceTests.\(UUID().uuidString)"

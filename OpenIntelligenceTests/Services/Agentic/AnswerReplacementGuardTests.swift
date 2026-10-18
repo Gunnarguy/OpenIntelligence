@@ -87,6 +87,32 @@ final class AnswerReplacementGuardTests: XCTestCase {
                 research: "OpenIntelligence handles file types such as notes, warnings, exceptions, and documents."))
     }
 
+    /// The Self-RAG loop's call (the one Deep Think reaches) applies the first call site's checks (5.7): the wrong line
+    /// keeps the answer and stops the loop, the right one replaces it, and an evidence dump or a retrieval miss keeps it.
+    func testTheLoopsResearchCallAppliesTheFirstSitesChecks() {
+        XCTAssertEqual(
+            AgenticOrchestrator.loopResearchVerdict(
+                question: "What file types does OpenIntelligence handle?", answer: fileTypesSynthesis,
+                research: "OpenIntelligence handles file types such as notes, warnings, exceptions, and documents.",
+                isEvidenceDump: false, isRetrievalMiss: false),
+            .keepAndStop)
+        XCTAssertEqual(
+            AgenticOrchestrator.loopResearchVerdict(
+                question: "How many verification checks does OpenIntelligence run?", answer: checksSynthesis,
+                research: "Nine verification checks run.", isEvidenceDump: false, isRetrievalMiss: false),
+            .replace)
+        XCTAssertEqual(
+            AgenticOrchestrator.loopResearchVerdict(
+                question: "How many verification checks does OpenIntelligence run?", answer: checksSynthesis,
+                research: "Nine verification checks run.", isEvidenceDump: true, isRetrievalMiss: false),
+            .keep)
+        XCTAssertEqual(
+            AgenticOrchestrator.loopResearchVerdict(
+                question: "How many verification checks does OpenIntelligence run?", answer: checksSynthesis,
+                research: "Nine verification checks run.", isEvidenceDump: false, isRetrievalMiss: true),
+            .keep)
+    }
+
     /// The right line from the same day agrees with the synthesis: it may replace it.
     func testAOneLineAnswerThatAgreesWithTheSynthesisReplacesIt() {
         XCTAssertTrue(

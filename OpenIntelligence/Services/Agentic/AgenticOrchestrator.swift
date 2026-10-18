@@ -3686,6 +3686,32 @@ final class AgenticOrchestrator: Sendable {
         return Double(agreed) / Double(added.count) >= 0.6
     }
 
+    /// What the Self-RAG loop does with research's answer (5.7).
+    nonisolated enum LoopResearchVerdict: Equatable {
+        /// Research's answer takes the loop answer's place.
+        case replace
+        /// The loop keeps its answer and carries on, as it always did when a replacement was turned away.
+        case keep
+        /// The loop keeps its answer and stops: research's answer doesn't agree with it, and another research run on
+        /// the same question costs up to three minutes for the same kind of answer (review, 2026-10-18).
+        case keepAndStop
+    }
+
+    /// The checks the first call site applies before research's answer replaces the chain's synthesis, for the Self-RAG
+    /// loop's call, the one Deep Think reaches (`maxIterations: 3`) (5.7). Until 2026-10-18 the loop applied only
+    /// `shouldAcceptReplacement`, so a short research answer turned away at the first site could still replace the
+    /// answer here (found by a triage read of the roadmap row, 2026-10-18). The evidence-dump and retrieval-miss checks
+    /// are instance methods, so the caller passes their results.
+    nonisolated static func loopResearchVerdict(
+        question: String, answer: String, research: String, isEvidenceDump: Bool, isRetrievalMiss: Bool
+    ) -> LoopResearchVerdict {
+        guard researchMayReplaceSynthesis(question: question, synthesis: answer, research: research) else {
+            return .keepAndStop
+        }
+        guard !isEvidenceDump, !isRetrievalMiss else { return .keep }
+        return shouldAcceptReplacement(previous: answer, replacement: research) ? .replace : .keep
+    }
+
     /// The words of an answer that carry its content: lowercased, three letters or more or a number,
     /// without stop words, and a number written as a word ("nine") counted as its digits ("9").
     nonisolated static func answerWords(in text: String) -> Set<String> {
@@ -3857,10 +3883,19 @@ final class AgenticOrchestrator: Sendable {
                         category: .llm)
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
-                    if Self.shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
+                    let verdict = Self.loopResearchVerdict(
+                        question: query, answer: currentAnswer, research: newAnswer,
+                        isEvidenceDump: looksLikeRawEvidenceDump(cleanNewAnswer),
+                        isRetrievalMiss: answerIndicatesRetrievalMiss(newAnswer))
+                    if verdict == .replace {
                         logAnswerReplacement(
                             previous: currentAnswer, replacement: newAnswer, reason: "semantic delta below 0.10")
                         currentAnswer = newAnswer
+                    } else {
+                        Log.warning(
+                            "[Agentic] Self-RAG: kept the answer (\(currentAnswer.count) chars) over research's "
+                                + "\(newAnswer.count)-char answer (\(verdict))",
+                            category: .llm)
                     }
                     break
                 }
@@ -3868,11 +3903,20 @@ final class AgenticOrchestrator: Sendable {
                 if !answerIndicatesRetrievalMiss(newAnswer) {
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
-                    if Self.shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
+                    let verdict = Self.loopResearchVerdict(
+                        question: query, answer: currentAnswer, research: newAnswer,
+                        isEvidenceDump: looksLikeRawEvidenceDump(cleanNewAnswer), isRetrievalMiss: false)
+                    if verdict == .replace {
                         logAnswerReplacement(
                             previous: currentAnswer, replacement: newAnswer,
                             reason: "recursive research returned an answer")
                         currentAnswer = newAnswer
+                    } else {
+                        Log.warning(
+                            "[Agentic] Self-RAG: kept the answer (\(currentAnswer.count) chars) over research's "
+                                + "\(newAnswer.count)-char answer (\(verdict))",
+                            category: .llm)
+                        if verdict == .keepAndStop { break }
                     }
                     // Update sources/chunks
                     for chunk in recursiveResult.retrievedChunks {
