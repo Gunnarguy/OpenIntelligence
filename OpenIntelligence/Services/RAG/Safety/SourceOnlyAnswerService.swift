@@ -476,18 +476,37 @@ final class SourceOnlyAnswerService {
 
         let supportedClaims = verifiedClaims.filter { $0.isSupported }
         let unsupportedClaims = verifiedClaims.filter { !$0.isSupported }
+        // The draft's headings are not claims (5.7): they stay out of the rebuilt answer, Fact Check and the fidelity
+        // checks below, where a heading copied from the passage scored high and lifted a weak claim's average over the
+        // floor (second review, 2026-10-18). An unsupported heading still counts toward `criticalFailure`, and every
+        // claim toward the risk profile.
+        let listedClaims = Self.claimsToList(supportedClaims, candidateAnswer: candidateAnswer)
         let riskProfile = riskProfile(for: query, claims: verifiedClaims)
         let fidelityThreshold: Float = riskProfile == .high ? 0.88 : 0.78
         let criticalFailure = unsupportedClaims.contains { $0.isCritical }
-        let belowThresholdCritical = supportedClaims.contains { $0.isCritical && $0.fidelity < fidelityThreshold }
+        let belowThresholdCritical = listedClaims.contains { $0.isCritical && $0.fidelity < fidelityThreshold }
         let shouldAbstain = draft.shouldAbstain
             || supportedClaims.isEmpty
             || criticalFailure
             || belowThresholdCritical
 
+        // When every supported claim is one of the draft's headings, the answer rebuilt from them was only its title,
+        // which replaced the generated answer through 5.6. The check declines instead, as it does for a draft with no
+        // claims, and the generated answer stands (second review, 2026-10-18).
+        let draftHeadings = VerificationGateService.headingLines(in: candidateAnswer)
+        if !shouldAbstain, !listedClaims.isEmpty,
+            listedClaims.allSatisfy({
+                draftHeadings.contains(VerificationGateService.headingKey($0.claimText))
+                    && !VerificationGateService.makesStatement($0.claimText)
+            })
+        {
+            Log.info("[SourceOnly] Every supported claim is a heading of the draft; keeping the generated answer", category: .llm)
+            return nil
+        }
+
         let fidelityScore: Float = shouldAbstain
             ? 0.0
-            : (supportedClaims.isEmpty ? 0.0 : supportedClaims.map(\.fidelity).reduce(0, +) / Float(supportedClaims.count))
+            : (listedClaims.isEmpty ? 0.0 : listedClaims.map(\.fidelity).reduce(0, +) / Float(listedClaims.count))
 
         let abstentionReason: String?
         if shouldAbstain {
@@ -507,7 +526,7 @@ final class SourceOnlyAnswerService {
         let finalAnswer = shouldAbstain
             ? "⚠️ **[Needs Verification]** This answer was drafted but could not be strictly verified against the retrieved evidence:\n\n\(candidateAnswer)\n\n*(Reason: \(abstentionReason ?? "Insufficient evidence"))*"
             : renderVerifiedAnswer(
-                supportedClaims: supportedClaims,
+                supportedClaims: listedClaims,
                 missingFacets: draft.missingFacets,
                 evidenceRecords: evidenceRecords,
                 answerIntent: answerIntent,
@@ -518,7 +537,7 @@ final class SourceOnlyAnswerService {
             finalAnswer: finalAnswer,
             answerIntent: answerIntent,
             evidenceRecords: evidenceRecords,
-            supportedClaims: supportedClaims,
+            supportedClaims: listedClaims,
             unsupportedClaims: unsupportedClaims,
             missingFacets: draft.missingFacets,
             verificationResult: verificationResult,
@@ -1104,6 +1123,23 @@ final class SourceOnlyAnswerService {
         return domainBlocks.contains { normalize($0.controlType) == "parallel" || normalize($0.controlType) == "null" }
     }
 
+    /// The supported claims the rebuilt answer is written from and Fact Check lists (5.7): not the draft's own
+    /// headings, as in `StructuredAnswer`, unless every supported claim is one. A supported heading was listed in Fact
+    /// Check and written into the rebuilt answer as a sentence ("Notice to Enter. [S1]"). The headings come from the
+    /// model's draft, because the rebuilt answer has none (review, 2026-10-18). A claim that states something stays even
+    /// when it matches a heading (`VerificationGateService.makesStatement`): every claim here is supported, so keeping
+    /// a title costs a sentence, and leaving out a statement costs what it said (fourth review, 2026-10-18).
+    static func claimsToList(
+        _ supportedClaims: [SourceOnlyVerifiedClaim], candidateAnswer: String
+    ) -> [SourceOnlyVerifiedClaim] {
+        let headings = VerificationGateService.headingLines(in: candidateAnswer)
+        let kept = supportedClaims.filter {
+            !headings.contains(VerificationGateService.headingKey($0.claimText))
+                || VerificationGateService.makesStatement($0.claimText)
+        }
+        return kept.isEmpty ? supportedClaims : kept
+    }
+
     private func buildStructuredAnswer(
         finalAnswer: String,
         answerIntent: AnswerIntent,
@@ -1133,11 +1169,7 @@ final class SourceOnlyAnswerService {
         let evidenceMap = Dictionary(uniqueKeysWithValues: evidenceRecords.map { ($0.label, $0) })
         var addedEvidenceIds: Set<String> = []
 
-        // The answer's own headings are not listed as claims (5.7), as in `StructuredAnswer`, unless every claim is one.
-        let headings = VerificationGateService.headingLines(in: finalAnswer)
-        let nonHeadingClaims = supportedClaims.filter { !headings.contains(VerificationGateService.headingKey($0.claimText)) }
-        let listedClaims = nonHeadingClaims.isEmpty ? supportedClaims : nonHeadingClaims
-        for claim in listedClaims {
+        for claim in supportedClaims {
             _ = builder.addClaim(
                 claim.claimText,
                 evidenceIds: claim.evidenceIds,

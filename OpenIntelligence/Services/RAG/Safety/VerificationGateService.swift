@@ -331,23 +331,30 @@ actor VerificationGateService {
         // Fact Check scored "Hotel Address in Lisbon" Partial, so a right answer read "1 of 2 Verified" (demo copy of
         // e9de06d, 2026-10-15).
         let headings = Self.headingLines(in: response)
-        let structuredClaims = structuredClaims?.filter {
+        // A question the model listed as a claim is not one either, as in `StructuredAnswer` (second review,
+        // 2026-10-18). When every structured claim is a heading, the answer's own sentences are checked below, as in
+        // `b70eea1`, and `StructuredAnswer` lists those sentences then.
+        let claimsToCheck = structuredClaims?.filter {
             !$0.claim.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !StructuredAnswer.isQuestionLikeClaim($0.claim)
                 && !headings.contains(Self.headingKey($0.claim))
         }
 
         let claimInputs: [VerificationClaimInput]
-        let usesStructuredClaims = structuredClaims?.isEmpty == false
+        let usesStructuredClaims = claimsToCheck?.isEmpty == false
 
-        if let structuredClaims, !structuredClaims.isEmpty {
-            claimInputs = structuredClaims.map {
+        if let claimsToCheck, !claimsToCheck.isEmpty {
+            claimInputs = claimsToCheck.map {
                 VerificationClaimInput(claim: $0.claim, citations: $0.citations)
             }
         } else {
             // Headings stay out here too (5.7): with no structured claims, a heading sentence was checked and counted
-            // while the answer's claim list left it out (review, 2026-10-18).
-            claimInputs = extractClaims(from: response)
-                .filter { !headings.contains(Self.headingKey($0)) }
+            // while the answer's claim list left it out (review, 2026-10-18). Unless every sentence left is one, as in
+            // `StructuredAnswer.droppingHeadings` (second review, 2026-10-18). This only sees sentences that
+            // `containsFactualContent` keeps, so "**Notice to Enter**" on its own still has no claim to check, as in 5.6.
+            let sentences = extractClaims(from: response)
+            let nonHeadings = sentences.filter { !headings.contains(Self.headingKey($0)) }
+            claimInputs = (nonHeadings.isEmpty ? sentences : nonHeadings)
                 .map { VerificationClaimInput(claim: $0, citations: []) }
         }
 
@@ -1294,19 +1301,56 @@ actor VerificationGateService {
         return claims
     }
 
-    /// The answer's heading lines, as `headingKey` keys (5.7): a Markdown heading ("## Hotel Address in Lisbon"), a
-    /// bold line that reads as a title (`isBoldTitle`), or a short line ending in a colon. Citation markers on a line
-    /// are ignored, so "## Notice to Enter [S1]" is the heading "Notice to Enter".
+    /// A citation marker as answers write it: "[S1]", or "[S1, S2]" for several sources (5.7).
+    nonisolated static let citationMarkerPattern = #"\[S\d+(?:\s*[,;]\s*S?\d+)*\]"#
+
+    /// The answer's heading lines, as `headingKey` keys (5.7): a line of eight words or fewer ending in a colon, and a
+    /// Markdown heading ("## Hotel Address in Lisbon") or a bold line on its own (`isBoldTitle`) whose words read as a
+    /// title and not as a statement (`readsAsTitle`). A Markdown heading or a lead-in is a heading with or without a
+    /// citation marker ("## Notice to Enter [S1]"); a bold line with one is a claim the answer cites (review,
+    /// 2026-10-18). "## Subletting is allowed with written consent" states something, so it is a claim: as a heading it
+    /// was left out of the check, and the source-only check left it out of the answer it rebuilds (second review,
+    /// 2026-10-18).
+    ///
+    /// A bold title with a figure in it is a heading only when the answer's other lines give each of its figures too:
+    /// "**24 hours' notice**" over "Except in an emergency [S1]." is the answer's only statement of the figure, so it is
+    /// checked. A number that names a part ("Step 1", "Section 13", "Unit 4B") is not a figure. Numbers are read as
+    /// `NumericValueExtractor` reads them, so a citation label or a list number at the start of a line is not one, a
+    /// number written as a word ("Two") is not read, and two figures are the same when their values are, whatever their
+    /// units. A Markdown heading or a lead-in is a heading whatever its numbers, as in `b70eea1`: the figure rule made
+    /// "## Step 1" over unrelated steps a claim, and one claim that is not Supported switches off Gate E's pass on
+    /// claims. Gate C still compares every number in the answer, headings included, with the passages (two reviews,
+    /// 2026-10-18).
     nonisolated static func headingLines(in response: String) -> Set<String> {
         var keys: Set<String> = []
+        var boldTitles: [String] = []
+        var otherLines: [String] = []
         for raw in response.split(whereSeparator: \.isNewline) {
-            let line = raw.replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            let uncited = line.replacingOccurrences(of: citationMarkerPattern, with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespaces)
-            let isHeading =
-                line.hasPrefix("#")
-                || isBoldTitle(line)
-                || (line.hasSuffix(":") && line.split(separator: " ").count <= 8)
-            if isHeading {
+            if uncited.hasPrefix("#") {
+                if readsAsTitle(String(uncited.drop { $0 == "#" }), maxWords: nil) {
+                    keys.insert(headingKey(line))
+                } else {
+                    otherLines.append(line)
+                }
+            } else if uncited.hasSuffix(":"), uncited.split(separator: " ").count <= 8 {
+                // A lead-in introduces what follows ("You must bring:"), so it is a heading whatever its words, as in
+                // `b70eea1`: read for a statement, most lead-ins were claims (third review, 2026-10-18).
+                keys.insert(headingKey(line))
+            } else if isBoldTitle(line) {
+                boldTitles.append(line)
+            } else {
+                otherLines.append(line)
+            }
+        }
+        if !boldTitles.isEmpty {
+            // The figures the rest of the answer gives, read only when there is a bold title to compare.
+            let givenFigures = otherLines.reduce(into: Set<String>()) {
+                $0.formUnion(numberKeys(in: $1, countingParts: true))
+            }
+            for line in boldTitles where numberKeys(in: line, countingParts: false).isSubset(of: givenFigures) {
                 keys.insert(headingKey(line))
             }
         }
@@ -1314,22 +1358,118 @@ actor VerificationGateService {
         return keys
     }
 
-    /// Whether a line is only bold text that reads as a title rather than a sentence (5.7): eight words or fewer, no
-    /// digit, and no full stop, question mark or exclamation mark at its end. "**Check-out**" and "**Notice to Enter**"
-    /// are titles; "**Yes, cats are allowed with a $400 deposit.**" is a claim the answer makes in bold, and treating
-    /// every bold line as a heading took such a claim out of the answer (review, 2026-10-18).
+    /// The numbers a line gives, as keys to compare across lines (5.7): a value, so "1,850" and "1850" are one, or a
+    /// name with a number in it, such as "Qwen-2.5-3B". Without `countingParts`, a number right after a word that names
+    /// a part ("Step 1", "Section 13", "Unit 4B") is left out (`headingLines`).
+    nonisolated private static func numberKeys(in line: String, countingParts: Bool) -> Set<String> {
+        Set(
+            NumericValueExtractor.mentions(inAnswer: line).compactMap { mention -> String? in
+                if !countingParts, let word = mention.precedingWord, partWords.contains(word) { return nil }
+                if let identifier = mention.identifier { return "name:" + identifier.lowercased() }
+                return "value:\(mention.value)"
+            })
+    }
+
+    /// Words that name a part before its number, so the number is a label and not a figure (`numberKeys`). Not "day" or
+    /// "week": "by day 30" is a deadline (second review, 2026-10-18).
+    nonisolated private static let partWords: Set<String> = [
+        "step", "steps", "part", "parts", "section", "sections", "chapter", "chapters", "article", "articles", "clause",
+        "clauses", "unit", "units", "apartment", "suite", "room", "rooms", "building", "floor", "level", "item", "items",
+        "page", "pages", "option", "options", "phase", "phases", "stage", "stages", "table", "tables", "figure",
+        "figures", "appendix", "exhibit", "exhibits", "schedule", "number",
+    ]
+
+    /// Whether a line is only bold text that reads as a title (5.7): no citation marker inside it, and its words read
+    /// as a title (`readsAsTitle`, eight words or fewer). "**Notice to Enter**", "**Unit 4B Pet Policy**" and
+    /// "**Required Documents**" are titles; one with a figure in it is a heading only where `headingLines` finds the
+    /// figure elsewhere in the answer. "**Yes, cats are allowed with a $400 deposit.**", "**Subletting is allowed**
+    /// [S2]", "**No, pets are not allowed**" and "**Pets allowed with written consent**" are claims the answer makes in
+    /// bold, and taking them for headings left them out of the check and out of Fact Check (two reviews, 2026-10-18).
     nonisolated static func isBoldTitle(_ line: String) -> Bool {
         guard line.hasPrefix("**"), line.hasSuffix("**"), line.count > 4 else { return false }
         let inner = line.dropFirst(2).dropLast(2).trimmingCharacters(in: .whitespaces)
-        guard let last = inner.last, inner.split(separator: " ").count <= 8, !inner.contains(where: \.isNumber)
-        else { return false }
-        return !".!?".contains(last)
+        guard inner.range(of: citationMarkerPattern, options: .regularExpression) == nil else { return false }
+        return readsAsTitle(inner, maxWords: 8)
     }
 
+    /// Whether a heading's words read as a title rather than a statement (5.7): no full stop, question mark or
+    /// exclamation mark at the end (a full-width one included) and at most `maxWords` words. Then a title that starts
+    /// with a question word ("What Is Included", "What's Included") or is in Title Case ("Things to Do Nearby", "Fees
+    /// You May Owe") is a title, as the model writes its titles, unless an answer follows a colon ("What is included:
+    /// water and trash", "Pet Policy: No Dogs Allowed"). Otherwise it is a title when it has none of the words a
+    /// statement turns on (a form of "be", "have" or "do", a modal verb, "not", "no", "yes", "never") and none of the
+    /// words such as "allowed" or "paid" after its first word, where they state something ("Pets allowed with written
+    /// consent"), as they do not before a noun ("Required documents"). Curly apostrophes are read as straight ones
+    /// (three reviews, 2026-10-18).
+    nonisolated private static func readsAsTitle(_ text: String, maxWords: Int?) -> Bool {
+        let text = text.trimmingCharacters(in: .whitespaces)
+        guard let last = text.last, !".!?\u{3002}\u{FF01}\u{FF1F}".contains(last) else { return false }
+        let words = text.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+            .split(whereSeparator: { !$0.isLetter && $0 != "'" }).map(String.init)
+        guard let first = words.first else { return false }
+        if let maxWords, words.count > maxWords { return false }
+        let answerFollowsColon = text.range(of: #":\s*\S"#, options: .regularExpression) != nil
+        if !answerFollowsColon, questionWords.contains(first) || isTitleCase(text) { return true }
+        return !makesStatement(text)
+    }
+
+    /// Whether text has a word a statement turns on, or a word such as "allowed" or "paid" after its first word (5.7),
+    /// whatever its case (`readsAsTitle`). The source-only check keeps a claim that does even when it matches one of the
+    /// draft's headings: a heading in Title Case or a lead-in can state something, and leaving it out of the answer the
+    /// check rebuilds removed what it said (fourth review, 2026-10-18).
+    nonisolated static func makesStatement(_ text: String) -> Bool {
+        let words = text.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+            .split(whereSeparator: { !$0.isLetter && $0 != "'" }).map(String.init)
+        return words.contains { statementWords.contains($0) }
+            || words.dropFirst().contains { statementPredicates.contains($0) }
+    }
+
+    /// Whether every word starts with a capital except the short ones a title leaves in lower case ("Notice to Enter",
+    /// "Things to Do Nearby"); a word that starts with a digit ("1st", "24-Hour") is not looked at (`readsAsTitle`,
+    /// third review, 2026-10-18).
+    nonisolated private static func isTitleCase(_ text: String) -> Bool {
+        var sawCapital = false
+        for word in text.split(whereSeparator: \.isWhitespace) {
+            guard let initial = word.first(where: { $0.isLetter || $0.isNumber }), initial.isLetter else { continue }
+            if initial.isUppercase {
+                sawCapital = true
+            } else if !titleSmallWords.contains(String(word.filter(\.isLetter)).lowercased()) {
+                return false
+            }
+        }
+        return sawCapital
+    }
+
+    /// The short words a title in Title Case leaves in lower case (`isTitleCase`).
+    nonisolated private static let titleSmallWords: Set<String> = [
+        "a", "an", "the", "and", "but", "or", "nor", "for", "so", "yet", "as", "at", "by", "in", "of", "off", "on",
+        "per", "to", "up", "via", "vs", "with", "from", "into", "onto", "over", "than", "out",
+    ]
+
+    /// The words a statement turns on, which a title leaves out (`readsAsTitle`).
+    nonisolated private static let statementWords: Set<String> = [
+        "is", "are", "was", "were", "be", "been", "being", "am", "has", "have", "had", "does", "do", "did", "must",
+        "can", "cannot", "could", "will", "would", "shall", "should", "may", "might", "not", "no", "yes", "never",
+        "isn't", "aren't", "wasn't", "weren't", "hasn't", "haven't", "hadn't", "doesn't", "don't", "didn't", "can't",
+        "couldn't", "won't", "wouldn't", "shouldn't", "mustn't",
+    ]
+
+    /// Words that state something when they follow a noun ("Pets allowed", "Late fees waived") and name a kind of
+    /// thing when they lead ("Required Documents") (`readsAsTitle`, two reviews, 2026-10-18).
+    nonisolated private static let statementPredicates: Set<String> = [
+        "allowed", "permitted", "prohibited", "forbidden", "banned", "required", "included", "excluded", "due",
+        "refundable", "available", "paid", "waived", "accepted", "provided", "covered", "charged", "welcome",
+    ]
+
+    /// The words a question-form title starts with (`readsAsTitle`).
+    nonisolated private static let questionWords: Set<String> = [
+        "what", "how", "who", "when", "where", "why", "which", "whose", "what's", "how's", "who's", "when's", "where's",
+    ]
+
     /// A line or a claim reduced to its words, lowercased and without citation markers, for matching a claim against
-    /// the answer's headings: the claim "Notice to Enter [S1]" matches the heading "**Notice to Enter**" (5.7).
+    /// the answer's headings: the claim "Notice to Enter [S1]" matches the heading "## Notice to Enter" (5.7).
     nonisolated static func headingKey(_ text: String) -> String {
-        text.replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+        text.replacingOccurrences(of: citationMarkerPattern, with: "", options: .regularExpression)
             .lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
     }
 
@@ -1591,7 +1731,7 @@ actor VerificationGateService {
 
     private func cleanClaimText(_ text: String) -> String {
         text
-            .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s*"# + Self.citationMarkerPattern, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }

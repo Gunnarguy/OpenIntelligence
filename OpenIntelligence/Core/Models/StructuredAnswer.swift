@@ -367,11 +367,12 @@ extension StructuredAnswer {
         let topScore = retrievedChunks.first?.similarityScore ?? 0
         _ = builder.setTopScore(topScore)
 
+        // Headings go before the cut to six, so a heading among the first six doesn't cost a claim (review, 2026-10-18).
         let candidateClaims: [StructuredRAGClaim]
         if let structuredGeneration, !structuredGeneration.claims.isEmpty {
-            candidateClaims = Array(structuredGeneration.claims.prefix(6))
+            candidateClaims = structuredGeneration.claims
         } else {
-            candidateClaims = extractClaims(from: answerText, answerIntent: answerIntent).prefix(6).map {
+            candidateClaims = extractClaims(from: answerText, answerIntent: answerIntent).map {
                 StructuredRAGClaim(
                     claim: $0,
                     citations: [],
@@ -379,7 +380,7 @@ extension StructuredAnswer {
                 )
             }
         }
-        let claims = droppingHeadings(candidateClaims, of: answerText)
+        let claims = Array(droppingHeadings(candidateClaims, of: answerText).prefix(6))
 
         var selectedEvidence: [RetrievedChunk] = []
         var claimsByEvidence: [UUID: [String]] = [:]
@@ -478,7 +479,7 @@ extension StructuredAnswer {
         _ = builder.setTopScore(retrievedChunks.first?.similarityScore ?? 0)
 
         let normalizedClaims: [StructuredRAGClaim] = {
-            let claims = droppingHeadings(structuredGeneration.claims.compactMap { claim -> StructuredRAGClaim? in
+            let candidates = structuredGeneration.claims.compactMap { claim -> StructuredRAGClaim? in
                 let claimText = cleanClaimText(claim.claim)
                 guard !claimText.isEmpty else { return nil }
                 return StructuredRAGClaim(
@@ -487,7 +488,19 @@ extension StructuredAnswer {
                     isExtracted: claim.isExtracted
                 )
             }
-            .filter { !isQuestionLikeClaim($0.claim) }, of: answerText)
+            .filter { !isQuestionLikeClaim($0.claim) }
+            let headings = VerificationGateService.headingLines(in: answerText)
+            var claims = candidates.filter { !headings.contains(VerificationGateService.headingKey($0.claim)) }
+            if claims.isEmpty, !candidates.isEmpty {
+                // Every structured claim is one of the answer's headings. The answer's own sentences are listed, which
+                // are what Gate B checks then, and the headings only when it has none (second review, 2026-10-18).
+                // Each keeps the sources its line cites, or it read as a claim missing its citation (third review).
+                let cited = citationsBySentence(in: answerText)
+                let sentences = extractClaims(from: answerText, answerIntent: answerIntent)
+                    .filter { !headings.contains(VerificationGateService.headingKey($0)) }
+                    .map { StructuredRAGClaim(claim: $0, citations: cited[normalizeForMatch($0)] ?? [], isExtracted: false) }
+                claims = sentences.isEmpty ? candidates : sentences
+            }
 
             if claims.isEmpty {
                 return [StructuredRAGClaim(
@@ -581,15 +594,19 @@ extension StructuredAnswer {
 
         let filteredBulletClaims = uniqueClaims(bulletClaims).filter { !isQuestionLikeClaim($0) }
 
+        // Not cut to six here (5.7): the caller cuts after taking out the answer's headings (review, 2026-10-18).
         if filteredBulletClaims.count >= 2 {
-            return filteredBulletClaims.prefix(6).map { $0 }
+            return filteredBulletClaims
         }
 
         let tokenizer = NLTokenizer(unit: .sentence)
         tokenizer.string = response
         var sentences: [String] = []
         tokenizer.enumerateTokens(in: response.startIndex..<response.endIndex) { range, _ in
+            // A list's dash or bullet is not part of a sentence read from a one-item list (5.7). It stays in
+            // `cleanClaimText`, because the list above is found by its dashes after each line is cleaned.
             let sentence = cleanClaimText(String(response[range]))
+                .replacingOccurrences(of: #"^[-\u2022]\s+"#, with: "", options: .regularExpression)
             if sentence.count >= minimumClaimLength(for: answerIntent) {
                 sentences.append(sentence)
             }
@@ -598,7 +615,7 @@ extension StructuredAnswer {
 
         let extracted = uniqueClaims(sentences).filter { !isQuestionLikeClaim($0) }
         if !extracted.isEmpty {
-            return Array(extracted.prefix(6))
+            return extracted
         }
 
         return [cleanClaimText(response)]
@@ -682,18 +699,30 @@ extension StructuredAnswer {
 
     nonisolated private static func cleanClaimText(_ text: String) -> String {
         text
-            // A citation goes with the space before it: "an emergency [S1]." read "an emergency ." in Fact Check
-            // (demo copy of 9c0d1dd, 2026-10-18).
-            .replacingOccurrences(of: #"\s*\[S\d+\]"#, with: "", options: .regularExpression)
+            // A run of citations after an abbreviation's full stop and before the sentence's own keeps one of them:
+            // "11:00 a.m. [S2]." is "11:00 a.m." (review, 2026-10-18).
+            .replacingOccurrences(of: #"\."# + citationRun + #"\s*\."#, with: ".", options: .regularExpression)
+            // A comma, semicolon or colon a citation leaves before the sentence's last mark goes with it: "is
+            // refundable, [S1]." is "is refundable." (second review, 2026-10-18).
+            .replacingOccurrences(
+                of: #"\s*[,;:]"# + citationRun + #"(?=\s*[.!?](?:\s|\*|$))"#, with: "", options: .regularExpression)
+            // A run of citations goes with the space before it where a mark, a dash, a slash, an ellipsis, a space or
+            // the end follows: "an emergency [S1]." read "an emergency ." in Fact Check (demo copy of 9c0d1dd,
+            // 2026-10-18), and "the 5th [S1], [S2]." is "the 5th.". Before anything else it leaves one space. Nothing
+            // else in the claim is touched, so "8000..8100" and an ellipsis stay as written (two reviews, 2026-10-18).
+            .replacingOccurrences(
+                of: citationRun + #"(?=[\s.,;:!?)\]*_"'\u201D\u2019\u2014\u2013\u2026/]|$)"#, with: "",
+                options: .regularExpression)
+            .replacingOccurrences(of: citationRun, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"^#{1,6}\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            // What a removed citation can leave behind: "11:00 a.m. [S2]." becomes "11:00 a.m..", and "the 5th
-            // [S1], [S2]." becomes "the 5th,.". Exactly two full stops become one (an ellipsis keeps its three), and a
-            // comma, semicolon or colon just before a sentence's last mark goes (review, 2026-10-18).
-            .replacingOccurrences(of: #"(?<!\.)\.\.(?!\.)"#, with: ".", options: .regularExpression)
-            .replacingOccurrences(of: #"[,;:](?=[.!?](?:\s|\*|$))"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// One or more citation markers in a row with the space before them, as "[S1]", "[S1, S2]" or "[S1], [S2]" (5.7).
+    nonisolated private static let citationRun =
+        #"\s*"# + VerificationGateService.citationMarkerPattern + #"(?:\s*[,;]?\s*"#
+        + VerificationGateService.citationMarkerPattern + ")*"
 
     /// The claims that are not one of the answer's own headings (5.7), matched as Gate B matches them
     /// (`VerificationGateService.headingLines` and `headingKey`), so Fact Check neither lists a heading as
@@ -711,6 +740,39 @@ extension StructuredAnswer {
 
     nonisolated private static func citationIndex(from citation: String) -> Int? {
         StructuredAnswerParsing.citationIndex(from: citation)
+    }
+
+    /// The citation labels each of the answer's lines and sentences carries ("S1", "S2"), keyed as `normalizeForMatch`
+    /// keys its text once cleaned as `extractClaims` cleans it, so a sentence listed from the answer keeps the sources
+    /// it cites (5.7).
+    nonisolated private static func citationsBySentence(in answerText: String) -> [String: [String]] {
+        var pieces = answerText.components(separatedBy: .newlines)
+        let tokenizer = NLTokenizer(unit: .sentence)
+        tokenizer.string = answerText
+        tokenizer.enumerateTokens(in: answerText.startIndex..<answerText.endIndex) { range, _ in
+            pieces.append(String(answerText[range]))
+            return true
+        }
+        guard let marker = try? NSRegularExpression(pattern: VerificationGateService.citationMarkerPattern) else {
+            return [:]
+        }
+        var citations: [String: [String]] = [:]
+        for piece in pieces {
+            let nsPiece = piece as NSString
+            var labels: [String] = []
+            for match in marker.matches(in: piece, range: NSRange(location: 0, length: nsPiece.length)) {
+                for number in nsPiece.substring(with: match.range).split(whereSeparator: { !$0.isNumber })
+                where !labels.contains("S\(number)") {
+                    labels.append("S\(number)")
+                }
+            }
+            guard !labels.isEmpty else { continue }
+            let text = cleanClaimText(piece)
+                .replacingOccurrences(of: #"^([-\u2022]\s+|\d+[\.)]\s+)"#, with: "", options: .regularExpression)
+            let key = normalizeForMatch(text)
+            if !key.isEmpty, citations[key] == nil { citations[key] = labels }
+        }
+        return citations
     }
 
     nonisolated private static func normalizeForMatch(_ text: String) -> String {
@@ -1122,9 +1184,9 @@ extension StructuredAnswer {
         return lines.contains { isQuestionLikeClaim($0) }
     }
 
-    nonisolated private static func isQuestionLikeClaim(_ text: String) -> Bool {
+    nonisolated static func isQuestionLikeClaim(_ text: String) -> Bool {
         let stripped = text
-            .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: VerificationGateService.citationMarkerPattern, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !stripped.isEmpty else { return false }

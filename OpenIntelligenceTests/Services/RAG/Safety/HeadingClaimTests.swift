@@ -101,13 +101,188 @@ final class HeadingClaimTests: XCTestCase {
         XCTAssertTrue(VerificationGateService.headingLines(in: answer).isEmpty)
         XCTAssertTrue(VerificationGateService.isBoldTitle("**Notice to Enter**"))
         XCTAssertFalse(VerificationGateService.isBoldTitle("**Yes, cats are allowed with a $400 deposit.**"))
-        XCTAssertFalse(VerificationGateService.isBoldTitle("**24 hours' notice**"))
         let generation = structured(answer, [
             ("Yes, cats are allowed with a $400 deposit.", []), ("The deposit is refundable [S2].", ["S2"]),
         ])
         XCTAssertEqual(
             claims(of: generation, chunk: "Cats are allowed with a $400 deposit. The deposit is refundable."),
             ["Yes, cats are allowed with a $400 deposit.", "The deposit is refundable."])
+    }
+
+    /// A bold line that makes a statement is a claim, cited or not, and a bold title with a figure in it is a heading
+    /// only when the answer gives the figure again; a number that names a part is not a figure (two reviews,
+    /// 2026-10-18).
+    func testABoldStatementIsAClaimAndABoldTitlesFiguresMustBeGivenAgain() {
+        func headings(_ answer: String) -> Set<String> { VerificationGateService.headingLines(in: answer) }
+        XCTAssertTrue(headings("**Subletting is allowed** [S2]\n- With written consent [S2].").isEmpty)
+        XCTAssertTrue(headings("**No, pets are not allowed**\n- Section 9 covers pets [S1].").isEmpty)
+        XCTAssertTrue(headings("**No pets**\n- Section 9 covers pets [S1].").isEmpty)
+        XCTAssertTrue(headings("**24 hours' notice**\n- Except in an emergency [S1].").isEmpty)
+        XCTAssertEqual(
+            headings("**24 hours' notice**\n- The landlord must give at least 24 hours' notice [S1]."),
+            [VerificationGateService.headingKey("24 hours' notice")])
+        // A list number and a citation label are not figures the answer gives.
+        XCTAssertTrue(headings("**2 pets per unit**\n1. Cats need a $400 deposit [S1].\n2. Dogs are not allowed [S1].").isEmpty)
+        // A number that names a part is a label, given again or not.
+        XCTAssertEqual(
+            headings("**Unit 4B Pet Policy**\n- Two cats are allowed [S2]."), [VerificationGateService.headingKey("Unit 4B Pet Policy")])
+        XCTAssertEqual(
+            headings("**Step 1: Gather Documents**\n- Bring a photo ID [S1]."),
+            [VerificationGateService.headingKey("Step 1: Gather Documents")])
+        // A Markdown heading stays a heading whatever its numbers, as in b70eea1.
+        XCTAssertEqual(headings("## Step 1\n- Sign the lease [S1]."), [VerificationGateService.headingKey("Step 1")])
+        // A number written as a word is not read, so this title is a heading. A known limit of the rule.
+        XCTAssertEqual(
+            headings("**Two pets per unit**\n- Cats need a deposit [S1]."), [VerificationGateService.headingKey("Two pets per unit")])
+    }
+
+    /// A Markdown heading in sentence case that states something is a claim, so neither the check nor the source-only
+    /// answer leaves it out; one in Title Case is a title, and a lead-in is a heading whatever it says (three reviews,
+    /// 2026-10-18).
+    @MainActor
+    func testAHeadingInSentenceCaseThatStatesSomethingIsAClaim() {
+        func headings(_ answer: String) -> Set<String> { VerificationGateService.headingLines(in: answer) }
+        XCTAssertTrue(headings("## Subletting is allowed with written consent\n- Ask the landlord in writing [S1].").isEmpty)
+        XCTAssertTrue(headings("## Subletting is allowed [S2]\n- With written consent [S2].").isEmpty)
+        XCTAssertEqual(headings("## What Is Included\n- Water and trash [S1]."), [VerificationGateService.headingKey("What Is Included")])
+        XCTAssertEqual(headings("## Things to Do Nearby\nThe hotel is near the metro [S3]."), [VerificationGateService.headingKey("Things to Do Nearby")])
+        XCTAssertEqual(headings("## Fees You May Owe\n- A $50 fee [S2]."), [VerificationGateService.headingKey("Fees You May Owe")])
+        XCTAssertEqual(
+            headings("You must bring:\n- A photo ID [S1]."), [VerificationGateService.headingKey("You must bring")])
+        XCTAssertEqual(
+            headings("Pets are allowed under these conditions:\n- A $400 deposit [S1]."),
+            [VerificationGateService.headingKey("Pets are allowed under these conditions")])
+        // A statement written in Title Case reads as a title. A known limit of the rule.
+        XCTAssertEqual(headings("## Rent Is Due on the 1st\n- Late after the 5th [S1]."), [VerificationGateService.headingKey("Rent Is Due on the 1st")])
+        XCTAssertEqual(headings("Here's what the lease says:\n- Rent is due on the 1st [S1]."), [VerificationGateService.headingKey("Here's what the lease says")])
+        let draft = "## Subletting is allowed with written consent\n- Ask the landlord in writing [S1].\n- A $50 fee applies [S2]."
+        func claim(_ text: String) -> SourceOnlyVerifiedClaim {
+            SourceOnlyVerifiedClaim(
+                claimId: text, claimText: text, verdict: .supported, evidenceLabels: ["S1"], evidenceIds: [],
+                evidenceQuote: "", fidelity: 0.9, notes: nil, isCritical: false)
+        }
+        let claims = ["Subletting is allowed with written consent.", "Ask the landlord in writing.", "A $50 fee applies."]
+        XCTAssertEqual(SourceOnlyAnswerService.claimsToList(claims.map(claim), candidateAnswer: draft).count, 3)
+        // In Title Case or as a lead-in the heading reads as a title, and the claim that copies it still states
+        // something, so the source-only answer keeps it (fourth review, 2026-10-18).
+        let titleCaseDraft = "## Subletting Is Allowed With Written Consent\n- Ask the landlord in writing [S1].\n- A $50 fee applies [S2]."
+        XCTAssertEqual(SourceOnlyAnswerService.claimsToList(claims.map(claim), candidateAnswer: titleCaseDraft).count, 3)
+        let leadInDraft = "Subletting is allowed with written consent:\n- Ask the landlord in writing [S1].\n- A $50 fee applies [S2]."
+        XCTAssertEqual(SourceOnlyAnswerService.claimsToList(claims.map(claim), candidateAnswer: leadInDraft).count, 3)
+    }
+
+    /// Which bold lines read as titles (second review, 2026-10-18).
+    func testWhichBoldLinesAreTitles() {
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**Pets allowed with written consent**"))
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**Smoking prohibited indoors**"))
+        XCTAssertTrue(VerificationGateService.isBoldTitle("**Required Documents**"))
+        XCTAssertTrue(VerificationGateService.isBoldTitle("**What Is Included**"))
+        XCTAssertTrue(VerificationGateService.isBoldTitle("**What\u{2019}s Included**"))
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**What is included: water and trash**"))
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**Utilities paid by the landlord**"))
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**Pets welcome**"))
+        XCTAssertTrue(VerificationGateService.isBoldTitle("**Welcome Packet**"))
+        XCTAssertTrue(VerificationGateService.isBoldTitle("**Things to Do Nearby**"))
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**Pet Policy: No Dogs Allowed**"))
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**Pets aren\u{2019}t allowed**"))
+        XCTAssertFalse(VerificationGateService.isBoldTitle("**\u{30DA}\u{30C3}\u{30C8}\u{306F}\u{7981}\u{6B62}\u{3067}\u{3059}\u{3002}**"))
+    }
+
+    /// Gate B checks the sentences it would check anyway even when every one is heading-like, it checks the structured
+    /// claims when every one is a heading (what Fact Check lists then), and it checks a bold figure the answer gives
+    /// nowhere else (two reviews, 2026-10-18).
+    @MainActor
+    func testGateBChecksWhatOnlyLooksLikeAHeading() async {
+        let gate = VerificationGateService()
+        let chunk = leaseChunk("Room types: studio, one-bedroom. Landlord will give at least 24 hours' notice before entering.")
+        let onlyATitle = await gate.verify(
+            response: "**Room Types**", query: "Which room types are there?", retrievedChunks: [chunk], topScores: [0.9])
+        XCTAssertFalse(onlyATitle.claimResults.isEmpty)
+        let onlyTitleClaims = await gate.verify(
+            response: "**Room Types**", query: "Which room types are there?", retrievedChunks: [chunk], topScores: [0.9],
+            structuredClaims: [StructuredRAGClaim(claim: "Room Types", citations: [], isExtracted: false)])
+        XCTAssertFalse(onlyTitleClaims.claimResults.isEmpty)
+        let figure = await gate.verify(
+            response: "**24 hours' notice**\n- Except in an emergency [S1].", query: "How much notice?",
+            retrievedChunks: [chunk], topScores: [0.9],
+            structuredClaims: [
+                StructuredRAGClaim(claim: "24 hours' notice", citations: [], isExtracted: true),
+                StructuredRAGClaim(claim: "Except in an emergency [S1].", citations: ["S1"], isExtracted: true),
+            ])
+        XCTAssertTrue(figure.claimResults.contains { $0.claim.contains("24 hours") }, "\(figure.claimResults.map(\.claim))")
+        // When the model lists only its heading, the answer's own sentences are checked, under the rule for them, as in
+        // b70eea1; StructuredAnswer lists the same sentences (testATitleOnlyClaimListShowsTheAnswersSentences).
+        let titleListed = await gate.verify(
+            response: "**Notice to Enter**\n- The landlord must give at least 24 hours' notice [S1].", query: "How much notice?",
+            retrievedChunks: [chunk], topScores: [0.9],
+            structuredClaims: [StructuredRAGClaim(claim: "Notice to Enter", citations: [], isExtracted: false)])
+        XCTAssertFalse(titleListed.claimResults.contains { $0.claim == "Notice to Enter" }, "\(titleListed.claimResults.map(\.claim))")
+        XCTAssertTrue(titleListed.claimResults.contains { $0.claim.contains("24 hours' notice") }, "\(titleListed.claimResults.map(\.claim))")
+        XCTAssertEqual(titleListed.gateResults.first { $0.gate == .evidenceCoverage }?.passed, true)
+        // A question the model listed as a claim is not one.
+        let withQuestion = await gate.verify(
+            response: "**Notice to Enter**\n- The landlord must give at least 24 hours' notice [S1].", query: "How much notice?",
+            retrievedChunks: [chunk], topScores: [0.9],
+            structuredClaims: [
+                StructuredRAGClaim(claim: "Notice to Enter", citations: [], isExtracted: false),
+                StructuredRAGClaim(claim: "What is the notice period?", citations: [], isExtracted: false),
+            ])
+        XCTAssertFalse(withQuestion.claimResults.contains { $0.claim.hasSuffix("?") }, "\(withQuestion.claimResults.map(\.claim))")
+        // Gate B's own sentences are the ones with factual content (a number, a unit, a word such as "type"), so a title
+        // with none, alone, still has no claim to check, as in 5.6.
+        let bareTitle = await gate.verify(
+            response: "**Notice to Enter**", query: "How much notice?", retrievedChunks: [chunk], topScores: [0.9])
+        XCTAssertTrue(bareTitle.claimResults.isEmpty)
+        let twoSources = await gate.verify(
+            response: "Both apply [S1, S2].", query: "Which apply?", retrievedChunks: [chunk], topScores: [0.9],
+            structuredClaims: [StructuredRAGClaim(claim: "Both apply [S1, S2].", citations: ["S1", "S2"], isExtracted: true)])
+        XCTAssertEqual(twoSources.claimResults.map(\.claim), ["Both apply."])
+    }
+
+    /// A heading among an answer's first six sentences doesn't cost one of the six claims (second review, 2026-10-18).
+    func testAHeadingDoesNotTakeOneOfTheSixClaims() {
+        let sentences = [
+            "The studio has one window facing east.", "The one-bedroom has two windows facing south.",
+            "The two-bedroom has a balcony facing west.", "Every unit has a gas range and a dishwasher.",
+            "Laundry machines are in the basement of each building.", "Parking spaces are assigned by the office.",
+        ]
+        let answer = StructuredAnswer.from(
+            response: "**Room Types**\n" + sentences.joined(separator: " "),
+            retrievedChunks: [leaseChunk(sentences.joined(separator: " "))], answerIntent: .lookup,
+            verificationResult: nil, structuredGeneration: nil)
+        XCTAssertEqual(answer.claims.map(\.claim), sentences)
+    }
+
+    /// When the model lists only its heading as a claim, Fact Check lists the answer's own sentences, which are what Gate
+    /// B checks then (second review, 2026-10-18).
+    func testATitleOnlyClaimListShowsTheAnswersSentences() {
+        let generation = structured(
+            "**Notice to Enter**\n- The landlord must give at least 24 hours' notice [S1].", [("Notice to Enter", [])])
+        let answer = StructuredAnswer.from(
+            response: generation.answer, retrievedChunks: [leaseChunk("Landlord will give at least 24 hours' notice before entering.")],
+            answerIntent: .lookup, verificationResult: nil, structuredGeneration: generation)
+        XCTAssertEqual(answer.claims.map(\.claim), ["The landlord must give at least 24 hours' notice."])
+        // The sentence keeps the source it cites, so it is not reported as missing a citation (third review).
+        XCTAssertFalse(answer.missing.contains { $0.hasPrefix("Claim missing citation") }, "\(answer.missing)")
+    }
+
+    /// The source-only answer is rebuilt from its claims without the headings of the model's draft, which the rebuilt
+    /// answer no longer has, unless every claim is one (second review, 2026-10-18).
+    @MainActor
+    func testTheSourceOnlyAnswerLeavesOutTheDraftsHeadings() {
+        func claim(_ text: String) -> SourceOnlyVerifiedClaim {
+            SourceOnlyVerifiedClaim(
+                claimId: text, claimText: text, verdict: .supported, evidenceLabels: ["S1"], evidenceIds: [],
+                evidenceQuote: "", fidelity: 0.9, notes: nil, isCritical: false)
+        }
+        let draft = "**Notice to Enter**\n- The landlord must give at least 24 hours' notice [S1]."
+        let claims = [claim("Notice to Enter"), claim("The landlord must give at least 24 hours' notice.")]
+        XCTAssertEqual(
+            SourceOnlyAnswerService.claimsToList(claims, candidateAnswer: draft).map(\.claimText),
+            ["The landlord must give at least 24 hours' notice."])
+        XCTAssertEqual(
+            SourceOnlyAnswerService.claimsToList([claim("Notice to Enter")], candidateAnswer: "**Notice to Enter**").map(\.claimText),
+            ["Notice to Enter"])
     }
 
     /// A heading that carries a citation is still a heading, on both sides: Gate B and the claim list match the same
@@ -145,6 +320,23 @@ final class HeadingClaimTests: XCTestCase {
             claims(of: generation, chunk: "Check-out is at 11:00 a.m. Rent is due on the 5th. It costs $75.50."),
             ["Check-out is at 11:00 a.m.", "Rent is due on the 5th.", "See the lease (section 13).", "It costs $75.50.",
              "Wait for the next step..."])
+    }
+
+    /// A run of citations goes, and nothing else in the claim is touched: two dots between numbers stay, and a comma
+    /// after a citation stays where it was (second review, 2026-10-18).
+    func testACitationRunGoesAndNothingElseIsTouched() {
+        let generation = structured("Ports 8000..8100 are open [S1].", [
+            ("Ports 8000..8100 are open [S1].", ["S1"]),
+            ("The fee [S1], and the deposit [S2], are due on the 1st.", ["S1", "S2"]),
+            ("Both apply [S1, S2].", ["S1", "S2"]),
+            ("The lease ends in May [S1][S2].", ["S1", "S2"]),
+            ("The deposit is refundable, [S1].", ["S1"]),
+            ("The fee is $50 [S1]\u{2014}the deposit is $400 [S2].", ["S1", "S2"]),
+        ])
+        XCTAssertEqual(
+            claims(of: generation, chunk: "Ports 8000..8100 are open. The fee and the deposit are due on the 1st."),
+            ["Ports 8000..8100 are open.", "The fee, and the deposit, are due on the 1st.", "Both apply.",
+             "The lease ends in May.", "The deposit is refundable.", "The fee is $50\u{2014}the deposit is $400."])
     }
 
     /// The answer rebuilt from its checked claims keeps an abbreviation's full stop before the citation:

@@ -200,12 +200,14 @@ class HybridSearchService {
     /// still tied, and kept whatever order a dictionary gave them (review of 2026-10-17). The id is fixed for
     /// as long as the document is in the library, and it only decides between passages whose name and place
     /// are the same.
-    static func stableTieBreakKey(_ chunk: RetrievedChunk) -> String {
+    /// Nonisolated (5.7): `RAGEngine` sorts with it off the main actor, and as a main-actor method under the module's
+    /// default isolation every such call was a warning that is an error in the Swift 6 language mode.
+    nonisolated static func stableTieBreakKey(_ chunk: RetrievedChunk) -> String {
         // Zero-padded so lexical comparison orders the index numerically.
         "\(chunk.sourceDocument)#\(String(format: "%08d", chunk.chunk.metadata.chunkIndex))#\(chunk.chunk.documentId.uuidString)"
     }
 
-    static func byScoreThenId(_ lhs: RetrievedChunk, _ rhs: RetrievedChunk) -> Bool {
+    nonisolated static func byScoreThenId(_ lhs: RetrievedChunk, _ rhs: RetrievedChunk) -> Bool {
         lhs.similarityScore != rhs.similarityScore
             ? lhs.similarityScore > rhs.similarityScore
             : stableTieBreakKey(lhs) < stableTieBreakKey(rhs)
