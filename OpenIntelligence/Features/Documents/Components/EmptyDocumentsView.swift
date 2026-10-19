@@ -129,7 +129,7 @@ struct EmptyDocumentsView: View {
                     DocumentFeatureRow(
                         icon: "bolt.ring.closed",
                         title: "Fast Local Processing",
-                        description: "Neural Engine chunking and local indexing"
+                        description: "On-device chunking and local indexing"
                     )
 
                     DocumentFeatureRow(

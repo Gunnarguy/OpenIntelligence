@@ -746,7 +746,8 @@ struct AdaptiveVisualizationsView: View {
             EmbeddingSpaceView(
                 chunkCount: profile.chunkCount,
                 documentCount: profile.documentCount,
-                embeddingDimension: 512
+                // The library's own vector size; a fixed 512 described a model the default libraries don't use (5.7).
+                embeddingDimension: activeContainer?.embeddingDim ?? 384
             )
         case .clusterView:
             ClusterOverviewView(topics: profile.dominantTopics, profile: profile)

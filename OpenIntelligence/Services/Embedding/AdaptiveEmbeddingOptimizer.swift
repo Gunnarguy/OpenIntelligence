@@ -903,11 +903,12 @@ actor LibraryIntelligenceCenter {
         case "apple_fm_embed":
             reasoning.append("Apple Foundation Models unlock the requested dimensionality.")
         case "nl_contextual_embedding":
-            reasoning.append("NLContextualEmbedding provides 15-25% accuracy boost for semantic search.")
+            // Was "provides 15-25% accuracy boost"; no measurement behind the figure exists in the repository (5.7).
+            reasoning.append("NLContextualEmbedding reads each word in the context of its sentence.")
         case "coreml_sentence_embedding":
             reasoning.append("Core ML sentence encoder strikes balance for this profile.")
         case "coreai_sentence_embedding":
-            reasoning.append("Core AI sentence encoder strikes balance for this profile with Silicon-native acceleration.")
+            reasoning.append("Core AI sentence encoder strikes balance for this profile, on the GPU.")
         default:
             reasoning.append("NaturalLanguage embeddings deliver speed with 512D coverage.")
         }

@@ -54,7 +54,10 @@ struct AboutView: View {
         case "nl_embedding":
             return "NLEmbedding (512D)"
         case "coreml_sentence_embedding":
-            return "MiniLM-L6-v2 (384D)"
+            return "MiniLM-L6-v2 (384D, Core ML)"
+        // Showed the raw id on a Mac with macOS 27, where Core AI is the default (5.7).
+        case "coreai_sentence_embedding":
+            return "MiniLM-L6-v2 (384D, Core AI)"
         case "apple_fm_embed":
             return "Apple FM (1024D)"
         default:

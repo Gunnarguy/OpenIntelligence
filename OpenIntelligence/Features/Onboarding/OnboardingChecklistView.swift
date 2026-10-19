@@ -986,7 +986,7 @@ struct OnboardingChecklistView: View {
         case .analyzing: return PipelineLogEntry(icon: "brain", color: .indigo, text: "[\(fn)] Running layout intelligence & category routing...")
         case .adapting: return PipelineLogEntry(icon: "gearshape.2", color: .yellow, text: "[\(fn)] Optimizing index hyperparameters...")
         case .reindexing: return PipelineLogEntry(icon: "arrow.triangle.2.circlepath", color: .orange, text: "[\(fn)] Rebuilding layout graph...")
-        case .embedding: return PipelineLogEntry(icon: "point.3.connected.trianglepath.dotted", color: .green, text: "[\(fn)] Vectorizing chunks via Neural Engine...")
+        case .embedding: return PipelineLogEntry(icon: "point.3.connected.trianglepath.dotted", color: .green, text: "[\(fn)] Turning passages into vectors...")
         case .indexing: return PipelineLogEntry(icon: "magnifyingglass", color: .teal, text: "[\(fn)] Generating BM25 dictionary + HNSW vectors...")
         case .storing: return PipelineLogEntry(icon: "externaldrive", color: .gray, text: "[\(fn)] Serializing index to secure local container...")
         case .complete: return nil
@@ -1092,8 +1092,8 @@ struct OnboardingChecklistView: View {
         withAnimation(.easeInOut(duration: 0.3)) { 
             isProcessing = true
             logEntries.append(PipelineLogEntry(icon: "lock.shield", color: .cyan, text: "Locking local workspace container enclaves..."))
-            logEntries.append(PipelineLogEntry(icon: "cpu.fill", color: .purple, text: "Waking Neural Engine & GPU cores..."))
-            logEntries.append(PipelineLogEntry(icon: "square.stack.3d.up.fill", color: .blue, text: "Pre-warming CoreML sentence embedding model (384D)..."))
+            logEntries.append(PipelineLogEntry(icon: "cpu.fill", color: .purple, text: "Getting the embedding model ready..."))
+            logEntries.append(PipelineLogEntry(icon: "square.stack.3d.up.fill", color: .blue, text: "Loading the sentence embedding model (384D)..."))
             logEntries.append(PipelineLogEntry(icon: "doc.fill", color: .orange, text: "Scanning sample documents directory..."))
         }
         

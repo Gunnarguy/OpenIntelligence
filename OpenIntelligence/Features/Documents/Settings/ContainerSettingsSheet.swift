@@ -517,10 +517,12 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
                 value: 384,
                 icon: "cpu.fill",
                 title: "384D • MiniLM-L6-v2",
-                caption: "Neural Engine optimized",
+                caption: "Bundled MiniLM model",
                 detail: "Native output of the bundled all-MiniLM-L6-v2 sentence-transformer. Mean-pooled token embeddings produce dense 384-dim vectors optimized for cosine similarity.",
                 metrics: [
-                    OptionMetric(icon: "bolt.fill", text: "ANE accelerated", tint: .orange),
+                    // The 384D option serves the Core ML and the Core AI copy. Core ML plans the model onto the Neural
+                    // Engine and Core AI runs it on the GPU (BenchmarkRuns/2026-10-18-compute-plan; 5.7).
+                    OptionMetric(icon: "bolt.fill", text: "Neural Engine with Core ML, GPU with Core AI", tint: .orange),
                     OptionMetric(icon: "cube.fill", text: "~0.58 MB / 100 docs"),
                     OptionMetric(icon: "checkmark.seal.fill", text: "Native format"),
                 ]
@@ -1290,6 +1292,10 @@ struct AutoIntelligencePanel: View {
         switch providerId {
         case "coreml_sentence_embedding":
             return "Core ML Sentence"
+        // A Core AI library fell to the default and read "Apple Natural Language" on every Mac with macOS 27,
+        // where Core AI is the default for a new library (5.7).
+        case "coreai_sentence_embedding":
+            return "Core AI Sentence"
         case "apple_fm_embed":
             return "Apple Foundation Model"
         default:
