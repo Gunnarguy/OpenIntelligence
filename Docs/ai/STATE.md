@@ -3,7 +3,7 @@
 Updated: 2026-10-18, 22:45 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 5a521b1
+Last verified commit: 4fc6236
 
 Earlier detail is in git: `git show 35aae34:Docs/ai/STATE.md` (the evening of 2026-10-18, before this change) and the
 copies it names; the long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -113,9 +113,8 @@ each device's window.
    cross-encoder runs; an answer's details name the Neural Engine again, because Apple's 2024 research article says the
    on-device model's key-value cache runs on its neural engines, and the release note that said otherwise is withdrawn)
    and the commit after it (a Private Cloud Compute answer lights no chip, `LLMService.generate`). Left: Vision OCR is
-   reported as `.reranking` (`DocumentProcessor`, the OCR pulse) with a unit Vision chooses; Settings' X-Ray switch
-   says "Real-time model routing and token telemetry" and its Live Metrics switch "Show ops count and latency in
-   legend", neither of which the X-Ray shows (`SettingsView`, Appearance).
+   reported as `.reranking` (`DocumentProcessor`, the OCR pulse) with a unit Vision chooses; the two X-Ray switches in Settings were reworded
+   on 2026-10-19 (the commit after `4fc6236`).
 5. Row `3fe49a74d54f8174886fed2904d86974`, fixed in `5a521b1` (In Progress): closes on a Deep Think run in a Simulator
    set up as an iPhone 15 Pro whose log shows the Self-RAG lines (needs the demo copy, `demo_refresh.sh <udid>`).
 6. The Atlas revamp row above (he wants it "god mode, beautiful"); start from the codemap feature

@@ -3250,7 +3250,8 @@ Text(deviceService.chipName)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Telemetry HUD")
                             .font(.subheadline.weight(.medium))
-                        Text("Real-time model routing and token telemetry")
+                        // Was "Real-time model routing and token telemetry"; the X-Ray shows neither (5.7).
+                        Text("A floating map of the chip: this app's CPU use, the work it sends to the Neural Engine and GPU, and free memory")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -3302,7 +3303,9 @@ Text(deviceService.chipName)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Live Metrics")
                                 .font(.caption.weight(.medium))
-                            Text("Show ops count and latency in legend")
+                            // Was "Show ops count and latency"; with it on the legend shows each chip's activity and free
+                            // memory, and with it off "idle" (`HardwareTelemetryState.componentActivities`) (5.7).
+                            Text("Show each chip's activity and free memory in the legend")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
