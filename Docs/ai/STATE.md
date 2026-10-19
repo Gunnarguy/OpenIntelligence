@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-10-19, 11:30 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
+Updated: 2026-10-19, 12:40 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: ab2a1fb
+Last verified commit: 040951d
 
 Earlier detail is in git: `git show 664e69b:Docs/ai/STATE.md` (the night of 2026-10-18) and the copies it names; the
 long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -21,8 +21,8 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
 | What | Where it stands |
 |---|---|
 | Atlas revamp | **Committed `13a42f5`.** Row `3fe49a74d54f81cc95faeeff91a69bc4` (In Progress). Closes on Mac screenshots and his look; the Simulator parts of its condition are met (below). |
-| Device truth | `16d6827`, `081f49d`, `5a521b1`, `4fc6236`, `7b75138`, and `ab2a1fb` (the glossary's GPU entry). Row `3fe49a74d54f8164a5fee6f0f53805ec` (In Progress). Left to close: the import panel and an answer's details in the Simulator, the glossary's Context window entry opened, the Mac build showing 8,192. |
-| Deep Think on A17 Pro | Fixed in `5a521b1`. Row `3fe49a74d54f8174886fed2904d86974` (In Progress). Closes on a Deep Think run in an iPhone 15 Pro simulator whose trace shows the Self-RAG lines; robot scene ready (`testDeepThinkA17`), needs the demo copy. |
+| Device truth | `16d6827`, `081f49d`, `5a521b1`, `4fc6236`, `7b75138`, and `ab2a1fb` (the glossary's GPU entry). Row `3fe49a74d54f8164a5fee6f0f53805ec` (In Progress). Every Simulator part of its condition is met (2026-10-19, on the iPhone 15 Pro simulator: Device & Performance, the glossary's Context window technical text, an answer's details, the import panel's profile chip). Left: the Mac build showing 8,192, which needs his Mac and libraries. |
+| Deep Think on A17 Pro | **Completed 2026-10-19.** Row `3fe49a74d54f8174886fed2904d86974`. On the iPhone 15 Pro simulator (`OI 5.7 A17 Pro` `0F072FEC-D590-4651-BCA8-D5D8D01E25FC`, demo copy of `040951d` with Release logging patched to info in `/private/tmp/oi57-ios-src` only) the trace logged `[Self-RAG 2.0] Starting verification` and `Verification complete: accept (relevance=91%, ...)`. |
 | Graph packing | `749031e`. Row `3fe49a74d54f81d494a5f0842cb8f40e` (In Progress). |
 | GPU default | Balanced stays (`Docs/ai/DECISIONS.md` 2026-10-19, `664e69b`). |
 | Simulator memory | `ab2a1fb`: the Simulator reads the Mac's free memory. Before it, every Simulator run read "0 MB, Critical" and answered at `.efficient`, so earlier Simulator checks (and the 5.7 preview) ran a reduced pipeline. |
@@ -98,9 +98,7 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
 
 ## Exact Next Action
 
-Run the Deep Think check for row `3fe49a74d54f8174886fed2904d86974`: create an iPhone 15 Pro simulator on iOS 27.0
-(`xcrun simctl create "OI 5.7 A17 Pro" com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro com.apple.CoreSimulator.SimRuntime.iOS-27-0`),
-build the demo copy of HEAD for it with `scratchpad/demo_refresh.sh <udid>` (archive, `pd/oi/patch_sim_switches.py`,
-Release build), write `ragQualityMode` = `deepThink` and the onboarding keys into the app's own preferences file (auto
-memory `simulator-demo-copy-pipeline.md`), run `python3 scratchpad/pvaudit.py <udid> <out> OpenIntelligenceScenes/testDeepThinkA17`,
-and read the app's `Documents/pipeline_trace.log` for `[Agentic] Self-RAG` and the verification loop's lines.
+Read the open v5.7 rows (the SQL in `.claude/skills/notion-roadmap/SKILL.md`, with `WHERE "Status" != 'Completed' AND "Target Release" = 'v5.7'`)
+and take the next one whose closing condition the Simulator can meet. Two rows wait on his Mac: the Atlas row
+(`3fe49a74d54f81cc95faeeff91a69bc4`, Mac screenshots and his look) and the device-truth row (`3fe49a74d54f8164a5fee6f0f53805ec`,
+8,192 in the Mac's Glossary and Context Window card); ask him once whether to launch a development build on his Mac.
