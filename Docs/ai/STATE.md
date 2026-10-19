@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-10-18, 22:40 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
+Updated: 2026-10-18, 22:45 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 35aae34
+Last verified commit: 16d6827
 
 Earlier detail is in git: `git show 35aae34:Docs/ai/STATE.md` (the evening of 2026-10-18, before this change) and the
 copies it names; the long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -23,11 +23,9 @@ each device's window.
 
 | What | Where it stands |
 |---|---|
-| Step 1, "device truth" | **Uncommitted, 28 tracked files plus `OpenIntelligenceTests/Services/Infrastructure/Monitoring/BackgroundGPUAllowanceTests.swift` and `BenchmarkRuns/2026-10-18-compute-plan/` (git-ignored evidence).** A refuting review (reviewer agent) found 12 defects and 4 questions; all fixed in the tree (text that was still false: page cleanup, the background line, tiers vs chip families, Deep Think's stop rule and research rounds). The tree as it stood before those fixes built (`TEST BUILD SUCCEEDED`); the fixed tree's build and full suite were running at 22:40 (`build57.sh`, see Verification). |
-| CHANGELOG | **Not yet in `CHANGELOG.md`.** The four entries are drafted in the scratchpad file `changelog-hw.md`; two end in the placeholder `VERIFY_LINE`, to be replaced with the test result. They go at the end of the 5.7 `### Fixed` list, just before `### Changed`. The pre-commit hook refuses the commit without CHANGELOG. |
-| Release notes | `WHATS_NEW.md`, `Docs/USER_CHANGELOG.md`, `OpenIntelligence/Resources/VersionHistory.md` already edited (identical bullets, Settings section). |
+| Step 1, "device truth" | **Committed and pushed as `16d6827`** ("5.7: the GPU setting, the window and Deep Think's limits are this device's own", `[ci skip]`), after a refuting review whose 12 defects were fixed. What it does is listed below. |
 | Roadmap | New rows, both v5.7: "The GPU setting claimed work the code didn't do..." `3fe49a74d54f8164a5fee6f0f53805ec` (In Progress; closes on Simulator screenshots of the new text plus the Mac build showing 8,192), and "Deep Think on an iPhone 15 Pro skips the Self-RAG check that newer devices run" `3fe49a74d54f8174886fed2904d86974` (To Do). Added at 22:35 at his word: "Revamp the Knowledge Atlas 3D view: axes go missing as the graph turns, and it needs an All Libraries view" `3fe49a74d54f81cc95faeeff91a69bc4` (To Do, High; his words and the plan are in the row: reproduce by dragging the graph in the Simulator, survey the best 3D embedding views and Apple's 3D frameworks on developer.apple.com, add All Libraries). |
-| His iPhone | Development build of 9c0d1dd's app code from 2026-10-17. He was told a build of this change would be installed over Wi-Fi once it is committed, for him to open in the morning. |
+| His iPhone | **Development build of `16d6827`, 5.7, installed 2026-10-18 22:39 over Wi-Fi** (`builddevice.sh` with `OI_SCRATCH=/private/tmp`, then `devicectl device install app`; the app was not open). He was asked to look at two things only the phone can answer: the window its Context Window card shows (Settings, Device & Performance) and the line under the GPU choices (whether iOS offers it background GPU). |
 | Waiting on him | Picker style (A, B or C); localization languages. |
 
 ## What the change does (so nothing is redone)
@@ -85,8 +83,11 @@ each device's window.
   ops on the Neural Engine under `.all`; reranker 55 of 66; MiniLM fastest on this Mac's GPU (4.78 ms vs 6.90).
 - Apple pages read 2026-10-18: `BGContinuedProcessingTaskRequest.Resources.gpu`, `BGTaskScheduler.supportedResources`,
   the GPU entitlement, Accelerate's overview (CPU), Foundation Models (no chip named), `MLComputeUnits` cases, TN3193.
-- **Not yet run on the fixed tree:** the build, the full suite, `bash scripts/build_simulator_smoke.sh`,
-  `python3 scripts/verify_doc_claims.py`, `python3 scripts/secret_scan.py`, `python3 .claude/codemap/codemap.py check`.
+- `16d6827`'s tree, iOS 27 Simulator `0FBB8C16-...`: `TEST BUILD SUCCEEDED`; `Executed 1215 tests, with 7 tests skipped
+  and 3 failures`, all in `AtlasLabelingTests` on the brand-new simulator, which then passed alone (`Executed 20 tests,
+  with 0 failures`). `verify_doc_claims.py`: 968 claims, all match. `secret_scan.py`: clean. Phone build: `XCODEBUILD_EXIT=0`,
+  installed (`devicectl device info apps`: 5.7).
+- **Not run for `16d6827`:** `bash scripts/build_simulator_smoke.sh`, `python3 .claude/codemap/codemap.py check`.
 
 ## Blockers / Unknowns
 
@@ -99,20 +100,23 @@ each device's window.
 
 ## Exact Next Action
 
-1. Read `hw-test9.log` (`grep -E 'Executed [0-9]+ tests|error: -\[' hw-test9.log`). If it is missing or the run
-   stopped (exit 143, "hung before establishing connection"), rerun:
-   `OI_SCRATCH=/private/tmp GUARD_DISK_MB=3000 bash <scratchpad>/build57.sh build-for-testing <scratchpad>/hw-build10.log`
-   then `test-without-building <scratchpad>/hw-test10.log`.
-2. When the suite passes, put the four entries from `changelog-hw.md` into `CHANGELOG.md` (end of 5.7 `### Fixed`),
-   replacing each `VERIFY_LINE` with the measured line, then run `python3 scripts/verify_doc_claims.py` and
-   `python3 scripts/secret_scan.py`.
-3. Commit by name (every path in `git status --porcelain` except `.agents/`, `.codex/`), message starting
-   "5.7: the GPU setting, the window and Deep Think's limits are this device's own" and ending `[ci skip]`; push.
-4. Install on his iPhone with `builddevice.sh` (read it first; pass the 5.7 MARKETING_VERSION), only if `devicectl device
-   info processes` shows the app is not open.
-5. Then step 1b: the hardware X-Ray credits the Neural Engine for Core AI (GPU) embeddings and for cloud answers
-   (`HardwareActivityType.primaryComponent`, reporters in EmbeddingService, LLMService, RAGEngine, DocumentProcessor),
-   and the embedding labels the app inventory found (AboutView has no Core AI case; ContainerSettingsSheet
-   `friendlyProviderName` calls Core AI "Apple Natural Language"; DocumentDetailsView's nil id; AdaptiveVisualizationsView's
-   fixed 512; onboarding's "via Neural Engine" import stage).
-6. Then the Atlas revamp row above (he wants it "god mode, beautiful"); start from the codemap feature `embedding-visualizations-and-3d`.
+1. Ask him what his iPhone showed in Settings, Device & Performance: the Context Window card's figure and the line under
+   the GPU choices. Record both (the window in `Docs/LIMITATIONS.md` beside the Mac's 8,192, the background GPU answer
+   in the Atlas paragraph on background GPU), dated, as measured on his iPhone 16 Pro Max.
+2. Run `bash scripts/build_simulator_smoke.sh` (through `smoke_guarded.sh`, `OI_SCRATCH=/private/tmp`) and
+   `python3 .claude/codemap/codemap.py check` for `16d6827`.
+3. Close row `3fe49a74d54f8164a5fee6f0f53805ec` on Simulator screenshots of Settings, Device & Performance, the Glossary
+   and an answer's details (the robot's `OpenIntelligenceScenes/testAuditTour` through `pvaudit.py`; the preview
+   simulator it used was deleted, so it needs a new simulator and the demo copy, `demo_refresh.sh <udid>`).
+4. Step 1b: the hardware X-Ray credits the Neural Engine for Core AI (GPU) embeddings and for cloud answers
+   (`HardwareActivityType.primaryComponent`, reporters in EmbeddingService, LLMService, RAGEngine, DocumentProcessor);
+   `BenchmarkRuns/2026-10-18-compute-plan` has the measured plans to attribute by. Also the embedding labels: AboutView
+   has no Core AI case; ContainerSettingsSheet `friendlyProviderName` calls Core AI "Apple Natural Language";
+   DocumentDetailsView's nil id; AdaptiveVisualizationsView's fixed 512; onboarding's "via Neural Engine" import stage.
+5. Row `3fe49a74d54f8174886fed2904d86974`: Deep Think on an A17 Pro skips Self-RAG (`AgenticOrchestrator` keys it on
+   `maxSteps >= 8`).
+6. The Atlas revamp row above (he wants it "god mode, beautiful"); start from the codemap feature
+   `embedding-visualizations-and-3d`.
+7. Steps 2 and 3 of his plan: measure the default GPU profile (Metal against Accelerate on a large library on this Mac;
+   the embedder on the GPU against the Neural Engine, which differ by device per the compute-plan run) and size
+   `graphTokenBudget` to the device's window.
