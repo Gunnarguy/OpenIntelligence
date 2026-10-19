@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-10-18, 18:45 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
+Updated: 2026-10-18, 19:00 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 798b3ec
+Last verified commit: dafbc5f
 
 Earlier detail is in git: `git show b19b9b5:Docs/ai/STATE.md` (the afternoon of 2026-10-18) and the copies it names;
 the long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -21,10 +21,10 @@ the app runs on the device's hardware. The decisions are in auto memory `everyth
 | What | Where it stands |
 |---|---|
 | Today's commits | `b70eea1` an answer's heading stays out of Fact Check; `9e5a999` two Developer switches stop reverting, Deep Think's second research call applies the first call's checks; `798b3ec` the heading rule after a refuting review that ran four times over the fixes (a heading counts only when it reads as a title, a bold title with a figure only when the answer gives it again, lead-ins always; Gate B and Fact Check both use the answer's sentences when the model lists only its heading; the source-only check keeps statements and declines on title-only claim lists; `HybridSearchService`'s sort helpers are `nonisolated`). All pushed. |
-| Roadmap | 40 Future Backlog rows moved to v5.7; 11 closed as decided. New row "Fact Check counted an answer's own heading as a claim..." (`3fe49a74d54f8149bfb1d2aee1285abc`), In Progress: closes on the demo-copy check below. About 204 rows open. |
+| Roadmap | 40 Future Backlog rows moved to v5.7; 11 closed as decided. New row "Fact Check counted an answer's own heading as a claim..." (`3fe49a74d54f8149bfb1d2aee1285abc`) closed Completed the same evening on the demo-copy check (Shipped On empty: 5.7 is unreleased). About 204 rows open. |
 | Triage of all 214 open rows | `~/.agents/data/openintelligence-5.7-closeout/triage-2026-10-18/*.jsonl`: per row state, check (simulator / unit-test / device / mac / benchmark / owner), evidence, what is missing, size. 147 built and waiting for a check (75 Simulator, 44 device). |
 | UI audit | 41 screenshots and three contact sheets in `~/.agents/data/openintelligence-5.7-closeout/ui-audit-2026-10-18/`. Findings are under Blockers. |
-| App Store media (not uploaded) | `~/Movies/App demos/OpenIntelligence/App Store/5.7 (2026-10-18)/`: iPhone preview (19.4 s, 886x1920) and 21:9 header loop. The preview shows the old "except in an emergency ." gap, so it is refilmed from `798b3ec`'s demo copy before any upload. Nothing goes to App Store Connect without his word. |
+| App Store media (not uploaded) | `~/Movies/App demos/OpenIntelligence/App Store/5.7 (2026-10-18)/`: `OpenIntelligence 5.7 App Store preview (iPhone 6.9) v2.mov` (19.5 s, 886x1920, 30 fps, silent stereo AAC; filmed 18:38 from `798b3ec`'s demo copy, Fact Check "1 Verified", no gap; plan and contact sheet beside it; sent to him) replaces the first cut, which showed the old gap; and the 21:9 header loop. Nothing goes to App Store Connect without his word. |
 | His iPhone | Development build of 9c0d1dd's app code, installed 2026-10-17 23:09. |
 | Waiting on him | Picker style (A tidier chips, B one combined chip, C a mode bar; mockups shown 2026-10-18); localization languages. |
 
@@ -94,11 +94,11 @@ the app runs on the device's hardware. The decisions are in auto memory `everyth
 
 ## Exact Next Action
 
-The demo copy of `798b3ec` (archive and patch done in `$OI_SCRATCH/oi57-arch-798b3ec`, synced into `oi57-ios-src`) is
-building from scratch with `oi57h-build.sh 230C41D7-D64D-426E-B9E2-B0FF66BAF2ED` (started 18:50, log
-`/private/tmp/oi57h-ios-build.log`); when it is installed, set up the simulator's defaults as in `simulator-demo-copy-pipeline.md` if the install reset them,
-then film `OI_Q="How much notice does my landlord need to give before entering?" pvrec.sh
-230C41D7-D64D-426E-B9E2-B0FF66BAF2ED /private/tmp/oi57p-takes/preview5 OpenIntelligenceScenes/testPreview57` until
-the take's tree reads "1 Verified" with no gap before the full stop. That take closes the roadmap row above. Then recut
-with `/private/tmp/oi57p-cuts/preview-plan.json` (source and clip times from the new take) and show him the contact
-sheet.
+Start the UI cleanup with Settings, plain by default behind the Technical Details switch: in
+`OpenIntelligence/Features/Settings/SettingsView.swift`, `retrievalCard` (Intelligence Mode) shows each mode in plain
+words and moves the `currentModeFeatures` list behind `settings.showTechnicalDetails`, and `modeBadges` drops "Research
+grade" and words "98% target" as what it is (the Maximum loop, `RAGQualityMode.agenticConfig` -> `AgenticConfig.unlimited`,
+stops at 0.98 confidence or 50 steps; check the call site before writing a number); `siriIntegrationCard` counts its
+phrases from `RAGAppShortcutsProvider` instead of the hardcoded "10 of 10 Registered". Run the preflight first, edit by
+script, build, photograph the pages with the robot's `OpenIntelligenceAuditTour` scene, review, commit. The chat picker
+(A, B or C) waits for his choice.
