@@ -156,7 +156,7 @@ extension GlossaryTermID {
     }
 
     /// Where the figures come from, for the technical register.
-    fileprivate static let documentedWindows = "Apple documents 4,096 tokens (TN3193); a Mac (M3 Pro) on macOS 27 reported 8,192 when measured."
+    fileprivate static let documentedWindows = "Apple documents 4,096 tokens (TN3193); an iPhone 16 Pro Max on iOS 27 reports 4,096 and a Mac (M3 Pro) on macOS 27 8,192."
 
     var definition: GlossaryTerm {
         switch self {

@@ -3715,6 +3715,20 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// How many tokens of passages graph packing gathers for an investigate, compare or findings question (5.7).
+    ///
+    /// It was 6,000 on every device. Graph packing returns its passages in document order, with the context passages
+    /// it adds scored 0.3, and `assembleContext` then fills the window in that order (after the lost-in-the-middle
+    /// reorder, which assumes relevance order). On a device whose window is 4,096 tokens, about 3,190 tokens (4,470
+    /// characters) are left for passages, measured on the owner's iPhone 16 Pro Max (`Context budget: base=4096 ...
+    /// available=3190`, 2026-10-16), so roughly half of a 6,000-token pack was cut by position rather than relevance.
+    /// Three quarters of the window fits what is left after the instructions and the question; at 8,192 or more the
+    /// budget stays 6,000, as before. A device that reports no window counts as 4,096.
+    nonisolated static func graphPackingTokenBudget(windowTokens: Int) -> Int {
+        let window = windowTokens > 0 ? windowTokens : FoundationModelTokenBudget.baseContextLength
+        return min(6000, max(1500, window * 3 / 4))
+    }
+
     /// The candidates with the passage retrieval ranked first in front, the rest in the order given
     /// (5.7). The extractive ordering sorts by the question's words, and must not move retrieval's
     /// best passage out of the context: see `extractRelevantSentencesOffMain`.
@@ -14249,8 +14263,11 @@ class RAGService: ObservableObject {
                     // Extract core chunks from candidates
                     let coreChunks = contextCandidates.map { $0.chunk }
 
-                    // Calculate token budget dynamically based on model context size
-                    let graphTokenBudget = allowLargeContext ? 24000 : (isAppleFMOnDevice ? 6000 : 6000)
+                    // Sized to the window the device reports (5.7): see `graphPackingTokenBudget(windowTokens:)`.
+                    let graphTokenBudget = allowLargeContext
+                        ? 24000
+                        : Self.graphPackingTokenBudget(
+                            windowTokens: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))
 
                     // Pack with graph context
                     let packedContext = await contextPackingService.pack(
