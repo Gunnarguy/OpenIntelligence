@@ -1892,3 +1892,29 @@ words but keep their colored icons and tints; the light-mode accent and everythi
 White on a filled blue button in dark mode stays at 4.0 to 1. Only Chat, Documents and Settings are audited so far; the
 first-run screen, an answer, adding a document and the purchase sheet come before the labels are declared. Reopen if
 Apple's criteria or the audit change, or if a screen shows a contrast item that measures under 4.5 to 1 on screen.
+
+## 2026-10-19: Balanced stays the default GPU profile; large searches are not moved to the GPU by default
+
+**Context.** On 2026-10-18 the owner, told that the GPU setting's text had been untrue, asked for the CPU, GPU and Neural
+Engine to be "cranked" and used "when they're supposed to be", and the plan he was given included deciding the default
+profile and the background GPU path by measurement.
+
+**Measured.** (1) Vector search, M3 Pro, macOS 27 (`BenchmarkRuns/2026-10-19-metal-vs-vdsp-search`): the app's Metal
+shader is slower than Accelerate's `vDSP_mmul` at every size tried, 0.28 against 0.01 ms at 1,000 passages and 5.69
+against 3.80 ms at 150,016 with zero-copy buffers; scores agree to 1e-7. (2) Embedding: Core ML plans MiniLM onto the
+Neural Engine under `.all` (150 of 161 operations, M3 Pro, `BenchmarkRuns/2026-10-18-compute-plan`); on the owner's
+iPhone 16 Pro Max on 2026-10-10 the Neural Engine was the fastest unit for it (116 to 121 passages a second against 108
+for CPU and GPU); on the Mac a new library uses Core AI, on the GPU. (3) Background GPU: the owner's iPhone 16 Pro Max
+records `backgroundGPUSupported: false` with the entitlement in the build (its status files, 2026-10-16 and 10-17).
+
+**Decision.** Balanced stays the default. It keeps search on the faster CPU path, lets an import's embedding model use
+whatever unit Core ML picks (the Neural Engine where it plans it), and gives scanned PDF pages the extra Core Image pass
+on the GPU. Performance and Maximum stay as choices; on this Mac they make large searches 1 to 2 ms slower, which no
+person will notice, and nothing they add was measured faster. The background GPU request stays as it is: iOS decides,
+and on the owner's iPhone it says no.
+
+**Alternatives.** Making Balanced use Metal for large searches (rejected: slower on the only machine measured).
+Removing the Metal search path (not done: an iPhone has not been measured, and the path is correct).
+
+**Consequences.** "Crank" is answered with numbers rather than more GPU: the hardware is used where it was measured to
+help. An iPhone measurement of the search paths would reopen this (a debug benchmark like `DebugEmbeddingBench`).
