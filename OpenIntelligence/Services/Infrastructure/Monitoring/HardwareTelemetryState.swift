@@ -82,6 +82,11 @@ enum HardwareComponent: String, CaseIterable, Sendable {
 enum HardwareActivityType: String, Sendable {
     // Neural Engine (ANE) activities
     case embeddingGeneration = "Embedding"
+    /// The Core AI copy of the embedding model, which runs on the GPU (5.7).
+    case embeddingOnGPU = "Embedding (GPU)"
+    /// Core ML embedding limited to the CPU: the Simulator, a background import without the GPU, or Apple's
+    /// NaturalLanguage word vectors (5.7).
+    case embeddingOnCPU = "Embedding (CPU)"
     case llmInference = "LLM Inference"
     case reranking = "ReRanking"
     case tokenization = "Tokenization"
@@ -99,11 +104,34 @@ enum HardwareActivityType: String, Sendable {
     case bm25Scoring = "BM25 Scoring"
     case dataDecoding = "Data Decoding"
 
+    /// Which chip an embedding call lights in the X-Ray, from the library's provider (5.7). Until 5.7 every embedding
+    /// lit the Neural Engine: the Core AI copy, which runs on the GPU, and Core ML on the CPU alone in the Simulator or a
+    /// background import too. Core ML plans the MiniLM copy onto the Neural Engine (150 of 161 operations under `.all`,
+    /// `BenchmarkRuns/2026-10-18-compute-plan`); NaturalLanguage's word vectors are CPU work.
+    nonisolated static func embeddingActivity(providerId: String) -> HardwareActivityType {
+        switch providerId {
+        case "coreai_sentence_embedding":
+            return .embeddingOnGPU
+        case "coreml_sentence_embedding":
+            #if targetEnvironment(simulator)
+                return .embeddingOnCPU
+            #else
+                return DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive ? .embeddingOnCPU : .embeddingGeneration
+            #endif
+        default:
+            return .embeddingOnCPU
+        }
+    }
+
     /// Which hardware component this activity primarily uses
     var primaryComponent: HardwareComponent {
         switch self {
         case .embeddingGeneration, .llmInference, .reranking, .tokenization:
             return .neuralEngine
+        case .embeddingOnGPU:
+            return .gpu
+        case .embeddingOnCPU:
+            return .cpu
         case .vectorSimilarity, .mmrComputation, .metalCompute, .imageProcessing:
             return .gpu
         case .queryProcessing, .ragOrchestration, .textChunking, .bm25Scoring, .dataDecoding:
@@ -645,16 +673,16 @@ final class HardwareTelemetryState {
     // MARK: - Convenience Methods for Common Operations
 
     /// Quick method for embedding operations (used by EmbeddingService)
-    func reportEmbedding(count: Int = 1) {
+    func reportEmbedding(count: Int = 1, activity: HardwareActivityType = .embeddingGeneration) {
         let intensity = min(1.0, 0.6 + Double(count) * 0.1)
-        pulse(.embeddingGeneration, intensity: intensity, duration: 0.2)
-        incrementCounter(for: .neuralEngine)
+        pulse(activity, intensity: intensity, duration: 0.2)
+        incrementCounter(for: activity.primaryComponent)
         totalEmbeddingsGenerated += count
     }
 
     /// Report embedding with measured latency
-    func reportEmbeddingWithLatency(count: Int = 1, latencyMs: Double) {
-        reportEmbedding(count: count)
+    func reportEmbeddingWithLatency(count: Int = 1, latencyMs: Double, activity: HardwareActivityType = .embeddingGeneration) {
+        reportEmbedding(count: count, activity: activity)
         lastEmbeddingLatencyMs = latencyMs
         updateDetailedMetrics()
     }
@@ -992,9 +1020,9 @@ enum HardwareTelemetryReporter {
     }
 
     /// Quick embedding report from any thread - HIGH PRIORITY
-    nonisolated static func reportEmbedding(count: Int = 1) {
+    nonisolated static func reportEmbedding(count: Int = 1, activity: HardwareActivityType = .embeddingGeneration) {
         Task(priority: .high) { @MainActor in
-            HardwareTelemetryState.shared.reportEmbedding(count: count)
+            HardwareTelemetryState.shared.reportEmbedding(count: count, activity: activity)
         }
     }
 

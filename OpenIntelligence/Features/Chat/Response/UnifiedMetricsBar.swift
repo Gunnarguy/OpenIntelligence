@@ -3199,10 +3199,12 @@ struct UnifiedMetricsBar: View {
     private var executionExplanationFull: String {
         let device = DeviceCapabilityService.shared
         switch execution {
-        // Until 5.7 both device lines said "Neural Engine", with the chip's TOPS. Apple places its model and
-        // reports nothing about where it ran, and its Foundation Models pages name no chip (read 2026-10-18).
+        // Apple's 2024 research article on its on-device model says its key-value cache updates run on "our neural
+        // engines" (machinelearning.apple.com/research/introducing-apple-foundation-models, read 2026-10-19), so the
+        // Neural Engine is named. A 2026-10-18 change took it out after reading only the Foundation Models pages,
+        // which name no chip, and was reverted the next day.
         case .onDevice:
-            return "Apple's model on the \(device.chipName)"
+            return "\(device.chipName) Neural Engine • \(device.npuTops) TOPS"
         case .privateCloudCompute:
             return "Private Cloud Compute • Encrypted"
         case .unknown:

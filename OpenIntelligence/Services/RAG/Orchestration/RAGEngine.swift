@@ -304,10 +304,17 @@ actor RAGEngine {
         query: String,
         topK: Int
     ) async -> [RetrievedChunk] {
-        // Report Neural Engine activity for reranking (cross-encoder runs on ANE)
+        // The cross-encoder is planned onto the Neural Engine (55 of 66 operations under `.all`, M3 Pro,
+        // BenchmarkRuns/2026-10-18-compute-plan). Without the model the fallback is CPU heuristics, which lit the
+        // Neural Engine too until 5.7.
+        let usesCrossEncoder = rerankerModel != nil
         Task { @MainActor in
-            HardwareTelemetryReporter.pulse(.reranking, intensity: 0.85, duration: 0.3)
-            HardwareTelemetryState.shared.incrementANECounter()
+            if usesCrossEncoder {
+                HardwareTelemetryReporter.pulse(.reranking, intensity: 0.85, duration: 0.3)
+                HardwareTelemetryState.shared.incrementANECounter()
+            } else {
+                HardwareTelemetryReporter.pulse(.queryProcessing, intensity: 0.6, duration: 0.3)
+            }
         }
 
         #if DEBUG

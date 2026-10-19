@@ -237,9 +237,10 @@ class EmbeddingService {
     /// Generate a semantic embedding for a text chunk
     /// Returns a vector representing the semantic meaning
     func generateEmbedding(for text: String) async throws -> [Float] {
-        // Report ANE activity - single embedding
-        HardwareTelemetryReporter.pulse(.embeddingGeneration, intensity: 0.8, duration: 0.15)
-        HardwareTelemetryReporter.reportEmbedding(count: 1)
+        // Light the chip this provider runs on (5.7; it was always the Neural Engine).
+        let activity = HardwareActivityType.embeddingActivity(providerId: providerIdentifier)
+        HardwareTelemetryReporter.pulse(activity, intensity: 0.8, duration: 0.15)
+        HardwareTelemetryReporter.reportEmbedding(count: 1, activity: activity)
 
         do {
             let vec = try await provider.embed(text: text)
@@ -260,11 +261,12 @@ class EmbeddingService {
         for texts: [String],
         progressHandler: ((Int, Int) -> Void)? = nil
     ) async throws -> [[Float]] {
-        // Report ANE activity - batch embedding (sustained while processing)
+        // Sustained while the batch runs, on the chip this provider runs on (5.7; it was always the Neural Engine).
+        let activity = HardwareActivityType.embeddingActivity(providerId: providerIdentifier)
         let intensity = min(1.0, 0.5 + Double(texts.count) * 0.05)
-        HardwareTelemetryReporter.sustain(.embeddingGeneration, active: true, intensity: intensity)
-        HardwareTelemetryReporter.reportEmbedding(count: texts.count)
-        defer { HardwareTelemetryReporter.sustain(.embeddingGeneration, active: false) }
+        HardwareTelemetryReporter.sustain(activity, active: true, intensity: intensity)
+        HardwareTelemetryReporter.reportEmbedding(count: texts.count, activity: activity)
+        defer { HardwareTelemetryReporter.sustain(activity, active: false) }
 
         do {
             Log.debug("Generating embeddings for \(texts.count) chunks", category: .embedding)

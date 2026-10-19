@@ -198,6 +198,15 @@ final class AgenticOrchestrator: Sendable {
         self.qualityMode = qualityMode
     }
 
+    /// Whether Deep Think runs its Self-RAG check after the chain (5.7). The check keyed on `config.maxSteps >= 8`, a
+    /// stand-in for "this is Deep Think" that the A17 Pro's step budget of 5 never reached
+    /// (`DeviceCapabilityService.optimizedAgenticConfig`), so Deep Think on an iPhone 15 Pro skipped the check every
+    /// newer device runs. The step budget still picks the chain's starting length (`reasoningChainConfig`); Maximum runs
+    /// its own check.
+    static func runsDeepThinkSelfRAG(qualityMode: RAGQualityMode, config: AgenticConfig) -> Bool {
+        qualityMode.canonical == .deepThink && !config.isUnlimited
+    }
+
     /// Get the appropriate ReasoningChainConfig based on AgenticConfig
     /// Uses unlimited reasoning chain when AgenticConfig.isUnlimited is true
     private var reasoningChainConfig: ReasoningChainConfig {
@@ -786,7 +795,7 @@ final class AgenticOrchestrator: Sendable {
             // SELF-RAG 2.0: Verify answer before returning (Deep Think mode only)
             // 2026 best practice: Don't just generate — verify citations and relevance
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
+            let isDeepThinkMode = Self.runsDeepThinkSelfRAG(qualityMode: qualityMode, config: config)
             if isDeepThinkMode,
                 let verified = try await ragService.runFinishableStage({
                     try await self.runVerificationLoop(
@@ -892,7 +901,7 @@ final class AgenticOrchestrator: Sendable {
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // SELF-RAG 2.0: Verify answer before returning (Deep Think mode)
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
+            let isDeepThinkMode = Self.runsDeepThinkSelfRAG(qualityMode: qualityMode, config: config)
             if isDeepThinkMode,
                 let verified = try await ragService.runFinishableStage({
                     try await self.runVerificationLoop(
