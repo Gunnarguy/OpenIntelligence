@@ -354,6 +354,14 @@ the consent prompt or what is sent. Found by the 2026-09-24 audit
 (`Docs/AuditArtifacts/DocOverhaul_2026-09-24/README.md`, privacy-routing) and confirmed in the
 code; the effect has not been observed on a device.
 
+**The window in what a person reads (2026-10-18).** The Glossary, the model card, the sample
+documents and the chat's context gauge said 4,096 tokens for every device. They now show the window
+the device reports (`FoundationModelTokenBudget.reportedOnDeviceContextSize`, `nil` where the model
+is unavailable, as in every Simulator, where `contextSize` is 0): 8,192 on a Mac with macOS 27.
+Routing already read the live window; this changes text and the gauge's fallback only.
+`[evidence_level: code_verified, confidence: high, evidence_source: FoundationModelTokenBudget.swift,
+Glossary.swift, LLMModelType.swift, ChatScreen.swift maxContextTokensForUI]`
+
 This is worth stating because the registry's previous shape could have affected routing
 indirectly: it produced a full replacement `systemPrompt`, and prompt length feeds the token
 estimate that the planless routing branch compares against the on-device context window. Producing

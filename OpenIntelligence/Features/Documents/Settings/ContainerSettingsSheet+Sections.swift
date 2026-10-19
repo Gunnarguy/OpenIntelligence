@@ -301,7 +301,10 @@ extension ContainerSettingsSheet {
                     .clipShape(Capsule())
             }
 
-            Text("All vector operations use Apple's Accelerate framework with Neural Engine optimization. Batch sizes are tuned for your device.")
+            // Was "All vector operations use Apple's Accelerate framework with Neural Engine optimization." Accelerate
+            // is CPU work ("high-performance, energy-efficient computation on the CPU", Apple's Accelerate page, read
+            // 2026-10-18), and a large library is searched with Metal under Performance and Maximum (5.7).
+            Text("Vector search uses Apple's Accelerate framework on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched on the GPU with Metal. Batch sizes are set for your device.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 

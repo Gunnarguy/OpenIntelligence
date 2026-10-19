@@ -329,7 +329,11 @@ struct IngestionQueueOverlay: View {
     @State private var panelBodyHeight: CGFloat = 560
     private static let resumeDecisionID = "resumeDecision"
     @State private var isDismissed = false
-    @AppStorage("gpuAccelerationLevel") private var gpuLevel: Double = 0.5
+    /// The GPU profile Settings shows, read from its own key so this button and Settings agree (5.7). Until 5.7 the
+    /// button wrote `gpuAccelerationLevel`, which `DeviceCapabilityService` reads only when no profile is stored, and
+    /// one is stored at every launch (`migrateGPUExecutionProfile`), so the button changed its own label and nothing
+    /// else; its three states also called Maximum "Performance".
+    @AppStorage(DeviceCapabilityService.gpuProfileDefaultsKey) private var gpuProfileRaw: String = GPUExecutionProfile.balanced.rawValue
 
     private var sortedItems: [IngestionItem] {
         items.sorted { lhs, rhs in
@@ -545,43 +549,35 @@ struct IngestionQueueOverlay: View {
         }
     }
 
-    // GPU boost level for display (uses @State for reactivity)
+    private var gpuProfile: GPUExecutionProfile {
+        GPUExecutionProfile(rawValue: gpuProfileRaw) ?? DeviceCapabilityService.shared.gpuExecutionProfile
+    }
+
+    /// Performance and Maximum let searching and large searches use the GPU as well.
     private var gpuBoostActive: Bool {
-        gpuLevel > 0.7
+        gpuProfile == .performance || gpuProfile == .maximum
     }
 
-    private var currentConcurrency: Int {
-        DeviceCapabilityService.shared.visionParsingConcurrency
-    }
-
-    // Mode label based on GPU level
     private var processingModeLabel: String {
-        if gpuLevel > 0.7 {
-            return "Performance"
-        } else if gpuLevel >= 0.3 {
-            return "Balanced"
-        } else {
-            return "Efficiency"
-        }
+        gpuProfile.displayName
     }
 
     private var processingModeIcon: String {
-        if gpuLevel > 0.7 {
-            return "bolt.fill"
-        } else if gpuLevel >= 0.3 {
-            return "dial.medium.fill"
-        } else {
-            return "leaf.fill"
+        switch gpuProfile {
+        case .efficiency: return "leaf.fill"
+        case .balanced: return "dial.medium.fill"
+        case .performance: return "bolt.fill"
+        case .maximum: return "gauge.with.dots.needle.100percent"
         }
     }
 
+    /// The colors Settings gives the profiles (`SettingsView.gpuModeColor(for:)`).
     private var processingModeColor: Color {
-        if gpuBoostActive {
-            return .orange
-        } else if gpuLevel >= 0.3 {
-            return DSColors.accent
-        } else {
-            return .green
+        switch gpuProfile {
+        case .efficiency: return .blue
+        case .balanced: return .green
+        case .performance: return .orange
+        case .maximum: return .red
         }
     }
 
@@ -678,14 +674,13 @@ struct IngestionQueueOverlay: View {
     private var processingModeButton: some View {
         Button {
             DSHaptics.tick()
+            // The next profile up, Maximum back to Efficiency, through the setter Settings uses, which stores the
+            // profile and its level; `gpuProfileRaw` follows the stored profile.
+            let ladder: [GPUExecutionProfile] = [.efficiency, .balanced, .performance, .maximum]
+            let next = ladder[((ladder.firstIndex(of: gpuProfile) ?? 1) + 1) % ladder.count]
             withAnimation(.spring(response: 0.3)) {
-                if gpuLevel > 0.7 {
-                    gpuLevel = 0.1
-                } else if gpuLevel >= 0.3 {
-                    gpuLevel = 0.9
-                } else {
-                    gpuLevel = 0.5
-                }
+                DeviceCapabilityService.shared.gpuExecutionProfile = next
+                gpuProfileRaw = next.rawValue
             }
         } label: {
             // The word in the label color, the mode's color in the icon and the tint (5.7).
@@ -708,6 +703,7 @@ struct IngestionQueueOverlay: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Processing mode")
         .accessibilityValue(processingModeLabel)
+        .accessibilityHint("Switches to the next GPU profile, the same setting as in Settings, Device & Performance.")
     }
 
     private var panelControls: some View {

@@ -144,8 +144,8 @@ extension LLMModelType {
         }
     }
 
-    /// Context window size description for UI display.
-    /// Per TN3193: On-device context is 4,096 tokens. PCC may expand this.
+    /// Context window size description for UI display: the window this device reports (5.7). Apple documents
+    /// 4,096 tokens (TN3193) and a Mac on macOS 27 reports 8,192, so this said "4K on-device" wrongly on that Mac.
     ///
     /// The public Foundation Models SDK exposes no separately selectable
     /// on-device model identities, so this description does not assert a
@@ -153,7 +153,9 @@ extension LLMModelType {
     var contextDescription: String {
         switch self {
         case .appleIntelligence:
-            return "4K on-device, expanded via Private Cloud Compute"
+            let window = FoundationModelTokenBudget.reportedOnDeviceContextSize
+                .map { "\($0.formatted(.number)) tokens on this device" } ?? "Reported by the device; unavailable here"
+            return DeviceCapabilities.pccRoutingCompiledIn ? "\(window); Private Cloud Compute has its own" : window
         case .onDeviceAnalysis:
             return "No generation context"
         }
@@ -223,7 +225,7 @@ extension LLMModelType {
                 stats: [
                     .init(icon: "bolt.fill", label: "Latency", value: "2-3 s", detail: "Measured TTFT, A18 Pro", accent: .success),
                     .init(icon: "gauge", label: "Throughput", value: "27-86 tok/s", detail: "On-device to PCC, A18 Pro", accent: .accent),
-                    .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K+", detail: "On-device, more via PCC", accent: .info),
+                    .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: FoundationModelTokenBudget.reportedOnDeviceContextSize?.formatted(.number) ?? "n/a", detail: "Tokens, on this device", accent: .info),
                     .init(icon: "lock.shield.fill", label: "Privacy", value: "Zero-retention", detail: "Encrypted PCC hops", accent: .success),
                     .init(icon: "hammer", label: "Tools", value: "App Intents", detail: "Auto tool routing", accent: .accent),
                 ],

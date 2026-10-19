@@ -934,7 +934,7 @@ Text(label)
                 modelCapabilityPill(icon: "text.bubble.fill", label: "Text Generation")
                 // The model's name only with Technical Details on (5.7 UI cleanup).
                 modelCapabilityPill(icon: "photo.fill", label: settings.showTechnicalDetails ? "ADM 3 Visuals" : "Images")
-                modelCapabilityPill(icon: "doc.text.fill", label: "RAG-Ready")
+                modelCapabilityPill(icon: "doc.text.fill", label: settings.showTechnicalDetails ? "RAG-Ready" : "Your documents")
             }
         }
 .padding()
@@ -1518,7 +1518,10 @@ Text(deviceService.chipName)
                 }
 
                 HStack(spacing: 12) {
-                    deviceCapabilityPill(icon: "brain.head.profile", label: "Deep Think", value: "\(deviceService.optimizedAgenticConfig().maxSteps) max sessions")
+                    // Was "\(maxSteps) max sessions": 5 on an iPhone 15 Pro and 13 on an 18 GB M3 Pro, while Deep Think's
+                    // chain stops at 8 sessions on every device (`AgenticPolicyService.maxSessionsForMode`). What does
+                    // differ by device is the confidence it aims for (`optimizedAgenticConfig`) (5.7).
+                    deviceCapabilityPill(icon: "brain.head.profile", label: "Deep Think", value: "aims for \(Int(deviceService.optimizedAgenticConfig().confidenceThreshold * 100))%")
                     deviceCapabilityPill(icon: "flame", label: "Thermal", value: deviceService.hasThermalHeadroom ? "High" : "Standard")
                 }
             }
@@ -1553,7 +1556,7 @@ Text(deviceService.chipName)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think runs up to \(agenticConfig.maxSteps) serial reasoning sessions on the \(DeviceCapabilityService.shared.chipName), and stops as soon as it has what it needs. Each session gets a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed insights from the last. It ends early when the documents have nothing new left to add, or at \(Int(agenticConfig.confidenceThreshold * 100))% confidence, whichever comes first, so a straightforward question does not pay for sessions it never needed.")
+                    Text("Deep Think's reasoning chain runs up to 8 sessions in a row on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed insights from the last, and research rounds can follow it when parts of the question are still uncovered. On the \(DeviceCapabilityService.shared.chipName) it aims for \(Int(agenticConfig.confidenceThreshold * 100))% confidence, and from the fifth session it can stop early once it has that confidence, has covered the question's parts and stops finding anything new.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -1568,7 +1571,7 @@ Text(deviceService.chipName)
                         contextInfoPill(icon: "checkmark.seal", label: "Answer Check", value: "Self-RAG 2.0")
                     } else if settings.ragQualityMode.canonical == .deepThink {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: onDeviceWindowDescription)
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "up to \(agenticConfig.maxSteps)")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Chain", value: "up to 8 sessions")
                     } else {
                         // "If Complex: 3 sessions (12K)" was untrue: Standard chains sessions only when a developer
                         // turns on `forceReasoningChain` (RAGService, `useReasoningChain`).
@@ -1789,7 +1792,9 @@ Text(deviceService.chipName)
             // `Benchmarks/` or the evaluation docs, same class as the `1,000x` dedup and
             // `240x` scrolling figures withdrawn in this release. The GPU path is real;
             // the multiplier was never measured.
-            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) for CPU SIMD acceleration. Metal GPU RAG shaders handle bulk cosine similarity and MMR diversity when GPU level ≥ 60%. Batch sizes are tuned for the \(deviceService.chipName).")
+            // "GPU level ≥ 60%" named a percentage the GPU setting no longer shows; the gate is
+            // `searchesLargeLibrariesOnGPU(for:)` with the stores' own thresholds (5.7).
+            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) on the CPU. With the GPU setting on Performance or Maximum, Metal shaders take over cosine similarity for a library of 1,000 passages or more and the diversity step for more than 50 results. Batch sizes are set for the \(deviceService.chipName).")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -1909,7 +1914,9 @@ Text(deviceService.chipName)
                     .clipShape(Capsule())
             }
 
-            Text("Choose how OpenIntelligence schedules GPU-capable work. Apple frameworks still make the final hardware decision, so these are execution preferences rather than a literal utilization percentage.")
+            // Until 5.7: "Choose how OpenIntelligence schedules GPU-capable work...". The profiles cover the Core ML
+            // embedding model, the Core Image cleanup of scanned pages and Metal vector search, never Apple's model.
+            Text("Sets which chips the app's own embedding model, its large searches and an extra cleanup pass over scanned PDF pages can use. Apple's frameworks make the final choice among the ones allowed. Answers from Apple's model, text recognition and the reranker work the same way in every profile.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -1918,7 +1925,7 @@ Text(deviceService.chipName)
                     Image(systemName: "shield.lefthalf.filled")
                         .font(.caption)
                         .foregroundColor(.orange)
-                    Text("\(deviceService.chipName) is using the \(deviceService.activeGPUExecutionProfile.displayName) profile instead of \(gpuProfile.displayName) to avoid unstable sustained loads.")
+                    Text("On the \(deviceService.chipName), \(gpuProfile.displayName) runs as \(deviceService.activeGPUExecutionProfile.displayName), to keep long imports stable.")
                         .font(.caption2)
                         .foregroundColor(.orange)
                 }
@@ -1960,9 +1967,23 @@ Text(deviceService.chipName)
                 }
                 .animation(.snappy(duration: 0.25), value: gpuProfile)
 
-                Text("Core ML changes apply when its model next loads; PDF and vector policies apply to the next operation.")
+                // What the profile does when an import goes on in the background, for this device (5.7).
+                Text(backgroundImportNote(for: gpuProfile, deviceService: deviceService))
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Changes apply from the next import, and to searching by the next time the app opens at the latest. Every scanned page is prepared for text recognition on the GPU in every profile.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if settings.showTechnicalDetails {
+                    Text("Covered: the Core ML embedding model (the default for a new library on iPhone and iPad), an extra Core Image pass over rendered PDF pages, and Metal for vector search over 1,000 or more passages. Not covered: a Core AI library (the default on a Mac with macOS 27), which embeds on the GPU in every profile; the reranker, which may use all three chips; and text recognition, whose page preparation runs on the GPU.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(10)
             .background(Color.green.opacity(0.08))
@@ -1994,32 +2015,31 @@ Text(deviceService.chipName)
             .background(Color.orange.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            // Current policy derived from the same profile the execution paths consult.
+            // The live policy, read from the same properties the execution paths consult, so it shows the
+            // device's ceiling, a background import and the Simulator's CPU-only Core ML as they are (5.7: behind
+            // Technical Details; the "Thermal Impact" row is gone, it ranked Maximum hotter than Performance when in
+            // the foreground the two run the same rules).
+            if settings.showTechnicalDetails {
             VStack(alignment: .leading, spacing: 6) {
                 gpuSettingRow(
                     icon: "cpu",
-                    label: "Core ML (next load)",
+                    label: "Embedding model, searching",
                     value: deviceService.preferredComputeUnitsDescription
                 )
                 gpuSettingRow(
                     icon: "cube.transparent",
-                    label: "Ingestion Embeddings",
+                    label: "Embedding model, importing",
                     value: deviceService.embeddingComputeUnitsDescription
                 )
                 gpuSettingRow(
                     icon: "doc.text.image",
-                    label: "PDF Rendering",
-                    value: deviceService.useGPUForPDFRendering ? "Metal CIContext (GPU)" : "CPU CIContext"
+                    label: "Extra PDF page pass",
+                    value: deviceService.useGPUForPDFRendering ? "On, Core Image on the GPU" : "Off"
                 )
                 gpuSettingRow(
                     icon: "function",
-                    label: "Metal Vector Ops",
-                    value: deviceService.useMetalForVectorOps ? "Automatic for large searches" : "Off (Accelerate CPU)"
-                )
-                gpuSettingRow(
-                    icon: "thermometer.medium",
-                    label: "Thermal Impact",
-                    value: gpuThermalImpact
+                    label: "Large searches",
+                    value: deviceService.useMetalForVectorOps ? "Metal on the GPU" : "Accelerate on the CPU"
                 )
             }
             .animation(.easeInOut(duration: 0.2), value: gpuProfile)
@@ -2031,7 +2051,7 @@ Text(deviceService.chipName)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Pipeline Concurrency")
                     .font(.caption.weight(.medium))
-                Text("Set by device tier, not the execution profile. Optimized for the \(deviceService.chipName).")
+                Text("Set by the \(deviceService.chipName), not by the profile.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
@@ -2057,21 +2077,10 @@ Text(deviceService.chipName)
                 )
             }
             .animation(.easeInOut(duration: 0.2), value: gpuProfile)
-
-            // Warning for high GPU mode
-            if gpuProfile == .maximum {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                    Text("Maximum GPU mode may cause device heating during large document ingestion.")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                }
-                .padding(8)
-                .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
+            // Until 5.7 a warning here said Maximum "may cause device heating during large document ingestion".
+            // An import runs the same rules in Balanced, Performance and Maximum while the app is open, so the
+            // warning singled out a profile that imports no differently.
         }
         .padding(12)
         .background(Color.green.opacity(0.08))
@@ -2081,13 +2090,39 @@ Text(deviceService.chipName)
         }
     }
 
-    private var gpuThermalImpact: String {
-        switch gpuProfile {
-        case .efficiency: return "✅ Lowest"
-        case .balanced: return "✅ Low"
-        case .performance: return "⚠️ Moderate"
-        case .maximum: return "🔥 High"
-        }
+    /// What an import does in the background with `profile` on this device (5.7). The rule is `BackgroundGPUAllowance`,
+    /// the one `BackgroundTaskService` applies when it asks iOS to let the import go on.
+    private func backgroundImportNote(for profile: GPUExecutionProfile, deviceService: DeviceCapabilityService) -> String {
+        // The policy is worked out when the import is handed to iOS, in the foreground, and kept
+        // (`BackgroundTaskService.continuedProcessingPolicy`), so the conditions read "when it starts". What the GPU grant
+        // changes is what the import may use; a file already being embedded keeps the model it loaded.
+        #if os(iOS) && !targetEnvironment(macCatalyst)
+            let noun = deviceService.formFactor.deviceNoun
+            let allowance = deviceService.backgroundGPUAllowance
+            let admitting = deviceService.backgroundGPUProfiles
+            guard BackgroundTaskService.shared.systemOffersBackgroundGPU else {
+                return "In the background, iOS doesn't offer this \(noun) the GPU, so an import goes on there without it."
+            }
+            guard !admitting.isEmpty else {
+                return "In the background, no profile asks iOS to keep the GPU for an import on this \(noun)."
+            }
+            let when: String
+            if allowance.chargingOnly {
+                when = "when the \(noun) is charging as the import starts"
+            } else if allowance.minimumBatteryPercent > 0 {
+                when = "when the \(noun) is charging or has \(allowance.minimumBatteryPercent)% battery or more as the import starts"
+            } else {
+                when = "at any battery level"
+            }
+            guard admitting.contains(profile) else {
+                let names = ListFormatter.localizedString(byJoining: admitting.map(\.displayName))
+                let verb = admitting.count == 1 ? "does" : "do"
+                return "In the background, \(profile.displayName) doesn't ask iOS to keep the GPU for an import on this \(noun). \(names) \(verb), \(when)."
+            }
+            return "In the background, an import asks iOS to keep the GPU \(when), unless Low Power Mode is on, the \(noun) is hot, memory is short or iOS has asked apps to use less."
+        #else
+            return "On a Mac, this setting works the same way while the app is in the background."
+        #endif
     }
 
     private var gpuModeName: String {
@@ -2693,7 +2728,7 @@ Text(deviceService.chipName)
                     icon: "text.bubble.fill",
                     color: .blue,
                     title: "Smart Replies",
-                    subtitle: "Conversational follow-up suggestions",
+                    subtitle: settings.showTechnicalDetails ? "Conversational follow-up suggestions" : "Suggested follow-up questions under an answer",
                     isOn: $settings.enableSmartReplies
                 )
 
@@ -2701,7 +2736,7 @@ Text(deviceService.chipName)
                     icon: "tag.fill",
                     color: .orange,
                     title: "Content Tagging",
-                    subtitle: "LLM-powered topic, action & object tagging",
+                    subtitle: settings.showTechnicalDetails ? "LLM-powered topic, action & object tagging" : "Labels each document's topics with Apple's model as it's added",
                     isOn: $settings.enableContentTagging
                 )
 
@@ -2709,7 +2744,7 @@ Text(deviceService.chipName)
                     icon: "magnifyingglass",
                     color: .pink,
                     title: "Spotlight Indexing",
-                    subtitle: "System-wide search integration",
+                    subtitle: settings.showTechnicalDetails ? "System-wide search integration" : "Find your documents from Spotlight search",
                     isOn: $settings.enableSpotlightIndexing
                 )
 
@@ -2717,7 +2752,7 @@ Text(deviceService.chipName)
                     icon: "arrow.clockwise.circle.fill",
                     color: .teal,
                     title: "Background Maintenance",
-                    subtitle: "Scheduled index health checks & Spotlight refresh",
+                    subtitle: settings.showTechnicalDetails ? "Scheduled index health checks & Spotlight refresh" : "Checks the search index and refreshes Spotlight on a schedule",
                     isOn: $settings.enableBackgroundMaintenance
                 )
 
@@ -2754,7 +2789,7 @@ Text(deviceService.chipName)
                     icon: "character.book.closed.fill",
                     color: .purple,
                     title: "Translation",
-                    subtitle: "Multilingual document analysis"
+                    subtitle: settings.showTechnicalDetails ? "Multilingual document analysis" : "Searches across languages when a library has a translation language set"
                 )
 
                 Divider().padding(.horizontal)
@@ -2792,7 +2827,7 @@ Text(deviceService.chipName)
                     icon: "rectangle.inset.filled.and.person.filled",
                     color: .blue,
                     title: "Screen Awareness",
-                    subtitle: "Seamless AppIntents integration via Shortcuts"
+                    subtitle: settings.showTechnicalDetails ? "Seamless AppIntents integration via Shortcuts" : "Siri can tell which document or chat is on your screen"
                 )
 
                 aiFeatureInfoRow(
@@ -2808,14 +2843,14 @@ Text(deviceService.chipName)
                     icon: "lightbulb.max.fill",
                     color: .yellow,
                     title: "App Tips",
-                    subtitle: "Contextual guidance & onboarding"
+                    subtitle: settings.showTechnicalDetails ? "Contextual guidance & onboarding" : "Tips that point out features as you go"
                 )
 
                 aiFeatureInfoRow(
                     icon: "text.book.closed.fill",
                     color: .brown,
                     title: "Gazetteer",
-                    subtitle: "Builds domain vocabulary during ingestion"
+                    subtitle: settings.showTechnicalDetails ? "Builds domain vocabulary during ingestion" : "Learns the special terms in your documents as they're added"
                 )
             }
             .padding(.vertical, 4)
@@ -3459,7 +3494,7 @@ Text(deviceService.chipName)
     }
 
     private var speechAnalysisSubtitle: String {
-        "Audio transcription & voice input"
+        settings.showTechnicalDetails ? "Audio transcription & voice input" : "Transcribes audio files and what you say"
     }
 
     private func shareApp() {

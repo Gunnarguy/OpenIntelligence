@@ -603,7 +603,10 @@ struct UnifiedMetricsBar: View {
     private var deepThinkConfidenceBadge: some View {
         let confidence = liveConfidence > 0 ? liveConfidence : 0.10
         let pct = Int(confidence * 100)
-        let targetReached = confidence >= 0.85
+        // The confidence Deep Think aims for on this device (5.7): 0.85 on an A17 Pro up to 0.95 on M-series
+        // (`optimizedAgenticConfig`). A fixed 0.85 showed the target reached while a Mac's run kept going.
+        let target = DeviceCapabilityService.shared.optimizedAgenticConfig().confidenceThreshold
+        let targetReached = confidence >= target
         let color: Color = targetReached ? .green : .purple
 
         return HStack(spacing: 2) {
@@ -613,7 +616,7 @@ struct UnifiedMetricsBar: View {
                     .stroke(color.opacity(0.25), lineWidth: 1.5)
                     .frame(width: 12, height: 12)
                 Circle()
-                    .trim(from: 0, to: CGFloat(min(confidence / 0.85, 1.0)))
+                    .trim(from: 0, to: CGFloat(min(confidence / target, 1.0)))
                     .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .frame(width: 12, height: 12)
                     .rotationEffect(.degrees(-90))
@@ -2402,7 +2405,8 @@ struct UnifiedMetricsBar: View {
 
                 Spacer()
 
-                Text("unlimited")
+                // Was "unlimited": Maximum stops at 50 sessions, fewer when few passages match (5.7).
+                Text("up to 50")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.orange)
                     .padding(.horizontal, 6)
@@ -3195,12 +3199,14 @@ struct UnifiedMetricsBar: View {
     private var executionExplanationFull: String {
         let device = DeviceCapabilityService.shared
         switch execution {
+        // Until 5.7 both device lines said "Neural Engine", with the chip's TOPS. Apple places its model and
+        // reports nothing about where it ran, and its Foundation Models pages name no chip (read 2026-10-18).
         case .onDevice:
-            return "\(device.chipName) Neural Engine • \(device.npuTops) TOPS"
+            return "Apple's model on the \(device.chipName)"
         case .privateCloudCompute:
             return "Private Cloud Compute • Encrypted"
         case .unknown:
-            return "\(device.chipName) Neural Engine"
+            return "\(device.chipName)"
         }
     }
 

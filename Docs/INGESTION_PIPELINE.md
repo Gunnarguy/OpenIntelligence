@@ -925,6 +925,23 @@ the model returned zeros on the units a device asks for, Core ML runs on the CPU
 fixed text, neither measured; from 5.7 they name the step only. `[evidence_level: code_verified,
 confidence: high, evidence_source: DocumentProcessor.swift]`
 
+**The import summary and the import panel (2026-10-18).** `ProcessingSummaryView` showed "Dimensions 512"
+and "Neural Engine accelerated" for every library. MiniLM, the default on every device, writes 384, and
+only the Core ML copy is planned onto the Neural Engine (150 of 161 operations under `.all`, `MLComputePlan` on an
+M3 Pro with macOS 27, 2026-10-18, `BenchmarkRuns/2026-10-18-compute-plan`); the
+Core AI copy, the default on a Mac with macOS 27, runs on the GPU. From 5.7 the view reads both from the
+library's provider (`ProcessingSummary.embeddingDimensions`, `embeddingRunsOn`). Nothing presents the view
+today (its `#Preview` is the only instance, and `RAGService.lastProcessingSummary` has no reader), so this
+corrects text no one saw, before anyone wires it up. The import panel's
+processing-mode button wrote `gpuAccelerationLevel`, which `DeviceCapabilityService` reads only when no
+GPU profile is stored, and one is stored at every launch, so the button changed its own label and
+nothing else; it now steps through the four profiles through the setter Settings uses. The Live
+Activity's "Nx GPU" read `gpuConcurrency`, a figure nothing else in the app applied, and is replaced by
+the pages rendered and recognised at once; its mode names the profile the import runs with, or "No GPU
+(background)". `[evidence_level: code_verified, plus measured for the Neural Engine plan (one M3 Pro), confidence: high, evidence_source: DocumentChunk.swift
+ProcessingSummary, ProcessingSummaryView.swift, IngestionQueueOverlay.swift, IngestionLiveActivityService.swift,
+DeviceCapabilityService.swift migrateGPUExecutionProfile; not yet seen on a device]`
+
 ### Pause, text left by an unfinished import, and text set sideways *(added 2026-10-14, for 5.7)*
 
 **Pause.** The import queue has a Pause button while an import runs (`RAGService.pauseIngestionQueue`).

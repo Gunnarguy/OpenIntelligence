@@ -481,7 +481,7 @@ Similarity is defined across chunks of any size in the same vector space. Changi
 
 **Why it exists.** Lexical search cannot find `SAE 0W-20 synthetic` when the question says `what oil does my car take`. A dense embedding can, because the two land near each other. 384 dimensions is the model's fixed width (MiniLM-L6-v2) and small enough that a whole library stays memory-mappable on a phone. Vectors are **L2-normalised** at write time so cosine similarity collapses to a dot product at search time. The **embedding fingerprint** on each library records model, dimension and pooling so two incompatible vector spaces can never be mixed.
 
-**Where it runs.** Core ML by default, with `MLModelConfiguration.computeUnits` chosen from the GPU execution profile: the lower two profiles request CPU plus Neural Engine, the upper two request all units, and Core ML places each layer. On iOS 27 and macOS 27 the default becomes the Core AI provider, which exposes no placement at all. The model is not loaded at launch; it loads on the first `embed()`. Batches over four texts run in a task group sized by the device tier.
+**Where it runs.** Core ML by default, with `MLModelConfiguration.computeUnits` chosen from the GPU execution profile: the lower two profiles request CPU plus Neural Engine when searching, only Efficiency keeps that during an import, the rest request all units, and Core ML places each layer. From 5.7 a new library on a Mac with macOS 27 uses the Core AI provider, which runs on the GPU in every profile and takes no placement from it; iPhone and iPad stay on Core ML (`EmbeddingProviderDefaults`). The model is not loaded at launch; it loads on the first `embed()`. Batches over four texts run in a task group sized by the device tier.
 
 ### The word bank (33 concepts)
 
@@ -905,7 +905,7 @@ A keyword-only hit that fusion pushed below the top-k cut. Up to `max(4, topK / 
 
 **In the bank's words.** This is packing a suitcase. The app cannot bring the whole library, so it chooses the most useful evidence and fits it into the model’s limited space.
 
-**Why it exists.** The on-device model has a 4,096-token window and every token spent on evidence is one not available for the answer. So there is a budget: window minus instructions, tools, question, conversation, a 256-token safety reserve and the reserved output. Chunks that do not fit are trimmed and their IDs recorded, not silently forgotten. **Lost-in-the-middle** ordering puts the strongest evidence first and last because models attend poorly to the middle. **Contextual compression** keeps only the sentences that matter, at the cost of a model call and a one-second cooldown to protect the Foundation Models rate budget.
+**Why it exists.** The on-device model has a window of a few thousand tokens (4,096 in Apple's documentation, 8,192 on a Mac with macOS 27) and every token spent on evidence is one not available for the answer. So there is a budget: window minus instructions, tools, question, conversation, a 256-token safety reserve and the reserved output. Chunks that do not fit are trimmed and their IDs recorded, not silently forgotten. **Lost-in-the-middle** ordering puts the strongest evidence first and last because models attend poorly to the middle. **Contextual compression** keeps only the sentences that matter, at the cost of a model call and a one-second cooldown to protect the Foundation Models rate budget.
 
 **Where it runs.** CPU. `ContextPackingService` and the token budget in `FoundationModelTokenBudget`, which reads the real window from `SystemLanguageModel.default.contextSize` on iOS 26 and later instead of assuming 4,096.
 
@@ -913,7 +913,7 @@ A keyword-only hit that fusion pushed below the top-k cut. Up to `max(4, topK / 
 
 | Concept | Status | In one sentence |
 |---|---|---|
-| 4,096-token on-device limit | Core | The governing on-device Apple Foundation Models context ceiling used by the engine. A naive top-20 chunk set plus prompt and output schema can overflow, causing failure or lost evidence. |
+| On-device context window | Core | The governing on-device Apple Foundation Models context ceiling, which the device reports: 4,096 tokens in Apple's documentation, 8,192 on a Mac with macOS 27. A naive top-20 chunk set plus prompt and output schema can overflow, causing failure or lost evidence. |
 | Available context tokens | Core | The remainder after all fixed prompt, question, tool, safety, and output costs are subtracted from the model limit. This is the actual capacity the retrieval evidence is allowed to consume. |
 | Compression expansion guard | Core | Rejecting a compression output when it contains more estimated tokens than the original. Expansion indicates the model paraphrased or hallucinated instead of extracting. |
 | Compression passthrough | Core | Returning the original chunk unchanged when it is short, the model is unavailable, compression fails, time expires, or the output is unsafe. Compression is an optimization and must not become a single point of evidence loss. |
@@ -921,10 +921,10 @@ A keyword-only hit that fusion pushed below the top-k cut. Up to `max(4, topK / 
 | Compression time budget | Core | A total wall-clock cap for compressing a batch of chunks. Multiple model calls can dominate query latency and accumulate session context. |
 | Context window | Core | The maximum token sequence the language model can consider in one session, including instructions, tools, evidence, conversation, and output framing. The corpus cannot fit, so every upstream retrieval and packing decision exists… |
 | ContextPackingService | Core | The deterministic service that chooses and orders core hits, parents, siblings, graph neighbors, and compressed content under a token ceiling. Retrieval rank alone does not solve budget, diversity, sequence, or supporting-context… |
-| Contextual compression | Conditional | Using Apple Foundation Models to extract only query-relevant sentences from retrieved chunks while attempting to preserve exact wording. Chunks often contain both useful and irrelevant text, and the 4,096-token window rewards… |
+| Contextual compression | Conditional | Using Apple Foundation Models to extract only query-relevant sentences from retrieved chunks while attempting to preserve exact wording. Chunks often contain both useful and irrelevant text, and a window of a few thousand tokens rewards… |
 | Core evidence chunk | Core | A high-ranked retrieved passage treated as an anchor that should survive packing if possible. The packer must preserve the strongest direct evidence before spending tokens on context around it. |
 | Evidence packet | Core | The final minimized collection of source passages, labels, identifiers, and metadata supplied to the answer stage. It is the boundary between retrieval and generation and defines what the model is allowed to know for this answer. |
-| Fresh compression session | Core | Resetting the Foundation Models session between chunk compression calls. Retaining the transcript across chunks accumulates tokens and can overflow the 4,096-token context after several calls. |
+| Fresh compression session | Core | Resetting the Foundation Models session between chunk compression calls. Retaining the transcript across chunks accumulates tokens and can overflow the context window after several calls. |
 | Graph-hop allocation | Conditional | Budget reserved for relationship-derived evidence reached through references or entities. Graph evidence can complete an answer but is usually less directly ranked than the anchor that led to it. |
 | Information-density rescue | Core | Selecting source sentences with numbers, entities, colons, codes, or other high-value signals when compression returns no relevant content. Blindly taking the first characters can lose a specification located in the middle or end… |
 | Intent-specific packing | Core | Changing evidence allocation and ordering based on whether the user requested a lookup, procedure, comparison, summary, or investigation. The same top-ranked chunks should not be packed identically for every answer shape. |
@@ -944,7 +944,7 @@ A keyword-only hit that fusion pushed below the top-k cut. Up to `max(4, topK / 
 ### Can you explain it?
 
 1. Write the evidence-capacity equation from memory.
-2. Give the constants: 4,096, 3,200, 256, 1.4 and 2.5 characters per token.
+2. Give the constants: 4,096 (Apple's documented window and the fallback; the device reports its own, 8,192 on a Mac with macOS 27), 3,200, 256, 1.4 and 2.5 characters per token.
 3. Explain lost-in-the-middle ordering.
 4. Say what happens to a chunk that does not fit.
 5. Explain the compression cooldown.
@@ -1121,7 +1121,7 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 
 **In the bank's words.** For hard questions, the app becomes a research team. It makes a checklist, searches one piece at a time, writes facts into a notebook, checks what is missing, and stops when the notebook is good enough.
 
-**Why it exists.** A 3B-parameter model with a 4,096-token window cannot answer a multi-hop question in one pass. So the orchestrator breaks the work into sessions, each a fresh window, and carries a **FactBank** between them instead of the raw transcript. Escalation is decided by measured retrieval quality against a per-profile threshold, not by guessing complexity up front. Every loop has three kinds of stop: a step cap, a confidence target, and a wall clock (180 seconds for recursive research) because thermal state will stop a phone before the maths does. Internal planning and analysis calls are pinned to the device; only the final synthesis may reach PCC.
+**Why it exists.** A 3B-parameter model with a window of a few thousand tokens (4,096 or 8,192, by device) cannot answer a multi-hop question in one pass. So the orchestrator breaks the work into sessions, each a fresh window, and carries a **FactBank** between them instead of the raw transcript. Escalation is decided by measured retrieval quality against a per-profile threshold, not by guessing complexity up front. Every loop has three kinds of stop: a step cap, a confidence target, and a wall clock (180 seconds for recursive research) because thermal state will stop a phone before the maths does. Internal planning and analysis calls are pinned to the device; only the final synthesis may reach PCC.
 
 **Where it runs.** Orchestration is CPU. Every model call is on-device Foundation Models. Re-retrieval reuses module 08. Backoff comes from the thermal and memory state and a per-tier step cooldown.
 
@@ -1157,8 +1157,8 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 | ReasonedSynthesis | Conditional | A structured final integration of multiple insights with key points, confidence, and sources. The last step must reconcile accumulated findings rather than simply concatenate them. |
 | Reasoning session | Conditional | One bounded LanguageModelSession call dedicated to a particular agentic objective. Fresh focused sessions avoid transcript overflow and isolate evidence assessment from final answer writing. |
 | Reasoning trace | Support | A user-facing or diagnostic sequence of named progress events and condensed intermediate outcomes. It explains what stages ran without exposing raw hidden chain-of-thought. |
-| Reasoning-chain token total | Support | The sum of tokens consumed across every model call in recursive execution. One 4,096-token limit per session does not describe the total computational work of the answer. |
-| Recursive RAG | Conditional | A pattern that makes several bounded retrieval and language-model calls, passing condensed facts or insights forward instead of forcing the full problem into one context window. Multiple 4,096-token sessions can collectively… |
+| Reasoning-chain token total | Support | The sum of tokens consumed across every model call in recursive execution. One window per session does not describe the total computational work of the answer. |
+| Recursive RAG | Conditional | A pattern that makes several bounded retrieval and language-model calls, passing condensed facts or insights forward instead of forcing the full problem into one context window. Multiple sessions, each with the device's window, can collectively… |
 | Refining phase | Conditional | Improving an initial synthesis in response to verification failures, omissions, or unsupported claims. A generated answer can be mostly correct but require targeted repair rather than a full restart. |
 | Reformulating phase | Conditional | Changing the search query or decomposition when evidence is weak, redundant, or off-target. Repeating the same failed retrieval cannot discover a different lexical or semantic neighborhood. |
 | Searching phase | Conditional | The execution of hybrid retrieval for the current query or subquestion. The loop remains grounded by gathering source evidence before making claims. |
@@ -1206,7 +1206,7 @@ Only the final synthesis, through the post-retrieval plan. Planning and evidence
 
 <details><summary><strong>What is the FactBank for?</strong></summary>
 
-It carries source-backed facts between sessions so each new 4,096-token window starts from distilled evidence instead of the previous transcript, which is what used to overflow at 4,521 tokens.
+It carries source-backed facts between sessions so each new window starts from distilled evidence instead of the previous transcript, which is what used to overflow at 4,521 tokens.
 
 </details>
 
@@ -1493,7 +1493,7 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 |---|---|---|
 | AdaptivePipelineOptimizer | Core | The runtime policy that adjusts enhancement features, candidate limits, context, rerank batch, agentic steps, cooldowns, timeout, thresholds, and MMR from device state and query complexity. The engine should degrade gracefully… |
 | Balanced optimization level | Conditional | A reduced configuration that disables some repeated work and lowers candidate/context limits. It trades a modest amount of quality work for sustained responsiveness. |
-| Balanced profile | Core | The default profile allowing GPU for indexing and page rendering while keeping answer generation primarily on CPU plus Neural Engine policy. It captures most throughput gains without enabling every high-heat path. |
+| Balanced profile | Core | The default profile. An import's embedding model may use all three chips and a rendered PDF page gets an extra Core Image pass on the GPU, while searching keeps the embedding model on CPU plus Neural Engine and vector search on the CPU. No profile changes how Apple's model writes answers (until 5.7 Settings said Balanced kept "answering" on the Neural Engine). |
 | BGTaskScheduler maintenance | Conditional | Scheduled background tasks for index maintenance, Spotlight reindexing, and app refresh. Search artifacts and OS integrations need upkeep that should not block foreground use. |
 | BNNSGraphService | Core | The Accelerate-based service for batch normalization, matrix cosine similarity, softmax, RRF arithmetic, and pairwise similarity. It centralizes optimized vector math and provides a CPU/Apple-Silicon path below or beside Metal. |
 | Continued ingestion task | Conditional | A BGContinuedProcessingTask carrying user-started document ingestion through background execution. Large imports should survive app switching and preserve visible progress. |
@@ -1502,7 +1502,7 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 | Debounced workspace change | Core | Waiting briefly, about two seconds, to combine rapid local-change notifications into one sync pass. Ingestion writes many related artifacts and should not launch a full merge for each one. |
 | Device capability tier | Core | The baseline, enhanced, advanced, ultra-advanced, or unsupported classification derived from hardware identity. The tier provides a stable policy input for candidate breadth, concurrency, and agentic limits. |
 | DeviceCapabilityService | Core | The central detector and policy source for chip, device tier, form factor, memory, Metal limits, batch sizes, concurrency, and GPU profile. One hardcoded pipeline configuration would underuse Macs and destabilize thermally… |
-| Efficiency profile | Core | The profile keeping models on CPU plus Neural Engine and avoiding GPU vector/render work where possible. It minimizes heat and contention for sustained battery use. |
+| Efficiency profile | Core | The profile keeping the embedding model on CPU plus Neural Engine for searching and imports, adding no extra pass over rendered PDF pages and searching on the CPU: the GPU stays out of everything the setting covers, though text recognition's page preparation (`preprocessImageForOCR`) runs on the GPU in every profile. |
 | Efficient optimization level | Conditional | A power-saving configuration that disables HyDE, compression, and iterative retrieval and reduces batch/candidate limits. Expensive auxiliary model calls are the first features to remove under resource pressure. |
 | Full optimization level | Core | The runtime state with the device-tier base configuration and all permitted quality features enabled. It maximizes quality when thermal and memory conditions allow. |
 | GPU execution profile | Core | The user policy Efficiency, Balanced, Performance, or Maximum controlling which workloads may use GPU and at what concurrency. A discrete policy communicates real behavior without implying an exact utilization percentage the app… |
@@ -1512,13 +1512,13 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 | Ingestion Live Activity | Conditional | The lock-screen or Dynamic Island progress representation for active ingestion. Long imports benefit from durable progress without reopening the app. |
 | Local-only sync mode | Core | A library policy that keeps its artifacts in the device application-support workspace and excludes them from iCloud sharing. Some users or corpora require strict device locality independent of general app settings. |
 | LoggingConfiguration | Support | The centralized control over log levels, categories, file buffering, redaction, and shareable trace inclusion. Diagnostic evidence must be useful without leaking arbitrary document content or flooding storage. |
-| Maximum GPU profile | Core | The highest concurrency and GPU-ceiling policy using the same engines as Performance with fewer internal limits. It exists for hardware and users who prioritize maximum throughput over heat and battery. |
+| Maximum GPU profile | Core | The same rules as Performance while the app is open. It differs only in the background on an iPhone 15 Pro or Pro Max, where an import may keep the GPU under Maximum alone and only while charging (`BackgroundGPUAllowance`), and an iPad mini runs it as Performance. Until 5.7 Settings promised it "Highest concurrency and GPU ceiling", a figure only the import's Live Activity printed. |
 | Maximum-mode quota | Conditional | The tracked allowance for high-cost Maximum queries under the relevant product tier. Maximum can use substantially more local model sessions and background time than Standard. |
 | Memory pressure | Core | The runtime condition nominal, warning, or critical indicating process or system memory stress. Image and model buffers can cause jetsam termination before ordinary Swift errors occur. |
 | Metal Performance Shaders | Conditional | Apple GPU primitives and infrastructure used alongside custom Metal kernels. They support optimized matrix and buffer operations on unified-memory hardware. |
 | Minimal optimization level | Conditional | The emergency configuration retaining only essential retrieval and generation with small limits and no agentic steps. Critical thermal state needs a deterministic safe mode rather than a best-effort full pipeline. |
 | Neural Engine | Core | Apple's dedicated machine-learning accelerator available through Core ML scheduling. Embedding, OCR, and model inference can run efficiently without treating CPU or GPU as the only compute resources. |
-| Performance profile | Core | The profile allowing all compute units and moving sufficiently large searches to GPU. It prioritizes latency when the user accepts higher energy and thermal cost. |
+| Performance profile | Core | The profile allowing all compute units for the embedding model and moving searches of 1,000 or more passages, and the diversity step over more than 50 results, to the GPU. In the background an import may keep the GPU on an iPhone 16 or later, an iPad Air or an iPad Pro, where iOS offers it (`BackgroundGPUAllowance`). |
 | Query timeout | Core | The maximum wall-clock allowance for a query configuration. Retrieval or model loops need a hard latency boundary and a path to cancellation or partial result. |
 | QuotaPolicy | Core | The centralized limits for libraries, documents, and feature access by workspace tier. Scattered magic limits create inconsistent behavior and difficult migrations. |
 | SettingsStore | Core | The persisted central source for user model, routing, quality, GPU, RAG tuning, privacy, and presentation settings. Query execution must snapshot one coherent setting state rather than reread mutable UI values during the run. |
@@ -1699,4 +1699,4 @@ honestly: the code requests it on five lines and Apple decides; nothing in the a
 | Page rendering is zero-copy | The PNG round trip is skipped; a full-page bitmap is still allocated per page. |
 | Maximum verification bar is 0.98 | 0.80. The 0.98 target lives in the agentic loop, not the gate. |
 | The advanced on-device model | Executes the default model. No advanced model exists in the SDK. |
-| Core AI is a fallback | On iOS 27 and macOS 27 it is the default and saved Core ML defaults are migrated to it. |
+| Core AI is a fallback | On a Mac with macOS 27 it is the default for a new library. From 5.7 iPhone and iPad default to Core ML, which was faster on an iPhone 16 Pro Max and can run on the CPU for a background import, and a library keeps the embedder it was built with (`EmbeddingProviderDefaults`). |

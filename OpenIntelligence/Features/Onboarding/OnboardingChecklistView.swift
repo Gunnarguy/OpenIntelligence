@@ -312,7 +312,7 @@ struct OnboardingChecklistView: View {
             VStack(spacing: 12) {
                 UseCaseCard(icon: "tag.fill", iconColor: .blue, docType: "Product Guide", exampleQuestion: "What file types does OpenIntelligence handle best?")
                     .opacity(cardsRevealed > 0 ? 1 : 0).offset(y: cardsRevealed > 0 ? 0 : 20)
-                UseCaseCard(icon: "cpu.fill", iconColor: .orange, docType: "RAG Architecture", exampleQuestion: "How does OpenIntelligence work around the 4,096-token limit?")
+                UseCaseCard(icon: "cpu.fill", iconColor: .orange, docType: "RAG Architecture", exampleQuestion: "How does OpenIntelligence work around the model's token limit?")
                     .opacity(cardsRevealed > 1 ? 1 : 0).offset(y: cardsRevealed > 1 ? 0 : 20)
                 UseCaseCard(icon: "lock.shield.fill", iconColor: .purple, docType: "Apple Intelligence & PCC", exampleQuestion: "When does processing stay on-device, and when does Apple Private Cloud Compute step in?")
                     .opacity(cardsRevealed > 2 ? 1 : 0).offset(y: cardsRevealed > 2 ? 0 : 20)
@@ -678,7 +678,7 @@ struct OnboardingChecklistView: View {
                 Text("Try asking something like:")
                     .font(.subheadline.weight(.medium)).foregroundStyle(palette.ink(0.6))
                 VStack(spacing: 6) {
-                    ExampleQuestionPill(text: "How does OpenIntelligence work around the 4,096-token limit?", icon: "cpu.fill", color: .orange)
+                    ExampleQuestionPill(text: "How does OpenIntelligence work around the model's token limit?", icon: "cpu.fill", color: .orange)
                     ExampleQuestionPill(text: "What file types does OpenIntelligence handle best?", icon: "tag.fill", color: .blue)
                     ExampleQuestionPill(text: "When does processing stay on-device, and when does Apple Private Cloud Compute step in?", icon: "lock.shield.fill", color: .purple)
                 }

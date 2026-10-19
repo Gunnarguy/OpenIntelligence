@@ -60,57 +60,64 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
         }
     }
 
+    /// What each profile changes, in the words Settings shows (5.7).
+    ///
+    /// The effects are built from the rules the app runs (`DeviceCapabilityService.coreMLComputeUnits(for:)`,
+    /// `embeddingComputeUnits(for:)`, `cleansScannedPagesOnGPU(for:)` and `searchesLargeLibrariesOnGPU(for:)`), so the
+    /// list can't say something the code doesn't do. Until 5.7 it was written by hand: Balanced said "answering stays on
+    /// the Neural Engine", when this setting never touches how Apple's model answers; three profiles said "PDF pages
+    /// render on the GPU", when the page's raster is CPU work on every device and the profile only adds or drops an
+    /// extra Core Image pass over a rendered page (the cleanup that prepares every scanned page for text recognition,
+    /// `DocumentProcessor.preprocessImageForOCR`, runs on its Metal context in every profile); and Maximum promised "Highest concurrency and GPU ceiling", when in the foreground it runs
+    /// the same rules as Performance. What a profile changes in the background depends on the device, so Settings
+    /// states that for the device it runs on (`BackgroundGPUAllowance`) rather than here.
     var engagement: Engagement {
+        let searching = DeviceCapabilityService.coreMLComputeUnits(for: self)
+        let importing = DeviceCapabilityService.embeddingComputeUnits(for: self)
+        let cleanupOnGPU = DeviceCapabilityService.cleansScannedPagesOnGPU(for: self)
+        let largeSearchesOnGPU = DeviceCapabilityService.searchesLargeLibrariesOnGPU(for: self)
+        let modelUnits = [searching, importing]
+        return Engagement(
+            usesCPU: true,
+            usesNeuralEngine: modelUnits.contains { $0 == .all || $0 == .cpuAndNeuralEngine },
+            usesGPU: modelUnits.contains { $0 == .all || $0 == .cpuAndGPU } || cleanupOnGPU || largeSearchesOnGPU,
+            summary: plainSummary,
+            effects: [
+                "Searching by meaning: \(Self.chipNames(searching))",
+                "Importing: \(Self.chipNames(importing))",
+                cleanupOnGPU ? "Scanned PDF pages: an extra cleanup pass on the GPU" : "Scanned PDF pages: no extra cleanup pass",
+                "Large searches on the \(largeSearchesOnGPU ? "GPU" : "CPU")"
+            ]
+        )
+    }
+
+    /// One sentence for the selected profile, true of the rules `engagement` lists.
+    private var plainSummary: String {
         switch self {
         case .efficiency:
-            return Engagement(
-                usesCPU: true, usesNeuralEngine: true, usesGPU: false,
-                summary: "Coolest and quietest. Keeps work on the Neural Engine and CPU and leaves the graphics processor alone.",
-                effects: [
-                    "Models run on CPU + Neural Engine",
-                    "PDF pages render on the CPU",
-                    "Vector maths stays on the CPU"
-                ]
-            )
+            return "Coolest and quietest. Keeps the graphics processor out of everything this setting covers."
         case .balanced:
-            return Engagement(
-                usesCPU: true, usesNeuralEngine: true, usesGPU: true,
-                summary: "The default. Adds the graphics processor for rendering and for building the search index, while answering stays on the Neural Engine.",
-                effects: [
-                    "Models run on CPU + Neural Engine",
-                    "Indexing may use all three engines",
-                    "PDF pages render on the GPU",
-                    "Vector maths stays on the CPU"
-                ]
-            )
+            return "The default. Imports can add the graphics processor, and scanned PDF pages get an extra cleanup pass on it."
         case .performance:
-            return Engagement(
-                usesCPU: true, usesNeuralEngine: true, usesGPU: true,
-                summary: "Everything is available to everything. Answering can now use the graphics processor too, and large searches move onto it.",
-                effects: [
-                    "Models may use all three engines",
-                    "Indexing may use all three engines",
-                    "PDF pages render on the GPU",
-                    "Large searches move to the GPU"
-                ]
-            )
+            return "Everything this setting covers can use the graphics processor, large searches included."
         case .maximum:
-            return Engagement(
-                usesCPU: true, usesNeuralEngine: true, usesGPU: true,
-                summary: "Performance, with the ceilings lifted. Same engines, more of them at once, and the most heat.",
-                effects: [
-                    "Models may use all three engines",
-                    "Indexing may use all three engines",
-                    "PDF pages render on the GPU",
-                    "Large searches move to the GPU",
-                    "Highest concurrency and GPU ceiling"
-                ]
-            )
+            return "The same as Performance, except on an iPhone 15 Pro or Pro Max, where an import in the background can also keep the graphics processor while the phone charges."
+        }
+    }
+
+    /// The chips a Core ML choice allows, in Settings' words. Core ML picks among them for each operation.
+    nonisolated static func chipNames(_ units: MLComputeUnits) -> String {
+        switch units {
+        case .all: return "Neural Engine, GPU and CPU"
+        case .cpuAndNeuralEngine: return "Neural Engine and CPU"
+        case .cpuAndGPU: return "GPU and CPU"
+        case .cpuOnly: return "CPU"
+        @unknown default: return "the chips Core ML picks"
         }
     }
 
     /// Compatibility value retained for existing pipeline policy and older app versions.
-    var legacyLevel: Double {
+    nonisolated var legacyLevel: Double {
         switch self {
         case .efficiency: return 0.0
         case .balanced: return 0.5
@@ -125,6 +132,58 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
         case ..<0.6: self = .balanced
         case ..<0.9: self = .performance
         default: self = .maximum
+        }
+    }
+}
+
+/// When an import that goes on in the background may ask iOS for the GPU, per device (5.7).
+///
+/// `BackgroundTaskService` applies it when it submits the import's `BGContinuedProcessingTaskRequest`, and Settings
+/// states it for the device it runs on, so the two read one rule. iOS decides too: `BGTaskScheduler.supportedResources`
+/// has to offer `.gpu` ("Not all devices support background GPU use", Apple's `BGContinuedProcessingTaskRequest.Resources.gpu`
+/// page, read 2026-10-18), and Low Power Mode, a serious thermal state, critical memory pressure and the system's request
+/// to use fewer resources each keep the GPU off (`BackgroundTaskService.continuedProcessingPolicy()`).
+nonisolated struct BackgroundGPUAllowance: Equatable, Sendable {
+    /// The GPU level a profile has to reach on this device, after the device's ceiling
+    /// (`DeviceCapabilityService.maxSafeGPUAccelerationLevel(formFactor:tier:)`). Above 1, no profile reaches it.
+    let requiredLevel: Double
+    /// Below this battery percentage, when not charging, the import gets no GPU. -1 means no floor.
+    let minimumBatteryPercent: Int
+    /// Only while charging: an iPhone 15 Pro or Pro Max (A17 Pro).
+    let chargingOnly: Bool
+
+    static func forDevice(formFactor: DeviceFormFactor, tier: DeviceCapabilityTier) -> BackgroundGPUAllowance {
+        switch formFactor {
+        case .iPhone:
+            switch tier {
+            case .baseline:
+                return BackgroundGPUAllowance(requiredLevel: 0.85, minimumBatteryPercent: 50, chargingOnly: true)
+            case .enhanced:
+                return BackgroundGPUAllowance(requiredLevel: 0.75, minimumBatteryPercent: 35, chargingOnly: false)
+            case .advanced, .ultraAdvanced:
+                return BackgroundGPUAllowance(requiredLevel: 0.65, minimumBatteryPercent: 35, chargingOnly: false)
+            case .unsupported:
+                return BackgroundGPUAllowance(requiredLevel: 1.1, minimumBatteryPercent: 35, chargingOnly: false)
+            }
+        case .iPadMini:
+            return BackgroundGPUAllowance(requiredLevel: 0.8, minimumBatteryPercent: 40, chargingOnly: false)
+        case .iPadAir:
+            return BackgroundGPUAllowance(requiredLevel: 0.7, minimumBatteryPercent: 30, chargingOnly: false)
+        case .iPadPro:
+            return BackgroundGPUAllowance(requiredLevel: 0.6, minimumBatteryPercent: 25, chargingOnly: false)
+        case .mac:
+            return BackgroundGPUAllowance(requiredLevel: 0.6, minimumBatteryPercent: -1, chargingOnly: false)
+        case .unknown:
+            return BackgroundGPUAllowance(requiredLevel: 1.1, minimumBatteryPercent: 50, chargingOnly: false)
+        }
+    }
+
+    /// The profiles that let a background import ask for the GPU on a device, lowest first.
+    static func profiles(formFactor: DeviceFormFactor, tier: DeviceCapabilityTier) -> [GPUExecutionProfile] {
+        let allowance = forDevice(formFactor: formFactor, tier: tier)
+        let ceiling = DeviceCapabilityService.maxSafeGPUAccelerationLevel(formFactor: formFactor, tier: tier)
+        return [GPUExecutionProfile.efficiency, .balanced, .performance, .maximum].filter { profile in
+            min(profile.legacyLevel, ceiling) >= allowance.requiredLevel
         }
     }
 }
@@ -186,6 +245,17 @@ enum DeviceFormFactor: String, Sendable {
     case iPadPro // 11"-13" - maximum performance
     case mac // MacBook Air, MacBook Pro, Mac mini, iMac, Mac Studio, Mac Pro
     case unknown
+
+    /// The device in Settings' words (5.7).
+    var deviceNoun: String {
+        switch self {
+        case .iPhone: return "iPhone"
+        // One word for every iPad: the model detection maps some iPads to the wrong family (base iPads to Air or Pro).
+        case .iPadMini, .iPadAir, .iPadPro: return "iPad"
+        case .mac: return "Mac"
+        case .unknown: return "device"
+        }
+    }
 
     /// Whether the chassis is known to be actively cooled.
     ///
@@ -267,7 +337,6 @@ struct HardwareExecutionEnvelope: Sendable {
     let embeddingBatchSize: Int
     let vectorBatchSize: Int
     let batchMatrixMultiplyThreshold: Int
-    let gpuConcurrency: Int
 }
 
 /// Comprehensive device capability detection
@@ -278,6 +347,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         static let profile = "gpuAccelerationProfile"
         static let legacyLevel = "gpuAccelerationLevel"
     }
+
+    /// The defaults key of the GPU profile, for a view that watches it with `@AppStorage` (5.7).
+    static let gpuProfileDefaultsKey = GPUDefaults.profile
 
     private nonisolated static let ingestionExecutionProfileLock = NSLock()
     private nonisolated(unsafe) static var ingestionExecutionProfileStorage: IngestionExecutionProfile = .interactive
@@ -354,19 +426,24 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Highest GPU level this device should sustain without pushing into crash-prone territory.
     var maxSafeGPUAccelerationLevel: Double {
-        if isMac {
-            return 1.0
-        }
+        Self.maxSafeGPUAccelerationLevel(formFactor: cachedFormFactor, tier: cachedTier)
+    }
 
-        switch cachedFormFactor {
+    /// The ceiling for each device, pure so Settings and tests can state it for any device (5.7). A profile above
+    /// it runs as the profile the ceiling falls in: Maximum on an iPad mini runs as Performance.
+    nonisolated static func maxSafeGPUAccelerationLevel(formFactor: DeviceFormFactor, tier: DeviceCapabilityTier) -> Double {
+        switch formFactor {
         case .iPadPro:
             return 1.0
         case .iPadAir:
-            return cachedTier >= .advanced ? 1.0 : 0.9
+            switch tier {
+            case .advanced, .ultraAdvanced: return 1.0
+            case .unsupported, .baseline, .enhanced: return 0.9
+            }
         case .iPadMini:
             return 0.7
         case .iPhone:
-            switch cachedTier {
+            switch tier {
             case .unsupported:
                 return 0.6
             case .baseline:
@@ -379,6 +456,16 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .unknown:
             return 0.6
         }
+    }
+
+    /// The rule for a background import's GPU on this device.
+    var backgroundGPUAllowance: BackgroundGPUAllowance {
+        BackgroundGPUAllowance.forDevice(formFactor: cachedFormFactor, tier: cachedTier)
+    }
+
+    /// The profiles that let a background import ask for the GPU on this device.
+    var backgroundGPUProfiles: [GPUExecutionProfile] {
+        BackgroundGPUAllowance.profiles(formFactor: cachedFormFactor, tier: cachedTier)
     }
 
     /// Requested level after applying per-hardware ceilings.
@@ -504,8 +591,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
             embeddingConcurrency: embeddingConcurrency,
             embeddingBatchSize: embeddingBatchSize,
             vectorBatchSize: vectorBatchSize,
-            batchMatrixMultiplyThreshold: batchMatrixMultiplyThreshold,
-            gpuConcurrency: gpuConcurrency
+            batchMatrixMultiplyThreshold: batchMatrixMultiplyThreshold
         )
     }
 
@@ -867,86 +953,42 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
     }
 
-    /// Whether to use GPU-backed CIContext for PDF rendering
+    /// Whether the Core Image cleanup of a scanned page runs on the GPU (`cleansScannedPagesOnGPU(for:)`).
     var useGPUForPDFRendering: Bool {
         if isBackgroundCPUSafeIngestionActive {
             return false
         }
 
-        return activeGPUExecutionProfile != .efficiency
+        return Self.cleansScannedPagesOnGPU(for: activeGPUExecutionProfile)
     }
 
-    var gpuConcurrency: Int {
-        if isBackgroundCPUSafeIngestionActive {
-            return 1
-        }
-
-        // Mac check - active cooling allows sustained GPU throughput
-        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            if cachedTier == .unsupported {
-                return 2
-            }
-            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
-            var baseConcurrency = 6
-            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
-                baseConcurrency = 12
-            } else if chipIsAtLeast("M3") {
-                baseConcurrency = 8
-            }
-            return min(128, baseConcurrency * ramMultiplier)
-        }
-
-        let level = activeGPUAccelerationLevel
-        if level >= 0.9 {
-            // Maximum mode - CRANKED maximums for iOS
-            switch cachedTier {
-            case .unsupported: return 2
-            case .baseline: return 10   // A17 Pro: 6-core GPU, boosted
-            case .enhanced: return 14   // A18 Pro: 6-core GPU, full utilization
-            case .advanced: return 16   // A19 Pro: next-gen GPU cores
-            case .ultraAdvanced: 
-                let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
-                return min(64, 12 * ramMultiplier)
-            }
-        } else if level >= 0.6 {
-            // Performance mode
-            switch cachedTier {
-            case .unsupported: return 2
-            case .baseline: return 8
-            case .enhanced: return 10
-            case .advanced: return 12
-            case .ultraAdvanced: 
-                let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
-                return min(32, 8 * ramMultiplier)
-            }
-        } else if level >= 0.3 {
-            // Balanced mode - GPU-backed PDF rendering + moderate concurrency
-            switch cachedTier {
-            case .unsupported: return 2
-            case .baseline: return 6    // A17 Pro: light GPU assist
-            case .enhanced: return 8    // A18 Pro: moderate GPU assist
-            case .advanced: return 8    // A19 Pro: moderate GPU assist
-            case .ultraAdvanced: 
-                let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
-                return min(24, 6 * ramMultiplier)
-            }
-        } else {
-            // Efficiency mode - minimal GPU usage
-            return 4
-        }
-    }
-
-    /// Whether to use Metal compute shaders for vector operations
+    /// Whether large searches use Metal (`searchesLargeLibrariesOnGPU(for:)`).
     var useMetalForVectorOps: Bool {
         if isBackgroundCPUSafeIngestionActive {
             return false
         }
 
-        switch activeGPUExecutionProfile {
-        case .efficiency, .balanced:
-            return false
-        case .performance, .maximum:
-            return true
+        return Self.searchesLargeLibrariesOnGPU(for: activeGPUExecutionProfile)
+    }
+
+    /// Whether a rendered PDF page gets an extra Core Image cleanup pass, on the GPU, before text recognition
+    /// (`DocumentProcessor.renderPDFPageAsImage`). The page's raster is CPU work whatever this says, and the cleanup that
+    /// prepares every scanned page for recognition (`preprocessImageForOCR`) runs on its Metal context in every
+    /// profile; the name `useGPUForPDFRendering` is older than both findings.
+    nonisolated static func cleansScannedPagesOnGPU(for profile: GPUExecutionProfile) -> Bool {
+        switch profile {
+        case .efficiency: return false
+        case .balanced, .performance, .maximum: return true
+        }
+    }
+
+    /// Whether large searches use Metal on the GPU: a vector search over 1,000 or more passages
+    /// (`BNNSVectorDatabase`) and the diversity step over more than 50 results (`RAGEngine.applyMMR`), on a device
+    /// with a Metal GPU.
+    nonisolated static func searchesLargeLibrariesOnGPU(for profile: GPUExecutionProfile) -> Bool {
+        switch profile {
+        case .efficiency, .balanced: return false
+        case .performance, .maximum: return true
         }
     }
 

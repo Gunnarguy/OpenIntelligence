@@ -698,11 +698,37 @@ struct ProcessingSummary: Identifiable {
         case "nl_embedding", nil:
             return "NLEmbedding"
         case "coreml_sentence_embedding":
-            return "CoreML Sentence"
+            return "MiniLM (Core ML)"
+        case "coreai_sentence_embedding":
+            return "MiniLM (Core AI)"
         case "apple_fm_embed":
             return "Apple FM"
         default:
             return embeddingProviderId ?? "NLEmbedding"
+        }
+    }
+
+    /// The vector size the provider writes, the figures `EmbeddingService.forProvider`'s `nativeDimensions` holds (5.7).
+    /// The import summary showed "512" for every library, and MiniLM, the default on every device, writes 384.
+    var embeddingDimensions: Int? {
+        switch embeddingProviderId {
+        case "nl_embedding", "nl_contextual_embedding", nil: return 512
+        case "coreml_sentence_embedding", "coreai_sentence_embedding": return 384
+        case "apple_fm_embed": return 1024
+        default: return nil
+        }
+    }
+
+    /// Where the provider runs, in the summary's words (5.7). Until 5.7 the summary said "Neural Engine accelerated"
+    /// for every library. Core ML picks the chip for the MiniLM copy and plans most of it onto the Neural Engine (150 of
+    /// 161 operations under `.all`, `MLComputePlan` on an M3 Pro, 2026-10-18); the Core AI copy fails Neural Engine validation and runs on the GPU (timed
+    /// on the Mac and an iPhone 16 Pro Max the same week); a background import without the GPU runs Core ML on the CPU.
+    var embeddingRunsOn: String {
+        switch embeddingProviderId {
+        case "coreml_sentence_embedding": return "Core ML, on the Neural Engine where it can"
+        case "coreai_sentence_embedding": return "Core AI, on the GPU"
+        case "nl_embedding", "nl_contextual_embedding", nil: return "Apple's NaturalLanguage framework"
+        default: return "On this device"
         }
     }
 

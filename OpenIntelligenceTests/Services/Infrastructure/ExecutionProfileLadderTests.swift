@@ -124,6 +124,42 @@ final class ExecutionProfileLadderTests: XCTestCase {
         }
     }
 
+    /// The list Settings shows is built from the rules the app runs (5.7). Until 5.7 it was written by hand and said
+    /// "answering stays on the Neural Engine" and "PDF pages render on the GPU", neither of which the code did.
+    func testEffectsNameTheRulesTheAppRuns() {
+        for profile in ladder {
+            let effects = profile.engagement.effects
+            XCTAssertEqual(effects.count, 4, profile.displayName)
+            XCTAssertTrue(
+                effects[0].hasSuffix(GPUExecutionProfile.chipNames(DeviceCapabilityService.coreMLComputeUnits(for: profile))),
+                "\(profile.displayName): \(effects[0])")
+            XCTAssertTrue(
+                effects[1].hasSuffix(GPUExecutionProfile.chipNames(DeviceCapabilityService.embeddingComputeUnits(for: profile))),
+                "\(profile.displayName): \(effects[1])")
+            XCTAssertEqual(
+                effects[2].hasSuffix("GPU"), DeviceCapabilityService.cleansScannedPagesOnGPU(for: profile),
+                "\(profile.displayName): \(effects[2])")
+            XCTAssertEqual(
+                effects[3].hasSuffix("GPU"), DeviceCapabilityService.searchesLargeLibrariesOnGPU(for: profile),
+                "\(profile.displayName): \(effects[3])")
+        }
+    }
+
+    /// The setting never touches how Apple's model answers, so no line may say it does.
+    func testNoProfileClaimsToRouteAnswering() {
+        for profile in ladder {
+            let text = ([profile.engagement.summary] + profile.engagement.effects).joined(separator: " ").lowercased()
+            XCTAssertFalse(text.contains("answer"), profile.displayName)
+            XCTAssertFalse(text.contains("render"), profile.displayName)
+        }
+    }
+
+    /// While the app is open Maximum runs the same rules as Performance; it differs only in the background, on an
+    /// iPhone 15 Pro or Pro Max (`BackgroundGPUAllowanceTests`). Its list may not suggest more.
+    func testMaximumListsTheSameRulesAsPerformance() {
+        XCTAssertEqual(GPUExecutionProfile.maximum.engagement.effects, GPUExecutionProfile.performance.engagement.effects)
+    }
+
     /// Climbing the ladder should add detail, not lose it.
     func testEffectCountNeverDecreases() {
         for (lower, higher) in zip(ladder, ladder.dropFirst()) {

@@ -427,8 +427,9 @@ struct ChatScreen: View {
             return audit.availableContextTokens > 0 ? audit.availableContextTokens : audit.baseWindowTokens
         }
 
-        // Fallback to base window tokens
-        return 4096
+        // Before the first answer, the window this device reports (5.7; this was a fixed 4096, under the 8,192 a
+        // Mac on macOS 27 reported). A device that reports none keeps 4096.
+        return FoundationModelTokenBudget.reportedOnDeviceContextSize ?? FoundationModelTokenBudget.baseContextLength
     }
 
     // MARK: - Metrics Bar Helpers (split to avoid type-check timeout)
@@ -2014,7 +2015,7 @@ struct ChatScreen: View {
         guard activeNames.intersection(sampleNames).count >= 2 else { return nil }
 
         return [
-            "How does OpenIntelligence work around the 4,096-token model limit?",
+            "How does OpenIntelligence work around the model's token limit?",
             "What file types does OpenIntelligence handle best?",
             "Why is OpenIntelligence different from a generic AI chat app?",
             "When does processing stay on-device, and when does Apple Private Cloud Compute step in?",

@@ -73,12 +73,14 @@ struct ProcessingSummaryView: View {
                                     .foregroundColor(.purple)
                             }
                         }
-                        DetailInfoRow(label: "Dimensions", value: "512")
+                        if let dimensions = summary.embeddingDimensions {
+                            DetailInfoRow(label: "Dimensions", value: "\(dimensions)")
+                        }
                         HStack(spacing: 4) {
                             Image(systemName: "bolt.horizontal.fill")
                                 .font(.caption)
                                 .foregroundColor(.cyan)
-                            Text("Neural Engine accelerated")
+                            Text(summary.embeddingRunsOn)
                                 .font(.caption)
                                 .foregroundColor(.cyan)
                         }

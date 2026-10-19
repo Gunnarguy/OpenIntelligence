@@ -330,15 +330,17 @@ final class IngestionLiveActivityService {
         }
     }
 
+    /// The Live Activity's tint follows the profile the import runs with (5.7). Until 5.7 it followed GPU-level
+    /// thresholds that put an iPad mini's Performance, capped at 0.7, under Balanced.
     private func processingMode(for device: DeviceCapabilityService) -> IngestionLiveActivityProcessingMode {
-        let level = device.activeGPUAccelerationLevel
-        if level > 0.7 {
-            return .turbo
+        if device.isBackgroundCPUSafeIngestionActive {
+            return .eco
         }
-        if level >= 0.3 {
-            return .balanced
+        switch device.activeGPUExecutionProfile {
+        case .efficiency: return .eco
+        case .balanced: return .balanced
+        case .performance, .maximum: return .turbo
         }
-        return .eco
     }
 
     private func deviceSummary(for device: DeviceCapabilityService) -> String {
@@ -358,11 +360,13 @@ final class IngestionLiveActivityService {
         for device: DeviceCapabilityService,
         thermalBucket: IngestionLiveActivityThermalBucket
     ) -> String {
-        let mode = processingMode(for: device).displayName
+        // The profile's own name, so Maximum reads Maximum, and what a background import without the GPU runs on.
+        let mode = device.isBackgroundCPUSafeIngestionActive ? "No GPU (background)" : device.activeGPUExecutionProfile.displayName
         if thermalBucket == .serious || thermalBucket == .critical {
             return "\(mode) • thermal management active"
         }
-        return "\(mode) • \(device.gpuConcurrency)x GPU • \(device.ocrExtractionConcurrency)x OCR"
+        // Until 5.7 this read "Nx GPU" from a value nothing else in the app used; both figures here are applied.
+        return "\(mode) • \(device.pdfRenderingConcurrency)x pages • \(device.ocrExtractionConcurrency)x OCR"
     }
 
     private func trimmed(_ text: String, maxLength: Int) -> String {

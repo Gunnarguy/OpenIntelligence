@@ -10578,10 +10578,13 @@ class RAGService: ObservableObject {
         }
 
         let modeTitle = isUnlimitedMode ? "Maximum Mode" : "Deep Think Mode"
+        // Sessions, not the orchestrator's step budget (5.7): Deep Think's chain stops at 8 sessions on every device
+        // (`AgenticPolicyService.maxSessionsForMode`), where this printed 5 on an iPhone 15 Pro and 13 on an 18 GB M3
+        // Pro; what differs by device is the confidence it aims for. Maximum's step budget is its 50 sessions.
         let modeDetail =
             isUnlimitedMode
-            ? "Unlimited reasoning until 98% confident (up to \(optimizedConfig.maxSteps) steps)"
-            : "Starting multi-step reasoning (\(deviceService.tier.displayName) mode, up to \(optimizedConfig.maxSteps) steps)"
+            ? "Reasoning until \(Int(optimizedConfig.confidenceThreshold * 100))% confident (up to \(optimizedConfig.maxSteps) sessions)"
+            : "Starting multi-step reasoning (a chain of up to 8 sessions, aiming for \(Int(optimizedConfig.confidenceThreshold * 100))% confidence on the \(deviceService.chipName))"
 
         // Always start agentic work from a clean FM session.
         // Reusing transcript state across Go Deeper or repeated Deep Think queries

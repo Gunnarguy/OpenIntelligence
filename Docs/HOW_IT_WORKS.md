@@ -1,7 +1,9 @@
 # How OpenIntelligence Works
 
 > **Documentation status:** Source-verified against `f0ac9b9` on 2026-08-21. Every architectural
-> constant below was re-read from the code on that date: the 4,096-token context window, the 384
+> constant below was re-read from the code on that date: the 4,096-token context window (corrected
+> 2026-10-18: that is the figure Apple documents and the app's fallback, and the app reads the window the
+> device reports, which is 8,192 on a Mac with macOS 27; the lines below say so), the 384
 > dimensions, the 310-word chunk ceiling under a 510-token limit, the nine SQLite tables, the nine
 > verification gates and the 1,000-chunk GPU threshold all hold. Subsystem line counts were recounted
 > and had all drifted upward since this page was first written; recount them with the command below
@@ -39,7 +41,7 @@ done
 > Everything below is a detail of that story.
 
 OpenIntelligence is a local-first retrieval-augmented generation system. Documents are parsed, chunked, embedded and indexed entirely on device. A question is answered by retrieving evidence from that index, packing it into a strictly bounded context window, generating from it, and then verifying the output against the evidence before it is shown.
-The governing constraint is that Apple's on-device foundation model has a **4,096-token context window**. A document does not fit. Neither does a naive top-20 chunk set once the system prompt, tool schemas and output schema are accounted for. Every packing, compression, ordering and filtering decision in the pipeline traces back to that number.
+The governing constraint is that Apple's on-device foundation model has a small, fixed **context window**: 4,096 tokens in Apple's documentation and 8,192 on a Mac with macOS 27, and the app reads the device's own figure. A document does not fit. Neither does a naive top-20 chunk set once the system prompt, tool schemas and output schema are accounted for. Every packing, compression, ordering and filtering decision in the pipeline traces back to that number.
 The second constraint is that documents stay on the device. So "send the whole corpus to a larger model" is not available either. Retrieval-augmented generation is not a preference here; it is the only architecture that satisfies both constraints at once.
 
 ### Four things that make it different
@@ -51,7 +53,7 @@ The second constraint is that documents stay on the device. So "send the whole c
 > 4. **A fact-checker that's allowed to say no.** Most AI tools always give you an answer. This one is allowed to refuse, and that's deliberate.
 
 1. **A dual index.** SQLite FTS5 with BM25 for lexical retrieval, a memory-mapped BNNS vector store for dense retrieval, merged by rank fusion. Neither arm is sufficient alone.
-2. **A hard token budget.** Compression, sibling expansion, positional reordering and tool-schema management are all consequences of 4,096 tokens being the real ceiling.
+2. **A hard token budget.** Compression, sibling expansion, positional reordering and tool-schema management are all consequences of a window of a few thousand tokens being the real ceiling.
 3. **Post-retrieval routing.** The decision about whether anything leaves the device is made after evidence exists, and consent is requested for the exact minimized payload rather than in advance.
 4. **Nine verification gates.** Deterministic, local, run after generation, and able to force an abstention. Refusing to answer is a designed outcome, not a failure state.
 
@@ -411,7 +413,7 @@ A locked answer skips the source-only check (`:17293`). The scoring rules, and w
 > Finally, write the answer using only what's on the desk.
 > One detail worth knowing: the desk is shared by everything, not just your pages. The instructions, the list of tools the AI is allowed to use, the pages, and the answer being written all come out of the same four pages of room. The tool list alone eats about a quarter of it. So once the app has already fetched the right pages, it puts the tool list away, because advertising tools that are no longer needed is the most wasteful thing it could do.
 
-**How.** The packed prompt goes into an Apple `LanguageModelSession` within the 4,096-token budget. Temperature is 0.4 in the standard modes and 0.3 in the most precise one. Tool schemas are removed once context has already been assembled, since they cost roughly 1,000 of the available tokens.
+**How.** The packed prompt goes into an Apple `LanguageModelSession` within the window the device reports (4,096 tokens in Apple's documentation, 8,192 on a Mac with macOS 27). Temperature is 0.4 in the standard modes and 0.3 in the most precise one. Tool schemas are removed once context has already been assembled, since they cost roughly 1,000 of the available tokens.
 
 #### Step 6.5 / 7. Tidy up and score it
 
@@ -551,7 +553,7 @@ Each answer carries an execution receipt recording intended, attempted, actual, 
 > These are not claims carried forward from an old note. Each line below was compiled against `iPhoneSimulator27.0.sdk` today. A statement that something is *absent* is only worth as much as the check behind it, so here is the check.
 
 > **Why the context window matters more than the size**
-> The number that actually shapes this app is not parameter count, it is the 4,096-token context window. That is what makes retrieval quality decisive: with a small window there is nowhere to hide mediocre retrieval, because the model only ever sees what the pipeline chose to give it. A larger window would let several stages of this pipeline be deleted. It would also make the retrieval quality invisible.
+> The number that actually shapes this app is not parameter count, it is the context window: 4,096 tokens in Apple's documentation, 8,192 on a Mac with macOS 27. That is what makes retrieval quality decisive: with a small window there is nowhere to hide mediocre retrieval, because the model only ever sees what the pipeline chose to give it. A larger window would let several stages of this pipeline be deleted. It would also make the retrieval quality invisible.
 
 ## 07. Thinking in loops
 
@@ -568,7 +570,7 @@ Each answer carries an execution receipt recording intended, attempted, actual, 
 > **In plain words**
 > The desk gets wiped clean between trips. So before each trip the librarian copies what they've learned onto a notepad in shorthand and carries the notepad through. The notepad also tracks which parts of the question are still unanswered. That notepad is what turns fifty separate lookups into one continuous piece of work.
 
-Because a single session is capped at 4,096 tokens, complex questions are answered across a chain of sessions: plan, search, analyse, synthesise, refine. Deep Think runs roughly 8 sessions and Maximum up to 50. State is carried by a fact bank that decomposes the question into sub-questions, tracks which are answered, and accumulates verified facts. Hierarchical compression carries *facts* forward rather than raw text, because raw text does not fit.
+Because a single session is capped at the device's window (4,096 or 8,192 tokens), complex questions are answered across a chain of sessions: plan, search, analyse, synthesise, refine. Deep Think's chain runs up to 8 sessions on every device, research rounds can follow it, and Maximum runs up to 50; by device's tier Deep Think changes the confidence it aims for (85% to 95%), its step and token budgets, and on an A17 Pro it skips the Self-RAG check after the chain (`DeviceCapabilityService.optimizedAgenticConfig`; Atlas, Deep Think per device). State is carried by a fact bank that decomposes the question into sub-questions, tracks which are answered, and accumulates verified facts. Hierarchical compression carries *facts* forward rather than raw text, because raw text does not fit.
 
 ### Knowing when to stop
 
@@ -705,7 +707,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
 | `5.9` | Assemble summaries directly | Extractive summarization for summarize intent |
 | `5.10` | Copy exact numbers instead of generating
 **(switched off)** | Extractive QA override, **disabled at this step**; the same extractor still answers value questions elsewhere (see step 5.10) |
-| `6` | Write the answer from the desk | Generation within a 4,096-token session, tool schemas withdrawn once evidence is assembled |
+| `6` | Write the answer from the desk | Generation within one session of the device's window, tool schemas withdrawn once evidence is assembled |
 | `6.5` | Repair the formatting | Response formatting and markdown normalisation |
 | `7` | Score how well it came out | Quality assessment |
 | `7.5` | Run the nine fact-checks | Verification gates A through I |
@@ -772,7 +774,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
 ### Answering and checking
 
 **Context window**
-  The desk. About four pages. Everything competes for it, including the instructions.4,096 tokens on device. Prompt, tool schemas, evidence, output schema and response all share it.
+  The desk. About four pages. Everything competes for it, including the instructions.4,096 tokens in Apple's documentation, 8,192 on a Mac with macOS 27; the app reads the device's figure. Prompt, tool schemas, evidence, output schema and response all share it.
 
 **Grounding**
   Every sentence in the answer traces back to a page on the desk.The property that every claim maps to retrieved evidence, measured as answer-to-evidence similarity.
@@ -806,7 +808,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
 ### Why not just give the whole document to an AI?
 
 PlainBecause the AI on your device can only look at about four pages at once, and a document can be four hundred. And sending your files somewhere with more room would break the promise the app is built on. So there's no version of this that skips the hard part.
-Two constraints, both hard. The on-device model has a 4,096-token context window, so a document does not fit. And documents stay on the device by design, so sending the corpus to a larger model is not available either. Retrieval-augmented generation is the only architecture that satisfies both.
+Two constraints, both hard. The on-device model has a context window of a few thousand tokens (4,096 in Apple's documentation, 8,192 on a Mac with macOS 27), so a document does not fit. And documents stay on the device by design, so sending the corpus to a larger model is not available either. Retrieval-augmented generation is the only architecture that satisfies both.
 
 ### How do I know it isn't making things up?
 

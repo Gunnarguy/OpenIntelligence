@@ -108,17 +108,23 @@ struct SemanticSearchView: View {
         Group {
             // Show active embedding provider
             if let container = containerService.activeContainer {
+                // A Core AI library is MiniLM too (5.7). It fell to the last branch and read "NLEmbedding (512D)",
+                // the label of a different model with a different vector size, on every Mac with macOS 27, where
+                // Core AI is the default. The Core ML badge read "ANE": Core ML picks the chip, and runs on the CPU
+                // in the Simulator and in a background import without the GPU.
                 let isCoreML = container.embeddingProviderId == "coreml_sentence_embedding"
+                let isCoreAI = container.embeddingProviderId == "coreai_sentence_embedding"
+                let isMiniLM = isCoreML || isCoreAI
                 let isContextual = container.embeddingProviderId == "nl_contextual_embedding"
                 HStack(spacing: 8) {
-                    Image(systemName: isCoreML ? "cpu.fill" : (isContextual ? "sparkles" : "brain.head.profile"))
-                        .foregroundColor(isCoreML ? .orange : (isContextual ? .purple : .blue))
-                    Text(isCoreML ? "MiniLM-L6-v2 (384D)" : (isContextual ? "Contextual (512D)" : "NLEmbedding (512D)"))
+                    Image(systemName: isMiniLM ? "cpu.fill" : (isContextual ? "sparkles" : "brain.head.profile"))
+                        .foregroundColor(isMiniLM ? .orange : (isContextual ? .purple : .blue))
+                    Text(isMiniLM ? "MiniLM-L6-v2 (384D)" : (isContextual ? "Contextual (512D)" : "NLEmbedding (512D)"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    if isCoreML {
-                        Text("ANE")
+                    if isMiniLM {
+                        Text(isCoreAI ? "Core AI" : "Core ML")
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundColor(.orange)

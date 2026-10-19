@@ -764,6 +764,20 @@ final class BackgroundTaskService: Sendable {
         DeviceCapabilityService.shared.setIngestionExecutionProfile(profile)
     }
 
+    /// Whether iOS offers this device the GPU for work that goes on in the background, which Settings states next to
+    /// the GPU profiles (5.7). Apple: "Not all devices support background GPU use."
+    @MainActor
+    var systemOffersBackgroundGPU: Bool {
+        #if targetEnvironment(macCatalyst)
+            return false
+        #else
+            if #available(iOS 26.0, *) {
+                return BGTaskScheduler.supportedResources.contains(.gpu)
+            }
+            return false
+        #endif
+    }
+
     #if !targetEnvironment(macCatalyst)
     @MainActor
     @available(iOS 26.0, *)
@@ -1049,8 +1063,10 @@ final class BackgroundTaskService: Sendable {
         let backgroundGPUSupported = BGTaskScheduler.supportedResources.contains(.gpu)
         let requestedGPUAccelerationLevel = device.gpuAccelerationLevel
         let activeGPUAccelerationLevel = device.activeGPUAccelerationLevel
-        let requiredGPUThreshold = requiredGPUThreshold(for: device)
-        let minimumBatteryPercent = minimumBatteryPercentForBackgroundGPU(for: device)
+        // One rule with Settings, which states it for the device it runs on (5.7).
+        let allowance = device.backgroundGPUAllowance
+        let requiredGPUThreshold = allowance.requiredLevel
+        let minimumBatteryPercent = allowance.minimumBatteryPercent
 
         var rationale: [String] = []
         var backgroundGPURequested = true
@@ -1085,8 +1101,7 @@ final class BackgroundTaskService: Sendable {
             rationale.append("Critical memory pressure requires the most conservative execution route.")
         }
 
-        if device.formFactor == .iPhone,
-           device.tier == .baseline,
+        if allowance.chargingOnly,
            !systemState.isCharging {
             backgroundGPURequested = false
             rationale.append("Baseline iPhones only use background GPU when charging.")
@@ -1172,49 +1187,6 @@ final class BackgroundTaskService: Sendable {
         guard collapsed.count > maxLength else { return collapsed }
         guard maxLength > 1 else { return String(collapsed.prefix(maxLength)) }
         return String(collapsed.prefix(maxLength - 1)) + "…"
-    }
-
-    @MainActor
-    private func requiredGPUThreshold(for device: DeviceCapabilityService) -> Double {
-        switch device.formFactor {
-        case .iPhone:
-            switch device.tier {
-            case .baseline:
-                return 0.85
-            case .enhanced:
-                return 0.75
-            case .advanced, .ultraAdvanced:
-                return 0.65
-            case .unsupported:
-                return 1.1
-            }
-        case .iPadMini:
-            return 0.8
-        case .iPadAir:
-            return 0.7
-        case .iPadPro, .mac:
-            return 0.6
-        case .unknown:
-            return 1.1
-        }
-    }
-
-    @MainActor
-    private func minimumBatteryPercentForBackgroundGPU(for device: DeviceCapabilityService) -> Int {
-        switch device.formFactor {
-        case .iPhone:
-            return device.tier == .baseline ? 50 : 35
-        case .iPadMini:
-            return 40
-        case .iPadAir:
-            return 30
-        case .iPadPro:
-            return 25
-        case .mac:
-            return -1
-        case .unknown:
-            return 50
-        }
     }
 
     @MainActor

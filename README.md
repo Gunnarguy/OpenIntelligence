@@ -76,9 +76,10 @@ cases drawn from 40 real research papers** (QASPER), local-only.
 > is a harder external set and a worse number. See
 > [How OpenIntelligence Works, section 08](Docs/HOW_IT_WORKS.md).
 
-**Deep Think** runs 4–8 sequential reasoning sessions over rotating context
-windows, passing compressed findings forward before synthesising. It stops early
-once it stops learning.
+**Deep Think** runs a chain of up to 8 sequential reasoning sessions over rotating
+context windows, passing compressed findings forward before synthesising, and
+research rounds can follow it. It stops early once it reaches the confidence it
+aims for on the device and stops learning.
 
 **Maximum** lifts the session ceiling for questions that span a whole library.
 

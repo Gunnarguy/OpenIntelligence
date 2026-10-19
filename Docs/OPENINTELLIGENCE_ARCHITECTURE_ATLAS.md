@@ -281,7 +281,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **PCC Fallback UI & Subsystem Diagnostics**: A dedicated iCloud execution consent fallback panel is integrated in `ContainerSettingsSheet+Sections.swift` using `self.settings` scope visibility. An AI Subsystem Diagnostics card in the library settings displays real-time readiness status of the sentence embedding model, acceleration targets, Rust-backed tokenizer parser, vocabulary metrics, and exact citation byte offsets. `[evidence: code_verified, exact, ContainerSettingsSheet+Sections.swift]`
 - **Consent and Fallback**: Consent is requested only after the minimized envelope is final. Background/App Intent execution with no remembered consent selects the declared local fallback for Hybrid and explicit PCC policy unless the action can come forward, in which case it asks in the app first (5.7); nothing waits on a sheet no window shows. Fallback occurs only before meaningful streaming; `ModelExecutionReceipt` persists intended/attempted/actual/fallback/completed targets. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, AgenticOrchestrator.swift, ModelExecutionReceipt.swift]`
 - **Consent Persistence**: `cloudConsent.applePCC` is the canonical remembered decision and wins over stale `pcc.setting` compatibility state. Startup loads/migrates consent but never creates a consent record or opens the sheet; only a finalized post-retrieval transmission record can populate `pendingCloudConsent`. `[evidence_level: code_verified+test_verified, confidence: high_pending_physical_device_validation, evidence_source: SettingsStore.swift, RAGService.swift, PCCConsentPreferenceMigrationTests.swift]`
-- **GPU Execution Policy**: `GPUExecutionProfile` migrates the old numeric preference into four discrete profiles. `DeviceCapabilityService` is the shared policy source for Core ML preferences, PDF rendering, large Metal vector/MMR gates, and background GPU eligibility. The UI reports policy rather than claiming exact utilization. `[evidence_level: code_verified+test_verified, confidence: high_pending_device_thermal_validation, evidence_source: DeviceCapabilityService.swift, SettingsView.swift, RAGEngine.swift, BNNSVectorDatabase.swift]`
+- **GPU Execution Policy**: `GPUExecutionProfile` migrates the old numeric preference into four discrete profiles. `DeviceCapabilityService` is the shared policy source for the Core ML embedding model's preferences, an extra Core Image pass over rendered PDF pages (the raster stays CPU work, and `preprocessImageForOCR` prepares every scanned page on its Metal context in every profile), large Metal vector/MMR gates, and background GPU eligibility, which `BackgroundGPUAllowance` states per device for both `BackgroundTaskService` and Settings. The UI reports policy rather than claiming exact utilization, and from 5.7 the profile's list in Settings is built from those same rules (`GPUExecutionProfile.engagement`), so it cannot claim what the code does not do. `[evidence_level: code_verified+test_verified, confidence: high_pending_device_thermal_validation, evidence_source: DeviceCapabilityService.swift, SettingsView.swift, RAGEngine.swift, BNNSVectorDatabase.swift, BackgroundTaskService.swift; ExecutionProfileLadderTests, BackgroundGPUAllowanceTests]`
 
 ### `DeviceCapabilities.supportsPrivateCloudCompute` means "this build can route to PCC" (2026-09-02)
 
@@ -609,6 +609,19 @@ supposed to be agentic.
   character-sized path through sentence extraction, and the chain never plans more windows than
   before. Maximum's own loop is unchanged. `[evidence: test_verified for the arithmetic,
   code_verified for the loop, not run on a device]`
+  **Per device (2026-10-18).** The chain stops at 8 sessions on every device
+  (`AgenticPolicyService.maxSessionsForMode`, `min(8, sessionCount + 4)`). What
+  `DeviceCapabilityService.optimizedAgenticConfig` changes by device is the confidence the run aims
+  for, by tier (85% on `.baseline`, the A17 Pro; 90% on `.enhanced`, A18 and M1-family Macs; 92% on
+  `.advanced`; 95% on `.ultraAdvanced`), the step budget (`maxSteps` 5, 8, 10, and 12 to 32 by memory on the top tier), which picks the chain's starting length
+  (`.standard`, 4 sessions, below 8 steps; `.deep`, 5, from 8) and caps sub-queries at `maxSteps - 2`,
+  and the token budget. Settings, the thinking stream's planning line ("up to N steps") and the
+  Device & Performance pill ("N max sessions") showed `maxSteps` as a session count until 5.7: 5 on
+  an iPhone 15 Pro and 13 on an 18 GB M3 Pro. One more difference keys on that budget: the Self-RAG
+  check after the chain runs only when `maxSteps >= 8`, so Deep Think on an A17 Pro skips it.
+  `[evidence_level: code_verified, confidence: high, evidence_source: DeviceCapabilityService.swift
+  optimizedAgenticConfig; AgenticOrchestrator.swift reasoningChainConfig, isDeepThinkMode;
+  AgenticPolicyService.swift reasoningPolicy; RAGService.swift modeDetail]`
   **Partially corrected 2026-08-14:** the chain now opens with a routing turn
   (`routeChunksByTitle`) that shows the model the section titles of everything retrieval found and
   lets it choose what to read. A title costs ~50 characters against several hundred for body text,

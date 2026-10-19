@@ -145,6 +145,19 @@ enum GlossaryTermID: String, CaseIterable, Identifiable, Sendable {
 // MARK: - Definitions
 
 extension GlossaryTermID {
+    /// The window Apple's on-device model reports on this device (5.7). Through 5.6 the Glossary said 4,096 tokens
+    /// for every device, the figure in Apple's documentation, while a Mac on macOS 27 reports 8,192 (measured
+    /// 2026-10-05 on an M3 Pro, `SystemLanguageModel.default.contextSize`, and a longer prompt was refused).
+    fileprivate static var onDeviceWindow: String {
+        if let size = FoundationModelTokenBudget.reportedOnDeviceContextSize {
+            return "\(size.formatted(.number)) tokens on this device"
+        }
+        return "a size the device reports, and none here, where Apple's model isn't available"
+    }
+
+    /// Where the figures come from, for the technical register.
+    fileprivate static let documentedWindows = "Apple documents 4,096 tokens (TN3193); a Mac (M3 Pro) on macOS 27 reported 8,192 when measured."
+
     var definition: GlossaryTerm {
         switch self {
 
@@ -398,7 +411,7 @@ extension GlossaryTermID {
                 icon: "text.bubble",
                 section: .answering,
                 plain: "The part that turns found passages into sentences. Everything before it is search. It sees your question and the passages the search returned, and nothing else from your library.",
-                technical: "Apple's on-device Foundation Model by default, through the FoundationModels framework. Every session it runs is capped at 4,096 tokens, which is why what retrieval selects matters more than the size of the model.",
+                technical: "Apple's on-device Foundation Model by default, through the FoundationModels framework. Each session has a fixed window (\(Self.onDeviceWindow)), which is why what retrieval selects matters more than the size of the model.",
                 seeAlso: [.rag, .contextWindow, .token, .temperature],
                 synonyms: ["llm", "model", "foundation model", "apple intelligence", "generation"]
             )
@@ -409,12 +422,12 @@ extension GlossaryTermID {
                 term: "Token",
                 icon: "number",
                 section: .answering,
-                plain: "The unit a language model reads and writes in, roughly three quarters of a word. It matters because a model can only hold so many at a time, so a limit of 4,096 is a real ceiling on how much can be considered at once.",
+                plain: "The unit a language model reads and writes in, roughly three quarters of a word. It matters because a model can only hold so many at a time, and that ceiling (\(Self.onDeviceWindow)) limits how much can be considered at once.",
                 technical: DeviceCapabilities.pccRoutingCompiledIn
-                    ? "Apple's on-device model caps a session at 4,096 tokens (Apple TN3193); Private Cloud Compute reports its own window at runtime and Settings shows the live figure. Either budget covers the instructions, the retrieved passages, your question and the answer together."
-                    : "Apple's on-device model caps a session at 4,096 tokens (Apple TN3193). That single budget covers the instructions, the retrieved passages, your question and the answer together.",
+                    ? "Apple's on-device model holds a fixed number of tokens per session: \(Self.onDeviceWindow). \(Self.documentedWindows) Private Cloud Compute reports its own window at runtime and Settings shows the live figure. Either budget covers the instructions, the retrieved passages, your question and the answer together."
+                    : "Apple's on-device model holds a fixed number of tokens per session: \(Self.onDeviceWindow). \(Self.documentedWindows) That one budget covers the instructions, the retrieved passages, your question and the answer together.",
                 seeAlso: [.contextWindow, .languageModel],
-                synonyms: ["tokens", "4096", "budget", "limit"]
+                synonyms: ["tokens", "4096", "8192", "budget", "limit"]
             )
 
         case .contextWindow:
@@ -425,10 +438,10 @@ extension GlossaryTermID {
                 section: .answering,
                 plain: "The most a model can hold in mind at once: instructions, the passages found in your files, your question and its answer, all sharing the same space. When a question needs more than fits, something has to be left out, which is why finding the right passages matters more than having a bigger model.",
                 technical: DeviceCapabilities.pccRoutingCompiledIn
-                    ? "4,096 tokens on the device (Apple TN3193); Private Cloud Compute reports its own window at runtime. `ContextPackingService` selects and truncates retrieved passages to fit the active budget before generation begins."
-                    : "Fixed at 4,096 tokens on the device (Apple TN3193). `ContextPackingService` selects and truncates retrieved passages to fit that budget before generation begins.",
+                    ? "A fixed size per session: \(Self.onDeviceWindow). \(Self.documentedWindows) Private Cloud Compute reports its own window at runtime. Retrieved passages are selected and trimmed to fit the active window before generation begins."
+                    : "A fixed size per session: \(Self.onDeviceWindow). \(Self.documentedWindows) Retrieved passages are selected and trimmed to fit it before generation begins.",
                 seeAlso: [.token, .languageModel, .privateCloudCompute],
-                synonyms: ["context", "window", "context length", "4096", "packing"]
+                synonyms: ["context", "window", "context length", "4096", "8192", "packing"]
             )
 
         case .onDevice:
@@ -490,7 +503,7 @@ extension GlossaryTermID {
                 icon: "arrow.triangle.2.circlepath",
                 section: .answering,
                 plain: "The app grading its own draft before showing it to you, and trying again if it doesn't hold up. Deep Think and Maximum can retrieve, write, check what they wrote against the evidence, and search again several times rather than answering on the first attempt.",
-                technical: "An agentic loop bounded by a session count and a confidence threshold set from device capability, not a fixed number. Each pass can retrieve more evidence, rewrite the query, or accept the draft; `AgenticPolicyService.verificationAction` decides accept, retry, or abstain after every pass.",
+                technical: "An agentic loop bounded by a session count and a confidence threshold. Deep Think's chain stops at 8 sessions on every device and Maximum's at 50, and research rounds can follow Deep Think's chain; the confidence Deep Think aims for is set by the device's tier, from 85% to 95%. Each pass can retrieve more evidence, rewrite the query, or accept the draft; `AgenticPolicyService.verificationAction` decides to accept, retry or escalate once the chain has run.",
                 seeAlso: [.qualityMode, .verificationGates, .confidence],
                 synonyms: ["agentic", "agentic orchestrator", "self-rag", "iterative retrieval", "agentic loop"]
             )

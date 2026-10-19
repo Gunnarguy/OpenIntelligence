@@ -39,6 +39,14 @@ public struct FoundationModelTokenBudget: Sendable {
         return 32768
     }
     
+    /// The window this device reports for Apple's on-device model, for text a person reads, or nil where the model
+    /// is unavailable, where `SystemLanguageModel.default.contextSize` reads 0 (5.7). Apple documents 4,096 tokens
+    /// (TN3193); a Mac (M3 Pro) on macOS 27 reported 8,192 (measured 2026-10-05).
+    public nonisolated static var reportedOnDeviceContextSize: Int? {
+        let size = contextSize(isAppleFMOnDevice: true)
+        return size > 0 ? size : nil
+    }
+
     /// Returns the dynamic token budget leaving a safety buffer.
     public nonisolated static func tokenBudget(isAppleFMOnDevice: Bool) -> Int {
         let size = contextSize(isAppleFMOnDevice: isAppleFMOnDevice)
