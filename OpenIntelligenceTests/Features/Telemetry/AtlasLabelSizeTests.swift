@@ -59,4 +59,26 @@ final class AtlasLabelSizeTests: XCTestCase {
 
         XCTAssertEqual(mapLabelNodes(in: scene).compactMap(\.name).sorted(), ["axisLabel", "clusterLabel_0"])
     }
+
+    /// The explorer's camera starts far enough back that every axis end and its label stay in view at any angle (5.7).
+    func testTheCameraStartsFarEnoughToShowEveryAxisAtAnyAngle() {
+        let radius: Float = 5.4, fieldOfView: Float = 60, aspect: Float = 0.6, share: Float = 0.7
+        let distance = cameraDistanceToFit(radius: radius, fieldOfView: fieldOfView, aspect: aspect, share: share)
+        XCTAssertEqual(distance, mapCameraDistance, accuracy: 0.001)
+        // Every direction from the middle, with the camera looking at the middle: a point's offset from the line of
+        // sight over its depth stays inside the limit, and reaches it in the worst direction.
+        let limit = tan(fieldOfView * .pi / 360) * aspect * share
+        var worst: Float = 0
+        for step in 0...3_600 {
+            let angle = Float(step) * .pi / 3_600
+            worst = max(worst, radius * sin(angle) / (distance - radius * cos(angle)))
+        }
+        XCTAssertLessThanOrEqual(worst, limit * 1.000_1)
+        XCTAssertGreaterThan(worst, limit * 0.999)
+        XCTAssertGreaterThan(distance, startingCameraDistance * 2, "through 5.6 the camera started 7.38 away")
+        // A wider view than it is tall is held by its height.
+        XCTAssertEqual(
+            cameraDistanceToFit(radius: radius, fieldOfView: fieldOfView, aspect: 2, share: share),
+            cameraDistanceToFit(radius: radius, fieldOfView: fieldOfView, aspect: 1, share: share), accuracy: 0.001)
+    }
 }

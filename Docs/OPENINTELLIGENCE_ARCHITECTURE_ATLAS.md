@@ -187,6 +187,25 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   projection still runs to its end. `[evidence_level: code_verified for where each step runs, measured for the
   timings (this Mac, synthetic inputs, not a phone), test_verified (AtlasContentCategoryTests); confidence: high;
   evidence_source: LibraryVisualizationEngine.swift, ProjectionService.swift, AdaptiveVisualizationsView.swift]`
+- **How the Atlas draws its 3D map, changed 2026-10-19 for 5.7**: the card (`CompactAtlasSceneView`) and the full
+  screen (`Fullscreen3DAtlasView`) draw through `Embedding3DSceneView`, which gives a caller with no tap handler
+  `AtlasChart3D`: a Swift Charts `Chart3D` kept square in the middle of its frame, because a 3D chart sizes its cube
+  from its frame's longer side (probe app on the iOS 27 Simulator, 2026-10-19), with only X, Y and Z on it and
+  `AtlasAxisKey` beside or under it naming what each axis runs between. The pose is the view's state, so a drag and
+  Rotate turn the same pose. A caller with a tap handler, the Embedding Space explorer (`EmbeddingSpaceRenderer`),
+  keeps the SceneKit scene (`SceneViewContainer`), because `chartXSelection`, `chartYSelection` and `chartZSelection`
+  on a `Chart3D` reported nothing for a tap in the same probe; no screen in the app shows that explorer today. The
+  page, the card and the full screen load on `AtlasContentKey` (the open library and the number of documents in
+  every library once no import runs, recorded when a load finishes, and waited on for 0.8 s when only the count moved,
+  since a re-embed flips the import flag once per document), so an import that ends with the Atlas open shows in it.
+  The card and the full screen keep the chart's pose themselves, so a reload or a change of layout keeps the angle. All Libraries reads through `RAGService.atlasSamplesForAllLibraries`: the embedding space
+  (`atlasEmbeddingSpace`) with the most passages (`atlasGroupChoice`), at most `visualizationPassageLimit` passages
+  across its libraries (`atlasShares`); every map's read samples from the passages of listed documents, leaving out
+  a document waiting out its undo seconds (`visiblePassageRecords`, which the Atlas's passage count uses too), and
+  drops passages whose vector is missing or of another size (`passagesWithVectors`).
+  `[evidence_level: build_verified, test_verified (AtlasAllLibrariesTests, AtlasLabelSizeTests), measured (robot
+  shots on the iOS 27 Simulator); confidence: medium until seen on a device; evidence_source: Embedding3DView.swift,
+  AdaptiveVisualizationsView.swift, RAGService.swift]`
 - **On-device diagnostics and two system model tools, added 2026-10-10 for 5.7**: `MetricDiagnostics`
   (app target, `OpenIntelligence/App/`) writes MetricKit's hang, launch and termination reports to the pipeline log
   and to `metric_reports.jsonl` in the local cache; nothing is sent anywhere. `SystemModelTools` in

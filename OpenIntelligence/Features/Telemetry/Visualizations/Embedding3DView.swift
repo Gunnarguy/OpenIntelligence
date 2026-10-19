@@ -11,6 +11,8 @@
 //  Embedding Atlas or true UMAP/t-SNE later without changing UI.
 
 import SwiftUI
+import Charts
+import Spatial
 
 struct EmbeddingInsight: Identifiable, Equatable {
     let id = UUID()
@@ -293,9 +295,10 @@ struct EmbeddingSpaceRenderer: View {
     @State private var fts5TopTerms: [String] = []  // Top terms from SQLite FTS5 index
     @State private var fts5KeyPhrases: [(phrase: String, count: Int)] = []  // Multi-word phrases
 
-    // Sample options: 500 up to 50K (ALL) for full corpus visibility
-    // Higher counts auto-scale point size smaller
-    private let sampleOptions = [500, 2000, 5000, 50000] // 50K = "All" for most libraries
+    // How many passages the map draws. The most is what `allChunksForActiveContainer` reads, an even sample of up to
+    // `RAGService.visualizationPassageLimit` (6,000) since 5.7; through 5.6 the choices were 5,000 and "All" (50,000).
+    // Higher counts auto-scale point size smaller.
+    private let sampleOptions = [500, 2000, RAGService.visualizationPassageLimit]
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -1296,9 +1299,8 @@ struct EmbeddingSpaceRenderer: View {
         .padding(.horizontal)
     }
 
-    /// Format sample option label - 50K shows as "All"
+    /// 500, 2K, 6K.
     private func sampleOptionLabel(_ option: Int) -> String {
-        if option >= 50000 { return "All" }
         if option >= 1000 { return "\(option/1000)K" }
         return "\(option)"
     }
@@ -1333,7 +1335,7 @@ struct EmbeddingSpaceRenderer: View {
 
             InfoButtonView(
                 title: "Sampling",
-                explanation: "Controls how many embedding points are displayed. 'All' shows up to 50K points (scales point size automatically for performance). Higher limits give complete coverage but may slow rotation."
+                explanation: "How many passages the map draws, up to 6,000. A library with more is drawn from an even sample across all of it. More points draw smaller and can make turning the map slower."
             )
         }
     }
@@ -3101,6 +3103,9 @@ struct EmbeddingSpaceRenderer: View {
         let key = "viz.sampleLimit.\(containerService.activeContainerId.uuidString)"
         if let v = UserDefaults.standard.value(forKey: key) as? Int, sampleOptions.contains(v) {
             sampleLimit = v
+        } else if let v = UserDefaults.standard.value(forKey: key) as? Int, v > 2000 {
+            // 5,000 or "All" from before 5.7: the most the map draws now.
+            sampleLimit = RAGService.visualizationPassageLimit
         } else {
             sampleLimit = 2000 // Higher default for full visibility
         }
@@ -3162,18 +3167,201 @@ struct Embedding3DSceneView: View {
     let reloadToken: UUID
     let annotations: [AnnotationData]
     var onPointTapped: ((Int, SCNVector3) -> Void)?
+    /// The 3D chart's angle, when the view that shows it keeps it (5.7), so it outlasts the chart: a reload or a change
+    /// of layout recreates the chart, and a pose of its own would start over.
+    var pose: Binding<Chart3DPose>?
 
     var body: some View {
-        SceneViewContainer(
-            points: points,
-            colors: colors,
-            options: options,
-            reloadToken: reloadToken,
-            annotations: annotations,
-            onPointTapped: onPointTapped
+        if let onPointTapped {
+            // The explorer (`EmbeddingSpaceRenderer`) opens the passage a tap lands on, which a 3D chart can't do: on
+            // the iOS 27 Simulator, `chartXSelection`, `chartYSelection` and `chartZSelection` on a `Chart3D` reported
+            // nothing for a tap, a press or a drag on a point (a drag turned it, 1° per point; probe run 2026-10-19),
+            // and Apple's page for `chartZSelection` describes no behaviour. So it keeps the SceneKit scene, framed
+            // from 5.7 to show every axis at any angle (`mapCameraDistance`).
+            SceneViewContainer(
+                points: points,
+                colors: colors,
+                options: options,
+                reloadToken: reloadToken,
+                annotations: annotations,
+                onPointTapped: onPointTapped
+            )
+            .background(DSColors.background)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            // The Atlas's card and full screen are drawn with Swift Charts' `Chart3D` from 5.7 (`AtlasChart3D`). The
+            // SceneKit scene drew the axes to ±5 and their labels at ±5.4 around a cloud scaled to 4.5, with the camera
+            // 7.38 away and a 60° field of view, so an axis lying across the screen had both labels outside the view.
+            // Fog, labels tested against the depth of the translucent points, and a blue Aurora background behind the
+            // blue axis hid more, and every update rebuilt the scene and put the camera back. A
+            // chart frames its axes inside the plot volume and keeps the user's angle in state. Cluster badges and
+            // their lines are not drawn: the views' legends name the clusters, and the colours match.
+            AtlasChart3D(points: points, colors: colors, options: options, pose: pose)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+}
+
+/// The Atlas's axis key (5.7): what each of the chart's X, Y and Z runs between, named from the passages at its two
+/// ends (`AtlasLabeling`). The chart itself carries only the letters.
+struct AtlasAxisKey: View {
+    let labels: Embedding3DSceneView.AxisLabels
+    var lineLimit: Int = 2
+
+    var body: some View {
+        if hasNames {
+            VStack(alignment: .leading, spacing: 4) {
+                row("X", labels.xNeg, labels.xPos)
+                row("Y", labels.yNeg, labels.yPos)
+                row("Z", labels.zNeg, labels.zPos)
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var hasNames: Bool {
+        ![labels.xNeg, labels.xPos, labels.yNeg, labels.yPos, labels.zNeg, labels.zPos].allSatisfy(\.isEmpty)
+    }
+
+    private func row(_ axis: String, _ negative: String, _ positive: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(axis)
+                .font(.caption.weight(.bold).monospaced())
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 14, alignment: .leading)
+            Text(AtlasChart3D.axisTitle(negative: negative, positive: positive, fallback: "Not named"))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.75))
+                .lineLimit(lineLimit)
+                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// The Knowledge Atlas in 3D (5.7): one point per passage where the Atlas's projection put it, in its cluster's or its
+/// library's colour, inside a cube whose three axes `AtlasLabeling` names from the passages at each end. The pose is the
+/// person's own drag, kept by the view that shows the chart when it passes one (`pose`), so a reload or a change of
+/// layout doesn't start it over; auto-rotate turns the same pose, so it never jumps back.
+struct AtlasChart3D: View {
+    struct Plot: Identifiable {
+        let id: Int
+        let x: Double
+        let y: Double
+        let z: Double
+        let color: Color
+    }
+
+    let plots: [Plot]
+    /// Half the side of the cube the axes span: the largest coordinate plus a margin, the same on all three axes so
+    /// the cloud keeps its shape.
+    let extent: Double
+    let options: Embedding3DSceneView.SceneOptions
+    /// The caller's angle, when it keeps one; otherwise `localPose`.
+    private let poseBinding: Binding<Chart3DPose>?
+    @State private var localPose: Chart3DPose = .default
+    private var pose: Binding<Chart3DPose> { poseBinding ?? $localPose }
+
+    init(
+        points: [SCNVector3], colors: [PlatformColor], options: Embedding3DSceneView.SceneOptions,
+        pose: Binding<Chart3DPose>? = nil
+    ) {
+        var plots: [Plot] = []
+        plots.reserveCapacity(points.count)
+        var maxAbs = 0.0
+        for (index, point) in points.enumerated() {
+            let x = Double(point.x), y = Double(point.y), z = Double(point.z)
+            maxAbs = max(maxAbs, abs(x), abs(y), abs(z))
+            let color: Color = index < colors.count ? Self.color(colors[index]) : .accentColor
+            plots.append(Plot(id: index, x: x, y: y, z: z, color: color))
+        }
+        self.plots = plots
+        self.extent = max(maxAbs, 0.001) * 1.08
+        self.options = options
+        self.poseBinding = pose
+    }
+
+    private static func color(_ platformColor: PlatformColor) -> Color {
+        #if canImport(UIKit)
+            Color(uiColor: platformColor)
+        #else
+            Color(nsColor: platformColor)
+        #endif
+    }
+
+    /// "Negative end ↔ positive end", or the one end that has a name. An axis whose ends do not differ is "Component N"
+    /// at both ends (`AtlasLabeling.axisLabels`), named once.
+    static func axisTitle(negative: String, positive: String, fallback: String) -> String {
+        switch (negative.isEmpty, positive.isEmpty) {
+        case (true, true): return fallback
+        case (true, false): return positive
+        case (false, true): return negative
+        case (false, false): return negative == positive ? negative : "\(negative) ↔ \(positive)"
+        }
+    }
+
+    var body: some View {
+        let labels = options.axisLabels
+        let xTitle = Self.axisTitle(negative: labels.xNeg, positive: labels.xPos, fallback: "X")
+        let yTitle = Self.axisTitle(negative: labels.yNeg, positive: labels.yPos, fallback: "Y")
+        let zTitle = Self.axisTitle(negative: labels.zNeg, positive: labels.zPos, fallback: "Z")
+        let spec = options.backgroundStyle.gradientSpec
+        Chart3D(plots) { plot in
+            PointMark(
+                x: .value("X", plot.x),
+                y: .value("Y", plot.y),
+                z: .value("Z", plot.z)
+            )
+            .foregroundStyle(plot.color)
+            // The chart's own point size. In a probe on the iOS 27 Simulator (2026-10-19) each of eight `symbolSize`
+            // values from 0.02 to 1,000 drew the nearest point over the whole chart, and Apple documents no unit for it
+            // in 3D.
+        }
+        .chartXScale(domain: -extent...extent)
+        .chartYScale(domain: -extent...extent)
+        .chartZScale(domain: -extent...extent)
+        // The projection's numbers mean nothing to a person, so the axes keep their grid and drop the figures.
+        .chartXAxis { AxisMarks { AxisGridLine() } }
+        .chartYAxis { AxisMarks { AxisGridLine() } }
+        .chartZAxis { AxisMarks { AxisGridLine() } }
+        // The letters only: names drawn along a 3D chart's axes ran off the card's edge and over each other as it turned
+        // (robot shots, 2026-10-19). `AtlasAxisKey` writes out what each axis runs between.
+        .chartXAxisLabel("X")
+        .chartYAxisLabel("Y")
+        .chartZAxisLabel("Z")
+        .chart3DPose(pose)
+        // Depth: a perspective camera, where nearer passages draw larger, or a flat orthographic one. (The volumetric
+        // rendering style is visionOS only, per the iOS 27 SDK's Charts interface.)
+        .chart3DCameraProjection(options.depthCue ? .perspective : .orthographic)
+        // Square, in the middle of whatever frame it is given. A 3D chart sizes its cube from its frame's longer side:
+        // in a probe on the iOS 27 Simulator a frame 360 points square drew the cube inside it with room to turn, with
+        // either camera, and a frame 360 wide and 640 tall drew it wider than the frame (2026-10-19); the Atlas's full
+        // screen on a phone did the same.
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            LinearGradient(
+                colors: spec.colors.map { Self.color($0) },
+                startPoint: UnitPoint(x: spec.startPoint.x, y: spec.startPoint.y),
+                endPoint: UnitPoint(x: spec.endPoint.x, y: spec.endPoint.y)
+            )
         )
-        .background(DSColors.background)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        // Parchment is the one light background; on the others the axes and their names are drawn light.
+        .environment(\.colorScheme, options.backgroundStyle == .parchment ? .light : .dark)
+        .task(id: options.autoRotate) {
+            guard options.autoRotate else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(33))
+                let current = pose.wrappedValue
+                pose.wrappedValue = Chart3DPose(
+                    azimuth: Angle2D(degrees: current.azimuth.degrees + 0.4),
+                    inclination: current.inclination
+                )
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Knowledge Atlas, \(plots.count) passages in three dimensions")
+        .accessibilityValue("Axes: \(xTitle); \(yTitle); \(zTitle)")
     }
 }
 
@@ -3191,7 +3379,7 @@ struct SceneViewContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.delegate = context.coordinator
-        configure(view)
+        configure(view, coordinator: context.coordinator)
 
         // Add tap gesture for point inspection
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -3203,13 +3391,12 @@ struct SceneViewContainer: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {
-        configure(uiView)
+        configure(uiView, coordinator: context.coordinator)
         context.coordinator.onPointTapped = onPointTapped
     }
 
-    private func configure(_ view: SCNView) {
-        let _ = reloadToken
-        view.scene = buildScene(points: points, colors: colors, options: options, annotations: annotations)
+    private func configure(_ view: SCNView, coordinator: Coordinator) {
+        installScene(in: view, built: &coordinator.builtKey)
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
@@ -3224,6 +3411,8 @@ struct SceneViewContainer: UIViewRepresentable {
         private let updateInterval: TimeInterval = 0.05 // Throttle to 20fps for performance
         weak var scnView: SCNView?
         var onPointTapped: ((Int, SCNVector3) -> Void)?
+        /// What the scene on screen was built from (`SceneBuildKey`).
+        var builtKey: SceneBuildKey?
 
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let view = scnView else { return }
@@ -3287,7 +3476,7 @@ struct SceneViewContainer: NSViewRepresentable {
     func makeNSView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.delegate = context.coordinator
-        configure(view)
+        configure(view, coordinator: context.coordinator)
 
         // Add click gesture for point inspection
         let clickGesture = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
@@ -3299,13 +3488,12 @@ struct SceneViewContainer: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: SCNView, context: Context) {
-        configure(nsView)
+        configure(nsView, coordinator: context.coordinator)
         context.coordinator.onPointTapped = onPointTapped
     }
 
-    private func configure(_ view: SCNView) {
-        let _ = reloadToken
-        view.scene = buildScene(points: points, colors: colors, options: options, annotations: annotations)
+    private func configure(_ view: SCNView, coordinator: Coordinator) {
+        installScene(in: view, built: &coordinator.builtKey)
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
@@ -3320,6 +3508,8 @@ struct SceneViewContainer: NSViewRepresentable {
         private let updateInterval: TimeInterval = 0.05 // Throttle to 20fps for performance
         weak var scnView: SCNView?
         var onPointTapped: ((Int, SCNVector3) -> Void)?
+        /// What the scene on screen was built from (`SceneBuildKey`).
+        var builtKey: SceneBuildKey?
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
             guard let view = scnView else { return }
@@ -3370,6 +3560,48 @@ struct SceneViewContainer: NSViewRepresentable {
 }
 #endif
 
+/// What a SceneKit map was built from (5.7). SwiftUI calls a representable's update for every change around it (the
+/// explorer's search field, its HUD, an import's progress), and through 5.6 each call built the whole scene again, up to
+/// 6,000 nodes, and put the camera back where it starts. The scene is built again only when this changes.
+struct SceneBuildKey: Equatable {
+    let reloadToken: UUID
+    let pointCount: Int
+    /// A sum over every point, so a different set of the same size (another document filter) still counts as changed.
+    let pointChecksum: Double
+    let colorCount: Int
+    let annotationCount: Int
+    let options: String
+
+    init(
+        reloadToken: UUID, points: [SCNVector3], colorCount: Int, annotationCount: Int,
+        options: Embedding3DSceneView.SceneOptions
+    ) {
+        self.reloadToken = reloadToken
+        self.pointCount = points.count
+        var sum = 0.0
+        for (index, point) in points.enumerated() {
+            sum += (Double(point.x) + 2 * Double(point.y) + 3 * Double(point.z)) * Double(index % 7 + 1)
+        }
+        self.pointChecksum = sum
+        self.colorCount = colorCount
+        self.annotationCount = annotationCount
+        self.options = String(describing: options)
+    }
+}
+
+extension SceneViewContainer {
+    /// Puts the scene on `view` when what it shows has changed since `built` (`SceneBuildKey`). A new scene starts
+    /// from its own camera, as through 5.6, which is what the explorer's Reset relies on.
+    func installScene(in view: SCNView, built: inout SceneBuildKey?) {
+        let key = SceneBuildKey(
+            reloadToken: reloadToken, points: points, colorCount: colors.count, annotationCount: annotations.count,
+            options: options)
+        guard key != built else { return }
+        view.scene = buildScene(points: points, colors: colors, options: options, annotations: annotations)
+        built = key
+    }
+}
+
 extension Embedding3DSceneView.AxisLabels {
     /// The six labels in `AtlasLabeling.axisLabels`'s order: x low, x high, y low, y high, z low, z high (5.7).
     init(ends: [String]) {
@@ -3380,8 +3612,26 @@ extension Embedding3DSceneView.AxisLabels {
 
 // MARK: - Label size
 
-/// How far the camera starts from the middle of the map: |(3.5, 2.5, 6.0)|, `makeCameraNode`.
+/// The distance at which a map label is drawn at its own size: where the camera started through 5.6, |(3.5, 2.5, 6.0)|.
+/// `sizeLabelsForScreen` scales each label from it, so labels keep the size on screen they had then.
 nonisolated let startingCameraDistance: Float = 7.38
+
+/// How far the camera starts from the middle of the map from 5.7: far enough that the point each axis label is centred
+/// on (5.4 from the middle) is drawn inside 70% of the view's half-width at any angle, in a view as narrow as the
+/// explorer in focus mode (about 370 by 620 points). A long label can still reach past that, and a wider view gets the
+/// same distance, so the cloud draws at about a third of its 5.6 size. From 7.38 away, as through 5.6, an axis lying
+/// across the screen had both its labels outside the view.
+nonisolated let mapCameraDistance: Float = cameraDistanceToFit(radius: 5.4, fieldOfView: 60, aspect: 0.6, share: 0.7)
+
+/// The distance from the middle of a scene at which a point `radius` from the middle, in any direction, is drawn within
+/// `share` of the view's half-height and half-width, for a vertical field of view of `fieldOfView` degrees and a view
+/// `aspect` wide for each unit high. Such a point is furthest from the view's middle when it lies toward the camera at
+/// the angle whose cosine is radius over distance, where it is off the line of sight by radius / sqrt(distance² −
+/// radius²) of its depth; that is held to the narrower half-angle's tangent times `share`.
+nonisolated func cameraDistanceToFit(radius: Float, fieldOfView: Float, aspect: Float, share: Float) -> Float {
+    let limit = tan(fieldOfView * .pi / 360) * min(aspect, 1) * share
+    return radius * (1 + 1 / (limit * limit)).squareRoot()
+}
 
 /// The map's words: the labels at the ends of its axes and the clusters' labels (5.7).
 nonisolated func mapLabelNodes(in scene: SCNScene) -> [SCNNode] {
@@ -3406,12 +3656,15 @@ nonisolated func sizeLabelsForScreen(_ labels: [SCNNode], pointOfView: SCNNode) 
     let camera = view.simdWorldPosition
     let front = view.simdWorldFront
     let fieldOfView = Float(pointOfView.camera?.fieldOfView ?? 60)
+    // A cluster's label fades by how far behind the middle of the map it is, so the fade is the same from any distance.
+    let middle = viewDepth(of: .zero, camera: camera, front: front)
     for label in labels {
         let depth = viewDepth(of: label.presentation.simdWorldPosition, camera: camera, front: front)
         let scale = screenScale(depth: depth, fieldOfView: fieldOfView)
         if label.name?.hasPrefix("clusterLabel_") ?? false {
             label.simdScale = SIMD3(repeating: scale * 1.5)
-            label.opacity = depth < 4 ? 0.95 : depth < 9 ? 0.88 : 0.75
+            let behind = depth - middle
+            label.opacity = behind < -3.4 ? 0.95 : behind < 1.6 ? 0.88 : 0.75
         } else {
             label.simdScale = SIMD3(repeating: scale)
         }
@@ -3459,14 +3712,14 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
     applyAutoRotate(options.autoRotate, to: contentRoot)
 
     if options.depthCue {
-        scene.fogStartDistance = 5.0
-        scene.fogEndDistance = 12.0
+        // From just in front of the middle of the map to past the far axis labels, and light enough that a label on
+        // the far side still reads: SceneKit fogs every material, with no switch for one (SCNMaterial.h, iOS 27 SDK).
+        // Through 5.6 it ran from 5 to 12 with the camera 7.38 away, so the far half of the map and its labels sank
+        // into the fog.
+        scene.fogStartDistance = CGFloat(mapCameraDistance - 1)
+        scene.fogEndDistance = CGFloat(mapCameraDistance + 9)
         scene.fogDensityExponent = 1.0
-        #if canImport(UIKit)
-        scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.7)
-        #else
-        scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.7)
-        #endif
+        scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.55)
     } else {
         scene.fogStartDistance = 0
         scene.fogEndDistance = 0
@@ -3613,9 +3866,12 @@ private func makeAxisLabel(text: String, position: SCNVector3, color: PlatformCo
     mat.emission.intensity = 0.9
     mat.lightingModel = .constant
     mat.isDoubleSided = true
+    // Drawn over the points (5.7): tested against their depth, a label behind the translucent cloud was hidden by it.
+    mat.readsFromDepthBuffer = false
     textGeo.materials = [mat]
 
     let textNode = SCNNode(geometry: textGeo)
+    textNode.renderingOrder = 100
 
     // Center the text
     let (minBound, maxBound) = textGeo.boundingBox
@@ -3731,12 +3987,13 @@ private func makeCameraNode(depthCue: Bool) -> SCNNode {
     camera.zFar = 100
     camera.wantsDepthOfField = depthCue
     if depthCue {
-        camera.focusDistance = 5.5
+        camera.focusDistance = CGFloat(mapCameraDistance)
         camera.fStop = 10
     }
     node.camera = camera
-    // Camera positioned for optimal viewing of a 4.5-unit data cube with 5-unit axes
-    node.position = SCNVector3(3.5, 2.5, 6.0)
+    // From the same side as through 5.6, (3.5, 2.5, 6.0), at `mapCameraDistance`, so every axis stays in view.
+    let direction = simd_normalize(SIMD3<Float>(3.5, 2.5, 6.0))
+    node.simdPosition = direction * mapCameraDistance
     node.look(at: SCNVector3(0, 0, 0))
     return node
 }

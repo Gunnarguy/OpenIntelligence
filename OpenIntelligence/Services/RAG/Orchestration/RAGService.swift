@@ -5125,7 +5125,18 @@ class RAGService: ObservableObject {
     /// returns of them.
     func passageCountForActiveContainer() async -> Int {
         let db = await dbForActiveContainer()
-        return (try? await db.count()) ?? 0
+        // The passages a map can draw, as `chunksForVisualization` reads them (5.7): counted with every stored passage,
+        // a library with a document in its undo seconds read as larger than its map and was called a sample.
+        return (try? await visiblePassageRecords(db: db).count) ?? 0
+    }
+
+    /// The store's passages less those of documents deleted in the last few seconds, which keep their passages until
+    /// the undo window ends (`PendingDocumentRemoval`) and are out of the document list already (5.7).
+    private func visiblePassageRecords(db: VectorDatabase) async throws -> [PassageRecord] {
+        let records = try await db.passageRecords()
+        let hidden = PendingDocumentRemovalLedger.allIds()
+            .union(pendingRemovals.flatMap { $0.documents.map(\.id) })
+        return hidden.isEmpty ? records : records.filter { !hidden.contains($0.documentId) }
     }
 
     /// Return the active container's chunks for the visualization views: every chunk when the
@@ -5134,16 +5145,111 @@ class RAGService: ObservableObject {
     /// Used by visualization views to render embedding spaces and statistics.
     func allChunksForActiveContainer() async -> [DocumentChunk] {
         let db = await dbForActiveContainer()
+        return await chunksForVisualization(db: db, limit: Self.visualizationPassageLimit)
+    }
+
+    /// The embedding space a library's vectors live in, for drawing libraries together (5.7). The Core ML and Core AI
+    /// providers are two copies of one model (`EmbeddingProviderDefaults.areCopiesOfOneModel`), so their vectors share
+    /// a space; any other provider, or another vector size, is its own.
+    nonisolated static func atlasEmbeddingSpace(providerId: String, dimension: Int) -> String {
+        let model =
+            EmbeddingProviderDefaults.areCopiesOfOneModel(providerId, EmbeddingProviderDefaults.coreML)
+            ? "bundled-sentence-model" : providerId
+        return "\(model)-\(dimension)"
+    }
+
+    /// How many passages each library gives the All Libraries map (5.7), in the order given. When every passage fits in
+    /// `visualizationPassageLimit`, each library gives all of its own. Otherwise each first gets up to 300 (fewer when
+    /// 300 each would pass the limit), so a small library still shows, and the rest of the limit is shared in
+    /// proportion to what each has left. The total never passes the limit, because the map's analysis and projection
+    /// run on the main thread (see `visualizationPassageLimit`), and no library gives more than it has.
+    nonisolated static func atlasShares(passages: [Int]) -> [Int] {
+        let counts = passages.map { max($0, 0) }
+        let limit = visualizationPassageLimit
+        let total = counts.reduce(0, +)
+        guard total > limit else { return counts }
+        let libraries = max(counts.filter { $0 > 0 }.count, 1)
+        let floor = min(300, limit / libraries)
+        let base = counts.map { min($0, floor) }
+        let remaining = limit - base.reduce(0, +)
+        let rest = zip(counts, base).map { $0 - $1 }
+        let restTotal = rest.reduce(0, +)
+        guard remaining > 0, restTotal > 0 else { return base }
+        return zip(base, rest).map { b, r in b + Int(Double(remaining) * Double(r) / Double(restTotal)) }
+    }
+
+    /// Which libraries the All Libraries map draws (5.7), from each library's embedding space
+    /// (`atlasEmbeddingSpace`) and passage count. Vectors from different models can't share one projection, so one
+    /// space is drawn: the one with the most passages, the open library's on a tie, then the first by name, so the
+    /// choice is the same on every launch. Libraries with passages in other spaces are returned as left out; a library
+    /// with no passages is neither drawn nor named. A library whose vectors wait for a rebuild after a change to the
+    /// bundled model (`EmbeddingFingerprint`) is drawn with the others: nothing here can tell it apart.
+    nonisolated static func atlasGroupChoice(
+        libraries: [(id: UUID, space: String, passages: Int)], activeId: UUID?
+    ) -> (included: [UUID], excluded: [UUID]) {
+        let withPassages = libraries.filter { $0.passages > 0 }
+        guard !withPassages.isEmpty else { return ([], []) }
+        var totals: [String: Int] = [:]
+        for library in withPassages { totals[library.space, default: 0] += library.passages }
+        let activeSpace = withPassages.first(where: { $0.id == activeId })?.space
+        let chosen = totals.keys.sorted { a, b in
+            let totalA = totals[a] ?? 0, totalB = totals[b] ?? 0
+            if totalA != totalB { return totalA > totalB }
+            if (a == activeSpace) != (b == activeSpace) { return a == activeSpace }
+            return a < b
+        }.first
+        return (
+            withPassages.filter { $0.space == chosen }.map(\.id),
+            withPassages.filter { $0.space != chosen }.map(\.id)
+        )
+    }
+
+    /// Passages from every library in the space `atlasGroupChoice` picks, for the Atlas's All Libraries view (5.7),
+    /// at most `visualizationPassageLimit` across them (`atlasShares`), and the libraries left out.
+    func atlasSamplesForAllLibraries() async -> (
+        included: [(library: KnowledgeContainer, chunks: [DocumentChunk])], excluded: [KnowledgeContainer]
+    ) {
+        let (containers, activeId) = await MainActor.run {
+            (self.containerService.containers, self.containerService.activeContainerId)
+        }
+        // `dbForContainer` fails for a library deleted since the list was read, where `dbFor` would hand back the open
+        // library's store and draw its passages twice.
+        var stores: [UUID: VectorDatabase] = [:]
+        var rows: [(id: UUID, space: String, passages: Int)] = []
+        for library in containers {
+            guard let db = try? await dbForContainer(library.id) else { continue }
+            stores[library.id] = db
+            let space = Self.atlasEmbeddingSpace(providerId: library.embeddingProviderId, dimension: library.embeddingDim)
+            rows.append((library.id, space, (try? await visiblePassageRecords(db: db).count) ?? 0))
+        }
+        let choice = Self.atlasGroupChoice(libraries: rows, activeId: activeId)
+        let byId = Dictionary(containers.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let counts = Dictionary(rows.map { ($0.id, $0.passages) }, uniquingKeysWith: { first, _ in first })
+        let shares = Self.atlasShares(passages: choice.included.map { counts[$0] ?? 0 })
+        var samples: [(library: KnowledgeContainer, chunks: [DocumentChunk])] = []
+        for (id, share) in zip(choice.included, shares) {
+            guard share > 0, let library = byId[id], let db = stores[id] else { continue }
+            let chunks = await chunksForVisualization(db: db, limit: share)
+            if !chunks.isEmpty { samples.append((library, chunks)) }
+        }
+        return (samples, choice.excluded.compactMap { byId[$0] })
+    }
+
+    /// A library's passages for a map: every passage up to `limit`, past that an even sample of `limit`
+    /// (`evenSampleIndices`), with their vectors loaded.
+    private func chunksForVisualization(db: VectorDatabase, limit: Int) async -> [DocumentChunk] {
         do {
             // Only the sampled passages are read from the store. Through 5.6 every passage
             // was loaded and the sample taken from that. The sample is chosen by position
             // from the store's records and then read by id: an import or a delete can run
             // between these calls, and a position would then name another passage, or pair a
             // passage with another passage's vector.
-            let records = try await db.passageRecords()
+            // A document deleted in the last few seconds keeps its passages until its undo window ends; a map drawn in
+            // those seconds leaves them out, as the document list does, and samples from what is left (5.7).
+            let records = try await visiblePassageRecords(db: db)
             guard !records.isEmpty else { return [] }
             let keptIds = Self.evenSampleIndices(
-                count: records.count, limit: Self.visualizationPassageLimit
+                count: records.count, limit: limit
             ).map { records[$0].id }
             let chunks = try await db.chunks(withIDs: keptIds)
 
@@ -5158,7 +5264,7 @@ class RAGService: ObservableObject {
                     Log.warning(
                         "[RAGService] Embedding hydration mismatch for visualization: chunks=\(chunks.count), embeddings=\(embeddings.count)"
                     )
-                    return chunks
+                    return Self.passagesWithVectors(chunks, dimension: db.dimension)
                 }
 
                 var hydrated: [DocumentChunk] = []
@@ -5177,14 +5283,27 @@ class RAGService: ObservableObject {
                         )
                     )
                 }
-                return hydrated
+                return Self.passagesWithVectors(hydrated, dimension: db.dimension)
             }
 
-            return chunks
+            return Self.passagesWithVectors(chunks, dimension: db.dimension)
         } catch {
             Log.error("[RAGService] Failed to load all chunks: \(error.localizedDescription)")
             return []
         }
+    }
+
+    /// The passages whose vector has the store's size (5.7). A passage removed between reading it and reading its
+    /// vector comes back with an empty one (`getEmbeddings`), and the map's projection drops rows of another size, which
+    /// pairs every later point with the wrong colour and can seed the map's clustering from an empty row.
+    nonisolated static func passagesWithVectors(_ passages: [DocumentChunk], dimension: Int) -> [DocumentChunk] {
+        let kept = passages.filter { $0.embedding.count == dimension }
+        if kept.count < passages.count {
+            Log.warning(
+                "[RAGService] Map sample left out \(passages.count - kept.count) passage(s) whose vector is missing or not \(dimension) wide",
+                category: .vectorDB)
+        }
+        return kept
     }
 
     /// The most passages the suggested-question sampler scores.

@@ -27,7 +27,8 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/LaunchNoticeTests.swift", "role": "test", "blob": "bc1d8efcdfe2f28a95d8221bcb36a6db72c30099"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/LeadingEvidenceTests.swift", "role": "test", "blob": "48fedc5f357579fa091e6da551dfad36b5364332"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/QueryCacheClearingTests.swift", "role": "test", "blob": "e8f377de38d82c87e04a82baf49342be84d8919c"},
-    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/PassagesFromKnownDocumentsTests.swift", "role": "test", "blob": "a3be7b8ec8b11525da662a186d959ff4149e7b9a"}
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/PassagesFromKnownDocumentsTests.swift", "role": "test", "blob": "a3be7b8ec8b11525da662a186d959ff4149e7b9a"},
+    {"path": "OpenIntelligenceTests/Services/RAG/GraphPackingBudgetTests.swift", "role": "test", "blob": "1d4a7b279437500488bb408f90e5e420100a1f3a"}
   ],
   "nodes": [
     {"id": "RAGService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 333, "match": "class RAGService: ObservableObject {", "status": "VERIFIED", "by": "build"},

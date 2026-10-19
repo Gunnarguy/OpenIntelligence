@@ -17,7 +17,8 @@
     {"path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "role": "test", "blob": "b2a3daa032e951d8af61ac5445e358548d7f0735"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift", "role": "test", "blob": "f2a5b57a27a2d7675b55247a92637e5133f3a0a4"},
     {"path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift", "role": "primary", "blob": "2c2c4e4ac49aab5a28161bad360f34ceae35dccc"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift", "role": "test", "blob": "911301020bc5ea03edd14c5355b1f056094089a0"}
+    {"path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift", "role": "test", "blob": "911301020bc5ea03edd14c5355b1f056094089a0"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift", "role": "test", "blob": "9c9b84fbc73f3986dae7cf3542378b69d550d528"}
   ],
   "nodes": [
     {"id": "RAGQualityMode", "kind": "model", "path": "OpenIntelligence/Core/Models/RAGQualityMode.swift", "line": 13, "match": "enum RAGQualityMode: String, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
