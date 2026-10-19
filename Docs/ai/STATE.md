@@ -3,7 +3,7 @@
 Updated: 2026-10-18, 22:45 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 081f49d
+Last verified commit: 5a521b1
 
 Earlier detail is in git: `git show 35aae34:Docs/ai/STATE.md` (the evening of 2026-10-18, before this change) and the
 copies it names; the long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -109,13 +109,15 @@ each device's window.
 3. Close row `3fe49a74d54f8164a5fee6f0f53805ec` on Simulator screenshots of Settings, Device & Performance, the Glossary
    and an answer's details (the robot's `OpenIntelligenceScenes/testAuditTour` through `pvaudit.py`; the preview
    simulator it used was deleted, so it needs a new simulator and the demo copy, `demo_refresh.sh <udid>`).
-4. Step 1b: the hardware X-Ray credits the Neural Engine for Core AI (GPU) embeddings and for cloud answers
-   (`HardwareActivityType.primaryComponent`, reporters in EmbeddingService, LLMService, RAGEngine, DocumentProcessor);
-   `BenchmarkRuns/2026-10-18-compute-plan` has the measured plans to attribute by. Also the embedding labels: AboutView
-   has no Core AI case; ContainerSettingsSheet `friendlyProviderName` calls Core AI "Apple Natural Language";
-   DocumentDetailsView's nil id; AdaptiveVisualizationsView's fixed 512; onboarding's "via Neural Engine" import stage.
-5. Row `3fe49a74d54f8174886fed2904d86974`: Deep Think on an A17 Pro skips Self-RAG (`AgenticOrchestrator` keys it on
-   `maxSteps >= 8`).
+4. Step 1b, done 2026-10-19: `5a521b1` (the X-Ray lights the embedding provider's chip and the reranker's only when the
+   cross-encoder runs; an answer's details name the Neural Engine again, because Apple's 2024 research article says the
+   on-device model's key-value cache runs on its neural engines, and the release note that said otherwise is withdrawn)
+   and the commit after it (a Private Cloud Compute answer lights no chip, `LLMService.generate`). Left: Vision OCR is
+   reported as `.reranking` (`DocumentProcessor`, the OCR pulse) with a unit Vision chooses; Settings' X-Ray switch
+   says "Real-time model routing and token telemetry" and its Live Metrics switch "Show ops count and latency in
+   legend", neither of which the X-Ray shows (`SettingsView`, Appearance).
+5. Row `3fe49a74d54f8174886fed2904d86974`, fixed in `5a521b1` (In Progress): closes on a Deep Think run in a Simulator
+   set up as an iPhone 15 Pro whose log shows the Self-RAG lines (needs the demo copy, `demo_refresh.sh <udid>`).
 6. The Atlas revamp row above (he wants it "god mode, beautiful"); start from the codemap feature
    `embedding-visualizations-and-3d`.
 7. Steps 2 and 3 of his plan: measure the default GPU profile (Metal against Accelerate on a large library on this Mac;

@@ -936,7 +936,13 @@ struct LLMResponse {
             // `for try await` — exactly what the composer's Stop button produces —
             // reached neither, and left the HUD's Neural Engine indicator lit for the
             // rest of the session. `sustain` is idempotent, so the double call is safe.
-            HardwareTelemetryReporter.reportLLMInference(active: true)
+            // A Private Cloud Compute answer is written on Apple's servers, so it lights no chip on this device; it lit
+            // the Neural Engine until 5.7. On the device, Apple's 2024 research article names its neural engines for
+            // the model's key-value cache (machinelearning.apple.com/research/introducing-apple-foundation-models).
+            if case .privateCloudCompute = actualRoute {
+            } else {
+                HardwareTelemetryReporter.reportLLMInference(active: true)
+            }
             defer { HardwareTelemetryReporter.sustain(.llmInference, active: false) }
 
             var lastTokenTimestamp = Date()

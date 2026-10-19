@@ -354,6 +354,8 @@ the consent prompt or what is sent. Found by the 2026-09-24 audit
 (`Docs/AuditArtifacts/DocOverhaul_2026-09-24/README.md`, privacy-routing) and confirmed in the
 code; the effect has not been observed on a device.
 
+**The X-Ray and a cloud answer (2026-10-19).** The hardware X-Ray lit the Neural Engine while Apple's model wrote any answer, one written on Private Cloud Compute included, which put a cloud answer on this device's chip. `LLMService.generate` now reports to it only when `actualRoute` is not `.privateCloudCompute`. Routing is unchanged. `[evidence_level: code_verified, confidence: high, evidence_source: LLMService.swift generate]`
+
 **The window in what a person reads (2026-10-18).** The Glossary, the model card, the sample
 documents and the chat's context gauge said 4,096 tokens for every device. They now show the window
 the device reports (`FoundationModelTokenBudget.reportedOnDeviceContextSize`, `nil` where the model
