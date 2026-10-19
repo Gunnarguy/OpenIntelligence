@@ -3,7 +3,7 @@
 Updated: 2026-10-18, 22:45 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 16d6827
+Last verified commit: 081f49d
 
 Earlier detail is in git: `git show 35aae34:Docs/ai/STATE.md` (the evening of 2026-10-18, before this change) and the
 copies it names; the long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -103,8 +103,9 @@ each device's window.
 1. Ask him what his iPhone showed in Settings, Device & Performance: the Context Window card's figure and the line under
    the GPU choices. Record both (the window in `Docs/LIMITATIONS.md` beside the Mac's 8,192, the background GPU answer
    in the Atlas paragraph on background GPU), dated, as measured on his iPhone 16 Pro Max.
-2. Map `OpenIntelligenceTests/Services/Infrastructure/Monitoring/BackgroundGPUAllowanceTests.swift` in the codemap (a
-   slice or `unmapped_notes`), then `python3 .claude/codemap/codemap.py check`.
+2. Done 2026-10-19 in `081f49d` (full suite 1215 tests, 0 failures): the embedding-label part of step 1b (Library Settings,
+   About, the 384D option, the Atlas view's 512, onboarding's import log, the empty library) and the codemap entry for the
+   new test. Left of step 1b: the X-Ray's attribution (item 4).
 3. Close row `3fe49a74d54f8164a5fee6f0f53805ec` on Simulator screenshots of Settings, Device & Performance, the Glossary
    and an answer's details (the robot's `OpenIntelligenceScenes/testAuditTour` through `pvaudit.py`; the preview
    simulator it used was deleted, so it needs a new simulator and the demo copy, `demo_refresh.sh <udid>`).

@@ -165,6 +165,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **The GPU button on the import panel works.**  It changed its own label and nothing else.  It switches the same setting as Settings now, through all four choices.
 - **Deep Think's numbers are the real ones.**  Settings showed 5 sessions on an iPhone 15 Pro and 13 on some Macs.  Its reasoning chain stops at 8 sessions on every device, and Settings and its badge now show how sure it aims to be on yours, from 85% to 95%.
 - **An answer's details don't claim the Neural Engine.**  They said an answer written on your device ran on the Neural Engine.  Apple doesn't say which part of the chip runs its model, so the details say it was Apple's model on your device's chip.
+- **Your library's model is named right on a Mac.**  Library Settings called a library built on a Mac with macOS 27 "Apple Natural Language", and other screens said every library was 512-dimensional and ran on the Neural Engine.  Each one now shows your library's own model, its size and where it runs.
 
 ### Notifications
 - **A notification when it's done.** Settings has a new Notifications page with one switch.  With it on, you get a notification when an import finishes, or when an answer that took more than 20 seconds is ready, if OpenIntelligence isn't in front.  It's off until you turn it on, and it never shows your question or a file name.
