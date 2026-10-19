@@ -396,8 +396,8 @@ extension GlossaryTermID {
                 term: "GPU profile",
                 icon: "gauge.with.needle",
                 section: .hardware,
-                plain: "How hard the app is allowed to push the graphics cores. Higher settings import faster and use more battery. There is also a per-device ceiling it will not cross, because going past it caused crashes.",
-                technical: "Four discrete profiles rather than a percentage, because Apple's frameworks keep final hardware scheduling control and a percentage would imply precision the app cannot deliver. `maxSafeGPUAccelerationLevel` clamps the request per form factor and tier.",
+                plain: "Which parts of the chip the app's own work may use: its embedding model, searches of a large library, and an extra cleanup pass over scanned PDF pages. Settings, Device & Performance, lists what each profile changes on your device. Apple's frameworks make the final choice. A higher profile isn't automatically faster.",
+                technical: "Four discrete profiles rather than a percentage, because Apple's frameworks keep final hardware scheduling control and a percentage would imply precision the app cannot deliver. `GPUExecutionProfile.engagement` builds the Settings list from the rules the app runs. `maxSafeGPUAccelerationLevel` is the device's ceiling; with `BackgroundGPUAllowance` it decides which profiles let an import keep the GPU in the background. The per-device batch sizes and embedding concurrency were lowered after Metal command-buffer crashes (`DeviceCapabilityService`). On an M3 Pro Mac the app's Metal search was slower than Accelerate's `vDSP_mmul` at every size measured (2026-10-19), which is why Balanced, which keeps search on the CPU, is the default. Answers from Apple's model work the same way in every profile.",
                 seeAlso: [.unifiedMemory, .chip, .neuralEngine],
                 synonyms: ["gpu", "metal", "acceleration", "efficiency", "performance", "maximum"]
             )

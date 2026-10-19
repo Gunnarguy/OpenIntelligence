@@ -463,7 +463,10 @@ final class AdaptivePipelineOptimizer: ObservableObject {
         // Memory pressure detection
         let memoryPressure: DeviceRuntimeState.MemoryPressure
         let availableMemory: UInt64
-        #if os(iOS)
+        // The Simulator reads the Mac's free memory (5.7): there `os_proc_available_memory()` returns 0, which read as
+        // critical memory and gave every Simulator query the `.efficient` configuration (see
+        // `SystemStateMonitor.captureState`).
+        #if os(iOS) && !targetEnvironment(simulator)
         availableMemory = UInt64(os_proc_available_memory())
         #else
         availableMemory = SystemStateMonitor.macAvailableMemory()

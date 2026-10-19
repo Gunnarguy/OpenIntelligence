@@ -452,9 +452,14 @@ final class SystemStateMonitor: ObservableObject {
 
         // Memory
         let availableMemory: UInt64
-        #if os(iOS)
+        #if os(iOS) && !targetEnvironment(simulator)
             availableMemory = UInt64(os_proc_available_memory())
         #else
+            // The Simulator reads the Mac's free memory, as the Mac build does (5.7). It sets no memory limit, and
+            // `os_proc_available_memory()` returns 0 there, the value its header gives for "not an app" as well as for
+            // a process over its limit (os/proc.h, iOS 27 SDK), so every Simulator run read as critical memory: the
+            // Live System Monitor showed "0 MB, Critical", and `AdaptivePipelineOptimizer.configForQuery` gave every
+            // query its `.efficient` configuration ("Power Saver") unless the user had chosen a level (2026-10-19).
             availableMemory = Self.macAvailableMemory()
         #endif
         let totalMemory = processInfo.physicalMemory
