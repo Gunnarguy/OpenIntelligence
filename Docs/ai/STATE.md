@@ -87,7 +87,7 @@ each device's window.
   and 3 failures`, all in `AtlasLabelingTests` on the brand-new simulator, which then passed alone (`Executed 20 tests,
   with 0 failures`). `verify_doc_claims.py`: 968 claims, all match. `secret_scan.py`: clean. Phone build: `XCODEBUILD_EXIT=0`,
   installed (`devicectl device info apps`: 5.7).
-- **Not run for `16d6827`:** `bash scripts/build_simulator_smoke.sh`, `python3 .claude/codemap/codemap.py check`.
+- After `16d6827`: `bash scripts/build_simulator_smoke.sh` (through `smoke_guarded.sh`, simulator `0FBB8C16-...`): `** BUILD SUCCEEDED **`, `SMOKE_EXIT=0`. `codemap.py check`: 0 errors after the onboarding slice's quoted line was updated to the new example question (102 warnings, among them the new `BackgroundGPUAllowanceTests.swift`, unmapped).
 
 ## Blockers / Unknowns
 
@@ -103,8 +103,8 @@ each device's window.
 1. Ask him what his iPhone showed in Settings, Device & Performance: the Context Window card's figure and the line under
    the GPU choices. Record both (the window in `Docs/LIMITATIONS.md` beside the Mac's 8,192, the background GPU answer
    in the Atlas paragraph on background GPU), dated, as measured on his iPhone 16 Pro Max.
-2. Run `bash scripts/build_simulator_smoke.sh` (through `smoke_guarded.sh`, `OI_SCRATCH=/private/tmp`) and
-   `python3 .claude/codemap/codemap.py check` for `16d6827`.
+2. Map `OpenIntelligenceTests/Services/Infrastructure/Monitoring/BackgroundGPUAllowanceTests.swift` in the codemap (a
+   slice or `unmapped_notes`), then `python3 .claude/codemap/codemap.py check`.
 3. Close row `3fe49a74d54f8164a5fee6f0f53805ec` on Simulator screenshots of Settings, Device & Performance, the Glossary
    and an answer's details (the robot's `OpenIntelligenceScenes/testAuditTour` through `pvaudit.py`; the preview
    simulator it used was deleted, so it needs a new simulator and the demo copy, `demo_refresh.sh <udid>`).
