@@ -932,7 +932,8 @@ Text(label)
             // Model capabilities
             HStack(spacing: 12) {
                 modelCapabilityPill(icon: "text.bubble.fill", label: "Text Generation")
-                modelCapabilityPill(icon: "photo.fill", label: "ADM 3 Visuals")
+                // The model's name only with Technical Details on (5.7 UI cleanup).
+                modelCapabilityPill(icon: "photo.fill", label: settings.showTechnicalDetails ? "ADM 3 Visuals" : "Images")
                 modelCapabilityPill(icon: "doc.text.fill", label: "RAG-Ready")
             }
         }
@@ -2298,6 +2299,13 @@ Text(deviceService.chipName)
                 }
             }
 
+            // The step-by-step list is the pipeline's own vocabulary, so it waits behind Technical Details (5.7 UI
+            // cleanup); its lines are claims about code all the same (.claude/rules/user-facing-copy.md).
+            if !settings.showTechnicalDetails {
+                Text("Technical Details, in Appearance, lists the techniques behind the selected mode.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            } else {
             Divider()
 
             // Mode-specific features
@@ -2337,6 +2345,7 @@ Text(deviceService.chipName)
             .background(modeAccentColor.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .animation(.easeInOut(duration: 0.25), value: settings.ragQualityMode)
+            }
         }
 .padding()
     .background(DSColors.surface)
@@ -2394,10 +2403,13 @@ Text(deviceService.chipName)
         items.append(.init(id: "mmr", icon: "shuffle", label: "MMR Diversification", desc: "Maximal Marginal Relevance for diverse results", color: .green))
         items.append(.init(id: "lost-middle", icon: "arrow.left.arrow.right", label: "Lost-in-Middle Mitigation", desc: "Best evidence at start AND end of context window", color: .green))
         items.append(.init(id: "raptor", icon: "tree", label: "RAPTOR-lite Summaries", desc: "Document-level summaries route overview queries", color: .green))
-        items.append(.init(id: "hyde", icon: "sparkles", label: "HyDE Query Expansion", desc: "LLM generates hypothetical doc, embedded for cosine retrieval", color: .green))
+        // Only for the modes that use it: Standard never runs HyDE (`RAGQualityMode.usesHyDE`) (5.7).
+        if settings.ragQualityMode.usesHyDE {
+            items.append(.init(id: "hyde", icon: "sparkles", label: "HyDE Query Expansion", desc: "LLM generates hypothetical doc, embedded for cosine retrieval", color: .green))
+        }
 
-        // Standard + Deep Think (disabled in Maximum which keeps full context)
-        if !settings.ragQualityMode.isUnlimitedMode {
+        // Deep Think only: Standard and Maximum keep the passages whole (`RAGQualityMode.usesContextualCompression`) (5.7).
+        if settings.ragQualityMode.usesContextualCompression {
             items.append(.init(id: "compression", icon: "text.redaction", label: "Contextual Compression", desc: "LLM extracts query-relevant sentences from chunks", color: settings.ragQualityMode.usesAgenticOrchestrator ? .purple : .blue))
         }
 
@@ -2422,7 +2434,11 @@ Text(deviceService.chipName)
             items.append(.init(id: "confidence-cal", icon: "function", label: "Confidence Calibration", desc: "Sigmoid-calibrated scores from rerank + margin + evidence count", color: .purple))
             items.append(.init(id: "extract-summary", icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", desc: "Sentence selection via bi-encoder for summarize intent", color: .purple))
             items.append(.init(id: "graph-pack", icon: "rectangle.compress.vertical", label: "Graph Context Packing", desc: "Optimal token budget allocation across evidence", color: .purple))
-            items.append(.init(id: "orchestrator", icon: "brain.head.profile", label: "Agentic Orchestrator", desc: "\(max(4, DeviceCapabilityService.shared.optimizedAgenticConfig().maxSteps - 2))–\(DeviceCapabilityService.shared.optimizedAgenticConfig().maxSteps) sessions targeting \(Int(DeviceCapabilityService.shared.optimizedAgenticConfig().confidenceThreshold * 100))% confidence", color: .purple))
+            // Deep Think's chain stops at 8 sessions (`AgenticPolicyService`); the step count this line showed was the
+            // orchestrator's, and it described Maximum with Deep Think's numbers. Maximum has its own line below (5.7).
+            if !settings.ragQualityMode.isUnlimitedMode {
+                items.append(.init(id: "orchestrator", icon: "brain.head.profile", label: "Agentic Orchestrator", desc: "Up to 8 sessions, aiming for \(Int(DeviceCapabilityService.shared.optimizedAgenticConfig().confidenceThreshold * 100))% confidence on this device", color: .purple))
+            }
             // No tool line here since 2026-10-14. It read "4 Tool Functions" while
             // `FoundationModelToolRegistry.createTools` registers six, and neither number
             // was true of these modes: every model call Deep Think and Maximum make passes
@@ -2475,7 +2491,8 @@ Text(deviceService.chipName)
                     Text(mode.displayName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(isSelected ? .primary : .secondary)
-                    Text(mode.description)
+                    // Plain by default; the pipeline's own words with Technical Details on (5.7).
+                    Text(settings.showTechnicalDetails ? mode.description : plainModeSummary(for: mode))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -2522,17 +2539,35 @@ Text(deviceService.chipName)
         }
     }
 
+    /// What a mode is for, in plain words, under its name (5.7 UI cleanup). Technical Details shows `description`.
+    private func plainModeSummary(for mode: RAGQualityMode) -> String {
+        switch mode.canonical {
+        case .standard: return "Quick answers to everyday questions"
+        case .deepThink: return "For comparisons and harder questions"
+        case .maximum: return "For the hardest questions"
+        default: return mode.displayName
+        }
+    }
+
+    /// What a mode does, in plain words (5.7 UI cleanup), each a claim about code. Standard checks its answer with the
+    /// verification gates and searches again only when the first search finds little (the retrieval cascade); it skips
+    /// the source-only check when the gates pass, so it does not run "every check". Deep Think's reasoning chain stops at
+    /// 8 sessions (`AgenticPolicyService`, `min(8, sessionCount + 4)`), but research rounds can follow it, so its badge
+    /// names no number; its precision lookup answers without the gates, so it has no "checks" badge. Maximum's loop, when retrieval is good enough to
+    /// reach it, stops when its findings stop changing, at 50 sessions at most and fewer when few passages match
+    /// (`executeTrueUnlimitedReasoning`); its 0.98 target is unreachable by the code's own comment, so no "98%" here.
     private func modeCallout(for mode: RAGQualityMode) -> String {
         switch mode.canonical {
         case .standard:
-            return "Fastest daily mode with the full safety stack and cleaner single-pass results."
+            return "Searches your documents and checks the answer against them, searching again only when the first search finds little. The fastest mode."
         case .deepThink:
-            return "Iterative reasoning for nuanced questions, comparisons, and multi-step analysis."
+            return "Can search several times and build the answer in steps, for comparisons and questions that need more than one passage."
         case .maximum:
+            let work = "Can make up to 50 passes over your documents, fewer when only a few passages match, and stops when its findings stop changing."
             if entitlementStore.hasUnlimitedMaximumMode {
-                return "Highest-effort mode with no daily cap on your plan."
+                return "\(work) Slowest, with no daily limit on your plan."
             }
-            return "Highest-effort mode for stubborn questions. Free users get \(QuotaPolicy.freeMaximumModeDailyLimit) runs per day; \(entitlementStore.maximumModeRemainingUses) left today."
+            return "\(work) Slowest. Free plans get \(QuotaPolicy.freeMaximumModeDailyLimit) a day, and you have \(entitlementStore.maximumModeRemainingUses) left today."
         default:
             return mode.description
         }
@@ -2541,14 +2576,14 @@ Text(deviceService.chipName)
     private func modeBadges(for mode: RAGQualityMode) -> [String] {
         switch mode.canonical {
         case .standard:
-            return ["Fastest", "Single pass", "All safety gates"]
+            return ["Fastest", "Checks its answer", "Best for lookups"]
         case .deepThink:
-            return ["Iterative", "Confidence build", "Best for analysis"]
+            return ["Several passes", "Best for analysis"]
         case .maximum:
             if entitlementStore.hasUnlimitedMaximumMode {
-                return ["Unlimited", "98% target", "Research grade"]
+                return ["No daily limit", "Up to 50 passes", "Slowest"]
             }
-            return ["\(QuotaPolicy.freeMaximumModeDailyLimit)/day", "\(entitlementStore.maximumModeRemainingUses) left", "Research grade"]
+            return ["\(QuotaPolicy.freeMaximumModeDailyLimit) a day", "\(entitlementStore.maximumModeRemainingUses) left today", "Up to 50 passes"]
         default:
             return []
         }
@@ -2764,7 +2799,9 @@ Text(deviceService.chipName)
                     icon: "photo.on.rectangle.angled",
                     color: .mint,
                     title: "Image Playground",
-                    subtitle: "Interactive ADM 3 image creation from document content"
+                    subtitle: settings.showTechnicalDetails
+                        ? "Interactive ADM 3 image creation from document content"
+                        : "Create an image from a document's content"
                 )
 
                 aiFeatureInfoRow(
@@ -2806,7 +2843,7 @@ Text(deviceService.chipName)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text("10 of 10 Registered")
+                Text("\(RAGAppShortcutsProvider.appShortcuts.count) shortcuts")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
@@ -3153,7 +3190,7 @@ Text(deviceService.chipName)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Technical Details")
                             .font(.subheadline.weight(.medium))
-                        Text("In the chat: the live stats, each step as it runs, and the answer mode, reasoning and confidence under an answer")
+                        Text("In the chat: the live stats, each step as it runs, and the answer mode, reasoning and confidence under an answer. In Settings: the techniques behind each mode.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

@@ -27,7 +27,8 @@ struct ModelStatusIndicator: View {
                         if hasEntitlement {
                             pickerLabel(for: preference).tag(preference)
                         } else {
-                            Text("\(preference.pickerDisplayName) (Requires Entitlement)")
+                            // Plain words for a build without the Private Cloud Compute entitlement (5.7 UI cleanup).
+                            Text("\(preference.pickerDisplayName) (not available)")
                                 .tag(preference)
                                 .disabled(true)
                         }
