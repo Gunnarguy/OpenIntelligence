@@ -374,7 +374,7 @@ Each statement in the text was checked against the code on 2026-10-15:
 
 - No advertising or tracking code: no `AdSupport`, `AppTrackingTransparency`, `SKAdNetwork` or `AdAttributionKit`
   in the app. `URLSession` is used by `WebPageFetchService` (an ephemeral session that never accepts or sets
-  cookies), by `AppStoreRatingSnapshot`, and by `AdapterManager`, which nothing calls; `LocalOpenAIServerLLMService.swift`
+  cookies), by `AppStoreRatingSnapshot`, and by `AdapterManager`, which nothing calls (removed in 5.7 on 2026-10-20); `LocalOpenAIServerLLMService.swift`
   is inside `#if false`.
 - Private Cloud Compute is iOS, iPadOS and macOS 27 only: `FoundationModelSessionFactory` throws `modelUnavailable`
   before 27. Show Details on `CloudConsentPromptView` gives the reason and the size of what would be sent.

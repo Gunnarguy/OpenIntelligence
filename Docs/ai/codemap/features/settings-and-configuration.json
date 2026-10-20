@@ -12,7 +12,6 @@
     {"path": "OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift", "role": "primary", "blob": "72c3a035b1e7d0423bd0cfad011ffc2112ac7c3e"},
     {"path": "OpenIntelligence/Features/Settings/AboutView.swift", "role": "primary", "blob": "2e88d183d4dd76499761e94f70d4fb93ab41137f"},
     {"path": "OpenIntelligence/Features/Settings/Components/FeatureRow.swift", "role": "primary", "blob": "335018f595b4e634e5dfc1a7ebd6f9d3ff8c0bf2"},
-    {"path": "OpenIntelligence/Features/Settings/Components/InfoRow.swift", "role": "primary", "blob": "00d600319d137f67ea06b1cc4ea3c8ff32e71bb5"},
     {"path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "role": "primary", "blob": "74bda9b07ed50ad3ff724ef5c550ff876dcc78cd"},
     {"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "role": "primary", "blob": "b0245cdbad6c3f793c08b225785580ccbcf34ec0"},
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift", "role": "primary", "blob": "d9b039aed9f501c45deb30a48ad868ce284969ea"},
@@ -108,7 +107,7 @@
   "unknowns": [],
   "related": ["app-lifecycle", "billing-and-quotas", "chat-conversation-view", "container-settings-and-customization", "design-system-and-markdown", "document-library-and-containers", "full-text-search-storage", "glossary"],
   "entries": ["OpenIntelligence/Features/Settings/SettingsView.swift::SettingsView", "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift::SettingsStore", "OpenIntelligence/Features/Settings/HowItWorksView.swift::HowItWorksView", "OpenIntelligence/Features/Settings/AboutView.swift::AboutView", "OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift::OpenIntelligenceRuntimePaths"],
-  "owns": ["OpenIntelligence/Features/Settings/SettingsView.swift", "OpenIntelligence/Features/Settings/HowItWorksView.swift", "OpenIntelligence/Features/Settings/AboutView.swift", "OpenIntelligence/Features/Settings/Components/FeatureRow.swift", "OpenIntelligence/Features/Settings/Components/InfoRow.swift", "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift", "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift", "OpenIntelligence/Core/Extensions/KeychainStorage.swift", "OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift"],
+  "owns": ["OpenIntelligence/Features/Settings/SettingsView.swift", "OpenIntelligence/Features/Settings/HowItWorksView.swift", "OpenIntelligence/Features/Settings/AboutView.swift", "OpenIntelligence/Features/Settings/Components/FeatureRow.swift", "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift", "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift", "OpenIntelligence/Core/Extensions/KeychainStorage.swift", "OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift"],
   "decisions": [],
   "traps": [],
   "derived": {

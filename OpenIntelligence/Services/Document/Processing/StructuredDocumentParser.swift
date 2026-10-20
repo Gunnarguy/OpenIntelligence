@@ -891,7 +891,9 @@ actor StructuredDocumentParser {
             // Render to CGImage for the VLM
             if let cgImage = Self.sharedGPUContext.createCGImage(croppedImage, from: rect) {
                 do {
-                    // Send to OS 27 Multi-Modal Captioning Service
+                    // Send to OS 27 Multi-Modal Captioning Service. VisualCaptioningService, which this
+                    // block calls, was removed in 5.7 on 2026-10-20 because nothing referenced it, so
+                    // enabling the block needs a captioning service first.
                     let semanticCaption = try await VisualCaptioningService.shared.generateCaption(for: cgImage)
                     
                     elements.append(.figure(description: "[Visual Graph/Chart] " + semanticCaption, pageNumber: pageNumber))

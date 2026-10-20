@@ -522,7 +522,7 @@ Fifty-two concepts. This is the reading room: getting the words, tables and pict
 - **Dot-connector:** Vision and Metal race, exhaust command buffers and destabilise memory when launched without bounds.
 - **Expert:** an actor-based semaphore sized once, at first use, by `DeviceCapabilityService.visionOperationConcurrency` (2 to 8 by chip, or 1 if first used during CPU-only background ingestion), with a 1 to 6 ms cooldown between operations. `[evidence_level: code_verified, confidence: exact, evidence_source: VisionOCRThrottle.swift:100-109, 159, 169; DeviceCapabilityService.swift:412-466; corrected 2026-09-29 from "2 to 64 by tier", the range of visionParsingConcurrency, the page pipeline ahead of the throttle]`
 
-### Visual evidence source (Conditional, verified) and VisualCaptioningService (Conditional, verified)
+### Visual evidence source (Conditional, verified) and VisualCaptioningService (Conditional, verified; removed in 5.7 on 2026-10-20: nothing referenced it)
 - **Idiot:** a picture can be evidence too, and the app says which picture.
 - **Dot-connector:** captions bridge images into text retrieval; the provenance object keeps the caption tied to the real region so it can't pass as prose.
 - **Expert:** `VisualEvidenceSource` in the response model and `VisualEvidenceCard` in the UI; captioning after image understanding, before embedding.
@@ -1207,13 +1207,13 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 
 **Like an idiot.** The app profiles your question before it searches. Lookup, table lookup, procedure, comparison, summary, investigation, computation, findings: each wants different evidence and a different-shaped answer. It rates complexity, decides whether this is a one-pass job or a loop, may clean up your question, may expand it with the library's own vocabulary, and may write an imaginary answer just to search with. All of that gets resolved once, up front, into a plan.
 
-**Like less of an idiot.** Two objects matter. `QueryProfile` describes the question: word count, entities, answer intent, search intent, routing class, complexity. `QueryExecutionPlan` says what the engine will do about it: direct or decomposed, tools or not, escalate to agentic or not, which response strategy. The runtime coordinator resolves both plus quality mode, PCC eligibility and adaptive configuration before any search runs. There are exactly three ways a run becomes agentic: the mode is Deep Think or Maximum, the user pressed Go Deeper, or the planner escalated a Standard query. A `GroundedAnswerPolicy` then decides whether the answer should be extracted by rules, extracted by a tightly constrained prompt, or synthesised with citations.
+**Like less of an idiot.** Two objects matter. `QueryProfile` describes the question: word count, entities, answer intent, search intent, routing class, complexity. `QueryExecutionPlan` says what the engine will do about it: direct or decomposed, tools or not, escalate to agentic or not, which response strategy. The runtime coordinator resolves both plus quality mode, PCC eligibility and adaptive configuration before any search runs. There are exactly three ways a run becomes agentic: the mode is Deep Think or Maximum, the user pressed Go Deeper, or the planner escalated a Standard query. A `GroundedAnswerPolicy` then decides whether the answer should be extracted by rules, extracted by a tightly constrained prompt, or synthesised with citations. `GroundedAnswerPolicy` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 **Average Joe.** Why rewrite the question? Users type short, vague, conversational questions ("what about the other one?") and the index was built from long, specific text. A standalone rewrite resolves the pronouns from conversation memory. HyDE has the model write a plausible answer passage and searches with that, because passages land near passages on the map and questions don't; it's off in Standard on purpose, because a hypothetical can poison exact lookups. Corpus vocabulary expansion uses words that actually exist in your library instead of a generic thesaurus that would drag in unrelated meanings.
 
 **Dot-connector.** Two things people conflate. Query complexity (trivial, standard, complex, agentic) is about how much work is justified; answer intent is about the shape of the result. A trivial lookup and a trivial summary get different packing. Also: "touchy" is decided here in policy terms but consumed in module 12, where it raises the retrieval-confidence bar from 0.40 to 0.55. And the semantic query cache lives in module 05's territory but is checked here, before embedding, keyed on the normalised question.
 
-**Expert.** `QueryRuntimeCoordinator.resolveContext` is the first call in `queryInternal`: reads `SettingsStore` (summaries, HyDE, rewriting, compression flags), resolves `RAGQualityMode`, computes `QueryExecutionPath` (`.agentic`, `.forcedAgentic`, `.plannerEscalated`, `.standard`), checks the PCC suppression cooldown, builds `AdaptivePipelineConfig`. `QueryProfileService` builds the profile; `QueryComplexityAnalyzer` scores length, conjunctions, comparisons, reasoning markers, entities and intent; `QueryEnhancementService` classifies intent and expands; `QueryRewriterService` rewrites standalone; `HyDEService` generates the hypothetical only when `usesHyDE` is true (false in Standard); `ContainerVocabularyService` reads `documents_vocab`; `QueryRouterService` decides overview versus detail and hands overview to `RAPTORSummaryRouter`; `SpecificationExtractor` pulls the primary entity and descriptive keywords for spec-heavy questions; `GroundedAnswerPolicy` picks deterministic extraction, direct-extraction prompting, constrained synthesis or source-only verification. `[evidence_level: code_verified, confidence: exact, evidence_source: QueryRuntimeCoordinator.swift:25-34, 212-228; corrected 2026-09-29 from AgenticDecision, a name no commit on main declares]`
+**Expert.** `QueryRuntimeCoordinator.resolveContext` is the first call in `queryInternal`: reads `SettingsStore` (summaries, HyDE, rewriting, compression flags), resolves `RAGQualityMode`, computes `QueryExecutionPath` (`.agentic`, `.forcedAgentic`, `.plannerEscalated`, `.standard`), checks the PCC suppression cooldown, builds `AdaptivePipelineConfig`. `QueryProfileService` builds the profile; `QueryComplexityAnalyzer` scores length, conjunctions, comparisons, reasoning markers, entities and intent; `QueryEnhancementService` classifies intent and expands; `QueryRewriterService` rewrites standalone; `HyDEService` generates the hypothetical only when `usesHyDE` is true (false in Standard); `ContainerVocabularyService` reads `documents_vocab`; `QueryRouterService` decides overview versus detail and hands overview to `RAPTORSummaryRouter`; `SpecificationExtractor` pulls the primary entity and descriptive keywords for spec-heavy questions; `GroundedAnswerPolicy` picks deterministic extraction, direct-extraction prompting, constrained synthesis or source-only verification (removed in 5.7 on 2026-10-20: nothing referenced it). `[evidence_level: code_verified, confidence: exact, evidence_source: QueryRuntimeCoordinator.swift:25-34, 212-228; corrected 2026-09-29 from AgenticDecision, a name no commit on main declares]`
 
 **Expert's expert.** The rewrite and HyDE are the two generative steps before retrieval, and they can both mislead: a rewrite that drops a qualifier retrieves the wrong thing confidently. That is why the original user message is never replaced in the conversation, only the effective search string. The planner-escalation path is also the one most likely to surprise a user who chose Standard, because it changes the run from one pass to a loop without a mode change on screen; the diagnostics record it as `plannerEscalated`. And "Subquestion" is the one concept in the whole bank whose name does not appear as an identifier in code; the behaviour exists inside the orchestrator's decomposition under other names.
 
@@ -1247,7 +1247,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 ### Constrained-synthesis prompt mode (Core, verified)
 - **Idiot:** write it in your own words, but every sentence must point at a source.
 - **Dot-connector:** procedures, comparisons and explanations need composition, still bounded by retrieved context.
-- **Expert:** `GroundedAnswerPolicy` after packing, before structured generation.
+- **Expert:** `GroundedAnswerPolicy` after packing, before structured generation. `GroundedAnswerPolicy` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Container vocabulary expansion (Conditional, verified)
 - **Idiot:** use the library's own words to widen the search.
@@ -1277,7 +1277,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 ### Direct-extraction prompt mode (Conditional, verified)
 - **Idiot:** copy the answer out, don't rephrase it.
 - **Dot-connector:** for lookup-style questions where rules couldn't decide, minimise paraphrase.
-- **Expert:** `GroundedAnswerPolicy` and the prompt compiler for extractive-first intents.
+- **Expert:** `GroundedAnswerPolicy` and the prompt compiler for extractive-first intents. `GroundedAnswerPolicy` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Entity extraction from query (Core, verified)
 - **Idiot:** notice the names and numbers in your question.
@@ -1294,7 +1294,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 - **Dot-connector:** user-requested extra search and reasoning even after the planner chose Standard.
 - **Expert:** overrides at `QueryRuntimeCoordinator` resolution.
 
-### GroundedAnswerPolicy (Core, verified)
+### GroundedAnswerPolicy (Core, verified; removed in 5.7 on 2026-10-20: nothing referenced it)
 - **Idiot:** the rule for how careful the answer has to be.
 - **Dot-connector:** deterministic extraction, direct-extraction prompt, constrained synthesis, source-only verification; exact lookups don't get needlessly generated.
 - **Expert:** resolved after intent classification, before extraction or generation.
@@ -1382,7 +1382,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 ### Response strategy (Core, verified)
 - **Idiot:** how the answer will be produced.
 - **Dot-connector:** deterministic extraction, constrained synthesis, extractive summarisation, agentic synthesis; falls back when a path lacks confidence.
-- **Expert:** `GroundedAnswerPolicy` and the planner.
+- **Expert:** `GroundedAnswerPolicy` and the planner. `GroundedAnswerPolicy` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Routing classification (Core, verified)
 - **Idiot:** direct, cross-topic, overview.
@@ -1528,7 +1528,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Extractive QA (Conditional, verified as the heuristic path)
 - **Idiot:** copy the answer out instead of writing one.
 - **Dot-connector:** the value must exist in the source, which kills a whole class of hallucination.
-- **Expert:** `ExtractiveQAService` heuristic scorer plus `SpecificationExtractor`; the neural span model is a stub.
+- **Expert:** `ExtractiveQAService` heuristic scorer plus `SpecificationExtractor`; the neural span model is a stub. `ExtractiveQAService` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Extractive summarization (Conditional, verified)
 - **Idiot:** pick the best sentences rather than writing new ones.
@@ -1548,7 +1548,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Heuristic extractive QA (Conditional, verified)
 - **Idiot:** the rule-based copy-out that actually runs.
 - **Dot-connector:** keyword overlap, entity types, proximity, passage rank, question type.
-- **Expert:** `ExtractiveQAService` when the span model is unavailable, which is always.
+- **Expert:** `ExtractiveQAService` when the span model is unavailable, which is always. `ExtractiveQAService` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Hybrid search (Core, verified)
 - **Idiot:** both searches, then merge.
@@ -1588,7 +1588,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Maximal marginal relevance (Core, verified), MMR lambda (Core, verified), Redundancy penalty (Core, verified), Pairwise similarity matrix (Support, verified)
 - **Idiot:** don't pick five cards that say the same thing; the dial says how much variety to insist on.
 - **Dot-connector:** greedy selection: relevance minus the max similarity to anything already chosen; lower lambda means more variety; the matrix precomputes the similarities.
-- **Expert:** `RAGEngine`; λ 0.60/0.55/0.50; matrix on Metal above 50 candidates when the profile allows and a GPU exists, else each similarity is computed on the CPU with vDSP as candidates are picked, inside `RAGEngine.applyMMR`; `BNNSGraphService.pairwiseSimilarityMatrix` exists but nothing calls it. Until 2026-09-29 this line named `BNNSGraphService` as the CPU path. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:155-160, 213-219, 247-258; BNNSGraphService.swift:275; git grep finds BNNSGraphService in no file but its own]`
+- **Expert:** `RAGEngine`; λ 0.60/0.55/0.50; matrix on Metal above 50 candidates when the profile allows and a GPU exists, else each similarity is computed on the CPU with vDSP as candidates are picked, inside `RAGEngine.applyMMR`; `BNNSGraphService.pairwiseSimilarityMatrix` existed but nothing called it, and the file was removed in 5.7 on 2026-10-20. Until 2026-09-29 this line named `BNNSGraphService` as the CPU path. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:155-160, 213-219, 247-258; BNNSGraphService.swift:275; git grep finds BNNSGraphService in no file but its own]`
 
 ### Metadata boost (Core, verified)
 - **Idiot:** extra credit for headings, names, tables, numbers.
@@ -1608,7 +1608,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Neural start/end span model (Dormant, verified as a stub)
 - **Idiot:** a reader that's on the blueprint shelf.
 - **Dot-connector:** would find exact answer spans; the placeholder returns nil.
-- **Expert:** `ExtractiveQAService` protocol and template; never active.
+- **Expert:** `ExtractiveQAService` protocol and template; never active. `ExtractiveQAService` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Parallel retrieval arms (Core, verified)
 - **Idiot:** both helpers run at once.
@@ -1633,7 +1633,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Reciprocal rank fusion (Core, verified) and RRF constant k (Core, verified)
 - **Idiot:** points for being near the top of either pile.
 - **Dot-connector:** ranks are comparable across arms; scores aren't. k smooths the top positions.
-- **Expert:** sum over lists of 1/(k + rank), k exactly 60, each list weighted by the fusion weights (0.50/0.50 by default, 0.35 to 0.65 after the intent delta); `HybridSearchService` through `RAGEngine.reciprocalRankFusion`; `BNNSGraphService` holds an unweighted version. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:963, 995, 1006; HybridSearchService.swift:297, 1189; BNNSGraphService.swift:249-259; corrected 2026-09-29 from "weighted 0.7/0.3"]`
+- **Expert:** sum over lists of 1/(k + rank), k exactly 60, each list weighted by the fusion weights (0.50/0.50 by default, 0.35 to 0.65 after the intent delta); `HybridSearchService` through `RAGEngine.reciprocalRankFusion`; `BNNSGraphService` held an unweighted version until the file was removed in 5.7 on 2026-10-20 (nothing referenced it). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:963, 995, 1006; HybridSearchService.swift:297, 1189; BNNSGraphService.swift:249-259; corrected 2026-09-29 from "weighted 0.7/0.3"]`
 
 ### Rerank batch size (Core, verified) and Rerank score (Core, verified) and Reranker tokenizer (Core, verified)
 - **Idiot:** how many pairs the smart reader takes at once, the score it gives, and its own ruler.
@@ -1872,7 +1872,7 @@ Sixty-two concepts. Choosing which model answers, building the session, and gene
 - **Dot-connector:** fallback, availability and route policy make them differ; a picker label is not proof.
 - **Expert:** `LLMModelType` for selection; resolution state observes settings and `RAGService` and updates the UI.
 
-### AdapterManager (Support, verified)
+### AdapterManager (Support, verified; removed in 5.7 on 2026-10-20: nothing referenced it)
 - **Idiot:** the adapter that picks a model backend.
 - **Dot-connector:** decouples the engine from one implementation; carries legacy transitions.
 - **Expert:** resolves an `LLMService` before execution.
@@ -2197,7 +2197,7 @@ Forty concepts. The nine checks: deterministic gates that decide whether the gen
 ### Evidence-first mode (Core, verified) and Source-only verification (Core, verified) and SourceOnlyAnswerService (Core, verified)
 - **Idiot:** the sources are the boss; the writer only rearranges them.
 - **Dot-connector:** reverses generate-then-find-citations; the answer must be reconstructible from source sentences; when generation fails, an extractive answer beats a guess.
-- **Expert:** resolved before generation by `GroundedAnswerPolicy`; `SourceOnlyAnswerService` builds or validates from source sentences and may replace a failed generative answer before abstention.
+- **Expert:** resolved before generation by `GroundedAnswerPolicy`; `SourceOnlyAnswerService` builds or validates from source sentences and may replace a failed generative answer before abstention. `GroundedAnswerPolicy` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Fidelity (Core, verified), Source-Locked (Core, verified), Partially Supported (Core, verified), Not Enough Evidence (Core, verified)
 - **Idiot:** the badge: fully backed, partly backed, not enough.
@@ -2279,7 +2279,7 @@ Thirty-five concepts. What comes back and how you can inspect it: typed answers,
 
 **Dot-connector.** The route badge reads from the execution receipt, not the model picker, because a PCC plan can fall back to on-device and the badge must show the fallback. The hardware HUD's Neural Engine pulse is synthetic: there is no public API for Neural Engine occupancy, so the display shows activity around compute-heavy stages, not a measurement. And the pipeline trace log rotates, which is why a long capture needs `tail -F` into an archive before you start.
 
-**Expert.** `StructuredAnswer`: refusal state, answer type (lookup, table lookup, procedure, compare, summarise, investigate, compute, findings, refused), text, atomic claims with verdicts, evidence records (ID, page, quote ≤ ~240 chars, document, section path), missing information, debug data; built from deterministic extraction or structured generation; sanitised before display. `EvidenceThreadStore` persists threads. `GroundedAnswerView`, `SourceChipsView`, `RetrievalSourcesTray`, `UnifiedMetricsBar`, `TimingBreakdownView`, `ContextUsageIndicator`, `ThinkingStreamView`, `ResponseDetailsView`, `EnhancedCodeBlock`, `MarkdownRenderer`. `RAGAuditSnapshot` with feature flags (rewrite, expansion, HyDE, iterative, routing, summaries, parent, corrective, compression, graph packing, cascade, multi-vector, unlimited reasoning), score distribution, candidate counts, context budget, route, recursive metrics, `acceptanceOverride`. `RetrievalTraceCollector` records vector, lexical, fusion, boosted, candidate, rerank and final stages for evaluation. `PipelineSignposts`; `TelemetryCenter`; `HardwareTelemetryState`; `PipelineTraceExporter` and `scripts/pull_trace.sh`; the trace file is `pipeline_trace.log` in the app container's Documents folder. `ResponseTransformService` and `WritingToolsService` for post-answer rewriting without re-entering retrieval.
+**Expert.** `StructuredAnswer`: refusal state, answer type (lookup, table lookup, procedure, compare, summarise, investigate, compute, findings, refused), text, atomic claims with verdicts, evidence records (ID, page, quote ≤ ~240 chars, document, section path), missing information, debug data; built from deterministic extraction or structured generation; sanitised before display. `EvidenceThreadStore` persists threads. `GroundedAnswerView`, `SourceChipsView`, `RetrievalSourcesTray`, `UnifiedMetricsBar`, `TimingBreakdownView`, `ContextUsageIndicator`, `ThinkingStreamView`, `ResponseDetailsView`, `EnhancedCodeBlock`, `MarkdownRenderer`. `RetrievalSourcesTray`, `TimingBreakdownView` and `ContextUsageIndicator` were removed in 5.7 on 2026-10-20: nothing referenced them. `RAGAuditSnapshot` with feature flags (rewrite, expansion, HyDE, iterative, routing, summaries, parent, corrective, compression, graph packing, cascade, multi-vector, unlimited reasoning), score distribution, candidate counts, context budget, route, recursive metrics, `acceptanceOverride`. `RetrievalTraceCollector` records vector, lexical, fusion, boosted, candidate, rerank and final stages for evaluation. `PipelineSignposts`; `TelemetryCenter`; `HardwareTelemetryState`; `PipelineTraceExporter` and `scripts/pull_trace.sh`; the trace file is `pipeline_trace.log` in the app container's Documents folder. `ResponseTransformService` and `WritingToolsService` for post-answer rewriting without re-entering retrieval.
 
 **Expert's expert.** The audit snapshot once carried a fabricated `top_similarity` of exactly 0.7 on every row of a Deep Think run because it was hardcoded rather than measured; observability that lies is worse than none, and it is why the feature flags and score distributions are checked against the retrieval trace in evaluation. The evidence quote cap is also a privacy choice: 240 characters is enough to inspect and small enough not to leak a document into a stored thread.
 
@@ -2293,7 +2293,7 @@ Thirty-five concepts. What comes back and how you can inspect it: typed answers,
 ### Evidence ID (Core, verified), Evidence record (Core, verified), Evidence quote cap (Core, verified), Inline citation (Core, verified), Source chip (Core, verified)
 - **Idiot:** the sticky notes and the tappable sources under the answer.
 - **Dot-connector:** a stable ID under the human-readable number; a record with page, quote, document, section; quotes capped near 240 characters; citations sit next to the claim; chips open the actual passage.
-- **Expert:** `StructuredAnswer` evidence model; `SourceChipsView`, `RetrievalSourcesTray`.
+- **Expert:** `StructuredAnswer` evidence model; `SourceChipsView`, `RetrievalSourcesTray`. `RetrievalSourcesTray` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Evidence-thread persistence (Core, verified)
 - **Idiot:** the conversation is saved.
@@ -2348,7 +2348,7 @@ Thirty-five concepts. What comes back and how you can inspect it: typed answers,
 ### TelemetryCenter (Support, verified), Thinking stream (Support, verified), Timing breakdown (Support, verified), Token-budget metadata (Core, verified), Unified metrics bar (Support, verified)
 - **Idiot:** the dashboards.
 - **Dot-connector:** typed events decoupled from UI; live progress without raw reasoning; retrieval versus generation time; why evidence was compressed or omitted; one place for the operating evidence.
-- **Expert:** `TelemetryCenter`, `ThinkingStreamView`, `TimingBreakdownView`, `ContextUsageIndicator`, `UnifiedMetricsBar` (4,669 lines).
+- **Expert:** `TelemetryCenter`, `ThinkingStreamView`, `TimingBreakdownView`, `ContextUsageIndicator`, `UnifiedMetricsBar` (4,669 lines). `TimingBreakdownView` and `ContextUsageIndicator` were removed in 5.7 on 2026-10-20: nothing referenced them.
 # Module 14. Evaluation, benchmarks, and quality measurement
 
 Thirty-one concepts. Measuring whether any of this works, and the two lessons that made most earlier figures unusable.
@@ -2441,7 +2441,7 @@ Forty-four concepts. The power manager and the janitor: how hard the device may 
 
 **Dot-connector.** The two guards that came from real data loss. The materialisation guard: iCloud reports a vector store exists but the bytes aren't downloaded; without the guard, that read as an empty library and triggered a destructive overwrite. Deletion-wins plus tombstones: a device that still has the last full copy would otherwise resurrect what you deleted. And the open defect lives here: a 1.68-second idle timer in `WorkspaceSyncService` that fires because a container's orphaned state never resolves. It used to reload every vector store per tick, 2,848 loads in 164 idle seconds; the router's on-disk signature check made it cheap; the timer is still there.
 
-**Expert.** `DeviceCapabilityService`: `utsname` for the device model, `sysctlbyname("machdep.cpu.brand_string")` on Mac, physical memory, a Metal device query for GPU limits; TOPS lookup per chip (35 A17 Pro, 35/38 A18/A18 Pro, 38 every M4, 45 every M5; a new Mac was once tiered as M3-era because M5 was unknown, fixed late August). Ladder: agentic step concurrency 3 to 32, step cooldown 100 ms to 0, vector batch 128 to 16,384, embedding batch 8 to 512, Vision concurrency 2 to 64, PDF render concurrency 1 to 64 capped by a per-page memory estimate, embedding concurrency 2 to 128 (64 is the iPad ceiling; a Mac reaches 128). GPU profile to compute units: query-side models Efficiency and Balanced `.cpuAndNeuralEngine`, Performance and Maximum `.all`; ingestion embedder Efficiency `.cpuAndNeuralEngine`, the rest `.all`. `AdaptivePipelineOptimizer`: thermal critical forces minimal; memory pressure critical forces efficient; serious thermal no longer throttles; battery alone no longer degrades; on Mac only thermal and memory matter; query timeout and step cooldown per level. `BackgroundTaskService` and `OpenIntelligenceApp`: continued ingestion, continued query (system-scheduled), index maintenance no earlier than 4 h and `requiresExternalPower`, Spotlight reindex no earlier than 2 h, app refresh no earlier than 30 min; iOS only. `IngestionLiveActivityService` updates within 0.5 s. `WorkspaceSyncService` (3,866 lines): debounce 2 s, bootstrap conflict detection, merge plan, tombstones, deletion-wins, materialisation guard, write-in-progress guard, vector sync signature cache. `QuotaPolicy` for document and library limits and the free-tier Maximum daily allowance; `EntitlementStore` and `MonetizationPolicy` from StoreKit; `MaximumModeQuotaStore`. `SettingsStore` snapshotted at query start. `LoggingConfiguration` for levels, categories, buffering and redaction. `GPUComputeService` kernels: batch cosine similarity (plus SIMD and threadgroup variants), batch normalise, MMR diversity; buffer pool; residency set. `BNNSGraphService` for normalisation, matrix cosine, softmax, RRF arithmetic and pairwise similarity on Accelerate, present in the source but called by nothing in the app. `[evidence_level: code_verified, confidence: exact, evidence_source: DeviceCapabilityService.swift:749-781; corrected 2026-09-29 from "embedding concurrency 2 to 64"]` `[evidence_level: code_verified, confidence: exact, evidence_source: git grep finds BNNSGraphService in no file but BNNSGraphService.swift, whose functions sit at :54, 108, 191, 249, 275; the live vector maths calls vDSP directly at BNNSVectorDatabase.swift:365, 376, 536 and RAGEngine.swift:251; corrected 2026-09-29 from an entry that presented it as in use]`
+**Expert.** `DeviceCapabilityService`: `utsname` for the device model, `sysctlbyname("machdep.cpu.brand_string")` on Mac, physical memory, a Metal device query for GPU limits; TOPS lookup per chip (35 A17 Pro, 35/38 A18/A18 Pro, 38 every M4, 45 every M5; a new Mac was once tiered as M3-era because M5 was unknown, fixed late August). Ladder: agentic step concurrency 3 to 32, step cooldown 100 ms to 0, vector batch 128 to 16,384, embedding batch 8 to 512, Vision concurrency 2 to 64, PDF render concurrency 1 to 64 capped by a per-page memory estimate, embedding concurrency 2 to 128 (64 is the iPad ceiling; a Mac reaches 128). GPU profile to compute units: query-side models Efficiency and Balanced `.cpuAndNeuralEngine`, Performance and Maximum `.all`; ingestion embedder Efficiency `.cpuAndNeuralEngine`, the rest `.all`. `AdaptivePipelineOptimizer`: thermal critical forces minimal; memory pressure critical forces efficient; serious thermal no longer throttles; battery alone no longer degrades; on Mac only thermal and memory matter; query timeout and step cooldown per level. `BackgroundTaskService` and `OpenIntelligenceApp`: continued ingestion, continued query (system-scheduled), index maintenance no earlier than 4 h and `requiresExternalPower`, Spotlight reindex no earlier than 2 h, app refresh no earlier than 30 min; iOS only. `IngestionLiveActivityService` updates within 0.5 s. `WorkspaceSyncService` (3,866 lines): debounce 2 s, bootstrap conflict detection, merge plan, tombstones, deletion-wins, materialisation guard, write-in-progress guard, vector sync signature cache. `QuotaPolicy` for document and library limits and the free-tier Maximum daily allowance; `EntitlementStore` and `MonetizationPolicy` from StoreKit; `MaximumModeQuotaStore`. `SettingsStore` snapshotted at query start. `LoggingConfiguration` for levels, categories, buffering and redaction. `GPUComputeService` kernels: batch cosine similarity (plus SIMD and threadgroup variants), batch normalise, MMR diversity; buffer pool; residency set. `BNNSGraphService` for normalisation, matrix cosine, softmax, RRF arithmetic and pairwise similarity on Accelerate, present in the source but called by nothing in the app, and removed in 5.7 on 2026-10-20. `[evidence_level: code_verified, confidence: exact, evidence_source: DeviceCapabilityService.swift:749-781; corrected 2026-09-29 from "embedding concurrency 2 to 64"]` `[evidence_level: code_verified, confidence: exact, evidence_source: git grep finds BNNSGraphService in no file but BNNSGraphService.swift, whose functions sit at :54, 108, 191, 249, 275; the live vector maths calls vDSP directly at BNNSVectorDatabase.swift:365, 376, 536 and RAGEngine.swift:251; corrected 2026-09-29 from an entry that presented it as in use]`
 
 **Expert's expert.** The bank's GPU-profile entry is right: the profile gates the vector-search GPU path, and module 06 has the three conditions. So is the bank's "Performance profile moves sufficiently large searches to GPU": a search over 1,000 or more vectors goes to the GPU only under Performance or Maximum, with a Metal device present. Until 2026-09-29 this paragraph said the opposite of both and called it a correction, although the switch has been in `BNNSVectorDatabase.search` since `fcb61d2` (2026-07-15). "Metal Performance Shaders" appears as a concept; the kernels in `GPUComputeService` are custom Metal functions, so treat MPS as infrastructure vocabulary rather than a distinct code path. Unified memory is why the mmap-to-Metal handoff is near-zero-copy and also why Vision, Core ML and the vector store compete inside one process budget, which is what the throttle, the buffer pool and the memory-warning listener are for. `[evidence_level: code_verified, confidence: exact, evidence_source: BNNSVectorDatabase.swift:501-507; DeviceCapabilityService.swift:923-934, 950]`
 
@@ -2462,10 +2462,10 @@ Forty-four concepts. The power manager and the janitor: how hard the device may 
 - **Dot-connector:** continued tasks carry user-started work through backgrounding; maintenance waits for power and hours.
 - **Expert:** five identifiers registered in `OpenIntelligenceApp` on iOS; index maintenance 4 h and external power; Spotlight 2 h; refresh 30 min.
 
-### BNNSGraphService (Dormant, verified: in the source, called by nothing; listed as Core until 2026-09-29) and vDSP (Core, verified) and Unified memory (Core, verified)
+### BNNSGraphService (Dormant, verified: in the source, called by nothing; listed as Core until 2026-09-29; removed in 5.7 on 2026-10-20) and vDSP (Core, verified) and Unified memory (Core, verified)
 - **Idiot:** the fast-maths library on the CPU, and the reason the GPU can read the same memory.
 - **Dot-connector:** normalisation, matrix cosine, softmax, RRF arithmetic and pairwise similarity on Accelerate, in a service nothing calls, while the live vector maths calls vDSP directly; unified memory enables near-zero-copy handoffs and means everything competes for one budget.
-- **Expert:** `BNNSGraphService`, unused; `vDSP_dotpr`, `vDSP_mmul`; `MTLResourceOptions.storageModeShared`.
+- **Expert:** `BNNSGraphService`, unused and removed in 5.7 on 2026-10-20; `vDSP_dotpr`, `vDSP_mmul`; `MTLResourceOptions.storageModeShared`.
 
 ### Core ML compute units (Core, verified) and Neural Engine (Core as a request, not a placement)
 - **Idiot:** the list of chips the model is allowed to use; Apple picks.
@@ -2532,7 +2532,7 @@ Twenty-five concepts, plus the ones this pass added. The blueprint shelf: things
 
 **Dot-connector.** Two shorthands in particular collapse real structure. "Single 29-step pipeline" hides that execution branches by file type, intent, mode, evidence, device state and route; teach a shared spine with conditional sub-pipelines. "Single recursive thought loop" hides that planning, iterative retrieval, recursive multi-session RAG, critique-and-refine and deterministic verification are five different mechanisms; teach them separately, then reconnect them in sequence, which is what modules 07, 08, 11 and 12 do.
 
-**Expert.** Verified this pass: `FoundationModelDynamicProfileRegistry` had no active call sites until `f26dc5b` (2026-09-11) made it opt-in, off by default; `SemanticChunker`'s embedding-based boundary method returns no boundaries because the chunker is never handed an `EmbeddingService`; `ExtractiveQAService`'s span model returns nil; `AppleFMEmbeddingProvider` declares 1,024 dimensions and is a placeholder; `SpeechAnalyzerService` is guarded by `canImport(SpeechAnalyzer)`, a module that does not exist, and calls an API shape the SDK does not declare; `Docs/SHIPPED_CAPABILITIES.json` recorded PCC as absent from shipped builds until 2026-09-10 and has recorded it as shipping since 5.2 (build 451); `AutoTuneService` operates outside the live answer path and does not train models. Historical items are recorded in `CHANGELOG.md`, `RELEASE_NOTES.md`, `HOW_IT_WORKS.md` and `PROGRESSION.md` with dated withdrawals. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:8810-8814, 9578-9583, AgenticOrchestrator.swift:8964-8965, ModelConfigurationSheet.swift:35, 85, 176-177; f26dc5b and 0da8528 are in v5.3.0 and v5.4.0; corrected 2026-09-29 from "has no active call sites"]` `[evidence_level: artifact_derived+code_verified, confidence: high, evidence_source: Docs/SHIPPED_CAPABILITIES.json private_cloud_compute (status shipping, flipped 2026-09-10 at build 451); ci_scripts/ci_post_xcodebuild.sh:93, 107-118; FoundationModelSessionFactory.swift:87-88; FoundationModelRoutePolicy.swift:121-132; corrected 2026-09-29 from "records PCC as absent from shipped builds" and, in the rung above, "compiled out of shipped builds"]`
+**Expert.** Verified this pass: `FoundationModelDynamicProfileRegistry` had no active call sites until `f26dc5b` (2026-09-11) made it opt-in, off by default; `SemanticChunker`'s embedding-based boundary method returns no boundaries because the chunker is never handed an `EmbeddingService`; `ExtractiveQAService`'s span model returns nil (the file was removed in 5.7 on 2026-10-20: nothing referenced it); `AppleFMEmbeddingProvider` declares 1,024 dimensions and is a placeholder; `SpeechAnalyzerService` is guarded by `canImport(SpeechAnalyzer)`, a module that does not exist, and calls an API shape the SDK does not declare; `Docs/SHIPPED_CAPABILITIES.json` recorded PCC as absent from shipped builds until 2026-09-10 and has recorded it as shipping since 5.2 (build 451); `AutoTuneService` operates outside the live answer path and does not train models (removed in 5.7 on 2026-10-20: nothing referenced it). Historical items are recorded in `CHANGELOG.md`, `RELEASE_NOTES.md`, `HOW_IT_WORKS.md` and `PROGRESSION.md` with dated withdrawals. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:8810-8814, 9578-9583, AgenticOrchestrator.swift:8964-8965, ModelConfigurationSheet.swift:35, 85, 176-177; f26dc5b and 0da8528 are in v5.3.0 and v5.4.0; corrected 2026-09-29 from "has no active call sites"]` `[evidence_level: artifact_derived+code_verified, confidence: high, evidence_source: Docs/SHIPPED_CAPABILITIES.json private_cloud_compute (status shipping, flipped 2026-09-10 at build 451); ci_scripts/ci_post_xcodebuild.sh:93, 107-118; FoundationModelSessionFactory.swift:87-88; FoundationModelRoutePolicy.swift:121-132; corrected 2026-09-29 from "records PCC as absent from shipped builds" and, in the rung above, "compiled out of shipped builds"]`
 
 **Expert's expert.** Additions to the historical list from the trace: the `.cpuAndGPU` Maximum profile that excluded the Neural Engine (fixed 2026-08-26); the `NSImage.lockFocus` macOS render path that produced 4× oversize images (replaced by a bitmap context); the 0.98 Maximum verification bar (now 0.80); the 0.55 `tauNormal` (now 0.40); the transcript-carrying reasoning chain that overflowed at 4,521 tokens (replaced by the FactBank); the reorder stride of half the chunks-per-session (now equal); the hardcoded 0.70 audit similarity. And a correction to the bank itself: "fixed 384-dimensional architecture" is listed as a historical oversimplification, which is right, but in practice every shipping library is 384 unless someone chose an NL provider, so say "384 by default, resolved per library."
 
@@ -2558,10 +2558,10 @@ Twenty-five concepts, plus the ones this pass added. The blueprint shelf: things
 - **Dot-connector:** a policy-calibrated trust signal, never validated against outcomes.
 - **Expert:** `ConfidenceCalibrationService`; `EVALS.md`.
 
-### Automatic online self-training (Historical, verified) and AutoTuneService (Support, verified)
+### Automatic online self-training (Historical, verified) and AutoTuneService (Support, verified; removed in 5.7 on 2026-10-20: nothing referenced it)
 - **Idiot:** the app does not learn from your documents by retraining.
 - **Dot-connector:** it adjusts policy and thresholds from evaluation data under constraints; the embedding and reranker models are never trained on user content.
-- **Expert:** `AutoTuneService` outside the live path; `EmbeddingService` never fine-tunes.
+- **Expert:** `AutoTuneService` outside the live path (removed in 5.7 on 2026-10-20); `EmbeddingService` never fine-tunes.
 
 ### Bundled Core ML generative backend (Historical, verified), Local GGUF backend (Historical, verified), Local MLX generative backend (Historical, verified)
 - **Idiot:** three writers that were fired.
@@ -2606,7 +2606,7 @@ Twenty-five concepts, plus the ones this pass added. The blueprint shelf: things
 ### Neural extractive QA model (Dormant, verified)
 - **Idiot:** the reader on the shelf.
 - **Dot-connector:** protocol and stub exist; heuristic extraction runs instead.
-- **Expert:** `ExtractiveQAService` returns nil.
+- **Expert:** `ExtractiveQAService` returns nil. `ExtractiveQAService` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### PCC simulation (Historical, documented) and Production PCC (Conditional, verified; Dormant until 5.2)
 - **Idiot:** older phones don't pretend to use the cloud, and shipped builds have had the real cloud route since 5.2, for iOS and macOS 27; before 2026-09-10 they didn't.

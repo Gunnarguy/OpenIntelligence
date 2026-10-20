@@ -16415,20 +16415,30 @@ class RAGService: ObservableObject {
 
                     var sourceLockedFinalResponse = false
                     if answerIntentIsExtractive || isPrecisionValueQuery(question),
-                        let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+                        let extractiveOverride = await highPrecisionLookupOverride(
                             question: question,
                             answerIntent: answerIntent,
                             retrievedChunks: generationRetrievedChunks
                         )
                     {
-                        sourceLockedFinalResponse = true
                         let normalizedLLM = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let normalizedOverride = extractiveOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if normalizedLLM != normalizedOverride {
+                        let normalizedOverride = extractiveOverride.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+                        // The model's answer stands when it already states the value the extractor found (5.7):
+                        // it can answer the rest of the question, and the gates check it. On 2026-10-19 "What is
+                        // the harbor lantern code, and where is it kept?" had its answer replaced by the
+                        // extractor's text, which began mid-word and left out where the code is kept.
+                        if Self.answerStates(value: extractiveOverride.value, in: normalizedLLM) {
                             Log.info(
-                                "[ExtractiveQA] Overriding lookup response with direct source extraction",
+                                "[ExtractiveQA] Kept the model's answer: it states the extracted value \"\(extractiveOverride.value)\"",
                                 category: .retrieval)
-                            responseText = normalizedOverride
+                        } else {
+                            sourceLockedFinalResponse = true
+                            if normalizedLLM != normalizedOverride {
+                                Log.info(
+                                    "[ExtractiveQA] Overriding lookup response with direct source extraction",
+                                    category: .retrieval)
+                                responseText = normalizedOverride
+                            }
                         }
                     }
 
@@ -20083,6 +20093,17 @@ class RAGService: ObservableObject {
         answerIntent: AnswerIntent,
         retrievedChunks: [RetrievedChunk]
     ) async -> String? {
+        await highPrecisionLookupOverride(
+            question: question, answerIntent: answerIntent, retrievedChunks: retrievedChunks)?.answer
+    }
+
+    /// The direct answer an extracted value gives, and the value itself (5.7: the value, so a caller holding the
+    /// model's answer can tell whether that answer already states it).
+    private func highPrecisionLookupOverride(
+        question: String,
+        answerIntent: AnswerIntent,
+        retrievedChunks: [RetrievedChunk]
+    ) async -> (answer: String, value: String)? {
         guard !retrievedChunks.isEmpty else { return nil }
         guard !isConceptualLookupQuery(question) else { return nil }
 
@@ -20138,14 +20159,40 @@ class RAGService: ObservableObject {
         let answerSpan = enrichedPrecisionAnswerSpan(for: result)
 
         if let label = result.matchedLabel, !label.isEmpty {
-            return "\(label): \(answerSpan). \(result.citation)"
+            return ("\(label): \(answerSpan). \(result.citation)", result.answerSpan)
         }
 
         if isPrecisionValueQuery(question) || result.specificationType == "Measurement" {
-            return "\(answerSpan). \(result.citation)"
+            return ("\(answerSpan). \(result.citation)", result.answerSpan)
         }
 
-        return result.formattedAnswer
+        // The sentence that holds the value, whole (5.7). `formattedAnswer` used the extractor's window of
+        // characters around the value, which can start mid-word and stop at the value: on 2026-10-19 it gave
+        // "e harbor the crew measured 3163 units … the harbor lantern code is VERMILION-4417" for a row that goes
+        // on ", kept in the blue ledger."
+        if let line = Self.valueLine(result.answerSpan, in: result.sourceChunk.chunk) {
+            return ("\(Self.readableValueLine(line)) \(result.citation)", result.answerSpan)
+        }
+        return (result.formattedAnswer, result.answerSpan)
+    }
+
+    /// Whether an answer already states a value, ignoring case and spacing (5.7).
+    nonisolated static func answerStates(value: String, in answer: String) -> Bool {
+        func squeezed(_ text: String) -> String { text.lowercased().filter { !$0.isWhitespace } }
+        let wanted = squeezed(value)
+        return !wanted.isEmpty && squeezed(answer).contains(wanted)
+    }
+
+    /// A table row's line as a sentence (5.7): "ROW 19: The final instruction | the code is X." reads
+    /// "The final instruction: the code is X.". Other lines are returned trimmed.
+    nonisolated static func readableValueLine(_ line: String) -> String {
+        var text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let row = text.range(of: #"^ROW \d+:\s*"#, options: .regularExpression) {
+            text.removeSubrange(row)
+            if let bar = text.range(of: " | ") { text.replaceSubrange(bar, with: ": ") }
+            text = text.replacingOccurrences(of: " | ", with: ", ")
+        }
+        return text
     }
 
     /// Whether an extracted value is about what the question asks (5.7, roadmap row "Regex extraction

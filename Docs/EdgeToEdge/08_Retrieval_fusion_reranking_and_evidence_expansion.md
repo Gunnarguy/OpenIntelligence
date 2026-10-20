@@ -93,7 +93,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Extractive QA (Conditional, verified as the heuristic path)
 - **Idiot:** copy the answer out instead of writing one.
 - **Dot-connector:** the value must exist in the source, which kills a whole class of hallucination.
-- **Expert:** `ExtractiveQAService` heuristic scorer plus `SpecificationExtractor`; the neural span model is a stub.
+- **Expert:** `ExtractiveQAService` heuristic scorer plus `SpecificationExtractor`; the neural span model is a stub. `ExtractiveQAService` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Extractive summarization (Conditional, verified)
 - **Idiot:** pick the best sentences rather than writing new ones.
@@ -113,7 +113,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Heuristic extractive QA (Conditional, verified)
 - **Idiot:** the rule-based copy-out that actually runs.
 - **Dot-connector:** keyword overlap, entity types, proximity, passage rank, question type.
-- **Expert:** `ExtractiveQAService` when the span model is unavailable, which is always.
+- **Expert:** `ExtractiveQAService` when the span model is unavailable, which is always. `ExtractiveQAService` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Hybrid search (Core, verified)
 - **Idiot:** both searches, then merge.
@@ -153,7 +153,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Maximal marginal relevance (Core, verified), MMR lambda (Core, verified), Redundancy penalty (Core, verified), Pairwise similarity matrix (Support, verified)
 - **Idiot:** don't pick five cards that say the same thing; the dial says how much variety to insist on.
 - **Dot-connector:** greedy selection: relevance minus the max similarity to anything already chosen; lower lambda means more variety; the matrix precomputes the similarities.
-- **Expert:** `RAGEngine`; λ 0.60/0.55/0.50; matrix on Metal above 50 candidates when the profile allows and a GPU exists, else each similarity is computed on the CPU with vDSP as candidates are picked, inside `RAGEngine.applyMMR`; `BNNSGraphService.pairwiseSimilarityMatrix` exists but nothing calls it. Until 2026-09-29 this line named `BNNSGraphService` as the CPU path. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:155-160, 213-219, 247-258; BNNSGraphService.swift:275; git grep finds BNNSGraphService in no file but its own]`
+- **Expert:** `RAGEngine`; λ 0.60/0.55/0.50; matrix on Metal above 50 candidates when the profile allows and a GPU exists, else each similarity is computed on the CPU with vDSP as candidates are picked, inside `RAGEngine.applyMMR`; `BNNSGraphService.pairwiseSimilarityMatrix` existed but nothing called it, and the file was removed in 5.7 on 2026-10-20. Until 2026-09-29 this line named `BNNSGraphService` as the CPU path. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:155-160, 213-219, 247-258; BNNSGraphService.swift:275; git grep finds BNNSGraphService in no file but its own]`
 
 ### Metadata boost (Core, verified)
 - **Idiot:** extra credit for headings, names, tables, numbers.
@@ -173,7 +173,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Neural start/end span model (Dormant, verified as a stub)
 - **Idiot:** a reader that's on the blueprint shelf.
 - **Dot-connector:** would find exact answer spans; the placeholder returns nil.
-- **Expert:** `ExtractiveQAService` protocol and template; never active.
+- **Expert:** `ExtractiveQAService` protocol and template; never active. `ExtractiveQAService` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Parallel retrieval arms (Core, verified)
 - **Idiot:** both helpers run at once.
@@ -198,7 +198,7 @@ Sixty concepts. Finding the evidence: two searches in parallel, one merged ranki
 ### Reciprocal rank fusion (Core, verified) and RRF constant k (Core, verified)
 - **Idiot:** points for being near the top of either pile.
 - **Dot-connector:** ranks are comparable across arms; scores aren't. k smooths the top positions.
-- **Expert:** sum over lists of 1/(k + rank), k exactly 60, each list weighted by the fusion weights (0.50/0.50 by default, 0.35 to 0.65 after the intent delta); `HybridSearchService` through `RAGEngine.reciprocalRankFusion`; `BNNSGraphService` holds an unweighted version. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:963, 995, 1006; HybridSearchService.swift:297, 1189; BNNSGraphService.swift:249-259; corrected 2026-09-29 from "weighted 0.7/0.3"]`
+- **Expert:** sum over lists of 1/(k + rank), k exactly 60, each list weighted by the fusion weights (0.50/0.50 by default, 0.35 to 0.65 after the intent delta); `HybridSearchService` through `RAGEngine.reciprocalRankFusion`; `BNNSGraphService` held an unweighted version until the file was removed in 5.7 on 2026-10-20 (nothing referenced it). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:963, 995, 1006; HybridSearchService.swift:297, 1189; BNNSGraphService.swift:249-259; corrected 2026-09-29 from "weighted 0.7/0.3"]`
 
 ### Rerank batch size (Core, verified) and Rerank score (Core, verified) and Reranker tokenizer (Core, verified)
 - **Idiot:** how many pairs the smart reader takes at once, the score it gives, and its own ruler.

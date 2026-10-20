@@ -6,7 +6,9 @@
 //  Philosophy: Simple UI, intelligent analysis behind the scenes.
 //
 
-#if os(iOS)
+// Debug builds only (5.7): the live camera is experimental and held back (the owner, 2026-09-13: it "should probably
+// wait"), so Release builds compile none of it. `ChatScreen.visionCaptureAction` has the reasons.
+#if os(iOS) && DEBUG
 import AVFoundation
 import Combine
 import SwiftUI

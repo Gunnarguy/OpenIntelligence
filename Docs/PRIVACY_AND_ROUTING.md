@@ -371,6 +371,11 @@ generation parameters only removes that coupling.
 
 `[evidence_level: code_verified, confidence: high, evidence_source: FoundationModelDynamicProfileRegistry.swift applyingAdaptiveProfile replaces maxTokens; RAGService.makePostRetrievalModelPlan passes outputReserve: max(128, config.maxTokens); ModelExecutionPlanner sends to PCC when !localBudget.fits]`
 
+**Settings are not written (2026-10-20).** `InferenceConfig.applyingAdaptiveProfile` returns a copy and writes nothing to
+`UserDefaults` (`AdaptiveInferenceProfileTests.testApplyingAProfileWritesNothingToUserDefaults`). `AutoTuneService`, which
+wrote the same two settings back into `UserDefaults` and had no caller, was removed in 5.7 that day.
+`[evidence_level: code_verified, confidence: high, evidence_source: FoundationModelDynamicProfileRegistry.swift applyingAdaptiveProfile; AdaptiveInferenceProfileTests.swift; grep for AutoTuneService]`
+
 
 ## A reasoning profile you write yourself (added 2026-09-11)
 

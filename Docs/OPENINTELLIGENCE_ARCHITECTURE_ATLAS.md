@@ -106,7 +106,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 
 ## 5. View/ViewModel Map
 - SwiftUI Views use `@EnvironmentObject` and `@AppStorage` heavily for dependency injection and state sharing.
-- `EvidenceThreadDebugView`: Standalone SwiftUI view for Evidence Threads local store diagnostics.
+- `EvidenceThreadDebugView`: Standalone SwiftUI view for Evidence Threads local store diagnostics (removed in 5.7 on 2026-10-20: nothing referenced it).
 - **User-facing vocabulary is single-sourced in `UI/Components/Glossary.swift`.** 24 terms, each defined in a
   `plain` and a `technical` register, keyed by `GlossaryTermID` with definitions returned from one exhaustive
   `switch`, so lookup is compile-time total and returns no optional. Consumers attach a definition rather than
@@ -308,7 +308,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 Until 5.1 the flag was set from the operating system alone in `RAGService.checkDeviceCapabilities`
 ("iOS 18.1+ has Apple Intelligence, so it has PCC"), which is true of every device that can run the
 app and says nothing about whether the binary contains the routing. Four screens read it as the
-latter: `HowItWorksView.leavingExplanation`, the About capability list, `ModelInfoCard`, and the
+latter: `HowItWorksView.leavingExplanation`, the About capability list, `ModelInfoCard` (removed in 5.7 on 2026-10-20: nothing referenced it), and the
 Settings PCC window row, so every 5.0 and 5.1 build on iOS 26 told users the app would ask before
 sending a request, while all twelve `#if compiler(>=6.4)` sites were compiled out. The flag is now
 `DeviceCapabilities.pccRoutingCompiledIn && iOSMajor >= 27`, where `pccRoutingCompiledIn` is a
@@ -763,9 +763,9 @@ Three properties of the design, each load-bearing:
    every question asked in that mode. The intent distinguishes a value lookup from an
    investigation, which is the distinction that matters for sampling.
 2. **It is pure.** `applyingAdaptiveProfile` returns a modified copy and writes nothing.
-   `AutoTuneService` adjusts the same two settings by persisting them into `UserDefaults`, which
-   overwrites what the owner set by hand and is not undone by turning the feature off. It has zero
-   call sites and should keep them.
+   `AutoTuneService` adjusted the same two settings by persisting them into `UserDefaults`, which
+   overwrites what the owner set by hand and is not undone by turning the feature off. It had zero
+   call sites and was removed in 5.7 on 2026-10-20.
 3. **It reaches every mode, by two different routes.** *Corrected 2026-09-11; it reached Standard
    only when first written.* On the Standard path the gate sits **below** the `if useAgentic`
    return and mutates `inferenceConfig` directly. Deep Think and Maximum leave before that point

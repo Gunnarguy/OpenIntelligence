@@ -6,10 +6,9 @@
   "purpose": "Sets similarity thresholds, confidence filters and candidate limits for each query at run time.",
   "revision": "7025657",
   "verified_on": "2026-10-09",
-  "entry_points": ["AgenticPolicyService", "EvidenceScoringPolicyService", "RetrievalPolicyService", "ConfidencePolicyService", "AutoTuneService"],
+  "entry_points": ["AgenticPolicyService", "EvidenceScoringPolicyService", "RetrievalPolicyService", "ConfidencePolicyService"],
   "files": [
     {"path": "OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift", "role": "primary", "blob": "a69243a13b26fdbcd370aa4362af7815833330f5"},
-    {"path": "OpenIntelligence/Services/RAG/Tuning/AutoTuneService.swift", "role": "primary", "blob": "57230dde8500940b237742810f5993aea1f88ab4"},
     {"path": "OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift", "role": "primary", "blob": "74b1f660d727a82ac537a74abad2a8be991f2f84"},
     {"path": "OpenIntelligence/Services/RAG/Tuning/EvidenceScoringPolicyService.swift", "role": "primary", "blob": "e083a300d88812f3a30f47930a1f188d3ad65a52"},
     {"path": "OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift", "role": "primary", "blob": "44e2cf1feacbbad27b1c797bdc841b5577f889f7"},
@@ -34,7 +33,6 @@
     {"id": "ConfidencePolicyService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift", "line": 20, "match": "enum ConfidencePolicyService {", "status": "VERIFIED", "by": "build"},
     {"id": "VerificationConfig", "kind": "model", "path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 78, "match": "struct VerificationConfig: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "QueryConfidencePolicy", "kind": "model", "path": "OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift", "line": 11, "match": "struct QueryConfidencePolicy: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "AutoTuneService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Tuning/AutoTuneService.swift", "line": 11, "match": "enum AutoTuneService {", "status": "VERIFIED", "by": "build"},
     {"id": "test:CitationGroundingTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
     {"id": "test:AbsenceAssertionTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Tuning/AbsenceAssertionTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
     {"id": "test:ExtractiveEvidenceOrderingTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Tuning/ExtractiveEvidenceOrderingTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
@@ -59,8 +57,8 @@
   "docs": [],
   "unknowns": [],
   "related": ["hybrid-retrieval-and-fusion", "quality-modes-and-agentic-orchestrator", "query-understanding-and-rewriting", "rag-orchestration-core", "verification-gates-and-safety"],
-  "entries": ["OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift::AgenticPolicyService", "OpenIntelligence/Services/RAG/Tuning/EvidenceScoringPolicyService.swift::EvidenceScoringPolicyService", "OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift::RetrievalPolicyService", "OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift::ConfidencePolicyService", "OpenIntelligence/Services/RAG/Tuning/AutoTuneService.swift::AutoTuneService"],
+  "entries": ["OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift::AgenticPolicyService", "OpenIntelligence/Services/RAG/Tuning/EvidenceScoringPolicyService.swift::EvidenceScoringPolicyService", "OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift::RetrievalPolicyService", "OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift::ConfidencePolicyService"],
   "owns": ["OpenIntelligence/Services/RAG/Tuning/**"],
   "decisions": [],
-  "traps": []
+  "traps": ["AutoTuneService.swift was removed in 5.7 on 2026-10-20: nothing referenced it."]
 }

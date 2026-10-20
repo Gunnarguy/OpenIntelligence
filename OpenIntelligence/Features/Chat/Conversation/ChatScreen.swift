@@ -667,13 +667,15 @@ struct ChatScreen: View {
         // iOS only: `CameraVisionOverlayView` is inside `#if os(iOS)` and has no macOS equivalent.
         // `NSCameraUsageDescription` is set via INFOPLIST_KEY in the project, so the permission
         // prompt has copy to show.
-        #if os(iOS)
+        #if os(iOS) && DEBUG
             .fullScreenCover(isPresented: $showVisionCapture) {
                 CameraVisionOverlayView(
                     ragService: ragService,
                     containerService: ragService.containerService
                 )
             }
+        #endif
+        #if os(iOS)
             .fullScreenCover(isPresented: $showDocumentScanner) {
                 SystemDocumentScanner(
                     onScan: { scan in
@@ -3260,7 +3262,7 @@ struct ChatScreen: View {
                     self.generatingStartTS = nil
                     self.generatingElapsedFinal = nil
                     self.continuedQueryCoordinator.markEmbedding()
-                    // StatusPillV2 shows stage - no toast needed
+                    // UnifiedMetricsBar, or the answer's bubble with details off, shows the stage - no toast needed
                     DSHaptics.processingPulse()  // Feel the pipeline starting
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -3276,7 +3278,7 @@ struct ChatScreen: View {
                         self.embeddingElapsedFinal = Date().timeIntervalSince(embStart)
                     }
                     self.continuedQueryCoordinator.markSearching()
-                    // StatusPillV2 shows stage - no toast needed
+                    // UnifiedMetricsBar, or the answer's bubble with details off, shows the stage - no toast needed
                     DSHaptics.processingPulse()  // Feel the search starting
                 }
 
@@ -3335,7 +3337,7 @@ struct ChatScreen: View {
                         self.searchingElapsedFinal = genStart.timeIntervalSince(searchStart)
                     }
                     self.continuedQueryCoordinator.markGenerating()
-                    // StatusPillV2 shows stage - no toast needed
+                    // UnifiedMetricsBar, or the answer's bubble with details off, shows the stage - no toast needed
                     DSHaptics.messageReceived()  // Feel the response starting
                 }
 

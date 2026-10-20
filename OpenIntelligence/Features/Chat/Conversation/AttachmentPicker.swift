@@ -350,18 +350,21 @@ struct AttachmentMenuButton: View {
                     Label("Take Photo", systemImage: "camera.fill")
                 }
 
-                // Vision Capture - Advanced camera with live OCR and document detection
-                if let onVisionCapture = onVisionCapture {
-                    Divider()
+                // Vision Capture - Advanced camera with live OCR and document detection. Debug builds only
+                // (5.7), as the camera screen it opens is.
+                #if DEBUG
+                    if let onVisionCapture = onVisionCapture {
+                        Divider()
 
-                    Button(action: onVisionCapture) {
-                        // Not a document scanner. It opens a live view that names what the camera
-                        // is looking at: objects, text, faces, animals, the scene as a whole.
-                        // "Scan Document" described one of the things it can do and set the wrong
-                        // expectation for all the rest.
-                        Label("Look at Something", systemImage: "camera.viewfinder")
+                        Button(action: onVisionCapture) {
+                            // Not a document scanner. It opens a live view that names what the camera
+                            // is looking at: objects, text, faces, animals, the scene as a whole.
+                            // "Scan Document" described one of the things it can do and set the wrong
+                            // expectation for all the rest.
+                            Label("Look at Something", systemImage: "camera.viewfinder")
+                        }
                     }
-                }
+                #endif
             }
         } label: {
             Image(systemName: "paperclip")

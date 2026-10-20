@@ -8,7 +8,6 @@
   "verified_on": "2026-10-15",
   "entry_points": ["QueryRewriterService", "HyDEService", "QueryComplexityAnalyzer", "QueryExecutionPlannerService", "QueryRouterService", "QueryEnhancementService"],
   "files": [
-    {"path": "OpenIntelligence/Services/Query/Analysis/GroundedAnswerPolicy.swift", "role": "primary", "blob": "ee215134bddba79c4a7cf4795a60d51b03a3ae56"},
     {"path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "role": "primary", "blob": "7424e5795011c9924f68e909ea872bffffaf9e94"},
     {"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "role": "primary", "blob": "211c5b8cba480480fa6453ed094e14580c1dad7d"},
     {"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "role": "primary", "blob": "64185644c8896c2f39d88b08239d21fb7fca7fdc"},
@@ -81,7 +80,6 @@
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [
-      {"id": "GroundedAnswerPolicy", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/GroundedAnswerPolicy.swift", "line": 8, "match": "struct GroundedAnswerPolicy: Sendable {", "status": "VERIFIED"},
       {"id": "QueryProfile", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 12, "match": "struct QueryProfile: Sendable {", "status": "VERIFIED"},
       {"id": "QueryProfileService", "kind": "service", "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 57, "match": "final class QueryProfileService {", "status": "VERIFIED"},
       {"id": "SpecificationExtractionResult", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 38, "match": "struct SpecificationExtractionResult: Sendable {", "status": "VERIFIED"},
@@ -99,7 +97,6 @@
       {"id": "test:LibraryAnalysisScaleBenchmarkTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Storage/LibraryAnalysisScaleBenchmarkTests.swift", "line": 61, "match": "final class LibraryAnalysisScaleBenchmarkTests: XCTestCase {", "status": "VERIFIED"}
     ],
     "edges": [
-      {"from": "GroundedAnswerPolicy", "type": "depends_on", "to": "AnswerIntent", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/GroundedAnswerPolicy.swift", "line": 9, "match": "let answerIntent: AnswerIntent"}]},
       {"from": "QueryExecutionPlan", "type": "depends_on", "to": "QueryProfile", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 27, "match": "let profile: QueryProfile"}]},
       {"from": "QueryExecutionPlannerService", "type": "depends_on", "to": "QueryProfile", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 69, "match": "profile: QueryProfile? = nil,"}]},
       {"from": "QueryExecutionPlannerService", "type": "depends_on", "to": "QueryProfileService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 77, "match": "resolvedProfile = await QueryProfileService.shared.buildProfile(for: query, routingEnabled: false)"}]},

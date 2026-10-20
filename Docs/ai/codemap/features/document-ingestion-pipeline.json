@@ -19,7 +19,6 @@
     {"path": "OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift", "role": "primary", "blob": "048ae6d6305722cfd56b2114b7d001d420c2d3f3"},
     {"path": "OpenIntelligence/Services/Document/Processing/StreamingXMLProcessor.swift", "role": "primary", "blob": "8ddc98122519210cfd59083541061a53afd94e01"},
     {"path": "OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift", "role": "primary", "blob": "ee6ac4672f367ce60acd6a378e55786ff3938a1e"},
-    {"path": "OpenIntelligence/Services/Document/Processing/VisualCaptioningService.swift", "role": "primary", "blob": "067be7f6d2898fe4f4b240836bd260fef749f732"},
     {"path": "OpenIntelligence/UI/Components/IngestionQueueOverlay.swift", "role": "primary", "blob": "38a0cf7f19ed5531b6ac33219574f57d144e33cf"},
     {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "role": "shared", "blob": "b5cc8cfb135ef430500672c18ce18a5203fe7db1"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "role": "shared", "blob": "005fe4f5682c58c9686e0343be2c7e13a79580cc"},

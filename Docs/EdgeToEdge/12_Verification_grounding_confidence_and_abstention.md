@@ -63,7 +63,7 @@ Forty concepts. The nine checks: deterministic gates that decide whether the gen
 ### Evidence-first mode (Core, verified) and Source-only verification (Core, verified) and SourceOnlyAnswerService (Core, verified)
 - **Idiot:** the sources are the boss; the writer only rearranges them.
 - **Dot-connector:** reverses generate-then-find-citations; the answer must be reconstructible from source sentences; when generation fails, an extractive answer beats a guess.
-- **Expert:** resolved before generation by `GroundedAnswerPolicy`; `SourceOnlyAnswerService` builds or validates from source sentences and may replace a failed generative answer before abstention.
+- **Expert:** resolved before generation by `GroundedAnswerPolicy`; `SourceOnlyAnswerService` builds or validates from source sentences and may replace a failed generative answer before abstention. `GroundedAnswerPolicy` was removed in 5.7 on 2026-10-20: nothing referenced it.
 
 ### Fidelity (Core, verified), Source-Locked (Core, verified), Partially Supported (Core, verified), Not Enough Evidence (Core, verified)
 - **Idiot:** the badge: fully backed, partly backed, not enough.

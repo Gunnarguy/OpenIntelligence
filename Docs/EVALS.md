@@ -377,7 +377,7 @@ self-authored fixture flatters the thing it measures.
 Two user-facing strings advertise **extractive QA**: the Standard quality-mode description
 ("Full pipeline with verification gates, graph context & extractive QA") and `AboutView`
 ("Apple Foundation Models or extractive QA"). Step 5.10 Extractive QA is disabled in code, and
-`ExtractiveQAService` has no call sites outside its own file. That looks conclusive, and it is
+`ExtractiveQAService` has no call sites outside its own file (the file was removed in 5.7 on 2026-10-20 for that reason; neither string was changed). That looks conclusive, and it is
 deliberately **not** being changed here: this repository has already deleted one true claim on
 exactly that reasoning. Run `oi-claim-audit` before touching either string.
 

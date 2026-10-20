@@ -7,6 +7,8 @@
 
 > This replaces the first audio guide. The first version compressed the architecture too aggressively and omitted named systems, including RAPTOR-lite. This version is generated from the complete 612-entry manifest, and it retains explicit status, sequencing, code anchors, and caveats for every term.
 
+> **Note added 2026-10-20.** Nine components this guide names were removed in 5.7 on 2026-10-20 because nothing referenced them: `AdapterManager`, `AutoTuneService`, `BNNSGraphService`, `ContextUsageIndicator`, `ExtractiveQAService`, `GroundedAnswerPolicy`, `RetrievalSourcesTray`, `TimingBreakdownView` and `VisualCaptioningService`. What it says about them describes the code checked on August 27, 2026.
+
 ---
 
 # How to Listen

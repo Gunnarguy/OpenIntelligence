@@ -19,8 +19,7 @@
     {"path": "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift", "role": "primary", "blob": "9216e029933de9adcfa08614aa50ccdb00ff40fc"},
     {"path": "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift", "role": "primary", "blob": "8bcf1dada76d2fd51780e66a368ed38ccb58539a"},
     {"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift", "role": "primary", "blob": "86c28e9c6831177aa03e7109b30e890a28608435"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift", "role": "primary", "blob": "81ffbf7b714c6fcffd2020c40afbd49d1a54b4f7"},
-    {"path": "OpenIntelligence/Features/Telemetry/Diagnostics/NLChunkingDiagnosticsView.swift", "role": "primary", "blob": "14465bec84d81be6540b5537898fcde56ed868b9"}
+    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift", "role": "primary", "blob": "81ffbf7b714c6fcffd2020c40afbd49d1a54b4f7"}
   ],
   "nodes": [
     {"id": "DeveloperDiagnosticsHubView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 10, "match": "struct DeveloperDiagnosticsHubView: View {", "status": "VERIFIED", "by": "build"},

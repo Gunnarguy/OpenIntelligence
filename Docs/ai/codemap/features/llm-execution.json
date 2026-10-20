@@ -21,11 +21,6 @@
  ],
  "files": [
   {
-   "path": "OpenIntelligence/Services/LLM/AdapterManager.swift",
-   "role": "primary",
-   "blob": "b2f202ed97da9e3578bbb057df1b00831b0568a1"
-  },
-  {
    "path": "OpenIntelligence/Services/LLM/LLMService.swift",
    "role": "primary",
    "blob": "f92a6c05e9b1a4c84c5b99a0f22bb6a45ff3106b"
@@ -1165,6 +1160,6 @@
  "decisions": [],
  "traps": [
   "LocalOpenAIServerLLMService.swift is compiled out (#if false at lines 14 and 330).",
-  "No other Swift file names AdapterManager (grep, 2026-09-28): check before building on it."
+  "No other Swift file named AdapterManager (grep, 2026-09-28), and AdapterManager.swift was removed in 5.7 on 2026-10-20."
  ]
 }

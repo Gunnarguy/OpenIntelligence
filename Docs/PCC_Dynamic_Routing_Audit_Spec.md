@@ -128,7 +128,7 @@ Locate and inspect every relevant implementation, including but not limited to:
 - ModelResolutionService.swift
 - ModelStatusIndicator.swift
 - UnifiedMetricsBar.swift
-- PCCRouteEvaluator.swift
+- PCCRouteEvaluator.swift (removed in 5.7 on 2026-10-20: nothing referenced it)
 - EntitlementChecker
 - FoundationModelTokenBudget
 - FoundationModelTranscriptStore

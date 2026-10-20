@@ -35,7 +35,7 @@ Sixty-two concepts. Choosing which model answers, building the session, and gene
 - **Dot-connector:** fallback, availability and route policy make them differ; a picker label is not proof.
 - **Expert:** `LLMModelType` for selection; resolution state observes settings and `RAGService` and updates the UI.
 
-### AdapterManager (Support, verified)
+### AdapterManager (Support, verified; removed in 5.7 on 2026-10-20: nothing referenced it)
 - **Idiot:** the adapter that picks a model backend.
 - **Dot-connector:** decouples the engine from one implementation; carries legacy transitions.
 - **Expert:** resolves an `LLMService` before execution.

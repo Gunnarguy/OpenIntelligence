@@ -3,12 +3,11 @@
   "id": "hardware-compute-acceleration",
   "name": "Hardware Compute Acceleration",
   "aliases": ["GPU compute service", "Metal buffer pool", "BNNS graph service", "adaptive pipeline optimizer"],
-  "purpose": "Runs vector math on the GPU with Metal and on BNNS compute graphs.",
+  "purpose": "Runs vector math on the GPU with Metal.",
   "revision": "0e9728e",
   "verified_on": "2026-09-28",
-  "entry_points": ["GPUComputeService", "BNNSGraphService", "AdaptivePipelineOptimizer"],
+  "entry_points": ["GPUComputeService", "AdaptivePipelineOptimizer"],
   "files": [
-    {"path": "OpenIntelligence/Services/Infrastructure/Compute/BNNSGraphService.swift", "role": "primary", "blob": "27aefb825aa10171a0a71185d86119f297a01767"},
     {"path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift", "role": "primary", "blob": "7a3284a98e691185645345b372f7e1b0a7c98557"},
     {"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "role": "primary", "blob": "0ba4a4a367d3eaa9ecdf2fd32443be2b98b6fc48"}
   ],
@@ -17,7 +16,6 @@
     {"id": "RAGEngine.applyMMR", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift", "line": 131, "match": "func applyMMR(", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.init", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1667, "match": "init(", "status": "VERIFIED", "by": "build"},
     {"id": "BNNSVectorDatabase.gpuCompute", "kind": "model", "path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 58, "match": "private var gpuCompute: GPUComputeService?", "status": "VERIFIED", "by": "build"},
-    {"id": "BNNSGraphService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Compute/BNNSGraphService.swift", "line": 27, "match": "final class BNNSGraphService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "HardwareTelemetryReporter.pulse", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 962, "match": "nonisolated static func pulse(", "status": "VERIFIED", "by": "build"},
     {"id": "HardwareTelemetryReporter.reportGPUCompute", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 1009, "match": "nonisolated static func reportGPUCompute(operation: HardwareActivityType = .vectorSimilarity) {", "status": "VERIFIED", "by": "build"},
     {"id": "AdaptivePipelineOptimizer", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 268, "match": "final class AdaptivePipelineOptimizer: ObservableObject {", "status": "VERIFIED", "by": "build"},
@@ -38,8 +36,6 @@
     {"from": "RAGEngine.applyMMR", "type": "depends_on", "to": "GPUComputeService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift", "line": 154, "match": "let gpuCompute = await MainActor.run { GPUComputeService.shared }"}], "by": "build", "note": "named there"},
     {"from": "RAGService.init", "type": "depends_on", "to": "GPUComputeService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1823, "match": "let gpuService = GPUComputeService.shared"}], "by": "build", "note": "named there"},
     {"from": "BNNSVectorDatabase.gpuCompute", "type": "depends_on", "to": "GPUComputeService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 58, "match": "private var gpuCompute: GPUComputeService?"}], "by": "build", "note": "named there"},
-    {"from": "BNNSGraphService", "type": "calls", "to": "HardwareTelemetryReporter.pulse", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Compute/BNNSGraphService.swift", "line": 63, "match": "HardwareTelemetryReporter.pulse(.metalCompute, intensity: 0.7, duration: 0.2)"}], "by": "build", "note": "named in the body"},
-    {"from": "BNNSGraphService", "type": "calls", "to": "HardwareTelemetryReporter.reportGPUCompute", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Compute/BNNSGraphService.swift", "line": 120, "match": "HardwareTelemetryReporter.reportGPUCompute(operation: .vectorSimilarity)"}], "by": "build", "note": "named in the body"},
     {"from": "AdaptivePipelineOptimizer", "type": "calls", "to": "AdaptivePipelineConfig.adjusted", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 303, "match": ".adjusted(for: level)"}], "by": "build", "note": "named in the body"},
     {"from": "SystemStateMonitor.captureState", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift", "line": 485, "match": "let optimizer = AdaptivePipelineOptimizer.shared"}], "by": "build", "note": "named there"},
     {"from": "QueryRuntimeCoordinator.resolveContext", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift", "line": 233, "match": "let adaptiveConfig = AdaptivePipelineOptimizer.shared.configForQuery(complexity: queryComplexity)"}], "by": "build", "note": "named there"},
@@ -48,8 +44,8 @@
   "docs": [],
   "unknowns": [],
   "related": ["rag-orchestration-core", "silicon-hud-and-telemetry", "vector-database-storage"],
-  "entries": ["OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift::GPUComputeService", "OpenIntelligence/Services/Infrastructure/Compute/BNNSGraphService.swift::BNNSGraphService", "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift::AdaptivePipelineOptimizer"],
+  "entries": ["OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift::GPUComputeService", "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift::AdaptivePipelineOptimizer"],
   "owns": ["OpenIntelligence/Services/Infrastructure/Compute/**", "OpenIntelligence/Services/Infrastructure/Optimization/**"],
   "decisions": [],
-  "traps": []
+  "traps": ["BNNSGraphService.swift, the BNNS and vDSP service this slice also named, was removed in 5.7 on 2026-10-20: nothing referenced it."]
 }

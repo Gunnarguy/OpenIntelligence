@@ -171,7 +171,8 @@ and the website all carry it and must move together.
   **That override no longer runs.** `highPrecisionLookupOverrideAnswer` is inside the commented-out
   Step 5.10 block, so nothing forces an extractive attempt and no query bypasses generation. What
   remains is real but different in kind, and the distinction matters: `GroundedAnswerPolicy`
-  still computes `deterministicExtraction` from intent and query signals, and `ModelExecutionPlanner`
+  still computes `deterministicExtraction` from intent and query signals (2026-10-20: nothing called it, and
+  `GroundedAnswerPolicy.swift` was removed in 5.7), and `ModelExecutionPlanner`
   still routes to a `.deterministic` target when evidence `requiresExactExtraction` and carries no
   contradictions — but `.deterministic` is grouped with `.onDevice` at every execution branch, so it
   selects a **local route**, not a generation bypass. Exact-value precision is now pursued at

@@ -98,7 +98,8 @@ grep of the Xcode 27 SDK .swiftinterface files; ExtractiveQAService.swift:112-22
   declared here as shims and are now Apple SDK types. A type is called removed only after the SDK
   interfaces and `.build/checkouts` are searched for it.
 - Comments are stripped before a use is counted. `BertTokenizer` survives in live code only inside a <!-- verify-doc-claims: ignore -->
-  commented-out block. A doc that presents it as the current tokenizer is flagged; one that calls it
+  commented-out block (2026-10-20: that block's file, `ExtractiveQAService.swift`, was removed in 5.7, so the
+  name is now in comments only). A doc that presents it as the current tokenizer is flagged; one that calls it
   legacy or replaced in the same sentence is not. The context is the sentence, not the paragraph: a
   paragraph-wide window let an unrelated "Replaced" excuse an example file that never existed.
 - `RAGService+Streaming.swift`: the `+` belongs to the file name, so a match never starts after it.

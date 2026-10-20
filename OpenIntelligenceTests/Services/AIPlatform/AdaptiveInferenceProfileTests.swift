@@ -123,9 +123,10 @@ import XCTest
         }
 
         func testApplyingAProfileWritesNothingToUserDefaults() {
-            // `AutoTuneService` adjusts the same two settings by writing them back into
+            // `AutoTuneService` adjusted the same two settings by writing them back into
             // `UserDefaults`, which silently overwrites what the owner set by hand and survives
-            // turning the feature off. It has zero call sites and this test is why.
+            // turning the feature off. It had zero call sites and was removed in 5.7 on 2026-10-20;
+            // this test keeps the profile path from doing the same.
             let defaults = UserDefaults.standard
             let temperatureBefore = defaults.object(forKey: "llmTemperature")
             let tokensBefore = defaults.object(forKey: "llmMaxTokens")

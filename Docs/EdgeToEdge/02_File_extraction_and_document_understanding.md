@@ -210,7 +210,7 @@ Fifty-two concepts. This is the reading room: getting the words, tables and pict
 - **Dot-connector:** Vision and Metal race, exhaust command buffers and destabilise memory when launched without bounds.
 - **Expert:** an actor-based semaphore sized once, at first use, by `DeviceCapabilityService.visionOperationConcurrency` (2 to 8 by chip, or 1 if first used during CPU-only background ingestion), with a 1 to 6 ms cooldown between operations. `[evidence_level: code_verified, confidence: exact, evidence_source: VisionOCRThrottle.swift:100-109, 159, 169; DeviceCapabilityService.swift:412-466; corrected 2026-09-29 from "2 to 64 by tier", the range of visionParsingConcurrency, the page pipeline ahead of the throttle]`
 
-### Visual evidence source (Conditional, verified) and VisualCaptioningService (Conditional, verified)
+### Visual evidence source (Conditional, verified) and VisualCaptioningService (Conditional, verified; removed in 5.7 on 2026-10-20: nothing referenced it)
 - **Idiot:** a picture can be evidence too, and the app says which picture.
 - **Dot-connector:** captions bridge images into text retrieval; the provenance object keeps the caption tied to the real region so it can't pass as prose.
 - **Expert:** `VisualEvidenceSource` in the response model and `VisualEvidenceCard` in the UI; captioning after image understanding, before embedding.

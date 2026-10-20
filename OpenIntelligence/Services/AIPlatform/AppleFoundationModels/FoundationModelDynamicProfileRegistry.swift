@@ -116,10 +116,11 @@ import Foundation
         /// A copy of this config with the intent's generation profile applied.
         ///
         /// Pure: it returns a new value and writes nothing. That matters because the obvious
-        /// alternative already exists in this repository and is wrong. `AutoTuneService` adjusts the
+        /// alternative existed in this repository and was wrong. `AutoTuneService` adjusted the
         /// same settings by writing them back into `UserDefaults`, which silently overwrites numbers
         /// the owner chose by hand in the Model Parameters sheet and cannot be undone by turning the
-        /// feature off. It has zero call sites, and it should keep them.
+        /// feature off. It had zero call sites and was removed in 5.7 on 2026-10-20; nothing should
+        /// write a profile back into settings that way.
         ///
         /// Applying a profile replaces `temperature` and `maxTokens` outright rather than clamping to
         /// what the sheet holds. Clamping would make the feature do nothing for anyone who had
