@@ -2777,7 +2777,7 @@ class RAGService: ObservableObject {
             let queryTerms = extractQueryTerms(query)
 
             for (idx, chunk) in chunks.prefix(10).enumerated() {
-                let content = chunk.chunk.parentContent ?? chunk.chunk.content
+                let content = chunk.chunk.contextText
                 let preview = String(content.prefix(120)).replacingOccurrences(of: "\n", with: " ")
                 let score = String(format: "%.3f", chunk.similarityScore)
                 let page = chunk.pageNumber.map { "p.\($0)" } ?? "?"
@@ -3479,7 +3479,7 @@ class RAGService: ObservableObject {
         var adjustedAny = false
 
         let boosted = chunks.map { candidate -> (chunk: RetrievedChunk, structured: Bool) in
-            let content = candidate.chunk.parentContent ?? candidate.chunk.content
+            let content = candidate.chunk.contextText
             let lowerContent = content.lowercased()
             let metadata = candidate.chunk.metadata
             let sectionKeywords = Self.trustedSectionKeywordSet(
@@ -3793,7 +3793,7 @@ class RAGService: ObservableObject {
                 let page = lead.pageNumber.map { " p.\($0)" } ?? ""
                 label = "[S\(1 + labelOffset)]\(sectionTag) \(lead.sourceDocument)\(page)"
             }
-            var body = (lead.chunk.parentContent ?? lead.chunk.content).trimmingCharacters(in: .whitespacesAndNewlines)
+            var body = lead.chunk.contextText.trimmingCharacters(in: .whitespacesAndNewlines)
             let room = maxChars * 3 / 5 - label.count - 1
             if body.count > room {
                 let head = room > 0 ? String(body.prefix(room)) : ""
@@ -3982,7 +3982,7 @@ class RAGService: ObservableObject {
             // The leading passage is in already, whole.
             if leadEntry != nil && chunkIdx == 0 { continue }
 
-            let content = candidate.chunk.parentContent ?? candidate.chunk.content
+            let content = candidate.chunk.contextText
             let source = candidate.sourceDocument
             let page = candidate.pageNumber
 
@@ -5637,7 +5637,7 @@ class RAGService: ObservableObject {
     }
 
     private func suggestedQuestionSampleContent(for chunk: DocumentChunk) -> String {
-        let combined = [chunk.contextualPrefix, chunk.parentContent ?? chunk.content]
+        let combined = [chunk.contextualPrefix, chunk.contextText]
             .compactMap { value -> String? in
                 let cleaned = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 return cleaned.isEmpty ? nil : cleaned
@@ -8542,7 +8542,7 @@ class RAGService: ObservableObject {
     /// it demonstrably came from the current pipeline. Never overwrites an existing fingerprint: a
     /// store that already held vectors may hold two populations, and that is exactly the case the
     /// staleness check exists to flag.
-    private func stampEmbeddingFingerprintIfAbsent(for containerId: UUID) {
+    func stampEmbeddingFingerprintIfAbsent(for containerId: UUID) {
         guard var container = containerService.containers.first(where: { $0.id == containerId }),
             container.embeddingFingerprint == nil
         else { return }
@@ -11593,6 +11593,9 @@ class RAGService: ObservableObject {
         }
 
         let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
+        // A question an action asks (Siri, Shortcuts) of a library with no documents is answered with that, not by the
+        // model alone (5.7); see the no-documents branch below.
+        let asksForAnAction = await MainActor.run { asksThroughRelay }
 
         let selectedContainer = await MainActor.run {
             self.containerService.containers.first { $0.id == selectedId }
@@ -13400,7 +13403,7 @@ class RAGService: ObservableObject {
                         let specThreshold = 5  // Minimum spec pattern score to rescue
 
                         for chunk in droppedChunks {
-                            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+                            let content = chunk.chunk.contextText
                             let specScore = countSpecPatterns(content)
 
                             // Also check for table structure (specs often in tables)
@@ -14565,7 +14568,7 @@ class RAGService: ObservableObject {
                     let preCorrectiveTopSim = contextCandidates.first?.similarityScore ?? 0
                     let hadStructuredEvidence = contextCandidates.prefix(5).contains { candidate in
                         looksTableLike(
-                            text: candidate.chunk.parentContent ?? candidate.chunk.content,
+                            text: candidate.chunk.contextText,
                             structureType: candidate.chunk.metadata.structureType
                         )
                     }
@@ -14608,7 +14611,7 @@ class RAGService: ObservableObject {
                             let postCorrectiveTopSim = correctedCandidates.first?.similarityScore ?? 0
                             let hasStructuredEvidence = correctedCandidates.prefix(5).contains { candidate in
                                 looksTableLike(
-                                    text: candidate.chunk.parentContent ?? candidate.chunk.content,
+                                    text: candidate.chunk.contextText,
                                     structureType: candidate.chunk.metadata.structureType
                                 )
                             }
@@ -14806,7 +14809,7 @@ class RAGService: ObservableObject {
                         for kw in queryKeywords {
                             var count = 0
                             for c in contextCandidates {
-                                let text = (c.chunk.parentContent ?? c.chunk.content).lowercased()
+                                let text = c.chunk.contextText.lowercased()
                                 if text.contains(kw) { count += 1 }
                             }
                             freq[kw] = count
@@ -14825,8 +14828,8 @@ class RAGService: ObservableObject {
                     }
 
                     let byPriority = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
-                        let aContent = a.chunk.parentContent ?? a.chunk.content
-                        let bContent = b.chunk.parentContent ?? b.chunk.content
+                        let aContent = a.chunk.contextText
+                        let bContent = b.chunk.contextText
                         let aPriority = EvidenceScoringPolicyService.extractivePriorityScore(
                             content: aContent,
                             queryKeywords: discriminativeKeywords,
@@ -16944,8 +16947,12 @@ class RAGService: ObservableObject {
                     )
                 }
             } else {
-                // No documents case
-                if !allowUngroundedFallback {
+                // No documents case. An action's question never gets the direct chat below (5.7): its answer goes back
+                // as "Ask My Documents" or "Ask a Library", and one written by the model alone would read as if it came
+                // from the library. `reliabilityModeEnabled` is on by default, so through the first 5.7 builds an
+                // action asking an empty library got the model's own answer; `ShortcutsActionTests` found it on
+                // 2026-10-19 ("Direct chat mode" in the trace).
+                if !allowUngroundedFallback || asksForAnAction {
                     let response = await makeGroundedAbstainResponse(
                         question: question,
                         ragQuery: ragQueryValue,
@@ -20235,7 +20242,7 @@ class RAGService: ObservableObject {
     }
 
     private func stateLookupCandidatePriority(_ chunk: RetrievedChunk, query: String) -> Int {
-        let content = (chunk.chunk.parentContent ?? chunk.chunk.content).lowercased()
+        let content = chunk.chunk.contextText.lowercased()
         var score = 0
 
         if EvidenceScoringPolicyService.satisfiesStateLookupAnchors(query: query, content: content) {
@@ -20267,7 +20274,7 @@ class RAGService: ObservableObject {
         let base = result.answerSpan.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !base.isEmpty, !base.contains("(") else { return base }
 
-        let content = result.sourceChunk.chunk.parentContent ?? result.sourceChunk.chunk.content
+        let content = result.sourceChunk.chunk.contextText
         guard let baseRange = content.range(of: base) else { return base }
 
         let suffix = String(content[baseRange.upperBound...].prefix(40))
@@ -21899,7 +21906,7 @@ extension RAGService: RAGToolHandler {
 
             func projectedTokenCost(_ chunk: DocumentChunk) -> Int {
                 FoundationModelTokenBudget.estimateTokens(
-                    charsCount: (chunk.parentContent ?? chunk.content).count,
+                    charsCount: chunk.contextText.count,
                     isAppleFMOnDevice: true
                 )
             }

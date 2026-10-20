@@ -330,6 +330,10 @@ extension RAGService {
         syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
         noteStreamedImportFinished(in: activeContainerId)
         await saveDocumentsToDisk()
+        // A library this import filled from empty: its embedding fingerprint, as in `importLargePDFStreamed` (5.7).
+        if let stored = try? await db.count(), stored == state.committed.totalChunks {
+            stampEmbeddingFingerprintIfAbsent(for: activeContainerId)
+        }
 
         // The document is in the catalog. The pieces, the checkpoint and the kept text go now,
         // before the questions, which can take a while and are not worth a restart.

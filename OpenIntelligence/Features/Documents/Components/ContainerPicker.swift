@@ -242,14 +242,6 @@ struct ContainerPill: View {
         .accessibilityValue(accessibilityBadge)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onSelect() }
-        // One `glassEffect` with the glass picked by value, not `glassEffectHelper`, whose `if`s make the chip a
-        // different view in each state (5.7). A chip is a reorderable row on iOS and macOS 27, and when a view-builder
-        // branch, an `if #available` or an `AnyView` holds all of a row's content, even under other modifiers such as
-        // the `contextMenu` below, SwiftUI starts the drag with no id for it and stops the app in `DragContainerStorage.payload(for:)` ("Unexpected identifier type. Expected UUID, got
-        // UUID": its cast of the dragged id fails because the id is nil). Measured 2026-10-19 in the iOS 27.0
-        // Simulator with a probe app: each of those around the chip crashed the drag, and one glass call, a branch
-        // around the count alone, or one around the name alone reordered the chips.
-        .glassEffect(isSelected ? .regular.tint(containerColor).interactive() : .regular.interactive(), in: Capsule())
         // Press-and-hold is `.contextMenu`, not a manual `onLongPressGesture` plus a
         // confirmation dialog, and that is a behaviour fix rather than a style preference.
         //
@@ -268,6 +260,10 @@ struct ContainerPill: View {
         //
         // This block was already the macCatalyst implementation. It is now the only one, so
         // both platforms present the same actions in the same order.
+        //
+        // The menu goes on before the glass (5.7). With `glassEffect` applied outside `.contextMenu`, interactive or
+        // not, a long press opened nothing: measured 2026-10-19 in the iOS 27.0 Simulator with a probe app, where the
+        // same chip without the glass, or with the menu applied first, opened its menu, and still reordered.
         .contextMenu {
             Button {
                 onSelect()
@@ -314,6 +310,14 @@ struct ContainerPill: View {
                 }
             }
         }
+        // One `glassEffect` with the glass picked by value, not `glassEffectHelper`, whose `if`s make the chip a
+        // different view in each state (5.7). A chip is a reorderable row on iOS and macOS 27, and when a view-builder
+        // branch, an `if #available` or an `AnyView` holds all of a row's content, even under other modifiers such as
+        // the `contextMenu` above, SwiftUI starts the drag with no id for it and stops the app in `DragContainerStorage.payload(for:)` ("Unexpected identifier type. Expected UUID, got
+        // UUID": its cast of the dragged id fails because the id is nil). Measured 2026-10-19 in the iOS 27.0
+        // Simulator with a probe app: each of those around the chip crashed the drag, and one glass call, a branch
+        // around the count alone, or one around the name alone reordered the chips.
+        .glassEffect(isSelected ? .regular.tint(containerColor).interactive() : .regular.interactive(), in: Capsule())
     }
 }
 

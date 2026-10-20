@@ -1395,7 +1395,7 @@ class HybridSearchService {
         guard EvidenceScoringPolicyService.isStateLookupQuery(query), !results.isEmpty else { return results }
 
         let adjusted = results.map { result -> RetrievedChunk in
-            let content = result.chunk.parentContent ?? result.chunk.content
+            let content = result.chunk.contextText
             let adjustment = EvidenceScoringPolicyService.stateLookupAnchorAdjustment(
                 query: query,
                 content: content,

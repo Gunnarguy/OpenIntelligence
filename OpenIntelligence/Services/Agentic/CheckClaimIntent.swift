@@ -107,7 +107,7 @@ nonisolated enum ClaimCheck {
         let passage = resolved ?? chunks.first
         var negationDiffers = false
         if let passage, verdict != .unsupported,
-            let sentence = Self.matchingSentence(for: claim, in: passage.chunk.parentContent ?? passage.chunk.content)
+            let sentence = Self.matchingSentence(for: claim, in: passage.chunk.contextText)
         {
             negationDiffers = Self.negationDiffers(claim, sentence)
             if negationDiffers, verdict == .supported { verdict = .partial }
@@ -126,7 +126,7 @@ nonisolated enum ClaimCheck {
         let wanted = contentWords(claim)
         guard !wanted.isEmpty else { return 1 }
         let held = chunks.reduce(into: Set<String>()) { held, chunk in
-            held.formUnion(contentWords(chunk.chunk.parentContent ?? chunk.chunk.content))
+            held.formUnion(contentWords(chunk.chunk.contextText))
         }
         return Double(wanted.intersection(held).count) / Double(wanted.count)
     }

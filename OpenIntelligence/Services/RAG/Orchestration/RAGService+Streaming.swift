@@ -254,6 +254,14 @@ extension RAGService {
         
         // Synchronously save document metadata to disk before yielding/generating suggested questions
         await saveDocumentsToDisk()
+
+        // A library this import filled from empty was built by the current pipeline, so its embedding fingerprint is
+        // recorded, as the whole-file path records it (5.7). Without it the library's first question read the missing
+        // fingerprint as vectors of unknown age and asked for a rebuild (`resolveEmbeddingContext`): seen on 2026-10-19
+        // in the iOS 27.0 Simulator for a library whose first document was a PDF over 10 MB.
+        if let stored = try? await db.count(), stored == totalChunks {
+            await MainActor.run { self.stampEmbeddingFingerprintIfAbsent(for: activeContainerId) }
+        }
         
         // Generate suggested questions for the document using its ingested chunks
         await MainActor.run {

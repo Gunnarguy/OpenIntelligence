@@ -457,7 +457,7 @@ final class SourceOnlyAnswerService {
         }
         // Amounts of money and dates the evidence contradicts, read with Apple's detector (5.7, `DetectedValueCheck`).
         let detectedEvidence = await DetectedValueCheck.evidence(
-            from: evidenceRecords.map { $0.chunk.chunk.parentContent ?? $0.chunk.chunk.content })
+            from: evidenceRecords.map { $0.chunk.chunk.contextText })
         var verifiedClaims: [SourceOnlyVerifiedClaim] = []
         for claim in draft.claims {
             let contradiction = await DetectedValueCheck.contradictions(
@@ -666,7 +666,7 @@ final class SourceOnlyAnswerService {
         snippetLimit: Int = SourceOnlyAnswerService.maxSnippetChars
     ) -> [EvidenceRecord] {
         Array(chunks.prefix(Self.maxEvidenceRecords)).enumerated().map { index, chunk in
-            let snippet = String((chunk.chunk.parentContent ?? chunk.chunk.content)
+            let snippet = String(chunk.chunk.contextText
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .prefix(max(1, snippetLimit)))
             return EvidenceRecord(
@@ -866,7 +866,7 @@ final class SourceOnlyAnswerService {
             notes.append(note)
         }
 
-        let citedTexts = validLabels.compactMap { mappedEvidence[$0]?.chunk.chunk.parentContent ?? mappedEvidence[$0]?.chunk.chunk.content }
+        let citedTexts = validLabels.compactMap { mappedEvidence[$0]?.chunk.chunk.contextText }
         let combinedEvidenceText = citedTexts.joined(separator: "\n")
         if validLabels.isEmpty {
             verdict = .unsupported
@@ -1034,7 +1034,7 @@ final class SourceOnlyAnswerService {
 
         let scored = claim.evidenceLabels.compactMap { label -> (label: String, score: Float)? in
             guard let record = evidenceMap[label] else { return nil }
-            let candidateText = record.chunk.chunk.parentContent ?? record.chunk.chunk.content
+            let candidateText = record.chunk.chunk.contextText
             let overlap = lexicalOverlap(claim: claimText, evidenceTexts: [candidateText])
             let normalizedClaim = normalize(claimText)
             let normalizedEvidence = normalize(candidateText)

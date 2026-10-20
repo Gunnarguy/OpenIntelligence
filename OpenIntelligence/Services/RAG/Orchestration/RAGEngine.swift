@@ -285,7 +285,7 @@ actor RAGEngine {
             if Task.isCancelled { break }
 
             builder += "[Document Chunk \(index + 1), Similarity: \(String(format: "%.3f", retrieved.similarityScore))]\n"
-            builder += retrieved.chunk.parentContent ?? retrieved.chunk.content
+            builder += retrieved.chunk.contextText
 
             if index != chunks.count - 1 {
                 builder += "\n\n---\n\n"
@@ -410,7 +410,7 @@ actor RAGEngine {
 
             // TOC/Boilerplate Detection Penalty
             // Table-of-contents chunks have many section numbers but little actual content
-                let contentForPenalty = r.chunk.parentContent ?? r.chunk.content
+                let contentForPenalty = r.chunk.contextText
                 let tocPenalty = computeTOCPenalty(content: contentForPenalty)
                 let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
                 let bibliographyPenalty = Self.computeBibliographyPenalty(content: contentForPenalty)
@@ -573,7 +573,7 @@ actor RAGEngine {
 
             // Sanitize content to help Apple FM's language detector
             // URLs and special Unicode can confuse it into detecting wrong languages
-            let rawContent = r.chunk.parentContent ?? r.chunk.content
+            let rawContent = r.chunk.contextText
 
             // Include contextual prefix (document title/author) in final context
             // This ensures author-based queries like "What did X find?" work correctly
@@ -1605,7 +1605,7 @@ actor RAGEngine {
                 let rawBottom = scoredChunks.last?.score ?? 0
                 Log.debug("[RAGEngine] AI Re-ranking: raw \(String(format: "%.2f", rawBottom))→\(String(format: "%.2f", rawTop)), normalized \(String(format: "%.2f", bottom.score))→\(String(format: "%.2f", top.score))", category: .retrieval)
                 // Log top chunk preview for debugging retrieval quality
-                let previewSource = top.chunk.chunk.parentContent ?? top.chunk.chunk.content
+                let previewSource = top.chunk.chunk.contextText
                 let preview = String(previewSource.prefix(150)).replacingOccurrences(of: "\n", with: " ")
                 Log.debug("[RAGEngine] Top chunk preview: \(preview)...", category: .retrieval)
             }
@@ -1613,7 +1613,7 @@ actor RAGEngine {
             // Apply TOC/boilerplate penalty after cross-encoder scoring
             // This demotes table-of-contents chunks that match keywords but lack actual content
             let penalizedScored = normalizedScored.map { item -> (chunk: RetrievedChunk, score: Float) in
-                let contentForPenalty = item.chunk.chunk.parentContent ?? item.chunk.chunk.content
+                let contentForPenalty = item.chunk.chunk.contextText
                 let tocPenalty = computeTOCPenalty(content: contentForPenalty)
                 let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
                 let bibliographyPenalty = Self.computeBibliographyPenalty(content: contentForPenalty)

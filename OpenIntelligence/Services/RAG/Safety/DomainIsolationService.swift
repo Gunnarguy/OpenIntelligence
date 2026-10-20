@@ -338,7 +338,7 @@ enum DomainIsolationService {
     }
 
     private nonisolated static func buildChunkEvidenceText(_ chunk: RetrievedChunk) -> String {
-        var parts: [String] = [chunk.chunk.parentContent ?? chunk.chunk.content]
+        var parts: [String] = [chunk.chunk.contextText]
         if let title = chunk.chunk.metadata.sectionTitle {
             parts.append(title)
         }

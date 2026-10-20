@@ -166,7 +166,7 @@ nonisolated enum CitationLinker {
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count >= 4 && !($0.first == "s" && $0.dropFirst().allSatisfy(\.isNumber)) }
         guard !words.isEmpty else { return 0 }
-        let content = (chunk.chunk.parentContent ?? chunk.chunk.content).lowercased()
+        let content = chunk.chunk.contextText.lowercased()
         return Set(words).reduce(0) { $0 + (content.contains($1) ? 1 : 0) }
     }
 }

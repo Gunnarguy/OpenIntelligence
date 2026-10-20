@@ -122,7 +122,7 @@ nonisolated enum SessionEvidencePlan {
     /// extraction reads. Neighbouring chunks' parent passages can overlap; whole chunks keep that
     /// repeat, where extraction removed duplicate sentences.
     static func text(of chunk: RetrievedChunk) -> String {
-        chunk.chunk.parentContent ?? chunk.chunk.content
+        chunk.chunk.contextText
     }
 }
 

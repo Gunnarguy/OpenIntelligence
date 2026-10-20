@@ -373,7 +373,7 @@ actor VerificationGateService {
         let corpus = buildCorpus(from: chunks)
         let numericEvidence = Self.numericEvidence(from: chunks)
         // Amounts of money and dates the passages contradict, read with Apple's detector (5.7, `DetectedValueCheck`).
-        let detectedEvidence = await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.parentContent ?? $0.chunk.content })
+        let detectedEvidence = await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.contextText })
         var claimResults: [RAGVerificationResult.ClaimResult] = []
         for claimInput in claimInputs {
             let contradiction = await DetectedValueCheck.contradictions(
@@ -458,7 +458,7 @@ actor VerificationGateService {
         // "€1,200" against "$1,200", and "March 15" against any 15 in the passages.
         let detected = await DetectedValueCheck.contradictions(
             in: response,
-            evidence: await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.parentContent ?? $0.chunk.content }))
+            evidence: await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.contextText }))
 
         let verification = Float(verifiedCount) / Float(responseNumbers.count)
         let passed = verification >= 0.70 && detected.isEmpty
@@ -505,7 +505,7 @@ actor VerificationGateService {
     }
 
     private static func numericEvidence(from chunks: [RetrievedChunk]) -> [NumericValueExtractor.Evidence] {
-        NumericValueExtractor.evidence(from: chunks.map { $0.chunk.parentContent ?? $0.chunk.content })
+        NumericValueExtractor.evidence(from: chunks.map { $0.chunk.contextText })
     }
 
     /// Gate D: Contradiction Sweep
@@ -1152,7 +1152,7 @@ actor VerificationGateService {
     }
 
     private func evidenceText(for chunk: RetrievedChunk) -> String {
-        var parts: [String] = [chunk.chunk.parentContent ?? chunk.chunk.content]
+        var parts: [String] = [chunk.chunk.contextText]
         if let sectionTitle = chunk.chunk.metadata.sectionTitle {
             parts.append(sectionTitle)
         }
@@ -1491,7 +1491,7 @@ actor VerificationGateService {
 
     private func buildCorpus(from chunks: [RetrievedChunk]) -> String {
         chunks.map { chunk -> String in
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = chunk.chunk.contextText
             return content.lowercased()
         }.joined(separator: " ")
     }
@@ -1587,7 +1587,7 @@ actor VerificationGateService {
         if verdict == .supported,
             let passage = supportingChunks.first,
             let sentence = ClaimCheck.matchingSentence(
-                for: claimText, in: passage.chunk.parentContent ?? passage.chunk.content),
+                for: claimText, in: passage.chunk.contextText),
             ClaimCheck.negationDiffers(claimText, sentence)
         {
             verdict = .partial
@@ -1673,7 +1673,7 @@ actor VerificationGateService {
         let claimTokens = keywordTokens(from: claim)
 
         let scored = retrievedChunks.map { chunk -> (RetrievedChunk, Float) in
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = chunk.chunk.contextText
             let contentTokens = keywordTokens(from: content)
             let overlapCount = claimTokens.intersection(contentTokens).count
             let overlapScore = claimTokens.isEmpty ? 0 : Float(overlapCount) / Float(max(claimTokens.count, 1))
@@ -1713,7 +1713,7 @@ actor VerificationGateService {
     private func claimSupportConfidence(for claim: String, evidence: [RetrievedChunk]) -> Float {
         guard !evidence.isEmpty else { return 0.0 }
         let topEvidence = evidence[0]
-        let content = topEvidence.chunk.parentContent ?? topEvidence.chunk.content
+        let content = topEvidence.chunk.contextText
         let claimTokens = keywordTokens(from: claim)
         let contentTokens = keywordTokens(from: content)
         let overlap = claimTokens.isEmpty ? 0 : Float(claimTokens.intersection(contentTokens).count) / Float(max(claimTokens.count, 1))

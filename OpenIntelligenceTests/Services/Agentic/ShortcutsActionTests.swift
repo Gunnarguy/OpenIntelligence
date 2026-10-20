@@ -12,6 +12,7 @@
 
 import AppIntents
 import PDFKit
+import UniformTypeIdentifiers
 import XCTest
 
 @testable import OpenIntelligence
@@ -197,5 +198,239 @@ final class ShortcutsActionTests: XCTestCase {
         let text = try XCTUnwrap(PDFDocument(data: file.data)?.string, "the file is not a PDF")
         XCTAssertTrue(text.contains("When is the zephyrine deposit due?"), text)
         XCTAssertTrue(text.contains("Before moving in."), text)
+    }
+
+    // MARK: - Roadmap checks, 2026-10-19
+
+    /// Answers after a wait long enough for the system to stop the question first.
+    private final class SlowModel: LLMService {
+        var toolHandler: RAGToolHandler?
+        var isAvailable: Bool { true }
+        var modelName: String { "Slow stand-in" }
+        func generate(prompt: String, context: String?, config: InferenceConfig) async throws -> LLMResponse {
+            try await Task.sleep(for: .seconds(30))
+            return LLMResponse(
+                text: "Too late.", tokensGenerated: 2, timeToFirstToken: 30, totalTime: 30, modelName: modelName,
+                toolCallsMade: 0)
+        }
+    }
+
+    /// Puts the app on a paid plan for the rest of the test: the free plan allows one library and five documents.
+    private func onAPaidPlan() {
+        let key = "entitlement.activeTier"
+        let saved = UserDefaults.standard.object(forKey: key)
+        UserDefaults.standard.set(WorkspaceTier.pro.rawValue, forKey: key)
+        addTeardownBlock { UserDefaults.standard.set(saved, forKey: key) }
+    }
+
+    /// Waits, at most three minutes, until `names` are all documents of `library` with passages.
+    private func imported(_ names: [String], in library: UUID) async throws -> [Document] {
+        let engine = IntentSupport.engine()
+        var found: [Document] = []
+        for _ in 0..<1_800 {
+            found = engine.documents.filter {
+                $0.containerId == library && names.contains($0.filename) && $0.totalChunks > 0
+            }
+            if found.count == names.count { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        return found
+    }
+
+    /// "Ask About a Document" keeps to the document it names (roadmap row 3f449a74d54f81c0963bc125ccabbb33): two
+    /// notes in one library disagree about the same deposit, and asked about each, every passage the answer rests on
+    /// is that note's. The action asks the same way (`AskDocumentIntent.perform`).
+    func testAskAboutADocumentRestsOnlyOnThatDocument() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        let first = try await addNote("The larkspur deposit for the test flat is 500 dollars, paid before moving in.")
+        let second = try await addNote("The larkspur deposit for the test flat is 900 dollars, paid before moving in.")
+        let model = StandInModel(answer: "The larkspur deposit is in the note.")
+        AskActionRunner.makeEngine = { RAGService(llmService: model) }
+        addTeardownBlock { @MainActor in AskActionRunner.makeEngine = { RAGService() } }
+
+        for (named, other) in [(first, second), (second, first)] {
+            let outcome = try await AskActionRunner.ask(
+                "How much is the larkspur deposit?", mode: .standard, topK: 6, documentIds: [named.id])
+            let sources = outcome.response.retrievedChunks.map(\.chunk.documentId)
+            XCTAssertFalse(sources.isEmpty, "the question about \(named.filename) rested on no passage")
+            XCTAssertTrue(
+                sources.allSatisfy { $0 == named.id },
+                "asked about \(named.filename), the answer rested on \(Set(sources).count) document(s)")
+            XCTAssertFalse(sources.contains(other.id), "a passage of \(other.filename) was used")
+        }
+    }
+
+    /// A question the system stops ends within seconds and says which stop it was (roadmap row
+    /// 3f449a74d54f812aadb2d2db3578b35a). The model here would take 30 seconds; the stop comes after half a second,
+    /// as the system's own does through `AskControl`.
+    func testAStoppedQuestionEndsAndSaysWhy() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        _ = try await addNote("The corrigan gate in the test flat's yard is painted green and locks at ten.")
+        AskActionRunner.makeEngine = { RAGService(llmService: SlowModel()) }
+        addTeardownBlock { @MainActor in AskActionRunner.makeEngine = { RAGService() } }
+
+        for (reason, said) in [
+            ("cancelled", "The question was stopped."),
+            ("timeout", "The question was stopped because it ran too long in the background."),
+        ] {
+            let control = AskControl(progress: Progress())
+            let started = Date()
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                control.cancel(because: reason)
+            }
+            do {
+                _ = try await AskActionRunner.ask(
+                    "Summarize what the note says about the corrigan gate.", mode: .standard, control: control)
+                XCTFail("a stopped question (\(reason)) handed back an answer")
+            } catch {
+                XCTAssertEqual((error as? OIIntentError)?.message, said, "\(error)")
+            }
+            let took = Date().timeIntervalSince(started)
+            XCTAssertLessThan(took, 10, "stopped for \(reason), the question went on for \(took) s")
+            print("STOPPED (\(reason)) after \(String(format: "%.2f", took)) s")
+        }
+    }
+
+    /// The answer mode an ask action is given is the mode the answer runs in (roadmap row
+    /// 3f449a74d54f8191a690c82195d5fbc9), as the engine records it on the answer.
+    func testEachAnswerModeRunsInTheModeChosen() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        onAPaidPlan()
+        _ = try await addNote("The tamsin bike store code for the test flat is 2468, changed every autumn.")
+        let model = StandInModel(answer: "The tamsin bike store code for the test flat is 2468.")
+        AskActionRunner.makeEngine = { RAGService(llmService: model) }
+        addTeardownBlock { @MainActor in AskActionRunner.makeEngine = { RAGService() } }
+
+        for (mode, name) in [(OIAnswerMode.standard, "Standard"), (.deepThink, "Deep Think"), (.maximum, "Maximum")] {
+            let outcome = try await AskActionRunner.ask("What is the tamsin bike store code?", mode: mode, topK: 3)
+            XCTAssertEqual(outcome.response.metadata.qualityModeName, name, "asked in \(mode)")
+            XCTAssertEqual(outcome.answer.mode, mode)
+        }
+    }
+
+    /// "Create Library", then "Add to Library" naming no library, then "Set Active Library" back, each through its
+    /// own `perform()` (roadmap row 3f449a74d54f8193bd4be75cb1c301c1): the new library becomes the active one, the
+    /// note goes into it, and the switch back takes.
+    func testCreateLibraryMakesItActiveAndAddToLibraryFillsIt() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        onAPaidPlan()
+        let libraries = IntentSupport.libraries()
+        let engine = IntentSupport.engine()
+        let before = try XCTUnwrap(libraries.activeContainerId)
+        let create = CreateLibraryIntent()
+        create.name = "Shortcuts library \(UUID().uuidString.prefix(8))"
+        create.makeActive = true
+        let createdResult = try await create.perform()
+        let created = try XCTUnwrap(value(of: createdResult) as? OILibraryEntity)
+        addTeardownBlock { @MainActor in
+            for document in engine.documents where document.containerId == created.id {
+                try? await engine.removeDocument(document)
+            }
+            libraries.setActive(before)
+            libraries.deleteContainer(id: created.id)
+        }
+        XCTAssertEqual(libraries.activeContainerId, created.id, "the new library is not the active one")
+
+        let document = try await addNote("The fennimore boiler in the test flat was serviced in March and runs on gas.")
+        XCTAssertEqual(document.containerId, created.id, "the note went to another library")
+
+        let back = SetActiveLibraryIntent()
+        back.library = OILibraryEntityQuery.entity(for: try XCTUnwrap(libraries.containers.first { $0.id == before }))
+        _ = try await back.perform()
+        XCTAssertEqual(libraries.activeContainerId, before, "Set Active Library did not switch back")
+    }
+
+    /// A question to a library with no documents, while another library has some, is answered with a sentence that
+    /// says so (roadmap row 3f449a74d54f8129a1baf215e16bf18f), not with passages from elsewhere.
+    func testAQuestionToAnEmptyLibrarySaysItHasNoDocuments() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        onAPaidPlan()
+        _ = try await addNote("The ashgrove recycling for the test flat goes out on Thursday mornings.")
+        let libraries = IntentSupport.libraries()
+        let empty = try libraries.createContainer(name: "Empty library \(UUID().uuidString.prefix(8))")
+        addTeardownBlock { @MainActor in libraries.deleteContainer(id: empty.id) }
+        let model = StandInModel(answer: "The stand-in model should not have been asked.")
+        AskActionRunner.makeEngine = { RAGService(llmService: model) }
+        addTeardownBlock { @MainActor in AskActionRunner.makeEngine = { RAGService() } }
+
+        let outcome = try await AskActionRunner.ask(
+            "When does the ashgrove recycling go out?", mode: .standard, libraryId: empty.id)
+        XCTAssertTrue(outcome.answer.text.contains("This library has no documents yet."), outcome.answer.text)
+        XCTAssertTrue(outcome.answer.passages.isEmpty, "the answer used \(outcome.answer.passages.count) passage(s)")
+    }
+
+    /// One "Add to Library" run with a PDF, a web address and a paragraph, into a library it names (roadmap row
+    /// 3f449a74d54f815ab796eb064a525ed3): three documents with passages in that library, and the page is its text.
+    /// Needs the network.
+    func testAddToLibraryTakesAFileALinkAndTextInOneRun() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        onAPaidPlan()
+        let engine = IntentSupport.engine()
+        let library = try engine.containerService.createContainer(name: "Add three \(UUID().uuidString.prefix(8))")
+        addTeardownBlock { @MainActor in
+            for document in engine.documents where document.containerId == library.id {
+                try? await engine.removeDocument(document)
+            }
+            engine.containerService.deleteContainer(id: library.id)
+        }
+        let pdf = try IngestionFixtureFactory().textLayerPDF()
+        let add = AddToLibraryIntent()
+        add.file = IntentFile(data: try Data(contentsOf: pdf), filename: "Shortcuts service table.pdf", type: .pdf)
+        add.link = URL(string: "https://en.wikipedia.org/wiki/Okapi_BM25")
+        add.text = "The wexford storage cage for the test flat is number 12, on the lower level."
+        add.name = "Shortcuts note \(UUID().uuidString.prefix(8))"
+        add.library = OILibraryEntityQuery.entity(for: library)
+        let added = try await add.perform()
+        let names = try XCTUnwrap(value(of: added) as? [String], "Add to Library returned no names")
+        XCTAssertEqual(names.count, 3, "\(names)")
+
+        let documents = try await imported(names, in: library.id)
+        XCTAssertEqual(Set(documents.map(\.filename)), Set(names), "imported with passages: \(documents.map(\.filename))")
+        let page = try XCTUnwrap(documents.first { $0.filename.lowercased().contains("bm25") }, "no page among \(names)")
+        let db = try await engine.dbForContainer(library.id)
+        let text = try await db.chunks(forDocument: page.id).map(\.content).joined(separator: " ")
+        XCTAssertTrue(text.contains("ranking function"), String(text.prefix(400)))
+    }
+
+    /// "Save a Web Page" downloads the page and imports its text into the active library (roadmap row
+    /// 3f449a74d54f8152bc4af3b9baa7d8d4). Needs the network.
+    func testSaveAWebPageImportsTheArticlesText() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        onAPaidPlan()
+        let engine = IntentSupport.engine()
+        let active = try XCTUnwrap(engine.containerService.activeContainerId)
+        let save = IngestURLIntent()
+        save.url = try XCTUnwrap(URL(string: "https://en.wikipedia.org/wiki/Inverted_index"))
+        let saved = try await save.perform()
+        let name = try XCTUnwrap(value(of: saved) as? String, "Save a Web Page returned no name")
+        let documents = try await imported([name], in: active)
+        let page = try XCTUnwrap(documents.first, "\(name) was not imported with passages within three minutes")
+        addTeardownBlock { @MainActor in try? await engine.removeDocument(page) }
+        let db = try await engine.dbForContainer(active)
+        let text = try await db.chunks(forDocument: page.id).map(\.content).joined(separator: " ")
+        XCTAssertTrue(text.lowercased().contains("inverted index"), String(text.prefix(400)))
+        XCTAssertFalse(text.contains("<div"), "the page was stored as markup")
+    }
+
+    /// "Check a Claim" on a note: a true sentence is supported, by the note's passage, and an untrue one is not
+    /// (roadmap row 3f449a74d54f8131adddfbbf329b0179).
+    func testCheckAClaimHoldsUpATrueSentenceAndNotAnUntrueOne() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        let document = try await addNote("The pelham deposit for the test flat is 1,850 dollars, paid before moving in.")
+        let check = CheckClaimIntent()
+
+        check.claim = "The pelham deposit for the test flat is 1,850 dollars."
+        let held = value(of: try await check.perform()) as? String
+        XCTAssertEqual(held, "Supported")
+        let engine = IntentSupport.engine()
+        let chunks = Array(try await engine.searchDocumentsRaw(query: check.claim, topK: 6).prefix(6))
+        let outcome = await ClaimCheck.check(check.claim, against: chunks)
+        XCTAssertTrue(outcome.source?.hasPrefix(document.filename) ?? false, "checked against \(outcome.source ?? "nothing")")
+
+        check.claim = "The pelham flat has a rooftop swimming pool that opens in May."
+        let untrue = value(of: try await check.perform()) as? String
+        print("CHECK-A-CLAIM untrue sentence: \(untrue ?? "nil")")
+        XCTAssertTrue(untrue == "Not supported" || untrue == "Not found", untrue ?? "nil")
     }
 }

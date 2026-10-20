@@ -1114,7 +1114,7 @@ final class AgenticOrchestrator: Sendable {
                     expandedResults = "Expanded search found \(broaderChunks.count) chunks:\n\n"
                     for (index, chunk) in broaderChunks.prefix(8).enumerated() {
                         expandedResults += "[\(index + 1)] From \(chunk.sourceDocument):\n"
-                        let content = (chunk.chunk.parentContent ?? chunk.chunk.content).prefix(500)
+                        let content = chunk.chunk.contextText.prefix(500)
                         expandedResults += String(content) + "\n\n"
                     }
                 }
@@ -1177,7 +1177,7 @@ final class AgenticOrchestrator: Sendable {
 
         // Build combined chunk text
         let chunkText = chunks.prefix(5)
-            .map { ($0.chunk.parentContent ?? $0.chunk.content).lowercased() }
+            .map { $0.chunk.contextText.lowercased() }
             .joined(separator: " ")
 
         // Count how many query keywords appear in chunks
@@ -1359,7 +1359,7 @@ final class AgenticOrchestrator: Sendable {
             block += " (Page \(page))"
         }
         block += " (Relevance: \(String(format: "%.1f%%", retrieved.similarityScore * 100))):\n"
-        block += (retrieved.chunk.parentContent ?? retrieved.chunk.content)
+        block += retrieved.chunk.contextText
             .trimmingCharacters(in: .whitespacesAndNewlines)
         block += "\n\n"
         return block
@@ -1881,7 +1881,7 @@ final class AgenticOrchestrator: Sendable {
                 searchResult += " (Page \(page))"
             }
             searchResult += " (Relevance: \(String(format: "%.1f%%", retrieved.similarityScore * 100))):\n"
-            let fullText = (retrieved.chunk.parentContent ?? retrieved.chunk.content).trimmingCharacters(
+            let fullText = retrieved.chunk.contextText.trimmingCharacters(
                 in: .whitespacesAndNewlines)
             // Include more text since our chunks are better quality now
             let preview = fullText.count > 1000 ? String(fullText.prefix(1000)) + " [...]" : fullText
@@ -2332,7 +2332,7 @@ final class AgenticOrchestrator: Sendable {
 
         // For borderline cases (10-50% overlap), ask LLM to verify
         let chunkPreviews = chunks.prefix(3).map { chunk in
-            let content = (chunk.chunk.parentContent ?? chunk.chunk.content)
+            let content = chunk.chunk.contextText
             return String(content.prefix(300))
         }.joined(separator: "\n---\n")
 
@@ -2547,7 +2547,7 @@ final class AgenticOrchestrator: Sendable {
 
         let contextText =
             initialChunks
-            .map { $0.chunk.parentContent ?? $0.chunk.content }
+            .map { $0.chunk.contextText }
             .joined(separator: "\n")
 
         let entityPrompt = """
@@ -4774,7 +4774,7 @@ extension AgenticOrchestrator {
             }
             // No structured section: the opening of the text is still a better menu entry than an
             // index, and this is exactly the case the routing turn exists to disambiguate.
-            let body = (candidate.chunk.parentContent ?? candidate.chunk.content)
+            let body = candidate.chunk.contextText
                 .replacingOccurrences(of: "\n", with: " ")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             return String(body.prefix(60))
@@ -5067,7 +5067,7 @@ extension AgenticOrchestrator {
             if wholeWindowTokens == nil && trimmedCtx.count < minimumUsefulContext && !windowChunks.isEmpty {
                 var rawContext = ""
                 for (idx, wc) in windowChunks.enumerated() {
-                    let content = wc.chunk.parentContent ?? wc.chunk.content
+                    let content = wc.chunk.contextText
                     // Global position, matching the `labelOffset` on the extraction path above.
                     let sourceLabel = "[S\(startIdx + idx + 1)] (\(wc.sourceDocument))"
                     let truncated = String(content.prefix(contextBudget / max(windowChunks.count, 1)))
@@ -7803,7 +7803,7 @@ extension AgenticOrchestrator {
                 weightedTerms[structureType, default: 0] += 2
             }
 
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = chunk.chunk.contextText
             for term in semanticTerms(from: content, minimumLength: 4, limit: 18) {
                 weightedTerms[term, default: 0] += 1
             }

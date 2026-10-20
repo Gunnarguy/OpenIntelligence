@@ -597,7 +597,7 @@
             if let rerankTrace = traces.first(where: { $0.stage == RetrievalTraceCollector.Stage.rerank.rawValue }) {
                 lines.append("RERANK CHUNK TEXT")
                 for (index, result) in rerankTrace.results.enumerated() {
-                    let body = (result.chunk.parentContent ?? result.chunk.content)
+                    let body = result.chunk.contextText
                         .replacingOccurrences(of: "\n", with: " ")
                         .replacingOccurrences(of: "\r", with: " ")
                     lines.append("CHUNK \(index + 1) | \(result.sourceDocument) | \(body)")
@@ -682,7 +682,7 @@
             // file is not on any production path.
             lines.append("RETRIEVED CHUNK TEXT")
             for (index, retrieved) in response.retrievedChunks.enumerated() {
-                let body = (retrieved.chunk.parentContent ?? retrieved.chunk.content)
+                let body = retrieved.chunk.contextText
                     .replacingOccurrences(of: "\n", with: " ")
                     .replacingOccurrences(of: "\r", with: " ")
                 lines.append("CHUNK \(index + 1) | \(retrieved.sourceDocument) | \(body)")
@@ -753,7 +753,7 @@
         }
 
         private static func formatChunkPreview(for chunk: RetrievedChunk, limit: Int = 220) -> String {
-            let source = chunk.chunk.parentContent ?? chunk.chunk.content
+            let source = chunk.chunk.contextText
             let normalized =
                 source
                 .components(separatedBy: .whitespacesAndNewlines)

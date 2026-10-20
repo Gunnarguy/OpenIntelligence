@@ -856,7 +856,7 @@ public final class OIEngine {
         }
 
         return response.retrievedChunks.prefix(6).map {
-            let quote = $0.chunk.parentContent ?? $0.chunk.content
+            let quote = $0.chunk.contextText
             return OICitation(
                 source: $0.sourceDocument,
                 page: $0.pageNumber,

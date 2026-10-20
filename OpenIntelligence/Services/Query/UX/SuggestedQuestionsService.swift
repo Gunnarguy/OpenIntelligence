@@ -3203,7 +3203,7 @@ actor SuggestedQuestionsService {
         }
 
         let scored = chunks.enumerated().map { index, chunk -> (chunk: DocumentChunk, penalty: Int, index: Int) in
-            (chunk, questionSourcePenalty(for: chunk.parentContent ?? chunk.content), index)
+            (chunk, questionSourcePenalty(for: chunk.contextText), index)
         }
 
         let clean = scored.filter { $0.penalty == 0 }
@@ -3343,7 +3343,7 @@ actor SuggestedQuestionsService {
     }
 
     private func groundedPassageContent(for chunk: DocumentChunk) -> String {
-        let baseContent = chunk.parentContent ?? chunk.content
+        let baseContent = chunk.contextText
         let metadataSegments = [
             sectionHierarchyLabel(for: chunk).map { "Section path: \($0)" },
             cleanedMetadataValue(chunk.metadata.tableTitle).map { "Table: \($0)" },

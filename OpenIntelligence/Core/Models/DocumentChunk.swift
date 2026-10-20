@@ -31,6 +31,37 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
         set { content = newValue }
     }
 
+    /// The text to read for this passage: its parent window when that holds the passage, the passage itself
+    /// otherwise (5.7). Readers use this in place of `parentContent ?? content`.
+    ///
+    /// A prose passage stores the window around it as `parentContent`, and the window holds the passage. A structured
+    /// passage (a table, a list, a run of key values) stores its section's title there, a label
+    /// (`DocumentProcessor` passes `currentSectionTitle`). Through 5.6 every reader took `parentContent ?? content`,
+    /// so a table's passage was read as its title alone. On 2026-10-19, in the iOS 27.0 Simulator, the last page of a
+    /// 60-page PDF was retrieved first for "Where is VERMILION-4417 kept?", and the model was given "Field log page 60
+    /// of 60: the harbor survey." and none of the row that answers it; it said no document mentioned the code. In
+    /// that library 238 of 520 passages were table passages whose parent was their title, and every prose passage's
+    /// parent held the passage.
+    nonisolated var contextText: String {
+        guard let parent = parentContent, parent.count >= content.count,
+            Self.window(parent, holds: content)
+        else { return content }
+        return parent
+    }
+
+    /// Whether `parent` holds the passage: the passage's first line of text, past any "[Part N]" label the
+    /// token-limit split adds, compared without whitespace, since a window and its passage can be wrapped
+    /// differently.
+    nonisolated static func window(_ parent: String, holds passage: String) -> Bool {
+        let firstLine = passage.split(whereSeparator: \.isNewline).lazy
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty && !($0.hasPrefix("[Part ") && $0.hasSuffix("]")) }
+        guard let firstLine else { return true }
+        let probe = String(firstLine.prefix(40).filter { !$0.isWhitespace })
+        guard !probe.isEmpty else { return true }
+        return parent.filter { !$0.isWhitespace }.contains(probe)
+    }
+
     nonisolated init(
         id: UUID = UUID(),
         documentId: UUID,

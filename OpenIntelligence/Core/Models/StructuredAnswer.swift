@@ -437,7 +437,7 @@ extension StructuredAnswer {
         }
 
         for chunk in evidencePool.prefix(12) {  // Max 12 per spec
-            let quoteSource = chunk.chunk.parentContent ?? chunk.chunk.content
+            let quoteSource = chunk.chunk.contextText
             _ = builder.addEvidence(
                 id: chunk.chunk.id.uuidString,
                 page: chunk.chunk.metadata.pageNumber,
@@ -625,7 +625,7 @@ extension StructuredAnswer {
         let claimTokens = keywordTokens(from: claim)
 
         let scored = retrievedChunks.map { chunk -> (RetrievedChunk, Float) in
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = chunk.chunk.contextText
             let contentTokens = keywordTokens(from: content)
             let overlapCount = claimTokens.intersection(contentTokens).count
             let overlapScore = claimTokens.isEmpty ? 0 : Float(overlapCount) / Float(max(claimTokens.count, 1))
@@ -668,7 +668,7 @@ extension StructuredAnswer {
     nonisolated private static func confidence(for claim: String, evidence: [RetrievedChunk]) -> Float {
         guard !evidence.isEmpty else { return 0.15 }
         let topEvidence = evidence[0]
-        let content = topEvidence.chunk.parentContent ?? topEvidence.chunk.content
+        let content = topEvidence.chunk.contextText
         let claimTokens = keywordTokens(from: claim)
         let contentTokens = keywordTokens(from: content)
         let overlap = claimTokens.isEmpty ? 0 : Float(claimTokens.intersection(contentTokens).count) / Float(max(claimTokens.count, 1))
@@ -679,7 +679,7 @@ extension StructuredAnswer {
         guard answerIntent.isExtractiveFirst else { return false }
         let normalizedClaim = normalizeForMatch(claim)
         return evidence.contains { chunk in
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = chunk.chunk.contextText
             return normalizeForMatch(content).contains(normalizedClaim)
         }
     }
@@ -858,7 +858,7 @@ extension StructuredAnswer {
         }
 
         for chunk in evidencePool.prefix(12) {
-            let quoteSource = chunk.chunk.parentContent ?? chunk.chunk.content
+            let quoteSource = chunk.chunk.contextText
             _ = builder.addEvidence(
                 id: chunk.chunk.id.uuidString,
                 page: chunk.chunk.metadata.pageNumber,

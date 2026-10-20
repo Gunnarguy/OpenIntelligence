@@ -236,7 +236,9 @@ xcodebuild test-without-building -scheme OpenIntelligenceUITests -destination "p
 (`OpenIntelligence/App/UITestSupport.swift`), and adds and removes notes whose names start with
 "UITest quillberry" in the simulator's copy of the app, the same copy the unit suite is hosted in.
 Two traps. A library made in the Simulator holds all-zero vectors, so a test that waits on "Find
-Passages" or "Check a Claim" waits forever: their similarity floor drops everything. Wait on the
+Passages" or "Check a Claim" waits forever: their similarity floor drops everything. (Recorded before
+`67977e4`, later that night, which gives a Simulator library real vectors from the CPU embedder; whether
+the two find the note in the Simulator since then has not been tried, 2026-10-19.) Wait on the
 document lookup instead (`definitions.entities["OIDocumentEntity"].entities(matching:)`), as
 `ShortcutsSystemTests` does. And what went wrong inside the app shows only in the app's own trace,
 `Documents/pipeline_trace.log` in its simulator data folder
