@@ -385,11 +385,12 @@ final class HeadingClaimTests: XCTestCase {
             ("The fees are listed in [S2]\u{2013}[S4].", ["S2", "S4"]),
             ("Pay the deposit before move-in [S1] through [S3].", ["S1", "S3"]),
             ("Both are listed in [S1, S2] through [S5].", ["S1", "S5"]),
+            ("See the fee schedule (in [S2]\u{2013}[S4]).", ["S2", "S4"]),
         ])
         XCTAssertEqual(
             claims(of: generation, chunk: "Check-out is by 11:00 a.m. The fees are listed below."),
             ["No details about painting are present.", "Check-out is by 11:00 a.m.", "The fees are listed.",
-             "Pay the deposit before move-in.", "Both are listed."])
+             "Pay the deposit before move-in.", "Both are listed.", "See the fee schedule."])
     }
 
     /// Gate B and Fact Check read a range of citations the same way, so the claim keeps its verdict (review,
@@ -419,6 +420,9 @@ final class HeadingClaimTests: XCTestCase {
         XCTAssertEqual(StructuredAnswer.gapQuote("Rent is late."), "Rent is late.")
         let word = String(repeating: "x", count: 69)
         XCTAssertEqual(StructuredAnswer.gapQuote("ab " + word + " tail"), "ab " + word + "\u{2026}")
+        // Gate B's own text for a claim it could not support is quoted tidied and without bold (review, 2026-10-20).
+        XCTAssertEqual(StructuredAnswer.gapQuote("Reports are due by **9:00 a.m.** [S9]."), "Reports are due by 9:00 a.m.")
+        XCTAssertEqual(StructuredAnswer.gapQuote("The action is to **Unplug."), "The action is to Unplug.")
     }
 
     /// The answer rebuilt from its checked claims keeps an abbreviation's full stop before the citation:

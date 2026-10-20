@@ -1314,11 +1314,11 @@ actor VerificationGateService {
     /// present in [S1] through [S15]." is "are present [S1].". Fact Check showed the claim as "are present in
     /// through." (demo copy of 3a9fcb8, 2026-10-20). Every place that keys a claim or a heading reads a range this way
     /// (`cleanClaimText` here and in `StructuredAnswer`, `headingKey`), because a claim keyed one way on one side and
-    /// another way on the other loses its verdict (review, 2026-10-20). The word must stand alone: "move-in [S1]
-    /// through [S3]" keeps "move-in".
+    /// another way on the other loses its verdict (review, 2026-10-20). The word must stand alone, after a space or
+    /// an opening parenthesis: "move-in [S1] through [S3]" keeps "move-in".
     nonisolated static func collapsingCitationRanges(_ text: String) -> String {
         text.replacingOccurrences(
-            of: #"(?:\s+(?:in|from|across|throughout|within))?\s*("# + citationMarkerPattern
+            of: #"(?:(?:\s+|(?<=\())(?i:in|from|across|throughout|within))?\s*("# + citationMarkerPattern
                 + #")\s*(?:through|thru|to|[-\u2013\u2014])\s*"# + citationMarkerPattern,
             with: " $1", options: .regularExpression)
     }
@@ -1346,7 +1346,8 @@ actor VerificationGateService {
         var otherLines: [String] = []
         for raw in response.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            let uncited = line.replacingOccurrences(of: citationMarkerPattern, with: "", options: .regularExpression)
+            let uncited = collapsingCitationRanges(line)
+                .replacingOccurrences(of: citationMarkerPattern, with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespaces)
             if uncited.hasPrefix("#") {
                 if readsAsTitle(String(uncited.drop { $0 == "#" }), maxWords: nil) {

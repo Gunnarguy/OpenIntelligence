@@ -168,9 +168,50 @@ nonisolated enum ClaimCheck {
         }
     }
 
-    /// Whether one of the two is negative (`hasNegation`) and the other isn't.
+    /// Whether one of the two is negative (`hasNegation(_:against:)`) and the other isn't.
     static func negationDiffers(_ claim: String, _ sentence: String) -> Bool {
-        hasNegation(claim) != hasNegation(sentence)
+        hasNegation(claim, against: sentence) != hasNegation(sentence, against: claim)
+    }
+
+    /// `hasNegation`, counting "without" only when what it is without is named in `other` (5.7). The handbook's
+    /// "your child may return after being fever-free for 24 hours without fever-reducing medicine" denies nothing in
+    /// the claim "The child must also be kept home with fever ≥100.4°F, vomiting/diarrhea, or pink eye until
+    /// cleared.", and Fact Check marked that claim "The passage it rests on says the opposite" (demo copy of 1c913bf
+    /// in the iOS 27 Simulator, 2026-10-20). "The landlord may enter without notice" against a passage that requires
+    /// notice still reads as the opposite, because notice is named in both. What follows "without" is read up to the
+    /// end of its clause or a joining word, leaving out a leading article, and its last word is the one looked for.
+    static func hasNegation(_ text: String, against other: String) -> Bool {
+        let lowered = text.lowercased()
+        guard lowered.contains("without"),
+            let without = try? NSRegularExpression(pattern: #"\bwithout\b([^.,;:!?()\n]*)"#)
+        else { return hasNegation(text) }
+        let named = Set(other.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        let leading: Set<String> = ["a", "an", "the", "any", "your", "their", "his", "her", "its", "our", "my"]
+        let joining: Set<String> = [
+            "for", "and", "or", "but", "in", "on", "at", "to", "until", "unless", "if", "before", "after", "while",
+            "when", "from", "by", "of", "with",
+        ]
+        let source = lowered as NSString
+        var kept = lowered as NSString
+        for match in without.matches(in: lowered, range: NSRange(location: 0, length: source.length)) {
+            var object: [String] = []
+            let words = source.substring(with: match.range(at: 1)).split { !$0.isLetter && !$0.isNumber }
+            for word in words.map(String.init) {
+                if joining.contains(word) { break }
+                if object.isEmpty, leading.contains(word) { continue }
+                object.append(word)
+                if object.count == 4 { break }
+            }
+            let isNamed = object.last.map { head in
+                named.contains(head) || named.contains(head + "s")
+                    || (head.hasSuffix("s") && named.contains(String(head.dropLast())))
+            } ?? false
+            // The same length, so the ranges of the matches after this one still hold.
+            if !isNamed {
+                kept = kept.replacingCharacters(in: NSRange(location: match.range.location, length: 7), with: "with   ") as NSString
+            }
+        }
+        return hasNegation(kept as String)
     }
 
     /// Whether the text says "not", "no", "never", "none", "nobody", "nothing", "neither", "nor",

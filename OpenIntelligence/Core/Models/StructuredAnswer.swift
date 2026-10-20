@@ -718,6 +718,8 @@ extension StructuredAnswer {
                 options: .regularExpression)
             .replacingOccurrences(of: citationRun, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"^#{1,6}\s*"#, with: "", options: .regularExpression)
+            // Parentheses left with nothing in them: "(in [S2]\u2013[S4])" (review, 2026-10-20).
+            .replacingOccurrences(of: #"\s*\(\s*\)"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             // The same with no citation: "by **9:00 a.m.**." keeps the abbreviation's full stop alone (5.7).
@@ -725,9 +727,13 @@ extension StructuredAnswer {
         return withoutUnpairedBold(cleaned)
     }
 
-    /// A claim quoted in Information Gaps: cut at the last word that fits in `limit` characters, with an ellipsis (5.7).
-    /// The cut at 72 characters read "...about painting a bedroo" (demo copy of 3a9fcb8, 2026-10-20).
-    nonisolated static func gapQuote(_ claim: String, limit: Int = 72) -> String {
+    /// A claim quoted in Information Gaps: tidied as Fact Check tidies a claim, without bold markers (the line is drawn
+    /// as plain text, and one quoting Gate B's claim showed them), and cut at the last word that fits in `limit`
+    /// characters, with an ellipsis (5.7). The cut at 72 characters read "...about painting a bedroo" (demo copy of
+    /// 3a9fcb8, 2026-10-20).
+    nonisolated static func gapQuote(_ text: String, limit: Int = 72) -> String {
+        let claim = cleanClaimText(text).replacingOccurrences(
+            of: #"(?<![\p{L}\p{N}])\*\*|\*\*(?![\p{L}\p{N}])"#, with: "", options: .regularExpression)
         guard claim.count > limit else { return claim }
         let cut = claim.index(claim.startIndex, offsetBy: limit)
         // A cut that lands on a space keeps the word that ends there (review, 2026-10-20).

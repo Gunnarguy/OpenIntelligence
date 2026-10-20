@@ -92,6 +92,26 @@ final class ClaimCheckTests: XCTestCase {
             ClaimCheck.hasNegation("Notice is given in writing."), "a word that starts with \"no\" is not a negation")
     }
 
+    /// "without" denies something only when the other text names what it is without (5.7). The handbook's "without
+    /// fever-reducing medicine" read as the opposite of a right claim about keeping a sick child home (demo copy of
+    /// 1c913bf, 2026-10-20); "enter without notice" against a notice clause and "cancel without a fee" against a fee
+    /// still read as opposites.
+    func testWithoutCountsOnlyWhenWhatItIsWithoutIsNamed() {
+        XCTAssertFalse(ClaimCheck.negationDiffers(
+            "The child must also be kept home with fever \u{2265}100.4\u{00B0}F, vomiting/diarrhea, or pink eye until cleared.",
+            "Fever of 100.4\u{00B0}F or higher: your child may return after being fever-free for 24 hours without "
+                + "fever-reducing medicine."))
+        XCTAssertTrue(ClaimCheck.negationDiffers(
+            "The landlord may enter without notice.",
+            "Landlord will give at least 24 hours' notice before entering, except in an emergency."))
+        XCTAssertTrue(ClaimCheck.negationDiffers(
+            "You can cancel without a fee.",
+            "If you cancel before completing the 12-month minimum term, an early cancellation fee of $150.00 applies."))
+        XCTAssertFalse(ClaimCheck.negationDiffers(
+            "Pets are allowed without written permission from the landlord.",
+            "Pets are not allowed without written permission from the landlord."), "both say without permission")
+    }
+
     func testBoundsAndSetPhrasesAreNotNegations() {
         XCTAssertFalse(ClaimCheck.hasNegation("Rent is due no later than the 5th."))
         XCTAssertFalse(ClaimCheck.hasNegation("Give notice not less than 30 days before leaving."))
