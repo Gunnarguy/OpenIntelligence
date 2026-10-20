@@ -260,6 +260,19 @@ class DocumentProcessor {
         return 5.0
     }
 
+    /// Whether a page is read from its own text layer because most of that layer's letters are in a script Vision's
+    /// text recognition has no model for, such as Greek or Hebrew. Vision would read other letters there, and the
+    /// layout and structure passes take their text from Vision (a Greek page imported as Cyrillic and Latin junk,
+    /// measured 2026-10-19). Not for a page the classifier marks as a scan with a text layer over part of it
+    /// (`isMixedModeScanned`): its text layer may be a header or a stamp, and the scanned body needs Vision (review,
+    /// 2026-10-19). Not when the document's text layer was judged a cipher.
+    nonisolated static func readsTextLayerVisionCannotRead(
+        _ pageText: String?, complexity: PageComplexityAnalysis?, documentTextLayerGarbled: Bool
+    ) -> Bool {
+        guard !documentTextLayerGarbled, !(complexity?.isMixedModeScanned ?? false), let pageText else { return false }
+        return !OCRConfiguration.visionCanReadMostOf(pageText)
+    }
+
     private func shouldForceVisionForAdaptiveRecovery(
         analysis: PageComplexityAnalysis?,
         strategy: PageProcessingStrategy,
@@ -4190,10 +4203,20 @@ class DocumentProcessor {
 
             var bestSampleText = ""
             var bestSamplePage: PDFPage?
+            var unreadableSampleSeen = false
 
             for idx in sampleIndices {
                 guard let page = pdfDocument.page(at: idx) else { continue }
                 let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                // OCR can check a text layer only in a script it reads. Vision has no model for Greek, Hebrew and
+                // many other scripts, so on such a page it returns other letters, the two share no word, and through
+                // 5.6 a correct text layer was judged a cipher: every page went to OCR and the garbage filter emptied
+                // what OCR gave (measured 2026-10-19, a Greek page imported with no text). Such a page is not a
+                // sample; a page of the same document in a script Vision reads still is (review, 2026-10-19).
+                guard OCRConfiguration.visionCanReadMostOf(text) else {
+                    if text.count >= 50 { unreadableSampleSeen = true }
+                    continue
+                }
                 if text.count > bestSampleText.count {
                     bestSampleText = text
                     bestSamplePage = page
@@ -4203,7 +4226,11 @@ class DocumentProcessor {
             // No text layer at all → not garbled, just needs OCR
             guard bestSampleText.count >= 50, let samplePage = bestSamplePage else {
                 documentTextLayerGarbled = false
-                Log.debug("[DocumentProcessor] [iOS26] Text layer validation: no/minimal text layer, skipping", category: .ingestion)
+                if unreadableSampleSeen {
+                    Log.info("[DocumentProcessor] [iOS26] Text layer kept without an OCR check: the sampled pages' letters are mostly in a script Vision's text recognition does not read", category: .ingestion)
+                } else {
+                    Log.debug("[DocumentProcessor] [iOS26] Text layer validation: no/minimal text layer, skipping", category: .ingestion)
+                }
                 break textLayerValidation
             }
 
@@ -4374,11 +4401,13 @@ class DocumentProcessor {
         let skipVisionCount = complexityAnalyses.filter { analysis in
             let strategy = analysis.processingStrategy
             let baseSkip = strategy == .directText || strategy == .spatialText
-            return baseSkip && !shouldForceVisionForAdaptiveRecovery(
+            return (baseSkip && !shouldForceVisionForAdaptiveRecovery(
                 analysis: analysis,
                 strategy: strategy,
                 documentTextLayerGarbled: documentTextLayerGarbled
-            )
+            )) || Self.readsTextLayerVisionCannotRead(
+                pdfDocument.page(at: analysis.pageNumber - 1)?.string, complexity: analysis,
+                documentTextLayerGarbled: documentTextLayerGarbled)
         }.count
         let visionRequired = pageCount - skipVisionCount
         Log.info("[DocumentProcessor] 🚀 ADAPTIVE: \(skipVisionCount) pages skip Vision OCR, \(visionRequired) need layout detection", category: .ingestion)
@@ -4488,9 +4517,15 @@ class DocumentProcessor {
                         strategy: strategy,
                         documentTextLayerGarbled: documentTextLayerGarbled
                     )
-                    // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
-                    let needsVision = documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR
                     let plainText = page.string
+                    let textLayerUnreadableByVision = Self.readsTextLayerVisionCannotRead(
+                        plainText, complexity: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
+                    if textLayerUnreadableByVision {
+                        Log.info("[DocumentProcessor] Page \(pageNumber): read from its text layer, whose script Vision's text recognition does not read", category: .ingestion)
+                    }
+                    // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
+                    let needsVision = !textLayerUnreadableByVision
+                        && (documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR)
                     let hasText = (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 0
                     let requiresTableOCR = (complexity?.tablePresence ?? 0) > 0.2 || (complexity?.numericDensity ?? 0) > 0.3
                     let preferHighResolutionStructure = shouldPreferHighResolutionStructure(
@@ -4503,13 +4538,18 @@ class DocumentProcessor {
                         pageNumber: pageNumber,
                         strategy: documentTextLayerGarbled
                             ? "garbled-force-ocr"
-                            : (fidelityForcesVision && strategy == .spatialText ? "\(strategy.description)+fidelity" : strategy.description),
+                            : textLayerUnreadableByVision
+                                ? "text-layer, script Vision does not read"
+                                : (fidelityForcesVision && strategy == .spatialText ? "\(strategy.description)+fidelity" : strategy.description),
                         hasText: hasText,
-                        textQualityOK: !documentTextLayerGarbled && (complexity?.textQuality ?? 0) > 0.65,
-                        requiresTableOCR: requiresTableOCR,
+                        textQualityOK: textLayerUnreadableByVision
+                            || (!documentTextLayerGarbled && (complexity?.textQuality ?? 0) > 0.65),
+                        requiresTableOCR: requiresTableOCR && !textLayerUnreadableByVision,
                         mode: documentTextLayerGarbled
                             ? "structured-garbled-ocr"
-                            : (fidelityForcesVision ? "structured-hybrid-fidelity" : "structured-hybrid")
+                            : textLayerUnreadableByVision
+                                ? "structured-text-layer"
+                                : (fidelityForcesVision ? "structured-hybrid-fidelity" : "structured-hybrid")
                     )
 
                     // ADAPTIVE: Only render image if this page needs Vision layout detection
@@ -4546,7 +4586,10 @@ class DocumentProcessor {
                         // inference rather than read off a trace. `text` here is raw `page.string`,
                         // which interleaves columns by construction, so the fallback is a materially
                         // worse result and not an equivalent one.
-                        let spatial = extractTextWithSpatialOrdering(from: page)
+                        // A right-to-left page read from its text layer keeps PDFKit's order: the spatial reading
+                        // orders a line's words left to right (`spatialLineBreak`).
+                        let keepsPDFKitOrder = textLayerUnreadableByVision && OCRConfiguration.isMostlyRightToLeft(text)
+                        let spatial = keepsPDFKitOrder ? nil : extractTextWithSpatialOrdering(from: page)
                         layoutText = spatial ?? text
                         Log.debug(
                             "[DocumentProcessor] Page \(pageNumber): strategy=\(strategy.description), "

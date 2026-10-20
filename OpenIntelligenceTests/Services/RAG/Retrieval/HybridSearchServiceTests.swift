@@ -314,6 +314,46 @@ final class HybridSearchServiceTests: XCTestCase {
         }
     }
 
+    /// A library with no keyword index is searched by vector and then by its words over every passage (lexical
+    /// recall). The store hands passages back without their vectors, and through 5.6 the recall kept a passage only
+    /// when it carried one, so it kept none: a passage that shares the question's words and points away from it was
+    /// never found. Twenty passages here are close to the question and share none of its words, so the vector
+    /// search's candidates (three times the two asked for) are all close ones and only the words can bring in the
+    /// last one.
+    func testWithoutAKeywordIndexAPassageFoundOnlyByItsWordsIsKept() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("lexical-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = BNNSVectorDatabase(
+            dimension: 4, storageURL: directory.appendingPathComponent("vector_database_lexical.json"))
+        let manual = UUID()
+        var passages = (0..<20).map { number -> DocumentChunk in
+            let angle = Float(number) / 40
+            return DocumentChunk(
+                documentId: manual, content: "Filter maintenance note \(number).", embedding: [cos(angle), sin(angle), 0, 0],
+                metadata: ChunkMetadata(chunkIndex: number))
+        }
+        let wordsOnly = DocumentChunk(
+            documentId: manual, content: "The security deposit is refunded within sixty days.",
+            embedding: [0.6, 0, 0.8, 0], metadata: ChunkMetadata(chunkIndex: 20))
+        passages.append(wordsOnly)
+        try await store.storeBatch(chunks: passages)
+        try await store.persist()
+        let handedBack = try await store.readableChunks()
+        XCTAssertEqual(handedBack.count, 21)
+        XCTAssertTrue(handedBack.allSatisfy { $0.embedding.isEmpty }, "the store hands passages back without vectors")
+
+        let search = HybridSearchService(vectorDatabase: store)
+        let trace = RetrievalTraceCollector()
+        let results = try await search.search(
+            query: "security deposit refund", embedding: [1, 0, 0, 0], topK: 2, trace: trace)
+
+        let vectorStage = try XCTUnwrap(trace.stages.first { $0.stage == RetrievalTraceCollector.Stage.vector.rawValue })
+        XCTAssertEqual(vectorStage.results.count, 6)
+        XCTAssertFalse(vectorStage.results.contains { $0.chunk.id == wordsOnly.id }, "not among the vector search's")
+        XCTAssertTrue(results.contains { $0.chunk.id == wordsOnly.id }, "found by its words alone")
+    }
+
     /// The store's own answer: each passage's similarity worked out where its vector is. It has
     /// to be what copying the vectors out and comparing them gives, for a saved passage and for
     /// one no save has written yet, and nil for an id the store does not hold.

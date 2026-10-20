@@ -55,4 +55,39 @@ final class ImportTargetLibraryTests: XCTestCase {
         XCTAssertEqual(imported.first?.containerId, other.id, "the note is in the library it was queued for")
         XCTAssertEqual(engine.containerService.activeContainerId, open, "the open library did not change")
     }
+
+    /// "Add to Library" naming a library that is not the open one, run through the action's own `perform()`: the
+    /// text is queued on the app's engine for that library, imported there, and the open library does not change.
+    func testAddToLibraryNamingAnotherLibraryImportsThere() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        let engine = IntentSupport.engine()
+        let open = engine.containerService.activeContainerId
+        let other = try engine.containerService.createContainer(name: "Add to Library target \(UUID().uuidString.prefix(8))")
+        addTeardownBlock { @MainActor in
+            for document in engine.documents where document.containerId == other.id {
+                try? await engine.removeDocument(document)
+            }
+            engine.containerService.deleteContainer(id: other.id)
+        }
+        XCTAssertNotEqual(other.id, open)
+
+        let add = AddToLibraryIntent()
+        add.text = "The quillberry gate code for the second test flat is 9021, and it changes every autumn."
+        add.name = "Add to Library target \(UUID().uuidString.prefix(8))"
+        add.library = OILibraryEntityQuery.entity(for: other)
+        _ = try await add.perform()
+
+        var imported: Document?
+        for _ in 0..<600 {
+            imported = engine.documents.first { $0.containerId == other.id }
+            if imported != nil { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let document = try XCTUnwrap(imported, "the note was not imported into the library it named within a minute")
+        XCTAssertGreaterThan(document.totalChunks, 0)
+        XCTAssertFalse(
+            engine.documents.contains { $0.filename == document.filename && $0.containerId != other.id },
+            "the note went to the library it named and nowhere else")
+        XCTAssertEqual(engine.containerService.activeContainerId, open, "the open library did not change")
+    }
 }

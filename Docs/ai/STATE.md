@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-10-19, 12:40 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
+Updated: 2026-10-19, 17:10 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 040951d
+Last verified commit: 4b6778a
 
 Earlier detail is in git: `git show 664e69b:Docs/ai/STATE.md` (the night of 2026-10-18) and the copies it names; the
 long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -27,6 +27,10 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
 | GPU default | Balanced stays (`Docs/ai/DECISIONS.md` 2026-10-19, `664e69b`). |
 | Simulator memory | `ab2a1fb`: the Simulator reads the Mac's free memory. Before it, every Simulator run read "0 MB, Critical" and answered at `.efficient`, so earlier Simulator checks (and the 5.7 preview) ran a reduced pipeline. |
 | His iPhone | Dev build of `16d6827` installed 2026-10-18; it reported 4,096 tokens and no background GPU (recorded in `Docs/LIMITATIONS.md` and the Atlas). |
+| Greek and Hebrew PDFs | Fixed in the commit after `4b6778a` (CHANGELOG "A PDF in Greek, Hebrew or another script Vision does not read keeps its text layer"). Vision reads 9 scripts and no Greek or Hebrew (measured on macOS 27); the cipher check judged a correct Greek text layer garbled and the page imported empty. Two refuting reviews; the first found the blocker (a scanned page under a Greek stamp would have lost its body), fixed by keeping `isMixedModeScanned` pages on Vision. |
+| Passages of no document | Fixed in the same commit (CHANGELOG "Deep Think, Maximum and the steps after the first search leave out passages of no document..."): a 5.7-only race (an overview stored after its document was deleted) and every path that still used such passages (cascade, keyword retry, spec sniper and the whole-list readers, Deep Think's `executeFullRetrievalPipeline`, `semanticSearch`). Found by a new test failing in the full suite. |
+| Rows closed today by the Simulator robot | X-Ray off on a new install (`3fb49a74d54f81a188d7f92bd95a197e`), the plain chat (`3fb49a74d54f81b2b7bbf031eb9e9199`), What's New after an update (`3e149a74d54f819aba78e2b85f0e9942`). Checked but not yet written to Notion: capability lists with no tool line (`3ea49a74d54f8167a9b3d92c94539567`), settings kept after a relaunch (`3f949a74d54f81bfb4c0d0a0cd179326`). |
+| Rows the new tests close (Notion not yet written) | `3f949a74d54f81eb83f7f46e0e3e9010` (SecondEngineSaveTests), `3f849a74d54f81eba369ff0faa1ba190` (lexical recall test; the summarizer embeds its own sentences, MMR has its own row), `3fa49a74d54f813281ffc3b6fd200bb6` (Add to Library naming a closed library), `3f549a74d54f8164b6ecf46a12edb8ae` (Shift-JIS import), `3f549a74d54f8151a9fefb4f1fc5ea2e` (Greek PDF import), `3e749a74d54f810c86fefac905fa1d6f` (re-ask after a delete). |
 
 ## What the Atlas change does (so nothing is redone)
 
@@ -66,6 +70,16 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
 - Robot: `/private/tmp/demodriver-pv` (xcodegen project; `xcodegen generate` after adding a scene file). Scenes added
   today: `testAtlasAngles`, `testExplorer`, `testAllLibrariesTwo`, `testAllLibrariesTwoFromFile`, `testDeviceTruth`,
   `testDeepThinkA17` (`OpenIntelligence*Scenes.swift`), and `Chart3DProbeScenes` (selection, pinch, framing, size).
+  Added 2026-10-19 afternoon: `OpenIntelligenceFirstRunScenes.swift` (`testFirstRun`, `testTechnicalSwitch`,
+  `testUpdateFrom56`, `testCapabilityLists`, `testSettingsSurviveRelaunch`, `testQuickActions`), `OpenIntelligenceOpenInScenes.swift`
+  (`testOpenInFromFiles`) and `OpenIntelligencePart2Scenes.swift` (`testConversationLimit`, `testLibraryReorder`,
+  `testImportNotification`). Not yet run: the last five. Their files are in `/private/tmp/claude-501/openin-files`
+  (a PDF and a .jsonl, to copy into the A17 simulator's On My iPhone), and the reorder scene needs a second library
+  added by hand to that simulator's `containers.json`. They run on `OI 5.7 A17 Pro` `0F072FEC-...` with the demo copy
+  of `040951d` (`/private/tmp/oi57-ios-dd/Build/Products/Release-iphonesimulator/OpenIntelligence.app`); that simulator
+  now holds the "install over 5.6" state (Technical Details on, X-Ray switched off by hand).
+- Restart the test simulator before every hosted test run: three runs today hung before connecting, each cleared by
+  `simctl shutdown`, `boot`, `bootstatus -b` and 15 s.
 - Test simulator `OI 5.7 tests` `0FBB8C16-CB05-4DF2-A018-670190834AB6` (iPhone 18 Pro, iOS 27.0): holds a second
   library "Product Notes" added by hand to the app's `containers.json` plus the Ingestion Pipeline doc. Hosted unit tests
   share that data: `ShortcutsActionTests.testAskAnswersFromANoteAddedThroughAddToLibrary` fails while two libraries
@@ -75,6 +89,10 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
   `Ingestion Pipeline.md` (a copy of `Docs/INGESTION_PIPELINE.md`) for the robot's file imports.
 
 ## Verification (2026-10-19, output read)
+
+- Working tree of the commit after `4b6778a`: full suite on a clean install of `0FBB8C16-...`:
+  `Executed 1245 tests, with 7 tests skipped and 0 failures`; Mac build `XCODEBUILD_EXIT=0`, no warning on a changed
+  line (iOS and Mac logs); `secret_scan.py` clean; `verify_doc_claims.py` 983 claims match; `codemap.py check` 0 errors.
 
 - Final tree (`ab2a1fb` plus the user-note sentence): `** TEST BUILD SUCCEEDED **` (iOS Simulator), `** BUILD SUCCEEDED **`
   (Mac, `buildmac.sh`), no warnings in changed files; full suite on a clean install of `0FBB8C16-...`:
@@ -98,7 +116,9 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
 
 ## Exact Next Action
 
-Read the open v5.7 rows (the SQL in `.claude/skills/notion-roadmap/SKILL.md`, with `WHERE "Status" != 'Completed' AND "Target Release" = 'v5.7'`)
-and take the next one whose closing condition the Simulator can meet. Two rows wait on his Mac: the Atlas row
-(`3fe49a74d54f81cc95faeeff91a69bc4`, Mac screenshots and his look) and the device-truth row (`3fe49a74d54f8164a5fee6f0f53805ec`,
-8,192 in the Mac's Glossary and Context Window card); ask him once whether to launch a development build on his Mac.
+Write the eight rows above that are checked but not yet in Notion (the six the tests close and the two robot rows),
+each with its evidence and the commit, then run `testQuickActions`, `testOpenInFromFiles`, `testConversationLimit`,
+`testLibraryReorder` and `testImportNotification` on the A17 simulator (`python3 scratchpad/pvaudit.py <udid> <out>
+OpenIntelligenceScenes/<test>`, after `xcodegen generate` and a robot `build-for-testing` if a scene file changed)
+and close what they show. The Mac rows (Atlas screenshots, the Mac's 8,192) still wait on his word to launch a
+development build on his Mac.

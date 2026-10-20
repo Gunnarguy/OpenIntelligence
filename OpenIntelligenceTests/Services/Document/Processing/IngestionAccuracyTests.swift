@@ -10,6 +10,7 @@
 //
 
 import CoreText
+import Vision
 import XCTest
 
 @testable import OpenIntelligenceEngine
@@ -163,6 +164,154 @@ final class IngestionAccuracyTests: XCTestCase {
             XCTAssertNil(String(data: data, encoding: .utf8), "\(name) is not UTF-8")
             XCTAssertEqual(DocumentProcessor.decodeTextFile(data)?.text, text, name)
         }
+    }
+
+    /// The import itself, not only the decoder: a Shift-JIS text file goes through `processDocument` and its
+    /// passages read as the file's own text. Through 5.6 a text file that was not UTF-8 was read with a
+    /// single-byte guess and imported as garbage, with no error.
+    func testATextFileInShiftJISImportsAsReadableText() async throws {
+        let text = "四半期報告書：第2四半期の純収益は4％増加しました。\nこれは二行目のテキストです。\n"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("shift-jis-\(UUID().uuidString).txt")
+        try XCTUnwrap(text.data(using: .shiftJIS)).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let (_, chunks) = try await DocumentProcessor().processDocument(at: url)
+        let imported = chunks.map(\.text).joined(separator: "\n")
+        XCTAssertTrue(imported.contains("四半期報告書"), imported)
+        XCTAssertTrue(imported.contains("二行目のテキスト"), imported)
+    }
+
+    /// The import itself: a text-layer PDF page of Greek lines keeps them in its passages. Through 5.6 the
+    /// garbage filter counted Latin letters and digits only, so a line in Greek, Chinese or Arabic was deleted
+    /// from the page as garbage.
+    func testAPDFPageOfGreekLinesImportsWithItsLines() async throws {
+        let lines = [
+            "Η εγγύηση επιστρέφεται μέσα σε εξήντα ημέρες από τη λήξη της μίσθωσης.",
+            "Ο ενοικιαστής πληρώνει το ενοίκιο έως την πέμπτη ημέρα κάθε μήνα.",
+            "Τα κατοικίδια επιτρέπονται μόνο με γραπτή άδεια του ιδιοκτήτη.",
+            "Οι ώρες ησυχίας αρχίζουν στις δέκα το βράδυ κάθε ημέρα.",
+        ]
+        let url = try textPDF(pages: [lines])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let (_, chunks) = try await DocumentProcessor().processDocument(at: url)
+        let imported = chunks.map(\.text).joined(separator: "\n").precomposedStringWithCanonicalMapping
+        for line in lines {
+            XCTAssertTrue(imported.contains(line.precomposedStringWithCanonicalMapping), "\(line) is missing from: \(imported)")
+        }
+        // What Vision makes of a Greek page is Cyrillic and Latin look-alikes ("катокіба" for "κατοικίδια").
+        XCTAssertFalse(imported.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }, "OCR text: \(imported)")
+    }
+
+    /// The same for Hebrew, which also reads right to left: the page keeps its words in reading order. The spatial
+    /// reading orders a line's words left to right, so a right-to-left page keeps PDFKit's order.
+    func testAPDFPageOfHebrewLinesImportsWithItsLinesInOrder() async throws {
+        let lines = [
+            "הפיקדון מוחזר תוך שישים יום מתום חוזה השכירות.",
+            "חיות מחמד דורשות אישור בכתב מבעל הדירה.",
+            "שעות השקט מתחילות בעשר בלילה בכל יום.",
+        ]
+        let url = try textPDF(pages: [lines])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let (_, chunks) = try await DocumentProcessor().processDocument(at: url)
+        let imported = chunks.map(\.text).joined(separator: "\n")
+        for phrase in ["הפיקדון מוחזר תוך", "חיות מחמד דורשות", "שעות השקט מתחילות"] {
+            XCTAssertTrue(imported.contains(phrase), "\(phrase) is missing or out of order in: \(imported)")
+        }
+    }
+
+    /// A scanned English page whose text layer holds only a Greek line, such as a stamp: the scanned body is still
+    /// read by Vision. Reading such a page from its text layer alone would keep the stamp and lose the page (review,
+    /// 2026-10-19), so a page the classifier marks as a scan with a text layer over part of it is not.
+    func testAScannedPageWithAGreekLineInItsTextLayerStillHasItsScannedTextRead() async throws {
+        let body = [
+            "The dishwasher warranty covers parts and labour for two years.",
+            "Register the appliance within thirty days of delivery.",
+            "Keep the receipt with the serial number from the door.",
+            "The filter should be cleaned once a month with warm water.",
+            "Do not use washing-up liquid in the detergent drawer.",
+            "Call the service line if the drain light stays on.",
+            "Load plates facing the centre of the lower basket.",
+            "Glasses go in the upper basket, away from the spray arm.",
+            "Run the machine empty on the hottest cycle every month.",
+            "The rinse aid light means the reservoir needs a refill.",
+            "Unplug the machine before you take the filter out.",
+            "A full load uses less water than washing by hand.",
+        ]
+        let width = 1700, height = 2200
+        let space = CGColorSpaceCreateDeviceRGB()
+        let bitmap = try XCTUnwrap(CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        bitmap.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        bitmap.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let bodyFont = CTFontCreateWithName("Helvetica" as CFString, 40, nil)
+        for (row, text) in body.enumerated() {
+            let attributed = NSAttributedString(
+                string: text, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): bodyFont])
+            bitmap.textPosition = CGPoint(x: 80, y: CGFloat(height) - 200 - CGFloat(row) * 120)
+            CTLineDraw(CTLineCreateWithAttributedString(attributed), bitmap)
+        }
+        let scan = try XCTUnwrap(bitmap.makeImage())
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("scan-\(UUID().uuidString).pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let consumer = try XCTUnwrap(CGDataConsumer(url: url as CFURL))
+        let context = try XCTUnwrap(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
+        context.beginPDFPage(nil)
+        context.draw(scan, in: CGRect(x: 36, y: 36, width: 540, height: 699))
+        let stamp = NSAttributedString(
+            string: "ΑΚΡΙΒΕΣ ΑΝΤΙΓΡΑΦΟ ΑΠΟ ΤΟ ΠΡΩΤΟΤΥΠΟ ΤΟΥ ΠΙΣΤΟΠΟΙΗΤΙΚΟΥ ΕΓΓΥΗΣΗΣ",
+            attributes: [NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName("Helvetica" as CFString, 9, nil)])
+        context.textPosition = CGPoint(x: 54, y: 760)
+        CTLineDraw(CTLineCreateWithAttributedString(stamp), context)
+        context.endPDFPage()
+        context.closePDF()
+
+        let (_, chunks) = try await DocumentProcessor().processDocument(at: url)
+        let imported = chunks.map(\.text).joined(separator: "\n").lowercased()
+        for word in ["dishwasher", "warranty", "detergent", "receipt"] {
+            XCTAssertTrue(imported.contains(word), "\(word) from the scanned body is missing from: \(imported)")
+        }
+    }
+
+
+    /// Whether OCR can check a PDF's text layer: only when most of its letters are in a script Vision reads. Vision has
+    /// no model for Greek or Hebrew (measured 2026-10-19), and comparing such a text layer with what OCR makes of the
+    /// page judged a correct one a cipher.
+    func testOCRChecksATextLayerOnlyInAScriptVisionReads() throws {
+        // Read from Vision here as the app does, so a failure that left the app on its fallback set shows.
+        let request = VNRecognizeTextRequest()
+        OCRConfiguration.configureRequest(request)
+        let languages = try request.supportedRecognitionLanguages()
+        let scripts = Set(languages.compactMap {
+            Locale.Language(identifier: Locale.Language(identifier: $0).maximalIdentifier).script?.identifier
+        })
+        XCTAssertEqual(OCRConfiguration.scriptsVisionCanRead, scripts, "\(languages)")
+        XCTAssertTrue(OCRConfiguration.scriptsVisionCanRead.contains("Latn"))
+        XCTAssertFalse(OCRConfiguration.scriptsVisionCanRead.contains("Grek"), "Vision now reads Greek: this test's premise has changed")
+        XCTAssertTrue(OCRConfiguration.isMostlyRightToLeft("הפיקדון מוחזר תוך שישים יום מתום חוזה השכירות."))
+        XCTAssertTrue(OCRConfiguration.isMostlyRightToLeft("يتم رد التأمين خلال ستين يوما من انتهاء عقد الإيجار."))
+        XCTAssertFalse(OCRConfiguration.isMostlyRightToLeft("The security deposit is refunded within sixty days."))
+        XCTAssertFalse(OCRConfiguration.isMostlyRightToLeft("Η εγγύηση επιστρέφεται μέσα σε εξήντα ημέρες."))
+        let readable = [
+            "The security deposit is refunded within sixty days of the end of the lease.",
+            "Залог возвращается в течение шестидесяти дней после окончания аренды.",
+            "敷金は賃貸契約の終了から六十日以内に返還されます。ペットは許可が必要です。",
+            "보증금은 임대 계약 종료 후 육십 일 이내에 반환됩니다. 애완동물은 허가가 필요합니다.",
+            "押金在租约结束后六十天内退还。养宠物需要房东的书面许可，安静时间从晚上十点开始。",
+            "يتم رد التأمين خلال ستين يوما من انتهاء عقد الإيجار والحيوانات تحتاج إلى إذن.",
+            "Η εγγύηση is refunded within sixty days of the end of the lease, as the lease says.",
+            "Η εγγύηση",
+        ]
+        for text in readable { XCTAssertTrue(OCRConfiguration.visionCanReadMostOf(text), text) }
+        let unreadable = [
+            "Η εγγύηση επιστρέφεται μέσα σε εξήντα ημέρες από τη λήξη της μίσθωσης.",
+            "הפיקדון מוחזר תוך שישים יום מתום חוזה השכירות, וחיות מחמד דורשות אישור.",
+        ]
+        for text in unreadable { XCTAssertFalse(OCRConfiguration.visionCanReadMostOf(text), text) }
     }
 
     func testUTF16IsReadWithAndWithoutItsByteOrderMark() {

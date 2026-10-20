@@ -813,6 +813,45 @@ Call sites outside PDF ingestion — the camera capture path, `IntelligentDocume
 speed argument is a plausible prior that only a device trace can settle, and the log line above
 exists so that trace can attribute it.
 
+### A text layer in a script Vision does not read *(added 2026-10-19, for 5.7)*
+
+Before trusting a PDF's text layer, Phase -1 reads a sample page with OCR and compares the two sets of words; under
+a Jaccard similarity of 0.15 the text layer is taken for a font-substitution cipher and every page goes to OCR. That
+comparison means something only when OCR can read the page. Vision's text recognition (`VNRecognizeTextRequest`
+revision 3, accurate) lists 33 languages in nine scripts on macOS 27: Arab, Cyrl, Deva, Hans, Hant, Jpan, Kore, Latn
+and Thai. It has no model for Greek or Hebrew, and on a Greek page it returned Cyrillic and Latin look-alikes
+("hayyúnon" for "εγγύηση"), so a correct Greek text layer scored 0.000, was judged a cipher, and the page imported
+empty once the garbage filter had removed the OCR junk.
+
+`OCRConfiguration.visionCanReadMostOf(_:)` is true unless a text has at least 20 letters and fewer than half of them
+are in a script Vision has a model for (`scriptsVisionCanRead`, from Vision's `supportedRecognitionLanguages()` at
+first use, mapped to scripts with `Locale.Language`, with those nine scripts as the fallback; that first call took 22
+to 58 ms on an M3 Pro and a repeat 0.2 ms, measured with a probe on macOS 27, and the set is kept for the launch). It
+is used twice:
+
+- **Phase -1 picks its sample from pages that pass.** A document with any sampled page in a script Vision reads is
+  checked with that page; one whose sampled pages all fail keeps its text layer: `Text layer kept without an OCR
+  check: the sampled pages' letters are mostly in a script Vision's text recognition does not read`.
+- **The page loop reads a failing page from its text layer** (`DocumentProcessor.readsTextLayerVisionCannotRead`),
+  through PDFKit spatial extraction like a simple page, not through `LayoutAwareExtractor` and
+  `StructuredDocumentParser`, which take their text from Vision: `Page N: read from its text layer, whose script
+  Vision's text recognition does not read`. A right-to-left page (`OCRConfiguration.isMostlyRightToLeft`) keeps
+  PDFKit's own order, because `spatialLineBreak` orders a line's words left to right; on macOS 27 PDFKit gave a
+  Hebrew page drawn with Core Text in reading order. A page the classifier marks as a scan with a text layer over
+  part of it (`isMixedModeScanned`) is not read this way: its text layer may be a stamp or a header over a scanned
+  body that only Vision can read.
+
+Still so, by design or not yet changed: a page read from its text layer gets no table or list structure from Vision;
+a page under half in such a script, beside a table Vision reads, still has that script replaced by OCR; Persian and
+Urdu, in Arabic script but not among Vision's languages, are still compared with Vision's Arabic reading; a scanned
+page in Greek or Hebrew with no text layer still goes to OCR, and revision 3 cannot read it (`RecognizeDocumentsRequest`
+was not probed); and a font named Symbol whose glyphs are Latin and which has no ToUnicode map extracts as Greek and
+is now kept without a check.
+`[evidence_level: test_verified (IngestionAccuracyTests: testAPDFPageOfGreekLinesImportsWithItsLines,
+testAPDFPageOfHebrewLinesImportsWithItsLinesInOrder, testAScannedPageWithAGreekLineInItsTextLayerStillHasItsScannedTextRead,
+testOCRChecksATextLayerOnlyInAScriptVisionReads; iOS 27 Simulator, 2026-10-19), measured (Vision's language list and
+PDFKit's Hebrew order, probes on macOS 27 the same day); confidence: high for the mechanism, not seen on a device]`
+
 ### Page-Level JSON Checkpointing & State Persistence
 - **Scope, clarified 2026-08-29: this applies only to `importLargePDFStreamed`, which is entered when
   `documentType == .pdf && fileSizeMB > 10` (`RAGService.swift:5666`).** Every PDF at or under 10 MB,
@@ -1005,7 +1044,7 @@ The Words figure an import reports is the document's own count of its text as re
 
 ### Saved first, improved after *(added 2026-10-15, for 5.7)*
 
-An import writes its passages, their vectors and their keyword rows, saves the vector store and records the document before it calls Apple's model for the RAPTOR-lite overview, the content tags and the suggested questions (`RAGService.enrichImportedDocument`). Through 5.6 the overview and the tags came before the save, and on 2026-10-15 iOS ended a background import 53 s in, during the suggested questions that followed the save. While the app is in the background the three calls are not made: the document is listed (`RAGService.deferEnrichment`, the `deferredDocumentEnrichment` setting) and `runDeferredEnrichmentsIfNeeded` makes them when the app is in front and no import runs. A document deleted meanwhile leaves the list. `[evidence_level: test_verified (DeferredEnrichmentTests) for the list, build_verified for the order, confidence: medium]`
+An import writes its passages, their vectors and their keyword rows, saves the vector store and records the document before it calls Apple's model for the RAPTOR-lite overview, the content tags and the suggested questions (`RAGService.enrichImportedDocument`). Through 5.6 the overview and the tags came before the save, and on 2026-10-15 iOS ended a background import 53 s in, during the suggested questions that followed the save. While the app is in the background the three calls are not made: the document is listed (`RAGService.deferEnrichment`, the `deferredDocumentEnrichment` setting) and `runDeferredEnrichmentsIfNeeded` makes them when the app is in front and no import runs. A document deleted meanwhile leaves the list. `[evidence_level: test_verified (DeferredEnrichmentTests) for the list, build_verified for the order, confidence: medium]` *(Added 2026-10-19: moving this work after the save let a document be deleted while its overview was written, and the overview then stayed as a passage of no document, which later answers cited as "Unknown Document Summary"; no release had it. The overview and the suggested questions are now stored only for a listed document, which includes one in its undo seconds, and taken out again when the deletion began while they were stored (`RAGService.enrichmentTargetState`). `[evidence_level: test_verified (DeletedDuringEnrichmentTests: a note deleted while the import reports writing its overview leaves no passage, one deleted and undone keeps its overview), confidence: high]`)*
 
 ## 5b. Token counting, and the invariant that guards it
 

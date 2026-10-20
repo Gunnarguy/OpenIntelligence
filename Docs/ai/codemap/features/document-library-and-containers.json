@@ -34,7 +34,9 @@
     {"path": "OpenIntelligenceTests/Services/Infrastructure/DeletedLibraryTests.swift", "role": "test", "blob": "4a752fc7a6e669e977f5b42f4bb02d0dcc474bb4"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ImportTargetLibraryTests.swift", "role": "test", "blob": "a7b5a6358fc7ee6538819ea5d1d79e159645435a"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/PendingDocumentRemoval.swift", "role": "primary", "blob": "f5cc1932009a273fc5d8b1455fbfe5a302dd73a1"},
-    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/PendingDocumentRemovalTests.swift", "role": "test", "blob": "6e44125b4cb73c61a68d99e98834499dec71aae0"}
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/PendingDocumentRemovalTests.swift", "role": "test", "blob": "6e44125b4cb73c61a68d99e98834499dec71aae0"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SecondEngineSaveTests.swift", "role": "test", "blob": "af6d3758d97877e367c434d83dbb801ba2463f0f"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/DeletedDuringEnrichmentTests.swift", "role": "test", "blob": "8eb4f24f154d286aeadc2a9186f112d9ff0189d4"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView", "kind": "view", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 13, "match": "struct DocumentLibraryView: View {", "status": "VERIFIED", "by": "build"},

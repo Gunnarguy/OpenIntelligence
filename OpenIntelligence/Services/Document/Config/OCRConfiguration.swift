@@ -212,6 +212,93 @@ enum OCRConfiguration {
         request.customWords = customWords ?? universalCustomWords
     }
 
+    // MARK: - Scripts Vision can read
+
+    /// The scripts Vision's text recognition has a model for, as ISO 15924 codes, from the languages it lists for a
+    /// request set up by `configureRequest` (revision 3, accurate). On macOS 27 that is Arab, Cyrl, Deva, Hans, Hant,
+    /// Jpan, Kore, Latn and Thai: no Greek and no Hebrew (measured 2026-10-19). Asked once; that set is the fallback.
+    nonisolated static let scriptsVisionCanRead: Set<String> = {
+        let request = VNRecognizeTextRequest()
+        configureRequest(request)
+        let languages = (try? request.supportedRecognitionLanguages()) ?? []
+        let scripts = Set(
+            languages.compactMap {
+                Locale.Language(identifier: Locale.Language(identifier: $0).maximalIdentifier).script?.identifier
+            })
+        return scripts.isEmpty ? ["Arab", "Cyrl", "Deva", "Hans", "Hant", "Jpan", "Kore", "Latn", "Thai"] : scripts
+    }()
+
+    /// The scripts of the letters `scriptsVisionCanRead` covers: Chinese is written in Han characters, Japanese in
+    /// kana and kanji, Korean in hangul and hanja.
+    nonisolated private static let letterScriptsVisionCanRead: Set<String> = Set(
+        scriptsVisionCanRead.flatMap { script -> [String] in
+            switch script {
+            case "Hans", "Hant", "Hani": return ["Hani"]
+            case "Jpan": return ["Hira", "Kana", "Hani"]
+            case "Kore": return ["Hang", "Hani"]
+            default: return [script]
+            }
+        })
+
+    /// The ISO 15924 script of a letter, for the scripts Vision reads and the ones most often met that it does not;
+    /// nil for any other.
+    nonisolated private static func scriptCode(of scalar: Unicode.Scalar) -> String? {
+        switch scalar.value {
+        case 0x0041...0x005A, 0x0061...0x007A, 0x00C0...0x024F, 0x1E00...0x1EFF, 0xFF21...0xFF3A, 0xFF41...0xFF5A:
+            return "Latn"
+        case 0x0370...0x03FF, 0x1F00...0x1FFF: return "Grek"
+        case 0x0400...0x052F, 0x1C80...0x1C8F, 0x2DE0...0x2DFF, 0xA640...0xA69F: return "Cyrl"
+        case 0x0530...0x058F: return "Armn"
+        case 0x0590...0x05FF, 0xFB1D...0xFB4F: return "Hebr"
+        case 0x0600...0x06FF, 0x0750...0x077F, 0x08A0...0x08FF, 0xFB50...0xFDFF, 0xFE70...0xFEFF: return "Arab"
+        case 0x0700...0x074F: return "Syrc"
+        case 0x0780...0x07BF: return "Thaa"
+        case 0x07C0...0x07FF: return "Nkoo"
+        case 0x0900...0x097F, 0xA8E0...0xA8FF: return "Deva"
+        case 0x0980...0x09FF: return "Beng"
+        case 0x0B80...0x0BFF: return "Taml"
+        case 0x0E00...0x0E7F: return "Thai"
+        case 0x10A0...0x10FF, 0x1C90...0x1CBF, 0x2D00...0x2D2F: return "Geor"
+        case 0x1100...0x11FF, 0x3130...0x318F, 0xA960...0xA97F, 0xAC00...0xD7AF, 0xD7B0...0xD7FF: return "Hang"
+        case 0x3040...0x309F: return "Hira"
+        case 0x30A0...0x30FF, 0x31F0...0x31FF, 0xFF66...0xFF9F: return "Kana"
+        case 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF, 0x20000...0x2FA1F: return "Hani"
+        default: return nil
+        }
+    }
+
+    /// Whether Vision can read most of this text's letters, so that OCR of the page can check a PDF's text layer.
+    /// False when most letters are in a script Vision has no model for, such as Greek or Hebrew: OCR of such a page
+    /// gives other letters, and a correct text layer compared with it looks like a cipher. Text with fewer than 20
+    /// letters counts as readable, so the check runs as before.
+    nonisolated static func visionCanReadMostOf(_ text: String) -> Bool {
+        var letters = 0
+        var readable = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            letters += 1
+            if let script = scriptCode(of: scalar), letterScriptsVisionCanRead.contains(script) { readable += 1 }
+        }
+        guard letters >= 20 else { return true }
+        return readable * 2 >= letters
+    }
+
+    /// Whether at least half of a text's letters are in a script written right to left (Hebrew, Arabic, Syriac,
+    /// Thaana, N'Ko). The spatial reading of a PDF page orders a line's words left to right, so such a page's text
+    /// layer is taken as PDFKit gives it, which on macOS 27 is in reading order (measured 2026-10-19, a Hebrew page
+    /// drawn with Core Text). Text with fewer than 20 letters counts as left to right.
+    nonisolated static func isMostlyRightToLeft(_ text: String) -> Bool {
+        var letters = 0
+        var rightToLeft = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            letters += 1
+            if let script = scriptCode(of: scalar), ["Hebr", "Arab", "Syrc", "Thaa", "Nkoo"].contains(script) {
+                rightToLeft += 1
+            }
+        }
+        guard letters >= 20 else { return false }
+        return rightToLeft * 2 >= letters
+    }
+
     // MARK: - Dynamic Vocabulary Extraction
 
     /// Extract domain-specific vocabulary from a document's raw text layer.

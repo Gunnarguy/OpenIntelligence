@@ -98,6 +98,83 @@ final class ShortcutsActionTests: XCTestCase {
             "the buttons open the chat on the library the question ran in")
     }
 
+    /// A question asked again after the document that answered it is deleted. Through 5.6 a search kept in the
+    /// query cache was reused for the same question whatever the libraries held, so the deleted note's passages came
+    /// back, named "Unknown". Since 5.7 a cached search's key names every library's documents, so the second ask
+    /// searches again and finds none of them.
+    func testAQuestionAskedAgainAfterADeleteGetsNoPassageOfTheDeletedNote() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        let document = try await addNote(
+            "The brambleton parking permit for the test flat costs 85 dollars a year, paid in March.")
+        // A second note stays, so the library is not empty when the question is asked again.
+        _ = try await addNote("The recycling for the test flat goes out on Thursday mornings before seven.")
+        let model = StandInModel(answer: "The brambleton parking permit for the test flat costs 85 dollars a year.")
+        AskActionRunner.makeEngine = { RAGService(llmService: model) }
+        addTeardownBlock { @MainActor in AskActionRunner.makeEngine = { RAGService() } }
+
+        let question = "How much is the brambleton parking permit?"
+        let first = try await AskActionRunner.ask(question, mode: .standard, topK: 3)
+        XCTAssertTrue(
+            first.answer.passages.contains { $0.documentName == document.filename },
+            "the first answer's passages are from \(first.answer.passages.map(\.documentName))")
+
+        try await IntentSupport.engine().removeDocument(document)
+        let second = try await AskActionRunner.ask(question, mode: .standard, topK: 3)
+        XCTAssertFalse(
+            second.answer.passages.contains { $0.documentName == document.filename || $0.documentName == "Unknown" },
+            "the second answer still has the deleted note: \(second.answer.passages.map(\.documentName))")
+        XCTAssertFalse(
+            second.answer.passages.contains { $0.text.contains("brambleton") },
+            "a passage of the deleted note came back")
+    }
+
+    /// A passage of no document is not used in an answer (5.7, `passagesFromKnownDocuments` and
+    /// `chunksOfListedDocuments`). Such passages were left by a deleted document or an import that stopped before
+    /// recording its document, and answers cited them as "Unknown". The planted one is an overview, as
+    /// `DocumentSummaryService` writes it, and it is asked about three ways: a Standard lookup, a Standard overview
+    /// question, and Deep Think, which searches through `executeFullRetrievalPipeline`.
+    func testAPassageOfNoDocumentIsNotUsedInAnAnswer() async throws {
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }
+        _ = try await addNote("The recycling for the test flat goes out on Thursday mornings before seven.")
+        let engine = IntentSupport.engine()
+        let library = try XCTUnwrap(engine.containerService.activeContainerId)
+        let container = engine.containerService.containers.first { $0.id == library }
+        let embedder = EmbeddingService.forProvider(
+            id: container?.embeddingProviderId ?? "coreml_sentence_embedding",
+            targetDimension: container?.embeddingDim ?? 384, allowFallback: true)
+        let orphanText =
+            "[Document Summary: deleted note] The thornfield parking permit for the test flat costs 999 dollars a year."
+        let orphan = DocumentChunk(
+            documentId: UUID(), content: orphanText, embedding: try await embedder.generateEmbedding(for: orphanText),
+            metadata: ChunkMetadata(
+                chunkIndex: -1, endPosition: orphanText.count, sectionTitle: "Document Summary", semanticDensity: 1.0,
+                hasNumericData: true, wordCount: orphanText.split(separator: " ").count,
+                characterCount: orphanText.count, abstractionLevel: .documentSummary))
+        let db = try await engine.dbForContainer(library)
+        try await db.storeBatch(chunks: [orphan])
+        try await db.persist()
+        addTeardownBlock { @MainActor in
+            try? await db.deleteChunks(forDocument: orphan.documentId)
+            try? await db.persist()
+        }
+        let planted = try await db.chunks(forDocument: orphan.documentId)
+        XCTAssertEqual(planted.count, 1, "the passage was not stored, so this test would show nothing")
+
+        let model = StandInModel(answer: "The recycling for the test flat goes out on Thursday mornings.")
+        AskActionRunner.makeEngine = { RAGService(llmService: model) }
+        addTeardownBlock { @MainActor in AskActionRunner.makeEngine = { RAGService() } }
+        for (question, mode) in [
+            ("How much is the thornfield parking permit?", OIAnswerMode.standard),
+            ("Give me an overview of the thornfield parking permit note.", .standard),
+            ("How much is the thornfield parking permit?", .deepThink),
+        ] {
+            let outcome = try await AskActionRunner.ask(question, mode: mode, topK: 3)
+            XCTAssertFalse(
+                outcome.answer.passages.contains { $0.text.contains("thornfield") },
+                "\(mode) used the passage of no document for \"\(question)\": \(outcome.answer.passages.map(\.documentName))")
+        }
+    }
+
     /// "Export Conversation" hands a saved conversation back as a file the shortcut can pass on.
     func testExportConversationHandsBackASavedConversationAsAPDF() async throws {
         guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("needs iOS 26") }

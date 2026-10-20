@@ -1335,6 +1335,24 @@ class RAGService: ObservableObject {
         return deleted
     }
 
+    /// The passages of a library's store that belong to a listed document (5.7). What the later steps of a question
+    /// draw on (the spec sniper, cross-references, parent expansion, lexical recall) is this list, and they add
+    /// passages after `passagesFromKnownDocuments` has run: on 2026-10-19 the spec sniper put the overview of a
+    /// deleted note into an answer, cited as "Unknown" (`ShortcutsActionTests.testAPassageOfNoDocumentIsNotUsedInAnAnswer`).
+    private func chunksOfListedDocuments(_ chunks: [DocumentChunk]) async -> [DocumentChunk] {
+        let listed = await MainActor.run { Set(self.documents.map(\.id)) }
+        // The usual case drops nothing and keeps the store's own array rather than copying every passage
+        // (review, 2026-10-19: about 60 MB for a 144,247-passage library).
+        guard !chunks.allSatisfy({ listed.contains($0.documentId) }) else { return chunks }
+        let kept = chunks.filter { listed.contains($0.documentId) }
+        if kept.count < chunks.count {
+            Log.warning(
+                "[RAGService] \(chunks.count - kept.count) stored passage(s) belong to no listed document and are not used",
+                category: .retrieval)
+        }
+        return kept
+    }
+
     /// Leaves out a passage from the stores whose document is in no library (5.7): its document was deleted,
     /// or an import stopped before recording it, and an answer cited it as "Unknown". A passage the pipeline
     /// made itself, such as a camera or barcode capture, carries its own name and is kept. On 2026-10-15 the
@@ -6006,21 +6024,28 @@ class RAGService: ObservableObject {
             candidates = await engine.filterBySimilarity(chunks: candidates, min: threshold)
         }
 
-        if candidates.count > topK {
-            candidates = Array(candidates.prefix(topK))
-        }
-
         let docsSnapshot = await snapshotDocuments()
-        let enriched = candidates.enumerated().map { index, chunk in
-            let docName = docsSnapshot.first(where: { $0.id == chunk.chunk.documentId })?.filename ?? "Unknown"
-            return RetrievedChunk(
+        // Passages whose document is in no library are left out (5.7, `passagesFromKnownDocuments`), before the
+        // list is cut to `topK`, so the screen still shows up to `topK` and numbers them without gaps.
+        let named = candidates.map { chunk in
+            RetrievedChunk(
                 chunk: chunk.chunk,
                 similarityScore: chunk.similarityScore,
-                rank: index + 1,
-                sourceDocument: docName,
+                rank: chunk.rank,
+                sourceDocument: docsSnapshot.first(where: { $0.id == chunk.chunk.documentId })?.filename ?? "Unknown",
                 pageNumber: chunk.chunk.metadata.pageNumber
             )
         }
+        let enriched = Self.passagesFromKnownDocuments(named, knownDocumentIds: Set(docsSnapshot.map(\.id))).kept
+            .prefix(topK).enumerated().map { index, chunk in
+                RetrievedChunk(
+                    chunk: chunk.chunk,
+                    similarityScore: chunk.similarityScore,
+                    rank: index + 1,
+                    sourceDocument: chunk.sourceDocument,
+                    pageNumber: chunk.pageNumber
+                )
+            }
         TelemetryCenter.emit(
             .retrieval,
             title: "Semantic search",
@@ -8234,21 +8259,44 @@ class RAGService: ObservableObject {
                     embeddingTranslationTarget: translationTargetLanguage(for: container)
                 )
 
-                // Store the summary chunk alongside detail chunks
-                try await db.storeBatch(chunks: [summaryChunk])
-                try await db.persist()
+                // The overview takes up to 12 s to write, and the document can be deleted meanwhile
+                // (`enrichmentTargetState`, 5.7).
+                if await enrichmentTargetState(document.id) != .listed {
+                    Log.info(
+                        "[RAGService] Not storing the overview of '\(filename)': the document was deleted while it was written",
+                        category: .ingestion)
+                } else {
+                    // Store the summary chunk alongside detail chunks
+                    try await db.storeBatch(chunks: [summaryChunk])
+                    try await db.persist()
 
-                TelemetryCenter.emit(
-                    .ingestion,
-                    title: "Document summary generated",
-                    metadata: [
-                        "file": filename,
-                        "summaryWords": "\(summaryChunk.metadata.wordCount)",
-                        "abstractionLevel": "L1",
-                    ]
-                )
+                    if await enrichmentTargetState(document.id) == .removalStarted {
+                        // The deletion began while the overview was stored and may have taken the document's
+                        // passages out before it, so the overview is taken out here.
+                        do {
+                            try await db.deleteChunks(forDocument: document.id)
+                            Log.info(
+                                "[RAGService] Took out the overview of '\(filename)': the document was deleted while it was stored",
+                                category: .ingestion)
+                        } catch {
+                            Log.error(
+                                "[RAGService] Could not take out the overview of '\(filename)', whose document was deleted while it was stored: \(error.localizedDescription)",
+                                category: .ingestion)
+                        }
+                    } else {
+                        TelemetryCenter.emit(
+                            .ingestion,
+                            title: "Document summary generated",
+                            metadata: [
+                                "file": filename,
+                                "summaryWords": "\(summaryChunk.metadata.wordCount)",
+                                "abstractionLevel": "L1",
+                            ]
+                        )
 
-                Log.info("[RAGService] RAPTOR-lite: Generated L1 summary for '\(filename)'", category: .ingestion)
+                        Log.info("[RAGService] RAPTOR-lite: Generated L1 summary for '\(filename)'", category: .ingestion)
+                    }
+                }
             } catch {
                 // Summary generation is optional - log but don't fail ingestion
                 Log.warning(
@@ -8343,11 +8391,42 @@ class RAGService: ObservableObject {
                 progress: 0.99
             )
         }
+        guard await enrichmentTargetState(document.id) == .listed else {
+            Log.info(
+                "[RAGService] No suggested questions for '\(filename)': the document was deleted after its import",
+                category: .ingestion)
+            return
+        }
         await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument(
             document,
             chunks: documentChunks,
             in: activeContainerId
         )
+        if await enrichmentTargetState(document.id) == .removalStarted {
+            await SuggestedQuestionsService.shared.removeQuestions(for: document.id, in: activeContainerId)
+        }
+    }
+
+    /// Where a document stands for the model work that follows its import (5.7), which takes seconds per step:
+    /// listed (in the list, or out of it for its undo seconds), recorded as deleted, which `removeDocument` and
+    /// `clearAllDocuments` do before they take anything out, or neither. Since that work moved after the document
+    /// is saved (2026-10-15, during 5.7), a document deleted while its overview was written kept that overview as
+    /// a passage of no document, and later answers cited it as "Unknown Document Summary" (seen in the iOS 27
+    /// Simulator on 2026-10-19, `ShortcutsActionTests`); no release had it. What a step makes is stored only for a
+    /// listed document, and taken out again when the deletion began while it was stored. A document in its undo
+    /// seconds gets its overview and questions: an Undo brings it back with them, and a removal that runs takes them
+    /// out with the rest (review, 2026-10-19).
+    enum EnrichmentTargetState: Equatable { case listed, unlisted, removalStarted }
+
+    private func enrichmentTargetState(_ id: UUID) async -> EnrichmentTargetState {
+        let url = AppSupportPaths.baseDir().appendingPathComponent("deleted_documents.json")
+        if let data = try? Data(contentsOf: url), let ids = try? JSONDecoder().decode([String].self, from: data),
+            ids.contains(id.uuidString)
+        {
+            return .removalStarted
+        }
+        let listed = await MainActor.run { self.documents.contains { $0.id == id } || self.isRemovalPending(id) }
+        return listed ? .listed : .unlisted
     }
 
     /// Whether the app is in the background, where iOS ends an import that stalls (5.7).
@@ -9473,10 +9552,23 @@ class RAGService: ObservableObject {
         // A deletion still in its undo seconds runs first (5.7): its document is out of the list, so this would
         // empty its stores without recording it as deleted, and an Undo would bring back an empty document.
         await commitPendingRemovals()
-        let db = await dbForActiveContainer()
-        try await db.clear()
-
         let activeId = await MainActor.run { self.containerService.activeContainerId }
+        let docsToDelete = await MainActor.run {
+            self.documents.filter { $0.containerId == activeId }
+        }
+        // Recorded as deleted before anything is removed, as `removeDocument` does (5.7): the model work that follows
+        // an import reads the record to know its document is going (`enrichmentTargetState`), and through 5.6 this
+        // wrote it after the store was emptied (review, 2026-10-19). A store that cannot be emptied leaves the
+        // documents as they were, record included.
+        registerDeletedDocuments(docsToDelete)
+        let db = await dbForActiveContainer()
+        do {
+            try await db.clear()
+        } catch {
+            clearDeletionTombstones(for: docsToDelete.map(\.id))
+            throw error
+        }
+
         // Invalidate visualization cache for the cleared container
         ProjectionCache.shared.invalidate(forContainer: activeId)
 
@@ -9486,10 +9578,6 @@ class RAGService: ObservableObject {
         await SQLiteFullTextService.shared.deleteChunksForContainer(containerId: activeId)
 
         // Legacy file storage: Delete individual documents
-        let docsToDelete = await MainActor.run {
-            self.documents.filter { $0.containerId == activeId }
-        }
-        registerDeletedDocuments(docsToDelete)
         for doc in docsToDelete {
             await FullTextStorageService.shared.delete(for: doc.id)
         }
@@ -11781,7 +11869,7 @@ class RAGService: ObservableObject {
                 var cachedAllChunks: [DocumentChunk]?
                 if corpusVocabulary.keywords.isEmpty {
                     let allChunks = try await vdb.readableChunks()
-                    cachedAllChunks = allChunks  // Store for HybridSearchService lexical recall
+                    cachedAllChunks = await chunksOfListedDocuments(allChunks)  // Store for HybridSearchService lexical recall
 
                     // Run viscosity scan when building vocabulary (first query)
                     await runViscosityScan(allChunks, query: question)
@@ -11804,7 +11892,7 @@ class RAGService: ObservableObject {
                     // Previously only loaded when pipelineTraceEnabled, which silently broke
                     // parent doc expansion on repeat queries to the same container.
                     let allChunks = try await vdb.readableChunks()
-                    cachedAllChunks = allChunks
+                    cachedAllChunks = await chunksOfListedDocuments(allChunks)
                     if Log.pipelineTraceEnabled {
                         await runViscosityScan(allChunks, query: question)
                     }
@@ -13008,7 +13096,17 @@ class RAGService: ObservableObject {
                             )
                         }
 
-                        let mergedCandidates = mergeUniqueChunks(rerankedChunks, cascadeChunksWithSources)
+                        // Passages whose document is in no library are left out here too (5.7,
+                        // `passagesFromKnownDocuments`): this search runs after the first check, and on 2026-10-19 it
+                        // brought back the overview of a deleted note, which the answer then cited as "Unknown".
+                        let cascadeFromKnown = Self.passagesFromKnownDocuments(
+                            cascadeChunksWithSources, knownDocumentIds: Set(docsSnapshot.map(\.id)))
+                        if cascadeFromKnown.dropped > 0 {
+                            Log.warning(
+                                "[RAGService] Left out \(cascadeFromKnown.dropped) cascade passage(s) whose document is in no library",
+                                category: .retrieval)
+                        }
+                        let mergedCandidates = mergeUniqueChunks(rerankedChunks, cascadeFromKnown.kept)
                         if mergedCandidates.count > rerankedChunks.count {
                             let cascadeRerankStart = Date()
                             rerankedChunks = await engine.rerank(
@@ -13122,6 +13220,12 @@ class RAGService: ObservableObject {
                                     )
                                 }
                             }
+
+                            // Passages whose document is in no library are left out here too (5.7,
+                            // `passagesFromKnownDocuments`), as in the retrieval cascade above.
+                            cleanedRetryChunks = Self.passagesFromKnownDocuments(
+                                cleanedRetryChunks, knownDocumentIds: Set(docsSnapshot.map(\.id))
+                            ).kept
 
                             // Merge retry results with existing reranked chunks
                             let mergedChunks = mergeUniqueChunks(rerankedChunks, cleanedRetryChunks)
@@ -21559,7 +21663,10 @@ extension RAGService: RAGToolHandler {
         }
         let effectiveMinSimilarity = minSimilarity ?? resolvedRetrievalConfig.minSimilarity
         let db = await dbFor(embeddingContext.containerId)
-        let allChunks = RAGQueryScope.apply(to: try await db.readableChunks())  // narrowed when the question names documents
+        // Narrowed when the question names documents, and without passages of no document (5.7,
+        // `chunksOfListedDocuments`): this list feeds the overview routing, lexical recall, the spec sniper and
+        // sibling expansion below, the way `cachedAllChunks` does for Standard (review, 2026-10-19).
+        let allChunks = RAGQueryScope.apply(to: await chunksOfListedDocuments(try await db.readableChunks()))
 
         // Skip if no chunks
         guard !allChunks.isEmpty else { return [] }
@@ -21868,6 +21975,18 @@ extension RAGService: RAGToolHandler {
             }
             retrievedChunks = reordered
             await onDetailedEvent?(.lostInMiddle, "Lost-in-Middle reorder", "Best evidence at start/end of context")
+        }
+
+        // Passages whose document is in no library are left out (5.7, `passagesFromKnownDocuments`): the vector
+        // search above reads the whole store. Deep Think and Maximum search through here, not through
+        // `searchDocumentsRaw` (review, 2026-10-19).
+        let listedDocumentIds = await MainActor.run { Set(self.documents.map(\.id)) }
+        let fromListedDocuments = Self.passagesFromKnownDocuments(retrievedChunks, knownDocumentIds: listedDocumentIds)
+        if fromListedDocuments.dropped > 0 {
+            Log.warning(
+                "[FullRetrieval] Left out \(fromListedDocuments.dropped) passage(s) whose document is in no library",
+                category: .retrieval)
+            retrievedChunks = fromListedDocuments.kept
         }
 
         // Enrich with document names
