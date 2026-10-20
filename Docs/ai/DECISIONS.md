@@ -1811,7 +1811,11 @@ taken.
 - *The custom pipeline row is covered by Library Settings* (row "Custom RAG Pipeline Configuration"). Advanced
   Controls has minimum similarity, the vector and keyword weights, MMR's λ (which acts from 5.7), minimum confident
   passages and explicit citations, with four presets. No further control is added without a measurement that it
-  helps.
+  helps. *(Correction 2026-10-20: no one can see Advanced Controls. `ContainerSettingsSheet` draws them only when
+  `SettingsStore.developerRAGTuningEnabled` is true, and `SettingsStore` forces that false at launch and on every
+  change ("Developer tuning is deprecated - always disabled"); the same flag turns on the ungrounded fallback. Whether
+  to show the controls again, apart from that fallback, is the owner's call, and the row stays open until then.
+  `[evidence_level: code_verified, measured (robot run in the iOS 27.0 Simulator), confidence: high]`)*
 - *The Vision OCR demo row is a test idea, not a feature* (row "Multi-Modal Verification (Vision OCR)"). 5.7's
   pictures are described from the picture, and an image with no readable text imports with its labels and
   description (`ImageUnderstandingService`, read from code; no test imports such an image yet).
