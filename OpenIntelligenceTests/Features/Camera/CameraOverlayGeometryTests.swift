@@ -12,7 +12,8 @@ import XCTest
 
 @testable import OpenIntelligence
 
-#if os(iOS)
+// Debug builds only (5.7), as is the camera geometry these tests check.
+#if os(iOS) && DEBUG
 
     final class CameraOverlayGeometryTests: XCTestCase {
 

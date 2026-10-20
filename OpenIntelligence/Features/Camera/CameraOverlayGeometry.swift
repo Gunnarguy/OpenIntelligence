@@ -10,7 +10,9 @@
 //  proving this arithmetic in a test is the only verification available short of holding the phone.
 //
 
-#if os(iOS)
+// Debug builds only (5.7), as are the camera screen and the types this file draws for (`DetectedRegion`,
+// `DetectedPose`, `RegionType`): a Release build compiles none of the live camera.
+#if os(iOS) && DEBUG
     import CoreGraphics
     import Foundation
 
@@ -180,7 +182,7 @@
     }
 #endif
 
-#if os(iOS)
+#if os(iOS) && DEBUG
     /// Carries a skeleton's identity from one frame to the next.
     ///
     /// Same problem and same shape as `RegionIdentityTracker`, for the same reason: `DetectedPose`
