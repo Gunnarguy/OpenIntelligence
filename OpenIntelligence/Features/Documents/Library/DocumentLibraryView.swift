@@ -22,8 +22,9 @@ struct DocumentLibraryView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// A document in an iCloud library that a swipe asked to delete, waiting for the answer (5.7).
     @State private var swipeDeleteCandidate: Document?
-    /// True while a Finder drag hovers the library, driving the drop outline.
-    @State private var isDropTargeted = false
+    /// The parts of the library area a Finder drag is over, driving the drop outline (`takingDroppedFiles(as:)`).
+    @State private var dropTargetedParts: Set<LibraryDropPart> = []
+    private var isDropTargeted: Bool { !dropTargetedParts.isEmpty }
     @State private var showingProcessingSummary = false
     @State private var lastProcessedSummary: ProcessingSummary?
     @State private var showingContainerSettings = false
@@ -208,7 +209,8 @@ struct DocumentLibraryView: View {
     /// leading edge, which is why switching to or from an empty library made the library picker
     /// visibly jump back to the first pill and the whole screen flash, even though
     /// `containerService.activeContainerId` never actually changed. `documentHeader` is now
-    /// rendered once, by `libraryContentView`, above this branch entirely.
+    /// rendered once, by `libraryContentView`, above this branch entirely, and since 5.7 so is the row of
+    /// libraries, `libraryPicker`, which is no longer part of it.
     private var emptyStateContent: some View {
         ScrollView {
             emptyStateStack
@@ -308,6 +310,8 @@ struct DocumentLibraryView: View {
         }
     }
 
+    /// The header above the row of libraries: the title, the storage picker and the action buttons. It takes dropped
+    /// files, and the row of libraries below it does not (`takingDroppedFiles(as:)`).
     private var documentHeader: some View {
         VStack(spacing: 12) {
             documentSectionHeader
@@ -361,88 +365,95 @@ struct DocumentLibraryView: View {
                 } message: {
                     Text("This library's copy in iCloud is removed, and it stops appearing on your other devices. The documents stay on this device. Switching back to iCloud Sync uploads them again.")
                 }
+        }
+    }
 
-            ContainerPickerStrip(
-                containerService: containerService,
-                allowsCreation: true,
-                onCreateLibrary: handleNewLibraryTapped,
-                onDeleteLibrary: handleDeleteLibrary,
-                // Wrapped rather than passed by reference. `handleSetLibrarySyncMode` gained a
-                // defaulted `confirmed:` parameter, and Swift does not apply default arguments
-                // when a function is used as a value, so the bare reference no longer matches
-                // the two-parameter closure this expects.
-                onSetLibraryStorage: { container, syncMode in
-                    handleSetLibrarySyncMode(container, syncMode)
+    /// The row of libraries, in none of the library area's file drop targets (`takingDroppedFiles(as:)`, 5.7).
+    private var libraryPicker: some View {
+        ContainerPickerStrip(
+            containerService: containerService,
+            allowsCreation: true,
+            onCreateLibrary: handleNewLibraryTapped,
+            onDeleteLibrary: handleDeleteLibrary,
+            // Wrapped rather than passed by reference. `handleSetLibrarySyncMode` gained a
+            // defaulted `confirmed:` parameter, and Swift does not apply default arguments
+            // when a function is used as a value, so the bare reference no longer matches
+            // the two-parameter closure this expects.
+            onSetLibraryStorage: { container, syncMode in
+                handleSetLibrarySyncMode(container, syncMode)
+            }
+        )
+        .alert("New Library", isPresented: $showingNewLibraryPrompt) {
+            TextField("Library name", text: $newLibraryName)
+            Button("Cancel", role: .cancel) {
+                newLibraryName = ""
+                pendingNewLibraryName = ""
+            }
+            Button("Create") {
+                pendingNewLibraryName = newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
+                shouldShowStorageChoiceAfterDismissal = true
+            }
+        } message: {
+            Text("Enter a name for your new library")
+        }
+        .confirmationDialog("Choose Library Storage", isPresented: $showingNewLibraryStorageChoice, titleVisibility: .visible) {
+            Button("Local Only") {
+                createNewLibrary(syncMode: .localOnly)
+            }
+            Button("iCloud Sync") {
+                createNewLibrary(syncMode: .iCloudShared)
+            }
+            Button("Cancel", role: .cancel) {
+                pendingNewLibraryName = ""
+            }
+        } message: {
+            Text("Local Only keeps the library only on this device. iCloud Sync makes iCloud the shared copy for that library across your devices.")
+        }
+        // Names the library, matching the remove-all-documents alert above, so the two
+        // destructive confirmations read as clearly different actions rather than as two
+        // similar red dialogs.
+        .alert("Delete the \"\(libraryToDelete?.name ?? "selected")\" library?", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                libraryToDelete = nil
+            }
+            if libraryToDelete?.syncMode == .iCloudShared {
+                Button("Delete from iCloud", role: .destructive) {
+                    confirmDeleteLibrary()
                 }
+            } else {
+                Button("Delete Locally", role: .destructive) {
+                    confirmDeleteLibrary()
+                }
+            }
+        } message: {
+            if let lib = libraryToDelete {
+                let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
+                if lib.syncMode == .iCloudShared {
+                    Text("This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
+                } else {
+                    Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
+                }
+            } else {
+                Text("This will permanently delete this library and all documents inside it.")
+            }
+        }
+    }
+
+    /// The banners below the row of libraries, shown above the documents and taking dropped files with them.
+    @ViewBuilder
+    private var documentBanners: some View {
+        sharedWorkspaceBanner
+            .padding(.horizontal)
+
+        if shouldShowQuotaBanner {
+            DocumentQuotaBanner(
+                currentCount: ragService.documents.count,
+                limit: documentLimit,
+                tierName: entitlementStore.currentPlanDisplayName,
+                addOnPacks: entitlementStore.addOnPacks,
+                onUpgrade: { presentPlanSheet(for: .quotaBanner) }
             )
-            .alert("New Library", isPresented: $showingNewLibraryPrompt) {
-                TextField("Library name", text: $newLibraryName)
-                Button("Cancel", role: .cancel) {
-                    newLibraryName = ""
-                    pendingNewLibraryName = ""
-                }
-                Button("Create") {
-                    pendingNewLibraryName = newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    shouldShowStorageChoiceAfterDismissal = true
-                }
-            } message: {
-                Text("Enter a name for your new library")
-            }
-            .confirmationDialog("Choose Library Storage", isPresented: $showingNewLibraryStorageChoice, titleVisibility: .visible) {
-                Button("Local Only") {
-                    createNewLibrary(syncMode: .localOnly)
-                }
-                Button("iCloud Sync") {
-                    createNewLibrary(syncMode: .iCloudShared)
-                }
-                Button("Cancel", role: .cancel) {
-                    pendingNewLibraryName = ""
-                }
-            } message: {
-                Text("Local Only keeps the library only on this device. iCloud Sync makes iCloud the shared copy for that library across your devices.")
-            }
-            // Names the library, matching the remove-all-documents alert above, so the two
-            // destructive confirmations read as clearly different actions rather than as two
-            // similar red dialogs.
-            .alert("Delete the \"\(libraryToDelete?.name ?? "selected")\" library?", isPresented: $showingDeleteConfirmation) {
-                Button("Cancel", role: .cancel) {
-                    libraryToDelete = nil
-                }
-                if libraryToDelete?.syncMode == .iCloudShared {
-                    Button("Delete from iCloud", role: .destructive) {
-                        confirmDeleteLibrary()
-                    }
-                } else {
-                    Button("Delete Locally", role: .destructive) {
-                        confirmDeleteLibrary()
-                    }
-                }
-            } message: {
-                if let lib = libraryToDelete {
-                    let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
-                    if lib.syncMode == .iCloudShared {
-                        Text("This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
-                    } else {
-                        Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
-                    }
-                } else {
-                    Text("This will permanently delete this library and all documents inside it.")
-                }
-            }
-
-            sharedWorkspaceBanner
-                .padding(.horizontal)
-
-            if shouldShowQuotaBanner {
-                DocumentQuotaBanner(
-                    currentCount: ragService.documents.count,
-                    limit: documentLimit,
-                    tierName: entitlementStore.currentPlanDisplayName,
-                    addOnPacks: entitlementStore.addOnPacks,
-                    onUpgrade: { presentPlanSheet(for: .quotaBanner) }
-                )
-                .padding(.horizontal)
-            }
+            .padding(.horizontal)
         }
     }
 
@@ -1592,18 +1603,50 @@ struct DocumentLibraryView: View {
             }
     }
 
+    /// The parts of the library area that take dropped files, such as files dragged from Finder.
+    enum LibraryDropPart: Hashable {
+        case header
+        case documents
+        case importQueue
+    }
+
+    /// Makes `content`, one part of the library area, take dropped files (5.7).
+    ///
+    /// Three parts, the header above the row of libraries, everything below the row and the import panel, instead of one
+    /// target around the whole area as through 5.6. A drop target around the row keeps SwiftUI's reorderable chips from following a drag
+    /// on iOS 27.0: the move reported the dragged chip's own place, so no library moved. Measured 2026-10-19 with a probe
+    /// app in the iOS 27.0 Simulator: a target around the row broke the reorder with either of SwiftUI's drop APIs and
+    /// with the target switched off for the drag, and with a target above the row and one below it the chips reordered
+    /// and files dropped on either part were taken. A file dropped on the row of libraries itself is not taken.
+    ///
+    /// Each part takes a drop anywhere in its frame, as the one target did through its background, and not only on
+    /// what it draws. A part leaves the outline when it has no area, as the import panel does when it hides, or
+    /// leaves the screen, because a drag over it then may never be told it left.
+    private func takingDroppedFiles<Content: View>(as part: LibraryDropPart, @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .contentShape(Rectangle())
+            .dropDestination(for: URL.self) { urls, _ in
+                handleDroppedFiles(urls)
+            } isTargeted: { targeted in
+                if targeted {
+                    dropTargetedParts.insert(part)
+                } else {
+                    dropTargetedParts.remove(part)
+                }
+            }
+            .onGeometryChange(for: Bool.self) { $0.size == .zero } action: { hasNoArea in
+                if hasNoArea { dropTargetedParts.remove(part) }
+            }
+            .onDisappear { dropTargetedParts.remove(part) }
+    }
+
     private var libraryChromeView: some View {
         ZStack(alignment: .bottomTrailing) {
             libraryContentView
             ingestionQueueOverlay
         }
-            // The whole library area is the drop target, so a Finder drag does
-            // not have to be aimed at the list or at the empty state.
-            .dropDestination(for: URL.self) { urls, _ in
-                handleDroppedFiles(urls)
-            } isTargeted: { targeted in
-                isDropTargeted = targeted
-            }
+            // The outline goes around the whole library area. The parts that take the files, everything but the row of
+            // libraries, are in `libraryContentView` and the import panel (`takingDroppedFiles(as:)`).
             .overlay {
                 if isDropTargeted {
                     RoundedRectangle(cornerRadius: 16)
@@ -1667,16 +1710,19 @@ struct DocumentLibraryView: View {
     }
 
     private var ingestionQueueOverlay: some View {
-        IngestionQueueOverlay(
-            items: ragService.ingestionItems,
-            onCancelItem: { ragService.cancelIngestionItem($0) },
-            onCancelAll: { ragService.cancelAllIngestion() },
-            onContinuePaused: { ragService.continuePausedIngestionQueue() },
-            onDiscardPaused: { ragService.discardPausedIngestionQueue() },
-            onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() },
-            onPause: { ragService.pauseIngestionQueue() },
-            pausedByPerson: ragService.ingestionPausedByPerson
-        )
+        // The panel takes dropped files as the area under it does (`takingDroppedFiles(as:)`); it has no area while hidden.
+        takingDroppedFiles(as: .importQueue) {
+            IngestionQueueOverlay(
+                items: ragService.ingestionItems,
+                onCancelItem: { ragService.cancelIngestionItem($0) },
+                onCancelAll: { ragService.cancelAllIngestion() },
+                onContinuePaused: { ragService.continuePausedIngestionQueue() },
+                onDiscardPaused: { ragService.discardPausedIngestionQueue() },
+                onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() },
+                onPause: { ragService.pauseIngestionQueue() },
+                pausedByPerson: ragService.ingestionPausedByPerson
+            )
+        }
         .padding(.horizontal, 16)
         .padding(.bottom, ingestionQueueBottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -1711,12 +1757,22 @@ struct DocumentLibraryView: View {
                 withSwipeDeleteAlert(
                     ScrollView {
                         VStack(spacing: 12) {
-                            documentHeader
+                            takingDroppedFiles(as: .header) {
+                                documentHeader
+                            }
 
-                            if filteredDocuments.isEmpty {
-                                emptyStateStack
-                            } else {
-                                documentCards
+                            libraryPicker
+
+                            takingDroppedFiles(as: .documents) {
+                                VStack(spacing: 12) {
+                                    documentBanners
+
+                                    if filteredDocuments.isEmpty {
+                                        emptyStateStack
+                                    } else {
+                                        documentCards
+                                    }
+                                }
                             }
                         }
                     }
@@ -1724,12 +1780,22 @@ struct DocumentLibraryView: View {
                 )
             } else {
                 VStack(spacing: 12) {
-                    documentHeader
+                    takingDroppedFiles(as: .header) {
+                        documentHeader
+                    }
 
-                    if filteredDocuments.isEmpty {
-                        emptyStateContent
-                    } else {
-                        documentListContent
+                    libraryPicker
+
+                    takingDroppedFiles(as: .documents) {
+                        VStack(spacing: 12) {
+                            documentBanners
+
+                            if filteredDocuments.isEmpty {
+                                emptyStateContent
+                            } else {
+                                documentListContent
+                            }
+                        }
                     }
                 }
             }

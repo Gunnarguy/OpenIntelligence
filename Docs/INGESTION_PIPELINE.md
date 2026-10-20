@@ -106,7 +106,9 @@ same way.
 |---|---|---|
 | Library "Add Documents" | iOS | `UIDocumentPickerViewController` with `asCopy: true`, in a sheet |
 | Library "Add Documents" | macOS | `MacDocumentImportPanel` — `NSOpenPanel.beginSheetModal(for:)`, no sheet |
-| Finder drag-and-drop onto the library | macOS, iPadOS | `.dropDestination(for: URL.self)` on the library area |
+| Finder drag-and-drop onto the library | macOS, iPadOS | `.dropDestination(for: URL.self)` on the library area, in three parts: the header above the row of libraries, everything below it, and the import panel (`DocumentLibraryView.takingDroppedFiles(as:)`, 5.7) |
+
+The row of libraries is in no part, so a file dropped on it is not taken; each part takes a drop anywhere in its frame. Through 5.6 one target went around the whole area, and on iOS 27.0 a target around the row kept its chips from being dragged into a new order: SwiftUI reported the dragged chip's own place, so no library moved. `[evidence_level: measured in the iOS 27.0 Simulator, 2026-10-19: the reorder with a probe app and with the app's own build, files dropped on the parts with the probe app only (kept in BenchmarkRuns/2026-10-19-library-reorder); confidence: medium; not tried on a Mac or an iPad; evidence_source: DocumentLibraryView.swift takingDroppedFiles(as:), libraryPicker]`
 
 **All three copy into the app-managed workspace before ingesting**, through
 `ImportedFileStaging.copyIntoWorkspace` in
@@ -130,6 +132,16 @@ such restriction. `[evidence_level: device_log_proven, confidence: exact, eviden
 of a folder document and `copyItem` would copy one wholesale. Quota is checked before any copy, so a
 drop that would exceed the document limit raises the paywall instead of half-importing.
 `[evidence_level: code_verified, confidence: exact]`
+
+Corrected 2026-10-19: the first sentence describes 5.6, and the second says more than the code does. From 5.7 a dropped folder is opened, and the files inside
+it that the app imports come in, through its subfolders, at most `folderFileRoom` of them (the plan's room
+left, never more than 500); loose files are all staged (`ImportedFileStaging.copyIntoWorkspaceExpandingFolders`).
+The plan check before any copy is `canAddDocument(currentCount:)` with the count of every document in the
+app, so it raises the paywall when the plan's document limit is already reached, not when a drop would take
+the count past it, and never on a plan with unlimited documents.
+`[evidence_level: code_verified, confidence: high, evidence_source: DocumentLibraryView.swift handleDroppedFiles, folderFileRoom; DocumentPicker.swift copyIntoWorkspaceExpandingFolders; EntitlementStore.swift canAddDocument]`
+What happens to the files of a drop larger than the room left, after staging, was not read for this note.
+`[evidence_level: unverified, confidence: low, evidence_source: enqueueDocumentIngestion and the import queue not read on 2026-10-19]`
 
 ---
 

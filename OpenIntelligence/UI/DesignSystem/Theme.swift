@@ -440,6 +440,10 @@ public extension View {
     }
 
     /// Apply Liquid Glass pill styling for iOS 26+
+    ///
+    /// Its `if`s return a different view for each state. Never use it on a row of a `reorderable()` `ForEach`: its
+    /// branch then holds all of the row's content, even with other modifiers after it, and dragging the row stops the
+    /// app on iOS 27.0 (`ContainerPill`, 2026-10-19). Apply `glassEffect` once with the glass picked by value there.
     @ViewBuilder
     func glassEffectHelper(isSelected: Bool = false, tintColor: Color = .accentColor, interactive: Bool = true) -> some View {
         if #available(iOS 26.0, *) {

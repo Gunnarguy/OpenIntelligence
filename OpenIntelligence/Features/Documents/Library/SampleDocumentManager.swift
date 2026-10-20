@@ -136,7 +136,7 @@ If a file is messy, scanned, or in a legacy format, exporting it to PDF usually 
 ## How to add documents
 
 - **The Add Documents button** opens the system file picker. You can select several files at once.
-- **On the Mac, drag files from Finder** anywhere onto the library. Dropped files go through the same size and plan checks as picked ones. Folders are not accepted yet; drop the files from inside them.
+- **On the Mac, drag files or a folder from Finder** onto the Documents screen, anywhere but the row of libraries. A folder brings in the files inside it that the app can read, from the folders inside it too. Dropped files go through the same size and plan checks as picked ones.
 - **In a chat,** the attachment button adds a file to the current library and to the conversation.
 
 ---

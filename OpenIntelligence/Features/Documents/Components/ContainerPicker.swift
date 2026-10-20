@@ -242,7 +242,14 @@ struct ContainerPill: View {
         .accessibilityValue(accessibilityBadge)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onSelect() }
-        .glassEffectHelper(isSelected: isSelected, tintColor: containerColor, interactive: true)
+        // One `glassEffect` with the glass picked by value, not `glassEffectHelper`, whose `if`s make the chip a
+        // different view in each state (5.7). A chip is a reorderable row on iOS and macOS 27, and when a view-builder
+        // branch, an `if #available` or an `AnyView` holds all of a row's content, even under other modifiers such as
+        // the `contextMenu` below, SwiftUI starts the drag with no id for it and stops the app in `DragContainerStorage.payload(for:)` ("Unexpected identifier type. Expected UUID, got
+        // UUID": its cast of the dragged id fails because the id is nil). Measured 2026-10-19 in the iOS 27.0
+        // Simulator with a probe app: each of those around the chip crashed the drag, and one glass call, a branch
+        // around the count alone, or one around the name alone reordered the chips.
+        .glassEffect(isSelected ? .regular.tint(containerColor).interactive() : .regular.interactive(), in: Capsule())
         // Press-and-hold is `.contextMenu`, not a manual `onLongPressGesture` plus a
         // confirmation dialog, and that is a behaviour fix rather than a style preference.
         //
@@ -318,6 +325,12 @@ struct ContainerPill: View {
 /// Applies a dragged chip's new place to the library list, on iOS and macOS 27, where SwiftUI's
 /// `reorderContainer` reports a drag as the dragged ids and the chip they were dropped before
 /// (5.7). Before 27 the chips do not move.
+///
+/// Two things stop the drag working, both found on iOS 27.0 on 2026-10-19. A view-builder branch, an `if #available`
+/// or an `AnyView` that holds all of a chip's content, even under other modifiers, starts the drag with no id and
+/// stops the app (`ContainerPill`). A drop target around this row makes a drag report the chip's own place, so no
+/// library moves (`DocumentLibraryView.takingDroppedFiles(as:)`). Keep both off the chips and off every screen that
+/// shows the row.
 private struct LibraryReordering: ViewModifier {
     let containerService: ContainerService
 
