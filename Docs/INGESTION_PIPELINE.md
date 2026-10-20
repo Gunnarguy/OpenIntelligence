@@ -162,7 +162,7 @@ Through 5.6 the app declared no document types, so Files, Mail and share sheets 
 - **Until 2026-08-08 this path never saw the structured parser.** It used `VNRecognizeTextRequest`, which returns text lines in reading order and cannot express that a value belongs to a row and a column, so the same table gave cell structure inside a PDF and flat lines when photographed. `[evidence_level: code_verified, confidence: exact]`
 
 ### Camera Capture *(corrected 2026-08-08)*
-- **Debug builds only, from 5.7 (2026-10-20).** `CameraManager`, `CameraVisionOverlayView`, `CaptureToRAGBridge`, `DocumentCaptureView` and `CameraOverlayGeometry` compile only in Debug builds (`#if os(iOS) && DEBUG`), with the chat's presenter and its "Look at Something" menu item, so a Release build holds none of this path. Scanning a document in a shipping build goes through the system's scanner (`SystemDocumentScanner`, `VNDocumentCameraViewController`), and the Lock Screen capture extension uses the system camera. What follows describes the Debug path. `[evidence_level: build_verified and measured (an iOS Release build on 2026-10-20 holds no symbol of these types), confidence: high, evidence_source: the five files' #if, ChatScreen.swift, AttachmentPicker.swift]`
+- **Debug builds only, from 5.7 (2026-10-20).** `CameraManager`, `CameraVisionOverlayView`, `CaptureToRAGBridge`, `DocumentCaptureView`, `CameraOverlayGeometry` and `LiveObjectDetectionService` compile only in Debug builds (`#if os(iOS) && DEBUG`), with the chat's presenter and its "Look at Something" menu item, so a Release build holds none of this path. Scanning a document in a shipping build goes through the system's scanner (`SystemDocumentScanner`, `VNDocumentCameraViewController`), and the Lock Screen capture extension uses the system camera. What follows describes the Debug path. `[evidence_level: build_verified and measured (an iOS Release build on 2026-10-20 holds no symbol of these types), confidence: high, evidence_source: the six files' #if, ChatScreen.swift, AttachmentPicker.swift]`
 - Document captures run `RecognizeDocumentsRequest` and prefer its structured output. Non-document captures skip it, since a photo of a pet or a landscape has no document structure to find. Failure or an empty parse leaves the flat OCR text untouched.
 - **This path carried both defects.** `CameraManager.analyzeCapture` sorted its OCR observations into reading order and then joined them with a space, discarding every boundary that sort had just established, and it never reached the structured parser at all. Photographing a spec sheet produced flat text while importing the same page as a PDF produced cell structure. `[evidence_level: code_verified, confidence: exact]`
 
@@ -543,6 +543,10 @@ searches for a model that is not there.
 **This does not make the camera reachable.** `ChatScreen` still passes `onVisionCapture: nil` and
 the presenting `fullScreenCover` is still commented out, so the detector is correct and still
 unreached. That is tracked separately as a product decision, not a defect.
+
+*(Note 2026-10-20: superseded. The camera became reachable in Debug builds on 2026-09-11 and was kept to
+them on 2026-09-13. From 5.7 this service compiles only in Debug builds as well, because its one caller,
+`DocumentCaptureView`, does, so a Release build carries none of it.)*
 
 `[evidence_level: build_verified, confidence: high, evidence_source: LiveObjectDetectionService.swift; request and observation shapes read from iPhoneOS27.0.sdk Vision.swiftinterface 2026-09-11]`
 

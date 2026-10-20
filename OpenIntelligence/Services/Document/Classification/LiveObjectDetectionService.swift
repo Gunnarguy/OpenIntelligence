@@ -7,6 +7,10 @@
 //  Replaces YOLODetectionService, which could never run. See the type documentation below.
 //
 
+// Debug builds only (5.7): its one caller is the camera's `DocumentCaptureView`, which compiles only in
+// Debug, so a Release build carries none of it.
+#if DEBUG
+
 import CoreImage
 import CoreML
 import Foundation
@@ -296,3 +300,5 @@ extension LiveObjectDetectionService {
         return parts.joined(separator: ", ")
     }
 }
+
+#endif

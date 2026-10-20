@@ -10,6 +10,9 @@
 //  — that a scene label is not a located object.
 //
 
+// Debug builds only (5.7), as is the detector these tests check.
+#if DEBUG
+
 import XCTest
 
 @testable import OpenIntelligence
@@ -86,3 +89,5 @@ final class LiveObjectDetectionTests: XCTestCase {
         XCTAssertFalse(located("Face").isSceneLevel)
     }
 }
+
+#endif
