@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-10-19, 17:10 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
+Updated: 2026-10-19, 20:20 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on iPhone,
 iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 4b6778a
+Last verified commit: c478948
 
 Earlier detail is in git: `git show 664e69b:Docs/ai/STATE.md` (the night of 2026-10-18) and the copies it names; the
 long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -27,10 +27,11 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
 | GPU default | Balanced stays (`Docs/ai/DECISIONS.md` 2026-10-19, `664e69b`). |
 | Simulator memory | `ab2a1fb`: the Simulator reads the Mac's free memory. Before it, every Simulator run read "0 MB, Critical" and answered at `.efficient`, so earlier Simulator checks (and the 5.7 preview) ran a reduced pipeline. |
 | His iPhone | Dev build of `16d6827` installed 2026-10-18; it reported 4,096 tokens and no background GPU (recorded in `Docs/LIMITATIONS.md` and the Atlas). |
-| Greek and Hebrew PDFs | Fixed in the commit after `4b6778a` (CHANGELOG "A PDF in Greek, Hebrew or another script Vision does not read keeps its text layer"). Vision reads 9 scripts and no Greek or Hebrew (measured on macOS 27); the cipher check judged a correct Greek text layer garbled and the page imported empty. Two refuting reviews; the first found the blocker (a scanned page under a Greek stamp would have lost its body), fixed by keeping `isMixedModeScanned` pages on Vision. |
-| Passages of no document | Fixed in the same commit (CHANGELOG "Deep Think, Maximum and the steps after the first search leave out passages of no document..."): a 5.7-only race (an overview stored after its document was deleted) and every path that still used such passages (cascade, keyword retry, spec sniper and the whole-list readers, Deep Think's `executeFullRetrievalPipeline`, `semanticSearch`). Found by a new test failing in the full suite. |
-| Rows closed today by the Simulator robot | X-Ray off on a new install (`3fb49a74d54f81a188d7f92bd95a197e`), the plain chat (`3fb49a74d54f81b2b7bbf031eb9e9199`), What's New after an update (`3e149a74d54f819aba78e2b85f0e9942`). Checked but not yet written to Notion: capability lists with no tool line (`3ea49a74d54f8167a9b3d92c94539567`), settings kept after a relaunch (`3f949a74d54f81bfb4c0d0a0cd179326`). |
-| Rows the new tests close (Notion not yet written) | `3f949a74d54f81eb83f7f46e0e3e9010` (SecondEngineSaveTests), `3f849a74d54f81eba369ff0faa1ba190` (lexical recall test; the summarizer embeds its own sentences, MMR has its own row), `3fa49a74d54f813281ffc3b6fd200bb6` (Add to Library naming a closed library), `3f549a74d54f8164b6ecf46a12edb8ae` (Shift-JIS import), `3f549a74d54f8151a9fefb4f1fc5ea2e` (Greek PDF import), `3e749a74d54f810c86fefac905fa1d6f` (re-ask after a delete). |
+| Library reorder | **Completed 2026-10-19, `c478948`.** Row `3f449a74d54f81a08bf4e52c64273aa5`. Dragging a chip crashed on iOS 27.0 (a branch around all of a chip's content, from `glassEffectHelper`, starts the drag with no id), then moved nothing (the Documents screen's file drop target went around the chip row). `ContainerPill` applies `glassEffect` once; the library area takes files in three parts via `DocumentLibraryView.takingDroppedFiles(as:)`. Robot: 8 of 10 drags moved and held after a relaunch; the 2 misses were the first runs after installing a build. Probe, scenes and logs: `BenchmarkRuns/2026-10-19-library-reorder`. Auto memory `swiftui-reorderable-traps.md`. |
+| Greek and Hebrew PDFs | Committed `8bce78f` (CHANGELOG "A PDF in Greek, Hebrew or another script Vision does not read keeps its text layer"). Vision reads 9 scripts and no Greek or Hebrew (measured on macOS 27); the cipher check judged a correct Greek text layer garbled and the page imported empty. Two refuting reviews; the first found the blocker (a scanned page under a Greek stamp would have lost its body), fixed by keeping `isMixedModeScanned` pages on Vision. |
+| Passages of no document | Committed in `8bce78f` (CHANGELOG "Deep Think, Maximum and the steps after the first search leave out passages of no document..."): a 5.7-only race (an overview stored after its document was deleted) and every path that still used such passages (cascade, keyword retry, spec sniper and the whole-list readers, Deep Think's `executeFullRetrievalPipeline`, `semanticSearch`). Found by a new test failing in the full suite. |
+| Rows closed 2026-10-19 | All written to Notion as Completed (checked 20:15): X-Ray off on a new install, the plain chat, What's New after an update, capability lists, settings kept after a relaunch, the second engine's save, lexical recall, Add to Library naming a closed library, Shift-JIS, Greek PDF, re-ask after a delete, library reorder. |
+| Still In Progress | Quick actions `3f449a74d54f81169b38c4668a77243e`, conversation limit `3f949a74d54f81e08612c07f34b9e0b5`, import notification `3f449a74d54f81158078e27d8788cf02` (robot scenes not yet run); Open in `3f449a74d54f8132a024ffec0182528a` (iOS half checked by the robot, Mac half waits); device truth, Atlas, graph packing (Mac parts). |
 
 ## What the Atlas change does (so nothing is redone)
 
@@ -72,12 +73,14 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
   `testDeepThinkA17` (`OpenIntelligence*Scenes.swift`), and `Chart3DProbeScenes` (selection, pinch, framing, size).
   Added 2026-10-19 afternoon: `OpenIntelligenceFirstRunScenes.swift` (`testFirstRun`, `testTechnicalSwitch`,
   `testUpdateFrom56`, `testCapabilityLists`, `testSettingsSurviveRelaunch`, `testQuickActions`), `OpenIntelligenceOpenInScenes.swift`
-  (`testOpenInFromFiles`) and `OpenIntelligencePart2Scenes.swift` (`testConversationLimit`, `testLibraryReorder`,
-  `testImportNotification`). Not yet run: the last five. Their files are in `/private/tmp/claude-501/openin-files`
-  (a PDF and a .jsonl, to copy into the A17 simulator's On My iPhone), and the reorder scene needs a second library
-  added by hand to that simulator's `containers.json`. They run on `OI 5.7 A17 Pro` `0F072FEC-...` with the demo copy
-  of `040951d` (`/private/tmp/oi57-ios-dd/Build/Products/Release-iphonesimulator/OpenIntelligence.app`); that simulator
-  now holds the "install over 5.6" state (Technical Details on, X-Ray switched off by hand).
+  (`testOpenInFromFiles`, run), `OpenIntelligencePart2Scenes.swift` (`testConversationLimit`, `testLibraryReorder` (run),
+  `testImportNotification`) and, 2026-10-19 evening, `OpenIntelligenceSwipeScenes.swift` (`testSwipeDeleteOffered`,
+  `testLibraryReorderCases`, `testLibraryReorderOpenAtLaunch`, all run) and `ReorderProbeScenes.swift` (drives the
+  probe app in `/private/tmp/claude-501/reorderprobeP`). Not yet run: `testQuickActions`, `testConversationLimit`,
+  `testImportNotification`. The A17 simulator `OI 5.7 A17 Pro` `0F072FEC-...` holds the Debug build of `c478948`
+  (`/private/tmp/oi-build/Build/Products/Debug-iphonesimulator/OpenIntelligence.app`), libraries Product Notes (one
+  document, Dishwasher Manual.pdf) and General; the demo copy of `040951d` is at
+  `/private/tmp/oi57-ios-dd/Build/Products/Release-iphonesimulator/OpenIntelligence.app` if a scene needs answers.
 - Restart the test simulator before every hosted test run: three runs today hung before connecting, each cleared by
   `simctl shutdown`, `boot`, `bootstatus -b` and 15 s.
 - Test simulator `OI 5.7 tests` `0FBB8C16-CB05-4DF2-A018-670190834AB6` (iPhone 18 Pro, iOS 27.0): holds a second
@@ -89,6 +92,13 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
   `Ingestion Pipeline.md` (a copy of `Docs/INGESTION_PIPELINE.md`) for the robot's file imports.
 
 ## Verification (2026-10-19, output read)
+
+- `c478948` (reorder fix): full suite on a clean install of `0FBB8C16-...`: 1238 passed, 0 failed, 7 skipped,
+  `TEST EXECUTE SUCCEEDED`; Mac build `BUILD SUCCEEDED` (20:17), no warnings in changed files; `verify_doc_claims.py`
+  984 claims match; `secret_scan.py` clean; `codemap.py check` 0 errors. Robot on the A17 simulator: reorder 8 of 10
+  drags moved and held after relaunch; swipe on a card offers Delete at the default and an accessibility text size.
+  A refuting review's findings were fixed in the same commit (the Product Guide sample, the folder claims, drop
+  coverage, the rule's wording).
 
 - Working tree of the commit after `4b6778a`: full suite on a clean install of `0FBB8C16-...`:
   `Executed 1245 tests, with 7 tests skipped and 0 failures`; Mac build `XCODEBUILD_EXIT=0`, no warning on a changed
@@ -113,12 +123,17 @@ showing certain axes", "god mode, beautiful", an "all libraries" selection). On 
 - Review questions left open: #7 (the live session counter counts research calls past the chain's 8), #16 (no test
   reaches `backgroundImportNote`, the overlay or `continuedProcessingPolicy`).
 - Onboarding's model step: the `$selectedModel` sink in `SettingsStore.setupPipelines` has no `.dropFirst()`.
+- Library reorder, not established: why 2 of 10 robot drags (the first two runs after installing a build) left the
+  order unchanged; whether a drop target around the chip row breaks the reorder on macOS 27 too (the split applies on
+  both platforms); what happens to the files of a drop larger than the plan's room after staging
+  (`Docs/INGESTION_PIPELINE.md` 1.5 marks it unverified).
 
 ## Exact Next Action
 
-Write the eight rows above that are checked but not yet in Notion (the six the tests close and the two robot rows),
-each with its evidence and the commit, then run `testQuickActions`, `testOpenInFromFiles`, `testConversationLimit`,
-`testLibraryReorder` and `testImportNotification` on the A17 simulator (`python3 scratchpad/pvaudit.py <udid> <out>
-OpenIntelligenceScenes/<test>`, after `xcodegen generate` and a robot `build-for-testing` if a scene file changed)
-and close what they show. The Mac rows (Atlas screenshots, the Mac's 8,192) still wait on his word to launch a
-development build on his Mac.
+Run `testQuickActions`, `testConversationLimit` and `testImportNotification` on the A17 simulator
+(`python3 scratchpad/pvaudit.py 0F072FEC-D590-4651-BCA8-D5D8D01E25FC <out> OpenIntelligenceScenes/<test>`; the robot is
+built, so rebuild it only after editing a scene: `xcodegen generate`, then `build-for-testing` with
+`-derivedDataPath "$(~/.agents/bin/scratch_root.sh)/demodriver-pv-dd"`), read each scene's screenshots and
+`DEMO-STATE` lines, and close the rows `3f449a74d54f81169b38c4668a77243e`, `3f949a74d54f81e08612c07f34b9e0b5` and
+`3f449a74d54f81158078e27d8788cf02` with what they show. The Mac rows (Atlas screenshots, the Mac's 8,192, Open in's
+Dock drop) still wait on his word to launch a development build on his Mac.
