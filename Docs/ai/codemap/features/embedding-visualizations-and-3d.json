@@ -3,7 +3,7 @@
   "id": "embedding-visualizations-and-3d",
   "name": "Embedding Visualizations and 3D",
   "aliases": ["3D embedding space", "corpus visualization", "cluster overview", "topic cloud", "retrieval flow", "knowledge atlas", "all libraries", "chart3d"],
-  "purpose": "Draws the library's embedding space and topic clusters in 3D (the Atlas card and full screen with Swift Charts Chart3D, AtlasChart3D, since 5.7; the unreachable Embedding Space explorer with SceneKit) and in 2D charts, for one library or, in All Libraries, every library in one embedding space.",
+  "purpose": "Draws the library's embedding space and topic clusters in 3D (the Atlas card and full screen with the SceneKit scene by default, or Swift Charts Chart3D, AtlasChart3D, picked by AtlasDrawingStyle since 5.7; the unreachable Embedding Space explorer with SceneKit) and in 2D charts, for one library or, in All Libraries, every library in one embedding space.",
   "revision": "7f13889",
   "verified_on": "2026-10-15",
   "entry_points": ["Embedding3DSceneView", "AdaptiveVisualizationsView", "VisualizationsView", "LibraryVisualizationEngine", "ProjectionService"],

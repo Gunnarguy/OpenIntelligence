@@ -610,8 +610,21 @@ nonisolated class SemanticChunker {
                     }
 
                     if let lastRange = wordRanges.last {
-                        // Truncate to end of last word within limit
-                        chunkText = String(chunkText[chunkText.startIndex..<lastRange.upperBound])
+                        // Truncate to end of last word within limit, or to the last space before it when one is within
+                        // 200 characters (5.7). The tokenizer's words end inside a run of text with no spaces, such as
+                        // a JSON record or a line of code, so the cut left half a record at the end of the passage.
+                        // Only inside an ASCII run: in Chinese, Japanese or Thai a word's end is the boundary itself,
+                        // with no space to look for (review, 2026-10-20).
+                        var cut = lastRange.upperBound
+                        let cutsARun = cut < chunkText.endIndex && !chunkText[cut].isWhitespace
+                            && !chunkText[chunkText.index(before: cut)].isWhitespace
+                            && chunkText[cut].isASCII && chunkText[chunkText.index(before: cut)].isASCII
+                        if cutsARun, let space = chunkText[..<cut].lastIndex(where: \.isWhitespace),
+                            space > chunkText.startIndex, chunkText.distance(from: space, to: cut) <= 200
+                        {
+                            cut = space
+                        }
+                        chunkText = String(chunkText[chunkText.startIndex..<cut])
 
                         // Recalculate the range to match truncated text
                         let newEnd = text.index(currentPosition, offsetBy: chunkText.count, limitedBy: text.endIndex) ?? text.endIndex
@@ -1529,9 +1542,15 @@ nonisolated class SemanticChunker {
             }
         }
 
-        // Adjust to nearest sentence boundary
+        // Adjust to nearest sentence boundary, or else to the nearest place no word is cut (5.7)
         if let sentenceEnd = findNearestSentenceEnd(in: text, near: targetIndex, within: 100) {
             targetIndex = sentenceEnd
+        } else if targetIndex > start {
+            let snapped = Self.snappedToWordBoundary(targetIndex, in: text, within: 100)
+            if snapped > start { targetIndex = snapped }
+            if logsEachChunk {
+                Log.debug("[SemanticChunker] No sentence ends within 100 characters of the target; the passage ends at a word boundary", category: .ingestion)
+            }
         }
 
         // 5. Table block protection: if the proposed end falls within a table, adjust
@@ -1596,6 +1615,13 @@ nonisolated class SemanticChunker {
             guard let originalIndex = text.index(searchStart, offsetBy: offset, limitedBy: text.endIndex) else {
                 return true
             }
+            // The last token "ends" wherever the window does: the tokenizer can't see what comes after it, so that end
+            // counts only where a sentence really ends (5.7), the mirror of the first token's start in
+            // `findNearestSentenceStart`. Through 5.6 a window with no sentence end in it returned its own last
+            // character, so a passage could end mid-word.
+            if boundaryInSubstring == substring.endIndex, !Self.canEndSentence(at: originalIndex, in: text) {
+                return true
+            }
 
             let dist = abs(text.distance(from: index, to: originalIndex))
             if dist < nearestDistance {
@@ -1617,6 +1643,53 @@ nonisolated class SemanticChunker {
         "\"", "'", "\u{201D}", "\u{2019}", ")", "]", "\u{00BB}", "\u{203A}", "\u{300D}", "\u{300F}", "\u{FF09}",
         "\u{300B}", "\u{3009}", "\u{3011}",
     ]
+
+    /// Whether a sentence can end at `index`: the end of the text, at a line break, or after the end of a sentence with
+    /// closing quotes or brackets and spaces allowed after it (5.7). After `.`, `!`, `?` and the other spaced ends a space
+    /// or the text's end has to follow, so "3.14" and "example.com" don't end sentences; after `。` and the other CJK
+    /// ends nothing has to.
+    static func canEndSentence(at index: String.Index, in text: String) -> Bool {
+        guard index < text.endIndex else { return true }
+        if text[index].isNewline { return true }
+        guard index > text.startIndex else { return false }
+        var cursor = text.index(before: index)
+        var spaced = text[index].isWhitespace
+        while text[cursor].isWhitespace {
+            if text[cursor].isNewline { return true }
+            spaced = true
+            guard cursor > text.startIndex else { return false }
+            cursor = text.index(before: cursor)
+        }
+        while closers.contains(text[cursor]) {
+            guard cursor > text.startIndex else { return false }
+            cursor = text.index(before: cursor)
+        }
+        if unspacedSentenceEnds.contains(text[cursor]) { return true }
+        return spaced && spacedSentenceEnds.contains(text[cursor])
+    }
+
+    /// `index`, or the nearest place within `distance` characters where no word is cut: a space or line break on
+    /// either side, the earlier one when two are as near, and `index` itself when a token runs past both (5.7). The
+    /// fallback for a chunk's end and its parent window's edges when no sentence ends near them.
+    static func snappedToWordBoundary(_ index: String.Index, in text: String, within distance: Int) -> String.Index {
+        func isBoundary(_ i: String.Index) -> Bool {
+            i == text.startIndex || i == text.endIndex || text[i].isWhitespace || text[text.index(before: i)].isWhitespace
+        }
+        if isBoundary(index) { return index }
+        var back = index
+        var forward = index
+        for _ in 0..<distance {
+            if back > text.startIndex {
+                back = text.index(before: back)
+                if isBoundary(back) { return back }
+            }
+            if forward < text.endIndex {
+                forward = text.index(after: forward)
+                if isBoundary(forward) { return forward }
+            }
+        }
+        return index
+    }
 
     /// Whether a sentence can start at `index`: the start of the text, after a line break, or after the end of a
     /// sentence, with closing quotes or brackets allowed in between (5.7). After `.`, `!`, `?` and the other spaced ends
@@ -1701,8 +1774,10 @@ nonisolated class SemanticChunker {
         let lower = text.index(range.lowerBound, offsetBy: -windowChars, limitedBy: text.startIndex) ?? text.startIndex
         let upper = text.index(range.upperBound, offsetBy: windowChars, limitedBy: text.endIndex) ?? text.endIndex
 
-        let start = findNearestSentenceStart(in: text, near: lower, within: 120) ?? lower
-        let end = findNearestSentenceEnd(in: text, near: upper, within: 120) ?? upper
+        let start = findNearestSentenceStart(in: text, near: lower, within: 120)
+            ?? Self.snappedToWordBoundary(lower, in: text, within: 120)
+        let end = findNearestSentenceEnd(in: text, near: upper, within: 120)
+            ?? Self.snappedToWordBoundary(upper, in: text, within: 120)
 
         guard start < end else { return String(text[range]) }
         let expanded = String(text[start ..< end])

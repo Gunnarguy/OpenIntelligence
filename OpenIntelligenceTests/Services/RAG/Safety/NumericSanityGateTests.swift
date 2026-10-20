@@ -135,6 +135,30 @@ final class NumericSanityGateTests: XCTestCase {
         XCTAssertEqual(counted("About 2.5 billion, or 1,250 in 2024."), [true, true, true])
     }
 
+    /// The gate still skips an ordinal; a claim's own check counts it (5.7), against the same number in
+    /// digits or in words, so "the 16th day" is not supported by "the 6th day".
+    func testAnOrdinalIsCheckedAgainstTheSameNumberInDigitsOrWords() throws {
+        let evidence = Numbers.evidence(from: ["A late charge of $75.00 applies on the 6th day. Rent is due on the first."])
+        let sixteenth = try XCTUnwrap(Numbers.mentions(inAnswer: "A late charge applies on the 16th day.").first)
+        XCTAssertTrue(Numbers.isOrdinal(sixteenth))
+        XCTAssertFalse(Numbers.isCountedByGate(sixteenth))
+        XCTAssertFalse(Numbers.isSupported(sixteenth, by: evidence))
+        XCTAssertEqual(sixteenth.written, "16th")
+        XCTAssertEqual(supported("It applies on the 6th.", by: ["A late charge of $75.00 applies on the 6th day."]), [true])
+        XCTAssertEqual(supported("Rent is due on the 1st.", by: ["Rent is due on the first."]), [true])
+        XCTAssertEqual(supported("It is due on the 21st.", by: ["It is due on the twenty-first of each month."]), [true])
+        XCTAssertEqual(supported("It is due on the 21st.", by: ["It is due on the 1st of each month."]), [false])
+        XCTAssertFalse(Numbers.isOrdinal(try XCTUnwrap(Numbers.mentions(inAnswer: "It weighs 35psi.").first)))
+        XCTAssertFalse(Numbers.isOrdinal(try XCTUnwrap(Numbers.mentions(inAnswer: "Revenue rose in Q3.").first)))
+    }
+
+    func testNumbersSpelledAsWords() {
+        XCTAssertEqual(Numbers.spelledNumbers(in: "the twenty-first day, the thirtieth, and five others"), [21, 30, 5])
+        XCTAssertEqual(Numbers.spelledNumbers(in: "Thirty one days"), [31])
+        XCTAssertEqual(Numbers.spelledNumbers(in: "the Sixteenth Street exit"), [16])
+        XCTAssertEqual(Numbers.spelledNumbers(in: "no numbers here"), [])
+    }
+
     func testCitationLabelsAndListNumbersAreNotNumbersTheAnswerStates() {
         XCTAssertEqual(supported("It weighs 12 kg (see [2] and [S3, S4]).", by: ["Weight: 12 kg"]), [true])
         XCTAssertEqual(

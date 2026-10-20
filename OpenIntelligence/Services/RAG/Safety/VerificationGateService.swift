@@ -1578,12 +1578,16 @@ actor VerificationGateService {
         // A sentence is not Supported while a figure it states is missing from the passages as a
         // value. The term overlap above counts "2.5" as found when the passages only hold it inside
         // a name, which is how "2.5 billion parameters" was Supported by a table row for
-        // "Qwen-2.5-3B".
+        // "Qwen-2.5-3B". An ordinal counts here from 5.7 (`NumericValueExtractor.isOrdinal`), though
+        // not in the numeric gate: "the 16th day" was Supported by a passage that says "the 6th day".
         if verdict == .supported,
             let missing = NumericValueExtractor.firstUnsupportedMention(
                 in: claimText,
                 evidence: numericEvidence,
-                exempt: { !NumericValueExtractor.isCountedByGate($0) || Self.isYear($0) })
+                exempt: {
+                    !(NumericValueExtractor.isCountedByGate($0) || NumericValueExtractor.isOrdinal($0))
+                        || Self.isYear($0)
+                })
         {
             verdict = .partial
             confidence = min(confidence, 0.55)
@@ -1613,6 +1617,18 @@ actor VerificationGateService {
             verdict = .partial
             confidence = min(confidence, 0.5)
             details = "The passage it rests on says the opposite"
+        }
+
+        // Nor while its words are in the passages but no one sentence of them says it (5.7,
+        // `ClaimCheck.wordsAreScattered`): "The landlord may enter with notice." against a lease that
+        // names the landlord in one sentence and notice in another.
+        if verdict == .supported,
+            ClaimCheck.wordsAreScattered(
+                claimText, across: supportingChunks.map(\.chunk.contextText), question: query)
+        {
+            verdict = .partial
+            confidence = min(confidence, 0.5)
+            details = "The passages hold its words, but no one sentence of them says it"
         }
 
         return RAGVerificationResult.ClaimResult(

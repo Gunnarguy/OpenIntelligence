@@ -279,6 +279,11 @@ struct DocumentLibraryView: View {
         )
             .padding(.horizontal)
             .padding(.bottom, 20)
+
+        // The Siri phrase that finds passages in the open library, the one listed above (5.7).
+        SiriPhraseTip(.findPassages)
+            .padding(.horizontal)
+            .padding(.bottom, 20)
     }
 
     /// The confirmation a swipe asks for before it deletes a document in an iCloud library (`swipeDelete`), on the

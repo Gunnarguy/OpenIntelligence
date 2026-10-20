@@ -9182,6 +9182,13 @@ extension RAGService {
         // nothing to do with how long the final answer should be.
         let profile = await MainActor.run { self.activeAdaptiveProfile }
         let effectiveTemperature = temperature ?? profile?.temperature ?? 0.5
+        // Which of the three this step used. Until 5.7 nothing recorded a step's temperature, so
+        // nothing showed the profile reaching a generation (roadmap row "Adaptive profiles cannot
+        // reach Deep Think or Maximum").
+        Log.info(
+            "[Agentic] Step temperature \(effectiveTemperature) from "
+                + (temperature != nil ? "the step" : profile != nil ? "the adaptive profile" : "the default"),
+            category: .llm)
 
         var config = InferenceConfig(
             maxTokens: maxTokens,

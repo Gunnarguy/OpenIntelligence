@@ -58,6 +58,7 @@ nonisolated enum NumericValueExtractor {
         /// How the mention reads in a message: "2.5 billion", "Qwen-2.5-3B".
         var written: String {
             if let identifier { return identifier }
+            if NumericValueExtractor.isOrdinal(self) { return digits + (attachedSuffix ?? "") }
             let digits = (attachedPrefix ?? "") + digits
             guard let scale else { return digits }
             return scaleIsSuffix ? "\(digits) (\(scale.rawValue))" : "\(digits) \(scale.rawValue)"
@@ -74,6 +75,9 @@ nonisolated enum NumericValueExtractor {
         let compactText: String
         /// Scale words in the passage that do not follow a number: "(in millions)".
         let freeScales: Set<Scale>
+        /// Whole numbers from 1 to 99 the passage writes as words, "sixth" or "twenty-one", which an
+        /// ordinal in an answer ("the 6th") may stand for.
+        var spelledNumbers: Set<Int> = []
     }
 
     // MARK: - Reading
@@ -91,7 +95,8 @@ nonisolated enum NumericValueExtractor {
                 values: result.mentions.filter { $0.identifier == nil },
                 compactIdentifiers: result.mentions.compactMap { $0.identifier.map(compact) },
                 compactText: compact(passage),
-                freeScales: result.freeScales
+                freeScales: result.freeScales,
+                spelledNumbers: spelledNumbers(in: passage)
             )
         }
     }
@@ -116,6 +121,18 @@ nonisolated enum NumericValueExtractor {
         if mention.attachedPrefix != nil || mention.scaleIsSuffix { return false }
         guard let suffix = mention.attachedSuffix else { return true }
         return gateUnits.contains(suffix)
+    }
+
+    /// Whether this is a whole number written as an ordinal: "6th", "21st". The gate has never
+    /// counted these (`isCountedByGate`). A claim's check counts them from 5.7, against the same
+    /// number in digits or in words, so "the 16th day" is not Supported by a passage that says "the
+    /// 6th day" (`ClaimCheckEvaluationTests`, a known gap from 2026-10-09).
+    static func isOrdinal(_ mention: Mention) -> Bool {
+        guard mention.identifier == nil, mention.scale == nil, mention.attachedPrefix == nil,
+            let suffix = mention.attachedSuffix?.lowercased(), ["st", "nd", "rd", "th"].contains(suffix),
+            mention.base >= 1, mention.base == mention.base.rounded()
+        else { return false }
+        return true
     }
 
     // MARK: - Matching
@@ -148,7 +165,51 @@ nonisolated enum NumericValueExtractor {
             let named = word + compact(mention.digits)
             if evidence.contains(where: { $0.compactIdentifiers.contains { $0.contains(named) } }) { return true }
         }
+        // "the 6th" against "the sixth day".
+        if isOrdinal(mention), evidence.contains(where: { $0.spelledNumbers.contains(Int(mention.base)) }) {
+            return true
+        }
         return false
+    }
+
+    private static let unitWords: [String: Int] = [
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+        "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8,
+        "ninth": 9,
+    ]
+    private static let teenWords: [String: Int] = [
+        "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+        "seventeen": 17, "eighteen": 18, "nineteen": 19, "tenth": 10, "eleventh": 11, "twelfth": 12,
+        "thirteenth": 13, "fourteenth": 14, "fifteenth": 15, "sixteenth": 16, "seventeenth": 17,
+        "eighteenth": 18, "nineteenth": 19,
+    ]
+    private static let tensWords: [String: Int] = [
+        "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80,
+        "ninety": 90, "twentieth": 20, "thirtieth": 30, "fortieth": 40, "fiftieth": 50, "sixtieth": 60,
+        "seventieth": 70, "eightieth": 80, "ninetieth": 90,
+    ]
+
+    /// The whole numbers from 1 to 99 a text writes as words, cardinal or ordinal: "twenty-first" is 21.
+    static func spelledNumbers(in text: String) -> Set<Int> {
+        let words = text.lowercased().split { !$0.isLetter }.map(String.init)
+        var found: Set<Int> = []
+        var index = 0
+        while index < words.count {
+            let word = words[index]
+            if let tens = tensWords[word] {
+                // "twenty-one", "thirty first": a tens word runs into the unit after it.
+                if !word.hasSuffix("tieth"), index + 1 < words.count, let unit = unitWords[words[index + 1]] {
+                    found.insert(tens + unit)
+                    index += 2
+                    continue
+                }
+                found.insert(tens)
+            } else if let value = unitWords[word] ?? teenWords[word] {
+                found.insert(value)
+            }
+            index += 1
+        }
+        return found
     }
 
     /// The first number in `sentence` that no passage states, or nil. `exempt` lets the caller pass

@@ -168,9 +168,38 @@ nonisolated enum ClaimCheck {
         }
     }
 
-    /// Whether one of the two is negative (`hasNegation(_:against:)`) and the other isn't.
+    /// Whether one of the two is negative (`hasNegation(_:against:)`) and the other isn't. When both say
+    /// "without" something the other names, in a clause that says something before it, that "without" is
+    /// common ground and the other negations of that clause decide: "Pets are allowed without written
+    /// permission from the landlord" against "Pets are not allowed without written permission from the
+    /// landlord" read as agreeing until 5.7, because both counted as negative (`ClaimCheckEvaluationTests`'
+    /// flipped "not", a known gap from 2026-10-09). Only that clause: a "not" in another one ("..., but
+    /// smoking is not allowed") says nothing about it, and a clause that is only the "without" ("Without a
+    /// receipt, returns are refused") leaves the rule nothing to compare (review, 2026-10-20).
     static func negationDiffers(_ claim: String, _ sentence: String) -> Bool {
-        hasNegation(claim, against: sentence) != hasNegation(sentence, against: claim)
+        let claimSide = resolvingWithout(claim, against: sentence)
+        let sentenceSide = resolvingWithout(sentence, against: claim)
+        let claimNegative = hasNegation(claimSide.text)
+        if claimNegative != hasNegation(sentenceSide.text) { return true }
+        guard claimNegative, claimSide.keepsNamedWithout, sentenceSide.keepsNamedWithout,
+            let claimClause = clauseHoldingWithout(claimSide.text),
+            let sentenceClause = clauseHoldingWithout(sentenceSide.text)
+        else { return false }
+        return hasNegation(withoutAsWith(claimClause)) != hasNegation(withoutAsWith(sentenceClause))
+    }
+
+    /// The first clause of `text` that says "without" after at least two words of its own, or nil. A clause ends at
+    /// a mark of punctuation or at "but", "however", "although", "though", "whereas" or "while".
+    static func clauseHoldingWithout(_ text: String) -> String? {
+        let clauses = text.lowercased()
+            .replacingOccurrences(
+                of: #"\b(?:but|however|although|though|whereas|while)\b"#, with: ".", options: .regularExpression)
+            .split(whereSeparator: { ".,;:!?()\n".contains($0) })
+        for clause in clauses {
+            let words = clause.split { !$0.isLetter && !$0.isNumber && $0 != "'" }.map(String.init)
+            if let at = words.firstIndex(of: "without"), at >= 2 { return String(clause) }
+        }
+        return nil
     }
 
     /// `hasNegation`, counting "without" only when what it is without is named in `other` (5.7). The handbook's
@@ -181,10 +210,16 @@ nonisolated enum ClaimCheck {
     /// notice still reads as the opposite, because notice is named in both. What follows "without" is read up to the
     /// end of its clause or a joining word, leaving out a leading article, and its last word is the one looked for.
     static func hasNegation(_ text: String, against other: String) -> Bool {
+        hasNegation(resolvingWithout(text, against: other).text)
+    }
+
+    /// `text`, lowercased, with each "without" whose object `other` does not name written as "with", and
+    /// whether a "without" whose object `other` names is left in it.
+    static func resolvingWithout(_ text: String, against other: String) -> (text: String, keepsNamedWithout: Bool) {
         let lowered = text.lowercased()
         guard lowered.contains("without"),
             let without = try? NSRegularExpression(pattern: #"\bwithout\b([^.,;:!?()\n]*)"#)
-        else { return hasNegation(text) }
+        else { return (lowered, false) }
         let named = Set(other.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
         let leading: Set<String> = ["a", "an", "the", "any", "your", "their", "his", "her", "its", "our", "my"]
         let joining: Set<String> = [
@@ -193,6 +228,7 @@ nonisolated enum ClaimCheck {
         ]
         let source = lowered as NSString
         var kept = lowered as NSString
+        var keepsNamed = false
         for match in without.matches(in: lowered, range: NSRange(location: 0, length: source.length)) {
             var object: [String] = []
             let words = source.substring(with: match.range(at: 1)).split { !$0.isLetter && !$0.isNumber }
@@ -207,11 +243,62 @@ nonisolated enum ClaimCheck {
                     || (head.hasSuffix("s") && named.contains(String(head.dropLast())))
             } ?? false
             // The same length, so the ranges of the matches after this one still hold.
-            if !isNamed {
+            if isNamed {
+                keepsNamed = true
+            } else {
                 kept = kept.replacingCharacters(in: NSRange(location: match.range.location, length: 7), with: "with   ") as NSString
             }
         }
-        return hasNegation(kept as String)
+        return (kept as String, keepsNamed)
+    }
+
+    /// Every "without" in `text` written as "with", at the same length.
+    private static func withoutAsWith(_ text: String) -> String {
+        text.replacingOccurrences(of: #"\bwithout\b"#, with: "with   ", options: .regularExpression)
+    }
+
+    /// Whether the claim's own words, three or more of them, are spread across `texts` with no one sentence
+    /// holding two. A word the question holds is not the claim's own. "The landlord may enter with notice."
+    /// against a lease whose landlord is in its pets sentence and whose notice is in its moving-out sentence read
+    /// Supported until 5.7: the word check found both nouns and nothing said where (`ClaimCheckEvaluationTests`,
+    /// a known gap from 2026-10-09). A table row counts as one sentence (`EvidenceLineSplitter.units`).
+    static func wordsAreScattered(_ claim: String, across texts: [String], question: String) -> Bool {
+        let own = contentWords(claim).subtracting(contentWords(question))
+        guard own.count >= 3 else { return false }
+        for text in texts {
+            for statement in statements(in: text) where contentWords(statement).intersection(own).count >= 2 {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// The statements of a passage for `wordsAreScattered`: its sentences, a table row as one, and a list as one
+    /// together with the line before it, since a list item alone is rarely a sentence ("Kit contents:", then "- Pump",
+    /// "- Hose", "- Gauge"; review, 2026-10-20).
+    static func statements(in text: String) -> [String] {
+        let lines = EvidenceLineSplitter.lines(in: text)
+        var result: [String] = []
+        var index = 0
+        while index < lines.count {
+            guard isListItem(lines[index]) else {
+                result += EvidenceLineSplitter.units(in: lines[index])
+                index += 1
+                continue
+            }
+            var block = index > 0 ? [lines[index - 1]] : []
+            while index < lines.count, isListItem(lines[index]) {
+                block.append(lines[index])
+                index += 1
+            }
+            result.append(block.joined(separator: " "))
+        }
+        return result
+    }
+
+    /// A line that starts a list item: a dash, an asterisk, a bullet or a number followed by "." or ")".
+    static func isListItem(_ line: String) -> Bool {
+        line.range(of: #"^\s*(?:[-*•–]|\d{1,3}[.)])\s+"#, options: .regularExpression) != nil
     }
 
     /// Whether the text says "not", "no", "never", "none", "nobody", "nothing", "neither", "nor",

@@ -228,6 +228,11 @@ class ImageUnderstandingService {
         let requestHandler = VNImageRequestHandler(ciImage: processedImage, options: [:])
 
         return await withCheckedContinuation { continuation in
+            // Stays on `VNRecognizeTextRequest` (5.7). Scanned pages are read by `RecognizeDocumentsRequest`
+            // (`StructuredDocumentParser`); this is one of the older request's remaining uses, which move to Vision's Swift
+            // `RecognizeTextRequest` together, checked against the OCR fixtures in IngestionFormatCoverageTests, not one
+            // at a time (roadmap row "Vision: DataDetection results are computed and thrown away, and VisionKit is never
+            // imported").
             let request = VNRecognizeTextRequest { request, error in
                 if let error = error {
                     Log.debug("[ImageUnderstanding] Image OCR failed: \(error.localizedDescription)", category: .ingestion)

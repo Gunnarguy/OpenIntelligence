@@ -779,7 +779,9 @@ onboarding), 7 iPad, 6 Mac. `[evidence_level: measured, confidence: exact, evide
 
 Version is derived, not set by hand. `ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` for
 both iOS and macOS from the first `## <number>` heading in `CHANGELOG.md` during the Xcode Cloud
-build. Editing that heading changes what ships.
+build. Editing that heading changes what ships. The project file's own `MARKETING_VERSION` is what a build from
+Xcode on the Mac shows; it said 5.3 until 2026-10-20, when the owner, having built from Xcode and seen 5.3, had it
+set to 5.7 in all 14 places. Set it to the version in development when a new one opens.
 
 **The Xcode Cloud workflow, as recorded 2026-09-22.** One workflow, `Default`, pinned to Xcode 27
 (`27A266a`) on macOS `Latest Release`. It has two actions, `Archive - iOS` and `Archive - macOS`, and
@@ -1036,7 +1038,8 @@ the "USB only" note elsewhere applies to tests, which need the developer disk im
 rsync -a --delete --exclude 'BenchmarkRuns/' --exclude '.build' --exclude '/build/' \
   ~/Documents/GitHub/OpenIntelligence/ /private/tmp/oi-src/
 # 2. Build for any iOS device, with the version the first numbered CHANGELOG heading names
-#    (the project file says 5.3 and Xcode Cloud stamps the real one; the override edits no file)
+#    (the project file names the version in development, 5.7 from 2026-10-20, and Xcode Cloud stamps the real one;
+#    the override edits no file)
 cd /private/tmp/oi-src && xcodebuild build -project OpenIntelligence.xcodeproj -scheme OpenIntelligence \
   -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/oi-build \
   -jobs 2 -allowProvisioningUpdates MARKETING_VERSION=<X.Y>

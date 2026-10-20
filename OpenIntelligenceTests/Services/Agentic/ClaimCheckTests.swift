@@ -107,9 +107,49 @@ final class ClaimCheckTests: XCTestCase {
         XCTAssertTrue(ClaimCheck.negationDiffers(
             "You can cancel without a fee.",
             "If you cancel before completing the 12-month minimum term, an early cancellation fee of $150.00 applies."))
-        XCTAssertFalse(ClaimCheck.negationDiffers(
+        // Both say "without" what the other names, so that "without" is common ground and the passage's
+        // "not" decides (5.7). Until then this pair read as agreeing.
+        XCTAssertTrue(ClaimCheck.negationDiffers(
             "Pets are allowed without written permission from the landlord.",
-            "Pets are not allowed without written permission from the landlord."), "both say without permission")
+            "Pets are not allowed without written permission from the landlord."))
+    }
+
+    func testWithoutOnBothSidesLeavesTheOtherNegationsToDecide() {
+        XCTAssertTrue(ClaimCheck.negationDiffers(
+            "You can return items without a receipt.", "Items cannot be returned without a receipt."))
+        XCTAssertFalse(ClaimCheck.negationDiffers(
+            "The tenant may not sublet without consent.", "The tenant cannot sublet without the landlord's consent."))
+        XCTAssertFalse(ClaimCheck.negationDiffers(
+            "Pets are not allowed without permission.", "No pets without written permission."))
+        XCTAssertFalse(ClaimCheck.negationDiffers(
+            "Guests may stay without registering.", "Guests may stay without registering for up to 14 days."))
+        // Only the clause that says "without" counts, and a clause that is only the "without" leaves nothing to compare
+        // (review, 2026-10-20).
+        XCTAssertFalse(ClaimCheck.negationDiffers(
+            "Pets are allowed without a deposit.", "Pets are allowed without a deposit, but smoking is not allowed."))
+        XCTAssertFalse(ClaimCheck.negationDiffers(
+            "Without a receipt, returns are refused.", "Returns are not accepted without a receipt."))
+    }
+
+    func testWordsSpreadAcrossSentencesAreNotOneStatement() {
+        let lease = "Pets are not allowed without written permission from the landlord. "
+            + "The tenant must give 60 days written notice before moving out."
+        XCTAssertTrue(ClaimCheck.wordsAreScattered(
+            "The landlord may enter with notice.", across: [lease], question: "What does it say?"))
+        XCTAssertFalse(ClaimCheck.wordsAreScattered(
+            "The notice period is 60 days.", across: [lease], question: "What does it say?"))
+        // Words the question holds are not the claim's own, so two own words leave nothing to check.
+        XCTAssertFalse(ClaimCheck.wordsAreScattered(
+            "The landlord may enter with notice.", across: [lease], question: "When may the landlord enter?"))
+        // A list is one statement with the line before it (review, 2026-10-20).
+        XCTAssertFalse(ClaimCheck.wordsAreScattered(
+            "The kit includes a pump, a hose and a gauge.", across: ["Kit contents:\n- Pump\n- Hose\n- Gauge"],
+            question: "What comes in the kit?"))
+        // A table row is one sentence.
+        XCTAssertFalse(ClaimCheck.wordsAreScattered(
+            "E1 means temperature sensor open circuit.",
+            across: ["| Code | Meaning | Action |\n| E1 | Temperature sensor open circuit | Unplug; contact support |"],
+            question: "What does E1 mean?"))
     }
 
     func testBoundsAndSetPhrasesAreNotNegations() {

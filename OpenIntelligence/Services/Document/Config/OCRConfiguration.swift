@@ -218,6 +218,11 @@ enum OCRConfiguration {
     /// request set up by `configureRequest` (revision 3, accurate). On macOS 27 that is Arab, Cyrl, Deva, Hans, Hant,
     /// Jpan, Kore, Latn and Thai: no Greek and no Hebrew (measured 2026-10-19). Asked once; that set is the fallback.
     nonisolated static let scriptsVisionCanRead: Set<String> = {
+        // Stays on `VNRecognizeTextRequest` (5.7). Scanned pages are read by `RecognizeDocumentsRequest`
+        // (`StructuredDocumentParser`); this is one of the older request's remaining uses, which move to Vision's Swift
+        // `RecognizeTextRequest` together, checked against the OCR fixtures in IngestionFormatCoverageTests, not one
+        // at a time (roadmap row "Vision: DataDetection results are computed and thrown away, and VisionKit is never
+        // imported").
         let request = VNRecognizeTextRequest()
         configureRequest(request)
         let languages = (try? request.supportedRecognitionLanguages()) ?? []

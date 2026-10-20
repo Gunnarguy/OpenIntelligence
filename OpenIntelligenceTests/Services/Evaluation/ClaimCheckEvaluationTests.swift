@@ -8,10 +8,11 @@
 //  `VerificationGateService` says. No model runs, so it works in the simulator.
 //
 //  Two figures come out. "Agrees where the check claims to work" is asserted at 100%. "Agrees
-//  overall" also counts three sentences the check is known to get wrong (a flipped "not", an ordinal,
-//  and a sentence half of whose words are in the passage without the passage saying it); that figure
-//  is printed, not asserted, so the gap stays visible in the evaluation report. A fourth, a sentence
-//  that shares a third of its words with a passage that says the opposite, was closed in 5.7.
+//  overall" also counts any sentence marked as a known gap of the check; that figure is printed, not
+//  asserted, so a gap stays visible in the evaluation report. The four gaps this suite was written
+//  with (a flipped "not", an ordinal, a sentence whose words are in the passage without the passage
+//  saying it, and one that shares a third of its words with a passage that says the opposite) were
+//  closed in 5.7, so none is marked now.
 //
 
 import Evaluations
@@ -79,12 +80,13 @@ nonisolated enum ClaimCheckDataset {
         .init("The landlord may enter with 24 hours notice.", against: lease, is: notSupported),
         // A sentence about something the passage does not cover.
         .init("The warranty covers the compressor for ten years.", against: lease, is: notSupported),
-        // Known gaps: the check compares words and numbers, and these differ in neither.
-        .init(
-            "Pets are allowed without written permission from the landlord.", against: lease, is: notSupported,
-            knownGap: true),
-        .init("A late charge applies on the 16th day.", against: lease, is: notSupported, knownGap: true),
-        .init("The landlord may enter with notice.", against: lease, is: notSupported, knownGap: true),
+        // Known gaps until 5.7: the check compared words and numbers, and these differ in neither.
+        // The passage's "not" against the sentence's "without" (`ClaimCheck.negationDiffers`), an
+        // ordinal (`NumericValueExtractor.isOrdinal`), and words no one sentence holds together
+        // (`ClaimCheck.wordsAreScattered`).
+        .init("Pets are allowed without written permission from the landlord.", against: lease, is: notSupported),
+        .init("A late charge applies on the 16th day.", against: lease, is: notSupported),
+        .init("The landlord may enter with notice.", against: lease, is: notSupported),
         // The passage says pets are not allowed. Three of this sentence's nine words are in it,
         // which with a high retrieval score was enough for the check (found by this suite's first
         // run, 2026-10-09). From 5.7 the check reads the passage's sentence as saying the opposite
