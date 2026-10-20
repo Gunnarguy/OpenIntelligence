@@ -304,11 +304,19 @@ A passage carries two texts: `content`, which is embedded and indexed, and `pare
 It is retrieval-adjacent rather than retrieval: it reads chunks, never the index. Three paths,
 in the order they are tried:
 
-1. **The curated set**, for the sample workspace. Hand-written questions that skip generation.
-   Since 2026-09-14 the workspace is recognised by sample *identity* (`sampleIdentity(for:)`):
+1. **The curated set**, for a library made only of sample documents. Hand-written questions that
+   skip generation. Since 2026-09-14 a sample is recognised by *identity* (`sampleIdentity(for:)`):
    each canonical sample filename or a numbered copy of it (`<stem>-<digits>.md`, which managed
-   storage produces when a filename collides), with all three samples present. Before that the
-   check was an exact filename match and one numbered copy switched the curated set off.
+   storage produces when a filename collides). Before that the check was an exact filename match
+   and one numbered copy switched the curated set off. **Updated 2026-10-20, for 5.7:**
+   `curatedSampleQuestions(forFilenames:)` returns the questions of the samples the library holds,
+   in the list's order, where `isSampleWorkspace(filenames:)` required all three; any other
+   document returns nil and the library goes to path 2. The chat screen shows the list from the
+   first frame (`ChatScreen.curatedSampleQuestions`), and its own older list of four, which came
+   first whenever the architecture and Private Cloud Compute guides were both there under their
+   own names, and so kept this set off the screen unless one of them was a numbered copy, is gone.
+   Each question names the heading of its guide it was written from, pinned by
+   `SampleQuestionHeadingsTests`.
 2. **Model-written questions**, per document, at ingestion for user documents and on demand for
    a library whose bank is empty. Accepted only when at least two survive passage grounding.
 3. **Template questions** from specifications, procedures, warnings, definitions and terms.
@@ -324,4 +332,4 @@ in the order they are tried:
 Sample duplicates are removed by `SampleDocumentManager.removeNumberedSampleCopies`, on every refresh
 pass and only when the canonical file is also present.
 
-`[evidence_level: code_verified, confidence: exact, evidence_source: SuggestedQuestionsService.swift sampleIdentity, isSampleWorkspace(filenames:), shouldRebuildBank, isAcceptableTemplateTopic, generateQuestionsForDocumentOnly; SampleDocumentManager.swift numberedCopiesToRemove; SuggestedQuestionsSampleWorkspaceTests and SampleDocumentCopyCleanupTests, 2026-09-14]`
+`[evidence_level: code_verified, confidence: exact, evidence_source: SuggestedQuestionsService.swift sampleIdentity, curatedSampleQuestions(forFilenames:) (isSampleWorkspace(filenames:) until 2026-10-20), shouldRebuildBank, isAcceptableTemplateTopic, generateQuestionsForDocumentOnly; SampleDocumentManager.swift numberedCopiesToRemove; SuggestedQuestionsSampleWorkspaceTests and SampleDocumentCopyCleanupTests, 2026-09-14; SampleQuestionHeadingsTests and the rewritten SuggestedQuestionsSampleWorkspaceTests, 2026-10-20]`

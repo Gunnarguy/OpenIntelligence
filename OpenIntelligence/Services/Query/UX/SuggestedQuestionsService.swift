@@ -126,29 +126,45 @@ actor SuggestedQuestionsService {
         modelAvailable && !bank.isEmpty && !bank.contains(where: \.isLLMGenerated)
     }
 
-    /// Known filenames for the curated sample workspace (matches SampleDocumentManager).
+    /// The sample documents' filenames as they are stored (matches SampleDocumentManager).
     private static let sampleDocumentFilenames: Set<String> = [
         "OpenIntelligence-Product-Guide.md",
         "RAG-Technical-Architecture.md",
         "Apple-Intelligence-&-Private-Cloud-Compute.md"
     ]
 
-    /// Gold-standard questions for the sample workspace.
-    /// Hand-crafted to be directly answerable from the actual sample document text.
-    /// These bypass all LLM generation and heuristic filtering.
+    /// The name each sample is listed under, which is what `relevantDocuments` holds.
+    private static let sampleDisplayNames: [String: String] = [
+        "OpenIntelligence-Product-Guide.md": "OpenIntelligence Product Guide",
+        "RAG-Technical-Architecture.md": "RAG Technical Architecture",
+        "Apple-Intelligence-&-Private-Cloud-Compute.md": "Apple Intelligence & Private Cloud Compute",
+    ]
+
+    /// The hand-written questions for the sample documents, in the order a new reader meets them.
+    /// The owner decided on 2026-09-14 that this set is written by hand, the same on every device,
+    /// and never generated (`Docs/ai/DECISIONS.md`). Each question names the sample and the heading
+    /// it was written from, which its chip shows, and a test fails when a guide loses that heading:
+    /// by 5.7 four of these named headings the rewritten guides no longer had, one of them the
+    /// question "How does dynamic model routing work?", which the list no longer asks.
     private static let sampleWorkspaceQuestions: [SuggestedQuestion] = [
         // Product Guide
         SuggestedQuestion(
-            id: UUID(),
-            text: "What file formats does OpenIntelligence support?",
-            category: .factRetrieval,
+            text: "Why is OpenIntelligence different from a generic AI chat app?",
+            category: .comparison,
             relevantDocuments: ["OpenIntelligence Product Guide"],
-            sourceSections: ["What files can OpenIntelligence accept?"],
+            sourceSections: ["What makes OpenIntelligence different?"],
             confidence: 0.97,
             isLLMGenerated: false
         ),
         SuggestedQuestion(
-            id: UUID(),
+            text: "What file formats does OpenIntelligence support?",
+            category: .factRetrieval,
+            relevantDocuments: ["OpenIntelligence Product Guide"],
+            sourceSections: ["What files can OpenIntelligence read?"],
+            confidence: 0.97,
+            isLLMGenerated: false
+        ),
+        SuggestedQuestion(
             text: "How does the app keep answers grounded in your documents?",
             category: .procedural,
             relevantDocuments: ["OpenIntelligence Product Guide"],
@@ -157,7 +173,6 @@ actor SuggestedQuestionsService {
             isLLMGenerated: false
         ),
         SuggestedQuestion(
-            id: UUID(),
             text: "What's included in the Free plan versus Pro?",
             category: .comparison,
             relevantDocuments: ["OpenIntelligence Product Guide"],
@@ -167,45 +182,40 @@ actor SuggestedQuestionsService {
         ),
         // RAG Technical Architecture
         SuggestedQuestion(
-            id: UUID(),
-            text: "How does dynamic model routing work?",
+            text: "How does OpenIntelligence work around the model's token limit?",
             category: .procedural,
             relevantDocuments: ["RAG Technical Architecture"],
-            sourceSections: ["How does dynamic model routing work?"],
+            sourceSections: ["Why retrieval matters"],
             confidence: 0.97,
             isLLMGenerated: false
         ),
         SuggestedQuestion(
-            id: UUID(),
-            text: "What are the three quality modes?",
-            category: .factRetrieval,
-            relevantDocuments: ["RAG Technical Architecture"],
-            sourceSections: ["Quality Modes"],
-            confidence: 0.96,
-            isLLMGenerated: false
-        ),
-        SuggestedQuestion(
-            id: UUID(),
             text: "What steps does the RAG pipeline follow?",
             category: .procedural,
             relevantDocuments: ["RAG Technical Architecture"],
-            sourceSections: ["The RAG Pipeline"],
+            sourceSections: ["The pipeline"],
             confidence: 0.96,
             isLLMGenerated: false
         ),
-        // Apple Intelligence & PCC
         SuggestedQuestion(
-            id: UUID(),
-            text: "When does Private Cloud Compute activate?",
+            text: "What are the three quality modes?",
+            category: .factRetrieval,
+            relevantDocuments: ["RAG Technical Architecture"],
+            sourceSections: ["Quality modes"],
+            confidence: 0.96,
+            isLLMGenerated: false
+        ),
+        // Apple Intelligence & Private Cloud Compute
+        SuggestedQuestion(
+            text: "When does processing stay on-device, and when does Apple Private Cloud Compute step in?",
             category: .factRetrieval,
             relevantDocuments: ["Apple Intelligence & Private Cloud Compute"],
-            sourceSections: ["When does PCC activate?"],
+            sourceSections: ["What stays on the device?"],
             confidence: 0.97,
             isLLMGenerated: false
         ),
         SuggestedQuestion(
-            id: UUID(),
-            text: "What privacy guarantees does PCC provide?",
+            text: "What privacy guarantees does Private Cloud Compute provide?",
             category: .factRetrieval,
             relevantDocuments: ["Apple Intelligence & Private Cloud Compute"],
             sourceSections: ["What is Private Cloud Compute?"],
@@ -238,21 +248,26 @@ actor SuggestedQuestionsService {
         return nil
     }
 
-    /// Whether a set of filenames is the sample workspace: every document is a sample, canonical
-    /// or numbered copy, and every sample is represented at least once. Pure, so it is tested.
-    static func isSampleWorkspace(filenames: [String]) -> Bool {
-        guard !filenames.isEmpty else { return false }
-        var identities: Set<String> = []
-        for filename in filenames {
-            guard let identity = sampleIdentity(for: filename) else { return false }
-            identities.insert(identity)
-        }
-        return identities == sampleDocumentFilenames
-    }
+    /// The hand-written questions' text, which tells them from generated ones on screen.
+    static let curatedQuestionTexts: Set<String> = Set(sampleWorkspaceQuestions.map(\.text))
 
-    /// Detect whether the library consists only of the curated sample documents.
-    private func isSampleWorkspace(documents: [Document]) -> Bool {
-        Self.isSampleWorkspace(filenames: documents.map { $0.filename })
+    /// The hand-written questions for a library made only of sample documents, canonical or
+    /// numbered copies, limited to the samples it holds and in the list's order. nil for an empty
+    /// library and for one holding any document of the person's own, which the generator serves.
+    ///
+    /// Until 5.7 this was all or nothing: the set showed only when all three samples were present,
+    /// so a library whose Private Cloud Compute guide had been deleted fell through to the template
+    /// generator, which is how "What is nothing?" reached a library of samples. Pure, so tested.
+    static func curatedSampleQuestions(forFilenames filenames: [String]) -> [SuggestedQuestion]? {
+        guard !filenames.isEmpty else { return nil }
+        var present: Set<String> = []
+        for filename in filenames {
+            guard let identity = sampleIdentity(for: filename),
+                  let name = sampleDisplayNames[identity] else { return nil }
+            present.insert(name)
+        }
+        let questions = sampleWorkspaceQuestions.filter { $0.relevantDocuments.allSatisfy(present.contains) }
+        return questions.isEmpty ? nil : questions
     }
 
     // MARK: - Persistent Suggested Questions Bank
@@ -493,12 +508,12 @@ actor SuggestedQuestionsService {
 
         let existingCached = cachedQuestions[containerId]
 
-        // Fast path: sample workspace gets curated gold-standard questions.
-        // These are hand-crafted to be directly answerable and skip all generation.
-        if isSampleWorkspace(documents: documents) {
+        // Fast path: a library of sample documents gets their hand-written questions, which
+        // skip all generation.
+        if let curated = Self.curatedSampleQuestions(forFilenames: documents.map(\.filename)) {
             if forceRefresh {
                 // On refresh, shuffle and pick a different subset
-                let shuffled = Self.sampleWorkspaceQuestions.shuffled()
+                let shuffled = curated.shuffled()
                 let selected = Array(shuffled.prefix(count))
                 cachedQuestions[containerId] = CachedEntry(
                     questions: selected,
@@ -513,7 +528,7 @@ actor SuggestedQuestionsService {
                Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge {
                 return Array(cached.questions.prefix(count))
             }
-            let selected = Array(Self.sampleWorkspaceQuestions.prefix(count))
+            let selected = Array(curated.prefix(count))
             cachedQuestions[containerId] = CachedEntry(
                 questions: selected,
                 documentCount: documents.count,

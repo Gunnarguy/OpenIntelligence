@@ -715,6 +715,17 @@ templates, bank rebuild) stands; it restores this path, it does not change its n
 button on the sample workspace still shuffles the curated list; that is the one place the set is
 not deterministic, left as is at "let's put this to rest".
 
+**Corrected 2026-10-20, for 5.7.** This set seldom reached the screen. `ChatScreen` had its own list
+of four, older than this decision (6dc093c, 2026-05-12), shown first whenever the architecture and
+Private Cloud Compute guides were both there under their own names, so this set showed only when one
+of them was there as a numbered copy alone, and the refresh button above changed nothing under the
+older list. 5.7 removes that list and shows this one for a library made only of samples, limited to
+the samples it holds. That follows from the decision: such a library with a guide deleted went to
+the generator, which this decision rules out for the samples. Two of its questions named headings
+the rewritten guides no longer had and were replaced by two of the four the screen had shown, a third
+of those now leads the list, and every question names a heading its guide has
+(`SampleQuestionHeadingsTests`). The set is still written by hand and the same on every device.
+
 ## 2026-09-23 - Standard checks an answer against its sources only when the verification gates flag it
 
 **Context.** `SourceOnlyAnswerService.verifyAndRender` is a second check on extractive answers: a

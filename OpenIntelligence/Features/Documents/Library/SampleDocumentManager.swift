@@ -355,6 +355,12 @@ OpenIntelligence never sends your documents to a developer-operated backend.
     /// Total number of sample documents, used for quota calculations.
     var sampleCount: Int { samples.count }
 
+    /// Each sample's text by the name it is listed under. A test reads it to check that the
+    /// hand-written questions for the samples still name headings these guides have.
+    var sampleBodiesByName: [String: String] {
+        Dictionary(uniqueKeysWithValues: samples.map { ($0.filename, $0.body) })
+    }
+
     /// Writes curated samples to disk and ingests them into the active RAG pipeline.
     /// Uses `.onboarding` context to prevent self-tuning rebuilds during initial setup.
     /// Now uses the ingestion queue so UI can observe progress via `ragService.ingestionItems`.

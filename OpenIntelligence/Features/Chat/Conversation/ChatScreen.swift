@@ -366,7 +366,6 @@ struct ChatScreen: View {
 
     // Dynamic suggested questions
     @State private var dynamicSuggestedQuestions: [String] = []
-    @State private var dynamicQuestionCategories: [String: SuggestedQuestionsService.QuestionCategory] = [:]
     @State private var dynamicQuestionDetails: [String: SuggestedQuestionsService.SuggestedQuestion] = [:]
     @State private var suggestedQuestionsTask: Task<Void, Never>? = nil
     @State private var isRefreshingSuggestions = false
@@ -777,7 +776,6 @@ struct ChatScreen: View {
             if !isSameDocsContainer {
                 // Immediately clear old suggested questions so stale pills never flash
                 dynamicSuggestedQuestions = []
-                dynamicQuestionCategories = [:]
                 dynamicQuestionDetails = [:]
 
                 // Invalidate cached questions for the new container before regenerating
@@ -1972,16 +1970,25 @@ struct ChatScreen: View {
         messages.isEmpty
     }
 
-    /// Starter prompts - prefer curated sample-workspace questions, then dynamic questions.
-    /// If a library does not yield grounded prompts yet, fail closed instead of inventing them.
+    /// Starter prompts: the service's questions for this library, which for a library of sample
+    /// documents are the hand-written ones. Until the service has answered, a sample library shows
+    /// that list straight away. A library that does not yield grounded prompts yet shows none
+    /// rather than invented ones.
+    ///
+    /// Until 5.7 a second hand-written list here came first whenever two of three sample names were
+    /// present, and one of the three was "OpenIntelligence Roadmap", a name no sample in this
+    /// repository's history has had. So the set decided on 2026-09-14 showed only when the
+    /// architecture or Private Cloud Compute guide was there as a numbered copy alone, the refresh
+    /// button changed nothing under this list, a library of the samples and the person's own files
+    /// kept showing questions about the samples, and a sample library without one of those two
+    /// guides got neither list.
     private var starterPrompts: [String] {
-        if let sampleWorkspaceStarterPrompts = sampleWorkspaceStarterPrompts {
-            return sampleWorkspaceStarterPrompts
-        }
-
-        // If we have dynamic questions based on library content, use them
         if !dynamicSuggestedQuestions.isEmpty {
             return dynamicSuggestedQuestions
+        }
+
+        if let curated = curatedSampleQuestions {
+            return curated.map(\.text)
         }
 
         // An empty library offers nothing to tap. Until 5.6 it offered four lines, the first an
@@ -2002,41 +2009,20 @@ struct ChatScreen: View {
         }
     }
 
-    private var sampleWorkspaceStarterPrompts: [String]? {
-        let activeNames = Set(
-            activeDocumentsForStarterPrompts.map {
-                normalizeStarterWorkspaceDocumentName(starterDisplayDocumentName($0.filename))
-            }
-        )
-        let sampleNames: Set<String> = [
-            "openintelligence roadmap",
-            "rag technical architecture",
-            "apple intelligence & private cloud compute",
-        ]
-
-        guard activeNames.intersection(sampleNames).count >= 2 else { return nil }
-
-        return [
-            "How does OpenIntelligence work around the model's token limit?",
-            "What file types does OpenIntelligence handle best?",
-            "Why is OpenIntelligence different from a generic AI chat app?",
-            "When does processing stay on-device, and when does Apple Private Cloud Compute step in?",
-        ]
+    /// The hand-written questions when every document in this library is a sample, else nil.
+    private var curatedSampleQuestions: [SuggestedQuestionsService.SuggestedQuestion]? {
+        SuggestedQuestionsService.curatedSampleQuestions(
+            forFilenames: activeDocumentsForStarterPrompts.map(\.filename))
     }
 
-    private func starterDisplayDocumentName(_ filename: String) -> String {
-        filename
-            .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func normalizeStarterWorkspaceDocumentName(_ name: String) -> String {
-        name
-            .lowercased()
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    /// The source line and category for each prompt shown, the curated list's included before the
+    /// service has answered, so its chips carry them from the first frame.
+    private var starterQuestionDetails: [String: SuggestedQuestionsService.SuggestedQuestion] {
+        if !dynamicSuggestedQuestions.isEmpty {
+            return dynamicQuestionDetails
+        }
+        guard let curated = curatedSampleQuestions else { return [:] }
+        return Dictionary(curated.map { ($0.text, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// Generate dynamic suggested questions based on library content
@@ -2066,7 +2052,6 @@ struct ChatScreen: View {
 
             guard !documents.isEmpty else {
                 dynamicSuggestedQuestions = []
-                dynamicQuestionCategories = [:]
                 dynamicQuestionDetails = [:]
                 return
             }
@@ -2110,9 +2095,6 @@ struct ChatScreen: View {
                 }
 
                 dynamicSuggestedQuestions = questions.map { $0.text }
-                dynamicQuestionCategories = Dictionary(
-                    uniqueKeysWithValues: questions.map { ($0.text, $0.category) }
-                )
                 dynamicQuestionDetails = Dictionary(
                     uniqueKeysWithValues: questions.map { ($0.text, $0) }
                 )
@@ -2120,7 +2102,6 @@ struct ChatScreen: View {
             } catch {
                 Log.warning("[ChatScreen] Failed to generate dynamic questions: \(error.localizedDescription)")
                 dynamicSuggestedQuestions = []
-                dynamicQuestionCategories = [:]
                 dynamicQuestionDetails = [:]
             }
         }
@@ -2644,8 +2625,12 @@ struct ChatScreen: View {
                     hasDocuments: activeDocCount > 0,
                     modelNotice: appleIntelligenceNotice,
                     prompts: starterPrompts,
-                    categories: dynamicQuestionCategories,
-                    questionDetails: dynamicQuestionDetails,
+                    categories: starterQuestionDetails.mapValues(\.category),
+                    questionDetails: starterQuestionDetails,
+                    // The chips shown, not the library: after a document is added or removed the
+                    // previous chips stay until the new ones arrive.
+                    writtenForSamples: !starterPrompts.isEmpty
+                        && starterPrompts.allSatisfy(SuggestedQuestionsService.curatedQuestionTexts.contains),
                     libraryDocumentCount: activeDocCount,
                     isRefreshing: isRefreshingSuggestions,
                     onPromptSelected: sendSuggestedPrompt,
@@ -4436,6 +4421,8 @@ private struct FirstQueryPromptView: View {
     let prompts: [String]
     let categories: [String: SuggestedQuestionsService.QuestionCategory]
     let questionDetails: [String: SuggestedQuestionsService.SuggestedQuestion]
+    /// Every prompt shown is one of the questions written by hand for the sample documents.
+    var writtenForSamples: Bool = false
     let libraryDocumentCount: Int
     let isRefreshing: Bool
     let onPromptSelected: (String) -> Void
@@ -4457,6 +4444,10 @@ private struct FirstQueryPromptView: View {
         guard !prompts.isEmpty else {
             return
                 "No grounded suggestions are ready yet. Ask about a specific warning, requirement, step, setting, or value in this library."
+        }
+
+        if writtenForSamples {
+            return "These questions were written for the sample documents."
         }
 
         guard !questionDetails.isEmpty else {

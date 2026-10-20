@@ -46,30 +46,63 @@ final class SuggestedQuestionsSampleWorkspaceTests: XCTestCase {
         XCTAssertNil(SuggestedQuestionsService.sampleIdentity(for: "Quarterly-Report.md"))
     }
 
-    // MARK: - The sample workspace
+    // MARK: - The hand-written questions
 
-    func testExactCanonicalSet_isTheSampleWorkspace() {
-        XCTAssertTrue(SuggestedQuestionsService.isSampleWorkspace(filenames: canonical))
+    private func curated(_ names: [String]) -> [String]? {
+        SuggestedQuestionsService.curatedSampleQuestions(forFilenames: names)?.map(\.text)
     }
 
-    func testNumberedCopyInPlaceOfACanonical_isStillTheSampleWorkspace() {
+    private func documents(of names: [String]) -> Set<String> {
+        Set(SuggestedQuestionsService.curatedSampleQuestions(forFilenames: names)?.flatMap(\.relevantDocuments) ?? [])
+    }
+
+    func testExactCanonicalSet_getsEveryQuestionInOrder() {
+        let questions = curated(canonical)
+        XCTAssertEqual(questions?.count, 9)
+        XCTAssertEqual(questions?.first, "Why is OpenIntelligence different from a generic AI chat app?")
+        XCTAssertEqual(questions?.last, "What privacy guarantees does Private Cloud Compute provide?")
+        XCTAssertEqual(documents(of: canonical).count, 3)
+    }
+
+    func testNumberedCopyInPlaceOfACanonical_stillGetsEveryQuestion() {
         var names = canonical
         names[1] = "RAG-Technical-Architecture-2.md"
-        XCTAssertTrue(SuggestedQuestionsService.isSampleWorkspace(filenames: names))
+        XCTAssertEqual(curated(names), curated(canonical))
     }
 
-    func testFiveDocumentsForThreeSamples_isStillTheSampleWorkspace() {
+    func testFiveDocumentsForThreeSamples_stillGetsEveryQuestion() {
         let names = canonical + ["RAG-Technical-Architecture-2.md", "OpenIntelligence-Product-Guide-3.md"]
-        XCTAssertTrue(SuggestedQuestionsService.isSampleWorkspace(filenames: names))
+        XCTAssertEqual(curated(names), curated(canonical))
     }
 
-    func testOneUserDocument_endsTheSampleWorkspace() {
-        XCTAssertFalse(SuggestedQuestionsService.isSampleWorkspace(filenames: canonical + ["Quarterly-Report.pdf"]))
+    func testOneUserDocument_endsTheHandWrittenQuestions() {
+        XCTAssertNil(curated(canonical + ["Quarterly-Report.pdf"]))
+        XCTAssertNil(curated(["RAG-Technical-Architecture.md", "Quarterly-Report.pdf"]))
     }
 
-    func testAMissingSample_isNotTheSampleWorkspace() {
-        XCTAssertFalse(SuggestedQuestionsService.isSampleWorkspace(filenames: Array(canonical.prefix(2))))
-        XCTAssertFalse(SuggestedQuestionsService.isSampleWorkspace(filenames: []))
+    /// A library of samples with one deleted kept the hand-written set only when all three were
+    /// there, so it fell through to the template generator. Now it gets the questions of the
+    /// samples it holds, in the list's order.
+    func testAMissingSample_getsTheQuestionsOfTheSamplesItHolds() {
+        XCTAssertEqual(curated(["RAG-Technical-Architecture.md"]), [
+            "How does OpenIntelligence work around the model's token limit?",
+            "What steps does the RAG pipeline follow?",
+            "What are the three quality modes?",
+        ])
+        let twoOfThree = Array(canonical.prefix(2))
+        XCTAssertEqual(curated(twoOfThree)?.count, 7)
+        XCTAssertEqual(documents(of: twoOfThree), ["OpenIntelligence Product Guide", "RAG Technical Architecture"])
+        XCTAssertEqual(curated(["Apple-Intelligence-&-Private-Cloud-Compute-2.md"])?.count, 2)
+    }
+
+    func testAnEmptyLibrary_getsNone() {
+        XCTAssertNil(curated([]))
+    }
+
+    /// The chat's caption says the questions were written for the samples only when every chip is one of them.
+    func testTheCuratedTexts_areExactlyTheList() {
+        XCTAssertEqual(SuggestedQuestionsService.curatedQuestionTexts, Set(curated(canonical) ?? []))
+        XCTAssertFalse(SuggestedQuestionsService.curatedQuestionTexts.contains("What is nothing?"))
     }
 
     // MARK: - Rebuilding a bank the model never wrote
