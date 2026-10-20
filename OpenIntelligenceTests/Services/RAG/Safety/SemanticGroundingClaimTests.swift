@@ -83,4 +83,24 @@ final class SemanticGroundingClaimTests: XCTestCase {
         let gate = try XCTUnwrap(outcome.gate)
         XCTAssertFalse(gate.passed, gate.details)
     }
+
+    /// When the question sat as far from the chunks as the answer, the ratio passes and only the floor fails, and the
+    /// detail names the floor (5.7). It read "UNGROUNDED (ratio=2.115 < 0.80" for a ratio that passed and a best
+    /// similarity of 0.245 (demo copy of 3a9fcb8, 2026-10-20).
+    func testTheDetailNamesTheFloorWhenOnlyTheFloorFails() async throws {
+        let claim = "Rent is late after 11:59 p.m. on the 5th day of the month."
+        let result = await VerificationGateService().verify(
+            response: claim,
+            query: "When is my rent late?",
+            retrievedChunks: [leaseChunk()],
+            topScores: [0.9],
+            responseEmbedding: [0.24, 0.9708, 0],
+            queryEmbedding: [0.25, 0.9682, 0],
+            chunkEmbeddings: [[1, 0, 0]],
+            structuredClaims: [StructuredRAGClaim(claim: claim, citations: ["S1"], isExtracted: true)]
+        )
+        let gate = try XCTUnwrap(result.gateResults.first { $0.gate == .semanticGrounding })
+        XCTAssertFalse(gate.passed, gate.details)
+        XCTAssertTrue(gate.details.hasPrefix("UNGROUNDED (respMax=0.240 < floor 0.25"), gate.details)
+    }
 }

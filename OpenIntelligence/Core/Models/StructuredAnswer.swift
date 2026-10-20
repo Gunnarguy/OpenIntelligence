@@ -406,7 +406,7 @@ extension StructuredAnswer {
             let adjustedClaimConfidence = calibratedClaimConfidence(claimConfidence, verification: verification)
 
             if evidenceIds.isEmpty {
-                _ = builder.addMissing("Support not found for: \(String(claim.claim.prefix(72)))")
+                _ = builder.addMissing("Support not found for: \(gapQuote(claim.claim))")
             }
 
             _ = builder.addClaim(
@@ -536,13 +536,13 @@ extension StructuredAnswer {
                 claimConfidence = min(1.0, max(0.25, (evidenceConfidence * 0.6) + (structuredConfidence * 0.4)))
             } else if !claim.citations.isEmpty {
                 claimConfidence = min(0.55, max(0.2, evidenceConfidence))
-                _ = builder.addMissing("Citation could not be resolved for: \(String(claim.claim.prefix(72)))")
+                _ = builder.addMissing("Citation could not be resolved for: \(gapQuote(claim.claim))")
             } else if !supportingChunks.isEmpty {
                 claimConfidence = min(0.6, max(0.2, (evidenceConfidence * 0.7) + (structuredConfidence * 0.3)))
-                _ = builder.addMissing("Claim missing citation: \(String(claim.claim.prefix(72)))")
+                _ = builder.addMissing("Claim missing citation: \(gapQuote(claim.claim))")
             } else {
                 claimConfidence = min(0.35, max(0.15, structuredConfidence * 0.5))
-                _ = builder.addMissing("Support not found for: \(String(claim.claim.prefix(72)))")
+                _ = builder.addMissing("Support not found for: \(gapQuote(claim.claim))")
             }
 
             let verification = claimVerification(for: claim.claim, in: verificationResult)
@@ -698,10 +698,13 @@ extension StructuredAnswer {
     }
 
     nonisolated private static func cleanClaimText(_ text: String) -> String {
-        text
+        // A range of citations is read as one, with the word that led to it, as Gate B reads it: "are present in [S1]
+        // through [S15]." is "are present." (`VerificationGateService.collapsingCitationRanges`, 5.7).
+        let cleaned = VerificationGateService.collapsingCitationRanges(text)
             // A run of citations after an abbreviation's full stop and before the sentence's own keeps one of them:
-            // "11:00 a.m. [S2]." is "11:00 a.m." (review, 2026-10-18).
-            .replacingOccurrences(of: #"\."# + citationRun + #"\s*\."#, with: ".", options: .regularExpression)
+            // "11:00 a.m. [S2]." is "11:00 a.m." (review, 2026-10-18), and so it does after a bold or an italic that ends
+            // there: "by **9:00 a.m.** [S9]." read "by 9:00 a.m.." in Fact Check (demo copy of 3a9fcb8, 2026-10-20).
+            .replacingOccurrences(of: #"\.(\*{1,3})?"# + citationRun + #"\s*\."#, with: ".$1", options: .regularExpression)
             // A comma, semicolon or colon a citation leaves before the sentence's last mark goes with it: "is
             // refundable, [S1]." is "is refundable." (second review, 2026-10-18).
             .replacingOccurrences(
@@ -715,6 +718,36 @@ extension StructuredAnswer {
                 options: .regularExpression)
             .replacingOccurrences(of: citationRun, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"^#{1,6}\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            // The same with no citation: "by **9:00 a.m.**." keeps the abbreviation's full stop alone (5.7).
+            .replacingOccurrences(of: #"\.(\*{1,3})\s*\.(?=\s|$)"#, with: ".$1", options: .regularExpression)
+        return withoutUnpairedBold(cleaned)
+    }
+
+    /// A claim quoted in Information Gaps: cut at the last word that fits in `limit` characters, with an ellipsis (5.7).
+    /// The cut at 72 characters read "...about painting a bedroo" (demo copy of 3a9fcb8, 2026-10-20).
+    nonisolated static func gapQuote(_ claim: String, limit: Int = 72) -> String {
+        guard claim.count > limit else { return claim }
+        let cut = claim.index(claim.startIndex, offsetBy: limit)
+        // A cut that lands on a space keeps the word that ends there (review, 2026-10-20).
+        let end = claim[cut] == " " ? cut : (claim[..<cut].lastIndex(of: " ") ?? cut)
+        return claim[..<end].trimmingCharacters(in: CharacterSet(charactersIn: " ,;:")) + "\u{2026}"
+    }
+
+    /// A claim cut out of a bold phrase keeps one of its two markers, and Fact Check showed it as typed: the answer's
+    /// "The action is to **Unplug. Contact Kestrel support; the unit needs service.**" became the claim "The action is
+    /// to **Unplug." (demo copy of 3a9fcb8 in the iOS 27 Simulator, 2026-10-20), because the sentences are cut from the
+    /// Markdown. A claim with an odd number of `**` is shown without them; a claim whose bold is whole keeps it (5.7).
+    nonisolated static func withoutUnpairedBold(_ text: String) -> String {
+        // Only a marker with a space, a mark or an end on one side can open or close bold: "2**10" is not bold and
+        // keeps its asterisks (review, 2026-10-20).
+        guard let marker = try? NSRegularExpression(pattern: #"(?<![\p{L}\p{N}])\*\*|\*\*(?![\p{L}\p{N}])"#) else {
+            return text
+        }
+        let whole = NSRange(text.startIndex..., in: text)
+        guard marker.numberOfMatches(in: text, range: whole) % 2 == 1 else { return text }
+        return marker.stringByReplacingMatches(in: text, range: whole, withTemplate: "")
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -929,7 +962,7 @@ extension StructuredAnswer {
         }
 
         for claim in verificationResult.claimResults where claim.verdict == .unsupported {
-            _ = builder.addMissing("Verification could not support claim: \(String(claim.claim.prefix(72)))")
+            _ = builder.addMissing("Verification could not support claim: \(gapQuote(claim.claim))")
         }
 
         if verificationResult.shouldAbstain, let reason = verificationResult.abstainReason {

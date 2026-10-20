@@ -688,6 +688,12 @@ actor VerificationGateService {
                 details = "TOPICAL_MISMATCH (ratio=\(formatFloat3(ratio)), respMax=\(formatFloat3(responseMaxSim)), qryMax=\(formatFloat3(queryMaxSim))). " +
                     (topicalAlignment.details ?? "Retrieved evidence does not cover the query's distinguishing terms.")
                 Log.warning("[VerificationGates] Gate E: Topical alignment FAIL — \(topicalAlignment.details ?? "same-topic mismatch")", category: .pipeline)
+            } else if responseMaxSim < absoluteFloor {
+                // The floor failed, not the ratio: this read "UNGROUNDED (ratio=2.115 < 0.80" for an answer whose ratio
+                // passed and whose best similarity was 0.245 (demo copy of 3a9fcb8, 2026-10-20).
+                details = "UNGROUNDED (respMax=\(formatFloat3(responseMaxSim)) < floor \(formatFloat2(absoluteFloor)), ratio=\(formatFloat3(ratio)), qryMax=\(formatFloat3(queryMaxSim))). The answer is far from every source chunk."
+                Log.warning("[VerificationGates] Gate E: Absolute grounding FAIL: " +
+                    "the answer is far from every source (respMax=\(formatFloat3(responseMaxSim)), floor=\(formatFloat2(absoluteFloor)), ratio=\(formatFloat3(ratio)))", category: .pipeline)
             } else {
                 details = "UNGROUNDED (ratio=\(formatFloat3(ratio)) < \(formatFloat2(relativeThreshold)), respMax=\(formatFloat3(responseMaxSim)), qryMax=\(formatFloat3(queryMaxSim))). Response meaning drifted from source chunks."
                 Log.warning("[VerificationGates] Gate E: Relative grounding FAIL — " +
@@ -1304,6 +1310,19 @@ actor VerificationGateService {
     /// A citation marker as answers write it: "[S1]", or "[S1, S2]" for several sources (5.7).
     nonisolated static let citationMarkerPattern = #"\[S\d+(?:\s*[,;]\s*S?\d+)*\]"#
 
+    /// A range of citations, with the word before it that led to it, read as its first citation alone (5.7): "are
+    /// present in [S1] through [S15]." is "are present [S1].". Fact Check showed the claim as "are present in
+    /// through." (demo copy of 3a9fcb8, 2026-10-20). Every place that keys a claim or a heading reads a range this way
+    /// (`cleanClaimText` here and in `StructuredAnswer`, `headingKey`), because a claim keyed one way on one side and
+    /// another way on the other loses its verdict (review, 2026-10-20). The word must stand alone: "move-in [S1]
+    /// through [S3]" keeps "move-in".
+    nonisolated static func collapsingCitationRanges(_ text: String) -> String {
+        text.replacingOccurrences(
+            of: #"(?:\s+(?:in|from|across|throughout|within))?\s*("# + citationMarkerPattern
+                + #")\s*(?:through|thru|to|[-\u2013\u2014])\s*"# + citationMarkerPattern,
+            with: " $1", options: .regularExpression)
+    }
+
     /// The answer's heading lines, as `headingKey` keys (5.7): a line of eight words or fewer ending in a colon, and a
     /// Markdown heading ("## Hotel Address in Lisbon") or a bold line on its own (`isBoldTitle`) whose words read as a
     /// title and not as a statement (`readsAsTitle`). A Markdown heading or a lead-in is a heading with or without a
@@ -1469,7 +1488,7 @@ actor VerificationGateService {
     /// A line or a claim reduced to its words, lowercased and without citation markers, for matching a claim against
     /// the answer's headings: the claim "Notice to Enter [S1]" matches the heading "## Notice to Enter" (5.7).
     nonisolated static func headingKey(_ text: String) -> String {
-        text.replacingOccurrences(of: citationMarkerPattern, with: "", options: .regularExpression)
+        collapsingCitationRanges(text).replacingOccurrences(of: citationMarkerPattern, with: "", options: .regularExpression)
             .lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
     }
 
@@ -1730,7 +1749,7 @@ actor VerificationGateService {
     }
 
     private func cleanClaimText(_ text: String) -> String {
-        text
+        Self.collapsingCitationRanges(text)
             .replacingOccurrences(of: #"\s*"# + Self.citationMarkerPattern, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)

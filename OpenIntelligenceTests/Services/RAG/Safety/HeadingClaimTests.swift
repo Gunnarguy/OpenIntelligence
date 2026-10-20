@@ -339,6 +339,88 @@ final class HeadingClaimTests: XCTestCase {
              "The lease ends in May.", "The deposit is refundable.", "The fee is $50\u{2014}the deposit is $400."])
     }
 
+    /// A bold that ends in an abbreviation keeps one full stop, with a citation after it or without, and a claim cut
+    /// out of a bold phrase loses the marker it kept (demo copy of 3a9fcb8 in the iOS 27 Simulator, 2026-10-20): Fact
+    /// Check read "Attendance reports must be submitted by 9:00 a.m.." and "The action is to **Unplug.".
+    func testABoldAbbreviationKeepsOneFullStopAndACutBoldLosesItsMarker() {
+        let generation = structured("Attendance reports must be submitted by **9:00 a.m.** [S9].", [
+            ("Attendance reports must be submitted by **9:00 a.m.** [S9].", ["S9"]),
+            ("Bring the form by **9:00 a.m.**.", ["S9"]),
+            ("The action is to **Unplug.", ["S13"]),
+            ("**E1** means **Temperature sensor open circuit** [S13].", ["S13"]),
+            ("Reports are due by *9:00 a.m.* [S9].", ["S9"]),
+            ("The setting is 2**10 bytes [S2].", ["S2"]),
+        ])
+        XCTAssertEqual(
+            claims(of: generation, chunk: "Reports by 9:00 a.m. E1 Temperature sensor open circuit. Unplug."),
+            ["Attendance reports must be submitted by **9:00 a.m.**", "Bring the form by **9:00 a.m.**",
+             "The action is to Unplug.", "**E1** means **Temperature sensor open circuit**.",
+             "Reports are due by *9:00 a.m.*", "The setting is 2**10 bytes."])
+    }
+
+    /// The same answer read sentence by sentence, as one that comes without the model's claim list is: the sentence
+    /// cut inside the bold phrase is listed without its marker, and none ends in two full stops.
+    func testAPlainAnswerCutInsideABoldPhraseShowsNoMarker() {
+        let response = "**E1** means **Temperature sensor open circuit** [S13]. The action is to **Unplug. Contact "
+            + "Kestrel support; the unit needs service.** [S13]. Reports are due by **9:00 a.m.** [S9]."
+        let claims = StructuredAnswer.from(
+            response: response,
+            retrievedChunks: [leaseChunk("E1 Temperature sensor open circuit. Unplug. Contact Kestrel support.")],
+            answerIntent: .lookup, verificationResult: nil, structuredGeneration: nil
+        ).claims.map(\.claim)
+        XCTAssertTrue(claims.contains("The action is to Unplug."), "\(claims)")
+        XCTAssertTrue(claims.contains("Reports are due by **9:00 a.m.**"), "\(claims)")
+        XCTAssertFalse(claims.contains { $0.components(separatedBy: "**").count % 2 == 0 }, "\(claims)")
+        XCTAssertFalse(claims.contains { $0.contains("..") }, "\(claims)")
+        let whole = "**E1** means **open circuit**"
+        XCTAssertEqual(StructuredAnswer.withoutUnpairedBold(whole), whole)
+    }
+
+    /// A range of citations goes with the word that led to it (5.7): Fact Check read "...are present in through." for
+    /// "...are present in [S1] through [S15]." (demo copy of 3a9fcb8, 2026-10-20).
+    func testACitationRangeGoesWithTheWordThatLedToIt() {
+        let generation = structured("No details about painting are present in [S1] through [S15].", [
+            ("No details about painting are present in [S1] through [S15].", ["S1", "S15"]),
+            ("Check-out is by 11:00 a.m. [S1] to [S3].", ["S1", "S3"]),
+            ("The fees are listed in [S2]\u{2013}[S4].", ["S2", "S4"]),
+            ("Pay the deposit before move-in [S1] through [S3].", ["S1", "S3"]),
+            ("Both are listed in [S1, S2] through [S5].", ["S1", "S5"]),
+        ])
+        XCTAssertEqual(
+            claims(of: generation, chunk: "Check-out is by 11:00 a.m. The fees are listed below."),
+            ["No details about painting are present.", "Check-out is by 11:00 a.m.", "The fees are listed.",
+             "Pay the deposit before move-in.", "Both are listed."])
+    }
+
+    /// Gate B and Fact Check read a range of citations the same way, so the claim keeps its verdict (review,
+    /// 2026-10-20): with the range read on Fact Check's side alone, the claim's key no longer matched Gate B's and the
+    /// claim showed "Not checked".
+    @MainActor
+    func testAClaimWithACitationRangeKeepsItsVerdict() async {
+        let claim = "The late fee is $75.00, charged on the 6th, as set out in [S1] through [S2]."
+        let chunk = leaseChunk("The late fee is $75.00, charged on the 6th day of the month.")
+        let verification = await VerificationGateService().verify(
+            response: claim, query: "What is the late fee?", retrievedChunks: [chunk], topScores: [0.9],
+            structuredClaims: [StructuredRAGClaim(claim: claim, citations: ["S1", "S2"], isExtracted: true)])
+        let answer = StructuredAnswer.from(
+            response: claim, retrievedChunks: [chunk], answerIntent: .lookup, verificationResult: verification,
+            structuredGeneration: structured(claim, [(claim, ["S1", "S2"])]))
+        let checked = answer.claims.first { $0.claim.hasPrefix("The late fee is") }
+        XCTAssertEqual(checked?.claim, "The late fee is $75.00, charged on the 6th, as set out.")
+        XCTAssertNotNil(checked?.verificationVerdict, "\(verification.claimResults.map(\.claim))")
+    }
+
+    /// Information Gaps quotes a long claim up to its last whole word, with an ellipsis (5.7): the cut at 72
+    /// characters read "...about painting a bedroo" (demo copy of 3a9fcb8, 2026-10-20).
+    func testAGapQuotesALongClaimToItsLastWholeWord() {
+        XCTAssertEqual(
+            StructuredAnswer.gapQuote("The provided excerpts do not contain information about painting a bedroom."),
+            "The provided excerpts do not contain information about painting a\u{2026}")
+        XCTAssertEqual(StructuredAnswer.gapQuote("Rent is late."), "Rent is late.")
+        let word = String(repeating: "x", count: 69)
+        XCTAssertEqual(StructuredAnswer.gapQuote("ab " + word + " tail"), "ab " + word + "\u{2026}")
+    }
+
     /// The answer rebuilt from its checked claims keeps an abbreviation's full stop before the citation:
     /// "11:00 a.m. [S1].", not "11:00 a.m [S1]." (review, 2026-10-18).
     func testTheRebuiltAnswerKeepsAnAbbreviationsFullStop() {
