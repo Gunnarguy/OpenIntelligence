@@ -2054,6 +2054,9 @@ class RAGService: ObservableObject {
     @MainActor private var containerIntelligenceSignature: [UUID: LibraryIntelligenceCache.Signature] = [:]
     /// False from the service's creation until the documents read from disk have been applied.
     @MainActor private var hasAppliedLoadedDocuments = false
+    /// Whether the stored documents have been read and applied since this engine started (5.7). Until then
+    /// `documents` is not the catalog, so nothing that asks "does a document name this file" may act on it.
+    @MainActor var hasLoadedDocumentsFromDisk: Bool { hasAppliedLoadedDocuments }
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] =
         [:]
     @MainActor @Published private(set) var chatHistories: [UUID: [ChatMessage]] = [:]
@@ -6368,6 +6371,45 @@ class RAGService: ObservableObject {
             "[RAGService] User stopped and dismissed \(activeIds.count) ingestion item(s); automatic self-healing is suppressed for \(selfHealingContainerIds.count) library/libraries",
             category: .ingestion
         )
+        removeImportedCopies(of: activeItems.map(\.url), after: ingestionTaskUnwinding)
+    }
+
+    /// The app's own copies of files whose imports were stopped, once the import that was running has stopped
+    /// reading its file (5.7). "Discard" on interrupted imports always removed them; Stop and dismiss did not, so the
+    /// copy stayed in ImportedDocuments with no document, and the same file chosen again came in as "Support
+    /// Tickets-2.jsonl" (demo copy of 37330a9 in the iOS 27 Simulator, 2026-10-20). A copy that a stored document or a
+    /// queued import still names stays: a rebuild's item points at its document's own file.
+    @MainActor
+    func removeImportedCopies(of urls: [URL], after unwinding: Task<Void, Never>?) {
+        let copies = urls.filter { $0.path.contains("ImportedDocuments") }
+        guard !copies.isEmpty else { return }
+        Task { @MainActor [weak self] in
+            await unwinding?.value
+            guard let self else { return }
+            // Before the stored documents are read, `documents` cannot say which copy a document names (a stop
+            // tapped at launch, on a restored rebuild), so every copy stays.
+            guard hasAppliedLoadedDocuments else {
+                Log.info(
+                    "[RAGService] Kept \(copies.count) stopped import file(s): the documents are not loaded yet",
+                    category: .ingestion)
+                return
+            }
+            for url in copies {
+                let path = url.standardizedFileURL.path
+                let named =
+                    documents.contains { $0.fileURL.standardizedFileURL.path == path }
+                    || ingestionItems.contains { $0.url.standardizedFileURL.path == path }
+                guard !named, FileManager.default.fileExists(atPath: url.path) else { continue }
+                do {
+                    try FileManager.default.removeItem(at: url)
+                    Log.info("[RAGService] Removed the copy of \(url.lastPathComponent) left by a stopped import", category: .ingestion)
+                } catch {
+                    Log.warning(
+                        "[RAGService] Could not remove the copy of \(url.lastPathComponent): \(error.localizedDescription)",
+                        category: .ingestion)
+                }
+            }
+        }
     }
 
     @MainActor

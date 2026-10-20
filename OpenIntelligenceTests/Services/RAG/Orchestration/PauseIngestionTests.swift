@@ -90,6 +90,39 @@ final class PauseIngestionTests: XCTestCase {
         XCTAssertFalse(engine.ingestionItems.contains { $0.stage == .paused })
     }
 
+    /// Stop and dismiss removes the app's own copy of a stopped file, and keeps a copy a stored document names (5.7):
+    /// the copy of a cancelled 8.7 MB import stayed in ImportedDocuments, and the same file chosen again came in as
+    /// "Support Tickets-2.jsonl" (demo copy of 37330a9, 2026-10-20).
+    func testStoppingRemovesTheCopyOfAStoppedFileAndKeepsADocumentsFile() async throws {
+        let folder = AppSupportPaths.importedDocumentsDirectoryURL()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let stopped = folder.appendingPathComponent("Stopped copy \(UUID().uuidString).txt")
+        let kept = folder.appendingPathComponent("Kept copy \(UUID().uuidString).txt")
+        try Data("A note to import.".utf8).write(to: stopped)
+        try Data("A note to import.".utf8).write(to: kept)
+        defer {
+            try? FileManager.default.removeItem(at: stopped)
+            try? FileManager.default.removeItem(at: kept)
+        }
+
+        let engine = RAGService()
+        // The engine reads its stored documents after it starts, and that replaces `documents`.
+        for _ in 0..<200 where !engine.hasLoadedDocumentsFromDisk {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertTrue(engine.hasLoadedDocumentsFromDisk, "the engine never read its stored documents")
+        engine.documents.append(Document(id: UUID(), filename: kept.lastPathComponent, fileURL: kept, contentType: .text))
+        _ = engine.enqueueDocuments([stopped, kept])
+        engine.pauseIngestionQueue()
+        engine.stopAndDismissIngestionQueue()
+
+        for _ in 0..<40 where FileManager.default.fileExists(atPath: stopped.path) {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stopped.path), "the stopped file's copy stayed")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: kept.path), "a stored document's own file was removed")
+    }
+
     /// An end still lands on a paused file: Cancel on a paused file ends it through the same update.
     func testCancellingAPausedFileCancelsIt() throws {
         let engine = RAGService()
