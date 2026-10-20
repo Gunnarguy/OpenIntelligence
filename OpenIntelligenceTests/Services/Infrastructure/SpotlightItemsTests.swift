@@ -64,4 +64,14 @@ final class SpotlightItemsTests: XCTestCase {
         XCTAssertEqual(SpotlightIndexService.previewText(fromStored: "Short note"), "Short note")
         XCTAssertNil(SpotlightIndexService.previewText(fromStored: "  \n "))
     }
+
+    /// A passage's title names its document and its page, and nothing internal (5.7): it read
+    /// "Juniper Flats Lease - Unit 4B.pdf — Page 3 [Chunk 13]", and "Page 1" for a text file.
+    func testAPassagesTitleNamesItsDocumentAndPage() {
+        XCTAssertEqual(
+            SpotlightIndexService.passageTitle(documentName: "Juniper Flats Lease - Unit 4B.pdf", pageNumber: 3),
+            "Juniper Flats Lease - Unit 4B.pdf, page 3")
+        XCTAssertEqual(SpotlightIndexService.passageTitle(documentName: "Notes.txt", pageNumber: nil), "Notes.txt")
+        XCTAssertEqual(SpotlightIndexService.passageTitle(documentName: "Notes.txt", pageNumber: 0), "Notes.txt")
+    }
 }

@@ -88,7 +88,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 
 ### Spotlight
 - **A Spotlight result opens what you tapped.** Tapping a document or a library in Spotlight used to open the Documents tab of whatever library was active.  Now a library opens that library and a document opens its own page.
-- **Spotlight keeps your documents.** A document's Spotlight entry used to disappear after 30 days.  Now it stays until you delete the document, a passage you find in Spotlight opens its document, and when you delete a document its passages leave Spotlight too.  A document you delete on another device leaves this one's Spotlight the next time the app opens here.
+- **Spotlight keeps your documents.** A document's Spotlight entry used to disappear after 30 days.  Now it stays until you delete the document, a passage you find in Spotlight opens its document, and when you delete a document its passages leave Spotlight too.  A document you delete on another device leaves this one's Spotlight the next time the app opens here.  A passage's entry is titled with its document and its page, where it said "Page 3 [Chunk 13]" before, and a text file's passages no longer say "Page 1".
 - **Turning Spotlight off clears it.** Turning off Spotlight Indexing in Settings used to only stop new entries, and what the app had already put in Spotlight stayed until it expired.  Now turning it off takes out everything the app put there, along with the libraries it suggested to Siri, and turning it back on lists your libraries and documents again.
 
 ### Getting around

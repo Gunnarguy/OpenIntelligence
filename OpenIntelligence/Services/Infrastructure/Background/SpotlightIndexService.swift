@@ -388,6 +388,14 @@ final class SpotlightIndexService {
         passageIndexing[documentId] = (containerId, token, task)
     }
 
+    /// A passage's title in Spotlight: its document, and its page where it has one (5.7). It read
+    /// "Juniper Flats Lease - Unit 4B.pdf — Page 3 [Chunk 13]", the passage's internal number in front of
+    /// people, and "Page 1" for a text file, which has no pages (iOS 27 Simulator, 2026-10-20).
+    nonisolated static func passageTitle(documentName: String, pageNumber: Int?) -> String {
+        guard let pageNumber, pageNumber > 0 else { return documentName }
+        return "\(documentName), page \(pageNumber)"
+    }
+
     /// A passage's entry is named `passage-<document>-<passage>`, so a tap opens its document
     /// (`AppLink.destination(forSpotlightIdentifier:)`); through 5.6 it was `chunk-<passage>`,
     /// which opened nothing. It lasts as long as its document: `deindexDocument` removes the
@@ -398,7 +406,7 @@ final class SpotlightIndexService {
     ) async -> sending [CSSearchableItem] {
         chunks.map { chunk -> CSSearchableItem in
             let attributeSet = CSSearchableItemAttributeSet(contentType: .text)
-            attributeSet.title = "\(documentName) — Page \(chunk.metadata.pageNumber ?? 1) [Chunk \(chunk.metadata.chunkIndex)]"
+            attributeSet.title = passageTitle(documentName: documentName, pageNumber: chunk.metadata.pageNumber)
             attributeSet.contentDescription = String(chunk.content.prefix(300))
             attributeSet.containerTitle = containerName
             attributeSet.containerDisplayName = "OpenIntelligence"
