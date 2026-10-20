@@ -1826,6 +1826,10 @@ struct Fullscreen3DAtlasView: View {
     @State private var backgroundStyle: EmbeddingSceneBackgroundStyle = .midnight
     @State private var appliedStyleDefaults = false
     @State private var showSettings = false
+    // Where the scene is and what is drawn over it, in global coordinates, for its axis labels (`sceneLabelInsets`).
+    @State private var sceneFrame: CGRect = .zero
+    @State private var chromeTop: CGFloat = 0
+    @State private var chromeBottom: CGFloat = 0
     // The scene's own settings, as through 5.6.
     @State private var pointScale: Double = 1.0
     @State private var showLabels = true
@@ -1932,9 +1936,13 @@ struct Fullscreen3DAtlasView: View {
                     options: sceneOptions,
                     reloadToken: sceneReloadToken,
                     annotations: showLabels ? annotations : [],
-                    drawsScene: true
+                    drawsScene: true,
+                    labelInsets: sceneLabelInsets
                 )
                 .ignoresSafeArea()
+                // The whole frame it draws in: what a geometry reader reports here is the frame inside the safe area, about
+                // 59 points short at the top of an iPhone 15 Pro (robot shot, 2026-10-20).
+                .onGeometryChange(for: CGRect.self, of: { Self.fullFrame($0) }) { sceneFrame = $0 }
             }
 
             VStack(spacing: 0) {
@@ -1955,6 +1963,7 @@ struct Fullscreen3DAtlasView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
+                    .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).maxY }) { chromeTop = $0 }
                     .overlay(alignment: .top) {
                         if isLoading {
                             ProgressView()
@@ -1964,14 +1973,36 @@ struct Fullscreen3DAtlasView: View {
                         }
                     }
                     Spacer()
-                    HStack {
-                        fullscreenHintOverlay
-                        Spacer()
+                    VStack(spacing: 0) {
+                        HStack {
+                            fullscreenHintOverlay
+                            Spacer()
+                        }
+                        bottomBar
                     }
-                    bottomBar
+                    .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minY }) { chromeBottom = $0 }
                 }
             }
         }
+    }
+
+    /// A view's frame in global coordinates with its safe area added back (5.7): the frame a view that ignores the safe
+    /// area draws in.
+    nonisolated static func fullFrame(_ proxy: GeometryProxy) -> CGRect {
+        let frame = proxy.frame(in: .global)
+        let insets = proxy.safeAreaInsets
+        return CGRect(
+            x: frame.minX - insets.leading, y: frame.minY - insets.top,
+            width: frame.width + insets.leading + insets.trailing, height: frame.height + insets.top + insets.bottom)
+    }
+
+    /// What the top bar, the legends and the controls cover of the full screen's scene, which its axis labels keep clear
+    /// of (5.7): on an upright phone the top 30% or so and the bottom 18%.
+    private var sceneLabelInsets: AxisLabelInsets {
+        guard sceneFrame.height > 0 else { return .zero }
+        let top = max(chromeTop - sceneFrame.minY, 0) / sceneFrame.height
+        let bottom = chromeBottom > 0 ? max(sceneFrame.maxY - chromeBottom, 0) / sceneFrame.height : 0
+        return AxisLabelInsets(top: Float(min(top, 0.45)), bottom: Float(min(bottom, 0.45)))
     }
 
     /// The chart and its key under or beside it (5.7).
@@ -2592,6 +2623,19 @@ struct Fullscreen3DAtlasView: View {
         // Splitting 6,000 passages into words and clustering their vectors is seconds of work on
         // a phone, so it is done off the main actor; only the results come back to it.
         // The axes' words are read here too (5.7): they were six passes over the sample on the main actor.
+        // What each passage belongs to (5.7): its document, its library in All Libraries, and its section heading, so
+        // an axis end or a cluster is named for the part of the library it is (`AtlasLabeling.PassageSources`). All
+        // Libraries names documents from every library's records (`OIDocumentEntityQuery.loadDocumentRecords`).
+        let documentNames = await MainActor.run {
+            Dictionary(
+                (wantsAll ? OIDocumentEntityQuery.loadDocumentRecords() : ragService.documents)
+                    .map { ($0.id, AtlasLabeling.shortDocumentName($0.filename)) },
+                uniquingKeysWith: { first, _ in first })
+        }
+        let sources = AtlasLabeling.PassageSources(
+            groups: sampledChunks.map { documentNames[$0.documentId] },
+            sections: sampledChunks.map(\.metadata.sectionTitle),
+            libraries: wantsAll ? sampledChunks.map { chunk in libraryOfChunk[chunk.id].map { libraries[$0].name } } : [])
         let (clusterIndices, clusterNames, axisEnds) = await Task.detached(priority: .userInitiated) {
             // The word classes of the passages' languages first (5.7), so an adverb names nothing in them.
             await AtlasLabeling.loadWordClasses(for: texts)
@@ -2600,9 +2644,13 @@ struct Fullscreen3DAtlasView: View {
             let names = AtlasLabeling.clusterNames(
                 texts: texts,
                 clusterMembership: indices,
-                precomputedTerms: terms
+                precomputedTerms: terms,
+                sources: sources
             )
-            return (indices, names, AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms))
+            return (
+                indices, names,
+                AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms, sources: sources)
+            )
         }.value
 
         let palette: [PlatformColor] = [
@@ -2852,6 +2900,9 @@ struct CompactAtlasSceneView: View {
     /// The scene's cluster names in the map, and the box of cluster names over its corner (the Scene style).
     @State private var annotations: [Embedding3DSceneView.AnnotationData] = []
     @State private var legendItems: [TopicColorItem] = []
+    // Where the scene is and where the cluster box and hint over it start, for its axis labels (`cardLabelInsets`).
+    @State private var cardSceneFrame: CGRect = .zero
+    @State private var cardChromeTop: CGFloat = 0
 
     // A guard only: the passages arrive sampled to `RAGService.visualizationPassageLimit` (6,000) since 5.7.
     private let sampleLimit = 50000
@@ -2953,17 +3004,28 @@ struct CompactAtlasSceneView: View {
                     options: sceneOptions,
                     reloadToken: sceneReloadToken,
                     annotations: showLabels ? annotations : [],
-                    drawsScene: true
+                    drawsScene: true,
+                    labelInsets: cardLabelInsets
                 )
+                .onGeometryChange(for: CGRect.self, of: { Fullscreen3DAtlasView.fullFrame($0) }) { cardSceneFrame = $0 }
 
                 VStack(alignment: .leading, spacing: 0) {
                     topicLegendOverlay
                     sceneHintOverlay
                 }
+                .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minY }) { cardChromeTop = $0 }
             }
         } else {
             chartContent
         }
+    }
+
+    /// What the cluster box and the hint cover of the card's scene, along its bottom, which its axis labels keep clear
+    /// of (5.7).
+    private var cardLabelInsets: AxisLabelInsets {
+        guard cardSceneFrame.height > 0, cardChromeTop > 0 else { return .zero }
+        let bottom = max(cardSceneFrame.maxY - cardChromeTop, 0) / cardSceneFrame.height
+        return AxisLabelInsets(bottom: Float(min(bottom, 0.45)))
     }
 
     /// Shows what each color represents
@@ -3098,6 +3160,16 @@ struct CompactAtlasSceneView: View {
         // Splitting 6,000 passages into words and clustering their vectors is seconds of work on
         // a phone, so it is done off the main actor; only the results come back to it.
         // The axes' words are read here too (5.7): they were six passes over the sample on the main actor.
+        // What each passage belongs to (5.7): its document and its section heading, so an axis end or a cluster is named
+        // for the part of the library it is (`AtlasLabeling.PassageSources`).
+        let documentNames = await MainActor.run {
+            Dictionary(
+                ragService.documents.map { ($0.id, AtlasLabeling.shortDocumentName($0.filename)) },
+                uniquingKeysWith: { first, _ in first })
+        }
+        let sources = AtlasLabeling.PassageSources(
+            groups: sampledChunks.map { documentNames[$0.documentId] },
+            sections: sampledChunks.map(\.metadata.sectionTitle))
         let (clusterIndices, clusterNames, axisEnds) = await Task.detached(priority: .userInitiated) {
             // The word classes of the passages' languages first (5.7), so an adverb names nothing in them.
             await AtlasLabeling.loadWordClasses(for: texts)
@@ -3106,9 +3178,13 @@ struct CompactAtlasSceneView: View {
             let names = AtlasLabeling.clusterNames(
                 texts: texts,
                 clusterMembership: indices,
-                precomputedTerms: terms
+                precomputedTerms: terms,
+                sources: sources
             )
-            return (indices, names, AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms))
+            return (
+                indices, names,
+                AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms, sources: sources)
+            )
         }.value
 
         let palette: [PlatformColor] = [

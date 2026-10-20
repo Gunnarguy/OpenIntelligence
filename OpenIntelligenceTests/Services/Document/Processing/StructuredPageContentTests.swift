@@ -219,4 +219,23 @@ final class StructuredPageContentTests: XCTestCase {
         )
         XCTAssertEqual(StructuredPageContent.normalizedForCoverage(" \n\t "), "")
     }
+
+    // MARK: - The text an element carries (5.7)
+
+    /// An image read as a document (a photo or screenshot) stores `plainText(of:)` for each element. Through 5.6 a
+    /// table, list or figure came back as Swift's description of the element, so a photographed receipt stored
+    /// "table(OpenIntelligence.TableData(pageNumber: 1, rows: ..." where its prices should be.
+    func testPlainText_IsTheElementsTextNotItsSwiftDescription() {
+        let receipt = table(rows: [["Item", "Price"], ["Auraline NC700 headphones", "249.99"]], caption: "CIRCUIT HARBOR")
+        let text = StructuredPageContent.plainText(of: receipt)
+        XCTAssertEqual(text, receipt.textForEmbedding)
+        XCTAssertTrue(text.contains("249.99"), text)
+        XCTAssertFalse(text.contains("TableData("), text)
+        XCTAssertFalse(text.contains("TableCellAlignment"), text)
+
+        let list = StructuredElement.list(items: ["Check pad thickness", "Check rotor runout"], pageNumber: 1)
+        XCTAssertEqual(StructuredPageContent.plainText(of: list), "Check pad thickness\n• Check rotor runout")
+        let figure = StructuredElement.figure(description: "A wiring diagram", pageNumber: 2)
+        XCTAssertEqual(StructuredPageContent.plainText(of: figure), "A wiring diagram")
+    }
 }

@@ -159,6 +159,70 @@ final class NumericSanityGateTests: XCTestCase {
         XCTAssertEqual(Numbers.spelledNumbers(in: "no numbers here"), [])
     }
 
+    /// An amount in words is a figure (5.7): "four hundred dollars" against a lease asking $300.00 is not supported,
+    /// and the same amount in digits or in words is. A claim's check counts it; the gate over a whole answer does not.
+    func testAnAmountInWordsIsCheckedAgainstTheFigure() throws {
+        func amounts(_ text: String) -> [Double] { Numbers.spelledAmounts(in: text).map(\.value) }
+        XCTAssertEqual(amounts("a refundable deposit of four hundred dollars"), [400])
+        XCTAssertEqual(amounts("four hundred and fifty dollars, a hundred dollars, twenty-five dollars"), [450, 100, 25])
+        XCTAssertEqual(amounts("two thousand five hundred people and three million users"), [2_500, 3_000_000])
+        XCTAssertEqual(amounts("two million five hundred thousand"), [2_500_000])
+        XCTAssertEqual(amounts("two hundred thousand, then one thousand two hundred"), [200_000, 1_200])
+        XCTAssertEqual(amounts("one or two hundred"), [200])
+        XCTAssertEqual(amounts("five dollars and fifty cents, twenty-five dollars and twenty-five cents"), [5.5, 25.25])
+        XCTAssertEqual(amounts("up to two cats, or one dog, and one of the rooms"), [])
+        XCTAssertEqual(amounts("five twenty, nineteen ninety, hundreds of dollars"), [])
+
+        let lease = "Each pet requires a refundable pet deposit of $300.00 and pet rent of $35.00 per month."
+        let claim = "Pets are allowed with a refundable deposit of four hundred dollars."
+        let evidence = Numbers.evidence(from: [lease])
+        let unstated = try XCTUnwrap(Numbers.firstUnsupportedMention(in: claim, evidence: evidence))
+        XCTAssertEqual(unstated.written, "four hundred")
+        XCTAssertTrue(unstated.isSpelled)
+        XCTAssertFalse(Numbers.isCountedByGate(unstated), "the gate over a whole answer leaves it to the claim")
+        XCTAssertEqual(supported("The deposit is three hundred dollars.", by: [lease]), [true])
+        XCTAssertEqual(supported("The deposit is $400.", by: ["The deposit is four hundred dollars."]), [true])
+        XCTAssertEqual(supported("The deposit is four hundred dollars.", by: ["The deposit is four hundred dollars."]), [true])
+        XCTAssertEqual(supported("Up to two cats are allowed.", by: ["Tenant may keep up to two cats."]), [])
+    }
+
+    /// Lists, ranges, shares, decimals and idioms in words (the review of 2026-10-20): each amount of a list is read on
+    /// its own, and a share, a decimal or an idiom is not read as an amount.
+    func testAmountsInWordsAreReadAsWrittenOrNotAtAll() {
+        func amounts(_ text: String) -> [Double] { Numbers.spelledAmounts(in: text).map(\.value) }
+        XCTAssertEqual(amounts("two hundred and three hundred dollars"), [200, 300])
+        XCTAssertEqual(amounts("two hundred, three hundred dollars"), [200, 300])
+        XCTAssertEqual(amounts("two hundred, three hundred and four hundred dollars"), [200, 300, 400])
+        XCTAssertEqual(amounts("two hundred three hundred"), [200, 300])
+        XCTAssertEqual(amounts("two thousand and three thousand"), [2_000, 3_000])
+        XCTAssertEqual(amounts("two million, three million"), [2_000_000, 3_000_000])
+        XCTAssertEqual(amounts("half a million dollars"), [])
+        XCTAssertEqual(amounts("a quarter of a million"), [])
+        XCTAssertEqual(amounts("two point five million"), [])
+        XCTAssertEqual(amounts("one in a million, a hundred percent sure, a thousand times better"), [])
+        XCTAssertEqual(amounts("four hundred\ndollars"), [400], "a line break ends the amount, which keeps its hundred")
+        XCTAssertEqual(amounts("no amounts here at all"), [])
+    }
+
+    /// The pets sentence through the gates: the claim is not Supported for its amount, and the numeric gate over the
+    /// answer, which counts digits only, still passes.
+    func testAnAmountInWordsIsAClaimsToCheckNotTheGates() async throws {
+        let lease = "Each pet requires a refundable pet deposit of $300.00 and pet rent of $35.00 per month."
+        let sentence = "Pets are allowed with a refundable deposit of four hundred dollars."
+        let result = await VerificationGateService().verify(
+            response: sentence,
+            query: "What is the pet deposit?",
+            retrievedChunks: [chunk(lease, rank: 1)],
+            topScores: [0.9],
+            structuredClaims: [StructuredRAGClaim(claim: sentence, citations: ["S1"], isExtracted: true)]
+        )
+        let claim = try XCTUnwrap(result.claimResults.first)
+        XCTAssertNotEqual(claim.verdict, .supported, claim.details)
+        if let numeric = result.gateResults.first(where: { $0.gate == .numericSanity }) {
+            XCTAssertTrue(numeric.passed, numeric.details)
+        }
+    }
+
     func testCitationLabelsAndListNumbersAreNotNumbersTheAnswerStates() {
         XCTAssertEqual(supported("It weighs 12 kg (see [2] and [S3, S4]).", by: ["Weight: 12 kg"]), [true])
         XCTAssertEqual(

@@ -476,10 +476,15 @@ final class LibraryVisualizationEngine: ObservableObject {
         let embeddings = chunks.map { $0.embedding }
         let texts = chunks.map { $0.content }
         let keywords = chunks.map { $0.metadata.keywords }
+        // Each passage's document and section heading, so the chips name a cluster as the map does (5.7).
+        let documentNames = Dictionary(
+            documents.map { ($0.id, AtlasLabeling.shortDocumentName($0.filename)) }, uniquingKeysWith: { first, _ in first })
+        let sources = AtlasLabeling.PassageSources(
+            groups: chunks.map { documentNames[$0.documentId] }, sections: chunks.map(\.metadata.sectionTitle))
         let passages = await Task.detached(priority: .userInitiated) {
             // The word classes of the passages' languages first (5.7), as the map's own names do.
             await AtlasLabeling.loadWordClasses(for: texts)
-            return Self.analyzePassages(embeddings: embeddings, texts: texts, keywords: keywords)
+            return Self.analyzePassages(embeddings: embeddings, texts: texts, keywords: keywords, sources: sources)
         }.value
 
         // Topic analysis
@@ -542,14 +547,15 @@ final class LibraryVisualizationEngine: ObservableObject {
     /// Clusters the passages' vectors, splits each passage into words, names the clusters and sorts each passage into a
     /// content category. Pure, and run off the main actor.
     nonisolated private static func analyzePassages(
-        embeddings: [[Float]], texts: [String], keywords: [[String]]
+        embeddings: [[Float]], texts: [String], keywords: [[String]], sources: AtlasLabeling.PassageSources? = nil
     ) -> PassageAnalysis {
         let terms = texts.map { AtlasLabeling.terms(in: $0) }
         let membership = AtlasLabeling.kMeans(embeddings: embeddings)
         // The same words as the map's own names (5.7), so the chips under it and its legend agree.
         let distinguishing = AtlasLabeling.namingDistinguishingTerms(
             texts: texts, clusterMembership: membership, passageTerms: terms)
-        let names = AtlasLabeling.clusterNames(distinguishingTerms: distinguishing)
+        let names = AtlasLabeling.clusterNames(
+            distinguishingTerms: distinguishing, membership: membership, sources: sources)
         let categories = terms.indices.map { index in
             ContentCategory.of(terms: terms[index], keywords: index < keywords.count ? keywords[index] : [])
         }

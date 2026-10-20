@@ -3173,6 +3173,8 @@ struct Embedding3DSceneView: View {
     /// Draws the SceneKit scene rather than the chart (5.7): the Atlas's Scene style (`AtlasDrawingStyle`), which names
     /// each axis end and each cluster in the map, as the Atlas did through 5.6.
     var drawsScene = false
+    /// What the views over the scene cover, which its axis labels keep clear of (5.7).
+    var labelInsets = AxisLabelInsets.zero
 
     /// What each axis runs between, for VoiceOver, in the chart's words (`AtlasChart3D.axisTitle`).
     private var sceneAxesDescription: String {
@@ -3188,16 +3190,17 @@ struct Embedding3DSceneView: View {
             // The explorer (`EmbeddingSpaceRenderer`) opens the passage a tap lands on, which a 3D chart can't do: on
             // the iOS 27 Simulator, `chartXSelection`, `chartYSelection` and `chartZSelection` on a `Chart3D` reported
             // nothing for a tap, a press or a drag on a point (a drag turned it, 1° per point; probe run 2026-10-19),
-            // and Apple's page for `chartZSelection` describes no behaviour. So it keeps the SceneKit scene, framed
-            // from 5.7 to show every axis at any angle (`mapCameraDistance`). The Atlas's Scene style draws the same
-            // scene, without the tap (`drawsScene`).
+            // and Apple's page for `chartZSelection` describes no behaviour. So it keeps the SceneKit scene, framed as
+            // through 5.6, with each axis's names kept on screen at any angle (`keepAxisLabelsInView`). The Atlas's
+            // Scene style draws the same scene, without the tap (`drawsScene`).
             SceneViewContainer(
                 points: points,
                 colors: colors,
                 options: options,
                 reloadToken: reloadToken,
                 annotations: annotations,
-                onPointTapped: onPointTapped
+                onPointTapped: onPointTapped,
+                labelInsets: labelInsets
             )
             .background(DSColors.background)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -3393,6 +3396,8 @@ struct SceneViewContainer: UIViewRepresentable {
 
     // Callback for when a point is tapped
     var onPointTapped: ((Int, SCNVector3) -> Void)?
+    /// What the views over the scene cover, which the axis labels keep clear of (5.7).
+    var labelInsets = AxisLabelInsets.zero
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
@@ -3415,6 +3420,7 @@ struct SceneViewContainer: UIViewRepresentable {
 
     private func configure(_ view: SCNView, coordinator: Coordinator) {
         installScene(in: view, built: &coordinator.builtKey)
+        coordinator.labelInsets = labelInsets
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
@@ -3438,7 +3444,8 @@ struct SceneViewContainer: UIViewRepresentable {
 
             // Perform hit test
             let hitResults = view.hitTest(location, options: [
-                .searchMode: SCNHitTestSearchMode.closest.rawValue,
+                // Every hit, nearest first: an axis label drawn over the cloud (5.7) would otherwise be the only one.
+                .searchMode: SCNHitTestSearchMode.all.rawValue,
                 .boundingBoxOnly: false
             ])
 
@@ -3469,14 +3476,30 @@ struct SceneViewContainer: UIViewRepresentable {
         /// 6,000 points (5.7).
         private weak var labelledScene: SCNScene?
         private var labelNodes: [SCNNode] = []
+        private var axisPins: [AxisLabelPin] = []
+
+        /// The share of the view at each edge that the axis labels keep clear of (`AxisLabelInsets`).
+        var labelInsets = AxisLabelInsets.zero
 
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
             if labelledScene !== scene {
                 labelNodes = mapLabelNodes(in: scene)
+                axisPins = axisLabelPins(in: scene)
                 labelledScene = scene
             }
             sizeLabelsForScreen(labelNodes, pointOfView: camera)
+        }
+
+        /// Every frame, once the map's turning is applied: the field of view across the narrower side, and each axis
+        /// label on its end or at the edge of the view (5.7). Six labels, so this is cheap enough for every frame.
+        func renderer(_ renderer: SCNSceneRenderer, didApplyAnimationsAtTime time: TimeInterval) {
+            guard let scene = renderer.scene, labelledScene === scene, let camera = renderer.pointOfView else { return }
+            let viewport = renderer.currentViewport
+            guard viewport.width > 0, viewport.height > 0 else { return }
+            let aspect = Float(viewport.width / viewport.height)
+            fitProjection(of: camera, aspect: aspect)
+            keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
         }
     }
 }
@@ -3490,6 +3513,8 @@ struct SceneViewContainer: NSViewRepresentable {
 
     // Callback for when a point is tapped (optional for macOS)
     var onPointTapped: ((Int, SCNVector3) -> Void)?
+    /// What the views over the scene cover, which the axis labels keep clear of (5.7).
+    var labelInsets = AxisLabelInsets.zero
 
     func makeNSView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
@@ -3512,6 +3537,7 @@ struct SceneViewContainer: NSViewRepresentable {
 
     private func configure(_ view: SCNView, coordinator: Coordinator) {
         installScene(in: view, built: &coordinator.builtKey)
+        coordinator.labelInsets = labelInsets
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
@@ -3535,7 +3561,8 @@ struct SceneViewContainer: NSViewRepresentable {
 
             // Perform hit test
             let hitResults = view.hitTest(location, options: [
-                .searchMode: SCNHitTestSearchMode.closest.rawValue,
+                // Every hit, nearest first: an axis label drawn over the cloud (5.7) would otherwise be the only one.
+                .searchMode: SCNHitTestSearchMode.all.rawValue,
                 .boundingBoxOnly: false
             ])
 
@@ -3565,14 +3592,30 @@ struct SceneViewContainer: NSViewRepresentable {
         /// 6,000 points (5.7).
         private weak var labelledScene: SCNScene?
         private var labelNodes: [SCNNode] = []
+        private var axisPins: [AxisLabelPin] = []
+
+        /// The share of the view at each edge that the axis labels keep clear of (`AxisLabelInsets`).
+        var labelInsets = AxisLabelInsets.zero
 
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
             if labelledScene !== scene {
                 labelNodes = mapLabelNodes(in: scene)
+                axisPins = axisLabelPins(in: scene)
                 labelledScene = scene
             }
             sizeLabelsForScreen(labelNodes, pointOfView: camera)
+        }
+
+        /// Every frame, once the map's turning is applied: the field of view across the narrower side, and each axis
+        /// label on its end or at the edge of the view (5.7). Six labels, so this is cheap enough for every frame.
+        func renderer(_ renderer: SCNSceneRenderer, didApplyAnimationsAtTime time: TimeInterval) {
+            guard let scene = renderer.scene, labelledScene === scene, let camera = renderer.pointOfView else { return }
+            let viewport = renderer.currentViewport
+            guard viewport.width > 0, viewport.height > 0 else { return }
+            let aspect = Float(viewport.width / viewport.height)
+            fitProjection(of: camera, aspect: aspect)
+            keepAxisLabelsInView(axisPins, pointOfView: camera, aspect: aspect, insets: labelInsets)
         }
     }
 }
@@ -3634,27 +3677,19 @@ extension Embedding3DSceneView.AxisLabels {
 /// `sizeLabelsForScreen` scales each label from it, so labels keep the size on screen they had then.
 nonisolated let startingCameraDistance: Float = 7.38
 
-/// How far the camera starts from the middle of the map from 5.7: far enough that the point each axis label is centred
-/// on (5.4 from the middle) is drawn inside 70% of the view's half-width at any angle, in a view as narrow as the
-/// explorer in focus mode (about 370 by 620 points). A long label can still reach past that, and a wider view gets the
-/// same distance, so the cloud draws at about a third of its 5.6 size. From 7.38 away, as through 5.6, an axis lying
-/// across the screen had both its labels outside the view.
-nonisolated let mapCameraDistance: Float = cameraDistanceToFit(radius: 5.4, fieldOfView: 60, aspect: 0.6, share: 0.7)
+/// Where the camera starts: where it started through 5.6 (back on 2026-10-20). From 2026-10-19 it started about 23 from
+/// the middle (22.9, fitted so each axis label's centre stayed within 70% of the half-width at any angle in a view at least
+/// 0.6 as wide as tall), and the cloud drew at about a third of its 5.6 size under labels kept at their 5.6 size; the owner
+/// wanted the 5.6 map back. Axis labels are kept in view by `keepAxisLabelsInView` instead.
+nonisolated let mapCameraPosition = SIMD3<Float>(3.5, 2.5, 6.0)
 
-/// The distance from the middle of a scene at which a point `radius` from the middle, in any direction, is drawn within
-/// `share` of the view's half-height and half-width, for a vertical field of view of `fieldOfView` degrees and a view
-/// `aspect` wide for each unit high. Such a point is furthest from the view's middle when it lies toward the camera at
-/// the angle whose cosine is radius over distance, where it is off the line of sight by radius / sqrt(distance² −
-/// radius²) of its depth; that is held to the narrower half-angle's tangent times `share`.
-nonisolated func cameraDistanceToFit(radius: Float, fieldOfView: Float, aspect: Float, share: Float) -> Float {
-    let limit = tan(fieldOfView * .pi / 360) * min(aspect, 1) * share
-    return radius * (1 + 1 / (limit * limit)).squareRoot()
-}
+/// How far the camera starts from the middle of the map, about 7.38.
+nonisolated let mapCameraDistance: Float = simd_length(mapCameraPosition)
 
 /// The map's words: the labels at the ends of its axes and the clusters' labels (5.7).
 nonisolated func mapLabelNodes(in scene: SCNScene) -> [SCNNode] {
     scene.rootNode.childNodes { node, _ in
-        node.name == "axisLabel" || (node.name?.hasPrefix("clusterLabel_") ?? false)
+        (node.name?.hasPrefix("axisLabel") ?? false) || (node.name?.hasPrefix("clusterLabel_") ?? false)
     }
 }
 
@@ -3684,7 +3719,9 @@ nonisolated func sizeLabelsForScreen(_ labels: [SCNNode], pointOfView: SCNNode) 
             let behind = depth - middle
             label.opacity = behind < -3.4 ? 0.95 : behind < 1.6 ? 0.88 : 0.75
         } else {
-            label.simdScale = SIMD3(repeating: scale)
+            // An axis label is kept on screen (`keepAxisLabelsInView`) even when its end is near the camera, where the
+            // 0.35 floor would draw it larger than the others (review, 2026-10-20).
+            label.simdScale = SIMD3(repeating: screenScale(depth: depth, fieldOfView: fieldOfView, minimum: 0.02))
         }
     }
 }
@@ -3695,11 +3732,192 @@ nonisolated func viewDepth(of position: SIMD3<Float>, camera: SIMD3<Float>, fron
     max(simd_dot(position - camera, front), 0.05)
 }
 
-/// The scale that keeps a label one size on screen at `depth` with a vertical field of view of `fieldOfView` degrees:
-/// 1 at the distance the camera starts from and the default 60 degrees, between 0.35 and 4.
-nonisolated func screenScale(depth: Float, fieldOfView: Float) -> Float {
+/// The scale that keeps a label one size on screen at `depth` with a field of view of `fieldOfView` degrees: 1 at the
+/// distance the camera starts from and the default 60 degrees, between `minimum` (0.35 unless given) and 4.
+nonisolated func screenScale(depth: Float, fieldOfView: Float, minimum: Float = 0.35) -> Float {
     let viewFactor = tan(fieldOfView * .pi / 360) / tan(Float.pi / 6)
-    return min(max(depth * viewFactor / startingCameraDistance, 0.35), 4)
+    return min(max(depth * viewFactor / startingCameraDistance, minimum), 4)
+}
+
+// MARK: - Axis labels kept in view
+
+/// An axis end's label and the point it names (5.7). The label hangs under the scene's root, so the map's turning
+/// never moves it; `anchor` sits at the axis end inside the map, and turns with it.
+nonisolated struct AxisLabelPin {
+    let label: SCNNode
+    let anchor: SCNNode
+    /// Half the text's width and height, in the label's own units, before `sizeLabelsForScreen` scales it.
+    let halfWidth: Float
+    let halfHeight: Float
+}
+
+/// Moves each axis label of `axes` under `root`, at its place, with an empty node named "axisAnchor_<n>" left at that
+/// place in the map, and names the label "axisLabel_<n>" to match. The map turns its content node, so the anchors turn
+/// with it and the labels do not, and `keepAxisLabelsInView` puts each label back on its anchor every frame.
+nonisolated func pinAxisLabels(of axes: SCNNode, to root: SCNNode) {
+    let labels = axes.childNodes.filter { $0.name == "axisLabel" }
+    for (index, label) in labels.enumerated() {
+        let anchor = SCNNode()
+        anchor.name = "axisAnchor_\(index)"
+        anchor.position = label.position
+        axes.addChildNode(anchor)
+        label.removeFromParentNode()
+        label.name = "axisLabel_\(index)"
+        root.addChildNode(label)
+    }
+}
+
+/// The scene's pinned axis labels with their anchors, found once for each scene.
+nonisolated func axisLabelPins(in scene: SCNScene) -> [AxisLabelPin] {
+    var anchors: [String: SCNNode] = [:]
+    var labels: [(key: String, node: SCNNode)] = []
+    scene.rootNode.enumerateHierarchy { node, _ in
+        guard let name = node.name else { return }
+        if name.hasPrefix("axisAnchor_") {
+            anchors[String(name.dropFirst("axisAnchor_".count))] = node
+        } else if name.hasPrefix("axisLabel_") {
+            labels.append((String(name.dropFirst("axisLabel_".count)), node))
+        }
+    }
+    return labels.sorted { (Int($0.key) ?? 0) < (Int($1.key) ?? 0) }.compactMap { key, label in
+        guard let anchor = anchors[key], let text = label.childNodes.first?.geometry else { return nil }
+        let (low, high) = text.boundingBox
+        return AxisLabelPin(
+            label: label, anchor: anchor, halfWidth: Float(high.x - low.x) / 2, halfHeight: Float(high.y - low.y) / 2)
+    }
+}
+
+/// The share of the view at each edge that a label keeps clear of (5.7): the top bar, the legends and the controls
+/// drawn over the scene. Top and bottom are shares of the view's height, leading and trailing of its width.
+nonisolated struct AxisLabelInsets: Equatable, Sendable {
+    var top: Float = 0
+    var bottom: Float = 0
+    var leading: Float = 0
+    var trailing: Float = 0
+
+    static let zero = AxisLabelInsets()
+}
+
+/// The tangents of half the view's width and height as the camera sees them: a field of view of `fieldOfView` degrees
+/// across the height (SceneKit's default projection direction) or, when `horizontal`, across the width, in a view
+/// `aspect` wide for each unit high.
+nonisolated func viewHalfAngles(fieldOfView: Float, aspect: Float, horizontal: Bool) -> SIMD2<Float> {
+    let half = tan(fieldOfView * .pi / 360)
+    return horizontal ? SIMD2(half, half / aspect) : SIMD2(half * aspect, half)
+}
+
+/// Where a point is drawn on the view, -1 to 1 across and up, and how deep it is along the view, for a camera at
+/// `camera` (its world transform; a SceneKit camera looks down its -z) with the view's half-angle tangents `halfAngles`.
+nonisolated func viewPoint(
+    of world: SIMD3<Float>, camera: simd_float4x4, halfAngles: SIMD2<Float>
+) -> (point: SIMD2<Float>, depth: Float) {
+    let local = simd_inverse(camera) * SIMD4<Float>(world, 1)
+    let depth = -local.z
+    return (SIMD2(local.x, local.y) / (halfAngles * max(depth, 0.0001)), depth)
+}
+
+/// The world position drawn at `point` on the view at `depth`: the inverse of `viewPoint`.
+nonisolated func worldPoint(
+    at point: SIMD2<Float>, depth: Float, camera: simd_float4x4, halfAngles: SIMD2<Float>
+) -> SIMD3<Float> {
+    let local = point * halfAngles * depth
+    let world = camera * SIMD4<Float>(local.x, local.y, -depth, 1)
+    return SIMD3(world.x, world.y, world.z)
+}
+
+/// Sets the camera's field of view to run across the narrower side of the view (5.7): across the width on a screen
+/// taller than wide, across the height otherwise. Through 5.6 it always ran across the height, so on an upright phone the
+/// map in the full screen was wider than the screen and an axis's name could take most of its width.
+nonisolated func fitProjection(of pointOfView: SCNNode, aspect: Float) {
+    guard let camera = pointOfView.camera else { return }
+    let direction: SCNCameraProjectionDirection = aspect < 1 ? .horizontal : .vertical
+    if camera.projectionDirection != direction { camera.projectionDirection = direction }
+}
+
+/// Puts each axis label on its axis end as the map is drawn now, or, when that end is out of the part of the view
+/// `insets` leave clear, at the edge of that part nearest it, so every axis keeps its names on screen at any angle (5.7).
+/// Through 5.6 a label went off the screen with its end, and an axis lying across the view had both its names outside
+/// it. A label that would cover one already placed steps toward the middle of the clear part by its height. Called for
+/// every frame after the map's turning is applied (`renderer(_:didApplyAnimationsAtTime:)`), so a label moves with its
+/// end. `margin` is the share of the clear part's half-width and half-height kept free at its edge. A label whose end
+/// is behind the camera is hidden.
+nonisolated func keepAxisLabelsInView(
+    _ pins: [AxisLabelPin], pointOfView: SCNNode, aspect: Float, insets: AxisLabelInsets = .zero, margin: Float = 0.04
+) {
+    guard let camera = pointOfView.camera, !pins.isEmpty else { return }
+    let transform = pointOfView.presentation.simdWorldTransform
+    let halfAngles = viewHalfAngles(
+        fieldOfView: Float(camera.fieldOfView), aspect: aspect, horizontal: camera.projectionDirection == .horizontal)
+    let region = AxisLabelRegion(insets: insets, margin: margin)
+    var placed: [AxisLabelPlacement] = []
+    for pin in pins {
+        let (wanted, depth) = viewPoint(
+            of: pin.anchor.presentation.simdWorldPosition, camera: transform, halfAngles: halfAngles)
+        guard depth > 0.1 else {
+            pin.label.isHidden = true
+            continue
+        }
+        pin.label.isHidden = false
+        // Drawn no deeper than where the fog starts: SceneKit fogs every material (no switch for one in the iOS 27 SDK),
+        // and a blue name at the far end of the blue axis faded into the blue background (robot shots, 2026-10-20).
+        // A label is drawn over everything and sized for the screen by its depth (`sizeLabelsForScreen`), so the depth
+        // it is drawn at changes nothing else.
+        let drawDepth = min(depth, max(mapCameraDistance - 1, 0.2))
+        let scale = pin.label.simdScale.x
+        let size = SIMD2<Float>(pin.halfWidth, pin.halfHeight) * scale / (halfAngles * drawDepth)
+        let spot = axisLabelSpot(wanted: wanted, halfSize: size, region: region, placed: placed)
+        placed.append(AxisLabelPlacement(center: spot, halfSize: size))
+        pin.label.simdWorldPosition = worldPoint(at: spot, depth: drawDepth, camera: transform, halfAngles: halfAngles)
+    }
+}
+
+/// The part of the view a label may be drawn in, -1 to 1 across and up: the view less `insets`, less `margin` of
+/// what is left at each side.
+nonisolated struct AxisLabelRegion: Equatable {
+    let minimum: SIMD2<Float>
+    let maximum: SIMD2<Float>
+
+    init(insets: AxisLabelInsets, margin: Float) {
+        let low = SIMD2<Float>(-1 + 2 * insets.leading, -1 + 2 * insets.bottom)
+        let high = SIMD2<Float>(1 - 2 * insets.trailing, 1 - 2 * insets.top)
+        let inset = (high - low) * margin / 2
+        minimum = low + inset
+        maximum = high - inset
+    }
+}
+
+/// A label placed on the view, in its own units: -1 to 1 across and up.
+nonisolated struct AxisLabelPlacement: Equatable {
+    let center: SIMD2<Float>
+    let halfSize: SIMD2<Float>
+
+    func overlaps(_ other: AxisLabelPlacement) -> Bool {
+        abs(center.x - other.center.x) < halfSize.x + other.halfSize.x
+            && abs(center.y - other.center.y) < halfSize.y + other.halfSize.y
+    }
+}
+
+/// Where a label of `halfSize` goes on the view (-1 to 1 across and up) to name the point at `wanted`: there, moved in
+/// until all of it is inside `region`, then stepped toward the middle of the region by its height while it covers one
+/// in `placed`, at most six times. A label wider or taller than the region is centred across it.
+nonisolated func axisLabelSpot(
+    wanted: SIMD2<Float>, halfSize: SIMD2<Float>, region: AxisLabelRegion, placed: [AxisLabelPlacement]
+) -> SIMD2<Float> {
+    let middle = (region.minimum + region.maximum) / 2
+    var low = region.minimum + halfSize
+    var high = region.maximum - halfSize
+    for axis in 0..<2 where low[axis] > high[axis] {
+        low[axis] = middle[axis]
+        high[axis] = middle[axis]
+    }
+    var spot = simd_clamp(wanted, low, high)
+    var steps = 0
+    while steps < 6, placed.contains(where: { $0.overlaps(AxisLabelPlacement(center: spot, halfSize: halfSize)) }) {
+        spot.y += (spot.y > middle.y ? -2.2 : 2.2) * halfSize.y
+        spot.y = min(max(spot.y, low.y), high.y)
+        steps += 1
+    }
+    return spot
 }
 
 // MARK: - Scene construction
@@ -3717,7 +3935,9 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
 
     // Add intuitive axes with human-readable labels
     if options.showAxes {
-        contentRoot.addChildNode(makeIntuiveAxesNode(axisLabels: options.axisLabels))
+        let axes = makeIntuiveAxesNode(axisLabels: options.axisLabels)
+        contentRoot.addChildNode(axes)
+        pinAxisLabels(of: axes, to: scene.rootNode)
     }
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
@@ -3876,7 +4096,9 @@ private func makeAxisLabel(text: String, position: SCNVector3, color: PlatformCo
     textGeo.font = NSFont.systemFont(ofSize: 0.35, weight: .bold)
     #endif
     textGeo.flatness = 0.02
-    textGeo.chamferRadius = 0.01
+    // No chamfer (5.7): with one, the iOS 27 Simulator drew nothing for a name with a colon ("Juniper Flats Lease: Late
+    // Charges", an empty text box, robot run 2026-10-20), and at 0.01 on text 0.35 high it was not visible anyway.
+    textGeo.chamferRadius = 0
 
     let mat = SCNMaterial()
     mat.diffuse.contents = color
@@ -3906,9 +4128,10 @@ private func makeAxisLabel(text: String, position: SCNVector3, color: PlatformCo
     container.addChildNode(textNode)
     container.position = position
 
-    // Billboard constraint so it always faces camera
+    // Billboard constraint so it always faces camera, on every axis (5.7): turned only about x and y, a name was upside
+    // down on screen once the map was turned over the top (robot shots, 2026-10-20).
     let billboard = SCNBillboardConstraint()
-    billboard.freeAxes = [.X, .Y]
+    billboard.freeAxes = .all
     container.constraints = [billboard]
 
     return container
@@ -4009,9 +4232,8 @@ private func makeCameraNode(depthCue: Bool) -> SCNNode {
         camera.fStop = 10
     }
     node.camera = camera
-    // From the same side as through 5.6, (3.5, 2.5, 6.0), at `mapCameraDistance`, so every axis stays in view.
-    let direction = simd_normalize(SIMD3<Float>(3.5, 2.5, 6.0))
-    node.simdPosition = direction * mapCameraDistance
+    // Where it started through 5.6, `mapCameraDistance` from the middle.
+    node.simdPosition = mapCameraPosition
     node.look(at: SCNVector3(0, 0, 0))
     return node
 }
@@ -4566,9 +4788,10 @@ private func makeClusterBadge(
         container.addChildNode(indicatorNode)
     }
 
-    // Billboard constraint - always face camera
+    // Billboard constraint - always face camera, on every axis (5.7), so a cluster's name stays upright on screen once the
+    // map is turned over the top.
     let billboard = SCNBillboardConstraint()
-    billboard.freeAxes = [.X, .Y]
+    billboard.freeAxes = .all
     container.constraints = [billboard]
 
     return container

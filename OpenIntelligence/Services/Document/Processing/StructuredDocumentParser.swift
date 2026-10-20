@@ -547,13 +547,14 @@ struct StructuredPageContent: Sendable {
         text.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
-    /// The text carried by an element, for coverage comparison only.
+    /// The text an element carries: a paragraph's or title's words, a table's rows as text, a list's items, a figure's
+    /// description (`textForEmbedding`). The coverage check above compares against it, and an image read as a document
+    /// stores it (`DocumentProcessor`, a photo or screenshot). Through 5.6 a table, list or figure came back as Swift's
+    /// description of the element, so a photographed receipt with a table stored
+    /// "table(OpenIntelligence.TableData(pageNumber: 1, rows: ..." in its text, where search and the model read it
+    /// (household sample set in the iOS 27.0 Simulator, 2026-10-20).
     nonisolated static func plainText(of element: StructuredElement) -> String {
-        switch element {
-        case let .paragraph(text, _): return text
-        case let .title(text, _): return text
-        default: return String(describing: element)
-        }
+        element.textForEmbedding
     }
 }
 

@@ -1384,6 +1384,8 @@ actor VerificationGateService {
     nonisolated private static func numberKeys(in line: String, countingParts: Bool) -> Set<String> {
         Set(
             NumericValueExtractor.mentions(inAnswer: line).compactMap { mention -> String? in
+                // Figures in digits, as before 5.7: an amount in words is a claim's to check, not a heading's key.
+                if mention.isSpelled { return nil }
                 if !countingParts, let word = mention.precedingWord, partWords.contains(word) { return nil }
                 if let identifier = mention.identifier { return "name:" + identifier.lowercased() }
                 return "value:\(mention.value)"
@@ -1579,13 +1581,14 @@ actor VerificationGateService {
         // value. The term overlap above counts "2.5" as found when the passages only hold it inside
         // a name, which is how "2.5 billion parameters" was Supported by a table row for
         // "Qwen-2.5-3B". An ordinal counts here from 5.7 (`NumericValueExtractor.isOrdinal`), though
-        // not in the numeric gate: "the 16th day" was Supported by a passage that says "the 6th day".
+        // not in the numeric gate: "the 16th day" was Supported by a passage that says "the 6th day". So does an amount
+        // in words (`isSpelled`): "four hundred dollars" was Supported by a lease asking $300.00.
         if verdict == .supported,
             let missing = NumericValueExtractor.firstUnsupportedMention(
                 in: claimText,
                 evidence: numericEvidence,
                 exempt: {
-                    !(NumericValueExtractor.isCountedByGate($0) || NumericValueExtractor.isOrdinal($0))
+                    !(NumericValueExtractor.isCountedByGate($0) || NumericValueExtractor.isOrdinal($0) || $0.isSpelled)
                         || Self.isYear($0)
                 })
         {

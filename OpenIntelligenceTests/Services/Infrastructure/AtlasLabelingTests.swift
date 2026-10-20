@@ -500,4 +500,113 @@ final class AtlasLabelingTests: XCTestCase {
         XCTAssertEqual(AtlasLabeling.defaultK(for: 3500), 4)
         XCTAssertEqual(AtlasLabeling.defaultK(for: 10000), 6)
     }
+
+    // MARK: - Names from the library's structure (5.7)
+
+    /// A document's file name, shortened for the map: no extension, the part before " - ", no word with a digit in it,
+    /// at most 28 characters in whole words.
+    func testDocumentNamesAreShortenedForTheMap() {
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("Kestrel AF-620 Air Fryer Manual.pdf"), "Kestrel Air Fryer Manual")
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("Juniper Flats Lease - Unit 4B.pdf"), "Juniper Flats Lease")
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("Home Insurance Declarations 2026.pdf"), "Home Insurance Declarations")
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("2027 Benefits at a Glance.docx"), "Benefits at a Glance")
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("Grandma's Banana Bread.txt"), "Grandma's Banana Bread")
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("Alder Creek Elementary Family Handbook.pdf"), "Alder Creek Elementary")
+        XCTAssertEqual(AtlasLabeling.shortDocumentName("2026.pdf"), "2026", "a name of digits only keeps them")
+    }
+
+    /// A section heading as a name: no leading number, title case for one set in capitals, and none for a sentence, an
+    /// address or a heading too long to be a name.
+    func testSectionHeadingsAreCleanedOrLeftOut() {
+        XCTAssertEqual(AtlasLabeling.sectionName("5. Late Charges"), "Late Charges")
+        XCTAssertEqual(AtlasLabeling.sectionName("A. Dwelling"), "Dwelling")
+        XCTAssertEqual(AtlasLabeling.sectionName("TROUBLESHOOTING"), "Troubleshooting")
+        XCTAssertEqual(AtlasLabeling.sectionName("HOW TO CANCEL"), "How to Cancel")
+        XCTAssertEqual(AtlasLabeling.sectionName("Member signature"), "Member signature")
+        XCTAssertNil(AtlasLabeling.sectionName("418 Mercer Plaza, Riverton"))
+        XCTAssertNil(AtlasLabeling.sectionName("2. Stir the melted butter into the mashed bananas."))
+        XCTAssertNil(AtlasLabeling.sectionName("   "))
+    }
+
+    /// An axis that runs from one document to another is named by the two documents; one that runs between two parts
+    /// of one document, by their section headings; and one with neither still has a name at each end (the owner,
+    /// 2026-10-20: "Air & Fryer" named an axis by two words of one product's name).
+    func testAxisEndsAreNamedByTheirDocumentOrSection() {
+        var coords: [SIMD3<Float>] = []
+        var texts: [String] = []
+        var groups: [String?] = []
+        var sections: [String?] = []
+        for i in 0..<20 {
+            // The lease: low on x.
+            coords.append(SIMD3(-1 - Float(i) * 0.1, 0, Float(i % 5) * 0.1))
+            texts.append("The tenant pays rent each month under the lease and its clauses \(["alpha", "beta"][i % 2])")
+            groups.append("Juniper Flats Lease")
+            sections.append(i % 2 == 0 ? "5. Late Charges" : "9. Pets")
+        }
+        for i in 0..<20 {
+            // The manual: high on x, and along y its cleaning pages below and its settings pages above.
+            let cleaning = i < 10
+            coords.append(SIMD3(1 + Float(i) * 0.1, cleaning ? -1 - Float(i) * 0.1 : 1 + Float(i) * 0.1, Float(i % 5) * 0.1))
+            texts.append(
+                cleaning
+                    ? "Wipe the basket and wash the tray with warm water and soap \(["alpha", "beta"][i % 2])"
+                    : "Set the temperature and the timer with the dial on the front \(["alpha", "beta"][i % 2])")
+            groups.append("Kestrel Air Fryer Manual")
+            sections.append(cleaning ? "CLEANING" : "SETTINGS")
+        }
+        let sources = AtlasLabeling.PassageSources(groups: groups, sections: sections)
+        let labels = AtlasLabeling.axisLabels(coords: coords, texts: texts, sources: sources)
+
+        XCTAssertEqual(labels.count, 6)
+        XCTAssertEqual(labels[0], "Juniper Flats Lease")
+        XCTAssertEqual(labels[1], "Kestrel Air Fryer Manual")
+        XCTAssertEqual(labels[2], "Cleaning")
+        XCTAssertEqual(labels[3], "Settings")
+        XCTAssertFalse(labels.contains(""), "no end is blank: \(labels)")
+        XCTAssertEqual(Set(labels).count, labels.count, "no name names two ends: \(labels)")
+        // Without the sources the same map is named by its words, as before.
+        XCTAssertNotEqual(AtlasLabeling.axisLabels(coords: coords, texts: texts)[0], "Juniper Flats Lease")
+    }
+
+    /// A cluster most of whose passages come from one document is named by it, and one with no such document keeps its
+    /// words; no two clusters share a name.
+    func testClustersAreNamedByTheirDocumentWhereOneStandsOut() {
+        let membership = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
+        let groups: [String?] = [
+            "Juniper Flats Lease", "Juniper Flats Lease", "Juniper Flats Lease", "Kestrel Air Fryer Manual",
+            "Kestrel Air Fryer Manual", "Kestrel Air Fryer Manual", "Kestrel Air Fryer Manual", "Kestrel Air Fryer Manual",
+            "Juniper Flats Lease", "Kestrel Air Fryer Manual", "Home Insurance Declarations", "Lisbon Trip Itinerary",
+        ]
+        let sources = AtlasLabeling.PassageSources(groups: groups, sections: Array(repeating: nil, count: 12))
+        let names = AtlasLabeling.clusterNames(
+            distinguishingTerms: [["rent", "tenant"], ["basket", "timer"], ["mixed", "things"]],
+            membership: membership, sources: sources)
+        XCTAssertEqual(names, ["Juniper Flats Lease", "Kestrel Air Fryer Manual", "Mixed & Things"])
+    }
+
+    /// A document that already names one end and stands out at another names the second with the section its passages
+    /// there share; in a map of several libraries, an end where no document stands out is named by its library.
+    func testASecondEndOfADocumentTakesItsSectionAndAMixedEndItsLibrary() {
+        let sources = AtlasLabeling.PassageSources(
+            groups: ["Lease", "Lease", "Lease", "Lease", "Notes", "Recipe", "Pantry", "Menu"],
+            sections: ["5. Late Charges", "5. Late Charges", "9. Pets", nil, nil, nil, nil, nil],
+            libraries: ["Home", "Home", "Home", "Home", "Kitchen", "Kitchen", "Kitchen", "Kitchen"])
+        let lease = [0, 1, 2, 3], kitchen = [4, 5, 6, 7]
+        XCTAssertEqual(AtlasLabeling.sourceName(indices: lease, otherIndices: kitchen, sources: sources, used: []), "Lease")
+        XCTAssertEqual(
+            AtlasLabeling.sourceName(indices: lease, otherIndices: kitchen, sources: sources, used: ["Lease"]),
+            "Lease: Late Charges")
+        XCTAssertEqual(AtlasLabeling.sourceName(indices: kitchen, otherIndices: lease, sources: sources, used: []), "Kitchen")
+    }
+
+    /// A cluster is named by a document that is 40% of it with twice the passages of the next, and keeps its words when
+    /// two documents are as large as each other.
+    func testAClusterTakesADocumentThatLeadsItAtFortyPercent() {
+        let membership = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
+        let groups: [String?] = ["Manual", "Manual", "Lease", "Notes", "Recipe", "Itinerary", "Itinerary", "Policy", "Policy", "Menu"]
+        let sources = AtlasLabeling.PassageSources(groups: groups, sections: Array(repeating: nil, count: 10))
+        let names = AtlasLabeling.clusterNames(
+            distinguishingTerms: [["basket", "timer"], ["travel", "cover"]], membership: membership, sources: sources)
+        XCTAssertEqual(names, ["Manual", "Travel & Cover"])
+    }
 }
