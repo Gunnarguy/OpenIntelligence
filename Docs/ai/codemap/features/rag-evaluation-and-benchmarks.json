@@ -6,9 +6,8 @@
   "purpose": "Runs ground-truth question sets through the pipeline and scores retrieval and routing.",
   "revision": "0e9728e",
   "verified_on": "2026-09-28",
-  "entry_points": ["RAGEvalRunner", "RetrievalStageMetrics", "RouteEvalMetrics", "AppleEvaluationsBridge"],
+  "entry_points": ["RAGEvalRunner", "RetrievalStageMetrics", "RouteEvalMetrics"],
   "files": [
-    {"path": "OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift", "role": "primary", "blob": "a90353e71bdf522c90df002ada2349cad9367a6e"},
     {"path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "role": "primary", "blob": "2872aaef74765057c76fe84ebfb9ca3f31966468"},
     {"path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift", "role": "primary", "blob": "d0d0e5c1f33039235b4d642178ccae2a689c5b23"},
     {"path": "OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift", "role": "primary", "blob": "b99f49dc8fd96a90a92db13d05074d438113236f"},
@@ -42,7 +41,6 @@
     {"id": "RAGEvalResult.stageMetrics", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "line": 146, "match": "var stageMetrics: [RetrievalStageMetrics]? = nil", "status": "VERIFIED", "by": "build"},
     {"id": "RAGEvalRunner.evaluate", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 48, "match": "func evaluate(", "status": "VERIFIED", "by": "build"},
     {"id": "RouteEvalMetrics", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift", "line": 233, "match": "struct RouteEvalMetrics: Codable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "AppleEvaluationsBridge", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift", "line": 16, "match": "final class AppleEvaluationsBridge: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "test:RetrievalStageMetricsTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"},
     {"id": "test:RouteEvalMetricsTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
   ],
@@ -70,7 +68,7 @@
   "docs": [],
   "unknowns": [],
   "related": ["hybrid-retrieval-and-fusion", "rag-orchestration-core"],
-  "entries": ["OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift::RAGEvalRunner", "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift::RetrievalStageMetrics", "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift::RouteEvalMetrics", "OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift::AppleEvaluationsBridge"],
+  "entries": ["OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift::RAGEvalRunner", "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift::RetrievalStageMetrics", "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift::RouteEvalMetrics"],
   "owns": ["OpenIntelligence/Services/Evaluation/**"],
   "decisions": [],
   "traps": []

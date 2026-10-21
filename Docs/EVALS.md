@@ -488,7 +488,12 @@ let jsonReport = try RAGEvalReportWriter.generateJSON(metrics: metrics, results:
 
 ## Apple Evaluations Framework Integration
 
-The `AppleEvaluationsBridge` class provides compatibility with Apple's command-line tools and testing suites (`fm CLI`), allowing the evaluation runs to be analyzed natively on Apple platforms.
+Two Swift Testing suites in the test target use Apple's Evaluations framework (Xcode 27; the test target finds it with no project change), and each attaches its report to the test as an `.xcevalresult`, which opens in Xcode's test report:
+
+- `ClaimCheckEvaluationTests` grades the claim check on labelled sentences, with no model. It runs in the normal suite.
+- `AnswerQualityEvaluationTests` imports the benchmark's fixtures, asks each case through the Ask My Documents runner with Apple's on-device model, and grades each answer against its reference with `ModelJudgeEvaluator`. It is opt-in: `TEST_RUNNER_OI_MODEL_EVALS=1` on the `xcodebuild test-without-building` line, with `-only-testing:OpenIntelligenceTests/AnswerQualityEvaluationTests`; `TEST_RUNNER_OI_EVAL_TOPK` sets the passages per question (1 to 12, default 3). Apple's model generates in the iOS 27.0 Simulator, where it was measured on 2026-10-21 at 0.3 correct over 20 cases, most misses being the dataset's (`CHANGELOG.md` 5.7). `[evidence_level: measured, confidence: high for the harness]`
+
+**Corrected 2026-10-21.** This section said that "the `AppleEvaluationsBridge` class provides compatibility with Apple's command-line tools and testing suites (`fm CLI`), allowing the evaluation runs to be analyzed natively on Apple platforms." The class built a dictionary from a result, imported nothing from the Evaluations framework (its "framework" step was a comment marked as a placeholder), and nothing called it, so no run was ever exported. It was deleted the same day. `[evidence_level: code_verified, confidence: high, evidence_source: the deleted OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift, read before deleting, and a repository search that found no caller]`
 
 ---
 
