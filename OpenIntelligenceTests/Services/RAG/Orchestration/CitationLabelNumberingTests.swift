@@ -148,6 +148,7 @@ final class CitationLabelNumberingTests: XCTestCase {
 
         XCTAssertEqual(assembled.used, 4, assembled.context)
         XCTAssertEqual(assembled.sources.map(\.chunk.id), [0, 2, 3, 1].map { ranked[$0].chunk.id }, assembled.context)
+        XCTAssertEqual(RAGService.candidatePlaces(of: assembled.sources, in: ranked), [1, 3, 4, 2], "what the trace line prints")
         XCTAssertEqual(labels(in: assembled.context), [1, 2, 3, 4], assembled.context)
         XCTAssertTrue(block(4, in: assembled.context).contains("w1x0 "), "rank 2 is [S4], last: \(assembled.context)")
         XCTAssertTrue(assembled.context.hasSuffix("Cite only sources S1 to S4."), assembled.context)

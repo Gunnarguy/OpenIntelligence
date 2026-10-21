@@ -4316,6 +4316,13 @@ class RAGService: ObservableObject {
         return candidates[(stop + 1)...].filter { !packedIDs.contains($0.chunk.id) }
     }
 
+    /// Each passage's place among the candidates, from 1, in the order given (5.7). The trace line that uses it shows
+    /// which candidates a whole-passage context kept and where it put them: "candidates [1, 3, 4, 2]" is the first
+    /// four, placed best first and second best last.
+    nonisolated static func candidatePlaces(of passages: [RetrievedChunk], in candidates: [RetrievedChunk]) -> [Int] {
+        passages.compactMap { passage in candidates.firstIndex { $0.chunk.id == passage.chunk.id }.map { $0 + 1 } }
+    }
+
     /// The passages a cloud envelope carries, in its order, which is the order its [S1], [S2] ... labels number them
     /// (`renderCloudEvidenceEnvelope`); a passage it left out is dropped (5.7). The envelope orders its evidence by
     /// rank, so the local order filtered by the envelope could put a different passage at a label's place.
@@ -15046,6 +15053,10 @@ class RAGService: ObservableObject {
                         actualChunksUsed = assembled.used
                         promptSources = assembled.sources
                         placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
+                        Log.info(
+                            "[RAG] Whole-passage context keeps candidates \(Self.candidatePlaces(of: assembled.sources, in: orderedCandidates)) "
+                                + "of \(orderedCandidates.count), in label order",
+                            category: .retrieval)
                         Log.warning(
                             "[RAG] Sentence extraction matched nothing across \(orderedCandidates.count) candidate(s); "
                                 + "falling back to whole-chunk assembly (\(assembled.used) chunks, \(assembled.context.count) chars) "
@@ -15073,6 +15084,10 @@ class RAGService: ObservableObject {
                     actualChunksUsed = assembled.used
                     promptSources = assembled.sources
                     placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
+                    Log.info(
+                        "[RAG] Whole-passage context keeps candidates \(Self.candidatePlaces(of: assembled.sources, in: orderedCandidates)) "
+                            + "of \(orderedCandidates.count), in label order",
+                        category: .retrieval)
 
                     // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
                     // When assembleContext runs out of budget, chunks at positions 4+ are dropped

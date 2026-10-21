@@ -2215,10 +2215,14 @@ Text(deviceService.chipName)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
-                HStack(spacing: 2.5) {
-                    engineChip("CPU", isOn: profile.engagement.usesCPU, accent: accent, isSelected: isSelected)
-                    engineChip("ANE", isOn: profile.engagement.usesNeuralEngine, accent: accent, isSelected: isSelected)
-                    engineChip("GPU", isOn: profile.engagement.usesGPU, accent: accent, isSelected: isSelected)
+                // The engine badges, with Technical Details on (5.7). With it off, the lines under the cards name
+                // each engine in words for the profile chosen, and VoiceOver reads them from the hint below.
+                if settings.showTechnicalDetails {
+                    HStack(spacing: 2.5) {
+                        engineChip("CPU", isOn: profile.engagement.usesCPU, accent: accent, isSelected: isSelected)
+                        engineChip("ANE", isOn: profile.engagement.usesNeuralEngine, accent: accent, isSelected: isSelected)
+                        engineChip("GPU", isOn: profile.engagement.usesGPU, accent: accent, isSelected: isSelected)
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
@@ -2244,6 +2248,10 @@ Text(deviceService.chipName)
     private func engineChip(_ name: String, isOn: Bool, accent: Color, isSelected: Bool) -> some View {
         Text(name)
             .font(.system(size: 7, weight: .semibold, design: .rounded))
+            // One line, smaller rather than broken: in a quarter-width card on an iPhone 15 Pro the badges wrapped
+            // as "CP U" and "AN E" (2026-10-21).
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .foregroundColor(isOn ? (isSelected ? accent : .secondary) : .secondary.opacity(0.28))
             .padding(.horizontal, 3.5)
             .padding(.vertical, 1.5)
@@ -2917,7 +2925,8 @@ Text(deviceService.chipName)
                 aiFeatureInfoRow(
                     icon: "text.book.closed.fill",
                     color: .brown,
-                    title: "Gazetteer",
+                    // "Gazetteer" is NaturalLanguage's name for it (`NLGazetteer`), kept with Technical Details on (5.7).
+                    title: settings.showTechnicalDetails ? "Gazetteer" : "Vocabulary",
                     subtitle: settings.showTechnicalDetails ? "Builds domain vocabulary during ingestion" : "Learns the special terms in your documents as they're added"
                 )
             }
