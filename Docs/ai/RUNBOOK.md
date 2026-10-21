@@ -220,6 +220,21 @@ whole suite each of the three times the first attempt failed this way.
 
 **Import tests refused with "Document quota reached" (2026-10-20).** The hosted tests run in the test simulator's copy of the app, on its free plan of five documents, and documents an earlier run left there count. That evening a library the opt-in `AnswerQualityEvaluationTests` had made held five, so the four tests that had imported a note by the time the run was stopped (the Add to Library test in `ImportTargetLibraryTests` and three in `ShortcutsActionTests`) each waited out their minute and failed. Before reading an import test's failure into a code change, run `grep -c 'Document quota reached' <log>`. `xcrun simctl uninstall <test UDID> Gunndamental.OpenIntelligence` removes the app's copy and everything in it, and the next run installs it again; the rerun that evening ran 1,324 tests with 7 skipped and 0 failures (the seventh skip is the silent-audio test, which skips on a freshly installed app). *Recorded.*
 
+**Answers graded by a model judge (opt-in, added 2026-10-21).** `AnswerQualityEvaluationTests` imports the benchmark's
+fixtures into a library of its own, answers each case with Apple's on-device model through the Ask My Documents runner
+and grades it with `ModelJudgeEvaluator`. It is skipped unless `OI_MODEL_EVALS=1` reaches the runner:
+
+```bash
+TEST_RUNNER_OI_MODEL_EVALS=1 GUARD_DISK_MB=1500 OI_SCRATCH=/private/tmp bash ~/.agents/oi-robot/scripts/build57.sh test-without-building <log> -only-testing:OpenIntelligenceTests/AnswerQualityEvaluationTests
+```
+
+About 7 minutes in the iOS 27.0 Simulator, where Apple's model generates; `TEST_RUNNER_OI_EVAL_TOPK=<1..12>` sets the
+passages per question (default 3, the action's own). The run prints `correct: <mean> over 20 cases`, and the report is
+an `.xcevalresult` attached to the test inside the run's `.xcresult`
+(`xcrun xcresulttool export attachments --path <xcresult> --output-path <dir>` writes it out; it is JSON). Measured
+2026-10-21: 0.3, mostly the dataset's misses (`CHANGELOG.md` 5.7). It removes its library at the end and any an earlier
+run left at the start. `[evidence_level: test_verified (three runs), confidence: high]`
+
 ### The actions through the system: the UI-testing target *(added 2026-10-14)*
 
 `OpenIntelligenceUITests` has its own scheme, so the commands above are unchanged. It runs actions the
