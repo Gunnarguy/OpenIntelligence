@@ -3581,7 +3581,11 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    nonisolated private func prepareWorkspaceDownloads(root: URL) async {
+    /// `@concurrent` (5.7): with approachable concurrency a `nonisolated async` method runs on its caller's actor,
+    /// so this walk of the whole iCloud library folder (a `startDownloadingUbiquitousItem` and its extended-attribute
+    /// reads for every file) ran on the main thread. On the owner's iPhone (Instruments, 2026-10-21) it froze the app
+    /// for 2.72, 2.15 and 1.84 s in the first 12 s after launch, once for each reconfigure pass.
+    @concurrent nonisolated private func prepareWorkspaceDownloads(root: URL) async {
         let enumerator = fileManager.enumerator(
             at: root,
             includingPropertiesForKeys: [
@@ -3611,7 +3615,8 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    nonisolated private func prepareWorkspaceDownloads(from metadataItems: [NSMetadataItem]) async {
+    /// Off the main actor for the same reason as `prepareWorkspaceDownloads(root:)` (5.7).
+    @concurrent nonisolated private func prepareWorkspaceDownloads(from metadataItems: [NSMetadataItem]) async {
         var criticalURLs: [URL] = []
 
         for item in metadataItems {

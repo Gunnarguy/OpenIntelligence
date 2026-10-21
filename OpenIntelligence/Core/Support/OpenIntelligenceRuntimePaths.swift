@@ -157,13 +157,13 @@ enum OpenIntelligenceResourceBundle {
 
     nonisolated static func url(forResource name: String, withExtension ext: String? = nil) -> URL? {
         // 1. Search in the resolved tokenizers package bundle
-        if let tokenizersBundle = resolveSwiftPackageBundle(named: tokenizersBundleName),
+        if let tokenizersBundle = tokenizersBundle,
            let url = tokenizersBundle.url(forResource: name, withExtension: ext) {
             return url
         }
 
         // 2. Search in the resolved engine package bundle
-        if let engineBundle = resolveSwiftPackageBundle(named: swiftPackageBundleName),
+        if let engineBundle = engineBundle,
            let url = engineBundle.url(forResource: name, withExtension: ext) {
             return url
         }
@@ -176,6 +176,14 @@ enum OpenIntelligenceResourceBundle {
         // 4. Search in the main app bundle
         return Bundle.main.url(forResource: name, withExtension: ext)
     }
+
+    /// The two package bundles, found once (5.7). Every lookup used to search `Bundle.allBundles` and
+    /// `Bundle.allFrameworks` again, which lists and stats every loaded framework: on the owner's iPhone (Instruments,
+    /// 2026-10-21, Debug build) that search was 41% of the main thread's time while the first frame was drawn, reached
+    /// from `DocumentProcessor.init` inside `ContentView.init`. Bundles do not move while the app runs, and a static
+    /// `let` is initialised once and safely across threads.
+    nonisolated private static let tokenizersBundle: Bundle? = resolveSwiftPackageBundle(named: tokenizersBundleName)
+    nonisolated private static let engineBundle: Bundle? = resolveSwiftPackageBundle(named: swiftPackageBundleName)
 
     nonisolated private static func resolveSwiftPackageBundle(named bundleName: String) -> Bundle? {
         let allBundles = Bundle.allBundles + Bundle.allFrameworks

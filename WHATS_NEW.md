@@ -194,6 +194,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 ### When your device is busy
 - **The app eases off when iOS asks.** iOS 27 can tell apps to use less when the device is under pressure.  When it does, an import leaves a short gap between batches and Deep Think and Maximum leave a second between steps.  The answer isn't cut short.  It takes a little longer.
 - **Long imports stay steadier on a Mac that runs warm.**  On the Mac, text recognition now eases off when the Mac heats up, instead of running flat out until a fanless MacBook Air throttles.
+- **The app answers your taps right after you open it.**  For the first several seconds after opening, the app could freeze while it checked your iCloud libraries.  On my iPhone that was three freezes, about 6.7 seconds in total.  The check now runs in the background, and the first screen also draws faster.
 
 ## 5.6
 This one's about your first few answers.  The citations in an answer open now, numbers and times come through the way your document wrote them, and the Verified badge only shows when a check actually ran and passed.
