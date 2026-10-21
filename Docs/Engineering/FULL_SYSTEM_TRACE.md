@@ -378,19 +378,16 @@ keeps the answer local (`RAGService.swift:14532-14543`, `:14784-14838`, `:15839-
 
 ### 4.5 Route policy, session, generation
 
-`FoundationModelRoutePolicy.determineRoute` (`Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift:23-119`):
+`FoundationModelRoutePolicy.determineRoute` (`Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift:23-67`):
 
 - With a plan attached, the plan wins: on-device for deterministic, on-device and abstain targets;
   PCC with reasoning `.none` (exact lookup, Standard), `.moderate` (Deep Think), `.deep` (Maximum)
   (`:28-47`).
-- Without a plan: a manual preference of `core3B` or `advanced20B` forces on-device; a manual
-  PCC preference forces PCC (`:50-57`). Otherwise the on-device window is read from
-  `SystemLanguageModel.default.contextSize` rather than assumed to be 4,096 (`:71`;
-  `FoundationModelTokenBudget.swift:28-33`), and PCC is chosen only when the estimated context
-  exceeds it, PCC is allowed, and `isPCCAvailable()` (`:92, 99-101, 110-112`).
-- `isPCCAvailable()` (`:121-132`) requires `compiler(>=6.4)`, iOS or macOS 27, the entitlement,
-  and `PrivateCloudComputeLanguageModel().isAvailable && !quotaUsage.isLimitReached`. The
-  installed toolchain is Swift 6.4, so this branch compiles.
+- Without a plan (changed 2026-10-21, 5.7): on-device, every time (`:49-66`). The consent step runs only for a
+  plan that requires it, so this branch used to reach PCC with no consent: a manual PCC preference forced PCC,
+  and under Hybrid PCC was chosen when the estimate exceeded the on-device window and `isPCCAvailable()`
+  passed. `isPCCAvailable()` was deleted with it; the entitlement, availability and quota checks remain in
+  `FoundationModelSessionFactory` and `FoundationModelCapabilityProvider`.
 
 `FoundationModelSessionFactory.createSession` (`FoundationModelSessionFactory.swift:24-110`):
 

@@ -21576,7 +21576,7 @@ struct DeviceCapabilities {
     /// says nothing about whether *this binary* can route a request there. Four screens read it
     /// as the latter and told 5.1 users the app would ask before sending, in a build that could
     /// not send. The flag now means "compiled in, and on an OS that has the API"; the runtime
-    /// entitlement and quota checks stay in `FoundationModelRoutePolicy.isPCCAvailable`.
+    /// entitlement and quota checks stay in `FoundationModelSessionFactory` and `FoundationModelCapabilityProvider`.
     static let pccRoutingCompiledIn: Bool = {
         #if compiler(>=6.4)
             return true

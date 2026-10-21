@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-10-21, about 07:10 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
+Updated: 2026-10-21, about 11:30 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
 iPhone, iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout, level with `origin/main`
-Last verified commit: 79c359c
+Last verified commit: 15b908a plus this session's commit (the planless route fix and the Settings heading style)
 
 Earlier detail is in git: `git show 1e379aa:Docs/ai/STATE.md` (late on 2026-10-20); the long record through 2026-10-10
 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -22,22 +22,18 @@ only on his phone or Mac.
 | What | Where it stands |
 |---|---|
 | Commits 2026-10-20 evening to 2026-10-21 morning | `1e379aa` labels number the passages an answer keeps, Copy and Shortcuts list sources, plain words on the Database tab, Device & Performance, Atlas, Siri. `fa80e71` labels in reading order; the whole-passage assembler chooses what fits before placing it (rank 2 was cut), the graph packer leaves placing to it, the needle rescue reads what was not reached; Private Cloud Compute passages in the envelope's order; Deep Think and Maximum steps take their rendered evidence to Private Cloud Compute. `0b2174b` engine badges only with Technical Details on, "Vocabulary", a trace line naming the candidates a whole-passage context kept. `cbc3e48` `AnswerQualityEvaluationTests`. `c1e3147` the unused `AppleEvaluationsBridge` deleted, `Docs/EVALS.md` corrected. `79c359c` an empty library answers without its tools. The PostDesk session's doc passes (`4bde793` to `11c07db`, `780d801`) were checked and pushed; it has nothing pending. |
-| Rows closed 2026-10-21 | `40049a74d54f8113bb46eb9888627861` (label numbering), `40049a74d54f81f4b04ae5141899c808` (rank 2 cut). |
-| Rows open from this work | `40049a74d54f81f3964fc8a7a0792cd5` Deep Think steps without evidence on Private Cloud Compute (fixed in `fa80e71`, closes on his device). `40049a74d54f81e0bd99fa0e5f5e4186` saved answers keep 12 passages (needs `ChatMessage.swift`). `40049a74d54f814eadbace9c62d87ef9` "Summarize my lease" put the Lisbon itinerary's flight table first, scored 0.980 (To Do). `3fe49a74d54f81ce84a1f0b59e2e1ec7` Settings jargon, last item "one title style per level" (next action). `3b549a74d54f814cbb06fa629417b657` Evaluations framework (see Blockers). |
+| Rows closed 2026-10-21 | `40049a74d54f8113bb46eb9888627861` (label numbering), `40049a74d54f81f4b04ae5141899c808` (rank 2 cut), `3fe49a74d54f81ce84a1f0b59e2e1ec7` (Settings jargon, its last item: one heading style inside a card). |
+| Rows open from this work | `40049a74d54f81f3964fc8a7a0792cd5` Deep Think steps without evidence on Private Cloud Compute (fixed in `fa80e71`, closes on his device). `40049a74d54f81e0bd99fa0e5f5e4186` saved answers keep 12 passages (needs `ChatMessage.swift`). `40049a74d54f814eadbace9c62d87ef9` "Summarize my lease" put the Lisbon itinerary's flight table first, scored 0.980 (To Do). `3b549a74d54f814cbb06fa629417b657` Evaluations framework (see Blockers). |
 | Open in 5.7 overall | Query the data source: Target Release v5.7, Status not Completed. What only he can do: `~/.agents/oi-robot/scripts/asks-for-gunnar-draft.md`. |
 | Native Surfaces Catalogue | Version 28 at https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ (118 rows, 24 seen working). Source copy: `~/.agents/data/openintelligence-5.7-closeout/Native-Surfaces-Catalogue.html`; read the live one first (`Artifact` read) in case it changed. Before publishing: `node --check` its script and count 118 ROWS. |
 
 ## Active Constraints
 
-- **Waiting for his word (asked 2026-10-21 about 00:00):** a request with no `ModelExecutionPlan` skips the consent check
-  (`RAGService.ensureCloudConsentIfNeeded` returns at once), while `FoundationModelRoutePolicy.determineRoute`'s planless
-  branch can still pick Private Cloud Compute: under Hybrid when the prompt is over the device window, and every time with
-  Private Cloud Compute picked in the model picker, even on Don't Allow. Planless callers: a question to a library with
-  no documents, `generateDirectChatResponse`, `DocumentSummaryService` during imports (`InferenceConfig()` allows Private
-  Cloud Compute by default). Proposed fix: no plan means on device, in `determineRoute`, plus tests and
-  `Docs/PRIVACY_AND_ROUTING.md` and Atlas section 10. The permission check refused that edit and a message about it to
-  another session (memory `route-policy-edit-refused-by-permission-check.md`); do not route around either. Also his
-  call: whether a public roadmap row is filed. `Docs/PRIVACY_AND_ROUTING.md` already names the empty-library case.
+- **Done 2026-10-21 at his word ("do consent fix first"):** a request with no `ModelExecutionPlan` now runs on the
+  device (`FoundationModelRoutePolicy.determineRoute`), so nothing reaches Private Cloud Compute without the consent step.
+  `PlanlessRouteTests` pins it. Not run on a device. A question to an empty library longer than the device window now
+  stays on the device and may fail for length (read in code, not run). Still his call: whether a public roadmap row is
+  filed for it (none was). The developer diagnostics hub's "Maximum Reasoning" row can now only read N/A.
 - A push whose newest commit lacks `[ci skip]` starts the first 5.7 Xcode Cloud build. Ask him first.
 - Protected files he named on 2026-10-18: `project.pbxproj`, `WorkspaceSyncService.swift`, `BNNSVectorDatabase.swift`,
   `FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift` ("Must be done flawlessly"). `ChatMessage.swift`,
@@ -65,9 +61,11 @@ only on his phone or Mac.
 - Latest photos: `~/.agents/data/openintelligence-5.7-closeout/robot-2026-10-21/settings-tour/` (09 to 41 are Settings)
   and `database-tour/`.
 - Simulators (check `xcrun simctl list devices` first; DeviceHub has deleted every simulator several times):
-  `OI 5.7 tests` `0034D4D8-8443-4503-AE3F-57F3BB1FC89C` (hosted tests, named in `build57.sh`), `OI 5.7 A17 Pro`
-  `A3DDC13D-2EAA-40E4-B562-FA5E0E4FDDC8` (demo copy `2e669de` of the tree at `0b2174b`, the household library; its trace is
-  `Documents/pipeline_trace.log` in the app's container).
+  `OI 5.7 tests` `F1450853-CF0F-4E8D-87E2-F6B8F7E0241D` (made 2026-10-21 10:40, hosted tests, named in `build57.sh`; the
+  Debug app is installed on it past onboarding, used for the Settings tour). The A17 `A3DDC13D-...` and the old test
+  simulator were deleted at 10:31:20 with every other shut-down simulator (booted ones were kept; `~/.agents/MACHINE-MAP.md`),
+  so the demo copy and household library are gone. A new simulator's first suite run fails three AtlasLabelingTests until
+  it has fetched its language data (`com.apple.linguisticdata ... not entitled` in the log); the next run passes.
 - `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift`: opt-in, run with
   `TEST_RUNNER_OI_MODEL_EVALS=1 GUARD_DISK_MB=1500 OI_SCRATCH=/private/tmp bash ~/.agents/oi-robot/scripts/build57.sh
   test-without-building <log> -only-testing:OpenIntelligenceTests/AnswerQualityEvaluationTests` (about 7 minutes;
@@ -75,6 +73,15 @@ only on his phone or Mac.
 
 ## Verification (2026-10-21, output read)
 
+- About 11:00, on this session's tree (planless route fix, Settings headings): `build57.sh build-for-testing` ->
+  `TEST BUILD SUCCEEDED`, 0 errors, no warning in the changed files; full `test-without-building` -> `Executed 1341 tests,
+  with 7 tests skipped and 1 failure`, the one being VersionHistoryTests (the bundled `VersionHistory.md` had not been
+  copied from `Docs/USER_CHANGELOG.md`); after copying it and rebuilding, `-only-testing` VersionHistoryTests,
+  PlanlessRouteTests and AtlasLabelingTests -> `Executed 32 tests, with 0 failures`. `codemap.py check` -> 0 errors.
+  `testAuditTour` on the Debug build -> 41 photos in
+  `~/.agents/data/openintelligence-5.7-closeout/robot-2026-10-21/settings-tour-titles/` (16, 24, 25, 32, 33 show the
+  headings). A reviewer found no consented Private Cloud Compute call that arrives without a plan, and no other planless
+  Private Cloud Compute session.
 - On `79c359c`'s tree: `build57.sh build-for-testing` -> `TEST BUILD SUCCEEDED`, no warning near the change;
   `test-without-building` -> `Executed 1338 tests, with 6 tests skipped and 0 failures` (06:51).
 - `python3 scripts/verify_doc_claims.py` -> every claim matches; `python3 .claude/codemap/codemap.py check` -> 0 errors;
@@ -88,7 +95,6 @@ only on his phone or Mac.
 
 ## Blockers / Unknowns
 
-- The planless Private Cloud Compute gap (Active Constraints) waits for his word.
 - Private Cloud Compute is not reachable from the iOS Simulator, so `fa80e71`'s envelope-order and Deep Think evidence
   fixes are code_verified only; his device closes row `40049a74d54f81f3964fc8a7a0792cd5`.
 - For him, from the PostDesk session's canonical pass (read in code, not verified here, no rows filed): `CLAUDE.md`
@@ -105,9 +111,8 @@ only on his phone or Mac.
 
 ## Exact Next Action
 
-Close the Settings jargon row's last item, "one title style per level" (row `3fe49a74d54f81ce84a1f0b59e2e1ec7`): list the
-font each Settings page gives its card titles and section headers (in `OpenIntelligence/Features/Settings/`, each
-`Text("...")` title with the `.font(` that follows), pick one style per level from the most common, apply it by script,
-then build, run the suite, and photograph every Settings page with `testAuditTour` (photos 09 to 41) before closing the
-row. On Device & Performance, for one, "Reading PDFs and Images" is `.caption.weight(.medium)` while "Active Device" and
-"How Much the Model Reads" are drawn much larger (`robot-2026-10-21/settings-tour/24-*.png` and `25-*.png`).
+Take the next open v5.7 row that a Simulator check can close. First candidate: row `40049a74d54f814eadbace9c62d87ef9`
+("Summarize my lease" put the Lisbon itinerary's flight table first, scored 0.980, To Do). It needs a demo simulator
+again: the A17 was deleted at 10:31 (see Working Set), so make one (iPhone 15 Pro, iOS 27.0), run
+`~/.agents/oi-robot/scripts/demo_from_tree.sh <udid>` and `setup_demo_device.sh <udid>`, import the household set,
+then `testHouseholdLongMode` with `TEST_RUNNER_OI_Q="Summarize my lease."` and read the trace's candidate ranking.

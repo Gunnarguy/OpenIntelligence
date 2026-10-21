@@ -1033,7 +1033,7 @@ Text(label)
                 // Corrected 2026-10-15: the sentence named only the answer too large for the device.
                 // `ModelExecutionPlanner` also sends a Deep Think or Maximum answer drawn from more than one
                 // document (`complexityRequestsPCC`), and the model picker's Private Cloud Compute sends every one.
-                Text("Answers are written on this device unless Private Cloud Compute is allowed: with Hybrid, for an answer whose passages don't fit in this device's model, or a Deep Think or Maximum answer drawn from more than one document; with Private Cloud Compute chosen in the model picker, for every answer.")
+                Text("Answers are written on this device unless Private Cloud Compute is allowed: with Hybrid, for an answer whose passages don't fit in this device's model, or a Deep Think or Maximum answer drawn from more than one document; with Private Cloud Compute chosen in the model picker, for every answer drawn from your documents.")
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -1981,7 +1981,7 @@ Text(deviceService.chipName)
             // Discrete profiles avoid implying a precise GPU percentage that Core ML cannot promise.
             VStack(alignment: .leading, spacing: 10) {
                 Text("Execution Profile")
-                    .font(.caption.weight(.medium))
+                    .font(.subheadline.weight(.medium))
 
                 HStack(spacing: 6) {
                     ForEach(GPUExecutionProfile.allCases) { profile in
@@ -2040,7 +2040,7 @@ Text(deviceService.chipName)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Text(settings.showTechnicalDetails ? "Adaptive Visual Ingestion" : "Reading PDFs and Images")
-                        .font(.caption.weight(.medium))
+                        .font(.subheadline.weight(.medium))
                     Spacer()
                     Text("Automatic")
                         .font(.caption2.weight(.medium))
@@ -2098,7 +2098,7 @@ Text(deviceService.chipName)
             // Pipeline concurrency remains tier-based rather than profile-controlled.
             VStack(alignment: .leading, spacing: 6) {
                 Text("Pipeline Concurrency")
-                    .font(.caption.weight(.medium))
+                    .font(.subheadline.weight(.medium))
                 Text("Set by the \(deviceService.chipName), not by the profile.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -2406,7 +2406,7 @@ Text(deviceService.chipName)
                         .foregroundColor(modeAccentColor)
                         .font(.caption)
                     Text(modeHeaderTitle)
-                        .font(.caption.weight(.medium))
+                        .font(.subheadline.weight(.medium))
                 }
 
                 // Data-driven feature list — avoids stack overflow from
@@ -2969,7 +2969,7 @@ Text(deviceService.chipName)
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Instant Voice Phrases")
-                    .font(.subheadline.bold())
+                    .font(.subheadline.weight(.medium))
                     .padding(.horizontal)
                     .padding(.top, 12)
 
@@ -2996,7 +2996,7 @@ Text(deviceService.chipName)
                 Divider().padding(.horizontal)
 
                 Text(settings.showTechnicalDetails ? "Trust & Hallucination Prevention" : "Answers Are Checked")
-                    .font(.subheadline.bold())
+                    .font(.subheadline.weight(.medium))
                     .padding(.horizontal)
 
                 HStack(alignment: .top, spacing: 12) {
@@ -3060,7 +3060,7 @@ Text(deviceService.chipName)
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("App Actions in Shortcuts Library")
-                    .font(.subheadline.bold())
+                    .font(.subheadline.weight(.medium))
                     .padding(.horizontal)
                     .padding(.top, 12)
 
