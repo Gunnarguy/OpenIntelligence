@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-10-21, about 02:05 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
+Updated: 2026-10-21, about 06:15 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
 iPhone, iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: fa80e71
+Last verified commit: 0b2174b
 
 Earlier detail is in git: `git show 1e379aa:Docs/ai/STATE.md` (late on 2026-10-20) and the copies it names; the long
 record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -21,7 +21,7 @@ only on his phone or Mac.
 
 | What | Where it stands |
 |---|---|
-| Last commit | The one that contains this file, after `fa80e71`: the Execution Profile badges only with Technical Details on (they wrapped as "CP U" and "AN E"), "Vocabulary" for the Gazetteer row, and a trace line naming the candidates a whole-passage context kept (`RAGService.candidatePlaces`). |
+| Last commit | The one that contains this file, after `0b2174b`: `AnswerQualityEvaluationTests` (opt-in, `OI_MODEL_EVALS=1`), answers graded by Apple's model judge (`ModelJudgeEvaluator`); 0.3 correct over 20 cases, most misses the dataset's (CHANGELOG 5.7). `0b2174b` before it: engine badges only with Technical Details on, "Vocabulary", the whole-passage trace line. |
 | Before it | `fa80e71` (labels in reading order; the rank-2 fix in the assembler, the graph packer and the rescue; Private Cloud Compute envelope order; Deep Think evidence on Private Cloud Compute; two Device & Performance cards), `1e379aa`, and the PostDesk session's doc commits through `11c07db`. |
 | Rows | Closed 2026-10-21: `40049a74d54f8113bb46eb9888627861` (label numbering) and `40049a74d54f81f4b04ae5141899c808` (rank 2 cut; trace lines "keeps candidates [1, 3, 5, 6, 4, 2] of 6" and "[1, 3, ..., 4, 2] of 17"). Filed: `40049a74d54f814eadbace9c62d87ef9` ("Summarize my lease" put the Lisbon itinerary's flight table first, scored 0.980; To Do). `40049a74d54f81f3964fc8a7a0792cd5` (Deep Think steps without evidence on Private Cloud Compute): In Progress, closes on his device. `40049a74d54f81e0bd99fa0e5f5e4186` (saved answers keep 12 passages): To Do, needs `ChatMessage.swift`. `3fe49a74d54f81ce84a1f0b59e2e1ec7` (Settings jargon): open; the last item is one title style per level (next action). |
 | Native Surfaces Catalogue | Version 28 at https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ (118 rows, 24 seen working). Source: the session scratchpad's `Native-Surfaces-Catalogue.html`; read the live one first if that is gone. |
@@ -64,7 +64,11 @@ only on his phone or Mac.
 - Simulators: `OI 5.7 tests` `0034D4D8-8443-4503-AE3F-57F3BB1FC89C` (hosted tests, `build57.sh`), `OI 5.7 A17 Pro`
   `A3DDC13D-2EAA-40E4-B562-FA5E0E4FDDC8` (demo copy `64f63c9`, the household library). Check `xcrun simctl list devices`
   first; DeviceHub has deleted every simulator several times.
-- Uncommitted on purpose: `scripts/run_quality_matrix.py`, the untracked `AnswerQualityEvaluationTests.swift`.
+- Uncommitted on purpose: `scripts/run_quality_matrix.py`.
+- `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift`: run with `TEST_RUNNER_OI_MODEL_EVALS=1`
+  (and `TEST_RUNNER_OI_EVAL_TOPK=<1..12>` for passages) on `build57.sh test-without-building <log>
+  -only-testing:OpenIntelligenceTests/AnswerQualityEvaluationTests`; about 7 minutes; the report is the `.xcevalresult` in the
+  run's `.xcresult`.
 
 ## Verification (2026-10-21, output read)
 
@@ -79,7 +83,8 @@ only on his phone or Mac.
 - On the tree of this commit: `build-for-testing` -> no warning in the changed lines; the suite -> `Executed 1338 tests, with
   6 tests skipped and 0 failures` (01:43); demo copy `2e669de`; robot `testAuditTour` -> photos `tour4/25` (no engine
   badges with Technical Details off) and `tour5/19` ("Vocabulary"); `testHouseholdLongMode` with `OI_Q` -> the two trace
-  lines in Rows above. `testShortcutsAskThenCopy` failed four times on the Shortcuts search field ("Neither element nor
+  lines in Rows above. `TEST_RUNNER_OI_MODEL_EVALS=1 ... -only-testing:OpenIntelligenceTests/AnswerQualityEvaluationTests`
+  -> "imported 25 of 25 fixtures", "correct: 0.3 over 20 cases", the test passed on its 0.2 floor (06:15). `testShortcutsAskThenCopy` failed four times on the Shortcuts search field ("Neither element nor
   any descendant has keyboard focus") after a new demo copy, so a single question goes through `testHouseholdLongMode`.
 - `python3 scripts/verify_doc_claims.py` -> 1346 claims match; `codemap.py check` -> 0 errors; `secret_scan.py` -> clean.
 - A refuting review of the label-order and rank-2 change found a blocker (the graph packer reordered first) and six
@@ -91,7 +96,12 @@ only on his phone or Mac.
 - Private Cloud Compute is not reachable from the iOS Simulator, so the envelope-order and Deep Think evidence fixes are
   code_verified only; his device closes row `40049a74d54f81f3964fc8a7a0792cd5`.
 - The answer card's own buttons from the Shortcuts app need a tap by hand (row `3f449a74d54f8193a750d1099b83a8c5`).
-- `AnswerQualityEvaluationTests` has not been rerun since it got its own engine and cleanup.
+- The answer evaluation scores 0.3 over 20 cases (0.25 with 12 passages), mostly because of its dataset: the synthetic
+  exact fixtures never say what their value measures, and four references are bare keys. Next for row
+  `3b549a74d54f814cbb06fa629417b657`: reference answers for the household sample set's questions; delete
+  `OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift` (no callers) and correct `Docs/EVALS.md`, which says it
+  connects to Apple's command-line tools; he opens a report in Xcode (`~/.agents/data/openintelligence-5.7-closeout/evals-2026-10-21/`).
+  Opening Xcode has made DeviceHub delete every simulator before.
 
 ## Exact Next Action
 
