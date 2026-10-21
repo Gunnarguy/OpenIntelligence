@@ -9282,24 +9282,31 @@ extension RAGService {
 
         switch plan.synthesisTarget {
         case .privateCloudCompute:
-            let envelope = CloudEvidenceMinimizer().makeEnvelope(
-                plan: plan,
-                query: prompt,
-                chunks: sourceChunks,
-                maximumCharacters: max(
-                    800,
-                    min(
-                        12_000,
-                        Int(
-                            Double(plan.contextBudget.remaining + plan.contextBudget.evidence)
-                                * FoundationModelTokenBudget.cloudFallbackCharsPerToken)
-                    )
+            let maximumCloudCharacters = max(
+                800,
+                min(
+                    12_000,
+                    Int(
+                        Double(plan.contextBudget.remaining + plan.contextBudget.evidence)
+                            * FoundationModelTokenBudget.cloudFallbackCharsPerToken)
                 )
             )
-            routedContext = renderCloudEvidenceEnvelope(envelope)
-            let includedIDs = Set(envelope.evidence.map(\.sourceID))
-            routedSourceChunks = sourceChunks.filter {
-                includedIDs.contains($0.chunk.id.uuidString)
+            if hasRenderedEvidence {
+                // The step's evidence is already rendered, with the chain's own labels (13 of this function's 14
+                // call sites, above). The envelope is built from chunks, so from none it was empty, and the step
+                // reached Private Cloud Compute with no evidence at all (found by review, 2026-10-20, read in code).
+                // The rendered evidence goes instead, cut to the same budget.
+                routedContext = String(context.prefix(maximumCloudCharacters))
+            } else {
+                let envelope = CloudEvidenceMinimizer().makeEnvelope(
+                    plan: plan,
+                    query: prompt,
+                    chunks: sourceChunks,
+                    maximumCharacters: maximumCloudCharacters
+                )
+                routedContext = renderCloudEvidenceEnvelope(envelope)
+                // In the envelope's order, which its [S1], [S2] ... labels number (5.7).
+                routedSourceChunks = Self.passages(sourceChunks, inTheOrderOf: envelope)
             }
             do {
                 try await ensureConsentForDeepThink(

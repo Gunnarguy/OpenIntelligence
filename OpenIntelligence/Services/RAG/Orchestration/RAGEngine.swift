@@ -493,16 +493,12 @@ actor RAGEngine {
         #endif
         guard !chunks.isEmpty else { return ("", 0, []) }
 
-        // "Lost in the Middle" mitigation (Liu et al., 2023):
-        // LLMs attend strongly to the beginning and end of context, but poorly to the middle.
-        // Reorder chunks so the most relevant are at positions 1, N, 2, N-1, 3, N-2, etc.
-        // This ensures the best chunks are in high-attention positions.
-        let orderedChunks: [RetrievedChunk]
-        if useLostInMiddleMitigation, chunks.count >= 4 {
-            orderedChunks = applyLostInMiddleReordering(chunks)
-        } else {
-            orderedChunks = chunks
-        }
+        // "Lost in the Middle" mitigation (Liu et al., 2023): models attend to the start and end of a context more
+        // than to the middle, so the passages chosen are placed best first, second best last and the weakest in the
+        // middle. They are chosen in rank order and reordered only after the budget (end of this function).
+        // Reordering every candidate first put rank 2 last, so whenever about half the candidates fit, the
+        // second-best passage was the one the budget cut (the PostDesk session's code trace, 2026-10-20).
+        let orderedChunks = chunks
 
         var builder = String()
         builder.reserveCapacity(min(maxChars, 4096))
@@ -511,14 +507,16 @@ actor RAGEngine {
         // The chunks that actually reached the prompt, in the order their `[Sn]` labels were
         // assigned. This must be returned rather than recomputed by the caller.
         //
-        // Labels are numbered over `orderedChunks`, which is `chunks` after Lost-in-the-Middle
-        // reordering. Every caller was rebuilding the citation list as `prefix(used)` of its OWN
+        // Labels number the passages in the order the context shows them, which after the
+        // Lost-in-the-Middle placement below is not rank order. Every caller was rebuilding the citation list as `prefix(used)` of its OWN
         // pre-reordering array, so for any query with four or more chunks the two disagreed:
         // reordering emits `front + back.reversed()`, so [A,B,C,D] is shown as [A,C,D,B] and a
         // model citing [S2] meant C while the response resolved it to B. Three of four citations
         // pointed at the wrong document, silently, and nothing downstream could detect it because
         // the indices were all in range.
         var usedSources: [RetrievedChunk] = []
+        // Each passage packed and the text it was packed with, for the Lost-in-the-Middle placement after the budget.
+        var packed: [(chunk: RetrievedChunk, text: String)] = []
 
         // ── Abbreviation Glossary Injection ──────────────────────────────────
         // Collect all abbreviation→expansion mappings from retrieved chunks.
@@ -551,6 +549,24 @@ actor RAGEngine {
                 builder += glossaryBlock
                 Log.debug("[RAGEngine] Injected abbreviation glossary (\(glossary.count) entries, \(glossaryBlock.count) chars)", category: .retrieval)
             }
+        }
+
+        let glossaryPrefix = builder
+
+        // One passage's block: its label, where it is from, its text, and a separator unless it is the last.
+        func renderBlock(_ number: Int, _ r: RetrievedChunk, _ text: String, isLast: Bool) -> String {
+            if compact {
+                // Compact mode: minimal headers, no similarity scores, tighter separators
+                // Saves ~30-50 chars per chunk for more content in constrained budgets
+                let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
+                let sourceRef = source.isEmpty ? "" : "(\(source)) "
+                return "[S\(number)] \(sourceRef)\(text)" + (isLast ? "" : "\n---\n")
+            }
+            // Full mode: rich metadata for better citation context
+            let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
+            let page = r.pageNumber.map { " p.\($0)" } ?? ""
+            let header = "[S\(number)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
+            return header + text + (isLast ? "" : "\n\n---\n\n")
         }
 
         // Calculate target chars per chunk to fit at least 3 chunks
@@ -636,44 +652,23 @@ actor RAGEngine {
             // [S3] while it was the second source, [S3] opened the passage after it, and the last label opened
             // nothing (found by review, 2026-10-20). "Cite only sources S1 to S\(used)" below already counted
             // the passages kept.
-            let block: String
-            if compact {
-                // Compact mode: minimal headers, no similarity scores, tighter separators
-                // Saves ~30-50 chars per chunk for more content in constrained budgets
-                let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
-                let sourceRef = source.isEmpty ? "" : "(\(source)) "
-                block = "[S\(used + 1)] \(sourceRef)\(truncatedContent)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
-            } else {
-                // Full mode: rich metadata for better citation context
-                let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
-                let page = r.pageNumber.map { " p.\($0)" } ?? ""
-                let header = "[S\(used + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
-                block = header + truncatedContent + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
-            }
+            let block = renderBlock(used + 1, r, truncatedContent, isLast: i == orderedChunks.count - 1)
 
             if builder.count + block.count <= maxChars || used == 0 {
                 builder += block
                 used += 1
                 usedSources.append(r)
+                packed.append((chunk: r, text: truncatedContent))
                 usedWordSets.append(contentWords)
             } else if used < minChunksTarget && remainingBudget > 300 {
                 // Force-fit truncated version if we haven't hit minimum chunks yet
                 let forceTruncated = truncateAtSentence(truncatedContent, maxChars: remainingBudget - headerOverhead - 20)
                 if forceTruncated.count >= 150 {
-                    let forceBlock: String
-                    if compact {
-                        let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
-                        let sourceRef = source.isEmpty ? "" : "(\(source)) "
-                        forceBlock = "[S\(used + 1)] \(sourceRef)\(forceTruncated)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
-                    } else {
-                        let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
-                        let page = r.pageNumber.map { " p.\($0)" } ?? ""
-                        let header = "[S\(used + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
-                        forceBlock = header + forceTruncated + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
-                    }
+                    let forceBlock = renderBlock(used + 1, r, forceTruncated, isLast: i == orderedChunks.count - 1)
                     builder += forceBlock
                     used += 1
                     usedSources.append(r)
+                    packed.append((chunk: r, text: forceTruncated))
                     usedWordSets.append(contentWords)
                 } else {
                     break
@@ -681,6 +676,17 @@ actor RAGEngine {
             } else {
                 break
             }
+        }
+
+        // The Lost-in-the-Middle placement, on the passages chosen. The labels follow the new order, so they still
+        // read [S1], [S2], [S3] down the context, and `usedSources` returns the passages in that order.
+        if useLostInMiddleMitigation, packed.count >= 4 {
+            let placed = applyLostInMiddleReordering(packed)
+            builder = glossaryPrefix
+            for (place, entry) in placed.enumerated() {
+                builder += renderBlock(place + 1, entry.chunk, entry.text, isLast: place == placed.count - 1)
+            }
+            usedSources = placed.map { $0.chunk }
         }
 
         // State the citation range the model was actually given.
@@ -776,15 +782,15 @@ actor RAGEngine {
     ///   - Start: #1 (best), #3, #5
     ///   - End: #2 (second-best), #4, #6
     ///   - Middle: worst chunks (#5, #6)
-    private func applyLostInMiddleReordering(_ chunks: [RetrievedChunk]) -> [RetrievedChunk] {
+    private func applyLostInMiddleReordering<T>(_ chunks: [T]) -> [T] {
         guard chunks.count >= 4 else { return chunks }
 
         // Split into odd-indexed (0, 2, 4...) and even-indexed (1, 3, 5...) positions
         // Odd-indexed go to the front (start of context — high attention)
         // Even-indexed go to the back in reverse (end of context — high attention)
         // Result: worst chunks land in the middle (low attention zone)
-        var frontChunks: [RetrievedChunk] = []
-        var backChunks: [RetrievedChunk] = []
+        var frontChunks: [T] = []
+        var backChunks: [T] = []
 
         for (i, chunk) in chunks.enumerated() {
             if i % 2 == 0 {

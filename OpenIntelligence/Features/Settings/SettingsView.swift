@@ -1633,10 +1633,13 @@ Text(deviceService.chipName)
 
             Divider()
 
-            // Live System Monitor
-            LiveSystemMonitorWrapper()
+            // Live System Monitor: thermal state, memory, cores and the pipeline's own adjustments, with Technical
+            // Details on (5.7).
+            if settings.showTechnicalDetails {
+                LiveSystemMonitorWrapper()
 
-            Divider()
+                Divider()
+            }
 
             // Language Support
             VStack(alignment: .leading, spacing: 8) {
@@ -2036,7 +2039,7 @@ Text(deviceService.chipName)
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("Adaptive Visual Ingestion")
+                    Text(settings.showTechnicalDetails ? "Adaptive Visual Ingestion" : "Reading PDFs and Images")
                         .font(.caption.weight(.medium))
                     Spacer()
                     Text("Automatic")
@@ -2048,7 +2051,11 @@ Text(deviceService.chipName)
                         .clipShape(Capsule())
                 }
 
-                Text("PDFs and images now use one automatic source-preservation strategy. The engine raises OCR detail, structure recovery, and visual analysis when pages are garbled, table-heavy, columnar, image-heavy, or small-text risky, and stays lighter on clean text-native pages.")
+                Text(
+                    settings.showTechnicalDetails
+                        ? "PDFs and images now use one automatic source-preservation strategy. The engine raises OCR detail, structure recovery, and visual analysis when pages are garbled, table-heavy, columnar, image-heavy, or small-text risky, and stays lighter on clean text-native pages."
+                        : "A PDF page or an image gets a closer reading when it needs one: text that comes out garbled, tables, columns, pictures or small print. A page whose text is already clean gets a lighter one."
+                )
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

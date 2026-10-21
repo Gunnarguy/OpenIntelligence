@@ -2032,3 +2032,19 @@ Deep Think's reasoning chain numbers its labels over `routedChunks` and its resu
 `allRetrievedChunks` ones) were not traced. `[evidence_level: code_verified (the three label sites, the callers that
 build the answer's passages, and the chain path's result), test_verified (CitationLabelNumberingTests), confidence:
 high for the Standard path]`
+
+**Refined the same night: the numbers follow the order the context reads.** The household run on the committed fix
+(`1e379aa`) logged no label past an answer's passages, and the citation maps matched the saved passages, but 11 of the
+42 labels seemed to sit on a sentence another passage matched better (`~/.agents/oi-robot/scripts/label_truth.py`,
+which resolves each saved label the way a tap does). The extractor writes the sources by relevance and had numbered
+them by candidate, so the model read [S1], [S8], [S9], [S6] down the page. The sources are now numbered in the order
+the blocks are written and the answer keeps them in that order; the whole-passage assembler already labelled in the
+order it writes, and since the same night it chooses the passages that fit before placing them (the rank-2 fix in
+CHANGELOG 5.7). Considered and not taken: writing the blocks in candidate order instead, which keeps the numbers but
+gives up placing the most relevant sentences first. Repeated on the same 16 questions the order made no difference
+(10 of 36 by the same measure), and the measure itself misled: it compared sentences with saved passages cut to 600
+characters, while the extractor reads each passage with about 250 characters around it (`DocumentChunk.contextText`).
+Against full passages it was 8 of 36, mostly sentences from that surrounding text, which a tap shows on the page beside
+the highlighted passage, or sentences citing two sources. The order is kept because labels and the source list now
+read the way the model read them. `[evidence_level: measured (label_truth.py, two runs), code_verified, confidence:
+high that the numbering is right; the remaining placements are the model's]`

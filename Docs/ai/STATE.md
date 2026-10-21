@@ -1,12 +1,12 @@
 # Current State
 
-Updated: 2026-10-20, about 23:45 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
+Updated: 2026-10-21, about 01:05 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
 iPhone, iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: cce1d2c
+Last verified commit: 11c07db
 
-Earlier detail is in git: `git show cce1d2c:Docs/ai/STATE.md` (the evening of 2026-10-20) and the copies it names; the
-long record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
+Earlier detail is in git: `git show 1e379aa:Docs/ai/STATE.md` (late on 2026-10-20) and the copies it names; the long
+record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
 
 ## Objective
 
@@ -15,94 +15,82 @@ memory `everything-into-5-7.md`). On 2026-10-19: "just go nuts and close all of 
 everything." On 2026-10-20: "if it can be added, then we add it if it needs to be fixed, then we fix it ... apply the
 absolute best practices using apples latest API frameworks." A row closes on a scripted iOS 27 Simulator check when the
 defect is not about the phone itself; memory, background tasks, iCloud, signing and Private Cloud Compute rows close
-only on his phone.
+only on his phone or Mac.
 
 ## Status
 
 | What | Where it stands |
 |---|---|
-| Last commit | The one that contains this file, after `cce1d2c`: labels number the passages an answer keeps (the sentence extractor with `numberByUse`, its needle rescue, `RAGEngine.assembleContext` after a skipped near-duplicate); Copy and an answer handed to Shortcuts list what each label points at (`OpenIntelligence/Services/RAG/Citations/`); the Database tab, Device & Performance, the Atlas and the Siri card in plain words with Technical Details off. |
-| Row `40049a74d54f8113bb46eb9888627861` (labels numbered differently from passages) | In Progress. The numbering is fixed and the household run logged no label past an answer's passages, but the same run showed the model putting labels on the wrong sentence (next action). |
-| Row `3fe49a74d54f81ce84a1f0b59e2e1ec7` (Settings jargon) | Open. Device & Performance still shows "Adaptive Visual Ingestion" ("OCR detail, structure recovery") and "Live System Monitor" with Technical Details off (robot photo `tour/25`). |
-| Native Surfaces Catalogue | Version 27 at https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ (118 rows). Its "Share an answer with its sources" row does not yet say Copy and the Shortcuts item list labels; update it and republish (`node --check` the page script, count 118 ROWS first). |
-| Open in 5.7 | About 128 rows (query the data source: Target Release v5.7, Status not Completed). What only he can do: `~/.agents/oi-robot/scripts/asks-for-gunnar-draft.md`. |
+| Last commit | The one that contains this file, after `11c07db`: labels numbered in the order the context reads; the whole-passage assembler chooses what fits before placing it (rank 2 was cut), the graph packer leaves placing to it, and the needle rescue reads what the assembler did not reach; Private Cloud Compute answers keep their passages in the envelope's order; Deep Think and Maximum steps take their rendered evidence to Private Cloud Compute; "Reading PDFs and Images" and no Live System Monitor with Technical Details off. |
+| Before it | `1e379aa` (labels number the passages kept; Copy and Shortcuts list sources; plain words on four screens), then the PostDesk session's doc commits `4bde793`, `5ecc112`, `dab84ed`, `11c07db`, checked and pushed. |
+| Rows | `40049a74d54f8113bb46eb9888627861` (label numbering): closes with this commit. `40049a74d54f81f4b04ae5141899c808` (rank 2 cut): In Progress, closes on a Simulator answer to a summary or comparison question whose citation map holds rank 2. `40049a74d54f81f3964fc8a7a0792cd5` (Deep Think steps without evidence on Private Cloud Compute): In Progress, closes on his device. `40049a74d54f81e0bd99fa0e5f5e4186` (saved answers keep 12 passages): To Do, needs `ChatMessage.swift`. `3fe49a74d54f81ce84a1f0b59e2e1ec7` (Settings jargon): open, see next action. |
+| Native Surfaces Catalogue | Version 28 at https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ (118 rows, 24 seen working). Source: the session scratchpad's `Native-Surfaces-Catalogue.html`; read the live one first if that is gone. |
 
 ## Active Constraints
 
+- **Waiting for his word, asked 2026-10-21 about 00:00:** a request with no `ModelExecutionPlan` skips the consent check
+  (`RAGService.ensureCloudConsentIfNeeded` returns at once) while `FoundationModelRoutePolicy.determineRoute`'s planless
+  branch can still pick Private Cloud Compute: under Hybrid when the prompt is over the device window, and every time
+  with Private Cloud Compute picked in the model picker, even on Don't Allow. Planless callers: a question to a library
+  with no documents, `generateDirectChatResponse`, `DocumentSummaryService` during imports (`InferenceConfig()` allows
+  Private Cloud Compute by default). Proposed fix: no plan means on device, in `determineRoute`. The permission check
+  refused that edit and a message about it to the PostDesk session; don't route around either. Also his call: whether a
+  public roadmap row is filed. `Docs/PRIVACY_AND_ROUTING.md` (PostDesk's `11c07db`, pushed) already names the empty-library
+  case publicly; it does not yet say the exception covers every planless request.
 - A push whose newest commit lacks `[ci skip]` starts the first 5.7 Xcode Cloud build. Ask him first.
-- Protected files he named on 2026-10-18 (`project.pbxproj`, `WorkspaceSyncService.swift`, `BNNSVectorDatabase.swift`,
-  `FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift`): "Must be done flawlessly ... only if
-  they're genuine full and well rounded improvements." `ChatMessage.swift`, `RAGAppIntents.swift` and
-  `KnowledgeContainer.swift`'s route were not named and need his word.
-- **Another session writes docs here.** The PostDesk session ("Demos") holds doc patches in `/private/tmp/oi-wt/`
-  (`docs-howitworks`, `docs-ingestion`, `docs-canonical`, `docs-routing`). It applies them only after this session says
-  "go", commits only its own paths with `[ci skip]` and does not push; this session pushes them with its next commit.
-  Don't edit `Docs/RETRIEVAL_PIPELINE.md` or `Docs/PRIVACY_AND_ROUTING.md` without asking it first. Its code-trace
-  item 15 (Standard path drops rank 2 in `assembleContext`, `RAGEngine.swift` near line 501 and `RAGService.swift`
-  near line 15011) is this session's to fix.
+- Protected files he named on 2026-10-18: `project.pbxproj`, `WorkspaceSyncService.swift`, `BNNSVectorDatabase.swift`,
+  `FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift` ("Must be done flawlessly"). `ChatMessage.swift`,
+  `RAGAppIntents.swift` and `KnowledgeContainer.swift`'s route were not named.
+- The PostDesk session ("Demos") still has a canonical docs pass to land (CANONICAL, LIMITATIONS, RAG_TECHNICAL,
+  STUDY_GUIDE, EdgeToEdge, the Audio guides, Terra). It commits only its own paths with `[ci skip]` and does not push;
+  check each message and push them.
 - App Store Connect writes and public pages only at his word. Never delete docs, benchmark runs, Notion rows or agent
-  histories; no co-author lines; commit by name; leave `.agents/skills/`, `.codex/hooks*` and `.codex/config.toml`
-  (another agent's, untracked) alone; edit Swift by script.
-- A development build on his Mac opens his real libraries: don't launch one without asking. Never tap the plan sheet's
-  purchase buttons in a simulator.
-- The Mac is shared. `build57.sh` stops its own build when free disk falls under `GUARD_DISK_MB` (3,500 MB unless set)
-  or free memory under 15%. Compiling `RAGService.swift` grows swap by 4 to 6 GB, twice per build. Don't build while
-  World of Warcraft is open. One `xcodebuild` at a time.
+  histories; no co-author lines; commit by name; leave `.agents/skills/`, `.codex/hooks*`, `.codex/config.toml`, and
+  `scripts/run_quality_matrix.py` (uncommitted on purpose) alone; edit Swift by script.
+- One `xcodebuild` at a time; stop only processes this session started. `build57.sh` stops its own build when free
+  disk falls under `GUARD_DISK_MB` or free memory under 15%.
 
 ## Working Set
 
-- `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`: `extractRelevantSentencesOffMain` (labels, packing,
-  `numberedLabels`), the Standard path's context assembly (search "The chunks the prompt actually labelled"), and
-  `finalizeResponse` (logs a label past the answer's passages). `RAGEngine.swift` `assembleContext`.
-- `OpenIntelligenceTests/Services/RAG/Orchestration/CitationLabelNumberingTests.swift` pins the numbering.
-- Uncommitted on purpose: `scripts/run_quality_matrix.py` (`--simulator <udid>`, untested) and the opt-in
-  `OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift` (see Blockers).
-- Tools in `~/.agents/oi-robot/` (README inside): the robot (`demodriver/`, live copy `/private/tmp/demodriver-pv`, built
-  in `/private/tmp/demodriver-pv-dd`), `pvaudit.py`, `demo_from_tree.sh`, `build57.sh`, `builddevice.sh` (his iPhone),
-  `answer_detail.py`, and `label_truth.py` (each saved label: what a tap opens, and whether another passage matches its
-  sentence better).
-- Simulators (DeviceHub deleted every simulator at 22:08:49 on 2026-10-20; check `xcrun simctl list devices` first):
-  `OI 5.7 tests` `0034D4D8-8443-4503-AE3F-57F3BB1FC89C` (iPhone 18 Pro) runs the hosted unit tests, and `build57.sh`
-  names it. `OI 5.7 A17 Pro` `A3DDC13D-2EAA-40E4-B562-FA5E0E4FDDC8` (iPhone 15 Pro) holds the demo copy of the
-  committed tree (a `git stash create` snapshot, `64e1d24`) with the household library (the ten sample documents);
-  its trace is `Documents/pipeline_trace.log` in the app's container.
-- His iPhone has a development build of the same tree (installed 21:56 with `builddevice.sh` and `devicectl`).
+- `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`: `extractRelevantSentencesOffMain` (`packedOrder`,
+  `numberedLabels`), `candidatesPastThePacked`, `passages(_:inTheOrderOf:)`, the Standard path (`placedForAttention`).
+  `RAGEngine.swift` `assembleContext`; `ContextPackingService.swift` `pack`; `AgenticOrchestrator.swift`, the
+  `.privateCloudCompute` case of a step's plan.
+- Tests: `CitationLabelNumberingTests` (10 tests), `ContextPackingServiceTests` (now on the main actor).
+- Tools in `~/.agents/oi-robot/scripts/`: `label_truth.py <udid> <since HH:MM>` resolves each saved label the way a tap
+  does and compares it with the full passage text from a copy of the app's FTS5 database (`chunk_id` is
+  `<document id>_<chunk index>`); a saved passage is cut to 600 characters and the extractor reads about 250 more on
+  each side (`DocumentChunk.contextText`), so a "doubtful" line is a lead, not a verdict.
+- Simulators: `OI 5.7 tests` `0034D4D8-8443-4503-AE3F-57F3BB1FC89C` (hosted tests, `build57.sh`), `OI 5.7 A17 Pro`
+  `A3DDC13D-2EAA-40E4-B562-FA5E0E4FDDC8` (demo copy `64f63c9`, the household library). Check `xcrun simctl list devices`
+  first; DeviceHub has deleted every simulator several times.
+- Uncommitted on purpose: `scripts/run_quality_matrix.py`, the untracked `AnswerQualityEvaluationTests.swift`.
 
-## Verification (2026-10-20, output read)
+## Verification (2026-10-21, output read)
 
-- `build57.sh build-for-testing` and `test-without-building` on the test simulator, on the working tree of this commit
-  -> `Executed 1333 tests`; three `AtlasLabelingTests` word-class tests failed on the new simulator before its language
-  data arrived and passed on a rerun (26 of 26).
-- `demo_from_tree.sh A3DDC13D-...` -> `INSTALLED demo copy of 64e1d24`; robot `testHouseholdImport`, then
-  `testHouseholdStandard` (16 questions) -> the trace has all 16 queries and no "were numbered differently" line.
-- Robot `testShortcutsAskThenCopy` ("How much is the pet deposit?") -> clipboard "$300.00 [S1], [S2], [S3]" with
-  "Sources:" and "[S1] Juniper Flats Lease - Unit 4B.pdf, page 1"; no crash report.
-- Robot `testDatabaseTour` -> section chips Overview, Intelligence, Documents, Vocabulary, Maintenance, Search (Index and
-  Performance hidden with Technical Details off); `testAuditTour` -> 41 photos in the session scratchpad's `tour/`.
-- `python3 ~/.agents/oi-robot/scripts/label_truth.py A3DDC13D-2EAA-40E4-B562-FA5E0E4FDDC8 22:30` -> 42 labels; 29 open
-  the passage their sentence matches best, 11 doubtful, 2 open nothing ([S13] against 12 saved passages).
-- `python3 scripts/secret_scan.py` -> no sensitive tokens; `python3 scripts/verify_doc_claims.py` -> 1022 claims
-  match; `python3 .claude/codemap/codemap.py check` -> 0 errors; `VersionHistory.md` identical to
-  `Docs/USER_CHANGELOG.md`.
+- `build57.sh build-for-testing` then `test-without-building` on the reviewed tree -> `Executed 1338 tests, with 6
+  tests skipped and 0 failures` (00:29). After `ContextPackingServiceTests` moved to the main actor: `build-for-testing` -> 0 warnings in that
+  file; `test-without-building -only-testing:` it and `CitationLabelNumberingTests` -> `Executed 15 tests, with 0 failures`.
+- `demo_from_tree.sh A3DDC13D-...` -> `INSTALLED demo copy of 64f63c9`; robot `testHouseholdStandard` passed; the trace
+  holds 49 queries and no "were numbered differently" line; `label_truth.py` -> 50 labels, 37 match, 12 doubtful, 1 past
+  the 12 saved passages. Earlier runs: 42 labels with 11 doubtful (candidate-order numbering) and 36 with 10
+  (reading order), all by the same measure.
+- Robot `testAuditTour` -> photo `tour3/25`: "Reading PDFs and Images", no Live System Monitor, the language list.
+- `python3 scripts/verify_doc_claims.py` -> 1346 claims match; `codemap.py check` -> 0 errors; `secret_scan.py` -> clean.
+- A refuting review of the label-order and rank-2 change found a blocker (the graph packer reordered first) and six
+  smaller points; each is fixed or recorded in `CHANGELOG.md` 5.7.
 
 ## Blockers / Unknowns
 
-- **A saved answer keeps 12 passages.** `ChatMessage.maxPersistedRetrievedChunks = 12`, so after a relaunch a label past
-  [S12] opens nothing (the air fryer's E1 answer cites [S13]). `ChatMessage.swift` is a hard-boundary file he has not
-  named; the fix (keep every passage the answer's labels cite) waits for his word.
-- The answer card's own buttons (Think Deeper, Ask a Follow-up, a document) could not be pressed by the robot from the
-  Shortcuts app; a tap by hand settles row `3f449a74d54f8193a750d1099b83a8c5`.
-- `AnswerQualityEvaluationTests` (untracked) has not been run since it got its own engine and cleanup. Rerun:
-  `TEST_RUNNER_OI_MODEL_EVALS=1 ... build57.sh test-without-building <log>
-  -only-testing:OpenIntelligenceTests/AnswerQualityEvaluationTests`; note the result on row
-  `3b549a74d54f814cbb06fa629417b657`.
-- His phone: the rows in the asks list. Mac rows need his go-ahead for a development build on his Mac.
+- The planless Private Cloud Compute gap above waits for his word.
+- Private Cloud Compute is not reachable from the iOS Simulator, so the envelope-order and Deep Think evidence fixes are
+  code_verified only; his device closes row `40049a74d54f81f3964fc8a7a0792cd5`.
+- The answer card's own buttons from the Shortcuts app need a tap by hand (row `3f449a74d54f8193a750d1099b83a8c5`).
+- `AnswerQualityEvaluationTests` has not been rerun since it got its own engine and cleanup.
 
 ## Exact Next Action
 
-Number the extractor's labels in the order the context reads. In `extractRelevantSentencesOffMain`, when `numberByUse`
-is set, record the order sources are packed (the lead first, then each block as it is written) and return that as
-`usedSourceIndices` instead of `sourcesUsed.sorted()`, so `numberedLabels` writes [S1], [S2], [S3] down the context and
-`promptSources` follows the same order; leave the sorted order for callers without `numberByUse`. Add a test that the
-labels in the context read 1, 2, 3 in order. Then build, run the suite, make a new demo copy, run
-`testHouseholdStandard`, and compare `label_truth.py` with the 11 doubtful of 42 above before closing row `40049a74`.
+Fix the Execution Profile chips on Device & Performance (`SettingsView.swift`, `gpuAccelerationSection`): with Technical
+Details off the chips wrap "CPU" and "ANE" as "CP U" and "AN E" (robot photo `tour3/25`) and "ANE" is an engine term.
+Keep the three labels on one line and name the Neural Engine plainly, build, run the suite, photograph Device &
+Performance with `testAuditTour`, and close row `3fe49a74d54f81ce84a1f0b59e2e1ec7` if no engine term is left there.

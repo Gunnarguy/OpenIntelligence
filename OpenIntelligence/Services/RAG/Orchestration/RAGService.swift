@@ -4163,6 +4163,8 @@ class RAGService: ObservableObject {
         var builder = String()
         builder.reserveCapacity(min(maxChars, 5000))
         var sourcesUsed: Set<Int> = []
+        // The sources in the order their blocks are written, which is the order `numberByUse` numbers them.
+        var packedOrder: [Int] = []
         var sentenceCount = 0
         let headerOverhead = compact ? 30 : 80
         let separatorSize = compact ? 5 : 7
@@ -4170,6 +4172,7 @@ class RAGService: ObservableObject {
         if let leadEntry {
             builder += leadEntry.label + "\n" + leadEntry.body + "\n"
             sourcesUsed.insert(0)
+            packedOrder.append(0)
             sentenceCount += EvidenceLineSplitter.lines(in: leadEntry.body).count
         }
 
@@ -4255,7 +4258,7 @@ class RAGService: ObservableObject {
                     builder += compact ? "\n---\n" : "\n\n---\n\n"
                 }
                 builder += entry
-                sourcesUsed.insert(srcIdx)
+                if sourcesUsed.insert(srcIdx).inserted { packedOrder.append(srcIdx) }
                 sentenceCount += sentences.count
             } else {
                 // Try fitting partial sentences from this source
@@ -4274,7 +4277,7 @@ class RAGService: ObservableObject {
                             builder += compact ? "\n---\n" : "\n\n---\n\n"
                         }
                         builder += label + "\n" + partialParagraph + "\n"
-                        sourcesUsed.insert(srcIdx)
+                        if sourcesUsed.insert(srcIdx).inserted { packedOrder.append(srcIdx) }
                         sentenceCount += partial.count
                     }
                 }
@@ -4282,7 +4285,12 @@ class RAGService: ObservableObject {
             }
         }
 
-        let usedSourceIndices = sourcesUsed.sorted()
+        // With `numberByUse` the sources are numbered in the order the context reads them ([S1], [S2], [S3] down the
+        // page) and returned in that order, the order the caller keeps them in. The blocks are written by relevance
+        // (each source's best sentence first), so numbered in candidate order the labels read [S1], [S8], [S9], [S6]
+        // down the page (5.7; Docs/ai/DECISIONS.md, 2026-10-20). Without `numberByUse` a label is the candidate's
+        // place, so the order stays the candidates' (Deep Think's windows).
+        let usedSourceIndices = numberByUse ? packedOrder : sourcesUsed.sorted()
         return SentenceExtractionResult(
             context: numberByUse
                 ? numberedLabels(in: builder, usedSourceIndices: usedSourceIndices, labelOffset: labelOffset) : builder,
@@ -4293,13 +4301,41 @@ class RAGService: ObservableObject {
         )
     }
 
+    /// The candidates the whole-chunk assembler did not reach, which is what the needle rescue reads. It packs in
+    /// rank order, skipping near-duplicates, and stops at the first passage that does not fit, so these are the ones
+    /// after where it stopped: the ones the budget cut, and any near-duplicates skipped after the last one packed. A
+    /// later copy of a packed passage is not where it stopped and is not read again. `dropFirst(assembled.used)`
+    /// counted the skipped near-duplicates as packed, so it handed the rescue passages already in the prompt, and
+    /// while the assembler reordered every candidate before the cut (to 2026-10-20) it also left out the second-best
+    /// passage, which the reordering had put last.
+    nonisolated static func candidatesPastThePacked(
+        _ candidates: [RetrievedChunk], packed: [RetrievedChunk]
+    ) -> [RetrievedChunk] {
+        let packedIDs = Set(packed.map(\.chunk.id))
+        let stop = packed.compactMap { kept in candidates.firstIndex { $0.chunk.id == kept.chunk.id } }.max() ?? -1
+        return candidates[(stop + 1)...].filter { !packedIDs.contains($0.chunk.id) }
+    }
+
+    /// The passages a cloud envelope carries, in its order, which is the order its [S1], [S2] ... labels number them
+    /// (`renderCloudEvidenceEnvelope`); a passage it left out is dropped (5.7). The envelope orders its evidence by
+    /// rank, so the local order filtered by the envelope could put a different passage at a label's place.
+    nonisolated static func passages(
+        _ chunks: [RetrievedChunk], inTheOrderOf envelope: CloudEvidenceEnvelope
+    ) -> [RetrievedChunk] {
+        var byID: [String: RetrievedChunk] = [:]
+        for chunk in chunks where byID[chunk.chunk.id.uuidString] == nil {
+            byID[chunk.chunk.id.uuidString] = chunk
+        }
+        return envelope.evidence.compactMap { byID[$0.sourceID] }
+    }
+
     /// A label number not yet known: the candidate's index between two private-use characters.
     private nonisolated static func labelPlaceholder(_ sourceIndex: Int) -> String {
         "\u{E000}\(sourceIndex)\u{E001}"
     }
 
-    /// The context with each source's label numbered by its place among the sources used (5.7), for a caller that
-    /// keeps only those. The Standard path numbered by candidate while keeping only the used sources, numbered from
+    /// The context with each source's label numbered by its place in `usedSourceIndices` (5.7), for a caller that
+    /// keeps only those sources, in that order. The Standard path numbered by candidate while keeping only the used sources, numbered from
     /// one: on 2026-10-20 a pet-deposit question drew sentences from candidates 1, 5 and 6, the model was shown [S1],
     /// [S5] and [S6], cited all three correctly, and the answer's passages numbered 1 to 3 opened [S1] only. The
     /// needle rescue's labels, which start at `labelOffset`, skipped numbers the same way.
@@ -14964,6 +15000,9 @@ class RAGService: ObservableObject {
                 // this rather than letting the caller recompute `prefix(actualChunksUsed)`, which
                 // is what silently mismatched labels against sources.
                 var promptSources: [RetrievedChunk] = []
+                // Whether the whole-chunk assembler placed the passages for attention, which it does only when it
+                // packs four or more; the "Position reorder" event reports that and nothing else.
+                var placedForAttention = false
 
                 if answerIntentIsExtractive && !isProceduralQuery {
                     let extractionResult = await extractRelevantSentences(
@@ -15006,6 +15045,7 @@ class RAGService: ObservableObject {
                         context = assembled.context
                         actualChunksUsed = assembled.used
                         promptSources = assembled.sources
+                        placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
                         Log.warning(
                             "[RAG] Sentence extraction matched nothing across \(orderedCandidates.count) candidate(s); "
                                 + "falling back to whole-chunk assembly (\(assembled.used) chunks, \(assembled.context.count) chars) "
@@ -15032,6 +15072,7 @@ class RAGService: ObservableObject {
                     var assembledContext = assembled.context
                     actualChunksUsed = assembled.used
                     promptSources = assembled.sources
+                    placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
 
                     // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
                     // When assembleContext runs out of budget, chunks at positions 4+ are dropped
@@ -15040,7 +15081,7 @@ class RAGService: ObservableObject {
                     // appending high-value sentences into any remaining budget.
                     // This catches needles across ALL intents (summarize, procedure, compare, etc.)
                     // without replacing whole-chunk packing for the primary chunks.
-                    let droppedChunks = Array(orderedCandidates.dropFirst(assembled.used))
+                    let droppedChunks = Self.candidatesPastThePacked(orderedCandidates, packed: assembled.sources)
                     let remainingBudget = maxContextChars - assembledContext.count
                     let rescueBudgetFloor = (answerIntentIsExtractive || isPrecisionValueQuery(question)) ? 80 : 160
 
@@ -15082,7 +15123,7 @@ class RAGService: ObservableObject {
                 }
 
                 // Emit lost-in-middle event if it was applied
-                if useLostInMiddleMitigation && orderedCandidates.count >= 4 {
+                if placedForAttention {
                     emitThinkingEvent(
                         .lostInMiddle,
                         title: "Position reorder",
@@ -15820,10 +15861,10 @@ class RAGService: ObservableObject {
                             maximumCharacters: maximumCloudCharacters
                         )
                         generationContext = renderCloudEvidenceEnvelope(envelope)
-                        let includedIDs = Set(envelope.evidence.map(\.sourceID))
-                        generationRetrievedChunks = generationRetrievedChunks.filter {
-                            includedIDs.contains($0.chunk.id.uuidString)
-                        }
+                        // The envelope numbers its evidence [S1], [S2] ... in its own order, by rank, so the answer
+                        // keeps the passages in that order (5.7). Filtered in the local order, a label could open
+                        // the passage at that place in the local list (found by review, 2026-10-20).
+                        generationRetrievedChunks = Self.passages(generationRetrievedChunks, inTheOrderOf: envelope)
                         generationChunks = generationRetrievedChunks.map(\.chunk)
 
                         do {

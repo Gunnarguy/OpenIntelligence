@@ -1,6 +1,9 @@
 import XCTest
 @testable import OpenIntelligenceEngine
 
+// The engine module's types are main-actor isolated by default, so the tests run there (5.7); off it, every
+// property read here warned.
+@MainActor
 final class ContextPackingServiceTests: XCTestCase {
 
     var packingService: ContextPackingService!
@@ -11,7 +14,7 @@ final class ContextPackingServiceTests: XCTestCase {
         packingService = ContextPackingService(graphIndex: graphIndexService)
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         packingService = nil
         graphIndexService = nil
     }
@@ -134,7 +137,9 @@ final class ContextPackingServiceTests: XCTestCase {
         XCTAssertTrue(ids.contains(refChunk.id))
     }
 
-    func testLostInMiddleReordering() async throws {
+    /// The packer returns its passages in priority order; the Lost-in-the-Middle placement is the assembler's,
+    /// after its own budget (5.7). It used to reorder here to [0, 2, 4, 3, 1], and the assembler then cut rank 2.
+    func testPackKeepsPriorityOrderForTheAssembler() async throws {
         let docId = UUID()
         let chunks = (0..<5).map { i in
             createDummyChunk(id: UUID(), documentId: docId, content: "Chunk \(i)", index: i)
@@ -149,13 +154,7 @@ final class ContextPackingServiceTests: XCTestCase {
 
         XCTAssertEqual(packedContext.chunks.count, 5)
 
-        // applyLostInMiddleReorder turns:
-        // [0, 1, 2, 3, 4] -> [0, 2, 4, 3, 1]
-        XCTAssertEqual(packedContext.chunks[0].id, chunks[0].id)
-        XCTAssertEqual(packedContext.chunks[1].id, chunks[2].id)
-        XCTAssertEqual(packedContext.chunks[2].id, chunks[4].id)
-        XCTAssertEqual(packedContext.chunks[3].id, chunks[3].id)
-        XCTAssertEqual(packedContext.chunks[4].id, chunks[1].id)
+        XCTAssertEqual(packedContext.chunks.map(\.id), chunks.map(\.id))
     }
 
     func testPackForIntent() async throws {

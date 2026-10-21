@@ -264,8 +264,11 @@ actor ContextPackingService {
             }
         }
 
-        // Sort result by document order within each document
-        let sorted = sortByDocumentOrder(result)
+        // In priority order: core passages by rank, then parents, neighbors and references. The Lost-in-the-Middle
+        // placement is the assembler's, after its own budget (`RAGEngine.assembleContext`, 5.7). Placed here, rank 2
+        // went last, and the assembler's budget cut it whenever about half the passages fit (found by review,
+        // 2026-10-20).
+        let sorted = result
 
         return PackedContext(
             chunks: sorted,
@@ -280,53 +283,6 @@ actor ContextPackingService {
     /// Estimate tokens for a chunk
     private func estimateTokens(_ chunk: DocumentChunk) -> Int {
         FoundationModelTokenBudget.estimateTokensForCharCount(chunk.content.count)
-    }
-
-    /// Apply Lost-in-Middle reordering (Liu et al., 2023).
-    ///
-    /// LLMs attend most to the BEGINNING and END of context, with diminished attention
-    /// to the middle. This reordering places the highest-relevance chunks at positions
-    /// 1 and N, with lower-relevance chunks in the middle — maximizing the chance that
-    /// the most important evidence is fully attended to during generation.
-    ///
-    /// Input:  [rank1, rank2, rank3, rank4, rank5] (relevance order from retrieval)
-    /// Output: [rank1, rank3, rank5, rank4, rank2] (best at edges, worst in middle)
-    ///
-    /// Only applied to core chunks (parents/neighbors retain document order).
-    private func applyLostInMiddleReorder(_ chunks: [DocumentChunk]) -> [DocumentChunk] {
-        guard chunks.count > 2 else { return chunks }
-
-        var reordered: [DocumentChunk] = []
-        reordered.reserveCapacity(chunks.count)
-
-        // Interleave: odd-indexed go to front (beginning), even-indexed go to back (end)
-        // This places rank 0 first, rank 2 next, rank 4 next... then rank 5, rank 3, rank 1
-        var frontItems: [DocumentChunk] = []
-        var backItems: [DocumentChunk] = []
-
-        for (i, chunk) in chunks.enumerated() {
-            if i % 2 == 0 {
-                frontItems.append(chunk)
-            } else {
-                backItems.append(chunk)
-            }
-        }
-
-        // Front items stay in order, back items are reversed (so highest-rank is at the very end)
-        reordered = frontItems + backItems.reversed()
-        return reordered
-    }
-
-    /// CRITICAL FIX: Preserve relevance order, not document order!
-    /// The retrieval pipeline carefully ranks chunks by relevance (semantic + BM25 + re-ranking).
-    /// Sorting by page number destroys this ranking and causes the LLM to see irrelevant
-    /// content first (e.g., "driver assistance" from page 100 before "engine oil" from page 522).
-    ///
-    /// Updated: Now applies Lost-in-Middle reordering to core chunks for optimal LLM attention.
-    private func sortByDocumentOrder(_ chunks: [DocumentChunk]) -> [DocumentChunk] {
-        // Apply Lost-in-Middle reordering: strongest evidence at beginning and end,
-        // weakest in the middle where LLM attention is lowest.
-        return applyLostInMiddleReorder(chunks)
     }
 
     // MARK: - Specialized Packing Modes
@@ -431,7 +387,7 @@ actor ContextPackingService {
             }
         }
 
-        let sorted = sortByDocumentOrder(result)
+        let sorted = result
 
         return PackedContext(
             chunks: sorted,

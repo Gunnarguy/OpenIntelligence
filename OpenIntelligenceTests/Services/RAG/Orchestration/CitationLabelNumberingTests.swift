@@ -72,7 +72,7 @@ final class CitationLabelNumberingTests: XCTestCase {
         let used = result.usedSourceIndices
         XCTAssertFalse(used.isEmpty, result.context)
         XCTAssertEqual(
-            Set(labels(in: result.context)), Set(1...used.count), "labels count the sources used: \(result.context)")
+            labels(in: result.context), Array(1...used.count), "the labels read 1, 2, 3 down the context: \(result.context)")
         for (place, index) in used.enumerated() {
             let opened = block(place + 1, in: result.context)
             let words = candidates[index].chunk.content.split(separator: " ").prefix(3).joined(separator: " ")
@@ -90,7 +90,7 @@ final class CitationLabelNumberingTests: XCTestCase {
 
         let used = result.usedSourceIndices
         XCTAssertFalse(used.isEmpty, result.context)
-        XCTAssertEqual(Set(labels(in: result.context)), Set(5...(4 + used.count)), result.context)
+        XCTAssertEqual(labels(in: result.context), Array(5...(4 + used.count)), result.context)
     }
 
     /// Deep Think's windows keep every routed passage, so without `numberByUse` a label stays the candidate's
@@ -115,6 +115,89 @@ final class CitationLabelNumberingTests: XCTestCase {
             "index 1 is not read inside index 12")
         XCTAssertEqual(
             RAGService.numberedLabels(in: "[S\u{E000}7\u{E001}] x", usedSourceIndices: [7], labelOffset: 3), "[S4] x")
+    }
+
+    /// With the lead passage whole, it is [S1] and the rest follow in the order the context shows them. Numbered in
+    /// candidate order they read [S1], [S8], [S9], [S6] down the household context on 2026-10-20.
+    func testTheLeadIsS1AndTheLabelsReadInOrderDownTheContext() async {
+        let candidates = lease
+        let result = await RAGService().extractRelevantSentences(
+            from: candidates, query: "How much is the pet deposit", maxChars: 2_000, compact: true,
+            isExtractiveFirst: true, leadingCandidateWhole: true, numberByUse: true)
+
+        let used = result.usedSourceIndices
+        XCTAssertEqual(used.first, 0, result.context)
+        guard !used.isEmpty else { return }
+        XCTAssertEqual(labels(in: result.context), Array(1...used.count), result.context)
+        for (place, index) in used.enumerated() {
+            let opened = block(place + 1, in: result.context)
+            let words = candidates[index].chunk.content.split(separator: " ").prefix(3).joined(separator: " ")
+            XCTAssertTrue(opened.contains(words), "[S\(place + 1)] opens candidate \(index): \(opened)")
+        }
+    }
+
+    /// The assembler chooses the passages that fit in rank order and then puts the best first and the second best
+    /// last. It reordered every candidate before the budget, so with four of six fitting it kept ranks 1, 3, 5 and 6
+    /// and cut rank 2 (the PostDesk session's code trace, 2026-10-20).
+    func testTheSecondBestPassageIsKeptAndPlacedLast() async {
+        let ranked = (0..<6).map { passage(filler($0), "D.pdf", rank: $0) }
+        // A compact block is the passage's 200 characters and 18 of label, file name and separator: four fit in
+        // 1,000 characters and five do not.
+        let assembled = await RAGEngine.shared.assembleContext(
+            chunks: ranked, maxChars: 1_000, compact: true, useLostInMiddleMitigation: true)
+
+        XCTAssertEqual(assembled.used, 4, assembled.context)
+        XCTAssertEqual(assembled.sources.map(\.chunk.id), [0, 2, 3, 1].map { ranked[$0].chunk.id }, assembled.context)
+        XCTAssertEqual(labels(in: assembled.context), [1, 2, 3, 4], assembled.context)
+        XCTAssertTrue(block(4, in: assembled.context).contains("w1x0 "), "rank 2 is [S4], last: \(assembled.context)")
+        XCTAssertTrue(assembled.context.hasSuffix("Cite only sources S1 to S4."), assembled.context)
+    }
+
+    /// The needle rescue reads the candidates after the last one packed. `dropFirst(used)` counted a skipped
+    /// near-duplicate as packed and handed back a passage already in the prompt.
+    func testTheRescueReadsOnlyTheCandidatesPastTheLastPacked() {
+        let candidates = lease
+        let past = RAGService.candidatesPastThePacked(candidates, packed: [candidates[0], candidates[2], candidates[3]])
+        XCTAssertEqual(past.map(\.chunk.id), [candidates[4], candidates[5]].map(\.chunk.id))
+        XCTAssertEqual(RAGService.candidatesPastThePacked(candidates, packed: []).count, candidates.count)
+    }
+
+    /// A later copy of a packed passage is not where the assembler stopped: the passages between are still read.
+    func testTheRescueSkipsALaterCopyOfAPackedPassage() {
+        let candidates = lease
+        let past = RAGService.candidatesPastThePacked(
+            candidates + [candidates[0]], packed: [candidates[0], candidates[1]])
+        XCTAssertEqual(past.map(\.chunk.id), candidates[2...].map(\.chunk.id))
+    }
+
+    /// A cloud envelope numbers its evidence in its own order, so the answer keeps the passages in that order.
+    func testPassagesFollowTheCloudEnvelopesOrder() {
+        let candidates = lease
+        let carried = [candidates[2], candidates[0], candidates[4]]
+        let envelope = CloudEvidenceEnvelope(
+            planID: UUID(),
+            query: "How much is the pet deposit",
+            evidence: carried.map {
+                CloudEvidenceItem(
+                    sourceID: $0.chunk.id.uuidString, documentName: $0.sourceDocument, pageNumber: $0.pageNumber,
+                    text: $0.chunk.content)
+            },
+            omittedChunkCount: 3,
+            characterCount: 0
+        )
+        XCTAssertEqual(
+            RAGService.passages(candidates, inTheOrderOf: envelope).map(\.chunk.id), carried.map(\.chunk.id))
+    }
+
+    /// 200 characters of words only this rank uses, so no two passages read as near-duplicates.
+    private func filler(_ rank: Int) -> String {
+        var text = ""
+        var n = 0
+        while text.count < 200 {
+            text += "w\(rank)x\(n) "
+            n += 1
+        }
+        return String(text.prefix(200))
     }
 
     /// A near-duplicate the assembler skips takes no label: the passages after it keep their place.
