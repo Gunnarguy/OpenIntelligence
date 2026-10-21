@@ -1,4 +1,6 @@
 > **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30; dated notes below carry their own dates. Shipped and in-development versions are not restated here: `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-29; from 2026-06-30 this line and the Version line below said "working on v4.5".
+>
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** section 5's per-device table, sample code and phases are wrong for the current code and carry a correction under the section. HyDE and contextual compression (sections 1 and 3) run in no user-selectable mode, section 4's grounding method has no caller, the 2026-08-10 note that the extractive override "no longer runs" is reversed, and the performance table's agentic row is set against a device measurement. Section 10's levels, battery handling and cooldown are wrong for the current code and carry a correction at the end of the section. Each change sits at the place it corrects.
 
 # RAG Technical Specifications
 
@@ -184,6 +186,13 @@ and the website all carry it and must move together.
 - `VerificationGateService.swift` now defines gates A-I, not only A-G.
 - The vector store is not only HNSW. The current BNNS/Accelerate implementation persists memory-mapped vectors and uses Metal for larger searches when available; Vectura/HNSW is a selectable backend path.
 - Full GraphRAG is not a shipped claim. The app has graph-style context packing, deterministic entities, and RAPTOR-lite summaries, but not evaluated LLM-derived entity graph/community summaries.
+- **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):**
+  - The first bullet's "4096-token FoundationModels session budget" is the fallback. The window is read from `SystemLanguageModel.default.contextSize` (4,096 on the owner's iPhone 16 Pro Max, 8,192 on his Mac), and when Hybrid can reach Private Cloud Compute, Standard sizes its first pass for 32,768 tokens.
+  - The 2026-08-10 bullet above, "That override no longer runs", is wrong for the current code, as the Step 5.10 row's 2026-09-26 note already says. `highPrecisionLookupOverrideAnswer` runs outside the commented-out block: Deep Think and Maximum return a locked value before the orchestrator runs, a locked value replaces an agentic answer afterwards, and Standard swaps it in after generation (from 5.7 only when the model's answer does not already state the value).
+  - "Vectura/HNSW is a selectable backend path" is not true of any build: `VecturaVectorDatabase` is behind `#if canImport(VecturaKit)`, VecturaKit is not a dependency, and a library configured for it falls back to the BNNS store.
+  - The quick reference table's HyDE and contextual compression rows say ON. Their settings default to true, but neither runs in any user-selectable mode. Each needs a mode flag that is off in Standard, and Deep Think and Maximum leave for the agentic path before either step.
+  - "Deterministic entities" are attached to chunks, but the entity index is never filled, so nothing expands through it.
+  `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:14532-14543, :10561-10737, :11191-11198, :16501-16528, :12278-12325, :14320-14326 and :14406, :21863-21866, OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift:167-172, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195 and :277-284, OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137]`
 
 ---
 
@@ -235,6 +244,13 @@ static func shouldUseHyDE(for query: String) -> Bool
 - Latency: +200-400ms (LLM generation)
 - Recall improvement: 15-25% on factual/technical queries
 - Best for: Manuals, spec sheets, technical documentation
+
+> **Corrected 2026-10-20:** in the working tree HyDE runs in no user-selectable mode. Its only
+> construction is in Standard's pipeline, behind a mode flag that is false for Standard, and Deep
+> Think and Maximum embed without it ("HyDE disabled in Deep Think"). The recall figure above has no
+> benchmark artifact cited for this app. `[evidence_level: code_verified, confidence: exact,
+> evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:12278-12325 and
+> :21863-21866, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195]`
 
 ---
 
@@ -348,6 +364,12 @@ Config.conservative // 60% retention (safer)
 - Latency: +100-200ms per chunk
 - Drops entirely irrelevant chunks automatically
 
+> **Corrected 2026-10-20:** in the working tree contextual compression runs in no user-selectable
+> mode. Its only call is in Standard's pipeline, behind a mode flag that is off for Standard and
+> Maximum and on only for Deep Think, which never reaches that step. `[evidence_level: code_verified,
+> confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:14320-14326
+> and :14406, OpenIntelligence/Core/Models/RAGQualityMode.swift:277-284]`
+
 ---
 
 ## 4. Answer Grounding Verification
@@ -386,6 +408,14 @@ let verification = try await service.verifyAnswerGrounding(
 - Display confidence indicators in UI
 - Trigger re-retrieval on low confidence
 - Flag potentially hallucinated responses
+
+> **Corrected 2026-10-20:** `verifyAnswerGrounding` is defined and nothing calls it, so these uses do
+> not happen through it. The checks that run are the nine gates of `VerificationGateService`, once,
+> after generation. They label the answer, and Standard abstains only when reliability mode is off or
+> their overall confidence is under the bar. No gate triggers re-retrieval. `[evidence_level:
+> code_verified, confidence: exact, evidence_source:
+> OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift:452 (no caller),
+> OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:16623-16709]`
 
 ---
 
@@ -436,6 +466,49 @@ let response = try await orchestrator.process(query: userQuery, ragService: ragS
 let tier = DeviceCapabilityService.currentTier
 let config = DeviceCapabilityService.optimizedAgenticConfig()
 ```
+
+### Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress)
+
+This section described the v4.4 loop, and four things in it are wrong for the current code. The
+table, the sample and the phases above are kept as they were written.
+
+- **The per-device table.** `DeviceCapabilityService.optimizedAgenticConfig()` gives the A17 Pro 5
+  steps and 20,000 tokens (confidence 0.85, escalation 0.35), the A18 and A18 Pro 8 steps and 32,000
+  tokens (0.90, 0.40), the A19 10 and 40,000 (0.92, 0.45), and the ultra tier 12 steps and 56,000
+  tokens for each 16 GB of memory, never fewer than 12 and 56,000 and at most 32 and 128,000 (0.95,
+  0.50). The ultra tier is a Mac with an M1 Ultra or an M2 or later, an iPad Pro with an M2 or later
+  and an iPhone with an A20 or later, by model identifier. M1, M1 Pro and M1 Max Macs, the M1 iPads
+  and the M2 iPad Air get the A18's numbers, and the M3 iPad Air the A19's. The table's "A18 6
+  and 24,000" matches nothing that drives the loop. A second table on the same service,
+  `maxConcurrentAgenticSteps` and `maxAgenticTokenBudget`, gives the A18 5 steps and 24,000 tokens,
+  and it is only printed in a diagnostic summary.
+- **What the numbers do.** The step count only picks the chain's starting length (8 or more steps
+  `.deep`, 5 or more `.standard`, else `.light`) and caps the decomposed pipeline at the steps less
+  2. Deep Think's chain stops at 8 sessions on every device, and earlier when the pool runs out of
+  distinct windows. The token figure is checked only by the decomposed pipeline and the research
+  rounds, never inside the chain or Maximum's own loop. Maximum ignores this table and uses
+  `AgenticConfig.unlimited` (50 steps, 200,000 tokens, 0.98).
+- **The sample code.** `AgenticConfig` has no `tokensPerSession`. Its fields are `maxSteps`,
+  `maxTotalTokens`, `streamIntermediateResults`, `confidenceThreshold` and `escalationThreshold`. The
+  orchestrator is `Services/Agentic/AgenticOrchestrator.swift`, and its entry point is
+  `execute(query:initialContext:onStep:)`, not `process(query:ragService:)`.
+- **The phases and the sessions.** No Deep Think or Maximum step uses a tool: every session and
+  synthesis passes `disableTools: true`. Retrieval runs before the sessions, as up to 5 search
+  phrasings each sent through the full pipeline and fused into 20 passages, and each session reads
+  the next window cut from that pool, so "SEARCHING" happens once, before the sessions, and again
+  only in the research rounds after Deep Think's chain. Where the OS can count tokens, Deep Think's
+  chain sizes its windows from the window the device reports (4,096 on the owner's iPhone, 8,192 on his
+  Mac), not a fixed 4K, and it falls back to sentences extracted to 3,500 characters (3,000 when
+  Maximum runs the chain). Maximum's own loop reads a fixed 2,500 characters a session. A precision
+  lookup can return an extracted value before any of this runs.
+
+`Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, section 19, has the loop with its file and line
+citations. `[evidence_level: code_verified, confidence: exact, evidence_source:
+OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:1044-1091, :1096-1488
+(the tier tables), :605-628 and :1714-1715, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:95-150,
+:212-226, :272, :1749-1751, :2942, :4931-4936, :5003-5126, :5313, :6833,
+OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift:304,
+OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:10561-10737 and :10863-10871]`
 
 ---
 
@@ -601,6 +674,18 @@ All advanced RAG settings in `SettingsStore.swift`:
 | Cross-Encoder Rerank   | +50-100ms        | Neutral        | Better ranking    |
 | Query Rewriting        | +100-200ms       | Neutral        | Clearer intent    |
 
+> **Corrected 2026-10-20:** two rows here describe nothing that runs, and one row is far from what was
+> measured. HyDE and contextual compression run in no user-selectable mode in the working tree (see
+> sections 1 and 3). The agentic row's "+2-10s" has no measurement behind it, and the one device A/B in
+> `Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md` took 99.4 seconds and 3,342 tokens for one Deep
+> Think question on an iPhone (A18 Pro), eight sessions, on 2026-07-30. In the troubleshooting table
+> below, "Enable grounding verification" names a method nothing calls (section 4), and Query
+> Rewriting costs a model call only for a question the ambiguity check flags. `[evidence_level:
+> code_verified for the modes and the method, device_verified for the 99.4 s (that document's own tag),
+> confidence: high, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:12278-12325,
+> :14320-14326, :11982-11983, OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift:83-100,
+> OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift:452, Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md lines 25-33]`
+
 ---
 
 ## Troubleshooting
@@ -759,3 +844,42 @@ AdaptivePipelineOptimizer.shared.clearUserOverride()
 2. **Check telemetry** - `[Adaptive] Pipeline adjusted to efficient mode` in logs
 3. **iPad Pro users** - Get the full experience with minimal throttling
 4. **Older iPhones** - Will automatically scale back on sustained use
+
+### Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress)
+
+This section describes an earlier optimizer, and five things in it are wrong for the current code. The
+text above is kept as it was written.
+
+- **What lowers the level.** Only two states do. A critical thermal state selects minimal (shown as
+  Emergency), and critical memory pressure selects efficient (shown as Power Saver). Serious thermal no
+  longer throttles, the battery level no longer degrades anything (the code says "Battery level no
+  longer triggers degradation"), and nothing but a manual override selects balanced. Low Power Mode is
+  read only to keep background work off the GPU and for display.
+- **What each level changes.** The candidate cap starts from the device tier, 75 on an A17 Pro, 100 on
+  an A18, 150 on an A19 and 250 on the ultra tier. It is halved at efficient and is 10 at minimal, and a
+  trivial question is held to 10 and a complex one to 50. `RAGService` reads the adaptive configuration
+  in four places, all on Standard's path: the configuration recorded for the query, the candidate cap,
+  the parent-document switch and the compression switch. The HyDE, rewriting and iterative-retrieval
+  switches, the step limit (`maxAgenticSteps`, 0 at minimal), the query timeout and the level recorded
+  for the query have no reader. The integration code above, with `adaptiveConfig.enableHyDE`, is not
+  in the source.
+- **Deep Think and Maximum.** Neither loop reads the level, the adaptive configuration, the thermal
+  state, the memory pressure, the battery or Low Power Mode, so a hot phone, low memory, a low battery
+  or Low Power Mode do not make them do less. What the device changes for them is section 5's chip
+  configuration. From 5.7 both loops wait 1 second before each session from the second while iOS 27
+  asks apps to use less, and the session count is not cut.
+- **The cooldown.** `applyCooldown` does not return at once on a cool phone. Before each Standard
+  generation it waits the tier's `stepCooldownMs`, 200 ms on an A17 Pro, 100 on an A18, 50 on an A19
+  and 0 on the ultra tier, 150 ms more at efficient and 300 ms at minimal. Deep Think and Maximum do
+  not call it.
+- **Complexity.** The cases are trivial, standard, complex and agentic, taken from the query's profile.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source:
+OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift:56-71
+(recommendedOptimizationLevel), :115-261 (the tiers and levels), :324-400 (configForQuery), :408-413
+(applyCooldown), :599-603 (QueryComplexity), OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:11545,
+:11740, :14191, :14325 and :15541, OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift:66
+and :233-234, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:5174 and :6643 (the pauses),
+OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift:1084-1087, the v5.6.0 tag
+(no pause), a search of every Swift file under OpenIntelligence/ for each field and for the thermal,
+battery and Low Power readers]`

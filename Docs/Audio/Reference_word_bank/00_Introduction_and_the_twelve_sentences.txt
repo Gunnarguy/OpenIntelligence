@@ -14,7 +14,7 @@ Five. Chunks are written to SQLite F T S five and to a memory-mapped vector file
 Six. A question is profiled and planned first: intent, complexity, mode, and whether it is agentic.
 Seven. Vector search and B M twenty-five run in parallel and are fused with reciprocal rank fusion at k equals sixty.
 Eight. A cross-encoder reranks the shortlist; a similarity floor and maximal marginal relevance cut it; neighbours are added.
-Nine. Evidence is packed under the real token budget, strongest first and last.
+Nine. Evidence is packed under the token budget: a lookup gets its best passage first, and from 5.7 whole up to three fifths of the budget, then the sentences that match the question, and any other question gets the strongest first and last.
 Ten. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and only then asks for consent.
-Eleven. The model streams a typed answer with citations; nine deterministic gates decide what survives.
+Eleven. The model streams an answer with citations, as typed claims when the request fits 3,600 tokens, and nine deterministic gates then label it, holding it back only on a low score or with the reliability setting off.
 Twelve. What comes back is inspectable: claims, chunk-level citations with page and quote, the completed route, and a trace.

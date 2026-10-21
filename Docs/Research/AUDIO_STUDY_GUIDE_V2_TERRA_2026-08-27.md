@@ -9,6 +9,9 @@
 
 > **Note added 2026-10-20.** Nine components this guide names were removed in 5.7 on 2026-10-20 because nothing referenced them: `AdapterManager`, `AutoTuneService`, `BNNSGraphService`, `ContextUsageIndicator`, `ExtractiveQAService`, `GroundedAnswerPolicy`, `RetrievalSourcesTray`, `TimingBreakdownView` and `VisualCaptioningService`. What it says about them describes the code checked on August 27, 2026.
 
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** this guide is the code of August 27, 2026, and its account of the agentic loop, tools, routing, packing and checks no longer matches the code in several places. Each place carries a dated correction: Part One sections 07, 09, 10, 11, 12 and 15, and concepts OI-0002, OI-0009, OI-0092, OI-0220, OI-0226, OI-0273, OI-0283, OI-0317, OI-0349, OI-0382, OI-0402, OI-0408, OI-0416, OI-0417, OI-0430, OI-0431, OI-0432, OI-0435, OI-0437, OI-0448, OI-0460, OI-0569, OI-0572 and OI-0577. The rest was not re-read. `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, section 19, has the loop with its file and line citations. A second review the same evening corrected several of them again (the step cooldown, the abstain flag, the research retries, the ultra tier, the agentic label, the planning call, the lookup's lead passage and the cloud window), and each correction now carries an evidence tag. `[evidence_level: code_verified, confidence: high, evidence_source: the tag at each correction below, read in OpenIntelligence/ on 2026-10-20]`
+
 ---
 
 # How to Listen
@@ -160,6 +163,8 @@ QueryProfile and QueryExecutionPlan centralize answer intent, search intent, abs
 
 This section contains **45 controlled concepts**. Part Two names every one.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** planner escalation is off while Apple's model writes the answers, and no other model writes them in this build, so a run becomes agentic only by the mode or by Go Deeper. Every question first gets an on-device planning call, a guided generation that proposes search phrasings and sub-questions and says whether documents are needed. HyDE runs in no user-selectable mode. A lookup is kept literal, and the model rewrites only a question the ambiguity check flags. A query-cache hit skips rewriting, expansion, embedding and the search. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift:202-211, OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift:67-99 and :330-418, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:11501, :12278-12325, :11982-11983, :11896-11910]`
+
 ## 08. Retrieval, fusion, reranking, and evidence expansion
 
 ### Explain it like I am five
@@ -192,6 +197,8 @@ The context layer performs source-sentence selection, query-aware compression, e
 
 This section contains **27 controlled concepts**. Part Two names every one.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** query-aware compression runs in no user-selectable mode: its only call is behind a mode flag that is off in Standard, and Deep Think never reaches that step. The window is the one the device reports, 4,096 on the owner's iPhone and 8,192 on his Mac, and Standard's budget is computed per question, 3,190 tokens on that iPhone on 2026-10-16. A lookup gets its best passage first, and from 5.7 whole up to three fifths of the budget, then matching sentences, with no Lost-in-the-Middle reorder. `[evidence_level: code_verified, measured for the 3,190, confidence: high, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:14320-14326, :14406, :14776-14847, :3746-3747 (the measurement), :14935-14975, :3756-3813, OpenIntelligence/Core/Models/RAGQualityMode.swift:277-284]`
+
 ## 10. Model execution, routing, tools, and generation
 
 ### Explain it like I am five
@@ -207,6 +214,8 @@ The execution layer chooses deterministic, on-device, cloud-eligible, or abstent
 This section covers InferenceConfig, post-retrieval ModelExecutionPlan, FoundationModel route policy, fail-closed quota and consent logic, LanguageModelSession construction, @Generable constrained decoding, tool schemas, streaming, structured generation, attempts, fallbacks, and receipts.
 
 This section contains **62 controlled concepts**. Part Two names every one.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** Private Cloud Compute has shipped since 5.2, and a new install starts on Hybrid with permission "Ask when needed". Under Hybrid the planner picks PCC only when the prompt and evidence as assembled, before anything is minimized, fit the window PCC reports and either the evidence does not fit the device or a Deep Think or Maximum answer draws on more than one document. No plan is deterministic in this build, because no code asks for exact extraction, and one would still generate on the device. Tools are exposed to no Deep Think or Maximum call, and Standard withdraws them once evidence is assembled. Constrained decoding runs only when the request fits 3,600 tokens. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/ModelExecutionPlanner.swift:24-130, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:18447-18448, :18509-18521, :15877, :14769-14774, :18766, OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift:50 and :454-461]`
 
 ## 11. Agentic, recursive, and multi-session reasoning
 
@@ -224,6 +233,8 @@ The agentic branch orchestrates plans, search actions, structured fact accumulat
 
 This section contains **40 controlled concepts**. Part Two names every one.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the loop does not search one piece at a time. A lookup can be answered by the extractor before any session. Otherwise an on-device planning call decides whether documents are needed, up to 5 search phrasings each run the full pipeline once, fused into 20 passages and graded, cross-reference resolution can add passages, and only an excellent or good grade enters a chain. Deep Think's chain cuts every session's window from that pool before session 1, runs at most 8 sessions on every device and fewer when the windows run out, uses no tools, and stops when the windows run out, when confidence, coverage and novelty exhaustion all clear at once from the fifth session, when the model writes ANSWER COMPLETE, or when a session still fails after its retries. Only the research rounds after the chain search again, bounded by 180 seconds. Maximum's own loop reads 3 unread passages a session and never searches again. Neither loop reads heat, memory, the battery or Low Power Mode. The repetition check cannot run in Deep Think or Maximum. Iterative retrieval, HyDE and compression are not on this path, and the structured hand-off types are referenced by nothing. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:297-305, :521-536, :544-1143, :1916-2260, :5003-5126, :5165-5190, :5437-5512, :5521-5531, :731 and :3855, :6572-6807, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:10561-10737, OpenIntelligence/Core/Models/RAGStructuredResponse.swift:238-278]`
+
 ## 12. Verification, grounding, confidence, and abstention
 
 ### Explain it like I am five
@@ -239,6 +250,8 @@ Verification checks claims, citations, quotes, numeric values, contradictions, d
 The trust layer applies Gates A through I, source-only verification, claim verdicts, quote-span checks, numeric-unit validation, domain isolation, confidence policy, calibration parameters, abstention thresholds, answer-replacement guards, and fidelity rendering.
 
 This section contains **40 controlled concepts**. Part Two names every one.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the gates change no word of the answer shown, though the claims Gate B could not support leave the structured answer's claim list and are listed as gaps. They run once after the answer is written and label it. Standard abstains only when reliability mode is off or the gates' overall confidence is under the bar, and Deep Think and Maximum answers get no gates in the shipped 5.6, and from 5.7 a label only, verified when all nine pass. The critical gates' abstain flag decides nothing and only adds its reason to that list of gaps. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift:242-271, OpenIntelligence/Core/Models/StructuredAnswer.swift:955-1048, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:16652-16709, :20072-20089, :11238-11262]`
 
 ## 13. Response structure, provenance, rendering, and observability
 
@@ -287,6 +300,8 @@ Runtime services adapt to hardware, thermal state, memory, background limits, sy
 This layer includes DeviceCapabilityService, AdaptivePipelineOptimizer, GPU profiles, Core ML compute-unit policy, vDSP, BNNS, Metal, background continued-processing tasks, workspace synchronization, materialization guards, StoreKit entitlements, quotas, and settings persistence.
 
 This section contains **44 controlled concepts**. Part Two names every one.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the optimizer's agentic-step limit and query timeout are read by nothing, and `agenticStepCooldownMs` has no caller, so a critical thermal state does not stop Deep Think or Maximum, and neither loop reads heat, memory, the battery or Low Power Mode. The optimizer's step cooldown is read, and it delays only Standard's generation, 200 ms on an A17 Pro down to 0 on the ultra tier, and longer under critical memory pressure or critical heat. What the device sets for the loop is its agentic configuration: 5 to 32 steps, 20,000 to 128,000 tokens and a 0.85 to 0.95 confidence target by chip. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift:56-71, :104-108, :115-261 and :408-413, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:15541, OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:631-639 and :1044-1091]`
 
 ## 16. Dormant, future, superseded, and commonly misnamed mechanisms
 
@@ -355,6 +370,8 @@ It replaces the Standard execution path after the runtime coordinator resolves t
 ### Why it is in this position
 
 It replaces the Standard execution path after the runtime coordinator resolves the mode.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** Deep Think's path runs neither HyDE nor the iterative-retrieval step, and from 5.7 the nine gates label its answers, verified when all nine pass, while its verification threshold decides nothing for them. It takes the device's agentic configuration, writes up to 5 search phrasings, and reads the result in a chain of at most 8 sessions. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:11578-11594, :21863-21866, :11238-11262, :16670, :10863-10871, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:1916-2060, OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift:304]`
 
 ## OI-0003. Deterministic stage
 
@@ -495,6 +512,8 @@ It enters the agentic path at query start and uses evidence-driven stopping rath
 ### Why it is in this position
 
 It enters the agentic path at query start and uses evidence-driven stopping rather than a single fixed pass.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** Maximum's own loop runs only when retrieval grades excellent: a good grade runs Deep Think's chain. Its loop gathers once, reads 3 unread passages a session, never searches again, and stops when completed (0.98 and coverage on target) or converged (from the start of session 6), at the ceiling, or after 3 failures. From 5.7 it waits 1 second before each session from the second while iOS 27 asks apps to use less. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:544-631, :841-918, :6572-6807, :6639-6646, :6936-6953]`
 
 ## OI-0010. OpenIntelligence engine
 
@@ -2173,6 +2192,8 @@ It is populated after chunks receive entities and queried during agentic or grap
 ### Why it is in this position
 
 It is populated after chunks receive entities and queried during agentic or graph expansion.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** nothing fills it: `EntityIndexService.indexChunk` and `indexChunks` have no caller outside the service, so it is empty in every library. Read it as Dormant. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137, a search of every Swift file under OpenIntelligence/ for a caller (none outside the service)]`
 
 ## OI-0093. Entity normalization
 
@@ -4776,6 +4797,8 @@ It occurs after query analysis and before or beside dense retrieval in Deep Thin
 
 It occurs after query analysis and before or beside dense retrieval in Deep Think and Maximum.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** no user-selectable mode runs it in the working tree. Standard's flag is off, and Deep Think and Maximum embed without it. Read it as Dormant. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:12278-12325, :21863-21866, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195]`
+
 ## OI-0221. Hypothetical document
 
 **Status:** Conditional, meaning it is active only in particular modes, settings, file types, or situations.
@@ -4897,6 +4920,8 @@ It is resolved by QueryRuntimeCoordinator before retrieval. Primary code anchors
 ### Why it is in this position
 
 It is resolved by QueryRuntimeCoordinator before retrieval.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** it is switched off whenever Apple's model writes the answers, and no other model writes them in this build (without Apple Intelligence a stand-in that only throws takes its place). Read it as Dormant. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift:211, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:11501 and :2322-2346]`
 
 ## OI-0227. Primary entity
 
@@ -5846,6 +5871,8 @@ It begins after an initial result set is judged insufficient and stops on qualit
 
 It begins after an initial result set is judged insufficient and stops on quality, pass count, or no-improvement rules.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** in Standard it needs the iterative-retrieval setting, off by default, and Deep Think and Maximum never reach this step. Their searching again is the research rounds after Deep Think's chain. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:12496-12510, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:731 and :3855]`
+
 ## OI-0274. Jaccard deduplication
 
 **Status:** Core, meaning it is active and load-bearing.
@@ -6045,6 +6072,8 @@ It is supplied during MMR selection after reranking. Primary code anchors: OpenI
 ### Why it is in this position
 
 It is supplied during MMR selection after reranking.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the per-mode values in `RAGQualityMode.mmrLambda` are read by nothing. Every mode uses the library's lambda, 0.6 by default, at least 0.85 for a procedure. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Core/Models/RAGQualityMode.swift:210-217 and :315-330 (featureToggles, which nothing reads), OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:13692-13708 and :21990]`
 
 ## OI-0284. Multi-vector retrieval
 
@@ -6734,6 +6763,8 @@ It runs after retrieval but before final packing, mainly in Deep Think under cur
 
 It runs after retrieval but before final packing, mainly in Deep Think under current mode policy.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** no user-selectable mode reaches it in the working tree. Read it as Dormant. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:14320-14326 and :14406, OpenIntelligence/Core/Models/RAGQualityMode.swift:277-284]`
+
 ## OI-0318. Core evidence chunk
 
 **Status:** Core, meaning it is active and load-bearing.
@@ -7383,6 +7414,8 @@ It is selected after high-confidence extraction and skips the language-model cal
 ### Why it is in this position
 
 It is selected after high-confidence extraction and skips the language-model call.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** no plan reaches this target in the working tree, because the only code that builds the planner's evidence passes `requiresExactExtraction: false`, and one would not skip the model call: `RAGService` runs a deterministic plan on the on-device branch, and the extracted value may replace the answer afterwards. The answers with no model call are Deep Think and Maximum's precision shortcut and Standard's reliability fallback, an extracted value or excerpts alone. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:18447-18448, :15877, :10561-10737, :17317-17612, OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift:35-37]`
 
 ## OI-0350. DirectRAGAnswer
 
@@ -8050,6 +8083,8 @@ They are attached only to sessions whose execution plan allows tools. Primary co
 
 They are attached only to sessions whose execution plan allows tools.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** six are registered, and none supports agentic evidence gathering: every Deep Think and Maximum session and synthesis runs with tools off, and no Deep Think or Maximum step asks the model to choose a tool. Standard's direct chat in a library with no documents is the one call that keeps them. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelToolRegistry.swift:327-360, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:5313, :5944, :6906, :7438, :7488, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:17106-17111]`
+
 ## OI-0383. Response-tail trimming
 
 **Status:** Core, meaning it is active and load-bearing.
@@ -8456,6 +8491,8 @@ It is produced by one recursive session and consumed by the next. Primary code a
 
 It is produced by one recursive session and consumed by the next.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the type is referenced nowhere, so read it as Dormant. Sessions pass the prose of earlier insights. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Core/Models/RAGStructuredResponse.swift:238-278, a search of every Swift file under OpenIntelligence/ for the type (none outside its file), OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:8205-8245]`
+
 ## OI-0403. Convergence
 
 **Status:** Conditional, meaning it is active only in particular modes, settings, file types, or situations.
@@ -8575,6 +8612,8 @@ It governs the typical agentic loop from planning through synthesis. Primary cod
 ### Why it is in this position
 
 It governs the typical agentic loop from planning through synthesis.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** Deep Think does not use it. It takes the device's configuration: A17 Pro 5 steps and 0.85, A18 8 and 0.90, A19 10 and 0.92, the ultra tier 12 steps for each 16 GB of memory, from 12 to 32, and 0.95. The ultra tier is a Mac with an M1 Ultra or an M2 or later, an iPad Pro with an M2 or later and an iPhone with an A20 or later. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:1044-1091 and :1096-1488, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:10863-10871]`
 
 ## OI-0409. Evidence gap
 
@@ -8736,6 +8775,8 @@ It is initialized after planning, updated after evidence analysis, and consumed 
 
 It is initialized after planning, updated after evidence analysis, and consumed by final synthesis.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** it holds at most 1,500 characters, and in Deep Think its text never reaches a prompt. It decides coverage, novelty and stopping, and the sessions carry their earlier findings instead. Only Maximum reads it into its running answers and final synthesis. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:6081, :6110-6176, :7292 and :7352, :8205-8245]`
+
 ## OI-0417. Fast agentic profile
 
 **Status:** Conditional, meaning it is active only in particular modes, settings, file types, or situations.
@@ -8755,6 +8796,8 @@ It is selected before agentic execution under the relevant policy. Primary code 
 ### Why it is in this position
 
 It is selected before agentic execution under the relevant policy.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** no user-selectable mode uses it. It is the configuration for a device without Apple Intelligence, and Standard's developer-forced chain (Force Reasoning Chain, off by default) runs on it. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:1046-1047, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:9068]`
 
 ## OI-0418. Hard session cap
 
@@ -9016,6 +9059,8 @@ It follows planning or reformulation and precedes evidence assessment. Primary c
 
 It follows planning or reformulation and precedes evidence assessment.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** it runs once per search phrasing before the sessions, and again only in research rounds. The sessions themselves do not search. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:1916-2260, :5003-5126, :731 and :3855]`
+
 ## OI-0431. Self-RAG
 
 **Status:** Conditional, meaning it is active only in particular modes, settings, file types, or situations.
@@ -9036,6 +9081,8 @@ It occurs after a draft or evidence assessment and before final verification/com
 
 It occurs after a draft or evidence assessment and before final verification/commit.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** in the code this is `runVerificationLoop` with `verifySelfRAG`: a lexical relevance score and a citation score, where a citation counts when its passage holds at least 30 percent of the words of 4 or more letters in the 50 characters before it, with no model call, and at most 2 retries through research, since the third retry verdict ends it. It does not run when research has replaced the synthesis. From 5.7 it runs for Deep Think on every device, and never for Maximum's chain. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:3786-3870, :3957-4012, :4163-4232, :779 and :798, :200-208]`
+
 ## OI-0432. Standard reasoning chain
 
 **Status:** Conditional, meaning it is active only in particular modes, settings, file types, or situations.
@@ -9055,6 +9102,8 @@ It follows final context selection and precedes answer verification. Primary cod
 ### Why it is in this position
 
 It follows final context selection and precedes answer verification.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** it runs only when the developer setting `forceReasoningChain` is on, off by default, and it then runs Deep Think's chain on the `fast` configuration. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:15949-16002, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:9063-9117, OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift:569]`
 
 ## OI-0433. Synthesizing phase
 
@@ -9116,6 +9165,8 @@ It is selected for higher-effort planning before the loop begins. Primary code a
 
 It is selected for higher-effort planning before the loop begins.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** `RAGQualityMode.agenticConfig` names it for Deep Think, and nothing uses that. Deep Think takes the device's configuration. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Core/Models/RAGQualityMode.swift:178-183, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:10863-10871]`
+
 ## OI-0436. Unlimited agentic profile
 
 **Status:** Conditional, meaning it is active only in particular modes, settings, file types, or situations.
@@ -9157,6 +9208,8 @@ It follows synthesis/refinement and can trigger repair or abstention. Primary co
 It follows synthesis/refinement and can trigger repair or abstention.
 
 ---
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the nine gates do not run on Deep Think or Maximum answers in the shipped 5.6, and from 5.7 they run once after the loop and set the label only, verified when all nine pass with Gate A's floor raised by the mode. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:11238-11262 and :18205-18253, OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift:26-46, the v5.6.0 tag (2bee971)]`
 
 # 12. Verification, grounding, confidence, and abstention
 
@@ -9381,6 +9434,8 @@ Critical status is interpreted when gate results are combined. Primary code anch
 ### Why it is in this position
 
 Critical status is interpreted when gate results are combined.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the three set an abstain flag that decides nothing and only adds its reason to the answer's list of gaps. Standard's abstention turns on reliability mode and the gates' overall confidence. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift:250-271, OpenIntelligence/Core/Models/StructuredAnswer.swift:974-976, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:16668-16709]`
 
 ## OI-0449. DomainIsolationService
 
@@ -9621,6 +9676,8 @@ It runs near the end of verification and can remove or abstain on contaminated c
 ### Why it is in this position
 
 It runs near the end of verification and can remove or abstain on contaminated claims.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** it runs inside the gates after the answer is written, and it compares the question's domain with the evidence's. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift:242-247 and :1036-1050]`
 
 ## OI-0461. Missing-information list
 
@@ -11820,6 +11877,8 @@ It is selected under critical thermal conditions before query execution. Primary
 
 It is selected under critical thermal conditions before query execution.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** its "no agentic steps" is a `maxAgenticSteps` of 0 that nothing reads, so Deep Think and Maximum still run under critical heat. Neither loop reads the optimizer's level. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift:104 and :244-259, a search of every Swift file under OpenIntelligence/ for maxAgenticSteps (definitions only)]`
+
 ## OI-0570. Neural Engine
 
 **Status:** Core, meaning it is active and load-bearing.
@@ -11879,6 +11938,8 @@ It is resolved before execution and checked by Standard or agentic orchestration
 ### Why it is in this position
 
 It is resolved before execution and checked by Standard or agentic orchestration.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** `maxQueryTimeoutSeconds` exists and nothing reads it. The only wall clock in the loops is the 180 seconds of the research rounds. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift:108, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:2892 and :2940-2950 (the research deadline), a search of every Swift file under OpenIntelligence/ for maxQueryTimeoutSeconds]`
 
 ## OI-0573. QuotaPolicy
 
@@ -11979,6 +12040,8 @@ It is applied between agentic or heavy pipeline steps when configured. Primary c
 ### Why it is in this position
 
 It is applied between agentic or heavy pipeline steps when configured.
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the optimizer's `stepCooldownMs` is read once a question, before Standard's generation: 200 ms on an A17 Pro, 100 on an A18, 50 on an A19 and 0 on the ultra tier, 150 ms more under critical memory pressure and 300 ms at critical heat. `agenticStepCooldownMs` has no caller, and nothing paces Deep Think or Maximum, whose loops wait only 1.5 seconds after a failed session and, from 5.7, 1 second while iOS 27 asks apps to use less. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift:115-261 and :408-413, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:15541, OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:631-639, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:5430, :6952, :5174 and :6643]`
 
 ## OI-0578. StoreKit entitlement
 

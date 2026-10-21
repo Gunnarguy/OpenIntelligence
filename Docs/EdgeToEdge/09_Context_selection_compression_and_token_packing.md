@@ -18,12 +18,14 @@ Twenty-seven concepts. Deciding what the model actually reads: a hard token budg
 
 **Expert's expert.** The word bank says the sentinel "triggers information-dense source rescue or passthrough." Inside the service that is true; at the call site in `RAGService` the chunk is removed, with a comment explaining why. Both are real; the caller wins for what the model sees. The tool-schema overhead is only counted when tools are attached, which is why Maximum's inner sessions disable tools: schema tokens plus tool output tokens were part of what overflowed. And the 4,096 figure is Apple's per-session limit for both on-device and PCC (Technote 3193, cited in `LLMModel.swift`), so the cloud route does not buy a bigger window; it buys a bigger model.
 
+**Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** five statements in the ladder above do not hold for the current code. The window is the one the device reports: 4,096 on the owner's iPhone 16 Pro Max and 8,192 on his Mac, and the app assumes 32,768 for Private Cloud Compute (a hard-coded fallback and the figure Apple documents, while the route planner reads the window PCC reports), so the cloud route does buy a bigger window. Standard's evidence budget is not a fixed 3,200. It is computed for each question as the window less 120 tokens, the system prompt, the question and an output reserve of 150 to 300, times 0.88, at 1.4 characters a token, capped at 10,000 characters, which came to 3,190 tokens, about 4,470 characters, on that iPhone on 2026-10-16. When Hybrid can reach Private Cloud Compute, the first pass is sized for 32,768 tokens at 2.5 characters a token instead, capped at 45,000 characters. The 3,200 is `ContextPackingService`'s default, which its one caller overrides, and that caller is graph packing for investigate, compare and findings questions only, so the packer described above is not what packs most answers. "Strongest first and last" is the order for every intent except a lookup, which gets retrieval's best passage first (from 5.7, whole up to three fifths of the budget), then the sentences that match the question from every candidate, and a procedure, which keeps document order. For other intents the reorder runs over all candidates before the budget cut, so with room for about 3, ranks 1, 3 and 5 are packed and rank 2 is neither packed nor rescued (read in the code, not run). And contextual compression runs in no user-selectable mode: its only call is in Standard's pipeline behind a mode flag that is false for Standard and true only for Deep Think, which never reaches that step, so neither the compression call nor the one-second sleep happens. Tools are off in every Deep Think and Maximum session, not only Maximum's. `[evidence_level: code_verified, measured for the 3,190, confidence: high, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:14784-14838, :14532-14543, :3746-3747, :14558-14590, :14935-14975, :15035, :14320-14326, :14406, OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift:495-504, :569-600, :773-790, OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift:60, OpenIntelligence/Core/Models/RAGQualityMode.swift:277-284, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:5313]`
+
 ## Every concept
 
 ### 4,096-token on-device limit (Core, verified)
 - **Idiot:** the desk holds about four thousand tokens.
 - **Dot-connector:** a naive top-20 chunk set plus prompt and schema overflows; everything upstream exists to choose what fits.
-- **Expert:** `contextLength` 4,096 per TN3193, on device and PCC alike; real window read at runtime.
+- **Expert:** `contextLength` 4,096 per TN3193, on device and PCC alike; real window read at runtime. **Corrected 2026-10-20:** the window the code uses on device is `SystemLanguageModel.default.contextSize` (4,096 on the owner's iPhone, 8,192 on his Mac), and for PCC the app assumes 32,768 (hard-coded, while the route planner reads the window PCC reports), so the two are not alike (`FoundationModelTokenBudget.swift:25-40`, `RAGService.swift:18509-18521`).
 
 ### Available context tokens (Core, verified)
 - **Idiot:** what's left for evidence after everything else.
@@ -58,12 +60,12 @@ Twenty-seven concepts. Deciding what the model actually reads: a hard token budg
 ### ContextPackingService (Core, verified)
 - **Idiot:** the desk arranger.
 - **Dot-connector:** chooses and orders core hits, parents, siblings, graph neighbours and compressed content under the ceiling; rank alone can't solve budget, diversity, sequence and support.
-- **Expert:** after retrieval and expansion, before prompt compilation.
+- **Expert:** after retrieval and expansion, before prompt compilation. **Corrected 2026-10-20:** its one caller is graph packing for investigate, compare and findings questions, which passes its own budget. Other answers are packed by `RAGEngine.assembleContext` or, for a lookup, by sentence selection (`RAGService.swift:14558-14590`, `:14935-14975`).
 
 ### Contextual compression (Conditional, verified)
 - **Idiot:** cross out the useless sentences.
 - **Dot-connector:** density matters in a 4,096-token window; mainly Deep Think.
-- **Expert:** Foundation Models extraction of query-relevant sentences with exact wording preserved; `usesContextualCompression` by mode.
+- **Expert:** Foundation Models extraction of query-relevant sentences with exact wording preserved; `usesContextualCompression` by mode. **Corrected 2026-10-20:** in the working tree no user-selectable mode reaches it, so read it as Dormant (`RAGService.swift:14320-14326`, `:14406`).
 
 ### Core evidence chunk (Core, verified)
 - **Idiot:** the must-keep cards.
@@ -98,7 +100,7 @@ Twenty-seven concepts. Deciding what the model actually reads: a hard token budg
 ### Lost-in-the-Middle mitigation (Core, verified)
 - **Idiot:** best cards first and last.
 - **Dot-connector:** models underuse the middle of long prompts; a synthetic fixture tests this.
-- **Expert:** applied after selection, before prompt assembly; note the reorder interleaves the ranked set, so downstream code must not assume rank order.
+- **Expert:** applied after selection, before prompt assembly; note the reorder interleaves the ranked set, so downstream code must not assume rank order. **Corrected 2026-10-20:** a lookup skips the reorder, and for other intents it runs over every candidate before the budget cut, so rank 2 lands last and is cut when only about 3 passages fit (`RAGEngine.swift:495-504`, `:773-790`).
 
 ### Neighbor allocation (Core, verified)
 - **Idiot:** space for the cards next door.

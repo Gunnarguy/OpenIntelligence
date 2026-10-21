@@ -27,6 +27,26 @@
 > 220-222 with RAGService.swift:2036-2046 and 3729-3733; DeviceCapabilityService.swift:749-766;
 > RAGService.swift:9578 with ModelConfigurationSheet.swift:35; SourceOnlyAnswerService.swift:363
 > and 432-445 with RAGService.swift:14745-14758]`
+>
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress)**, where
+> this guide described the agentic loop, tools, routing, packing or checks differently from the code.
+> Each module says what changed at the line it changed. In short: Deep Think's chain reads windows cut
+> from one retrieval, up to 8 sessions on every device, and stops when the windows run out or when
+> confidence, coverage and novelty all clear at once. Research rounds are the only searching after the
+> chain, and Maximum's own loop never searches again. No session uses a tool. Only the final syntheses
+> can reach Private Cloud Compute under the default Hybrid route. The nine gates label the answer and
+> abstain only in Standard, and only when reliability mode is off or their score is under the bar, and
+> in the shipped 5.6 they do not run on Deep Think or Maximum answers at all. HyDE, contextual
+> compression, planner escalation, multi-chain reasoning, the entity index and the per-mode MMR lambda
+> are in the source and run in no mode. A precision lookup can answer before any loop starts. Through
+> 5.6 the `SpeechAnalyzer` branch never compiled, and from 5.7 it runs first.
+> `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, section 19, has the loop with its file and line
+> citations. A second review the same evening corrected the step cooldown, the abstain flag, the
+> research retries, the ultra tier, the agentic label, the planning call and the lookup's lead passage,
+> and re-pinned the `RAGService.swift` lines to the working tree read at 22:17 that night.
+> `[evidence_level: code_verified, confidence: high, evidence_source: the file:line tags at
+> each correction below, read in OpenIntelligence/ on 2026-10-20, and the v5.6.0 tag (2bee971) where
+> 5.6 differs]`
 
 This is the course. Its job is that you can explain every component of your own app and the reason
 it exists, to a non-technical person, to an engineer, and at a whiteboard, without notes.
@@ -66,12 +86,29 @@ Memorise this first. It is the spine every module hangs from.
 6. A question is profiled and planned first: intent, complexity, mode, and whether it is agentic.
 7. Vector search and BM25 run in parallel and are fused with RRF at k = 60.
 8. A cross-encoder reranks the shortlist; a similarity floor and MMR cut it; neighbours are added.
-9. Evidence is packed under the real token budget, strongest first and last.
+9. Evidence is packed under the token budget: a lookup gets its best passage first (from 5.7, whole up
+   to three fifths of the budget), then the sentences that match the question, and any other question
+   gets the strongest first and last.
 10. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and
     only then asks for consent.
-11. The model streams a typed answer with citations; nine deterministic gates decide what survives.
+11. The model streams an answer with citations, as typed claims when the request fits 3,600 tokens,
+    and nine deterministic gates then label it, abstaining only on a low score or with reliability
+    mode off.
 12. What comes back is inspectable: claims, chunk-level citations with page and quote, the completed
     route, and a trace.
+
+**Corrected 2026-10-20:** sentence 9 read "strongest first and last", which is the order for every
+question except a lookup, and sentence 11 read "nine deterministic gates decide what survives". The
+gates run once, after the answer is written, and they label it. Standard abstains only when
+reliability mode is off (it is on by default) or the gates' overall score is under its bar, 0.50 or
+0.25 for a lookup, and otherwise shows the answer marked Unverified. These twelve sentences are the
+Standard path. Deep Think and Maximum leave it after sentence 6 for their own front half and loop
+(module 11), and in the shipped 5.6 their answers get no gates at all.
+`[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:14935-14975
+(lookup packing) and RAGEngine.swift:495-504 (the reorder for other intents), RAGService.swift:18766
+(structured generation at 3,600 estimated tokens), :16652-16709 (the gate outcome), :11668 and
+SettingsStore.swift:534-535 (reliability mode on by default), ConfidencePolicyService.swift:48-54,
+RAGService.swift:11578-11594 (the agentic branch), the v5.6.0 tag (2bee971)]`
 
 ---
 
@@ -83,6 +120,8 @@ Memorise this first. It is the spine every module hangs from.
 
 **Why it exists.** Everything else in the app assumes these boundaries. A **knowledge container** (a library) scopes every store, so one library's chunks can never answer another library's question. **Local-first** is a concrete promise: ingestion, indexing, retrieval and ranking never leave the device; only the final answer may reach Private Cloud Compute, and only after consent. The **deterministic versus generative** split is the reason the app can be honest about hallucination: extraction, chunking, search, fusion, gates and citations are rule-based and cannot invent; the two generative stages (query rewriting and answer synthesis) can, so they are the stages the gates police. For lookup answers a source-only check can add two more on-device sessions, one drafting claims and one rating them, and its result can replace the answer.
 
+**Corrected 2026-10-20:** two statements above hold only for Standard under its defaults. "The two generative stages" is Standard's list, and even there query rewriting runs only for a question the ambiguity check flags (a follow-up or a pronoun), never for a lookup. Deep Think and Maximum make many more model calls: search phrasings, a reading-order call, one call per session, research decisions and a synthesis. Every question in every mode also gets an on-device planning call when Apple's model is available, a guided generation that proposes search phrasings and sub-questions and says whether documents are needed, and the gates do not check it. And "only the final answer may reach Private Cloud Compute" is the default Hybrid route. With Private Cloud Compute picked in the model picker, Deep Think and Maximum's session calls can go to PCC too, each after consent. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:11982-11983, QueryRewriterService.swift:83-100, QueryRuntimeCoordinator.swift:202-207, QueryExecutionPlannerService.swift:67-99 and :330-418, AgenticOrchestrator.swift:1965, :4825, :5333, :3124, :5939, :9234 (budgetPin = forceOnDevice && !explicitlyPrefersPCC)]`
+
 **Where it runs.** Nothing here runs by itself. These are the invariants the code enforces: container scoping in every store, the `OpenIntelligenceEngine` SwiftPM target that excludes UI and Billing, and the three quality modes that turn the same pipeline up or down.
 
 ### The word bank (14 concepts)
@@ -90,7 +129,7 @@ Memorise this first. It is the spine every module hangs from.
 | Concept | Status | In one sentence |
 |---|---|---|
 | Container isolation | Core | The rule that lexical rows, vector stores, entity lookups, documents, threads, and queries are filtered by container identity. This prevents cross-library evidence leakage and makes deletion, rebuilding, and sync deterministic… |
-| Deep Think mode | Conditional | The multi-step path that enables query rewriting, expansion, HyDE, iterative retrieval, and the agentic orchestrator with stronger verification thresholds. It spends additional retrieval and reasoning work when a one-pass answer… |
+| Deep Think mode | Conditional | The multi-step path that enables query rewriting, expansion, HyDE, iterative retrieval, and the agentic orchestrator with stronger verification thresholds. It spends additional retrieval and reasoning work when a one-pass answer… **Corrected 2026-10-20:** the mode's flags say so, but its path runs neither HyDE nor the iterative-retrieval step, which sit in Standard's pipeline. It writes up to 5 search phrasings, runs the full pipeline for each, and reads the result in a chain of up to 8 sessions. From 5.7 the nine gates label its answers (Verified only when all nine pass, with Gate A's floor raised to 0.45), its 0.60 bar is read only on Standard's abstain path and decides nothing for them, and in 5.6 no gates ran on its answers (`RAGService.swift:11578-11594`, `:21863-21866`, `:11238-11262`, `:16670`, `AgenticOrchestrator.swift:1916-2060`, `ConfidencePolicyService.swift:26-46`). |
 | Deterministic stage | Core | A stage whose result is produced by code, indexing, arithmetic, parsing, or fixed policy rather than free-form model generation. Deterministic stages are reproducible and cheap to verify. |
 | Engine status vocabulary | Support | The audit classification used in this word bank: Core, Conditional, Support, Dormant, Future, and Historical. The repository contains implemented, wired, optional, scaffolded, and superseded mechanisms. |
 | Generative stage | Core | A stage that uses a language model to write, summarize, reformulate, classify, or synthesize text. Generation handles semantic composition that fixed rules cannot express, but it introduces uncertainty, token cost, and… |
@@ -123,6 +162,8 @@ A deterministic stage is rule-based and produces the same output for the same in
 <details><summary><strong>What does local-first mean in this app, concretely?</strong></summary>
 
 Ingestion, indexing, retrieval, ranking, context packing and verification run on the device. The one step that may leave is final answer synthesis, and only to Private Cloud Compute, only after the post-retrieval plan chooses it and the user consents.
+
+**Corrected 2026-10-20:** that is the default Hybrid route, which a new install starts on, with permission set to "Ask when needed". With Private Cloud Compute picked in the model picker, Deep Think and Maximum's session calls can leave too, each after consent, and after Always Allow nothing asks again (`SettingsStore.swift:50`, `:454-461`, `AgenticOrchestrator.swift:9234-9240`, `RAGService.swift:4391-4430`).
 
 </details>
 
@@ -230,7 +271,7 @@ If the file is an iCloud placeholder, ingestion waits up to 20 seconds for it to
 
 **Why it exists.** Extraction is the ceiling on everything after it: a fact that never made it out of the file cannot be retrieved by any amount of cleverness. PDFs get a **text-layer validation** first, because a scanned PDF often carries a garbage text layer that would poison the index silently. Pages that need OCR are rendered at 360 DPI and go through Vision with the accurate recogniser and language correction, with the language set **narrowed** to what was detected, because thirteen recognisers including four CJK models used to load for every request. A separate structured pass reads tables as rows and columns, because a number without its column heading is worthless.
 
-**Where it runs.** Rendering is CPU (Quartz into a bitmap). OCR and structure parsing are Vision, and Vision decides its own placement; the app only throttles it with a semaphore sized to the device. Transcription runs on `SFSpeechRecognizer` with on-device recognition required. The `SpeechAnalyzer` branch is dead code that never compiles.
+**Where it runs.** Rendering is CPU (Quartz into a bitmap). OCR and structure parsing are Vision, and Vision decides its own placement; the app only throttles it with a semaphore sized to the device. Transcription runs on `SFSpeechRecognizer` with on-device recognition required. The `SpeechAnalyzer` branch is dead code that never compiles. (**Corrected 2026-10-20:** that is true through 5.6. From 5.7 `SpeechAnalyzerService` compiles and runs first, transcribing with `SpeechAnalyzer` and `SpeechTranscriber` on the device and falling back to `SFSpeechRecognizer` when it cannot take the file. `[evidence_level: code_verified, confidence: exact, evidence_source: Services/Document/Analysis/SpeechAnalyzerService.swift:1-15, DocumentProcessor.swift:9287]`)
 
 ### The word bank (52 concepts)
 
@@ -292,7 +333,7 @@ If the file is an iCloud placeholder, ingestion waits up to 20 seconds for it to
 ### Corrections
 
 - OI-0065 `RecognizeDocumentsRequest` is the **structure and table** parser. Plain OCR is `VNRecognizeTextRequest`. Both exist; the word bank blurs the roles.
-- OI-0035 and OI-0055 are right that transcription runs on `AudioTranscriptionService` (`SFSpeechRecognizer`). The Opus page's claim that audio goes through `SpeechAnalyzer` is wrong: that branch is behind `#if canImport(SpeechAnalyzer)`, a module that does not exist.
+- OI-0035 and OI-0055 are right that transcription runs on `AudioTranscriptionService` (`SFSpeechRecognizer`). The Opus page's claim that audio goes through `SpeechAnalyzer` is wrong: that branch is behind `#if canImport(SpeechAnalyzer)`, a module that does not exist. (**Corrected 2026-10-20:** right through 5.6. From 5.7 the guard is gone and `SpeechAnalyzer` with `SpeechTranscriber` is tried first, so the Opus page describes 5.7, `SpeechAnalyzerService.swift:1-15`.)
 - OI-0085 zero-copy image path: the render allocates a full-page bitmap; what is zero-copy is skipping the PNG round trip, not the raster itself.
 
 ### Can you explain it?
@@ -301,7 +342,7 @@ If the file is an iCloud placeholder, ingestion waits up to 20 seconds for it to
 2. Give the three DPI figures and what each is for (144, 180 or 360, 360).
 3. Name the two Vision requests and what each one does.
 4. Explain why OCR languages are narrowed and what it cost before.
-5. Say which speech API actually runs and why the newer one does not.
+5. Say which speech API actually runs and why the newer one does not. (Corrected 2026-10-20: that holds through 5.6. From 5.7 the newer one runs first.)
 
 ### Quiz
 
@@ -327,6 +368,8 @@ It samples the page with the most native text (at least 50 characters), renders 
 
 `SFSpeechRecognizer` through `AudioTranscriptionService`, with `requiresOnDeviceRecognition = true`, in segments of at most 600 seconds. The `SpeechAnalyzer` code path is guarded by a module that does not exist and never compiles.
 
+**Corrected 2026-10-20:** that is the answer through 5.6. From 5.7 `SpeechAnalyzer` with `SpeechTranscriber` runs first, on the device, and `SFSpeechRecognizer` is the fallback (`SpeechAnalyzerService.swift:1-15`, called from `DocumentProcessor.swift:9287`).
+
 </details>
 
 <details><summary><strong>What is the largest file the app will read?</strong></summary>
@@ -347,6 +390,8 @@ It samples the page with the most native text (at least 50 characters), renders 
 
 **Where it runs.** After embedding, in the ingestion loop: vocabulary learning and Vision-entity learning at Steps 4.1 and 4.1b, the document summary at Step 4.5 (one language model call, only when summaries are enabled), content tags at Step 5 on iOS 26 and later.
 
+**Corrected 2026-10-20:** the entity index is never filled. Nothing calls `EntityIndexService.indexChunk` or `indexChunks`, so it stays empty, and only its removal and statistics calls run. What runs under the GraphRAG-lite name is different. In Deep Think and Maximum, a moderate or low pool gets a "graph expansion" that asks the model to name up to 3 entities and runs a full search for each, and Standard's graph packing, for investigate, compare and findings questions, follows parents, neighbours and references through `GraphIndexService`. Document summaries are on by default (`enableDocumentSummaries` defaults to true). `[evidence_level: code_verified, confidence: exact, evidence_source: Services/Document/Analysis/EntityIndexService.swift:31 and :137 (no caller outside the service), AgenticOrchestrator.swift:487-502 and :2524-2595, Services/RAG/Retrieval/ContextPackingService.swift:55-85, RAGService.swift:14558-14590, SettingsStore.swift:572]`
+
 ### The word bank (15 concepts)
 
 | Concept | Status | In one sentence |
@@ -357,7 +402,7 @@ It samples the page with the most native text (at least 50 characters), renders 
 | Document classification | Conditional | Assignment of a broad document category or structural class from text and visual signals. Category can guide chunking, suggestions, and diagnostics without hardcoding a domain-specific parser. |
 | Document summary chunk | Conditional | A short level-1 summary generated from representative detail chunks, embedded, and indexed as a special chunk. Overview questions should not require retrieving dozens of detail passages. |
 | Entity extraction | Core | Identification of names, organizations, places, and other salient terms attached to chunk metadata. Entities provide high-signal lexical fields and enable cross-document expansion without another full vector search. |
-| Entity index | Conditional | A persisted forward and reverse mapping between normalized entity names and chunk IDs, with document and container scope. It enables O(1)-style cross-document correlation and GraphRAG-lite expansion from entities already found in… |
+| Entity index | Conditional | A persisted forward and reverse mapping between normalized entity names and chunk IDs, with document and container scope. It enables O(1)-style cross-document correlation and GraphRAG-lite expansion from entities already found in… **Corrected 2026-10-20:** nothing fills it, so it is empty in every library and runs on no answer path (see the correction above this table). |
 | Entity normalization | Conditional | Lowercasing and removal of periods, hyphens, and whitespace to align variants such as U.S.A. and USA or Core Data and CoreData. |
 | GraphRAG-lite | Conditional | Expansion from retrieved chunks to other chunks connected by shared entities or explicit document relationships. Vector similarity may miss a relevant passage that uses a different wording but shares an important named entity or… |
 | Predictive pre-scan | Core | A sample-based analysis of early pages or characters that estimates code, mathematics, lists, tables, columns, and vocabulary before the full import. Chunking and OCR configuration are expensive to change after every page has… |
@@ -386,11 +431,13 @@ A single summary chunk per document, the L1 level, generated by one language mod
 
 An entity index and graph edges between chunks, used for entity expansion and graph-hop context allocation at query time.
 
+**Corrected 2026-10-20:** the entity index is never filled. What retrieval gets is the graph packing of parents, neighbours and references through `GraphIndexService`, for investigate, compare and findings questions, and in Deep Think and Maximum a model-named search for up to 3 entities when the pool grades moderate or low (`ContextPackingService.swift:55-85`, `AgenticOrchestrator.swift:2524-2595`).
+
 </details>
 
 <details><summary><strong>When is a document summary generated?</strong></summary>
 
-At ingestion Step 4.5, only when `enableDocumentSummaries` is on. It costs one language model call per document.
+At ingestion Step 4.5, only when `enableDocumentSummaries` is on. It costs one language model call per document. (Corrected 2026-10-20: the setting is on by default, `SettingsStore.swift:572`.)
 
 </details>
 
@@ -408,7 +455,7 @@ It runs Apple's on-device tagging and entity recognition (NaturalLanguage) over 
 
 **In the bank's words.** This is where a big book becomes useful index cards. The cards must be small enough to fit, but large enough to still make sense.
 
-**Why it exists.** The embedding model reads at most 510 word-piece tokens and **silently truncates** anything longer, filing an embedding of the first 510 tokens under the identity of the whole chunk. That is index corruption nothing downstream can detect. So the chunker caps at 310 words, leaves room for a contextual prefix, and then the real tokenizer validates every chunk at 430 tokens plus 80 reserved for the prefix. Overlap keeps a sentence on a cut from being lost; tables and lists are atomic. The **contextual prefix** exists because a chunk read alone has lost what it is about, and that measurably hurts retrieval.
+**Why it exists.** The embedding model reads at most 510 word-piece tokens and **silently truncates** anything longer, filing an embedding of the first 510 tokens under the identity of the whole chunk. That is index corruption nothing downstream can detect. So the chunker caps at 310 words, leaves room for a contextual prefix, and then the real tokenizer validates every chunk at 430 tokens plus 80 reserved for the prefix. Overlap keeps a sentence on a cut from being lost; tables and lists are atomic. The **contextual prefix** exists because a chunk read alone has lost what it is about, and that measurably hurts retrieval. (**Corrected 2026-10-20:** a table stays one chunk only up to 380 words. A larger table, or a larger figure's text, is split by rows, and any chunk over 430 tokens is split again. The target is 260 words, with 310 the ceiling and 50 the most overlap, and the library's own chunk-size setting is clamped to those. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift:5594-5619 and :5762, :6773 (safeTokenLimit 430), :1072-1075, SemanticChunker.swift:263-275]`)
 
 **Where it runs.** CPU. `SemanticChunker` builds chunks; `DocumentProcessor.enforceTokenLimitOnChunks` validates them with the Rust-backed tokenizer that the embedding provider also uses for counting.
 
@@ -524,7 +571,7 @@ Similarity is defined across chunks of any size in the same vector space. Changi
 ### Corrections
 
 - OI-0570 Neural Engine, status Core: no line places work on the Neural Engine. Five lines *permit* it. Say "requested", never "runs on".
-- OI-0126 Core AI provider is Conditional in the bank, but on iOS 27 and macOS 27 `SettingsStore` makes it the default and migrates saved Core ML defaults, so on those systems it is the primary path.
+- OI-0126 Core AI provider is Conditional in the bank, but on iOS 27 and macOS 27 `SettingsStore` makes it the default and migrates saved Core ML defaults, so on those systems it is the primary path. (**Corrected 2026-10-20:** that was true through 5.6. From 5.7 the default is the platform's copy, Core AI on macOS 27 and Core ML on iPhone and iPad, and a saved default naming the other copy is moved to it, so on iOS 27 a saved Core AI default goes back to Core ML. No existing library is moved. `[evidence_level: code_verified, confidence: exact, evidence_source: Services/Embedding/EmbeddingService.swift EmbeddingProviderDefaults.preferredSentenceProviderId, SettingsStore.swift:536-551]`)
 - OI-0122 Apple Foundation Models embedding provider: a 1,024-dimension placeholder that must never be described as shipped. The bank has this right.
 
 ### Can you explain it?
@@ -637,6 +684,8 @@ A record on the library of the provider, dimension and pooling recipe used to bu
 ### Corrections
 
 - OI-0155 caveat says the route also depends on the user GPU policy. It does: the conditions are the 1,000 count, `useMetalForVectorOps` (true only for Performance and Maximum) and `isGPUAvailable`. The profile also gates Core ML units and the MMR matrix.
+- **Corrected 2026-10-20:** "SQLite FTS5 for exact words" in "What it is" above is loose. The `porter unicode61` tokenizer stems and case-folds, so "running" matches "run", and the word index is written twice: the whole document and one row per page before chunking, then one row per chunk after the vectors. `[evidence_level: code_verified, confidence: exact, evidence_source: SQLiteFullTextService.swift:242-252 (tokenize='porter unicode61') and :1440-1462 (weights 10, 5, 1), DocumentProcessor.swift:989-1014 (document and page rows before chunking), RAGService.swift:7936-7986 (chunk rows after the vectors)]`
+- **Corrected 2026-10-20:** `VecturaVectorDatabase` is listed above as Conditional. It sits behind `#if canImport(VecturaKit)`, and VecturaKit is not a dependency of the app (it is in no `Package.swift`, `Package.resolved` or `project.pbxproj`), so the adapter never compiles and a library configured for it falls back to the BNNS store. Read its status as Dormant. `[evidence_level: code_verified, confidence: exact, evidence_source: Services/VectorStore/VectorStoreRouter.swift:167-172]`
 
 ### Can you explain it?
 
@@ -690,6 +739,8 @@ Nine: `documents`, `chunks`, `document_pages`, `documents_vocab`, `chunk_structu
 
 **Where it runs.** CPU for classification and planning; a Foundation Models call for rewriting when it is enabled. `QueryRuntimeCoordinator.resolveContext` is the first thing `queryInternal` does.
 
+**Corrected 2026-10-20:** three things above do not happen as written. Planner escalation is switched off whenever Apple's model writes the answers, which in this build is whenever any model writes (without Apple Intelligence a stand-in that only throws takes its place), so complexity never moves a Standard question into the agentic path. HyDE runs in no user-selectable mode: Standard's flag is off, and Deep Think and Maximum leave for the agentic path before HyDE's step and embed without it. And query rewriting is on by default but keeps a lookup literal, and calls the model only for a question the ambiguity check flags, a follow-up with conversation behind it or a pronoun. `[evidence_level: code_verified, confidence: exact, evidence_source: QueryRuntimeCoordinator.swift:203-227, RAGService.swift:11501, :12278-12325 (the only HyDEService), :21863-21866, RAGQualityMode.swift:189-195, RAGService.swift:11982-11983, QueryRewriterService.swift:83-100, SettingsStore.swift:557]`
+
 ### The word bank (45 concepts)
 
 | Concept | Status | In one sentence |
@@ -710,13 +761,13 @@ Nine: `documents`, `chunks`, `document_pages`, `documents_vocab`, `chunk_structu
 | Findings intent | Conditional | A research-style request for reported findings, authors, studies, outcomes, or evidence patterns. Research documents require evidence aggregation and source attribution rather than a generic topical answer. |
 | Forced agentic execution | Conditional | A user action such as Go Deeper that explicitly reruns or continues a question through the agentic path. The user can request additional search and reasoning even when the initial planner chose Standard. |
 | GroundedAnswerPolicy | Core | The policy deciding whether an intent should use deterministic extraction, direct-extraction prompting, constrained synthesis, and source-only verification. It keeps exact lookup from being needlessly generated and ensures… Removed in 5.7 on 2026-10-20: nothing referenced it. |
-| HyDE | Conditional | Hypothetical Document Embeddings, where a model writes a plausible answer-like passage whose embedding is used as an additional retrieval query. A short or abstract question may embed poorly, while a hypothetical answer can… |
+| HyDE | Conditional | Hypothetical Document Embeddings, where a model writes a plausible answer-like passage whose embedding is used as an additional retrieval query. A short or abstract question may embed poorly, while a hypothetical answer can… **Corrected 2026-10-20:** in this build no user-selectable mode reaches it, so read it as Dormant (see the correction above this table). |
 | Hypothetical document | Conditional | The generated answer-like text used by HyDE only as a retrieval probe. It enriches semantic vocabulary without being treated as evidence or shown as a sourced answer. |
 | Investigate intent | Conditional | A broad exploratory request that may require multiple evidence threads, relationships, and iterative retrieval. The answer cannot usually be reduced to one value or one top passage. |
 | Keyword search intent | Core | A signal that exact terms, codes, quoted phrases, or short identifiers are central to the question. Dense embeddings can blur rare identifiers, so lexical candidates and lower extractive thresholds deserve more weight. |
 | Lookup intent | Core | A request for a specific fact, value, code, date, name, or short answer. Lookup questions benefit from high precision, exact identifiers, structured extraction, and lower tolerance for synthesis. |
 | Overview query | Conditional | A question asking what a document, corpus, or topic is generally about rather than for one local detail. Fine-grained chunks can overfit incidental mentions, while summary chunks better represent whole-document themes. |
-| Planner escalation | Conditional | Automatic promotion from a nominal Standard request to the agentic path when the execution planner predicts that one pass is insufficient. It allows complexity rather than the mode label alone to control work. |
+| Planner escalation | Conditional | Automatic promotion from a nominal Standard request to the agentic path when the execution planner predicts that one pass is insufficient. It allows complexity rather than the mode label alone to control work. **Corrected 2026-10-20:** switched off whenever Apple's model writes the answers, and no other model writes them in this build (without Apple Intelligence a stand-in that only throws takes its place), so read it as Dormant (`QueryRuntimeCoordinator.swift:211`, `RAGService.swift:2322-2346`). |
 | Primary entity | Core | The strongest identity-bearing token or phrase in a lookup, such as 1688, a device model, or a named product. A candidate containing the primary entity can resolve ambiguity among otherwise similar specifications. |
 | Procedure intent | Core | A request for ordered steps, instructions, setup, troubleshooting, or a process. Procedures need adjacent sequence context and should not be answered from one isolated matching sentence. |
 | Query complexity | Core | A classification such as trivial, standard, complex, or agentic derived from length, conjunctions, comparisons, reasoning markers, entities, and intent. Complexity controls how much retrieval, rewriting, context, time, and model… |
@@ -742,8 +793,8 @@ Nine: `documents`, `chunks`, `document_pages`, `documents_vocab`, `chunk_structu
 
 ### Can you explain it?
 
-1. Name the three ways a run becomes agentic.
-2. Explain HyDE in one sentence and say what it costs.
+1. Name the three ways a run becomes agentic, and say which of them is switched off.
+2. Explain HyDE in one sentence and say what it costs, and why it runs in no mode today.
 3. Say what the semantic query cache stores and what it skips.
 4. Explain why routing is decided after retrieval, not here.
 5. Define a touchy query and what it changes.
@@ -754,17 +805,23 @@ Nine: `documents`, `chunks`, `document_pages`, `documents_vocab`, `chunk_structu
 
 `.agentic` (Deep Think or Maximum selected), `.forcedAgentic` (the user pressed Go Deeper), `.plannerEscalated` (the planner escalated a Standard query). `isAgentic` is true for all three.
 
+**Corrected 2026-10-20:** `.plannerEscalated` requires that the answer writer is not Apple's model, and no other model writes answers (without Apple Intelligence a stand-in that only throws takes its place), so in practice only the first two happen. Go Deeper keeps the chat's mode, so from Standard it runs the orchestrator with mode Standard and skips Deep Think's Self-RAG check (`QueryRuntimeCoordinator.swift:203-227`, `RAGService.swift:11374`, `AgenticOrchestrator.swift:200-208`).
+
 </details>
 
 <details><summary><strong>What is HyDE?</strong></summary>
 
 Hypothetical document embedding: the model writes a plausible answer passage, and that passage is embedded instead of the bare question, because passages land closer to passages than questions do. It costs a language model call before retrieval.
 
+**Corrected 2026-10-20:** that is the technique. In this build it runs in no user-selectable mode: Standard's flag is off, and Deep Think and Maximum's pipeline embeds without it (`RAGService.swift:12278-12325`, `:21863-21866`).
+
 </details>
 
 <details><summary><strong>What does the semantic query cache skip on a hit?</strong></summary>
 
 Query embedding (Step 2). The cached vector is reused; the rest of the pipeline still runs.
+
+**Corrected 2026-10-20:** an exact hit skips more than that. It reuses the cached passages as well as the vector, so rewriting, expansion, embedding and the hybrid search are all skipped, and reranking, filtering, packing, generation and the checks still run. A question limited to named documents skips the cache both ways. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:11896-11910, :11994, :12117, :12356, :12496-12701]`
 
 </details>
 
@@ -791,6 +848,8 @@ A query in a category such as medical, legal, financial, safety or dosage. It ra
 **Why it exists.** Vector search and keyword search fail differently, so they run **in parallel** and are merged by **Reciprocal Rank Fusion**, which needs no score calibration between them. The **cross-encoder** reads the question and each candidate together, which a bi-encoder cannot, so it is far better at ranking a short list and far too slow for the whole corpus; that is why it runs on `topK × 3` candidates and not on the library. **MMR** trades a little relevance for coverage so five near-duplicate chunks do not crowd out the second document. **Lexical survivors** are re-attached so an exact identifier hit that fusion buried is not lost.
 
 **Where it runs.** Vector search as in module 06. FTS5 on CPU. Rerank is Core ML with all units permitted and low-precision GPU accumulation allowed, concurrent across pairs. The MMR similarity matrix goes to Metal when there are more than 50 candidates, the profile allows Metal vector ops, and a GPU exists.
+
+**Corrected 2026-10-20:** two things in this module need a version or a source. MMR's lambda is the library's (0.6 in a default library), raised to at least 0.85 for a procedure, in both Standard and the agentic pipeline, and the per-mode 0.60, 0.55 and 0.50 in `RAGQualityMode.mmrLambda` are read by nothing. And in the shipped 5.6 neither MMR call passed the passages' stored vectors, and the 5.7 notes record that the passages reached MMR without them, so every pair measured 0 alike and MMR removed no near-duplicate. From 5.7 both calls pass the stored vectors. `[evidence_level: code_verified for the calls, artifact_derived for the 0-alike measurement, confidence: high, evidence_source: RAGService.swift:13692-13708 and :21990-22019, KnowledgeContainer.swift:266-273, RAGQualityMode.swift:210-217 (no reader), RAGEngine.swift:140-143, the v5.6.0 tag (its RAGService.swift lines 11673-11677 and 19699-19703 pass no vectors), Docs/RETRIEVAL_PIPELINE.md lines 262-263 for the 0-alike measurement]`
 
 ### The word bank (60 concepts)
 
@@ -820,7 +879,7 @@ A query in a category such as medical, legal, financial, safety or dosage. It ra
 | Heuristic extractive QA | Conditional | The active Natural Language and rule-based sentence/span scorer using keyword overlap, entity types, proximity, passage rank, and question type. It provides source-bounded extraction without requiring a trained neural start/end… |
 | Hybrid search | Core | The coordinated dense and lexical search whose ranked results are merged and then reranked. The two arms have complementary failure modes, so retaining both increases coverage across conceptual and exact queries. |
 | Initial candidate breadth | Core | The larger top-k used before expensive reranking, currently mode-dependent at roughly 30, 35, or 50. A cross-encoder can improve order only among candidates it receives, so the first stage must be broad enough to contain the… |
-| Iterative retrieval | Conditional | A retrieve, assess, refine, and retrieve-again loop. The first query can miss evidence or reveal terminology needed for a better second search. |
+| Iterative retrieval | Conditional | A retrieve, assess, refine, and retrieve-again loop. The first query can miss evidence or reveal terminology needed for a better second search. **Corrected 2026-10-20:** this step lives in Standard's pipeline and runs only when the iterative-retrieval setting is on, off by default. Deep Think and Maximum never reach it, and their searching again is the research rounds after Deep Think's chain (`RAGService.swift:12496-12506`, `SettingsStore.swift:559`). |
 | Jaccard deduplication | Core | A token-set overlap check used to discard expanded content that is substantially redundant, around an 0.8 overlap threshold in the parent service. Parent and child passages naturally overlap, and including both verbatim can… |
 | L0 chunk | Core | A normal source-level detail chunk containing directly extracted document content. It is the primary evidence unit for exact facts and citations. |
 | L1 summary chunk | Conditional | A document-level summary chunk derived from representative L0 content. It provides an abstraction layer for overview retrieval and broad routing. |
@@ -852,7 +911,7 @@ A query in a category such as medical, legal, financial, safety or dosage. It ra
 | Stable tie-break | Core | A deterministic secondary order used when candidates have equal or nearly equal scores. Nondeterministic ordering makes tests flaky, citations shift between runs, and benchmark comparisons noisy. |
 | State-anchor adjustment | Conditional | A positive or negative score change depending on whether an indicator-state candidate contains the requested color and behavior anchors. A manual may list many lights and meanings; matching only indicator is insufficient. |
 | Structured table lookup | Core | Directly matching query entities and requested labels against parsed table rows or key-value structures. A deterministic cell lookup has lower hallucination risk than asking the model to infer the value from a flattened table. |
-| Supplementary vector search | Conditional | Additional dense searches using rewritten, expanded, HyDE, or subquestion vectors, followed by deduplicated merge. One query vector cannot represent every facet of a complex question. |
+| Supplementary vector search | Conditional | Additional dense searches using rewritten, expanded, HyDE, or subquestion vectors, followed by deduplicated merge. One query vector cannot represent every facet of a complex question. **Corrected 2026-10-20:** Standard sends no expansions and no HyDE, so in Standard this never runs. Deep Think and Maximum search once per search phrasing instead (`RAGQualityMode.swift:235-242`, `RAGService.swift:12117`, `AgenticOrchestrator.swift:2185-2260`). |
 | TinyBERT reranker | Core | The shipped ms-marco-TinyBERT-L2-v2 Core ML cross-encoder used for reranking. A compact model makes joint query-passage scoring feasible on device for a limited shortlist. |
 | Top-k | Core | The requested number of highest-ranked results retained at a stage. The pipeline needs bounded work and context, but different stages require different k values to trade recall against cost. |
 | Vocabulary mismatch | Core | A detected pattern where many candidates exist but all semantic scores are unusually low and compressed together. Specialized corpus language can make absolute embedding thresholds misleading. |
@@ -862,7 +921,7 @@ A query in a category such as medical, legal, financial, safety or dosage. It ra
 1. Recite the candidate counts for Standard: 30, 90, up to 60, 36, 90 reranked.
 2. Give the RRF formula, k, and the two weights.
 3. Explain why the cross-encoder is not run on the whole corpus.
-4. Give the similarity floors and MMR lambdas per mode.
+4. Give the similarity floors per mode, and say where MMR's lambda really comes from (corrected 2026-10-20: the library, not the mode).
 5. Explain lexical survivors and the keyword boost cap.
 
 ### Quiz
@@ -889,6 +948,8 @@ It reads query and passage together, so it cannot precompute anything and costs 
 
 0.60 Standard, 0.55 Deep Think, 0.50 Maximum. Lower lambda weights diversity more, so Maximum accepts less relevant chunks to cover more of the library.
 
+**Corrected 2026-10-20:** those per-mode values are in `RAGQualityMode.mmrLambda` and nothing reads them. Every mode uses the library's lambda, 0.6 in a default library (0.8 and 0.5 in the other presets), raised to at least 0.85 for a procedure. Lower lambda does weight diversity more. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:13692-13708 and :21990, KnowledgeContainer.swift:266-302, RAGQualityMode.swift:210-217]`
+
 </details>
 
 <details><summary><strong>What is a lexical survivor?</strong></summary>
@@ -907,6 +968,8 @@ A keyword-only hit that fusion pushed below the top-k cut. Up to `max(4, topK / 
 
 **Why it exists.** The on-device model has a window of a few thousand tokens (4,096 in Apple's documentation, 8,192 on a Mac with macOS 27) and every token spent on evidence is one not available for the answer. So there is a budget: window minus instructions, tools, question, conversation, a 256-token safety reserve and the reserved output. Chunks that do not fit are trimmed and their IDs recorded, not silently forgotten. **Lost-in-the-middle** ordering puts the strongest evidence first and last because models attend poorly to the middle. **Contextual compression** keeps only the sentences that matter, at the cost of a model call and a one-second cooldown to protect the Foundation Models rate budget.
 
+**Corrected 2026-10-20:** three things here need limits. Lost-in-the-middle is for every question except a lookup and a procedure. A lookup gets retrieval's best passage first (from 5.7, whole up to three fifths of the budget, cut at a line or sentence end), then the sentences that match the question from every candidate, with no reorder, and a procedure keeps document order. For the other intents the reorder runs over all candidates before the budget cut, so when only about 3 fit, the prompt holds ranks 1, 3 and 5, and rank 2 is neither packed nor rescued (a known defect, read in the code and not run). Contextual compression runs in no user-selectable mode: its only call is in Standard's pipeline behind a mode flag that is off for Standard and on only for Deep Think, which never reaches that step. And the budget has two sizes. When Hybrid can reach Private Cloud Compute, Standard's first pass is sized for the 32,768-token PCC window the app assumes (a hard-coded value, while the route planner reads the window PCC reports) at 2.5 characters a token, capped at 45,000 characters, and an answer then planned on the device is re-packed to the device's budget. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift:14935-14975 (lookups), :3756-3813 (the lead passage, 5.7), RAGEngine.swift:495-504, :569-600 and :773-790 (the reorder, then the fill in that order), RAGService.swift:15035 (the rescue list drops the first ones of the order before the reorder), :14320-14326 and :14406 (compression), RAGQualityMode.swift:277-284, RAGService.swift:14532-14543, :14784-14838, :15839-15904]`
+
 **Where it runs.** CPU. `ContextPackingService` and the token budget in `FoundationModelTokenBudget`, which reads the real window from `SystemLanguageModel.default.contextSize` on iOS 26 and later instead of assuming 4,096.
 
 ### The word bank (27 concepts)
@@ -921,7 +984,7 @@ A keyword-only hit that fusion pushed below the top-k cut. Up to `max(4, topK / 
 | Compression time budget | Core | A total wall-clock cap for compressing a batch of chunks. Multiple model calls can dominate query latency and accumulate session context. |
 | Context window | Core | The maximum token sequence the language model can consider in one session, including instructions, tools, evidence, conversation, and output framing. The corpus cannot fit, so every upstream retrieval and packing decision exists… |
 | ContextPackingService | Core | The deterministic service that chooses and orders core hits, parents, siblings, graph neighbors, and compressed content under a token ceiling. Retrieval rank alone does not solve budget, diversity, sequence, or supporting-context… |
-| Contextual compression | Conditional | Using Apple Foundation Models to extract only query-relevant sentences from retrieved chunks while attempting to preserve exact wording. Chunks often contain both useful and irrelevant text, and a window of a few thousand tokens rewards… |
+| Contextual compression | Conditional | Using Apple Foundation Models to extract only query-relevant sentences from retrieved chunks while attempting to preserve exact wording. Chunks often contain both useful and irrelevant text, and a window of a few thousand tokens rewards… **Corrected 2026-10-20:** no user-selectable mode reaches it in this build, so read it as Dormant (see the correction under "Why it exists"). |
 | Core evidence chunk | Core | A high-ranked retrieved passage treated as an anchor that should survive packing if possible. The packer must preserve the strongest direct evidence before spending tokens on context around it. |
 | Evidence packet | Core | The final minimized collection of source passages, labels, identifiers, and metadata supplied to the answer stage. It is the boundary between retrieval and generation and defines what the model is allowed to know for this answer. |
 | Fresh compression session | Core | Resetting the Foundation Models session between chunk compression calls. Retaining the transcript across chunks accumulates tokens and can overflow the context window after several calls. |
@@ -955,6 +1018,8 @@ A keyword-only hit that fusion pushed below the top-k cut. Up to `max(4, topK / 
 
 3,200 tokens of a 4,096 base window, with a 256-token safety reserve. The real window is read from the system model at runtime and can be larger.
 
+**Corrected 2026-10-20:** 3,200 is the default of `ContextPackingService`, whose one caller always passes its own budget, and the reading ceiling of one Deep Think session. Standard computes its budget for each question: the window the device reports, less 120 tokens, the system prompt, the question and an output reserve of 150 to 300, times 0.88, at 1.4 characters a token, capped at 10,000 characters. On the owner's iPhone 16 Pro Max that was 3,190 tokens, about 4,470 characters, on 2026-10-16. When Hybrid can reach Private Cloud Compute, the first pass is sized for 32,768 tokens instead. `[evidence_level: code_verified, measured for the 3,190, confidence: high, evidence_source: Services/RAG/Retrieval/ContextPackingService.swift:60, RAGService.swift:14580, :14784-14838, :3746-3747, :14532-14543, SessionEvidencePlan.swift:30-40]`
+
 </details>
 
 <details><summary><strong>How does the app estimate tokens from characters?</strong></summary>
@@ -973,6 +1038,8 @@ The packer stops adding chunks once `usedTokens + tokens` would exceed the budge
 
 To let the Foundation Models rate budget recover before the generation call, because compression already spent a model call.
 
+**Corrected 2026-10-20:** that is why the sleep is there, but compression itself runs in no user-selectable mode in this build, so neither the call nor the sleep happens (`RAGService.swift:14320-14326`, `:14406`, `RAGQualityMode.swift:277-284`).
+
 </details>
 
 <details><summary><strong>Is extractive QA used?</strong></summary>
@@ -982,6 +1049,7 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 - Deep Think and Maximum return it before the orchestrator runs.
 - Standard swaps it in after generation.
 - The reliability fallback uses it when generation fails.
+- (Added 2026-10-20.) After a Deep Think or Maximum run, a value that locks replaces the answer the run wrote, and a value returned before the run gets no gates and reads Not Checked. From 5.7, in Standard, the model's answer stands when it already states the extracted value (`RAGService.swift:11191-11198`, `:10599-10655`, `:16501-16528`).
 
 `Docs/HOW_IT_WORKS.md` step 5.10 lists the call sites.
 
@@ -998,6 +1066,8 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 **In the bank's words.** Now the app chooses which answering engine is allowed to run, gives it the evidence and rules, and records what engine actually completed the answer.
 
 **Why it exists.** Where the answer runs is a decision with privacy, cost and quality consequences, so it is made explicitly and after retrieval by `ModelExecutionPlanner`: abstain if the evidence is insufficient, deterministic if a rule-based extractor can answer, Private Cloud Compute only if the capability exists, the network is up, the user is present or has consented, **and** either the local budget does not fit or the query complexity asks for it. Every PCC plan carries an on-device fallback. The **minimised payload** is built before consent is requested, so the user is asked about the exact text that would leave; after Always Allow, it stops asking. Structured generation with `@Generable` exists so the answer arrives as typed claims with citations, not prose to be parsed.
+
+**Corrected 2026-10-20:** the PCC condition above leaves out two parts. The prompt and evidence as assembled, before anything is minimized, must also fit the window PCC reports, and "the query complexity asks for it" means exactly one thing: the mode is Deep Think or Maximum and the answer draws on more than one document. Standard never goes to PCC on difficulty alone. A new install is on Hybrid with permission "Ask when needed", so this rule is live from the first question. In Deep Think and Maximum the plan is made inside every `generateWithProperConsent` call (the helper calls build no plan and stay on the device), every session is pinned to the device unless Private Cloud Compute is picked in the model picker, and only the syntheses can be planned to PCC. Structured generation runs only when the estimated request fits 3,600 tokens, and otherwise the answer streams as plain text. And "deterministic if a rule-based extractor can answer" names a plan target that no plan reaches today, because the only code that builds the planner's evidence passes `requiresExactExtraction: false`. If one did, it would run on the same branch as an on-device one, so the model would still write the answer, and the extracted value may replace it afterwards. `[evidence_level: code_verified, confidence: exact, evidence_source: ModelExecutionPlanner.swift:24-130, SettingsStore.swift:50 and :454-461, ChatScreen.swift:3177-3181, AgenticOrchestrator.swift:9157-9381 (budgetPin at :9234) and :9123-9152, RAGService.swift:18766, :15877, :16501-16528, :18447-18448 and :18509-18521]`
 
 **Where it runs.** Planning is CPU. Generation is `LanguageModelSession.streamResponse` on `SystemLanguageModel.default`; Apple places the on-device model and the app cannot move it. PCC needs iOS 27 or macOS 27, the entitlement, availability and quota, and is built with Swift 6.4. The advanced on-device route executes the same default model; the SDK offers no way to select an advanced model. (Corrected 2026-10-05: this read "no advanced model exists in the SDK". The release SDK, Xcode 27.0 `27A266a`, names the on-device model through `SystemLanguageModel.variant`, `.core3` or `.coreAdvanced3`. The operating system decides which one `default` is, and the app does not read it. `[evidence_level: sdk_verified, confidence: exact_for_installed_sdk, evidence_source: FoundationModels.swiftinterface in Xcode 27.0 27A266a read 2026-10-05; Docs/LIMITATIONS.md, Technical Limits]`)
 
@@ -1018,7 +1088,7 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 | Cloud transmission record | Conditional | The audit record of provider, model, prompt preview, character counts, chunk count, content hashes, estimated bytes, plan ID, and route reason. A cloud badge alone cannot show what left the device or why. |
 | Constrained decoding | Core | Model decoding restricted to a declared output schema. It eliminates a class of parsing failures and lets downstream verification operate over explicit claims and citations. |
 | core3B preference alias | Historical | A compatibility value that now means on-device execution, not selection of an observable three-billion-parameter model. Older settings and UI values must continue to resolve without claiming an API capability Apple does not… |
-| Deterministic execution target | Core | A plan target that returns an extractive or otherwise code-produced answer without generative synthesis. When source structure already yields the answer, generation adds risk and latency without value. |
+| Deterministic execution target | Core | A plan target that returns an extractive or otherwise code-produced answer without generative synthesis. When source structure already yields the answer, generation adds risk and latency without value. **Corrected 2026-10-20:** in the working tree no plan reaches this target, because the only code that builds the planner's evidence passes `requiresExactExtraction: false`, and one that did would not skip generation: `RAGService` runs a `.deterministic` plan on the same branch as `.onDevice`, and the route policy maps it to on-device, so the model would write the answer and the extracted-value override may then replace it. The paths that answer with no model call are Deep Think and Maximum's precision shortcut and Standard's reliability fallback after a failed or empty generation, which returns an extracted value when one locks, or excerpts alone (read Not Checked from 5.7) when its own on-device retry fails too (`RAGService.swift:15877`, `:18447-18448`, `FoundationModelRoutePolicy.swift:35-37`, `RAGService.swift:10561-10737`, `:17317-17612`). |
 | DirectRAGAnswer | Conditional | A smaller structured answer shape without the explicit reasoning field. Exact or constrained paths may need less output overhead and less hidden analysis text. |
 | Evidence source label | Core | A compact identifier such as S1, S2, or an evidence ID attached to each excerpt in the prompt. The model needs an unambiguous namespace it can cite, and downstream code needs to map that label back to the exact chunk. |
 | Execution attempt | Core | One timed try against a target with a result such as succeeded, partial, failed, or skipped. A receipt needs the full chain to explain fallback and attest the completed route. |
@@ -1026,13 +1096,13 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 | Execution fallback | Core | The approved alternative target used when the intended target cannot complete. A fallback must preserve user privacy policy and be explicit in telemetry. |
 | Fail-closed routing | Core | The rule that denied, unknown, unsupported, unavailable, or exhausted cloud conditions choose a permitted local fallback or abstention rather than optimistically transmit. Privacy and authorization uncertainty must never be… |
 | Foundation Model preference | Core | The preference automatic, on-device aliases, or Private Cloud Compute used by model-route policy. It captures a user route choice while retaining compatibility with historical model labels. |
-| Foundation Model tool | Conditional | A typed callable operation exposed to the language model during a session. Tools let the model request deterministic retrieval or document operations instead of fabricating results. |
+| Foundation Model tool | Conditional | A typed callable operation exposed to the language model during a session. Tools let the model request deterministic retrieval or document operations instead of fabricating results. **Corrected 2026-10-20:** a session gets tools only when its call leaves `disableTools` off. Standard turns them off once evidence is assembled, and no Deep Think or Maximum call is given them (`FoundationModelSessionFactory.swift:31`, `RAGService.swift:14769-14774`). |
 | FoundationModelSessionFactory | Core | The central creator of Apple Foundation Models sessions for answer generation and auxiliary use cases. Central construction keeps instructions, tools, use-case policy, routing, and transcript behavior consistent. |
 | FoundationModelToolRegistry | Conditional | The central registry of the app's approved Foundation Models tools and their schemas. An allowlisted registry controls capability, prompt overhead, and auditability. |
 | InferenceConfig | Core | The per-query bundle of generation parameters, Foundation Model preference, execution context, cloud permission, quality mode, prompts, and attached execution plan. All model calls in a query, including agentic synthesis, need… |
 | LanguageModelSession | Core | A Foundation Models conversation/inference session that carries instructions, tools, transcript state, and generation calls. A session is the framework boundary for model interaction and may accumulate context across calls. |
 | LLMService | Core | The service that compiles requests, selects or invokes the active language-model backend, streams text, requests structured output, and records generation metrics. Retrieval should not know framework-specific session details, and… |
-| Local OpenAI-compatible server backend | Conditional | A developer or alternative backend that calls a user-specified local OpenAI-compatible server rather than Apple Foundation Models. It can support testing or external local inference without changing the RAG retrieval contract. |
+| Local OpenAI-compatible server backend | Conditional | A developer or alternative backend that calls a user-specified local OpenAI-compatible server rather than Apple Foundation Models. It can support testing or external local inference without changing the RAG retrieval contract. **Corrected 2026-10-20:** its file is wrapped in `#if false`, so it is not in the build. Read it as Dormant (`Services/LLM/LocalOpenAIServerLLMService.swift:14`). |
 | Matched terms | Support | The query concepts the model reports finding in the supplied sources. They provide an additional diagnostic signal about whether generation used the intended evidence. |
 | Maximum generation tokens | Core | The cap on how many output tokens a model call may produce. It bounds latency and prevents output from consuming capacity needed by later chained calls or UI. |
 | Minimized cloud payload | Conditional | Only the selected evidence and prompt material required for the question, rather than the whole library. Late routing and data minimization reduce exposure and make consent concrete. |
@@ -1051,7 +1121,7 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 | Prompt compiler | Core | The component that turns query intent, evidence excerpts, source labels, grounding rules, answer format, and route constraints into model instructions and prompt content. Prompt text is an executable interface to the model and… |
 | RAGAnswer | Core | The structured model output containing reasoning, direct answer, confidence, citations, atomic claims, and matched terms. It carries the information needed to render, audit, and verify a model response. |
 | Reasoning-first field order | Conditional | Placing a reasoning or analysis field before the final answer in a generable type. Field order can encourage the model to identify supporting facts before committing to the answer. |
-| Registered retrieval tools | Conditional | The current group of approximately six model-callable tools for document search and related deterministic operations. They support agentic evidence gathering while keeping model actions inside the app's local data boundary. |
+| Registered retrieval tools | Conditional | The current group of approximately six model-callable tools for document search and related deterministic operations. They support agentic evidence gathering while keeping model actions inside the app's local data boundary. **Corrected 2026-10-20:** six are registered, and they support no agentic evidence gathering: every Deep Think and Maximum session and synthesis passes `disableTools: true`, and no Deep Think or Maximum step asks the model to choose a tool. Retrieval in the loop is driven by code, and research rounds ask the model to write `[SEARCH: words]` as text. The one call that leaves the tools attached is Standard's direct chat in a library with no documents (`FoundationModelToolRegistry.swift:327-360`, `AgenticOrchestrator.swift:5313`, `:5944`, `:6906`, `:3105-3138`, `RAGService.swift:17106-17111`, `LLMModel.swift:173`). |
 | Response-tail trimming | Core | Removing obvious unfinished artifacts, duplicated schema fragments, or partial trailing structures after a terminated stream. A preserved partial answer should not expose broken serialization or misleading half-sentences. |
 | Route reason | Core | The policy explanation for why a target was intended, such as exact extraction, local fit, user choice, or context overflow. A route without a reason is difficult to audit or reproduce. |
 | Selected model | Core | The model family or execution preference the user requested. User intent must be distinguished from the route the runtime can actually honor. |
@@ -1087,6 +1157,8 @@ The neural span model is not: it is a stub that returns nil, and the bank labels
 
 Capability allows PCC, the network is available, the app is foreground-interactive or consent is granted, and either the local token budget does not fit or the query's complexity requests cloud synthesis. Otherwise on-device, with the reason recorded.
 
+**Corrected 2026-10-20:** that is the Hybrid rung, and it also needs the prompt and evidence as assembled, before anything is minimized, to fit the window PCC reports. "Complexity" is a multi-document synthesis in Deep Think or Maximum. Earlier rungs come first: insufficient evidence abstains, On-Device stays local, PCC chosen goes to PCC when it is usable and someone can be asked or has agreed, an exact extracted value would be planned as deterministic (no code asks for one today), and a privacy setting that forbids cloud stays local. Such a plan would still generate on the device, because `RAGService` runs it with the on-device branch, and the extracted value can then replace the answer (`ModelExecutionPlanner.swift:24-130`, `RAGService.swift:15877`, `:16501-16528`, `:18447-18448`).
+
 </details>
 
 <details><summary><strong>What is the minimised cloud payload?</strong></summary>
@@ -1111,6 +1183,8 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 
 0.4 in Standard, 0.4 in Deep Think, 0.3 in Maximum, passed with `maximumResponseTokens` in `GenerationOptions`.
 
+**Corrected 2026-10-20:** only Standard reads that per-mode table. Deep Think and Maximum's calls use the temperature a step names, else the adaptive profile's, else 0.5. Maximum's reading sessions name 0.7 for the first 3 sessions, 0.5 to session 8 and 0.3 after, and the on-device helper calls (search phrasings, title routing and the like) run at 0.7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGQualityMode.swift:95-102 read at RAGService.swift:11639 only, AgenticOrchestrator.swift:9179, :6887-6894, :9123-9136]`
+
 </details>
 
 ---
@@ -1125,6 +1199,20 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 
 **Where it runs.** Orchestration is CPU. Every model call is on-device Foundation Models. Re-retrieval reuses module 08. Backoff comes from the thermal and memory state and a per-tier step cooldown.
 
+**Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress).** The paragraphs above describe a loop that does not run that way. What the code does, in order:
+
+1. **Entry.** The loop starts because the person chose Deep Think or Maximum, or pressed Go Deeper, not because one pass was not enough: planner escalation is off while Apple's model writes the answers.
+2. **The precision shortcut.** A lookup or precise-value question can be answered by the extractor alone before any loop, with no session, no model call of its own and no gates, and it then reads Not Checked.
+3. **One retrieval.** An on-device planning call first decides whether documents are needed, with a heuristic plan as its fallback. Up to 5 search phrasings each run the full pipeline once, the results are fused into 20 passages, a relevance gate can end the run, and the pool is graded. Cross-reference resolution can then add passages and grade it again. The grade does not escalate anything. It picks the path: excellent and good enter a chain, moderate gets a single synthesis, and low first gets speculative candidates, the best of which is the answer when it clears its threshold.
+4. **Deep Think's chain.** Every session's window is cut from that one pool before the first session, so nothing is searched again inside the chain. It runs at most 8 sessions on every device, and fewer when the pool runs out of distinct windows: 5 for 20 passages at 4 a window. Each session is one model call of up to 700 tokens with tools off, retried up to twice on an overflow or a transient failure.
+5. **Stops.** The chain ends when the windows run out, or before a session from the fifth when confidence, sub-question coverage and novelty exhaustion all clear at once, or when the model writes ANSWER COMPLETE or NOT FOUND IN DOCUMENTS from the second session, or when a session still fails after its retries, and its last finding is then the answer. There is no wall clock and no step cap on the chain beyond its 8 sessions. The 180 seconds bound the research rounds only. Nothing in the loop reads the thermal state. The 1 second wait from 5.7 happens only while iOS 27 asks apps to use less, the per-tier agentic step cooldown (`agenticStepCooldownMs`) has no caller, and the optimizer's step cooldown delays only Standard's generation.
+6. **Searching again** happens only in the research rounds after Deep Think's chain (excellent grade, coverage short of its target or an answer that reads like a miss) and in the Self-RAG retries, at most two. Maximum gathers once and never searches again: its re-retrieval branch cannot be reached.
+7. **What is carried.** In Deep Think, PRIOR FINDINGS (up to 1,200 characters of earlier insights), STILL UNANSWERED (up to 3 open sub-questions) and a SESSION OBJECTIVE. The FactBank's claim text reaches a prompt only in Maximum, in its running answers and its final synthesis. In Deep Think the bank only decides coverage, novelty and when to stop.
+8. **Where it runs.** Under the default Hybrid route the sessions and helper calls are pinned to the device, and the syntheses that write an answer can be planned to Private Cloud Compute, a multi-document one even when it fits the device. With Private Cloud Compute picked in the model picker the sessions can go too, each after consent.
+9. **Checks.** In the shipped 5.6 no gates run on these answers. From 5.7 the gates run once after the loop and set the label only, Verified when all nine pass.
+
+`Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, section 19, has every number with its file and line. `[evidence_level: code_verified, confidence: exact, evidence_source: QueryRuntimeCoordinator.swift:202-229, RAGService.swift:10561-10737 and :10898-10912, AgenticOrchestrator.swift:297-305 and :3527-3545 (the planning call), :339, :2185-2260, :396-452, :521-536 (cross-references), :544-1143, :1043-1069 (speculative candidates), :5003-5126, :5150-5318, :5313-5432 (retries), :5437-5512 (a failed session), :5165-5190, :5521-5531, :2892, :731 and :3855, :3804-3835 (three strikes, two research retries), :6706-6807, :8205-8245, :7292 and :7352, :9234, SystemResourceAdvice.swift:28-32, DeviceCapabilityService.swift:631 (agenticStepCooldownMs, no caller), AdaptivePipelineOptimizer.swift:408-413 and RAGService.swift:15541 (Standard's cooldown), RAGService.swift:11238-11262, the v5.6.0 tag]`
+
 ### The word bank (40 concepts)
 
 | Concept | Status | In one sentence |
@@ -1133,13 +1221,13 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 | Agentic phase | Conditional | A named state such as planning, searching, expanding, analyzing, synthesizing, refining, reformulating, or verifying. Explicit phases make the loop observable and allow deterministic policy to control what actions are legal next. |
 | AgenticOrchestrator | Conditional | The multi-session controller for planning, repeated retrieval, evidence assessment, query reformulation, fact accumulation, synthesis, refinement, and verification. Complex questions need an adaptive loop whose next action… |
 | Analyzing phase | Conditional | Evaluating evidence, extracting facts, resolving source identities, and identifying missing coverage. The loop must distinguish evidence quantity from answer completeness. |
-| ChainLink | Conditional | A structured reasoning-chain output containing reasoning, a condensed insight, next focus, and cumulative confidence. It gives the next session a small explicit state rather than an unbounded transcript. |
+| ChainLink | Conditional | A structured reasoning-chain output containing reasoning, a condensed insight, next focus, and cumulative confidence. It gives the next session a small explicit state rather than an unbounded transcript. **Corrected 2026-10-20:** defined and referenced nowhere, so read it as Dormant. What crosses sessions is the prose of earlier insights (`Core/Models/RAGStructuredResponse.swift:278`). |
 | Convergence | Conditional | The state in which additional retrieval passes no longer add material facts or improve coverage enough to justify continued work. Maximum mode needs evidence-driven stopping rather than endless use of its high session allowance. |
 | Conversation summary | Conditional | A compressed representation of older dialogue that preserves entities, decisions, and unresolved questions. It lets long conversations retain continuity without replaying every message verbatim. |
 | ConversationMemoryService | Conditional | The service that summarizes and retrieves recent conversation context for standalone rewriting and continuity. Follow-up questions need prior entities and constraints, but full chat history cannot consume the entire model context. |
 | Coverage map | Conditional | The record of which subquestions or required answer dimensions have supporting facts. The loop needs a concrete definition of completeness to know when to stop. |
-| Critique step | Conditional | A focused pass identifying unsupported claims, omissions, contradictions, or weak reasoning in a draft. Targeted critique gives the refinement phase a concrete repair objective. |
-| Default agentic profile | Conditional | The ordinary Deep Think multi-session configuration. It balances evidence depth and runtime for questions that exceed Standard. |
+| Critique step | Conditional | A focused pass identifying unsupported claims, omissions, contradictions, or weak reasoning in a draft. Targeted critique gives the refinement phase a concrete repair objective. **Corrected 2026-10-20:** it runs only on the path for a question that needs no documents, and it is a word check with no model call (`AgenticOrchestrator.swift:3463`, inside `executeSelfRAG`, and `:3548-3590`). |
+| Default agentic profile | Conditional | The ordinary Deep Think multi-session configuration. It balances evidence depth and runtime for questions that exceed Standard. **Corrected 2026-10-20:** Deep Think does not use it. Deep Think's configuration is the device's (`DeviceCapabilityService.optimizedAgenticConfig`, see the quiz below), and this one is only the orchestrator's default argument, which every caller overrides (`AgenticOrchestrator.swift:117-123`, `:195`, `RAGService.swift:10863-10871`). |
 | Evidence gap | Conditional | A specific required fact, facet, comparison side, or condition that is not yet supported by the current corpus evidence. Naming the gap enables targeted retrieval instead of generic more searching. |
 | Evidence-driven stopping | Core | Stopping based on coverage, confidence, novelty, contradictions, and improvement rather than a fixed number of thoughts. A fixed loop count wastes work on easy questions and may stop too early on hard ones. |
 | EvidenceThread | Core | A local per-library conversation thread containing messages, title, timestamps, and metadata. It persists the user-visible evidence conversation separately from transient model sessions. |
@@ -1147,14 +1235,14 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 | Fact | Conditional | An atomic evidence-backed proposition stored in the FactBank. Atomic facts can be deduplicated, checked for contradictions, mapped to sources, and combined deliberately. |
 | Fact deduplication | Conditional | Merging or rejecting semantically repeated facts encountered across sessions. Repeated discovery should increase confidence or coverage, not consume state as if it were new information. |
 | Fact provenance | Conditional | The source IDs, chunks, pages, or evidence labels attached to a FactBank fact. A recursive loop must not detach a condensed fact from the source that justified it. |
-| FactBank | Conditional | The cumulative source-backed state that stores facts discovered across subquestions and sessions together with provenance. Passing compact facts forward lets recursive RAG retain knowledge without carrying every full transcript… |
-| Fast agentic profile | Conditional | A reduced multi-session configuration for limited deeper work. It provides some decomposition and verification without the full latency of thorough reasoning. |
+| FactBank | Conditional | The cumulative source-backed state that stores facts discovered across subquestions and sessions together with provenance. Passing compact facts forward lets recursive RAG retain knowledge without carrying every full transcript… **Corrected 2026-10-20:** it holds at most 1,500 characters of claims, each a sentence with its [S#] markers. In Deep Think its text never reaches a prompt: it decides coverage, novelty and when to stop, and the sessions carry PRIOR FINDINGS instead. Only Maximum puts the bank into a prompt, in its running answers and final synthesis (`AgenticOrchestrator.swift:6081`, `:7292`, `:7352`). |
+| Fast agentic profile | Conditional | A reduced multi-session configuration for limited deeper work. It provides some decomposition and verification without the full latency of thorough reasoning. **Corrected 2026-10-20:** no user-selectable mode uses it. It is the configuration for a device without Apple Intelligence, and Standard's developer-forced chain (Force Reasoning Chain, off by default) runs on it (`DeviceCapabilityService.swift:1046-1047`, `AgenticOrchestrator.swift:9068`). |
 | Hard session cap | Core | The absolute maximum number of agentic model sessions allowed even if convergence never occurs. Deterministic safety bounds protect battery, heat, latency, quota, and cancellation behavior. |
 | LLM call count | Support | The number of separate model invocations used to produce an answer. It differentiates a Standard single pass from recursive RAG and helps explain latency and energy. |
 | Memory turn limit | Core | The mode-dependent number of recent conversation turns retained or considered, roughly 5, 10, or 20. More context improves continuity but competes with document evidence and can introduce stale assumptions. |
 | Planning phase | Conditional | The step that interprets the request, identifies subquestions, and chooses an initial evidence strategy. Searching before defining requirements can produce many relevant passages that still fail to answer the whole question. |
-| ReasonedInsight | Conditional | A structured output containing analysis, one key insight, discovered terms, and confidence. It standardizes what an intermediate evidence-analysis session passes forward. |
-| ReasonedSynthesis | Conditional | A structured final integration of multiple insights with key points, confidence, and sources. The last step must reconcile accumulated findings rather than simply concatenate them. |
+| ReasonedInsight | Conditional | A structured output containing analysis, one key insight, discovered terms, and confidence. It standardizes what an intermediate evidence-analysis session passes forward. **Corrected 2026-10-20:** defined and referenced nowhere, so read it as Dormant (`Core/Models/RAGStructuredResponse.swift:238`). |
+| ReasonedSynthesis | Conditional | A structured final integration of multiple insights with key points, confidence, and sources. The last step must reconcile accumulated findings rather than simply concatenate them. **Corrected 2026-10-20:** defined and referenced nowhere, so read it as Dormant. The syntheses write plain text (`Core/Models/RAGStructuredResponse.swift:256`). |
 | Reasoning session | Conditional | One bounded LanguageModelSession call dedicated to a particular agentic objective. Fresh focused sessions avoid transcript overflow and isolate evidence assessment from final answer writing. |
 | Reasoning trace | Support | A user-facing or diagnostic sequence of named progress events and condensed intermediate outcomes. It explains what stages ran without exposing raw hidden chain-of-thought. |
 | Reasoning-chain token total | Support | The sum of tokens consumed across every model call in recursive execution. One window per session does not describe the total computational work of the answer. |
@@ -1163,26 +1251,29 @@ The plan wins: deterministic, on-device and abstain targets run locally; a PCC t
 | Reformulating phase | Conditional | Changing the search query or decomposition when evidence is weak, redundant, or off-target. Repeating the same failed retrieval cannot discover a different lexical or semantic neighborhood. |
 | Searching phase | Conditional | The execution of hybrid retrieval for the current query or subquestion. The loop remains grounded by gathering source evidence before making claims. |
 | Self-RAG | Conditional | A self-evaluation pattern in which the model or orchestration layer checks whether evidence supports the answer and may retrieve or revise again. Generation quality depends on the evidence and can be improved by explicitly… |
-| Standard reasoning chain | Conditional | A bounded multi-step reasoning sequence used within some Standard answer paths without invoking the full agentic orchestrator. A question can benefit from structured evidence analysis and synthesis while still avoiding open-ended… |
+| Standard reasoning chain | Conditional | A bounded multi-step reasoning sequence used within some Standard answer paths without invoking the full agentic orchestrator. A question can benefit from structured evidence analysis and synthesis while still avoiding open-ended… **Corrected 2026-10-20:** it runs only when the developer setting `forceReasoningChain` (Force Reasoning Chain in Settings, Developer & Diagnostics) is on, which is off by default, and it then runs Deep Think's chain on the `fast` configuration (`RAGService.swift:15949-16002`, `AgenticOrchestrator.swift:9063-9117`, `SettingsStore.swift:569`). |
 | Synthesizing phase | Conditional | Combining accumulated source-backed facts into a coherent answer. Multiple subquestions and documents require composition after their evidence is independently gathered. |
 | ThinkingEvent | Support | A typed progress event with phase, title, detail, icons, counters, confidence, and generation state. Typed events keep the live UI and SDK synchronized with the actual pipeline rather than parsing log strings. |
-| Thorough agentic profile | Conditional | A broader configuration with more retrieval and reasoning allowance. Cross-topic or incomplete-evidence questions may need more passes and source expansion. |
+| Thorough agentic profile | Conditional | A broader configuration with more retrieval and reasoning allowance. Cross-topic or incomplete-evidence questions may need more passes and source expansion. **Corrected 2026-10-20:** `RAGQualityMode.agenticConfig` names it for Deep Think, and nothing uses that for Deep Think, which takes the device's configuration instead (`RAGQualityMode.swift:178-183`, `RAGService.swift:10863-10871`). |
 | Unlimited agentic profile | Conditional | The Maximum-mode configuration with a high but still finite safety cap, including up to roughly 50 sessions in current source. Maximum should stop when evidence converges, but a hard ceiling protects against pathological loops. |
-| Verifying phase | Conditional | Running source and claim checks over the agentic synthesis. More model calls do not make an answer trustworthy by themselves; the final output still needs deterministic gates. |
+| Verifying phase | Conditional | Running source and claim checks over the agentic synthesis. More model calls do not make an answer trustworthy by themselves; the final output still needs deterministic gates. **Corrected 2026-10-20:** inside the loop this phase is the Self-RAG check, a lexical relevance score and a citation score, with no model call: a citation counts when its passage exists and holds at least 30 percent of the words of 4 or more letters in the 50 characters before it. The nine gates do not run on Deep Think or Maximum answers in the shipped 5.6, and from 5.7 they run once after the loop and set the label only, Verified when all nine pass (`AgenticOrchestrator.swift:3957-4012`, `:4163-4232`, `RAGService.swift:11238-11262`). |
 
 ### Can you explain it?
 
-1. Give the four profiles with their step cap, confidence target and escalation threshold.
+1. Give the four profiles with their step cap, confidence target and escalation threshold, and say which one each mode really uses (corrected 2026-10-20: Maximum uses unlimited, and Deep Think uses the device's configuration, none of the other three).
 2. Explain the two `executeRecursiveResearch` call sites and how to tell them apart in a log.
 3. Give the reasoning-chain session counts.
 4. Explain what Maximum does differently (0.98, 50 sessions, 3 chunks each, FactBank).
-5. Say why tools are disabled inside Maximum sessions.
+5. Say why tools are disabled inside Maximum sessions. (Corrected 2026-10-20: inside every Deep Think and Maximum session and synthesis.)
+6. (Added 2026-10-20.) Say what happens before any loop for a lookup, and why Deep Think's chain never searches again.
 
 ### Quiz
 
 <details><summary><strong>What are the agentic profiles?</strong></summary>
 
 fast: 2 steps, 0.70 confidence, 0.25 escalation. default: 5, 0.85, 0.35. thorough: 8, 0.95, 0.45. unlimited: 50, 0.98, 0.50.
+
+**Corrected 2026-10-20:** those four exist, and only unlimited drives a mode (Maximum). Deep Think takes the device's configuration. A17 Pro: 5 steps, 20,000 tokens, 0.85, 0.35. A18: 8, 32,000, 0.90, 0.40. A19: 10, 40,000, 0.92, 0.45. The ultra tier (Macs from the M2 and the M1 Ultra, iPad Pros from the M2, iPhones from the A20): 12 steps and 56,000 tokens for each 16 GB of memory, never fewer than 12 and 56,000 and at most 32 and 128,000, 0.95, 0.50. M1, M1 Pro and M1 Max Macs, the M1 iPads and the M2 iPad Air get the A18's numbers, and the M3 iPad Air the A19's. Its steps only pick the chain's starting configuration and how long a finding may be, its chain stops at 8 sessions on every device, and its token figure is checked only by the decomposed pipeline and the research rounds (`DeviceCapabilityService.swift:1044-1091`, `:1159-1488` (the chip tables), `AgenticOrchestrator.swift:212-226`, `:4558-4575`, `:1751`, `:2942`, `AgenticPolicyService.swift:304`).
 
 </details>
 
@@ -1196,17 +1287,23 @@ By the iteration denominator in the log. One site passes `maxIterations: 5`, the
 
 Reaching 0.98 confidence, saturation (no novelty), cancellation, or the session cap, which is 50 scaled down to the evidence pool at three chunks per session. A 180-second budget bounds each recursive research phase.
 
+**Corrected 2026-10-20:** two of these are joined with "and", and one does not apply. "Completed" needs 0.98 confidence and sub-question coverage on target together. "Converged" needs novelty exhausted (a low-novelty streak of 2, a saturation streak of 3, or every passage read) and is checked only from the start of session 6. Three failed sessions in a row also end it. Maximum runs no research rounds, so the 180 seconds never apply to it, and its 200,000-token figure is never checked in its loop (`AgenticOrchestrator.swift:6683-6705`, `:6936-6948`, `:554-631`, `AgenticPolicyService.swift:334-364`).
+
 </details>
 
 <details><summary><strong>Which agentic calls may go to Private Cloud Compute?</strong></summary>
 
 Only the final synthesis, through the post-retrieval plan. Planning and evidence analysis set `executionContext = .onDeviceOnly` and `allowPrivateCloudCompute = false`.
 
+**Corrected 2026-10-20:** under the default Hybrid route, the syntheses, not only the last one: Deep Think's synthesis, Maximum's synthesis and refinement, the moderate and low branches' synthesis, and the synthesis research forces when its rounds run out. A multi-document one qualifies even when it fits the device. With Private Cloud Compute picked in the model picker, the sessions can go too, because the on-device pin yields to that choice (`AgenticOrchestrator.swift:9234-9240`).
+
 </details>
 
 <details><summary><strong>What is the FactBank for?</strong></summary>
 
 It carries source-backed facts between sessions so each new window starts from distilled evidence instead of the previous transcript, which is what used to overflow at 4,521 tokens.
+
+**Corrected 2026-10-20:** in Deep Think the bank does not reach the next session's prompt. Each session is a fresh call that carries PRIOR FINDINGS (earlier insights, each cut to 400 characters, 1,200 in all), STILL UNANSWERED (up to 3 open sub-questions) and a SESSION OBJECTIVE, and the bank decides coverage, novelty and when to stop. Maximum puts the bank, at most 1,500 characters, into its running answers and its final synthesis (`AgenticOrchestrator.swift:8205-8245`, `:6081`, `:7292`, `:7352`).
 
 </details>
 
@@ -1222,6 +1319,8 @@ It carries source-backed facts between sessions so each new window starts from d
 
 **Where it runs.** CPU inside the `VerificationGateService` actor. Gate E costs one embedding call. Thresholds: `tauNormal` 0.40, `tauTouchy` 0.55, margin 0.03, semantic grounding 0.50; a strict profile raises all four. The mode's confidence bar is 0.50, 0.60, 0.80.
 
+**Corrected 2026-10-20:** the gates do less than "decide whether the answer is allowed to stand", and Gate I does not run before synthesis. All nine run once, after the answer is written, Gate I among them, and they label the answer. The text shown stays the model's own and nothing is regenerated, but the claims Gate B could not support leave the structured answer's claim list (under FACT CHECK) and are listed as gaps, and with reliability mode and developer tuning both off and no claim supported, the structured answer becomes a refusal, which is what shows. In Standard a failed gate leads to an abstention only when reliability mode is off (it is on by default) or the gates' overall confidence is under the bar, which is halved for a lookup with a floor of 0.25. Otherwise the answer is shown marked Unverified. The abstain flag the critical gates (A, C and E) set decides nothing: it only adds its reason to the answer's list of gaps. For a lookup whose gates did not pass, the source-only check can replace the answer. Deep Think and Maximum answers get no gates in the shipped 5.6, and from 5.7 the gates set their label only: Verified needs all nine to pass, with Gate A's floor raised to 0.45 in Deep Think and 0.50 in Maximum, and the 0.60 and 0.80 bars are read only on Standard's abstain path. Not every gate compares the answer with the evidence: A reads retrieval scores, D compares passages with each other, G reads the answer alone, H has no intent to check against in Standard, and I compares the question's domain with the evidence's. `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:63-73, :250-260, :295 (A), :513-516 (D), :887 (G), :979-990 (H passes when no intent is given), :1036-1050 (I), RAGService.swift:16623-16633 (Standard gives no intent), :16652-16709, :16845-16853, :16871-16894, :20072-20089 (resolvedDisplayResponse), :11668, StructuredAnswer.swift:955-1048, SettingsStore.swift:534-535, ConfidencePolicyService.swift:26-54, RAGService.swift:11238-11262, the v5.6.0 tag]`
+
 ### The word bank (40 concepts)
 
 | Concept | Status | In one sentence |
@@ -1236,7 +1335,7 @@ It carries source-backed facts between sessions so each new window starts from d
 | Claim verification verdict | Core | The supported, partial, or unsupported classification attached to one answer claim. A single global confidence hides which exact assertions are reliable. |
 | Confidence calibration | Core | Transforming raw signals using configured parameters and verification results to produce a more conservative answer confidence. Raw model and similarity scores have different scales and can be overconfident. |
 | Confidence policy | Core | The per-query thresholds and calibration parameters derived from answer intent, touchy status, and quality mode. Confidence and abstention decisions should change coherently with risk and requested effort. |
-| Critical gate | Core | A verification gate whose failure can independently force abstention, currently including retrieval confidence, numeric sanity, and semantic grounding. Some failures invalidate the answer regardless of how well other dimensions… |
+| Critical gate | Core | A verification gate whose failure can independently force abstention, currently including retrieval confidence, numeric sanity, and semantic grounding. Some failures invalidate the answer regardless of how well other dimensions… **Corrected 2026-10-20:** the three are marked critical and their failure sets an abstain flag, which decides nothing and only adds its reason to the answer's list of gaps. Standard's abstention turns on reliability mode and the gates' overall confidence (`VerificationGateService.swift:250-260`, `StructuredAnswer.swift:974-976`, `RAGService.swift:16668-16709`). |
 | DomainIsolationService | Core | The service that classifies claim/evidence domains and penalizes or blocks support crossing incompatible domains. Common terms can make an unrelated medical, legal, automotive, or computing passage appear semantically relevant. |
 | Evidence-first mode | Core | A policy that treats retrieved source content as the primary answer authority and model output as a constrained transformation. It reverses the unsafe pattern of generating first and searching for citations afterward. |
 | Fidelity | Core | The degree to which the visible answer remains locked to and fully supported by the cited sources. Confidence can reflect overall certainty, while fidelity specifically communicates source support. |
@@ -1293,6 +1392,8 @@ Embeds the generated response and compares it with the best-matching source chun
 
 Because 0.98 was unreachable in practice, so every Maximum answer failed verification.
 
+**Corrected 2026-10-20:** that is the reason in the code's comment. Today Maximum's answers never reach Standard's gate step. In the shipped 5.6 they get no gates at all, and from 5.7 the gates label them and never withhold the answer: Verified needs all nine to pass, with Gate A's floor raised to 0.50, and the 0.80 bar, read only on Standard's abstain path, decides nothing for them (`RAGQualityMode.swift:226-233`, `RAGService.swift:11238-11262`, `:16670`, `ConfidencePolicyService.swift:26-46`).
+
 </details>
 
 <details><summary><strong>What is the difference between confidence and fidelity?</strong></summary>
@@ -1304,6 +1405,8 @@ Confidence is a calibrated trust signal from retrieval scores, gate results and 
 <details><summary><strong>What happens when a claim fails Gate B?</strong></summary>
 
 It has no citation, so it is marked unsupported and removed or the answer is downgraded to partially supported; if too little survives, the app abstains.
+
+**Corrected 2026-10-20:** the gates remove nothing from the text shown. A failed Gate B fails the gate set, and Standard then abstains only when reliability mode is off or the overall confidence is under the bar, and otherwise shows the answer marked Unverified. The claims Gate B could not support do leave the claim list and are listed as gaps (`StructuredAnswer.swift:955-1048`). Claim-level support is what Fact Check shows under the answer, and the badge reads Partially Verified or Unverified from it (`RAGService.swift:16652-16709`, `Core/Models/VerificationOutcome.swift:33-80`, `Features/Chat/Conversation/MessageBubbleV2.swift:718-722`).
 
 </details>
 
@@ -1483,7 +1586,7 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 
 **In the bank's words.** This is the power manager and janitor. It decides how hard the phone can work, keeps local and shared copies safe, and makes long jobs survive when possible.
 
-**Why it exists.** One configuration cannot serve a fanless MacBook Air and an iPhone in a hot car. `DeviceCapabilityService` detects the chip, memory and Metal limits once and hands every subsystem an envelope: batch sizes, concurrency, agentic depth, cooldowns. The GPU execution profile is the user's lever on top of that. Thermal and memory pressure degrade the pipeline, critical thermal to minimal mode. Background tasks are registered so ingestion and index maintenance can continue when iOS allows. Sync exists so a library is the same on every device, and the guard that waits for iCloud to materialise a file is what stops a placeholder being indexed as an empty document.
+**Why it exists.** One configuration cannot serve a fanless MacBook Air and an iPhone in a hot car. `DeviceCapabilityService` detects the chip, memory and Metal limits once and hands every subsystem an envelope: batch sizes, concurrency, agentic depth, cooldowns. The GPU execution profile is the user's lever on top of that. Thermal and memory pressure degrade the pipeline, critical thermal to minimal mode. Background tasks are registered so ingestion and index maintenance can continue when iOS allows. (**Corrected 2026-10-20:** of that envelope, the agentic depth that matters is the device's agentic configuration, and only one cooldown is applied, before each Standard generation. `agenticStepCooldownMs` has no caller. In `AdaptivePipelineOptimizer` five values have no reader outside that file, `maxAgenticSteps`, `maxQueryTimeoutSeconds`, `maxContextTokens`, `rerankBatchSize` and `minSimilarityThreshold`, so they change nothing, and `stepCooldownMs` is read only by the optimizer's own `applyCooldown`, which Standard awaits before generating. Its candidate cap, its parent-document switch and its compression switch are read. Minimal mode therefore does not stop Deep Think or Maximum. `[evidence_level: code_verified, confidence: high, evidence_source: DeviceCapabilityService.swift:631-639 and :1044-1086, AdaptivePipelineOptimizer.swift:95-113, :250-260 and :408-413, RAGService.swift:11740, :14191, :14325 and :15541, a search of every Swift file under OpenIntelligence/ for each field name]`) Sync exists so a library is the same on every device, and the guard that waits for iCloud to materialise a file is what stops a placeholder being indexed as an empty document.
 
 **Where it runs.** Detection is CPU and one Metal device query at first access. Five `BGTaskScheduler` registrations on iOS only: continued ingestion, continued query, index maintenance (4 h, needs power), Spotlight reindex (2 h), app refresh (30 min). The 1.68-second idle timer in `WorkspaceSyncService` is the open defect: its damage is bounded, its cause is not fixed.
 
@@ -1516,7 +1619,7 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 | Maximum-mode quota | Conditional | The tracked allowance for high-cost Maximum queries under the relevant product tier. Maximum can use substantially more local model sessions and background time than Standard. |
 | Memory pressure | Core | The runtime condition nominal, warning, or critical indicating process or system memory stress. Image and model buffers can cause jetsam termination before ordinary Swift errors occur. |
 | Metal Performance Shaders | Conditional | Apple GPU primitives and infrastructure used alongside custom Metal kernels. They support optimized matrix and buffer operations on unified-memory hardware. |
-| Minimal optimization level | Conditional | The emergency configuration retaining only essential retrieval and generation with small limits and no agentic steps. Critical thermal state needs a deterministic safe mode rather than a best-effort full pipeline. |
+| Minimal optimization level | Conditional | The emergency configuration retaining only essential retrieval and generation with small limits and no agentic steps. Critical thermal state needs a deterministic safe mode rather than a best-effort full pipeline. **Corrected 2026-10-20:** its "no agentic steps" is a `maxAgenticSteps` of 0 that nothing reads, so Deep Think and Maximum still run under a critical thermal state (`AdaptivePipelineOptimizer.swift:104` and :254). |
 | Neural Engine | Core | Apple's dedicated machine-learning accelerator available through Core ML scheduling. Embedding, OCR, and model inference can run efficiently without treating CPU or GPU as the only compute resources. |
 | Performance profile | Core | The profile allowing all compute units for the embedding model and moving searches of 1,000 or more passages, and the diversity step over more than 50 results, to the GPU. In the background an import may keep the GPU on an iPhone 16 or later, an iPad Air or an iPad Pro, where iOS offers it (`BackgroundGPUAllowance`). |
 | Query timeout | Core | The maximum wall-clock allowance for a query configuration. Retrieval or model loops need a hard latency boundary and a path to cancellation or partial result. |
@@ -1524,7 +1627,7 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 | SettingsStore | Core | The persisted central source for user model, routing, quality, GPU, RAG tuning, privacy, and presentation settings. Query execution must snapshot one coherent setting state rather than reread mutable UI values during the run. |
 | Shared vector-store materialization guard | Core | The rule that sync aborts if iCloud reports a vector store but the file contents have not downloaded and cannot be read. An unavailable shared file can look like an empty library and cause destructive overwrite. |
 | Spotlight indexing | Conditional | Publishing document and library metadata to Core Spotlight for OS-level discovery. Users can find an indexed document from system search without exposing the corpus to a remote service. |
-| Step cooldown | Conditional | A short delay inserted between expensive stages under the resolved adaptive policy. Cooldowns allow heat, memory, and asynchronous hardware work to settle during sustained multi-step queries. |
+| Step cooldown | Conditional | A short delay inserted between expensive stages under the resolved adaptive policy. Cooldowns allow heat, memory, and asynchronous hardware work to settle during sustained multi-step queries. **Corrected 2026-10-20:** it is applied once a question, and only in Standard. Before each Standard generation the optimizer's `applyCooldown` waits `stepCooldownMs`: 200 ms on an A17 Pro, 100 on an A18, 50 on an A19 and 0 on the ultra tier, 150 ms more under critical memory pressure and 300 ms at critical heat. `agenticStepCooldownMs` (100 ms to 0) has no caller, and nothing paces Deep Think or Maximum with either, so their only waits are a 1.5 second back-off after a failed session and, from 5.7, 1 second while iOS 27 asks apps to use less (`AdaptivePipelineOptimizer.swift:115-261` and `:408-413`, `RAGService.swift:15541`, `DeviceCapabilityService.swift:631-639`, `AgenticOrchestrator.swift:5430`, `:6952`, `SystemResourceAdvice.swift:28-32`). |
 | StoreKit entitlement | Core | The verified purchase or subscription state controlling library count, document limits, sync, and higher-cost modes. Product limits must be enforced consistently across UI and engine entry points. |
 | Sync bootstrap conflict | Conditional | The state where both local and iCloud workspaces contain meaningful independent libraries and the engine cannot safely choose one automatically. Blind replacement could delete unique documents or duplicate libraries. |
 | Sync merge plan | Conditional | The deterministic mapping of source libraries/documents to canonical identities across local and shared roots. Merging must preserve identity, deletion, and source-container relations rather than concatenate files. |
@@ -1554,6 +1657,8 @@ A synthetic fixture tests the pipeline the way it was configured in the harness;
 
 Agentic step concurrency (3 to 32), step cooldown (100 ms to 0), vector batch size (128 to 16,384), embedding batch (8 to 512), the matrix-multiply threshold, Vision concurrency (2 to 64), PDF render concurrency (1 to 64, capped by memory), embedding concurrency (2 to 128).
 
+**Corrected 2026-10-20:** the first two are not applied. The agentic step figure (`maxConcurrentAgenticSteps`) is only printed in a diagnostic summary, and the step cooldown (`agenticStepCooldownMs`) has no caller. What the ladder sets for the loop is the agentic configuration: 5 to 32 steps, 20,000 to 128,000 tokens and a 0.85 to 0.95 confidence target, by chip (`DeviceCapabilityService.swift:605-639`, `:1714-1715`, `:1044-1086`).
+
 </details>
 
 <details><summary><strong>Which background tasks are registered and when may they run?</strong></summary>
@@ -1565,6 +1670,8 @@ Continued ingestion and continued query (system-scheduled), index maintenance no
 <details><summary><strong>What happens at critical thermal state?</strong></summary>
 
 `AdaptivePipelineOptimizer` switches to minimal mode for device protection. Serious thermal no longer throttles; critical memory pressure switches to efficient mode.
+
+**Corrected 2026-10-20:** minimal mode's candidate cap is read, and its "no agentic steps" is not, so a critical thermal state does not stop Deep Think or Maximum (`AdaptivePipelineOptimizer.swift:104` and :254, no reader of `maxAgenticSteps`).
 
 </details>
 
@@ -1604,7 +1711,7 @@ Continued ingestion and continued query (system-scheduled), index maintenance no
 | Automatic online self-training | Historical | The idea that the app continuously retrains or autonomously changes its models from ordinary user activity. The current engine adjusts policy and configuration but does not train the bundled embedding or reranker models on user… |
 | AutoTuneService | Support | The service intended to update selected retrieval thresholds or policies from measured evaluation data under explicit constraints. Tuning should be evidence-driven and bounded rather than silently self-modifying from user answers. Removed in 5.7 on 2026-10-20: nothing referenced it. |
 | Bundled Core ML generative backend | Historical | A removed custom local generative model path distinct from Apple Foundation Models. The current product relies on the system language model and deterministic analysis paths. |
-| Default HNSW architecture | Historical | The incorrect generalization that OpenIntelligence always uses an approximate HNSW vector index. The default current store is BNNSVectorDatabase exact scan; HNSW belongs only to the optional Vectura path. |
+| Default HNSW architecture | Historical | The incorrect generalization that OpenIntelligence always uses an approximate HNSW vector index. The default current store is BNNSVectorDatabase exact scan; HNSW belongs only to the optional Vectura path. **Corrected 2026-10-20:** the Vectura path never compiles, because VecturaKit is not a dependency, so every library uses the exact scan (`Services/VectorStore/VectorStoreRouter.swift:167-172`). |
 | Dynamic Foundation Model profiles | Conditional | A registry that maps the question's answer intent to a temperature and a length, applied only when Adaptive Profiles is turned on in Model Parameters. Until 5.3 it was a placeholder with zero call sites. |
 | Embedding-based chunk boundary detection | Dormant | The implemented path that would compare adjacent sentence embeddings and split where semantic similarity falls. It could add language-independent topical boundaries beyond headings and transition phrases. |
 | Fixed 384-dimensional architecture | Historical | The oversimplified claim that all OpenIntelligence embeddings are 384-dimensional. 384 is the default MiniLM space, while configured Natural Language providers use 512 and the dormant AppleFM scaffold declares 1,024. |
@@ -1615,7 +1722,7 @@ Continued ingestion and continued query (system-scheduled), index maintenance no
 | Model judges | Historical | The withdrawn claim that a separate model grades answer correctness. No separate judge model exists; the source-only claim review, listed under Corrections below, is a different and Conditional mechanism, and deterministic verification and benchmark ground truth serve different roles. |
 | Neural extractive QA model | Dormant | The planned Core ML start/end-span model represented by a stub protocol implementation. The design is present, but the active answer path uses heuristic extraction and specification logic. |
 | PCC simulation | Historical | The withdrawn description that older OS versions simulate Private Cloud Compute. A simulation would misstate privacy and route behavior. |
-| Production PCC | Conditional | The source architecture for live Private Cloud Compute completion. The route is intended for oversized evidence and deeper reasoning, and App Store binaries have carried it since 5.2 (build 451, 2026-09-10), used on iOS and macOS 27 after consent. |
+| Production PCC | Conditional | The source architecture for live Private Cloud Compute completion. The route is intended for oversized evidence and deeper reasoning, and App Store binaries have carried it since 5.2 (build 451, 2026-09-10), used on iOS and macOS 27 after consent. **Corrected 2026-10-20:** under the default Hybrid route its trigger is evidence that does not fit the device, or a Deep Think or Maximum synthesis drawn from more than one document, and "deeper reasoning" is the reasoning level PCC is asked for: none in Standard, moderate in Deep Think, deep in Maximum's exhaustive synthesis (`ModelExecutionPlanner.swift:77-103`, `FoundationModelRoutePolicy.swift:39-44`). |
 | RAPTOR L2/L3 hierarchy | Future | Section- and corpus-level abstraction layers above current document summaries. They could support hierarchical retrieval across very large libraries. |
 | Single 29-step pipeline | Historical | The older documentation shorthand that represented the engine as one fixed numbered sequence. Current execution branches by file type, intent, quality mode, evidence, device state, and route, so no one number captures every path. |
 | Single recursive thought loop | Historical | The oversimplified label for several distinct mechanisms: execution planning, iterative retrieval, recursive multi-session RAG, Self-RAG, critique/refinement, and deterministic verification. Collapsing them hides which component… |
@@ -1624,7 +1731,8 @@ Continued ingestion and continued query (system-scheduled), index maintenance no
 
 ### Corrections
 
-- Add to the dormant list: the `SpeechAnalyzer` transcription branch (guarded by a module that does not exist; never compiles).
+- Add to the dormant list: the `SpeechAnalyzer` transcription branch (guarded by a module that does not exist; never compiles). (**Corrected 2026-10-20:** dormant through 5.6 only. From 5.7 it compiles and runs first, `SpeechAnalyzerService.swift:1-15`.)
+- **Added 2026-10-20, to the dormant list**, each in the source and on no path in the working tree: multi-chain reasoning (`executeMultiChainReasoning` and its cluster chains, no caller), `executeHonestSynthesis` (no caller), Maximum's re-retrieval inside its loop (it needs a saturation streak of 3, which first exists at the start of session 6, where "converged" already stops the loop), HyDE in all three modes, contextual compression in all three modes, planner escalation while Apple's model writes the answers, the `ChainLink`, `ReasonedInsight` and `ReasonedSynthesis` types, the entity index (nothing fills it), `VecturaVectorDatabase` (never compiled), the per-mode MMR lambda (`RAGQualityMode.mmrLambda`, no reader), the `fast`, `defaultConfig` and `thorough` agentic profiles for any user-selectable mode (`fast` runs only on a device without Apple Intelligence and in Standard's developer-forced chain), the local OpenAI-compatible backend (`#if false`), `verifyAnswerGrounding` on the compression service (no caller), the agentic step cooldown (`agenticStepCooldownMs`), Gate A's margin check (`checkRetrievalConfidence`, no caller), and `AdaptivePipelineOptimizer`'s `maxAgenticSteps`. Teach each one with what runs instead. `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, section 19, cites the file and line for each. `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:7533, :7891, :1658, :6706-6807, :7024 and :7048, RAGService.swift:12278-12325, :21863-21866, :14320-14326 and :14406, QueryRuntimeCoordinator.swift:203-205, Core/Models/RAGStructuredResponse.swift:238-278, EntityIndexService.swift:31 and :137, VectorStoreRouter.swift:167-172, RAGQualityMode.swift:210-217, LocalOpenAIServerLLMService.swift:14, DeviceCapabilityService.swift:631-639 and :1046-1047, VerificationGateService.swift:279-288, AdaptivePipelineOptimizer.swift:104-108]`
 - Add to the historical list: the `.cpuAndGPU` Maximum profile (removed the Neural Engine; fixed 2026-08-26) and the `NSImage.lockFocus` macOS render path (4× oversize, 370 MB per page; replaced by a `CGBitmapContext`).
 - Add as Conditional: source-only claim review. In `SourceOnlyAnswerService`, for lookup and table-lookup answers, one on-device session drafts claims and a second rates them against the evidence as supported, contradicted, ambiguous or unsupported, and the result can replace the answer. In Standard it runs only when the gates flag the answer.
 
@@ -1654,6 +1762,8 @@ Nothing usable. It is a 1,024-dimension placeholder scaffold and must not be des
 
 The `SpeechAnalyzer` branch. `SFSpeechRecognizer` with on-device recognition runs instead.
 
+**Corrected 2026-10-20:** that is the answer through 5.6. From 5.7 neither path is dormant: the `SpeechAnalyzer` branch runs first and `SFSpeechRecognizer` is its fallback (`SpeechAnalyzerService.swift:1-15`, `DocumentProcessor.swift:9287`).
+
 </details>
 
 <details><summary><strong>What is the difference between PCC existing in source and PCC being in production?</strong></summary>
@@ -1680,6 +1790,20 @@ with citations, and nine deterministic gates decide what is allowed to stand. On
 may leave the device, to Private Cloud Compute, and only after the app shows you how much would
 be sent and why, and you agree; Always Allow stops it asking."
 
+**Corrected 2026-10-20:** say it this way instead, because three parts of the pitch above overstate
+what the code does. "...packed under a token budget. Apple's model writes the answer with citations,
+on the device or, when the evidence is too big or a Deep Think or Maximum answer spans documents,
+on Private Cloud Compute, but only after the app shows you how much would be sent and why and you
+agree. Nine deterministic checks then label the answer, and when they fail it says so or holds the
+answer back. Deep Think reads the same retrieval in up to 8 sessions and writes once from what they
+found." The three overstatements: the gates label rather than decide, Private Cloud Compute can
+write the answer under the default Hybrid route, and with Private Cloud Compute picked in the model
+picker Deep Think and Maximum's session calls can leave too, not only the final answer. In the
+shipped 5.6 Deep Think and Maximum answers get no gates at all. `[evidence_level: code_verified,
+confidence: exact, evidence_source: RAGService.swift:16652-16709, ModelExecutionPlanner.swift:77-103,
+SettingsStore.swift:454-461, AgenticOrchestrator.swift:9234-9240, :5003-5126 and :5879-5951, the
+v5.6.0 tag]`
+
 **Five minutes.** The twelve sentences above, each expanded with one number: 310 words, 510
 tokens, 384 dimensions, 1,000 vectors, k = 60, 0.50 and 0.50 on the first pass, 4,096 and 3,200,
 0.40 and 0.55, nine gates, 180 seconds.
@@ -1692,11 +1816,23 @@ honestly: the code requests it on five lines and Apple decides; nothing in the a
 
 | Claim as taught | What the source says |
 |---|---|
-| Audio goes through `SpeechAnalyzer` | The branch never compiles. `SFSpeechRecognizer`, on device, in 600-second segments. |
+| Audio goes through `SpeechAnalyzer` | The branch never compiles. `SFSpeechRecognizer`, on device, in 600-second segments. (Corrected 2026-10-20: true through 5.6. From 5.7 `SpeechAnalyzer` with `SpeechTranscriber` runs first, and `SFSpeechRecognizer` is the fallback.) |
 | Embeddings run on the Neural Engine | Requested, not placed. Efficiency and Balanced request CPU + Neural Engine; Performance and Maximum request all units; Core ML decides. Core AI exposes nothing. |
 | The GPU profile decides whether vector search uses Metal | It does, with two other conditions: 1,000 vectors and a Metal device. Efficiency and Balanced keep vector search on the CPU. The profile also gates Core ML units and the MMR matrix. |
 | `RecognizeDocumentsRequest` does OCR | It parses structure and tables. `VNRecognizeTextRequest` does OCR. |
 | Page rendering is zero-copy | The PNG round trip is skipped; a full-page bitmap is still allocated per page. |
-| Maximum verification bar is 0.98 | 0.80. The 0.98 target lives in the agentic loop, not the gate. |
-| The advanced on-device model | Executes the default model. No advanced model exists in the SDK. |
+| Maximum verification bar is 0.98 | 0.80. The 0.98 target lives in the agentic loop, not the gate. (Corrected 2026-10-20: the 0.80 is read only on Standard's abstain path, so no Maximum answer meets it. From 5.7 a Maximum answer is labelled Verified only when all nine gates pass, with Gate A's floor raised to 0.50. In 5.6 no gates run on it.) |
+| The advanced on-device model | Executes the default model. No advanced model exists in the SDK. (Corrected 2026-10-20, as module 10 was on 2026-10-05: the app cannot select a model, but the release SDK names the one `default` runs through `SystemLanguageModel.variant`, `.core3` or `.coreAdvanced3`, and on the owner's Mac it reads `.coreAdvanced3`. The app does not read it. See `Docs/LIMITATIONS.md`, Technical Limits. Checked again 2026-10-20: `core3` and `coreAdvanced3` at lines 495-501 of the iOS FoundationModels.swiftinterface in `/Applications/Xcode.app`, and no read of `SystemLanguageModel.default.variant` in the app.) |
+| (Added 2026-10-20) Deep Think plans, searches, reads, notes and searches again | It reads windows cut from one retrieval before its first session, at most 8 sessions on every device and fewer when the windows run out. Only the research rounds after the chain search again, and Maximum's own loop never does. |
+| (Added 2026-10-20) A faster device runs more Deep Think sessions | 8 on every device. The device sets the confidence target, 0.85 to 0.95. |
+| (Added 2026-10-20) About six tools support agentic evidence gathering | Six are registered and no Deep Think or Maximum call is given them. No Deep Think or Maximum step chooses a tool. |
+| (Added 2026-10-20) Only the final answer may reach Private Cloud Compute | Under the default Hybrid route, the syntheses. With Private Cloud Compute picked in the model picker, the sessions too. A new install is on Hybrid with "Ask when needed". |
+| (Added 2026-10-20) Nine gates decide what survives, for every answer | They label. Standard abstains only with reliability mode off or a low score. 5.6 runs none on Deep Think or Maximum answers, and 5.7 labels them. A value the precision shortcut locks gets none. |
+| (Added 2026-10-20) MMR λ is 0.60, 0.55 and 0.50 by mode | The library's λ, 0.6 by default, at least 0.85 for a procedure. In 5.6 MMR got no vectors and removed nothing. |
+| (Added 2026-10-20) HyDE and contextual compression run in Deep Think | Neither runs in any user-selectable mode. |
+| (Added 2026-10-20) The planner escalates hard Standard questions into the loop | Off while Apple's model writes the answers, which is always in this build. |
+| (Added 2026-10-20) A query-cache hit skips only the embedding | It skips rewriting, expansion, embedding and the search. |
+| (Added 2026-10-20) Step cooldowns and minimal mode slow or stop the loop | Nothing applies them to the loops: `agenticStepCooldownMs` has no caller, the optimizer's step cooldown delays only Standard's generation, and minimal mode's zero agentic steps is read by nothing. The loops wait only 1.5 s after a failed session and, from 5.7, 1 s while iOS 27 asks apps to use less. |
+| (Added 2026-10-20) The entity index powers GraphRAG-lite | Nothing fills it. |
+| (Added 2026-10-20) Maximum widens its evidence as it goes, and runs chains in parallel | Neither can run: the re-retrieval branch is unreachable and multi-chain reasoning has no caller. |
 | Core AI is a fallback | On a Mac with macOS 27 it is the default for a new library. From 5.7 iPhone and iPad default to Core ML, which was faster on an iPhone 16 Pro Max and can run on the CPU for a background import, and a library keeps the embedder it was built with (`EmbeddingProviderDefaults`). |

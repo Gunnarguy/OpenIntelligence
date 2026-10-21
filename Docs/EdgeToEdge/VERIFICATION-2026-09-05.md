@@ -86,6 +86,23 @@ stops at 0.98 (`executeTrueUnlimitedReasoning(targetConfidence: 0.98)`) and its 
 is 0.80 (`verificationConfidenceThreshold`, whose comment reads "0.98 was unreachable"). Both are
 correct; neither is the other.
 
+**Since then (note of 2026-10-20, read in the working tree, `b868fc0` plus the 5.7 work in
+progress).** This page is the re-check of 2026-09-05, and six of its findings read differently in
+today's code. The 3 / 4 / 5 sessions are the chain configuration's starting length, not what Deep
+Think runs: the chain plans min(8, sessions + 4) sessions, which is 8 on every device, and fewer when
+the pool runs out of distinct windows, so an A17 Pro can run 8 too (`AgenticPolicyService.swift:304`,
+`AgenticOrchestrator.swift:5003-5126`, `:5150`). Tools are switched off in every Deep Think session as
+well as Maximum's (`disableToolsForSession = true`, `AgenticOrchestrator.swift:5313`). The verification
+loop keyed on 8 or more steps through 5.6, and from 5.7 it runs for Deep Think on every device and
+never for Maximum (`AgenticOrchestrator.swift:200-208`). The cooldown values in the table exist and
+nothing applies them: `agenticStepCooldownMs` has no caller (`DeviceCapabilityService.swift:631-639`).
+And Maximum's "completed" needs sub-question coverage on target as well as 0.98, its "converged" is
+checked only from the start of session 6, and 3 failed sessions in a row also stop it
+(`AgenticOrchestrator.swift:6683-6705`, `:6936-6948`). The ultra tier's steps have a floor: they are
+12 × max(1, RAM ÷ 16 GB), at most 32, so a device under 16 GB still gets 12, and the tier is not every
+M-series chip, since M1, M1 Pro and M1 Max Macs, the M1 iPads and the M2 iPad Air are `.enhanced`
+(`DeviceCapabilityService.swift:1079-1091`, `:1159-1488`). `[evidence_level: code_verified, confidence: exact]`
+
 From `ConfidencePolicyService.swift`, not previously on any page: strictness lift 0 / +0.05 /
 +0.10 applied to every gate threshold (capped at 0.60 / 0.75 / 0.10 / 0.60); calibration default /
 conservative / conservative; abstention floor 0.35 / 0.45 / 0.55; extractive-first questions halve

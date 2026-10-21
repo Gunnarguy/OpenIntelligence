@@ -53,7 +53,7 @@ Fifteen concepts. Reading between the lines: the extras the app derives from a d
 ### Entity index (Conditional, verified)
 - **Idiot:** a phone book from names to chunks.
 - **Dot-connector:** O(1)-style lookup from an entity to every chunk that mentions it; the basis of GraphRAG-lite expansion.
-- **Expert:** forward and reverse maps, document- and container-scoped, populated after chunks receive entities, queried during agentic or graph expansion.
+- **Expert:** forward and reverse maps, document- and container-scoped, populated after chunks receive entities, queried during agentic or graph expansion. **Corrected 2026-10-20:** nothing populates it: `EntityIndexService.indexChunk` and `indexChunks` have no caller outside the service, so the index is empty in every library and no expansion reads it (`EntityIndexService.swift:31`, `:137`). Read it as Dormant.
 
 ### Entity normalization (Conditional, verified)
 - **Idiot:** "U.S.A." and "USA" count as the same name.
@@ -63,7 +63,7 @@ Fifteen concepts. Reading between the lines: the extras the app derives from a d
 ### GraphRAG-lite (Conditional, verified)
 - **Idiot:** hop from a good chunk to its relatives.
 - **Dot-connector:** vector similarity misses a relevant passage that uses different words but shares a key name or a "see page 12." The graph catches those.
-- **Expert:** `EntityIndexService` plus `GraphIndexService` edges (next, previous, sibling, reference, same section, shared entity), traversed after initial retrieval in deeper paths.
+- **Expert:** `EntityIndexService` plus `GraphIndexService` edges (next, previous, sibling, reference, same section, shared entity), traversed after initial retrieval in deeper paths. **Corrected 2026-10-20:** the `EntityIndexService` half is empty, as above. What runs is Standard's graph packing through `GraphIndexService` (parents, neighbours, references) for investigate, compare and findings questions, and in Deep Think and Maximum a "graph expansion" for a moderate or low pool that asks the model to name up to 3 entities and searches each one (`ContextPackingService.swift:55-85`, `RAGService.swift:14558-14590`, `AgenticOrchestrator.swift:487-502`, `:2524-2595`).
 
 ### Predictive pre-scan (Core, described in docs, behaviour in `DocumentProcessor`)
 - **Idiot:** look at the first few pages to decide how to handle the rest.

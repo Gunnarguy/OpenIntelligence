@@ -8,7 +8,7 @@ Everything in this app comes from one promise and one danger.
 
 The promise is that your documents stay yours. So: one private container per library, all reading and filing on the device, memory-mapped vectors so a phone can hold a library, and a single outside room, Apple's Private Cloud Compute, used only after retrieval, only after the app has built the exact payload and shown you how much would be sent and why, only with your consent, and always with an on-device fallback. Choose Always Allow and it stops asking.
 
-The danger is that a language model invents. So: two indexes instead of one, so the right evidence is found more often. A cross-encoder second opinion. A similarity floor and diversity so the desk is not filled with the wrong or the same thing. A hard token budget so nothing is silently dropped without being recorded. Two generative stages, and nine deterministic gates aimed at them. For lookup answers, a source-only check: two more on-device sessions, one drafting claims and one rating them, and its result can replace the answer. Citations to the exact chunk, with its page and a quote, so every claim can be checked. And an honest label of which model actually completed the answer.
+The danger is that a language model invents. So: two indexes instead of one, so the right evidence is found more often. A cross-encoder second opinion. A similarity floor and diversity so the desk is not filled with the wrong or the same thing. A hard token budget so nothing is silently dropped without being recorded. In Standard, two generative stages besides a short planning call, and nine deterministic gates aimed at the answer, which label it and leave its words alone, though the claims they cannot support drop off the fact-check list. Deep Think and Maximum make many more model calls, and in the shipped five point six their answers get no gates. For lookup answers, a source-only check: two more on-device sessions, one drafting claims and one rating them, and its result can replace the answer. Citations to the exact chunk, with its page and a quote, so every claim can be checked. And an honest label of which model actually completed the answer.
 
 If you remember nothing else, remember that every part of the app is one of those two things: keeping the promise, or defending against the danger.
 
@@ -29,7 +29,7 @@ Twelve. What comes back is inspectable: claims, chunk-level citations with page 
 
 The ninety-second version. Say this one from memory.
 
-OpenIntelligence turns your files into a private, searchable knowledge base on the device. Ingestion extracts, chunks and embeds every document into two indexes, one for exact words and one for meaning. A question is searched both ways in parallel, fused, reranked by a cross-encoder, and packed under a hard token budget. Apple's on-device model writes a typed answer with citations, and nine deterministic gates decide what is allowed to stand. Only the final answer may leave the device, to Private Cloud Compute, and only after the app shows you how much would be sent and why, and you agree; Always Allow stops it asking.
+OpenIntelligence turns your files into a private, searchable knowledge base on the device. Ingestion extracts, chunks and embeds every document into two indexes, one for exact words and one for meaning. A question is searched both ways in parallel, fused, reranked by a cross-encoder, and packed under a hard token budget. Apple's model writes the answer with citations, on the device or, when the evidence is too big or a Deep Think or Maximum answer spans documents, on Private Cloud Compute, but only after the app shows you how much would be sent and why and you agree. Always Allow stops it asking. Nine deterministic checks then label the answer, and when they fail it says so or holds the answer back.
 
 The five-minute version. The twelve sentences, each expanded with one number. Three hundred and ten words. Five hundred and ten tokens. Three hundred and eighty-four dimensions. One thousand vectors. K equals sixty. Zero point five zero and zero point five zero on the first pass. Four thousand and ninety-six and three thousand two hundred. Zero point four zero and zero point five five. Nine gates. One hundred and eighty seconds.
 
@@ -53,7 +53,7 @@ Seven. When does the planner choose Private Cloud Compute? Pause. Capability all
 
 Eight. What does Gate E do? Pause. Embeds the answer and compares it to its best source chunk; below zero point five zero it is treated as ungrounded.
 
-Nine. Which speech A P I actually transcribes audio? Pause. S F Speech Recognizer with on-device recognition required. The Speech Analyzer branch never compiles.
+Nine. Which speech A P I actually transcribes audio? Pause. Through five point six, S F Speech Recognizer with on-device recognition required, because the Speech Analyzer branch never compiled. From five point seven, Speech Analyzer runs first, and S F Speech Recognizer is the fallback.
 
 Ten. Where does the Neural Engine run? Pause. The app requests it on five lines through Core M L compute units and Apple decides; nothing in the app can measure it.
 

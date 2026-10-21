@@ -3,6 +3,8 @@
 **Purpose**: Single source of truth for current technical constraints and the claim boundaries they create.
 **Last Verified**: LLM-constraints table and its notes partially re-verified 2026-09-29 against the 5.5 tree (HEAD `8be003a`); everything else as dated below.
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** the Context Packing table and two claim lines carry dated notes where the code no longer matches them. Nothing else in this file was re-read that day.
+
 > **What 2026-09-29 covers.** The LLM-constraints table and the implementation notes under it were re-checked
 > against source and against Apple's documentation. Three statements no longer held: the planless routing
 > branch reads the SDK's on-device window instead of a literal 4096 (commit `176e32c`, 2026-08-06), PCC is an
@@ -81,6 +83,21 @@ First real numbers, from an iPhone A18 Pro. These superseded the unbacked `< 0.8
 | Max RAG context chars  | about **5500**                  | practical ceiling for current prompt assembly |
 | Default packing budget | about **3200** estimated tokens | tuned for the public Apple path               |
 
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** this
+> April table no longer matches the code. Standard computes its budget for each question: the window
+> the device reports, less 120 tokens, the system prompt, the question and an output reserve of 150 to
+> 300 tokens, times 0.88, at 1.4 characters a token, capped at **10,000** characters (2,500 for a
+> trivial question). On the owner's iPhone 16 Pro Max that was 3,190 tokens, about 4,470 characters,
+> on 2026-10-16. When Hybrid can reach Private Cloud Compute, the first pass is sized for 32,768
+> tokens at 2.5 characters a token, capped at **45,000** characters, and an answer then kept on the
+> device is re-packed to the device's budget. The 3,200 is `ContextPackingService`'s default, which its
+> one caller overrides, and the most evidence one Deep Think session reads. A Deep Think session's
+> budget is the window less 700 for the reply, 400 for the prompt, 256 for safety and the carried
+> text. `[evidence_level: code_verified, measured for the 3,190, confidence: high, evidence_source:
+> OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:14784-14838, :14532-14543,
+> :15839-15904, :3746-3747, :14580, OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift:60,
+> OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift:30-62]`
+
 ### Infrastructure Constraints
 
 | Constraint           | Value                                    | Why it matters                                      |
@@ -110,6 +127,19 @@ Important current implementation note:
 - Private Cloud Compute: Apple-controlled routing context, not an app-owned backend
 - evaluation SDK or XCFramework: true as a staged evaluation artifact, not as a finished productized SDK
 - benchmark results: useful for internal regression and pilot evaluation, not audited proof of production accuracy
+
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** two
+> lines in these lists need the code's terms. The routing is the app's own: `ModelExecutionPlanner`
+> decides after retrieval, and Apple runs the model once it is chosen. Under the default Hybrid route
+> it picks PCC only when the prompt and evidence as assembled, before anything is minimized, fit the
+> window PCC reports and either the evidence does not fit
+> the device's budget or a Deep Think or Maximum answer draws on more than one document, so "for
+> reasoning-heavy queries" is looser than the rule. A new install starts on Hybrid with permission "Ask
+> when needed", and in Deep Think and Maximum only the syntheses can be planned to PCC unless Private
+> Cloud Compute is picked in the model picker. `[evidence_level: code_verified, confidence: exact,
+> evidence_source: OpenIntelligence/Services/RAG/Orchestration/ModelExecutionPlanner.swift:24-130,
+> OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift:50 and :454-461,
+> OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:9234-9240]`
 
 ### Do not claim from current repo state
 

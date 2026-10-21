@@ -9,7 +9,7 @@ Why it exists. A repository accumulates scaffolds, reserved enums and superseded
 Where it runs. Nowhere. That is the point.
 
 Corrections to the earlier documents.
-Add to the dormant list: the Speech Analyzer transcription branch (guarded by a module that does not exist; never compiles).
+Add to the dormant list: the Speech Analyzer transcription branch (guarded by a module that does not exist; never compiles). Corrected on 20 October 2026: dormant through 5.6 only. From 5.7 it runs first. Add instead: multi-chain reasoning, Maximum's re-retrieval inside its loop, HyDE and contextual compression in every mode, planner escalation with Apple's model, the chain link and reasoned insight types, the entity index, the Vectura store, the per-mode lambda, the agentic step cooldown and minimal mode's agentic limit.
 Add to the historical list: the C P U and G P U Maximum profile (removed the Neural Engine; fixed 2026-08-26) and the NSImage.lock Focus mac O S render path (4 times oversize, 370 megabytes per page; replaced by a CGBitmapContext).
 Add as conditional: source-only claim review. In Source Only Answer Service, for lookup and table-lookup answers, one on-device session drafts claims and a second rates them against the evidence as supported, contradicted, ambiguous or unsupported, and the result can replace the answer. In Standard it runs only when the gates flag the answer.
 
@@ -51,7 +51,7 @@ Can you explain it? Say each of these out loud. If you cannot, go back.
 Quiz.
 Question 1. Why is there no approximate nearest-neighbour index? Pause here if you want to answer first. ... The answer. Because an exact scan over memory-mapped, normalised vectors on Accelerate or Metal is fast enough at the library sizes a phone holds, and it has no recall loss. HNSW is a reserved name.
 Question 2. What does the Apple Foundation Models embedding provider do today? Pause here if you want to answer first. ... The answer. Nothing usable. It is a 1,024-dimension placeholder scaffold and must not be described as a shipped embedder.
-Question 3. Which transcription path never runs? Pause here if you want to answer first. ... The answer. The Speech Analyzer branch. SFSpeechRecognizer with on-device recognition runs instead.
+Question 3. Which transcription path never runs? Pause here if you want to answer first. ... The answer. The Speech Analyzer branch. SFSpeechRecognizer with on-device recognition runs instead. Corrected on 20 October 2026: that is the answer through 5.6. From 5.7 neither transcription path is dormant.
 Question 4. What is the difference between Private Cloud Compute existing in source and Private Cloud Compute being in production? Pause here if you want to answer first. ... The answer. The route compiles under Swift 6 point 4 and i O S 27, but a given App Store build may carry zero Private Cloud Compute symbols: builds before version 5.2 carried none, and from 5.2, on 2026-09-10, the release guard fails any build that has none. i O S 26 users always get the on-device route. Say which build you mean.
 Question 5. What replaced the bundled Core M L generative backend? Pause here if you want to answer first. ... The answer. Nothing bundled. Generation is the system language model through Foundation Models; deterministic extraction handles what does not need a model.
 

@@ -1,5 +1,7 @@
 How OpenIntelligence Works
 
+ Corrected 2026-10-20 against the working tree (b868fc0 plus the 5.7 work in progress): this is the walkthrough as exported on 2026-08-22, kept as written. Its account of the agentic loop, tools, routing and checks is wrong for the current code in the places marked below, and Docs/Engineering/FULL_SYSTEM_TRACE.md section 9.1 lists its other errors. Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md section 19 has the loop with file and line citations. A second review the same evening added the correction under "Backing off when the device is under pressure" and an evidence tag on each correction.
+
  OpenIntelligence
 
  Reading level
@@ -494,7 +496,7 @@ How OpenIntelligence Works
  Extractive answers: built, then switched off
 
  Plain
- There used to be a shortcut here: for a plain "what's the number" question, copy the number straight out of the table instead of asking the AI. It sounds obviously right, and it was turned off, because it guessed wrong too often. Asked for fuel tank capacity, it once answered "three-quarters" because that phrase sat near the right words. So every question now goes through the model, which is slower and more reliable.
+ There used to be a shortcut here: for a plain "what's the number" question, copy the number straight out of the table instead of asking the AI. It sounds obviously right, and it was turned off, because it guessed wrong too often. Asked for fuel tank capacity, it once answered "three-quarters" because that phrase sat near the right words. So every question now goes through the model, which is slower and more reliable. Corrected 2026-10-20 against the working tree (b868fc0 plus the 5.7 work in progress): that is wrong today, as Docs/HOW_IT_WORKS.md step 5.10 says since 2026-09-26. The same extractor still answers value questions: Deep Think and Maximum return a locked value before the orchestrator runs, a locked value replaces an agentic answer afterwards, and Standard swaps it in after generation, from 5.7 only when the model's answer does not already state the value. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:10561-10737, :11191-11200 and :16501-16528]`
 
  StatusDisabled. The code path is commented out and every query proceeds to model generation. The recorded reason: heuristic extraction produced false positives, returning "three-quarters" for a fuel-tank-capacity query, and bypassed the model entirely when it fired.
 
@@ -621,7 +623,7 @@ How OpenIntelligence Works
 
  6Otherwise (Hybrid)Cloud only if the payload fits and either the evidence overflows the local window or the question needs multi-document synthesis in a non-Standard mode. Otherwise local
 
- Two consequences of that last rule are worth stating because they are easy to assume wrong. Standard mode never escalates to the cloud on difficulty alone; it escalates only when the evidence physically does not fit on device. And escalation additionally requires the minimized payload to fit the cloud budget, so a query too large for both stays local.
+ Two consequences of that last rule are worth stating because they are easy to assume wrong. Standard mode never escalates to the cloud on difficulty alone; it escalates only when the evidence physically does not fit on device. And escalation additionally requires the minimized payload to fit the cloud budget, so a query too large for both stays local. Corrected 2026-10-20 against the working tree (b868fc0 plus the 5.7 work in progress): the fit is measured on the prompt and evidence as assembled, before anything is minimized, against the window PCC reports, and the payload is minimized only after PCC is picked. When PCC reports no window, Hybrid never picks it. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:18509-18521 and :15793-15830, OpenIntelligence/Services/RAG/Orchestration/ModelExecutionPlanner.swift:77-86]`
 
 ### The shape of the plan itself
 
@@ -705,14 +707,14 @@ How OpenIntelligence Works
 
 ### Choosing tools
 
- Four tools are available to the model, and it decides whether and which to use: retrieve evidence from the library, inspect a specific document, compare a topic across documents, and get an overview of the library. Tools are withdrawn once evidence has already been assembled, for the token-budget reason described earlier.
+ Four tools are available to the model, and it decides whether and which to use: retrieve evidence from the library, inspect a specific document, compare a topic across documents, and get an overview of the library. Tools are withdrawn once evidence has already been assembled, for the token-budget reason described earlier. Corrected 2026-10-20 against the working tree (b868fc0 plus the 5.7 work in progress): six tools are registered, and none reaches the model in Deep Think or Maximum: every session and synthesis runs with tools off, and no Deep Think or Maximum step asks the model to choose one. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelToolRegistry.swift:327-360, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:5313, :5944, :6906, :7438 and :7488]`
 
 ### Carrying a notepad between sessions
 
  Plain
  The desk gets wiped clean between trips. So before each trip the librarian copies what they've learned onto a notepad in shorthand and carries the notepad through. The notepad also tracks which parts of the question are still unanswered. That notepad is what turns fifty separate lookups into one continuous piece of work.
 
- Because a single session is capped at 4,096 tokens, complex questions are answered across a chain of sessions: plan, search, analyse, synthesise, refine. Deep Think runs roughly 8 sessions and Maximum up to 50. State is carried by a fact bank that decomposes the question into sub-questions, tracks which are answered, and accumulates verified facts. Hierarchical compression carries facts forward rather than raw text, because raw text does not fit.
+ Because a single session is capped at 4,096 tokens, complex questions are answered across a chain of sessions: plan, search, analyse, synthesise, refine. Deep Think runs roughly 8 sessions and Maximum up to 50. State is carried by a fact bank that decomposes the question into sub-questions, tracks which are answered, and accumulates verified facts. Hierarchical compression carries facts forward rather than raw text, because raw text does not fit. Corrected 2026-10-20 against the working tree (b868fc0 plus the 5.7 work in progress): the window is the one the device reports, 4,096 on the owner's iPhone and 8,192 on his Mac. Deep Think's chain searches once before its sessions and cuts every session's window from that one pool, so the trips do not go back for more. It runs at most 8 sessions on every device, and fewer when the windows run out, and each session carries its earlier findings, not the fact bank, which only decides coverage, novelty and when to stop. Searching again happens only in research rounds after the chain. Maximum's own loop never searches again. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:5003-5126, :731 and :3855, :6572-6807, :8205-8245, OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift:304]`
 
 ### Knowing when to stop
 
@@ -745,7 +747,7 @@ How OpenIntelligence Works
  Plain
  If the device is hot or the battery is low, the app quietly does less work rather than grinding things to a halt. It has a fixed order for what to give up first, so the things that matter most survive longest.
 
- Thermal state, battery level and available memory are read per query, selecting one of four levels with candidate depth capped at 50, 30, 20 or 10 and features dropped in priority order. A short cooldown may be applied before heavy generation.
+ Thermal state, battery level and available memory are read per query, selecting one of four levels with candidate depth capped at 50, 30, 20 or 10 and features dropped in priority order. A short cooldown may be applied before heavy generation. Corrected 2026-10-20 against the working tree (b868fc0 plus the 5.7 work in progress): the battery level no longer lowers anything, and the level drops only for a critical thermal state, to minimal with 10 candidates, or for critical memory pressure, to efficient with half the device's cap. Otherwise the cap is the device tier's, 75 to 250, held to 10 for a trivial question and 50 for a complex one. These levels reach only Standard. Deep Think and Maximum read no device state, and from 5.7 they only wait 1 second between sessions while iOS 27 asks apps to use less. The short cooldown before generation is Standard's: 200 ms on an A17 Pro down to none on the ultra tier, longer at those two levels. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift:56-71, :115-261, :324-400 and :408-413, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:11740, :14191, :14325 and :15541, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:5174 and :6643]`
 
  What this is not
  This is not an autonomous agent that takes actions in the world. It has no ability to write, send or change anything, and it does not act outside answering a question. It is an agentic retrieval loop: it plans its own sub-questions, chooses its own tools, decides how long to keep working, and stops on a criterion it computes for itself.

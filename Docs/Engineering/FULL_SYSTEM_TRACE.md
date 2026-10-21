@@ -14,6 +14,13 @@
 > Core AI copy fails Neural Engine validation when loaded and runs on the GPU (iPhone 16 Pro Max 2026-10-10,
 > M3 Pro Mac 2026-10-12; figures in `Docs/ai/DECISIONS.md`, 2026-10-10). Nothing else below was re-read.
 > `[evidence_level: measured for the placement, code_verified for the default, confidence: medium]`
+>
+> **Since then (note of 2026-10-20).** The query, verification and agentic sections were read against
+> the working tree (`b868fc0` plus the 5.7 work in progress), and where today's code differs a dated
+> note follows the section: after the stage table of §4.2, after §4.4, after the token budget in §4.5,
+> after §4.6, a new §5.4 for the loop, and after the ladder in §6.3. A second review that evening
+> corrected §4.4, §4.6 and §5.4 again and re-pinned `RAGService.swift` lines to the working tree read
+> at 22:17. The text of 2026-09-01 is kept as it was.
 
 This is the execution trace: what actually runs, in what order, on which thread, on which piece
 of silicon, with what data volume, and what each stage throws away. It covers process launch,
@@ -287,6 +294,20 @@ Line numbers are in `RAGService.swift` unless a path is given.
 | Gates | Verification | `VerificationGateService` (§4.6) | CPU, plus one embedding call for Gate E | Claims in, supported and unsupported claims out | code_verified / exact |
 | Render | Structured answer | `StructuredAnswer` and citations mapped back to chunk IDs, each with page, a quote of at most 240 characters, document name and section path (corrected 2026-09-29: this said "chunk offsets"; no citation type carries an offset, `StructuredAnswer.swift:65-117, 436-440` at `8be003a`); route badge in `ResponseDetailsView` reads the completed route label (`Features/Chat/Response/ResponseDetailsView.swift:314-322`) | CPU | | code_verified / exact |
 
+**Since then (note of 2026-10-20, read in the working tree, `b868fc0` plus the 5.7 work in progress).**
+The table above is the tree of 2026-09-01, and four rows read differently in today's code. Cache: an
+exact hit reuses the cached passages as well as the vector, so rewriting, expansion, embedding and the
+hybrid search are skipped, and reranking onward still runs (`RAGService.swift:11896-11910`, `:11994`,
+`:12117`, `:12356`, `:12496-12701`). Step 1: a lookup is kept literal, and the model rewrite runs only
+for a question the ambiguity check flags (`RAGService.swift:11982-11983`,
+`QueryRewriterService.swift:83-100`), and expansion is off in Standard (`RAGQualityMode.swift:235-242`).
+Step 4.5: `RAGQualityMode.mmrLambda` has no reader, and both pipelines use the library's λ, 0.6 by
+default, at least 0.85 for a procedure (`RAGService.swift:13692-13708`, `:21990`), and from 5.7 the
+call passes the passages' stored vectors, which 5.6 did not. Step 4.7: the compression call sits behind
+a mode flag that is false for Standard, so in Standard it never runs, and Deep Think, whose flag is on,
+never reaches it (`RAGService.swift:14320-14326`, `:14406`, `RAGQualityMode.swift:277-284`).
+`[evidence_level: code_verified, confidence: exact]`
+
 ### 4.3 The vector search, exactly
 
 `BNNSVectorDatabase.search(embedding:topK:)` (`Services/VectorStore/BNNSVectorDatabase.swift:486`):
@@ -340,6 +361,21 @@ Consent is asked only after retrieval, once the planner has selected PCC and bui
 payload (`RAGService.swift:11833-11834`). A denied consent forces `executionContext = .onDeviceOnly`
 (`:11838-11844`). `[evidence_level: code_verified, confidence: exact]`
 
+**Since then (note of 2026-10-20, working tree).** The PCC rung above leaves out two conditions that
+the code has: the prompt and evidence as assembled, before anything is minimized, must fit the window
+PCC reports, and "the query's complexity" is exactly a multi-document synthesis outside Standard. Earlier rungs come first, in this order: insufficient
+evidence, On-Device chosen, PCC chosen, an exact extracted value, a privacy setting that forbids cloud
+(`ModelExecutionPlanner.swift:24-130`). No plan is `.deterministic` today, because the only code that
+builds the planner's evidence passes `requiresExactExtraction: false` (`RAGService.swift:18447-18448`),
+and one would not skip the model: `RAGService` runs it on the same branch as `.onDevice`
+(`:15877`), and the extracted-value override may then replace the answer (`:16501-16528`). A new install is on Hybrid (`fmPreference = .automatic`) with
+PCC permission "Ask when needed", which the chat sends as `executionContext = .preferCloud` with
+`allowPrivateCloudCompute = true` (`SettingsStore.swift:50`, `:454-461`, `ChatScreen.swift:3177-3181`).
+When that route is eligible, Standard sizes its first evidence pass for 32,768 tokens at 2.5
+characters a token, capped at 45,000 characters, and re-packs to the device's budget if the plan then
+keeps the answer local (`RAGService.swift:14532-14543`, `:14784-14838`, `:15839-15904`).
+`[evidence_level: code_verified, confidence: exact]`
+
 ### 4.5 Route policy, session, generation
 
 `FoundationModelRoutePolicy.determineRoute` (`Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift:23-119`):
@@ -379,6 +415,17 @@ Token budget: `baseContextLength = 4096`, `defaultTokenBudget = 3200`, `safetyRe
 default (`ContextPackingService.swift:60`). Temperature by mode: 0.4 / 0.4 / 0.3
 (`RAGQualityMode.swift:95-101`). `[evidence_level: code_verified, confidence: exact]`
 
+**Since then (note of 2026-10-20, working tree).** `ContextPackingService`'s 3,200 default is never
+used: its one caller, graph packing for investigate, compare and findings questions, passes 24,000
+when PCC is eligible and otherwise min(6,000, max(1,500, window × 3 ÷ 4)) (`RAGService.swift:14580`,
+`:3748-3751`). Standard's own budget is computed per question from the reported window, less 120
+tokens, the system prompt, the question and a 150 to 300 output reserve, times 0.88, at 1.4
+characters a token, capped at 10,000 characters (`RAGService.swift:14784-14838`), and measured 3,190
+tokens on the owner's iPhone 16 Pro Max on 2026-10-16 (`RAGService.swift:3746-3747`). The per-mode
+temperature table is read only on Standard's path (`RAGService.swift:11639`). Deep Think and Maximum's
+calls use the step's temperature, else the adaptive profile's, else 0.5
+(`AgenticOrchestrator.swift:9179`). `[evidence_level: code_verified, confidence: exact]`
+
 ### 4.6 The nine gates
 
 `VerificationGateService` (`Services/RAG/Safety/VerificationGateService.swift`) is an actor with
@@ -390,6 +437,20 @@ isolation, is applied before synthesis. Default thresholds: `tauNormal 0.40`, `t
 one gate that costs an inference. The mode's `verificationConfidenceThreshold` is 0.50 / 0.60 /
 0.80; the comment on Maximum says 0.98 was unreachable (`RAGQualityMode.swift:226-233`).
 `[evidence_level: code_verified, confidence: exact]`
+
+**Since then (note of 2026-10-20, working tree).** Gate I runs inside `VerificationGateService` with
+the others, after the answer is written: it compares the question's domain with the evidence's
+(`VerificationGateService.swift:1036-1050`). The gates label the answer. In Standard a failure leads
+to an abstention only when reliability mode is off (on by default) or the gates' overall confidence is
+under the bar, halved for a lookup with a floor of 0.25, and otherwise the answer is shown marked
+Unverified, with its text unchanged and nothing regenerated, though the claims Gate B could not
+support leave the structured answer's claim list and are listed as gaps (`RAGService.swift:16652-16709`,
+`:11668`, `:20072-20089`, `StructuredAnswer.swift:955-1048`, `ConfidencePolicyService.swift:48-54`). The
+critical gates' abstain flag (`VerificationGateService.swift:250-260`) decides nothing and only adds
+its reason to that list of gaps. Deep Think and Maximum answers get no gates in 5.6, and from 5.7 the
+gates set their label only, Verified when all nine pass with Gate A's floor raised by the mode
+(`RAGService.swift:11238-11262`, `:18205-18253`, `ConfidencePolicyService.swift:26-46`). `[evidence_level: code_verified,
+confidence: exact]`
 
 ### 4.7 What a query drops silently
 
@@ -458,6 +519,87 @@ citations resolved against the wrong array for the life of the chain (`:4425`, f
 dangling citations from a shorter re-ordered list (`:758`).
 `[evidence_level: code_verified, confidence: exact]`
 
+### 5.4 Since then: the loop as the working tree runs it (note of 2026-10-20)
+
+Read in the working tree (`b868fc0` plus the 5.7 work in progress) on 2026-10-20. Sections 5.1 to 5.3
+stay as the record of 2026-09-01. Where they and today's code part, the code is below.
+Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path is given.
+
+1. **Paths.** `.plannerEscalated` needs the answer writer not to be Apple's model, and no other model
+   writes answers (without Apple Intelligence a stand-in that only throws takes its place), so in
+   practice a run becomes agentic only by mode or by Go Deeper (`QueryRuntimeCoordinator.swift:202-229`,
+   `RAGService.swift:11501`, `:2322-2346`). Go Deeper keeps the chat's mode (`RAGService.swift:11374`).
+2. **Before the orchestrator.** For a lookup or precise-value question, the spec sniper and the
+   extractor run first, and a value locked at 0.82 is returned with no session, no model call of its own
+   (the coordinator's planning call has already run) and no gates (`RAGService.swift:10561-10737`,
+   `:10898-10912`).
+3. **Profiles.** Deep Think does not use `thorough`: it takes `DeviceCapabilityService.optimizedAgenticConfig()`
+   (A17 Pro 5 steps, 20,000 tokens, 0.85, 0.35. A18 8, 32,000, 0.90, 0.40. A19 10, 40,000, 0.92, 0.45.
+   The ultra tier 12 steps and 56,000 tokens for each 16 GB of memory, at least 12 and 56,000 and at
+   most 32 and 128,000, 0.95, 0.50: a Mac with an M1 Ultra or an M2 or later, an iPad Pro with an M2 or
+   later, an iPhone with an A20 or later), and Maximum takes `unlimited` (`RAGService.swift:10863-10871`,
+   `DeviceCapabilityService.swift:1044-1091`, `:1096-1488`). The steps only pick the chain's starting
+   configuration (`:212-226`), and `maxTotalTokens` is read only by the decomposed pipeline
+   and the research rounds (`:1751`, `:2942`).
+4. **Front half.** An on-device planning call, a guided generation with a heuristic plan as its
+   fallback, decides whether documents are needed (`:3527-3545`,
+   `Services/Query/Analysis/QueryExecutionPlannerService.swift:330-418`). Up to 5 search phrasings each
+   run the full retrieval pipeline at topK 15, fused by
+   RRF (k = 60) blended 0.6 with the best reranker score, into the top 20 (`:1916-2060`,
+   `:2185-2260`). A relevance gate can end the run (`:396-452`), cross-reference resolution can add passages
+   and grade the pool again (`:521-536`), and the grade picks the path: excellent or good to a chain,
+   moderate to a single synthesis, and low to speculative candidates first, the best of which is the
+   answer when it clears its threshold (`:544-1143`, `:1043-1069`).
+5. **The chain's sessions.** One title-routing call orders the pool (`:4825`, `:4960`). Every window is
+   built before session 1 from that one pool, disjoint, 4 passages on a 4,096-token window and up to 7
+   on 8,000 or more, read whole within at most 3,200 evidence tokens where the OS can count tokens
+   (iOS and macOS 26.4) and at least 4 fit, else extracted to 3,500 characters (3,000 when Maximum
+   runs the chain), of which the prompt keeps 4,000 while no findings are carried and 2,200 after
+   (`:4931-4987`, `:5003-5126`, `:8276-8281`,
+   `SessionEvidencePlan.swift:30-76`, `:134-158`). So a session is not "a fresh 4,096-token window"
+   but a window sized from the device's own, and Deep Think's session count is the number of
+   distinct windows, at most min(8, sessions + 4), which is 8 on every device (`:5150`,
+   `AgenticPolicyService.swift:304`). Each session is one call of up to 700 tokens with tools off,
+   retried up to twice on an overflow or a transient failure (`:5300-5318`, `:5313-5432`).
+6. **Stops.** Before each session from the fifth, all three at once: confidence at the device's target,
+   sub-question coverage of 0.55 (0.70 with 4 or more), and novelty exhausted (`:5165-5190`,
+   `AgenticPolicyService.swift:294-332`). From the second session, "ANSWER COMPLETE" or "NOT FOUND IN
+   DOCUMENTS" in the reply (`:5521-5531`). A session that still fails after its retries ends the chain,
+   and its last finding is the answer (`:5437-5512`). Otherwise the windows run out.
+7. **Maximum.** `executeTrueUnlimitedReasoning` reads 3 unread passages a session, as sentences
+   extracted to 2,500 characters, and stops when completed (0.98 and coverage on target) or converged
+   (from the start of session 6, a low-novelty streak of 2, a saturation streak of 3 or every passage
+   read), at the ceiling, or after 3 failures (`:6572-6575`, `:6683-6705`, `:6810-6837`,
+   `:6936-6948`). Its expansion branch (`:6706-6807`) cannot run, because the saturation streak it
+   needs first exists at the start of session 6, where "converged" already stops the loop (insights
+   are appended at `:7024`, before confidence at `:7048`, and saturation needs 3 insights,
+   `AgenticPolicyService.swift:397`). `executeMultiChainReasoning` (`:7533`) has no caller, so the
+   cluster task group of §6.4 never runs. The FactBank's claim text reaches a prompt only here, in
+   the running answer and the final synthesis (`:7292`, `:7352`).
+8. **Where calls run.** Sessions, research decisions and the running answer pass `forceOnDevice: true`,
+   and helpers run in an on-device-only fresh session (`:9123-9152`). The planning calls run on the
+   on-device model in sessions of their own (`:1924`, `:2068`, `:3537`). The pin is `forceOnDevice &&
+   !explicitlyPrefersPCC` (`:9234`), so with Private Cloud Compute picked in the model picker the
+   sessions can go to PCC. Under Hybrid the syntheses can be planned to PCC (`:1535`, `:5857`, `:5939`,
+   `:7432`, `:7482`), and a PCC plan sends an envelope minimized from the passages a call passes, at
+   most 12,000 characters, in place of its context (`:9283-9303`).
+9. **Backoff.** `agenticStepCooldownMs` has no caller, and `AdaptivePipelineOptimizer`'s
+   `maxAgenticSteps` (0 in minimal mode) has no reader, so a critical thermal state does not stop the
+   loop (`DeviceCapabilityService.swift:631-639`, `AdaptivePipelineOptimizer.swift:104`, `:254`). Neither
+   loop reads the optimizer's level, the thermal state, the memory pressure, the battery or Low Power
+   Mode. `isConstrained`, which counts a low battery on iOS, is read only by the interface, the battery
+   lowers no work anywhere, and Low Power Mode only keeps background work off the GPU
+   (`AdaptivePipelineOptimizer.swift:56-71`, `BackgroundTaskService.swift:1084-1087`). The optimizer's
+   `stepCooldownMs` delays only Standard's generation (`RAGService.swift:15541`). The loops wait only
+   1.5 s after a failed session (`:5430`, `:6952`) and, from 5.7, 1 s before each session from the
+   second while iOS 27 asks apps to use less (`:5174`, `:6643`, `SystemResourceAdvice.swift:28-32`).
+10. **After the run.** The extractor's locked value replaces the answer, the source-only check runs for
+    a lookup that is not source-locked, and otherwise, from 5.7, the nine gates set the label, Verified
+    when all nine pass (`RAGService.swift:11191-11262`).
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: the file:line at each item, read
+2026-10-20]`
+
 ---
 
 ## 6. The hardware and concurrency map
@@ -514,6 +656,12 @@ was fixed 2026-08-26 after a new Mac was tiered as M3-era.
 | `embeddingConcurrency` | 2 → 128. 2 during background CPU-only ingestion and on an unsupported iPhone or iPad; `.baseline` 12, `.enhanced` 16, `.advanced` 20; an `.ultraAdvanced` (M-series) iPad 16 × (memory ÷ 8 GB, at least 1), capped at 64; a Mac 12, or 16 from M3 and 24 from M4, times the same memory factor, capped at 128, or 4 when unsupported (corrected 2026-09-29 from "2 → 64", which is the iPad cap; the Mac cap is `min(128, …)` at `:766`, the same in `4840078` and `8be003a`) | `:778` |
 
 `[evidence_level: code_verified, confidence: high for ranges, exact for lines]`
+
+**Since then (note of 2026-10-20, working tree).** Two rows of this ladder change nothing at run time.
+`maxConcurrentAgenticSteps` is only printed in a diagnostic summary, and `agenticStepCooldownMs` has
+no caller (`DeviceCapabilityService.swift:605-639`, `:1714-1715`). In §6.4 below, the "agentic cluster
+insights" task group belongs to `executeMultiChainReasoning`, which nothing calls
+(`AgenticOrchestrator.swift:7533`, the task group at `:7589`). `[evidence_level: code_verified, confidence: exact]`
 
 ### 6.4 Concurrency topology
 

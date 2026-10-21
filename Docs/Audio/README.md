@@ -13,6 +13,29 @@
 > value questions whose best span clears the precision lock. Audio rendered before this date says the
 > old facts.
 > `[evidence_level: code_verified, confidence: high, evidence_source: Docs/STUDY_GUIDE.md header note and the lines it cites]`
+>
+> **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress)**, in passes 1 to 5 and
+> `STUDY_GUIDE_AUDIO_FULL.txt`, which is still the five passes joined. The wrong sentences were rewritten in place, in
+> the passes' spoken style. Deep Think's chain reads windows cut from one search, at most eight rounds on every device,
+> and searches again only in research rounds after the chain. Maximum's own loop never searches again. Planner
+> escalation is off while Apple's model writes the answers, and a lookup can be answered by the extractor before any
+> round. Deep Think takes its numbers from the device, not from the four named profiles. The gates label the answer,
+> leave its words alone (the claims Gate B could not support drop off the fact-check list), and run on no Deep Think
+> or Maximum answer in the shipped 5.6. Under the default hybrid setting only
+> the write-ups can reach Private Cloud Compute, and with it picked in the model picker the rounds can go too. The
+> evidence budget is worked out per question, not fixed at 3,200. MMR's lambda is the library's in every mode. HyDE runs
+> in no mode. The agentic step cooldown and minimal mode's limit on agentic steps are read by nothing, and the
+> optimizer's own step cooldown delays only Standard's answer. No plan is deterministic in this build, and one would
+> still let the model write. A second review that evening added the planning call every question gets, the research
+> retries (at most two), the ultra tier's chips, the cloud window the app assumes, the lookup's lead passage and the
+> rule that neither loop reads heat, memory, the battery or Low Power Mode. The Speech Analyzer branch, dormant through 5.6, runs first from 5.7. The word count below
+> was 12,043 before this pass, and the full file is now 14,837 words by `wc -w`, about 99 minutes at 150 words a
+> minute. Audio rendered before this date
+> says the old facts. In `Reference_word_bank/`, file 11 had its opening paragraphs rewritten, and files 00 (both),
+> 02, 07, 08, 09, 10, 11, 12, 15, 16 and 18 gained a spoken sentence, "Corrected on 20 October 2026", after the lines
+> that were wrong. Sentences nine and eleven of the twelve were rewritten in place. Files 01, 03 to 06, 13 and 14 were
+> searched for the same claims and not otherwise re-read.
+> `[evidence_level: code_verified, confidence: high, evidence_source: Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md section 19 and the file:line tags it cites]`
 
 Plain text written to be read aloud by a text-to-speech app such as ElevenLabs Reader. No tables,
 no file paths or line numbers, identifiers spoken as words, abbreviations spelled out, and a pause

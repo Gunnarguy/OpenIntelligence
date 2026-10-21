@@ -18,6 +18,8 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 
 **Expert's expert.** The rewrite and HyDE are the two generative steps before retrieval, and they can both mislead: a rewrite that drops a qualifier retrieves the wrong thing confidently. That is why the original user message is never replaced in the conversation, only the effective search string. The planner-escalation path is also the one most likely to surprise a user who chose Standard, because it changes the run from one pass to a loop without a mode change on screen; the diagnostics record it as `plannerEscalated`. And "Subquestion" is the one concept in the whole bank whose name does not appear as an identifier in code; the behaviour exists inside the orchestrator's decomposition under other names.
 
+**Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress):** three statements in the ladder above do not hold for the current code. Planner escalation needs the answer writer not to be Apple's model, and no other model writes answers in this build (without Apple Intelligence a stand-in that only throws takes its place), so in practice a run becomes agentic only by the mode or by Go Deeper, and the escalation that would "surprise a user who chose Standard" does not happen. Go Deeper keeps the chat's mode, so from Standard it runs the orchestrator with mode Standard. HyDE runs in no user-selectable mode: its only construction is in Standard's pipeline behind `usesHyDE`, which is false for Standard, and Deep Think and Maximum leave for the agentic path before that step and embed without it. So, besides the on-device planning call every question gets (a guided generation that proposes search phrasings and sub-questions and says whether documents are needed, with a heuristic plan as its fallback), the rewrite is the only generative step before retrieval in Standard, and Deep Think and Maximum's are more planning calls and the search phrasings. The rewrite itself is on by default but keeps a lookup literal, and it calls the model only for a question the ambiguity check flags, a follow-up with conversation behind it or a pronoun. And an exact cache hit reuses the cached passages as well as the vector, so it skips rewriting, expansion, embedding and the hybrid search, not only the embedding. `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift:202-229, OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift:67-99 and :330-418, OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:11501, :2322-2346, :11374, :12278-12325, :21863-21866, :11982-11983, :11896-11910, :11994, :12117, :12356, :12496-12701, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195, OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift:83-100, OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:1916-2060]`
+
 ## Every concept
 
 ### Agentic query (Conditional, verified)
@@ -93,7 +95,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 ### Forced agentic execution (Conditional, verified as `.forcedAgentic`)
 - **Idiot:** you pressed Go Deeper.
 - **Dot-connector:** user-requested extra search and reasoning even after the planner chose Standard.
-- **Expert:** overrides at `QueryRuntimeCoordinator` resolution.
+- **Expert:** overrides at `QueryRuntimeCoordinator` resolution. **Corrected 2026-10-20:** it keeps the chat's mode, so from Standard the orchestrator runs with mode Standard, the device's configuration and no Deep Think Self-RAG check (`RAGService.swift:11374`, `AgenticOrchestrator.swift:200-208`).
 
 ### GroundedAnswerPolicy (Core, verified; removed in 5.7 on 2026-10-20: nothing referenced it)
 - **Idiot:** the rule for how careful the answer has to be.
@@ -103,7 +105,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 ### HyDE (Conditional, verified) and Hypothetical document (Conditional, verified)
 - **Idiot:** write a fake answer, search with it, throw it away.
 - **Dot-connector:** a passage lands near passages; a short question doesn't. The hypothetical is a probe, never evidence.
-- **Expert:** `HyDEService`; `usesHyDE` is false in Standard "to prevent hypothetical hallucinations from poisoning exact lookups."
+- **Expert:** `HyDEService`; `usesHyDE` is false in Standard "to prevent hypothetical hallucinations from poisoning exact lookups." **Corrected 2026-10-20:** and Deep Think and Maximum embed without it, so no user-selectable mode runs HyDE. Read it as Dormant (`RAGService.swift:12278-12325`, `:21863-21866`).
 
 ### Investigate intent (Conditional, verified)
 - **Idiot:** "dig into this."
@@ -128,7 +130,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 ### Planner escalation (Conditional, verified as `.plannerEscalated`)
 - **Idiot:** the app decided your easy setting wasn't enough.
 - **Dot-connector:** complexity, not the mode label, controls the work; the third agentic path.
-- **Expert:** resolved by the coordinator before retrieval; recorded in diagnostics.
+- **Expert:** resolved by the coordinator before retrieval; recorded in diagnostics. **Corrected 2026-10-20:** it requires `!isAppleFMService`, and no other model writes answers (without Apple Intelligence a stand-in that only throws takes its place), so read it as Dormant (`QueryRuntimeCoordinator.swift:211`, `RAGService.swift:11501`, `:2322-2346`).
 
 ### Primary entity (Core, verified)
 - **Idiot:** the main thing your question is about.
@@ -163,7 +165,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 ### Query rewriting (Conditional, verified)
 - **Idiot:** rephrase the question so a search engine likes it.
 - **Dot-connector:** conversational phrasing lowers both lexical and dense quality; the rewrite is a generative step and can drop a qualifier.
-- **Expert:** `QueryRewriterService` after profiling and conversation context, before embedding.
+- **Expert:** `QueryRewriterService` after profiling and conversation context, before embedding. **Corrected 2026-10-20:** a lookup is kept literal, and the model is called only when `detectAmbiguity` flags the question (`RAGService.swift:11982-11983`, `QueryRewriterService.swift:83-100`).
 
 ### Query variation (Conditional, verified)
 - **Idiot:** try asking it a different way.

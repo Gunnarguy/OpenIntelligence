@@ -233,7 +233,7 @@ Forty-nine concepts. Two filing systems for the same cards, plus the machinery t
 ### VecturaVectorDatabase (Conditional, verified)
 - **Idiot:** the alternative pin store some old libraries use.
 - **Dot-connector:** kept for compatibility, not the architecture.
-- **Expert:** selected only when the library's vector kind requests it.
+- **Expert:** selected only when the library's vector kind requests it. **Corrected 2026-10-20:** it never compiles: it sits behind `#if canImport(VecturaKit)`, VecturaKit is not a dependency of the app, and a library whose kind requests it falls back to the BNNS store. Read it as Dormant (`VectorStoreRouter.swift:167-172`).
 
 ### Virtual table (Core, verified)
 - **Idiot:** a table whose insides are run by a plugin.
