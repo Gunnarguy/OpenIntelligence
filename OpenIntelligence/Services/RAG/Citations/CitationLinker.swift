@@ -12,6 +12,9 @@ import Foundation
 /// labels them by position in the retrieved chunks, the order the prompt listed them in. A label is
 /// resolved to a chunk here, when the link is built, and the chunk's id goes into the link, so a tap
 /// never has to guess which numbering the text used.
+///
+/// In `Services/` since 5.7, so the engine target has it too: an answer handed to another app lists
+/// what its labels point at (`AnswerShareFormatter`), by the resolution a tap uses.
 nonisolated enum CitationLinker {
     static let scheme = "citation"
     private static let chunkHost = "chunk"

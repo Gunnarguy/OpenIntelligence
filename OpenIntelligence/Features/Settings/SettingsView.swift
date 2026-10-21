@@ -10,6 +10,10 @@ import AppIntents
 import SwiftUI
 import TipKit
 
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
+
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -425,6 +429,20 @@ struct SettingsView: View {
 
     /// The on-device window, preferring the live capability snapshot over the budget
     /// helper's fallback for the same reason as `pccWindowDescription`.
+    /// The languages Apple's on-device model reports on this device, by name in the person's language, or nil
+    /// where Foundation Models isn't available.
+    private var modelLanguageNames: [String]? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            let names = SystemLanguageModel.default.supportedLanguages.compactMap { language in
+                Locale.current.localizedString(forIdentifier: language.minimalIdentifier)
+            }
+            return Array(Set(names)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        }
+        #endif
+        return nil
+    }
+
     private var onDeviceWindowDescription: String {
         if let size = pccCapability?.onDeviceContextSize, size > 0 {
             return "\(size.formatted()) tokens"
@@ -916,9 +934,11 @@ Text(label)
 .frame(width: 40)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(settings.selectedModel.capabilityCard.nickname)
+                    // The card's own nickname and tagline ("AFM 3 Ecosystem", "Evidence-first routing ...") with
+                    // Technical Details on; plain words otherwise (5.7 UI cleanup).
+                    Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.nickname : plainModelName)
                         .font(.subheadline.weight(.medium))
-                    Text(settings.selectedModel.capabilityCard.tagline)
+                    Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.tagline : plainModelTagline)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1509,12 +1529,14 @@ Text(deviceService.chipName)
                 // likely to be mistaken for a live measurement. Its definition says
                 // plainly that it is a per-chip lookup rather than something the app
                 // measured here.
-                HStack(spacing: 6) {
-                    Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    GlossaryInfoButton(termID: .tops, size: .caption2)
-                    Spacer(minLength: 0)
+                if settings.showTechnicalDetails {
+                    HStack(spacing: 6) {
+                        Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        GlossaryInfoButton(termID: .tops, size: .caption2)
+                        Spacer(minLength: 0)
+                    }
                 }
 
                 HStack(spacing: 12) {
@@ -1531,9 +1553,12 @@ Text(deviceService.chipName)
 
             Divider()
 
-            hardwareEnvelopeSection(deviceService: deviceService)
+            // Device ID, Metal ceilings and Core ML routes: internals, with Technical Details on (5.7).
+            if settings.showTechnicalDetails {
+                hardwareEnvelopeSection(deviceService: deviceService)
 
-            Divider()
+                Divider()
+            }
 
             // Context Window
             VStack(alignment: .leading, spacing: 8) {
@@ -1541,7 +1566,7 @@ Text(deviceService.chipName)
                     Image(systemName: "ruler")
                         .font(.caption)
                         .foregroundColor(.orange)
-                    Text("Context Window")
+                    Text(settings.showTechnicalDetails ? "Context Window" : "How Much the Model Reads")
                         .font(.subheadline.weight(.medium))
                 }
 
@@ -1552,31 +1577,40 @@ Text(deviceService.chipName)
                     // not 4K), "exhaustive Neural Engine synthesis" named hardware the app can't see, and Self-RAG 2.0
                     // is Maximum's check of the answer against its sources (`AgenticOrchestrator`), not what passes
                     // between sessions.
-                    Text("Maximum chains several reasoning sessions on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed findings from the last, and then checks the answer against its sources (Self-RAG 2.0).")
+                    Text(
+                        settings.showTechnicalDetails
+                            ? "Maximum chains several reasoning sessions on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed findings from the last, and then checks the answer against its sources (Self-RAG 2.0)."
+                            : "Maximum asks Apple's model several times in a row, each time with room for \(onDeviceWindowDescription) on this device and a summary of what it found before, then checks the answer against your documents.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think's reasoning chain runs up to 8 sessions in a row on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed insights from the last, and research rounds can follow it when parts of the question are still uncovered. On the \(DeviceCapabilityService.shared.chipName) it aims for \(Int(agenticConfig.confidenceThreshold * 100))% confidence, and from the fifth session it can stop early once it has that confidence, has covered the question's parts and stops finding anything new.")
+                    Text(
+                        settings.showTechnicalDetails
+                            ? "Deep Think's reasoning chain runs up to 8 sessions in a row on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed insights from the last, and research rounds can follow it when parts of the question are still uncovered. On the \(DeviceCapabilityService.shared.chipName) it aims for \(Int(agenticConfig.confidenceThreshold * 100))% confidence, and from the fifth session it can stop early once it has that confidence, has covered the question's parts and stops finding anything new."
+                            : "Deep Think asks Apple's model up to 8 times in a row, each time with room for \(onDeviceWindowDescription) on this device and a summary of what it found before, and it can search again for parts of the question it hasn't covered. On the \(DeviceCapabilityService.shared.chipName) it aims to be \(Int(agenticConfig.confidenceThreshold * 100))% sure, and from the fifth time it can stop once it is, has covered the question and isn't finding anything new.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("Standard runs one pass of Apple's model over the passages that fit its window (\(onDeviceWindowDescription) on this device), with verification gates and graph context packing. Use Deep Think or Maximum when you want several reasoning sessions.")
+                    Text(
+                        settings.showTechnicalDetails
+                            ? "Standard runs one pass of Apple's model over the passages that fit its window (\(onDeviceWindowDescription) on this device), with verification gates and graph context packing. Use Deep Think or Maximum when you want several reasoning sessions."
+                            : "Standard asks Apple's model once, with the passages that fit in \(onDeviceWindowDescription) on this device, and checks the answer against them. Deep Think and Maximum ask several times.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
                 HStack(spacing: 12) {
                     if settings.ragQualityMode.canonical == .maximum {
-                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: onDeviceWindowDescription)
-                        contextInfoPill(icon: "checkmark.seal", label: "Answer Check", value: "Self-RAG 2.0")
+                        contextInfoPill(icon: "square.3.layers.3d", label: settings.showTechnicalDetails ? "Per Session" : "Each Time", value: onDeviceWindowDescription)
+                        contextInfoPill(icon: "checkmark.seal", label: "Answer Check", value: settings.showTechnicalDetails ? "Self-RAG 2.0" : "Against your documents")
                     } else if settings.ragQualityMode.canonical == .deepThink {
-                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: onDeviceWindowDescription)
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Chain", value: "up to 8 sessions")
+                        contextInfoPill(icon: "square.3.layers.3d", label: settings.showTechnicalDetails ? "Per Session" : "Each Time", value: onDeviceWindowDescription)
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: settings.showTechnicalDetails ? "Chain" : "Times", value: settings.showTechnicalDetails ? "up to 8 sessions" : "up to 8")
                     } else {
                         // "If Complex: 3 sessions (12K)" was untrue: Standard chains sessions only when a developer
                         // turns on `forceReasoningChain` (RAGService, `useReasoningChain`).
-                        contextInfoPill(icon: "square.3.layers.3d", label: "Single Pass", value: onDeviceWindowDescription)
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "1")
+                        contextInfoPill(icon: "square.3.layers.3d", label: settings.showTechnicalDetails ? "Single Pass" : "Room", value: onDeviceWindowDescription)
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: settings.showTechnicalDetails ? "Sessions" : "Times", value: "1")
                     }
                 }
             }
@@ -1587,10 +1621,12 @@ Text(deviceService.chipName)
 
             Divider()
 
-            // Silicon-Native RAG Engine
-            siliconNativeRAGSection(deviceService: deviceService)
+            // Silicon-Native RAG Engine: vDSP, Metal shaders and batch sizes, with Technical Details on (5.7).
+            if settings.showTechnicalDetails {
+                siliconNativeRAGSection(deviceService: deviceService)
 
-            Divider()
+                Divider()
+            }
 
             // GPU Acceleration Controls
             gpuAccelerationSection(deviceService: deviceService)
@@ -1612,18 +1648,23 @@ Text(deviceService.chipName)
                         .font(.subheadline.weight(.medium))
                 }
 
-                Text("Apple Intelligence supports multiple languages for text generation. OCR and document processing support additional languages via Vision and NaturalLanguage frameworks.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                // Language list — verified Apple Intelligence languages as of iOS 26.0+
-                Text("English, Spanish, French, German, Italian, Japanese, Korean, Portuguese, Chinese, Hindi, Vietnamese, Indonesian, Thai, Dutch, Arabic, Turkish, Polish, Romanian, Swedish")
-                    .font(.caption2)
-                    .foregroundColor(.secondary.opacity(0.8))
-
-                Text("On-device Foundation Model language support may vary. Apple routes automatically.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary.opacity(0.6))
+                // The languages this device's model reports (`SystemLanguageModel.supportedLanguages`, iOS and macOS 26),
+                // named in the person's own language. Through the first 5.7 builds this was a list of 19 typed in by
+                // hand as "verified Apple Intelligence languages as of iOS 26.0+", which nothing checked against the
+                // device, with "Apple routes automatically" under it, which no code here does (2026-10-20).
+                if let languages = modelLanguageNames, !languages.isEmpty {
+                    Text(settings.showTechnicalDetails ? "SystemLanguageModel.supportedLanguages on this device:" : "Apple's model on this device answers in:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(languages.joined(separator: ", "))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Apple's model hasn't said which languages it answers in on this device.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 .padding(10)
     .background(Color.blue.opacity(0.08))
@@ -2682,6 +2723,25 @@ Text(deviceService.chipName)
 
     private var totalAIFeatureCount: Int { 4 }
 
+    /// The selected model in plain words. Citation Scout answers with spans of the passages and writes nothing
+    /// (`LLMModelType`: "Extractive only, no generation"); Apple's model can reach Private Cloud Compute only with
+    /// the person's consent (Docs/PRIVACY_AND_ROUTING.md).
+    private var plainModelName: String {
+        switch settings.selectedModel {
+        case .appleIntelligence: "Apple's model"
+        case .onDeviceAnalysis: "Quotes only"
+        }
+    }
+
+    private var plainModelTagline: String {
+        switch settings.selectedModel {
+        case .appleIntelligence:
+            "Writes answers from your documents on this device, and can use Private Cloud Compute when you allow it."
+        case .onDeviceAnalysis:
+            "Answers with sentences taken word for word from your documents, and no model writes anything."
+        }
+    }
+
     @ViewBuilder
     private var appleIntelligenceFeaturesCard: some View {
         VStack(spacing: 0) {
@@ -2707,10 +2767,11 @@ Text(deviceService.chipName)
                             )
                         )
                 }
-                Text("Apple Intelligence")
+                // The page's title and the model card above already say "Apple Intelligence" (5.7 UI cleanup).
+                Text(settings.showTechnicalDetails ? "Apple Intelligence" : "Features")
                     .font(.headline)
                 Spacer()
-                Text("\(activeAIFeatureCount)/\(totalAIFeatureCount)")
+                Text(settings.showTechnicalDetails ? "\(activeAIFeatureCount)/\(totalAIFeatureCount)" : "\(activeAIFeatureCount) of \(totalAIFeatureCount) on")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundColor(.white)
                     .padding(.horizontal, DSSpacing.sm)
@@ -2918,7 +2979,7 @@ Text(deviceService.chipName)
 
                 Divider().padding(.horizontal)
 
-                Text("Trust & Hallucination Prevention")
+                Text(settings.showTechnicalDetails ? "Trust & Hallucination Prevention" : "Answers Are Checked")
                     .font(.subheadline.bold())
                     .padding(.horizontal)
 
@@ -2927,9 +2988,16 @@ Text(deviceService.chipName)
                         .font(.title2)
                         .foregroundColor(.green)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Strict Verification Gates")
+                        Text(settings.showTechnicalDetails ? "Strict Verification Gates" : "The same checks as the chat")
                             .font(.subheadline.weight(.semibold))
-                        Text("Siri voice responses run the exact same on-device validation rules as the main chat view. If no precise document evidence supports a claim, Siri returns a prominent 'Needs Verification' dialog instead of hallucinating.")
+                        // The actions ask through `RAGService.query`, the chat's own path and checks. "Needs Verification"
+                        // is what `SourceOnlyAnswerService` puts in front of a drafted answer when its check abstains,
+                        // with the reason; through 5.6 this said Siri returned a "dialog instead of hallucinating",
+                        // which is not what happens (2026-10-20).
+                        Text(
+                            settings.showTechnicalDetails
+                                ? "Siri and Shortcuts ask through RAGService.query, the chat's own pipeline and verification gates. When the source-only check abstains, the answer is prefixed with \"[Needs Verification]\" and its reason (SourceOnlyAnswerService)."
+                                : "An answer from Siri or Shortcuts is checked against your documents the same way as one in the chat. When the last check can't back it, the answer starts with \"Needs Verification\" and says why.")
                             .font(.caption)
                             .foregroundColor(DSColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: false)

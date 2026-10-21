@@ -5,11 +5,14 @@
 
 import Foundation
 
-/// Builds the text that leaves the app when an answer is shared: the answer, the documents it
-/// cites, and the app's name with its App Store link.
+/// Builds the text that leaves the app with an answer: the answer and the documents its labels point at.
+/// Share adds the app's name with its App Store link (`AnswerShareFormatter+Share.swift`, in the app);
+/// Copy, an answer item handed to Shortcuts or another app (`OIAnswerEntity`), and an exported conversation
+/// use the same list.
 ///
 /// Through 5.6, Share sent `message.content` alone, so a forwarded answer kept its `[S2]` labels and
-/// lost what they pointed at.
+/// lost what they pointed at. In `Services/` since 5.7, so the engine target, which the answer item is
+/// compiled into, has the same rule as the app's Share.
 nonisolated enum AnswerShareFormatter {
     /// One line of the source list.
     struct Source: Equatable, Sendable {
@@ -19,35 +22,35 @@ nonisolated enum AnswerShareFormatter {
         let pages: [Int]
     }
 
-    static let attribution = "Answered with OpenIntelligence"
-
     /// At most this many documents are listed when the answer cites nothing by label.
     static let maxUnlabelledSources = 8
 
-    /// The text Share sends for one message. A message that is not an answer, or an answer with no
-    /// sources, is returned with the attribution only when it is an answer.
-    static func shareText(for message: ChatMessage) -> String {
-        guard message.role == .assistant else { return message.content }
-        return shareText(
-            answer: message.content,
-            evidence: message.structuredAnswer?.evidence ?? [],
-            retrievedChunks: message.retrievedChunks ?? []
-        )
-    }
-
-    static func shareText(
+    /// The answer followed by the sources its labels point at, under "Sources:", the form Copy and an answer
+    /// item hand to another app. An answer with no passages comes back as written. An answer that ends on a
+    /// line of its own labels ("Sources: [S1]") loses that line when the list follows, since the list says what
+    /// they point at: on 2026-10-20 a shortcut's Copy to Clipboard gave "Sources:" twice.
+    static func textWithSources(
         answer: String,
         evidence: [StructuredAnswer.Evidence],
-        retrievedChunks: [RetrievedChunk],
-        appLink: URL = OpenIntelligenceLinks.sharedAppStoreURL
+        retrievedChunks: [RetrievedChunk]
     ) -> String {
-        var parts = [answer.trimmingCharacters(in: .whitespacesAndNewlines)]
+        let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         let listed = sources(answer: answer, evidence: evidence, retrievedChunks: retrievedChunks)
-        if !listed.isEmpty {
-            parts.append((["Sources:"] + listed.map(line(for:))).joined(separator: "\n"))
-        }
-        parts.append("\(attribution)\n\(appLink.absoluteString)")
-        return parts.joined(separator: "\n\n")
+        guard !listed.isEmpty else { return text }
+        let list = (["Sources:"] + listed.map(line(for:))).joined(separator: "\n")
+        return [withoutClosingSourceLabels(text), list].joined(separator: "\n\n")
+    }
+
+    /// `text` without a last line that holds only "Source:" or "Sources:" and labels such as [S1] or [2].
+    static func withoutClosingSourceLabels(_ text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+        guard let last = lines.last,
+            last.range(of: #"^\s*Sources?:\s*(\[S?\d+\][\s,;]*)+$"#, options: .regularExpression) != nil
+        else { return text }
+        lines.removeLast()
+        while let end = lines.last, end.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+        return lines.isEmpty ? text : lines.joined(separator: "\n")
     }
 
     /// The sources an answer names, in the order it names them. When the answer has no label that

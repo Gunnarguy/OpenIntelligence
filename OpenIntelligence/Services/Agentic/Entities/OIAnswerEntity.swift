@@ -29,7 +29,8 @@ struct OIAnswerEntity: AppEntity {
     @Property(title: "Sources")
     var passages: [OIPassageEntity]
 
-    /// One line per document the answer drew on, with its pages.
+    /// One line per source the answer's labels point at ("[S1] Lease.pdf, page 4"), or for an answer without
+    /// labels one per document its passages came from, with their pages.
     @Property(title: "Source List")
     var sourceList: String
 
@@ -55,7 +56,9 @@ struct OIAnswerEntity: AppEntity {
         self.question = question
         self.text = response.generatedResponse
         self.passages = response.retrievedChunks.map(OIPassageEntity.init)
-        self.sourceList = Self.sourceList(for: response.retrievedChunks)
+        self.sourceList = Self.sourceList(
+            answer: response.generatedResponse, evidence: response.structuredAnswer?.evidence ?? [],
+            retrievedChunks: response.retrievedChunks)
         self.mode = mode
         self.model = response.metadata.modelUsed
         HandedOutItems.record(answer: stored(at: now), passages: passages.map { $0.stored(at: now) }, now: now)
@@ -79,51 +82,30 @@ struct OIAnswerEntity: AppEntity {
             passageIds: passages.map(\.id), createdAt: date)
     }
 
-    /// The answer followed by its sources, the form another app receives. An answer that ends on a line of source
-    /// labels ("Sources: [S1]") loses that line here, since the list after it names the documents and a label means
-    /// nothing outside the app: on 2026-10-20 a shortcut's Copy to Clipboard gave "Sources:" twice.
+    /// The answer followed by its sources, the form another app receives, as Copy and Share give it
+    /// (`AnswerShareFormatter.textWithSources`). An answer that ends on a line of its own labels ("Sources: [S1]")
+    /// loses that line here, since the list after it says what they point at: on 2026-10-20 a shortcut's Copy to
+    /// Clipboard gave "Sources:" twice.
     var textWithSources: String {
-        sourceList.isEmpty ? text : "\(Self.withoutClosingSourceLabels(text))\n\nSources:\n\(sourceList)"
+        sourceList.isEmpty
+            ? text : "\(AnswerShareFormatter.withoutClosingSourceLabels(text))\n\nSources:\n\(sourceList)"
     }
 
-    /// `text` without a last line that holds only "Source:" or "Sources:" and labels such as [S1] or [2].
-    static func withoutClosingSourceLabels(_ text: String) -> String {
-        var lines = text.components(separatedBy: "\n")
-        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
-        guard let last = lines.last,
-            last.range(of: #"^\s*Sources?:\s*(\[S?\d+\][\s,;]*)+$"#, options: .regularExpression) != nil
-        else { return text }
-        lines.removeLast()
-        while let end = lines.last, end.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
-        return lines.isEmpty ? text : lines.joined(separator: "\n")
-    }
-
+    /// The answer's opening in plain words (`AnswerPreview`): Shortcuts shows the title as it is, so through the
+    /// first 5.7 builds a result read "### Pet Deposit Amount - **$300.00** [S1]".
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(String(text.prefix(120)))", subtitle: "\(question)")
+        DisplayRepresentation(title: "\(AnswerPreview.plain(text, limit: 120))", subtitle: "\(question)")
     }
 
-    /// Documents in the order the passages came back, each once, with the pages cited from it.
-    static func sourceList(for chunks: [RetrievedChunk]) -> String {
-        var order: [String] = []
-        var pages: [String: [Int]] = [:]
-        for chunk in chunks {
-            let name = chunk.sourceDocument.isEmpty ? "Document" : chunk.sourceDocument
-            if pages[name] == nil {
-                order.append(name)
-                pages[name] = []
-            }
-            if let page = chunk.pageNumber ?? chunk.chunk.metadata.pageNumber, !(pages[name]?.contains(page) ?? false) {
-                pages[name]?.append(page)
-            }
-        }
-        return order.map { name -> String in
-            let listed = (pages[name] ?? []).sorted()
-            switch listed.count {
-            case 0: return "- \(name)"
-            case 1: return "- \(name), page \(listed[0])"
-            default: return "- \(name), pages " + listed.map(String.init).joined(separator: ", ")
-            }
-        }.joined(separator: "\n")
+    /// What the answer's labels point at, one line each ("[S1] Lease.pdf, page 4"), the list the app's Share
+    /// gives (`AnswerShareFormatter.sources`). An answer without labels lists the documents its passages came
+    /// from, each once with its pages. Through the first 5.7 builds the list named documents only, so a copied
+    /// answer's [S1] named nothing.
+    static func sourceList(
+        answer: String, evidence: [StructuredAnswer.Evidence], retrievedChunks: [RetrievedChunk]
+    ) -> String {
+        AnswerShareFormatter.sources(answer: answer, evidence: evidence, retrievedChunks: retrievedChunks)
+            .map(AnswerShareFormatter.line(for:)).joined(separator: "\n")
     }
 }
 

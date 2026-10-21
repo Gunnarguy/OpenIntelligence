@@ -107,6 +107,10 @@ struct DatabaseDashboardView: View {
 
         var id: String { rawValue }
 
+        /// The index and storage internals, listed only with Technical Details on (5.7). The rest of
+        /// the screen says the same things in plain words unless Technical Details is on.
+        var isTechnical: Bool { self == .index || self == .performance }
+
         var label: String {
             switch self {
             case .overview: return "Overview"
@@ -145,7 +149,7 @@ struct DatabaseDashboardView: View {
                     sectionPicker
 
                     // Content based on selection
-                    switch selectedSection {
+                    switch shownSection {
                     case .overview:
                         overviewSection
                     case .intelligence:
@@ -290,11 +294,11 @@ struct DatabaseDashboardView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("SQLite FTS5")
+                    Text(settings.showTechnicalDetails ? "SQLite FTS5" : "Keyword Index")
                         .font(.title2)
                         .fontWeight(.bold)
 
-                    Text("Full-Text Search Engine")
+                    Text(settings.showTechnicalDetails ? "Full-Text Search Engine" : "Finds the exact words of a question in your documents")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -533,10 +537,15 @@ struct DatabaseDashboardView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
+    /// The section on screen: Index and Performance only with Technical Details on.
+    private var shownSection: DatabaseSection {
+        selectedSection.isTechnical && !settings.showTechnicalDetails ? .overview : selectedSection
+    }
+
     private var sectionPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                ForEach(DatabaseSection.allCases) { section in
+                ForEach(DatabaseSection.allCases.filter { settings.showTechnicalDetails || !$0.isTechnical }) { section in
                     Button {
                         withAnimation(.spring(response: 0.3)) {
                             selectedSection = section
@@ -547,15 +556,15 @@ struct DatabaseDashboardView: View {
                             Text(section.label)
                         }
                         .font(.subheadline)
-                        .fontWeight(selectedSection == section ? .semibold : .regular)
+                        .fontWeight(shownSection == section ? .semibold : .regular)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(
-                            selectedSection == section
+                            shownSection == section
                                 ? Color.accentColor.opacity(0.15)
                                 : Color.gray.opacity(0.1)
                         )
-                        .foregroundColor(selectedSection == section ? .accentColor : .secondary)
+                        .foregroundColor(shownSection == section ? .accentColor : .secondary)
                         .cornerRadius(20)
                     }
                     .buttonStyle(.plain)
@@ -618,8 +627,8 @@ struct DatabaseDashboardView: View {
                     )
                 }
 
-                // Quick stats row
-                if let diag = deepDiagnostics {
+                // Quick stats row: storage internals, with Technical Details on.
+                if settings.showTechnicalDetails, let diag = deepDiagnostics {
                     HStack(spacing: 8) {
                         QuickStat(
                             value: "\(diag.pageCount)",
@@ -684,15 +693,15 @@ struct DatabaseDashboardView: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 HealthIndicator(
-                    label: "Integrity",
+                    label: settings.showTechnicalDetails ? "Integrity" : "Index Check",
                     status: diag.integrityCheckResult.lowercased().contains("ok") ? .good : .bad
                 )
                 HealthIndicator(
-                    label: "Free Pages",
+                    label: settings.showTechnicalDetails ? "Free Pages" : "Unused Space",
                     status: diag.freePageCount == 0 ? .good : (diag.freePageCount < 100 ? .warning : .bad)
                 )
                 HealthIndicator(
-                    label: "WAL Size",
+                    label: settings.showTechnicalDetails ? "WAL Size" : "Write Log",
                     status: diag.walSizeBytes < 10_000_000 ? .good : (diag.walSizeBytes < 100_000_000 ? .warning : .bad)
                 )
             }
@@ -708,41 +717,32 @@ struct DatabaseDashboardView: View {
         .cornerRadius(12)
     }
 
+    /// How keyword search works. Through 5.6 this card was "Performance Advantage", with "100X", "10X" and
+    /// "~500ms to ~5ms" set against a file scan the app no longer has; none of the figures was measured
+    /// anywhere in the repository (checked 2026-10-20: BenchmarkRuns/LEDGER.md, Docs, the audits), so they
+    /// are gone and the card says what the index does.
     private var performanceCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "bolt.fill")
                     .foregroundColor(.yellow)
-                Text("Performance Advantage")
+                Text(settings.showTechnicalDetails ? "Keyword Index" : "How Keyword Search Works")
                     .font(.headline)
                 Spacer()
             }
 
-            VStack(spacing: 12) {
-                PerformanceComparisonRow(
-                    operation: "Pattern Counting",
-                    oldMethod: "O(n) file scan",
-                    newMethod: "O(log n) index",
-                    speedup: "100X"
-                )
-
+            if settings.showTechnicalDetails {
+                IndexFactRow(
+                    title: "Lookup", detail: "SQLite FTS5, an inverted index of each word (tokenizer porter unicode61)")
                 Divider()
-
-                PerformanceComparisonRow(
-                    operation: "BM25 Scoring",
-                    oldMethod: "Rebuild each query",
-                    newMethod: "Native bm25()",
-                    speedup: "10X"
+                IndexFactRow(title: "Ranking", detail: "FTS5's built-in bm25()")
+            } else {
+                Text(
+                    "The app keeps an index of the words in your documents, so a search looks words up instead of reading every passage, and the best matches come first."
                 )
-
-                Divider()
-
-                PerformanceComparisonRow(
-                    operation: "Keyword Search",
-                    oldMethod: "Linear scan ~500ms",
-                    newMethod: "Inverted index ~5ms",
-                    speedup: "100X"
-                )
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding()
@@ -755,10 +755,10 @@ struct DatabaseDashboardView: View {
             HStack {
                 Image(systemName: "square.stack.3d.up.fill")
                     .foregroundColor(.indigo)
-                Text("Container Breakdown")
+                Text("Libraries")
                     .font(.headline)
                 Spacer()
-                Text("\(stats.containerStats.count) containers")
+                Text("\(stats.containerStats.count) \(stats.containerStats.count == 1 ? "library" : "libraries")")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -802,9 +802,9 @@ struct DatabaseDashboardView: View {
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 48))
                         .foregroundColor(.secondary.opacity(0.5))
-                    Text("No Documents Indexed")
+                    Text(settings.showTechnicalDetails ? "No Documents Indexed" : "No Documents Yet")
                         .font(.headline)
-                    Text("Add documents to populate the FTS5 index")
+                    Text(settings.showTechnicalDetails ? "Add documents to populate the FTS5 index" : "Documents you add are listed here with their words and characters.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -873,7 +873,7 @@ struct DatabaseDashboardView: View {
                 Image(systemName: "wand.and.stars")
                     .foregroundColor(.purple)
                     .font(.title2)
-                Text("Auto Intelligence Adaptations")
+                Text(settings.showTechnicalDetails ? "Auto Intelligence Adaptations" : "How Each Library Is Tuned")
                     .font(.headline)
                 Spacer()
             }
@@ -887,7 +887,8 @@ struct DatabaseDashboardView: View {
                     container: container,
                     intelligenceReport: ragService.intelligenceReport(for: container.id),
                     isAnalyzing: analyzingContainerIds.contains(container.id),
-                    onAnalyze: { analyzeLibrary(container.id) }
+                    onAnalyze: { analyzeLibrary(container.id) },
+                    showsTechnicalDetails: settings.showTechnicalDetails
                 )
             }
 
@@ -896,29 +897,41 @@ struct DatabaseDashboardView: View {
                 HStack {
                     Image(systemName: "lightbulb.fill")
                         .foregroundColor(.yellow)
-                    Text("How Auto Intelligence Works")
+                    Text(settings.showTechnicalDetails ? "How Auto Intelligence Works" : "What the App Adjusts")
                         .font(.subheadline.weight(.semibold))
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
+                    // Each line says what the code does (2026-10-20): the analysis measures vocabulary richness,
+                    // technical density, code, math and structured passages (`analyzeLibrary`); each import sets
+                    // its passage plan from a scan of the new document when the library is on Auto
+                    // (`recommendChunkingPlan`, RAGService); and the search style follows the library's document
+                    // types while it is on Automatic (`RetrievalConfig.autoTuned`). "Optimizes search weights for
+                    // your specific corpus" overstated the last: it picks Balanced or Technical Manual.
                     IntelligenceExplanationRow(
                         icon: "doc.text.magnifyingglass",
-                        title: "Content Analysis",
-                        description: "Scans vocabulary richness, code density, and document structure"
+                        title: settings.showTechnicalDetails ? "Content Analysis" : "What's in a Library",
+                        description: settings.showTechnicalDetails
+                            ? "Measures vocabulary richness, technical density, code, math and structure (analyzeLibrary)"
+                            : "Looks at the words, any code or math, and how the documents are laid out"
                     )
                     IntelligenceExplanationRow(
                         icon: "slider.horizontal.3",
-                        title: "Adaptive Chunking",
-                        description: "Adjusts chunk size and overlap based on content type"
+                        title: settings.showTechnicalDetails ? "Adaptive Chunking" : "Passage Length",
+                        description: settings.showTechnicalDetails
+                            ? "On Auto, each import sets the chunk plan from a scan of the new document (recommendChunkingPlan)"
+                            : "On Auto, each document added gets passages sized for its kind of text"
                     )
                     IntelligenceExplanationRow(
                         icon: "arrow.triangle.branch",
-                        title: "Retrieval Tuning",
-                        description: "Optimizes search weights for your specific corpus"
+                        title: settings.showTechnicalDetails ? "Retrieval Tuning" : "Search Style",
+                        description: settings.showTechnicalDetails
+                            ? "On Automatic, the search style follows the library's document types (RetrievalConfig.autoTuned)"
+                            : "On Automatic, the search style follows the kinds of documents in the library"
                     )
                 }
 
-                Text("Each library learns independently from its documents")
+                Text(settings.showTechnicalDetails ? "Each library is analyzed on its own documents" : "Each library is looked at on its own")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.top, 4)
@@ -1361,7 +1374,7 @@ struct DatabaseDashboardView: View {
                     .disabled(isOptimizing)
                 }
 
-                Text("Runs VACUUM and FTS5 optimize to reclaim space and improve performance")
+                Text(settings.showTechnicalDetails ? "Runs VACUUM and FTS5 optimize to reclaim space and merge the index" : "Compacts the index and frees the space it no longer uses")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
@@ -1418,7 +1431,9 @@ struct DatabaseDashboardView: View {
                     .disabled(isRebuildingIndex)
                 }
 
-                Text("⚠️ Completely rebuilds the FTS5 index. Use if search results seem corrupted.")
+                // `SQLiteFullTextService.rebuildIndex` runs FTS5's rebuild on the whole-document table only, not on the
+                // passage table that answers questions; "Completely rebuilds the FTS5 index" said otherwise (2026-10-20).
+                Text(settings.showTechnicalDetails ? "⚠️ Rebuilds the documents FTS5 table from its stored text; the chunks table is not rebuilt." : "⚠️ Builds the whole-document word index again from its stored text. The index that answers questions by passage isn't touched.")
                     .font(.caption)
                     .foregroundColor(.orange)
 
@@ -1455,11 +1470,15 @@ struct DatabaseDashboardView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        DatabaseInfoRow(label: "Journal Mode", value: diag.journalMode.uppercased())
-                        DatabaseInfoRow(label: "Auto Vacuum", value: diag.autoVacuum)
-                        DatabaseInfoRow(label: "Integrity", value: diag.integrityCheckResult)
-                        DatabaseInfoRow(label: "Page Count", value: "\(diag.pageCount)")
-                        DatabaseInfoRow(label: "Free Pages", value: "\(diag.freePageCount)")
+                        if settings.showTechnicalDetails {
+                            DatabaseInfoRow(label: "Journal Mode", value: diag.journalMode.uppercased())
+                            DatabaseInfoRow(label: "Auto Vacuum", value: diag.autoVacuum)
+                        }
+                        DatabaseInfoRow(label: settings.showTechnicalDetails ? "Integrity" : "Index Check", value: diag.integrityCheckResult)
+                        if settings.showTechnicalDetails {
+                            DatabaseInfoRow(label: "Page Count", value: "\(diag.pageCount)")
+                            DatabaseInfoRow(label: "Free Pages", value: "\(diag.freePageCount)")
+                        }
 
                         if diag.freePageCount > 0 {
                             let wastedBytes = Int64(diag.freePageCount * diag.pageSize)
@@ -1484,7 +1503,7 @@ struct DatabaseDashboardView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
-                TextField("Search FTS5 index...", text: $searchQuery)
+                TextField(settings.showTechnicalDetails ? "Search FTS5 index..." : "Search for words in your documents…", text: $searchQuery)
                     .textFieldStyle(.plain)
                     .onSubmit {
                         Task { await performSearch() }
@@ -1514,7 +1533,7 @@ struct DatabaseDashboardView: View {
                     HStack {
                         Image(systemName: "lightbulb.fill")
                             .foregroundColor(.yellow)
-                        Text("FTS5 Query Syntax")
+                        Text(settings.showTechnicalDetails ? "FTS5 Query Syntax" : "Ways to Search")
                             .font(.headline)
                         Spacer()
                     }
@@ -1530,7 +1549,7 @@ struct DatabaseDashboardView: View {
                         SearchTip(syntax: "word + word2", description: "word2 must follow word (adjacent)")
                     }
 
-                    Text("Queries are case-insensitive. BM25 ranking is used for relevance scoring.")
+                    Text(settings.showTechnicalDetails ? "Queries are case-insensitive. BM25 ranking is used for relevance scoring." : "Capital letters don't matter, and the best matches come first.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .padding(.top, 4)
@@ -1595,11 +1614,11 @@ struct DatabaseDashboardView: View {
                 .font(.system(size: 64))
                 .foregroundColor(.secondary.opacity(0.4))
 
-            Text("Database Empty")
+            Text(settings.showTechnicalDetails ? "Database Empty" : "No Documents Yet")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Add documents to populate the SQLite FTS5 full-text search index")
+            Text(settings.showTechnicalDetails ? "Add documents to populate the SQLite FTS5 full-text search index" : "Add documents and their words show up here.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -1902,38 +1921,21 @@ private struct DatabaseMetricCard: View {
     }
 }
 
-private struct PerformanceComparisonRow: View {
-    let operation: String
-    let oldMethod: String
-    let newMethod: String
-    let speedup: String
+private struct IndexFactRow: View {
+    let title: String
+    let detail: String
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(operation)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                HStack(spacing: 8) {
-                    Text(oldMethod)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Image(systemName: "arrow.right")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text(newMethod)
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                }
-            }
-
-            Spacer()
-
-            Text(speedup)
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(.green)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+            Text(detail)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -2225,6 +2227,8 @@ struct LibraryIntelligenceCard: View {
     /// (every passage, through 5.6), and doing that for every library on tab appear is
     /// the read-amplification `771461c` removed from sync.
     var onAnalyze: (() -> Void)?
+    /// Settings' Technical Details: the card says "chunks" and "corpus" with it on and "passages" without.
+    var showsTechnicalDetails: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2272,21 +2276,36 @@ struct LibraryIntelligenceCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     if report.corpus.isEstimate {
                         // A large library is measured from a sample of its passages.
-                        Text("Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks")
+                        Text(
+                            showsTechnicalDetails
+                                ? "Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks"
+                                : "Measured from \(report.corpus.analysedChunkCount) of its \(report.corpus.chunkCount) passages")
                             .font(.caption2.weight(.medium))
                             .foregroundColor(.secondary)
                     }
 
+                    // The library analysis's plan is shown and never applied: each import sets its own from a
+                    // scan of the new document (`recommendChunkingPlan`), so these rows are what the analysis
+                    // suggests, not the library's settings (2026-10-20).
+                    Text(
+                        showsTechnicalDetails
+                            ? "Suggested by the library analysis; each import sets its own plan"
+                            : "What the analysis suggests. Each document gets its own when it's added."
+                    )
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                     IntelligenceMetricRow(
                         icon: "rectangle.split.3x1",
-                        label: "Chunking Strategy",
+                        label: showsTechnicalDetails ? "Chunking Strategy" : "Splitting",
                         value: report.chunking.strategy.rawValue.capitalized,
                         color: .blue
                     )
 
                     IntelligenceMetricRow(
                         icon: "textformat.size",
-                        label: "Target Chunk Size",
+                        label: showsTechnicalDetails ? "Target Chunk Size" : "Passage Length",
                         value: "\(report.chunking.targetWordWindow) words",
                         color: .green
                     )
@@ -2300,7 +2319,7 @@ struct LibraryIntelligenceCard: View {
 
                     if !report.chunking.rationales.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Why these settings:")
+                            Text(showsTechnicalDetails ? "Rationale:" : "Why:")
                                 .font(.caption2.weight(.medium))
                                 .foregroundColor(.secondary)
 
@@ -2321,7 +2340,7 @@ struct LibraryIntelligenceCard: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .scaleEffect(0.7)
-                    Text("Analyzing corpus…")
+                    Text(showsTechnicalDetails ? "Analyzing corpus…" : "Analyzing…")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -2361,14 +2380,14 @@ struct LibraryIntelligenceCard: View {
                     VStack(alignment: .leading, spacing: 8) {
                         IntelligenceMetricRow(
                             icon: "rectangle.split.3x1",
-                            label: "Chunking Strategy",
+                            label: showsTechnicalDetails ? "Chunking Strategy" : "Splitting",
                             value: directive.strategy.capitalized,
                             color: .gray
                         )
 
                         IntelligenceMetricRow(
                             icon: "textformat.size",
-                            label: "Target Chunk Size",
+                            label: showsTechnicalDetails ? "Target Chunk Size" : "Passage Length",
                             value: "\(directive.targetWordWindow) words",
                             color: .gray
                         )
@@ -2381,7 +2400,7 @@ struct LibraryIntelligenceCard: View {
                         )
                     }
                 } else {
-                    Text("Using default chunking settings")
+                    Text(showsTechnicalDetails ? "Using default chunking settings" : "Using the standard passage length")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -2392,7 +2411,7 @@ struct LibraryIntelligenceCard: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Corpus Signals")
+                    Text(showsTechnicalDetails ? "Corpus Signals" : "What's in It")
                         .font(.caption.weight(.semibold))
                         .foregroundColor(.secondary)
 
@@ -2403,7 +2422,7 @@ struct LibraryIntelligenceCard: View {
                         )
                         CorpusSignalBadge(
                             icon: "cube.box",
-                            label: "\(report.corpus.chunkCount) chunks"
+                            label: showsTechnicalDetails ? "\(report.corpus.chunkCount) chunks" : "\(report.corpus.chunkCount) passages"
                         )
                         if report.corpus.hasCode {
                             CorpusSignalBadge(

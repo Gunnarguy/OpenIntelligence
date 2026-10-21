@@ -122,7 +122,7 @@ struct AtlasTip: Tip {
     }
 
     var message: Text? {
-        Text("Explore document clusters and embeddings interactively.")
+        Text("See which passages of your documents sit close together in meaning.")
     }
 
     var image: Image? {

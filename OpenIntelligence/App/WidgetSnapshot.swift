@@ -130,23 +130,9 @@ nonisolated struct WidgetSnapshot: Codable, Equatable, Sendable {
         messageId = nil
     }
 
-    /// An answer's opening as the widget shows it: citation labels, Markdown marks and list bullets taken out, spaces
-    /// folded, and cut on a word at `limit` characters.
+    /// An answer's opening as the widget shows it (`AnswerPreview.plain`, which an answer item's title in Shortcuts
+    /// uses too).
     static func preview(of text: String, limit: Int = 160) -> String {
-        var plain = text.replacingOccurrences(
-            of: #"\[(?:S?\d+(?:\s*,\s*S?\d+)*)\]"#, with: "", options: .regularExpression)
-        plain = plain.replacingOccurrences(of: #"(^|\s)#{1,6}\s"#, with: "$1", options: .regularExpression)
-        // A list item's bullet or number at the start of a line ("- ", "• ", "2. "), which reads as stray punctuation
-        // once the lines are joined.
-        plain = plain.replacingOccurrences(
-            of: #"(?m)^[ \t]*(?:[-•◦▪+*]|\d{1,3}[.)])[ \t]+"#, with: "", options: .regularExpression)
-        plain = plain.replacingOccurrences(of: #"[*_`]+"#, with: "", options: .regularExpression)
-        plain = plain.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        // A label taken out before punctuation leaves a space there.
-        plain = plain.replacingOccurrences(of: #" +([.,;:!?])"#, with: "$1", options: .regularExpression)
-        guard plain.count > limit else { return plain }
-        let cut = plain.prefix(limit)
-        let end = cut.lastIndex(of: " ") ?? cut.endIndex
-        return String(cut[..<end]) + "…"
+        AnswerPreview.plain(text, limit: limit)
     }
 }

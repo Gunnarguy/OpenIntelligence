@@ -3715,7 +3715,8 @@ class RAGService: ObservableObject {
         compact: Bool,
         isExtractiveFirst: Bool = false,
         labelOffset: Int = 0,
-        leadingCandidateWhole: Bool = false
+        leadingCandidateWhole: Bool = false,
+        numberByUse: Bool = false
     ) async -> SentenceExtractionResult {
         let extractionTask = Task.detached(priority: .utility) {
             Self.extractRelevantSentencesOffMain(
@@ -3725,7 +3726,8 @@ class RAGService: ObservableObject {
                 compact: compact,
                 isExtractiveFirst: isExtractiveFirst,
                 labelOffset: labelOffset,
-                leadingCandidateWhole: leadingCandidateWhole
+                leadingCandidateWhole: leadingCandidateWhole,
+                numberByUse: numberByUse
             )
         }
 
@@ -3767,7 +3769,8 @@ class RAGService: ObservableObject {
         compact: Bool,
         isExtractiveFirst: Bool,
         labelOffset: Int = 0,
-        leadingCandidateWhole: Bool = false
+        leadingCandidateWhole: Bool = false,
+        numberByUse: Bool = false
     ) -> SentenceExtractionResult {
         if Task.isCancelled {
             return .empty
@@ -4204,14 +4207,20 @@ class RAGService: ObservableObject {
                 } else {
                     sectionTag = ""
                 }
+                // With `numberByUse` the number is filled in after packing (`numberedLabels`), once it is known which
+                // sources made it: each is numbered by its place among the sources used, in the order
+                // `usedSourceIndices` returns, for a caller that keeps only those (the Standard path and its needle
+                // rescue). Without it the number is the candidate's place plus `labelOffset`, for a caller that keeps
+                // every candidate (Deep Think's windows, numbered over all routed passages).
+                let number =
+                    numberByUse
+                    ? labelPlaceholder(sentence.sourceIndex) : "\(sentence.sourceIndex + 1 + labelOffset)"
                 if compact {
                     let filename = URL(fileURLWithPath: sentence.sourceDoc).lastPathComponent
-                    sourceLabels[sentence.sourceIndex] =
-                        "[S\(sentence.sourceIndex + 1 + labelOffset)]\(sectionTag) (\(filename))"
+                    sourceLabels[sentence.sourceIndex] = "[S\(number)]\(sectionTag) (\(filename))"
                 } else {
                     let page = sentence.pageNumber.map { " p.\($0)" } ?? ""
-                    sourceLabels[sentence.sourceIndex] =
-                        "[S\(sentence.sourceIndex + 1 + labelOffset)]\(sectionTag) \(sentence.sourceDoc)\(page)"
+                    sourceLabels[sentence.sourceIndex] = "[S\(number)]\(sectionTag) \(sentence.sourceDoc)\(page)"
                 }
             }
             sourceBuffers[sentence.sourceIndex, default: []].append(displayText)
@@ -4273,13 +4282,34 @@ class RAGService: ObservableObject {
             }
         }
 
+        let usedSourceIndices = sourcesUsed.sorted()
         return SentenceExtractionResult(
-            context: builder,
+            context: numberByUse
+                ? numberedLabels(in: builder, usedSourceIndices: usedSourceIndices, labelOffset: labelOffset) : builder,
             sourcesUsed: sourcesUsed.count,
             sentencesIncluded: sentenceCount,
-            // Sorted so the order matches the labels, which ascend with the source index.
-            usedSourceIndices: sourcesUsed.sorted()
+            // The caller's passages, in the order the labels number them.
+            usedSourceIndices: usedSourceIndices
         )
+    }
+
+    /// A label number not yet known: the candidate's index between two private-use characters.
+    private nonisolated static func labelPlaceholder(_ sourceIndex: Int) -> String {
+        "\u{E000}\(sourceIndex)\u{E001}"
+    }
+
+    /// The context with each source's label numbered by its place among the sources used (5.7), for a caller that
+    /// keeps only those. The Standard path numbered by candidate while keeping only the used sources, numbered from
+    /// one: on 2026-10-20 a pet-deposit question drew sentences from candidates 1, 5 and 6, the model was shown [S1],
+    /// [S5] and [S6], cited all three correctly, and the answer's passages numbered 1 to 3 opened [S1] only. The
+    /// needle rescue's labels, which start at `labelOffset`, skipped numbers the same way.
+    nonisolated static func numberedLabels(in context: String, usedSourceIndices: [Int], labelOffset: Int) -> String {
+        var numbered = context
+        for (place, sourceIndex) in usedSourceIndices.enumerated() {
+            numbered = numbered.replacingOccurrences(
+                of: labelPlaceholder(sourceIndex), with: "\(place + 1 + labelOffset)")
+        }
+        return numbered
     }
 
     private nonisolated static func exactSentenceAnchorTokens(from text: String) -> Set<String> {
@@ -14942,7 +14972,9 @@ class RAGService: ObservableObject {
                         maxChars: maxContextChars,
                         compact: useCompactMode,
                         isExtractiveFirst: answerIntentIsExtractive,
-                        leadingCandidateWhole: true
+                        leadingCandidateWhole: true,
+                        // The answer keeps only the sources used (`promptSources` below), so the labels number those.
+                        numberByUse: true
                     )
 
                     // Sentence extraction is a narrowing filter, and a filter that matches nothing
@@ -15026,7 +15058,9 @@ class RAGService: ObservableObject {
                             // from one again, and an answer citing [S5] and [S6], which are the
                             // fifth and sixth sources the model was shown and which resolved to
                             // nothing downstream.
-                            labelOffset: assembled.used
+                            labelOffset: assembled.used,
+                            // Only the rescued sources join the answer (`rescuedChunks`), so the labels number those.
+                            numberByUse: true
                         )
                         if rescueResult.sentencesIncluded > 0 {
                             rescuedChunks = rescueResult.usedSourceIndices.compactMap {
@@ -19383,6 +19417,22 @@ class RAGService: ObservableObject {
         let cleanedResponse = cleanupResponseText(response.generatedResponse)
         let stabilizedResponse = trimIncompleteResponseTail(cleanedResponse)
         let repairedResponse = repairMalformedURLs(stabilizedResponse)
+        // A label past the end of the answer's passages opens nothing, and it means the labels the model was shown
+        // and the passages the answer keeps were numbered differently. It is logged, not removed, as for the
+        // reasoning trace above ("This logs rather than rewrites"): on 2026-10-20 "$300.00 [S1], [S5], [S6]" was the
+        // model citing correctly from a context the sentence extractor numbered by candidate, against three passages
+        // numbered 1 to 3, and taking the labels out would have hidden that (fixed where the labels are made,
+        // `extractRelevantSentencesOffMain` and `RAGEngine.assembleContext`).
+        let unmatched = AgenticOrchestrator.danglingCitations(
+            in: repairedResponse, sourceCount: response.retrievedChunks.count)
+        if !unmatched.isEmpty {
+            Log.warning(
+                "[RAGService] The answer cites \(unmatched.map { "[S\($0)]" }.joined(separator: ", ")) against "
+                    + "\(response.retrievedChunks.count) source(s); the labels and the answer's passages were numbered "
+                    + "differently, so those labels open nothing.",
+                category: .llm
+            )
+        }
         let finalizedStructuredAnswer = response.structuredAnswer?.updatingAnswer(repairedResponse)
         let fallbackReasoningTrace = await MainActor.run {
             self.thinkingEvents.compactReasoningTrace()

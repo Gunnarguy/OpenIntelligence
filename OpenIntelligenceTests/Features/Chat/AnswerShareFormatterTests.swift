@@ -114,6 +114,38 @@ final class AnswerShareFormatterTests: XCTestCase {
             text, "I could not find that in your documents.\n\nAnswered with OpenIntelligence\nhttps://example.com/app")
     }
 
+    /// Copy and an answer item handed to Shortcuts get the answer and its list, without the app's name (5.7).
+    func testCopyGivesTheAnswerWithItsSourcesAndNoAttribution() {
+        let chunks = [
+            chunk("Rent is late after 11:59 p.m. on the 5th.", "Lease.pdf", page: 3),
+            chunk("Quiet hours are 10:00 p.m. to 7:00 a.m. every day.", "Rules.pdf", page: 12),
+        ]
+        let answer = ChatMessage(
+            role: .assistant, content: "Rent is late after the 5th [S1].", retrievedChunks: chunks)
+        XCTAssertEqual(
+            AnswerShareFormatter.copyText(for: answer), "Rent is late after the 5th [S1].\n\nSources:\n[S1] Lease.pdf, page 3")
+        XCTAssertEqual(
+            AnswerShareFormatter.copyText(for: ChatMessage(role: .user, content: "When is rent late?")),
+            "When is rent late?", "a question is copied as typed")
+        XCTAssertEqual(
+            AnswerShareFormatter.copyText(for: ChatMessage(role: .assistant, content: "Nothing found.")),
+            "Nothing found.", "an answer with no passages is copied as written")
+    }
+
+    func testAnAnswersOwnLineOfLabelsGivesWayToTheList() {
+        let chunks = [chunk("Each pet requires a refundable pet deposit of $300.00.", "Lease.pdf", page: 1)]
+        let text = AnswerShareFormatter.shareText(
+            answer: "The pet deposit is $300.00.\n\nSources: [S1]",
+            evidence: [],
+            retrievedChunks: chunks,
+            appLink: link
+        )
+        XCTAssertEqual(
+            text,
+            "The pet deposit is $300.00.\n\nSources:\n[S1] Lease.pdf, page 1\n\nAnswered with OpenIntelligence\nhttps://example.com/app"
+        )
+    }
+
     func testAQuestionIsSharedAsTyped() {
         let question = ChatMessage(role: .user, content: "When is rent late?")
         XCTAssertEqual(AnswerShareFormatter.shareText(for: question), "When is rent late?")

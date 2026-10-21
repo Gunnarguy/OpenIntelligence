@@ -184,7 +184,8 @@ struct MessageActionsBar: View {
     }
 
     private func copyToClipboard() {
-        SystemClipboard.copy(message.content)
+        // An answer goes with what its labels point at (5.7, `AnswerShareFormatter.copyText`); a question as typed.
+        SystemClipboard.copy(AnswerShareFormatter.copyText(for: message))
 
         copiedFeedback = true
         DSHaptics.success()

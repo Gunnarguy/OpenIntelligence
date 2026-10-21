@@ -630,18 +630,24 @@ actor RAGEngine {
                 truncatedContent = sanitizedContent
             }
 
+            // The label is this passage's place among the passages kept (`used + 1`), the order `usedSources`
+            // returns and the answer's citations resolve against. It was its place among all candidates (`i + 1`),
+            // so a near-duplicate skipped above shifted every later label by one: the next passage was labelled
+            // [S3] while it was the second source, [S3] opened the passage after it, and the last label opened
+            // nothing (found by review, 2026-10-20). "Cite only sources S1 to S\(used)" below already counted
+            // the passages kept.
             let block: String
             if compact {
                 // Compact mode: minimal headers, no similarity scores, tighter separators
                 // Saves ~30-50 chars per chunk for more content in constrained budgets
                 let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
                 let sourceRef = source.isEmpty ? "" : "(\(source)) "
-                block = "[S\(i + 1)] \(sourceRef)\(truncatedContent)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
+                block = "[S\(used + 1)] \(sourceRef)\(truncatedContent)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
             } else {
                 // Full mode: rich metadata for better citation context
                 let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
                 let page = r.pageNumber.map { " p.\($0)" } ?? ""
-                let header = "[S\(i + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
+                let header = "[S\(used + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
                 block = header + truncatedContent + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
             }
 
@@ -658,11 +664,11 @@ actor RAGEngine {
                     if compact {
                         let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
                         let sourceRef = source.isEmpty ? "" : "(\(source)) "
-                        forceBlock = "[S\(i + 1)] \(sourceRef)\(forceTruncated)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
+                        forceBlock = "[S\(used + 1)] \(sourceRef)\(forceTruncated)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
                     } else {
                         let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
                         let page = r.pageNumber.map { " p.\($0)" } ?? ""
-                        let header = "[S\(i + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
+                        let header = "[S\(used + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
                         forceBlock = header + forceTruncated + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
                     }
                     builder += forceBlock

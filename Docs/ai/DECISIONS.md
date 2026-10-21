@@ -1998,3 +1998,37 @@ nothing back. The assertion is in Apple's code and may be fixed by Apple; nothin
 crash reports, 2026-10-20), build_verified (Metadata.appintents), test_verified (HandedOutItemsTests), confidence:
 high]`
 
+
+## 2026-10-20 - Labels number the passages an answer keeps; a label that still matches none is logged, not removed
+
+**Context.** In the iOS 27.0 Simulator "How much is the pet deposit?" was answered "$300.00 [S1], [S5], [S6]" from
+three passages, and only [S1] opened anything. A first fix took labels that matched no passage out of the answer,
+on the reading that the model had made them up. A refuting review traced them to the app: the sentence extractor
+labelled each source by its place among all the candidates (`[S\(sentence.sourceIndex + 1 + labelOffset)]`), while
+the answer keeps only the sources it used, numbered from one, so the model was shown [S1], [S5] and [S6] for the
+answer's passages 1, 2 and 3 and cited them correctly. The needle rescue (the same extractor from `labelOffset`) and
+`RAGEngine.assembleContext` (labels by candidate after skipping near-duplicates) had the same gap; in the assembler a
+label after a skip opened the wrong passage, not just none. Removing the labels would have deleted those correct
+citations and hidden the defect, which is what the 2026-08-19 rule for the reasoning trace ("This logs rather than
+rewrites", the comment above `AgenticOrchestrator.danglingCitations` in `RAGService`) exists to prevent.
+
+**Decision.** Labels are numbered where they are made, by the passages the answer keeps. For the Standard path and
+its needle rescue, which keep only the sources used, the extractor fills each number in after packing, in the order of
+`usedSourceIndices` (`numberByUse`, `RAGService.numberedLabels`); Deep Think's windows, which keep every routed
+passage, keep the candidate's place plus the window's start, which was already right for them. The assembler labels
+a block `used + 1`. `finalizeResponse` logs a label past the answer's passages and leaves the text as it is, the
+same rule the reasoning trace has.
+
+**Alternatives.** Taking such labels out of the answer (deletes correct citations whenever the numbering is wrong,
+and hides that it is). Renumbering the answer's labels after generation (guesses which passage each label meant).
+Numbering by candidate and keeping every candidate in the answer's passages (gives the answer passages the model
+never read).
+
+**Consequences.** A label in a Standard answer opens the passage the model was shown under it, and Share, Copy and
+an answer handed to Shortcuts list the right document for it. A label that still matches nothing stays visible as
+text and is in the trace with the answer's source count, which is where a future numbering mismatch will show.
+Deep Think's reasoning chain numbers its labels over `routedChunks` and its result returns that list
+(`AgenticOrchestrator`, the chain path); its other result paths (the multi-chain, recursive research and
+`allRetrievedChunks` ones) were not traced. `[evidence_level: code_verified (the three label sites, the callers that
+build the answer's passages, and the chain path's result), test_verified (CitationLabelNumberingTests), confidence:
+high for the Standard path]`

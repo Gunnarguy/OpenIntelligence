@@ -125,6 +125,7 @@ enum AtlasSceneLabels {
 struct AdaptiveVisualizationsView: View {
     @EnvironmentObject private var ragService: RAGService
     @EnvironmentObject private var containerService: ContainerService
+    @EnvironmentObject private var settings: SettingsStore
     @StateObject private var engine = LibraryVisualizationEngine.shared
 
     @State private var selectedInsight: VisualizationInsight?
@@ -411,7 +412,10 @@ struct AdaptiveVisualizationsView: View {
                     .font(.headline)
                     .foregroundColor(.white)
 
-                Text(atlasProjection.rawValue + " projection • \(atlasAutoRotate ? "Rotating" : "Static")")
+                Text(
+                    settings.showTechnicalDetails
+                        ? atlasProjection.rawValue + " projection • \(atlasAutoRotate ? "Rotating" : "Static")"
+                        : "Passages that mean similar things sit close together")
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.6))
             }
@@ -709,7 +713,7 @@ struct AdaptiveVisualizationsView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
                 QuickMetric(icon: "doc.text", label: "Docs", value: "\(profile.documentCount)")
-                QuickMetric(icon: "square.stack.3d.down.right", label: "Chunks", value: "\(profile.libraryPassageCount)")
+                QuickMetric(icon: "square.stack.3d.down.right", label: "Passages", value: "\(profile.libraryPassageCount)")
                 QuickMetric(icon: "text.word.spacing", label: "Words", value: formatNumber(profile.totalWords))
 
                 if !profile.dominantTopics.isEmpty {
@@ -924,7 +928,7 @@ struct AdaptiveVisualizationsView: View {
                 GridItem(.flexible()),
             ], spacing: 12) {
                 StatTile(icon: "doc.text.fill", label: "Documents", value: "\(profile.documentCount)", color: .blue)
-                StatTile(icon: "square.stack.3d.down.right.fill", label: "Chunks", value: "\(profile.libraryPassageCount)", color: .purple)
+                StatTile(icon: "square.stack.3d.down.right.fill", label: "Passages", value: "\(profile.libraryPassageCount)", color: .purple)
                 StatTile(icon: "character.cursor.ibeam", label: "Avg Chunk", value: "\(profile.avgChunkSize)w", color: .green)
                 StatTile(icon: "chart.pie.fill", label: "Diversity", value: String(format: "%.0f%%", profile.topicDiversity * 100), color: .orange)
                 StatTile(icon: "circle.hexagongrid.fill", label: "Topics", value: "\(profile.dominantTopics.count)", color: .pink)
