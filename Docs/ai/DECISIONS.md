@@ -1815,7 +1815,7 @@ taken.
   `SettingsStore.developerRAGTuningEnabled` is true, and `SettingsStore` forces that false at launch and on every
   change ("Developer tuning is deprecated - always disabled"); the same flag turns on the ungrounded fallback. Whether
   to show the controls again, apart from that fallback, is the owner's call, and the row stays open until then.
-  `[evidence_level: code_verified, measured (robot run in the iOS 27.0 Simulator), confidence: high]`)*
+  `[evidence_level: code_verified, measured (robot run in the iOS 27.0 Simulator), confidence: high]`)* *(Decided 2026-10-20, the owner: "if it can be added, then we add it; if it needs to be fixed, then we fix it". See "Library Settings shows its search settings, and each one acts as it says" below.)*
 - *The Vision OCR demo row is a test idea, not a feature* (row "Multi-Modal Verification (Vision OCR)"). 5.7's
   pictures are described from the picture, and an image with no readable text imports with its labels and
   description (`ImageUnderstandingService`, read from code; no test imports such an image yet).
@@ -1933,3 +1933,68 @@ Removing the Metal search path (not done: an iPhone has not been measured, and t
 
 **Consequences.** "Crank" is answered with numbers rather than more GPU: the hardware is used where it was measured to
 help. An iPhone measurement of the search paths would reopen this (a debug benchmark like `DebugEmbeddingBench`).
+
+## 2026-10-20 - Library Settings shows its search settings, and each one acts as it says
+
+**Context.** The row "Custom RAG Pipeline Configuration" said Advanced Controls covered it. A robot run that day
+found no one could see them: `ContainerSettingsSheet` drew them only when `SettingsStore.developerRAGTuningEnabled`
+was on, and the app forces that off. Asked whether to show them, the owner answered that anything that can be added
+is added and anything that needs fixing is fixed. Reading what each control did found three more faults: Passages
+Needed acted only for a library whose values equalled the High Accuracy preset, and there the acceptance override,
+set for nearly any library of ten or more passages, skipped it; Require Explicit Citations changed nothing, because
+every mode asks for citations; and tuning after an import could replace values the person set.
+
+**Decision.** A Search section in Library Settings: a style (Automatic, Balanced, High Precision, Technical Manual,
+Exploratory) and Advanced Controls with four values, each described by what the code does with it. The bar is called
+the minimum score and is described as relative, because the re-ranker rescales each question's scores to 10 to 90
+(`RAGEngine.rerank`); a refuting review on 2026-10-20 found the first wording ("how closely a passage has to match")
+untrue on that ground and three other lines too. Passages Needed acts for any library when it is 2 or more, counted at
+the re-ranker's scores (`RetrievalPolicyService.strongPassageShortfall`). The citations switch is
+not shown. The person's choice is recorded in the field the switch used, `requireExplicitCitations`, read through
+`RetrievalConfig.isChosenByPerson`: the filter already used it to keep the person's bar, and tuning after an import
+already left such a library alone, so it meant "the person's values" in practice. The keyword and meaning slider
+covers 35% to 65%, the range the search keeps each side in. The developer switch stays forced off; it also turns on
+the ungrounded fallback, which this does not touch.
+
+**Alternatives.** A new field for the person's choice (needs `KnowledgeContainer.swift`, whose route requires the
+owner to name it, and changes the library's saved and synced form). Showing the old controls unchanged (two of them
+did not do what they said). Making the bar a hard floor for every chosen style (would make Balanced chosen by hand
+stricter than Balanced picked by Automatic).
+
+**Consequences.** A library whose values someone set by hand keeps them. A High Precision library holds back a
+Standard answer with fewer than two close passages, which it never did in practice before. Deep Think and Maximum
+use the weights and Variety but set their own bar for each step, and the section says so. Because the score is
+relative, a minimum says how a passage ranks among those found, not how well it matches; making it absolute (the
+cross-encoder's raw score) would be a retrieval change of its own, for the benchmark. Not measured on the retrieval
+benchmark. `[evidence_level: code_verified, test_verified (RetrievalStyleTests), measured (robot run in the iOS 27.0
+Simulator, 2026-10-20), confidence: high for the mechanism]`
+
+## 2026-10-20 - Answers and passages handed to Shortcuts are kept for a day and looked up by id
+
+**Context.** In the iOS 27.0 Simulator, "Ask My Documents" followed by Copy to Clipboard failed with "There was a
+problem running the shortcut" after the answer card's Done. Shortcuts' runner stopped on an assertion while writing
+the answer for the clipboard (`-[WFContentItem additionalRepresentationsForSerialization]`, reason "All serialized
+item keys must have the prefix link.contentkit.", crash reports in `~/Library/Logs/DiagnosticReports`). Find Passages
+followed by Copy to Clipboard failed the same way; List Documents followed by it ran. The answer and the passage were
+`TransientAppEntity` types, handed out whole; a document is an `AppEntity` the system passes by id and looks up
+again through the app's query. Adding a plain-text data form to the two transient items was tried first and changed
+nothing (same assertion).
+
+**Decision.** `OIAnswerEntity` and `OIPassageEntity` are `AppEntity` types with queries that read
+`HandedOutItems`, a file in the local cache folder holding what actions handed out in the last day (at most 100
+answers with their passages, and 500 passages of no kept answer). An item past its day is removed from the file
+whenever it is read or written and at each document load, and a passage of a document in no library goes then with
+any answer that used it. An answer is recorded with its passages when it is built (`init(question:response:mode:)`),
+and Find Passages records its passages (`OIPassageEntity.handedOut`). `RAGAppIntents.swift` is not changed.
+
+**Alternatives.** Returning text instead of items (loses the answer's sources and question for the next step).
+Resolving a passage from its library's vector store by its chunk id (its score belongs to one search, and a
+deleted document would leave nothing to return). Keeping items longer (a shortcut's steps need them for seconds).
+
+**Consequences.** Answers and passages exist on the device for up to a day after a shortcut asked for them, which
+`Docs/PRIVACY_AND_ROUTING.md` records. A shortcut that saves an answer and reads it more than a day later gets
+nothing back. The assertion is in Apple's code and may be fixed by Apple; nothing here depends on it staying.
+`[evidence_level: measured (robot runs in the iOS 27.0 Simulator, the Simulator's clipboard, BackgroundShortcutRunner
+crash reports, 2026-10-20), build_verified (Metadata.appintents), test_verified (HandedOutItemsTests), confidence:
+high]`
+

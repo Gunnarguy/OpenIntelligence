@@ -321,6 +321,18 @@ except where it says so below.
 - **The Mac's menu bar.** A question typed there goes into the app's own chat, the same as one typed in the
   chat; no address carries it (`AppDestination.ask` has no link form). `[evidence_level: code_verified, confidence: high, evidence_source: MenuBarAsk.swift]`
 
+- **Shortcuts' next step.** An answer or the passages an action hands to a shortcut ("Ask My Documents" and
+  the other ask actions, "Find Passages") are kept in the app's local cache folder (`handed_out_items.json`)
+  so the system can look each one up by its id for the shortcut's next step (added 2026-10-20, `HandedOutItems`).
+  The file holds the answer's text and question and the passages' text, document name, page and section, with
+  at most 100 answers and 500 passages that belong to no kept answer. An item more than a day old is removed
+  whenever the file is read or written and each time the app loads its documents, and a passage whose document
+  is in no library any more is removed at that load with every answer that used it, so a deleted document's text
+  stays there until the app next loads its documents and never longer than a day after the app next runs. Its
+  folder is the one described in the next section: never in the iCloud workspace, sent nowhere, and not excluded
+  from a device backup. Before this the items were handed out whole and kept nowhere, and Shortcuts could not pass
+  them on (`OIAnswerEntity`). `[evidence_level: code_verified, test_verified (HandedOutItemsTests), confidence: high, evidence_source: HandedOutItems.swift; OIAnswerEntity.swift; OIPassageEntity.swift; SearchPassagesIntent.swift; RAGService.swift applyLoadedDocuments]`
+
 ## What the app works out about a library is kept on the device (added 2026-10-13, for 5.7)
 
 Two small files for each library are kept in the app's local cache folder, beside the keyword index, so the app

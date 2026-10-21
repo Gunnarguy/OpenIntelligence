@@ -635,77 +635,75 @@ extension ContainerSettingsSheet {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    // MARK: - Retrieval Style Section (User-Friendly Presets)
+    // MARK: - Search Section (5.7)
 
+    /// The library's search settings: a style, and the Advanced Controls under it. Each control changes the
+    /// search as its text says; the minimum score acts on Standard answers and Find Passages, Passages Needed on
+    /// Standard answers, the other two in every mode (`RetrievalStyle`, `RetrievalPolicyService`). Through 5.6 the styles were not shown and
+    /// the controls sat behind a developer switch that was always off.
     @ViewBuilder
-    var retrievalStyleSection: some View {
-        Section(header: Text("Search behavior — how results are found")) {
-            Text("Choose a search style that matches your content. This tunes how strictly results are filtered and how semantic vs keyword matching is balanced.")
+    var searchSection: some View {
+        Section {
+            Text("How this library finds the passages an answer is written from.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
             VStack(spacing: 10) {
                 retrievalStyleCard(
+                    style: .automatic,
+                    icon: "wand.and.stars",
+                    title: "Automatic",
+                    subtitle: "Chosen from this library's documents after each import",
+                    isSelected: retrievalConfig.style == .automatic
+                )
+                retrievalStyleCard(
                     style: .balanced,
                     icon: "scale.3d",
                     title: "Balanced",
-                    subtitle: "Best for most documents",
-                    description: "Good mix of precision and recall. Works well for general knowledge bases.",
-                    isSelected: retrievalConfig.isCloseTo(.default)
+                    subtitle: "Exact words and meaning weighed evenly",
+                    isSelected: retrievalConfig.style == .balanced
                 )
-
                 retrievalStyleCard(
-                    style: .precision,
+                    style: .precise,
                     icon: "target",
                     title: "High Precision",
-                    subtitle: "Strict filtering, explicit citations",
-                    description: "For research, legal, or medical content where accuracy matters most.",
-                    isSelected: retrievalConfig.isCloseTo(.highAccuracy)
+                    subtitle: "A Standard answer needs two passages scoring 50% or more",
+                    isSelected: retrievalConfig.style == .precise
                 )
-
                 retrievalStyleCard(
                     style: .technical,
                     icon: "wrench.and.screwdriver",
                     title: "Technical Manual",
-                    subtitle: "Keyword-heavy, low threshold",
-                    description: "Optimized for specs, manuals, and reference docs with domain-specific terms.",
-                    isSelected: retrievalConfig.isCloseTo(.technicalManual)
+                    subtitle: "Leans on exact words, for specs and part numbers",
+                    isSelected: retrievalConfig.style == .technical
                 )
-
                 retrievalStyleCard(
                     style: .exploratory,
                     icon: "binoculars",
                     title: "Exploratory",
-                    subtitle: "Diverse results, permissive",
-                    description: "For creative or brainstorming queries where you want varied perspectives.",
-                    isSelected: retrievalConfig.isCloseTo(.exploratory)
+                    subtitle: "Leans on meaning, with more varied passages",
+                    isSelected: retrievalConfig.style == .exploratory
                 )
             }
 
-            // Quick stats showing current config
-            if !retrievalConfig.isCloseTo(.default) && !retrievalConfig.isCloseTo(.highAccuracy)
-                && !retrievalConfig.isCloseTo(.technicalManual) && !retrievalConfig.isCloseTo(.exploratory)
-            {
-                HStack(spacing: 12) {
-                    Image(systemName: "slider.horizontal.3")
-                        .foregroundColor(.orange)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Custom Configuration")
-                            .font(.caption.weight(.medium))
-                        Text("Min: \(Int(retrievalConfig.minSimilarity * 100))% • Vector: \(Int(retrievalConfig.vectorWeight * 100))% • MMR: \(String(format: "%.2f", retrievalConfig.mmrLambda))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(10)
-                .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            if retrievalConfig.style == .automatic {
+                Text("Automatic picks Technical Manual when most of the library is code, or mostly spreadsheets, and Balanced otherwise. It's on \(retrievalConfig.summary == "Custom" ? "custom values" : retrievalConfig.summary) now.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            } else if retrievalConfig.style == nil {
+                Label("Custom: set in Advanced Controls", systemImage: "slider.horizontal.3")
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(.orange)
             }
-        }
-    }
 
-    private enum RetrievalStyle {
-        case balanced, precision, technical, exploratory
+            DisclosureGroup("Advanced Controls") {
+                advancedSearchControls
+            }
+        } header: {
+            Text("Search")
+        } footer: {
+            Text("Apple's model is asked to cite its passages in every answer, so citations have no setting here. Changing a control here makes the library keep your settings instead of Automatic's.")
+        }
     }
 
     @ViewBuilder
@@ -714,21 +712,11 @@ extension ContainerSettingsSheet {
         icon: String,
         title: String,
         subtitle: String,
-        description: String,
         isSelected: Bool
     ) -> some View {
         Button {
             withAnimation(.spring(response: 0.3)) {
-                switch style {
-                case .balanced:
-                    retrievalConfig = .default
-                case .precision:
-                    retrievalConfig = .highAccuracy
-                case .technical:
-                    retrievalConfig = .technicalManual
-                case .exploratory:
-                    retrievalConfig = .exploratory
-                }
+                retrievalConfig = .chosen(style, documentTypes: activeContainerDocuments.map(\.contentType))
             }
             DSHaptics.selection()
         } label: {
@@ -773,107 +761,157 @@ extension ContainerSettingsSheet {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    // MARK: - Retrieval Tuning Section
+    // MARK: - Advanced Controls
+
+    /// A binding into the library's search settings that marks them as the person's own when it changes one. The
+    /// value is rounded to `step`, and a write that changes nothing (a control showing its value) marks nothing, so
+    /// opening Advanced Controls never turns Automatic off.
+    private func chosenSetting(_ keyPath: WritableKeyPath<RetrievalConfig, Float>, step: Float = 0.05) -> Binding<Float> {
+        Binding(
+            get: { retrievalConfig[keyPath: keyPath] },
+            set: { newValue in
+                let rounded = (newValue / step).rounded() * step
+                guard abs(rounded - retrievalConfig[keyPath: keyPath]) >= 0.001 else { return }
+                retrievalConfig[keyPath: keyPath] = rounded
+                retrievalConfig.isChosenByPerson = true
+            }
+        )
+    }
+
+    private func chosenCount(_ keyPath: WritableKeyPath<RetrievalConfig, Int>) -> Binding<Int> {
+        Binding(
+            get: { retrievalConfig[keyPath: keyPath] },
+            set: { newValue in
+                guard newValue != retrievalConfig[keyPath: keyPath] else { return }
+                retrievalConfig[keyPath: keyPath] = newValue
+                retrievalConfig.isChosenByPerson = true
+            }
+        )
+    }
+
+    /// The weight given to meaning, with the weight given to exact words as the rest. The search shifts both for
+    /// each question and keeps each between 35% and 65% (`QueryProfile.adjustedHybridWeights`).
+    private var meaningWeight: Binding<Float> {
+        Binding(
+            get: { retrievalConfig.vectorWeight },
+            set: { newValue in
+                let rounded = (newValue * 20).rounded() / 20
+                guard abs(rounded - retrievalConfig.vectorWeight) >= 0.001 else { return }
+                retrievalConfig.vectorWeight = rounded
+                retrievalConfig.lexicalWeight = 1 - rounded
+                retrievalConfig.isChosenByPerson = true
+            }
+        )
+    }
+
+    private func percent(_ value: Float) -> String {
+        "\(Int((value * 100).rounded()))%"
+    }
 
     @ViewBuilder
-    var retrievalTuningSection: some View {
-        Section(header: Text("Hybrid retrieval — vector + BM25 fusion")) {
-            Text("Fine-tune HybridSearchService's Reciprocal Rank Fusion (RRF). Adjust vector/lexical weights, MMR λ for diversity, and minimum similarity thresholds.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            // Show retrieval intelligence when auto-tuning is on
-            if autoAdaptDimension, let report = activeIntelligenceReport {
-                retrievalIntelligenceCard(report: report)
+    var advancedSearchControls: some View {
+        // Minimum score
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Minimum Score")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(percent(retrievalConfig.minSimilarity))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundColor(.accentColor)
             }
-
-            // Advanced sliders (collapsed by default, expand for custom)
-            DisclosureGroup("Advanced Controls") {
-                // Min similarity threshold
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Minimum Cosine Similarity")
-                            .font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Text("\(Int(retrievalConfig.minSimilarity * 100))%")
-                            .font(.subheadline.monospacedDigit())
-                            .foregroundColor(.accentColor)
-                    }
-
-                    Slider(value: $retrievalConfig.minSimilarity, in: 0.15 ... 0.70, step: 0.05)
-
-                    Text("Pre-filter threshold: chunks with sim < this are discarded before RRF. Higher = stricter, fewer candidates.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 4)
-
-                // Vector vs Lexical weight
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Vector / BM25 Weight")
-                            .font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Text("\(Int(retrievalConfig.vectorWeight * 100))% / \(Int(retrievalConfig.lexicalWeight * 100))%")
-                            .font(.subheadline.monospacedDigit())
-                            .foregroundColor(.accentColor)
-                    }
-
-                    Slider(value: $retrievalConfig.vectorWeight, in: 0.3 ... 0.9, step: 0.05)
-                        .onChange(of: retrievalConfig.vectorWeight) { _, newValue in
-                            retrievalConfig.lexicalWeight = 1.0 - newValue
-                        }
-
-                    Text("RRF fusion weight: Left = favor BM25 term-frequency, Right = favor cosine embedding similarity.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 4)
-
-                // MMR Lambda
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("MMR λ (Diversity)")
-                            .font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Text(String(format: "%.2f", retrievalConfig.mmrLambda))
-                            .font(.subheadline.monospacedDigit())
-                            .foregroundColor(.accentColor)
-                    }
-
-                    Slider(value: $retrievalConfig.mmrLambda, in: 0.3 ... 0.95, step: 0.05)
-
-                    Text("Maximal Marginal Relevance: λ−1 = pure relevance, λ→0 = penalize redundancy. Balances quality vs coverage.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 4)
-
-                // Min confident chunks
-                Stepper(value: $retrievalConfig.minConfidentChunks, in: 1 ... 5) {
-                    HStack {
-                        Text("Min. Confident Chunks")
-                            .font(.subheadline)
-                        Spacer()
-                        Text("\(retrievalConfig.minConfidentChunks)")
-                            .foregroundColor(.accentColor)
-                    }
-                }
-
-                Text("Require at least this many chunks above threshold before answering. Higher = more conservative.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-
-                // Explicit citations toggle
-                Toggle("Require Explicit Citations", isOn: $retrievalConfig.requireExplicitCitations)
-
-                Text("When enabled, the AI will cite specific source documents in responses.")
+            Slider(value: chosenSetting(\.minSimilarity), in: 0.15 ... 0.70) {
+                Text("Minimum Score")
+            }
+            .accessibilityValue("\(Int((retrievalConfig.minSimilarity * 100).rounded())) percent")
+            Text("The score a passage needs to be used in a Standard answer. Scores are relative: the app ranks the passages it finds for a question against each other, so a passage can score high when nothing matches well. When a question's best passages mostly score lower, or it asks for a single fact, the app lowers the minimum for that question so it can still answer. Find Passages in Shortcuts uses this minimum too.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            if settings.showTechnicalDetails {
+                Text("In a Standard answer it is compared with the re-ranker's score: the cross-encoder's scores for a question are rescaled to 10 to 90, then lowered for tables of contents, question banks and bibliographies. A step-by-step question uses a minimum of at least 25%. Find Passages compares it with the hybrid search's score, before re-ranking, and never lowers it. Deep Think and Maximum set their own minimum for each research step.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
         }
+        .padding(.vertical, 4)
+
+        // Passages needed
+        Stepper(value: chosenCount(\.minConfidentChunks), in: 1 ... 5) {
+            HStack {
+                Text("Passages Needed")
+                    .font(.subheadline)
+                Spacer()
+                Text("\(retrievalConfig.minConfidentChunks)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundColor(.accentColor)
+            }
+        }
+        Text(retrievalConfig.minConfidentChunks >= 2
+            ? "A Standard answer is written only when at least \(retrievalConfig.minConfidentChunks) of its passages score at or over the minimum. Otherwise you get the closest passages and how many made it."
+            : "At 1, the app answers from its best passages. Set 2 or more to answer only when that many score at or over the minimum.")
+            .font(.caption2)
+            .foregroundColor(.secondary)
+
+        // Exact words and meaning
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Exact Words and Meaning")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(percent(retrievalConfig.vectorWeight)) meaning")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundColor(.accentColor)
+            }
+            Slider(value: meaningWeight, in: 0.35 ... 0.75) {
+                Text("Exact Words and Meaning")
+            } minimumValueLabel: {
+                Text("Words").font(.caption2)
+            } maximumValueLabel: {
+                Text("Meaning").font(.caption2)
+            }
+            .accessibilityValue("\(Int((retrievalConfig.vectorWeight * 100).rounded())) percent meaning")
+            Text("Toward Words favors passages that use your exact terms. Toward Meaning favors passages that say the same thing in other words. Used in every mode.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            if settings.showTechnicalDetails {
+                Text("The vector and BM25 weights of the hybrid search. Each question shifts them by up to 10 points by its kind, then each is kept between 35% and 65%.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+
+        // Variety
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Variety")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(String(format: "%.2f", retrievalConfig.mmrLambda))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundColor(.accentColor)
+            }
+            Slider(value: chosenSetting(\.mmrLambda), in: 0.30 ... 0.95) {
+                Text("Variety")
+            } minimumValueLabel: {
+                Text("Varied").font(.caption2)
+            } maximumValueLabel: {
+                Text("Closest").font(.caption2)
+            }
+            .accessibilityValue(String(format: "%.2f", retrievalConfig.mmrLambda))
+            Text("Toward Varied, an answer draws on passages that say different things. Toward Closest, it keeps the closest passages even when they repeat each other. Used in every mode.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            if settings.showTechnicalDetails {
+                Text("Maximal Marginal Relevance λ. Step-by-step questions use at least 0.85 in Standard, so the steps stay together.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Balanced Defaults Section

@@ -12,9 +12,11 @@
     {"path": "OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift", "role": "primary", "blob": "74b1f660d727a82ac537a74abad2a8be991f2f84"},
     {"path": "OpenIntelligence/Services/RAG/Tuning/EvidenceScoringPolicyService.swift", "role": "primary", "blob": "e083a300d88812f3a30f47930a1f188d3ad65a52"},
     {"path": "OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift", "role": "primary", "blob": "44e2cf1feacbbad27b1c797bdc841b5577f889f7"},
+    {"path": "OpenIntelligence/Services/RAG/Tuning/RetrievalStyle.swift", "role": "primary", "blob": ""},
     {"path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "role": "test", "blob": "b2a3daa032e951d8af61ac5445e358548d7f0735"},
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/AbsenceAssertionTests.swift", "role": "test", "blob": "e1d6c6ebab1aea40b94ede6b45a7fcc6c7bc0546"},
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/ExtractiveEvidenceOrderingTests.swift", "role": "test", "blob": "650dea520b98fc00c7d01d27201088d9c93232de"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift", "role": "test", "blob": ""},
     {"path": "OpenIntelligence/Services/RAG/Tuning/EvidenceLineSplitter.swift", "role": "primary", "blob": "fa2ae353c40d7b2bfb339c474a5ad03ee5e4d083"},
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/EvidenceLineSplitterTests.swift", "role": "test", "blob": "29bc67244f85b1162d50da3d517c1ef131715ce4"}
   ],

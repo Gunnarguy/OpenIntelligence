@@ -9,11 +9,16 @@ import Foundation
 
 /// An answer with the passages it was written from, as an item another action or app can take.
 ///
-/// An answer from an action is stored nowhere, so it carries everything with it
-/// (`TransientAppEntity`). Handed to another app it arrives as text with its sources listed.
+/// An answer from an action is kept for a day in `HandedOutItems` with its passages, and the system looks it
+/// up again by its id. Handed out whole (`TransientAppEntity`, the first 5.7 builds), it stopped the next
+/// Shortcuts step, Copy to Clipboard among them; see `HandedOutItems`. Handed to another app it arrives as
+/// text with its sources listed.
 @available(iOS 16.0, macOS 13.0, *)
-struct OIAnswerEntity: TransientAppEntity {
+struct OIAnswerEntity: AppEntity {
     static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Answer")
+    static var defaultQuery = OIAnswerEntityQuery()
+
+    var id: UUID
 
     @Property(title: "Answer")
     var text: String
@@ -35,6 +40,7 @@ struct OIAnswerEntity: TransientAppEntity {
     var model: String
 
     init() {
+        id = UUID()
         text = ""
         question = ""
         passages = []
@@ -43,7 +49,8 @@ struct OIAnswerEntity: TransientAppEntity {
         model = ""
     }
 
-    init(question: String, response: RAGResponse, mode: OIAnswerMode) {
+    /// An action's answer, kept with its passages so the next step of a shortcut can look it up.
+    init(question: String, response: RAGResponse, mode: OIAnswerMode, now: Date = Date()) {
         self.init()
         self.question = question
         self.text = response.generatedResponse
@@ -51,11 +58,44 @@ struct OIAnswerEntity: TransientAppEntity {
         self.sourceList = Self.sourceList(for: response.retrievedChunks)
         self.mode = mode
         self.model = response.metadata.modelUsed
+        HandedOutItems.record(answer: stored(at: now), passages: passages.map { $0.stored(at: now) }, now: now)
     }
 
-    /// The answer followed by its sources, the form another app receives.
+    init(_ stored: HandedOutItems.Answer, passages: [HandedOutItems.Passage]) {
+        self.init()
+        id = stored.id
+        question = stored.question
+        text = stored.text
+        sourceList = stored.sourceList
+        mode = OIAnswerMode(rawValue: stored.mode) ?? .standard
+        model = stored.model
+        self.passages = passages.map(OIPassageEntity.init)
+    }
+
+    /// The form `HandedOutItems` keeps.
+    func stored(at date: Date) -> HandedOutItems.Answer {
+        HandedOutItems.Answer(
+            id: id, question: question, text: text, sourceList: sourceList, mode: mode.rawValue, model: model,
+            passageIds: passages.map(\.id), createdAt: date)
+    }
+
+    /// The answer followed by its sources, the form another app receives. An answer that ends on a line of source
+    /// labels ("Sources: [S1]") loses that line here, since the list after it names the documents and a label means
+    /// nothing outside the app: on 2026-10-20 a shortcut's Copy to Clipboard gave "Sources:" twice.
     var textWithSources: String {
-        sourceList.isEmpty ? text : "\(text)\n\nSources:\n\(sourceList)"
+        sourceList.isEmpty ? text : "\(Self.withoutClosingSourceLabels(text))\n\nSources:\n\(sourceList)"
+    }
+
+    /// `text` without a last line that holds only "Source:" or "Sources:" and labels such as [S1] or [2].
+    static func withoutClosingSourceLabels(_ text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+        guard let last = lines.last,
+            last.range(of: #"^\s*Sources?:\s*(\[S?\d+\][\s,;]*)+$"#, options: .regularExpression) != nil
+        else { return text }
+        lines.removeLast()
+        while let end = lines.last, end.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+        return lines.isEmpty ? text : lines.joined(separator: "\n")
     }
 
     var displayRepresentation: DisplayRepresentation {
@@ -91,5 +131,21 @@ struct OIAnswerEntity: TransientAppEntity {
 extension OIAnswerEntity: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         ProxyRepresentation(exporting: \.textWithSources)
+    }
+}
+
+/// Finds a handed-out answer by its id, for the system's next step; offers the latest few in the editor.
+@available(iOS 16.0, macOS 13.0, *)
+struct OIAnswerEntityQuery: EntityQuery {
+    func entities(for identifiers: [OIAnswerEntity.ID]) async throws -> [OIAnswerEntity] {
+        HandedOutItems.answers(identifiers).map { answer in
+            OIAnswerEntity(answer, passages: HandedOutItems.passages(answer.passageIds))
+        }
+    }
+
+    func suggestedEntities() async throws -> [OIAnswerEntity] {
+        HandedOutItems.recentAnswers(limit: 5).map { answer in
+            OIAnswerEntity(answer, passages: HandedOutItems.passages(answer.passageIds))
+        }
     }
 }

@@ -21,6 +21,7 @@
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIAnswerEntity.swift", "role": "primary", "blob": "61b77d57f70f29b7b409944e539fa5d9015acf8f"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIAnswerModeAppEnum.swift", "role": "primary", "blob": "48397de41bcd2756dc58e76fe586f466c1f4c180"},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIPassageEntity.swift", "role": "primary", "blob": "6b1c19b2bd5a7acbeb4da62f150659ee894fdb44"},
+    {"path": "OpenIntelligence/Services/Agentic/Entities/HandedOutItems.swift", "role": "primary", "blob": ""},
     {"path": "OpenIntelligence/Services/Agentic/Entities/OIThreadEntity.swift", "role": "primary", "blob": "6a86a0c2870f0e2f858c19e175ce5bccaa3a446e"},
     {"path": "OpenIntelligenceTests/Services/Agentic/OIEntityMappingTests.swift", "role": "test", "blob": "bfb9b6390b6b199b4f505dcad3267862e4813de1"},
     {"path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "role": "primary", "blob": "a19af2789e2a32973f0850bd71239c384e57f251"},
@@ -46,6 +47,7 @@
     {"path": "OpenIntelligence/Services/Agentic/CheckClaimIntent.swift", "role": "primary", "blob": "9a9e20cd9286e349b814ec9f47784b782d947688"},
     {"path": "OpenIntelligenceTests/Services/Agentic/ClaimCheckTests.swift", "role": "test", "blob": "bb7e327e9d4345295889f069173a150ffa5a31ae"},
     {"path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "role": "test", "blob": "4d4c216216a672d5ea51462f68b412e34323f0c5"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/HandedOutItemsTests.swift", "role": "test", "blob": ""},
     {"path": "OpenIntelligence/Features/Chat/Pipeline/OISettingsEntity.swift", "role": "primary", "blob": "1d722baaa53f02f0a8ff99f888feb83dd2c3baa2"},
     {"path": "OpenIntelligenceTests/Services/Agentic/SettingsEntityTests.swift", "role": "test", "blob": "f29a0bc8d2a92ed3b913540ff09c5338555ebdbc"}
   ],
@@ -115,7 +117,7 @@
       {"id": "OIIntentError", "kind": "model", "path": "OpenIntelligence/Services/Agentic/IntentSupport.swift", "line": 15, "match": "struct OIIntentError: Error, CustomLocalizedStringResourceConvertible {", "status": "VERIFIED"},
       {"id": "IntentSupport", "kind": "model", "path": "OpenIntelligence/Services/Agentic/IntentSupport.swift", "line": 29, "match": "enum IntentSupport {", "status": "VERIFIED"},
       {"id": "SearchPassagesIntent", "kind": "model", "path": "OpenIntelligence/Services/Agentic/SearchPassagesIntent.swift", "line": 15, "match": "struct SearchPassagesIntent: AppIntent {", "status": "VERIFIED"},
-      {"id": "OIAnswerEntity", "kind": "model", "path": "OpenIntelligence/Services/Agentic/Entities/OIAnswerEntity.swift", "line": 15, "match": "struct OIAnswerEntity: TransientAppEntity {", "status": "VERIFIED"},
+      {"id": "OIAnswerEntity", "kind": "model", "path": "OpenIntelligence/Services/Agentic/Entities/OIAnswerEntity.swift", "line": 17, "match": "struct OIAnswerEntity: AppEntity {", "status": "VERIFIED"},
       {"id": "OIAnswerMode", "kind": "model", "path": "OpenIntelligence/Services/Agentic/Entities/OIAnswerModeAppEnum.swift", "line": 14, "match": "enum OIAnswerMode: String, AppEnum, CaseIterable, Sendable {", "status": "VERIFIED"},
       {"id": "OIThreadEntity", "kind": "model", "path": "OpenIntelligence/Services/Agentic/Entities/OIThreadEntity.swift", "line": 11, "match": "struct OIThreadEntity: AppEntity {", "status": "VERIFIED"},
       {"id": "AppNavigationRequest", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AppNavigationRequest.swift", "line": 137, "match": "final class AppNavigationRequest {", "status": "VERIFIED"}

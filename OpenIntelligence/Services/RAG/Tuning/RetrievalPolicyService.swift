@@ -187,10 +187,27 @@ enum RetrievalPolicyService {
         for qualityMode: RAGQualityMode,
         retrievalConfig: RetrievalConfig
     ) -> Float {
-        if retrievalConfig.minSimilarity >= 0.45 || retrievalConfig.requireExplicitCitations {
+        if retrievalConfig.minSimilarity >= 0.45 || retrievalConfig.isChosenByPerson {
             return retrievalConfig.minSimilarity
         }
 
         return min(retrievalConfig.minSimilarity, qualityMode.minSimilarity)
+    }
+
+    /// The passages-needed rule Library Settings sets (5.7): with two or more required, a Standard answer is
+    /// written only when that many of `passages` clear the library's bar; returns how many did and how many
+    /// were needed when too few did. Through 5.6 the rule acted only for a library whose values equalled the
+    /// High Accuracy preset exactly, and the acceptance override, which nearly any library of ten passages
+    /// or more sets, skipped it even there, as did the lenient switch, which the app keeps off.
+    /// `score` gives each passage's score; the caller passes the re-ranker's where a later step raised it.
+    static func strongPassageShortfall(
+        _ passages: [RetrievedChunk],
+        config: RetrievalConfig,
+        score: (RetrievedChunk) -> Float = { $0.similarityScore }
+    ) -> (found: Int, needed: Int)? {
+        let needed = config.minConfidentChunks
+        guard needed >= 2 else { return nil }
+        let found = passages.filter { score($0) >= config.minSimilarity }.count
+        return found < needed ? (found, needed) : nil
     }
 }

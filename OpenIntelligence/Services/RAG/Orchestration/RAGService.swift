@@ -4701,6 +4701,17 @@ class RAGService: ObservableObject {
         // The same goes for this device's Spotlight entries, which since 5.7 do not expire.
         SpotlightIndexService.shared.documentsLoaded(
             loadedDocuments, defaultLibraryId: containerService.containers.first?.id)
+        // And for what actions handed to Shortcuts (5.7, `HandedOutItems`): kept a day, less for a passage whose
+        // document is in no library now, which goes with any answer that used it. An empty list, which a read that
+        // failed can give, only drops what has expired.
+        let documentIds = Set(loadedDocuments.map(\.id))
+        Task.detached(priority: .utility) {
+            if documentIds.isEmpty {
+                HandedOutItems.dropExpired()
+            } else {
+                HandedOutItems.keepOnly(documents: documentIds)
+            }
+        }
         hasAppliedLoadedDocuments = true
         // A document whose removal is waiting out its undo seconds stays out of the list (5.7): it is still on
         // disk until the removal runs, and a reload in those seconds would otherwise show it again. The
@@ -10197,25 +10208,15 @@ class RAGService: ObservableObject {
         // Get recommended config based on document types
         let recommended = RetrievalConfig.recommended(forDocumentTypes: documentTypes)
 
-        // Only update if the recommended config differs from current
-        // and the user hasn't manually customized (check if it matches a known preset)
+        // Values the person chose in Library Settings are left alone (`RetrievalConfig.autoTuned`).
         let current = container.retrievalConfig
-
-        // Skip if user has a high-accuracy or custom config (likely intentional)
-        if current.minSimilarity >= 0.5 || current.requireExplicitCitations {
-            Log.debug(
-                "[RAGService] Skipping auto-tune: user has high-accuracy or custom config",
-                category: .retrieval
-            )
-            return
+        if current.isChosenByPerson {
+            Log.debug("[RAGService] Skipping auto-tune: the person chose this library's search settings", category: .retrieval)
         }
 
-        // Apply if recommended differs significantly
-        if recommended.vectorWeight != current.vectorWeight || recommended.lexicalWeight != current.lexicalWeight
-            || abs(recommended.minSimilarity - current.minSimilarity) > 0.05
-        {
+        if let tuned = RetrievalConfig.autoTuned(current: current, recommended: recommended) {
             var updatedContainer = container
-            updatedContainer.retrievalConfig = recommended
+            updatedContainer.retrievalConfig = tuned
 
             containerService.updateContainer(updatedContainer)
             Log.info(
@@ -13757,63 +13758,71 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                // High Accuracy enforcement: require sufficient high-confidence evidence
-                let minConfidentChunks = retrievalConfig.minConfidentChunks
-                if retrievalConfig == .highAccuracy, !(lenient || acceptanceOverride) {
-                    let supporting = diverseChunks.filter { $0.similarityScore >= retrievalConfig.minSimilarity }
-                    if supporting.count < minConfidentChunks {
-                        // Build cautious response with citations of top candidates
-                        let topSources = diverseChunks.prefix(3).enumerated().map { idx, r in
-                            let src = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
-                            let page = r.pageNumber.map { " (p.\($0))" } ?? ""
-                            return "- [\(idx + 1)] \(src)\(page) — \(String(format: "%.0f%%", r.similarityScore * 100))"
-                        }.joined(separator: "\n")
-                        let caution =
-                            "High Accuracy mode is enabled. Not enough high-confidence evidence across the retrieved sources to answer reliably. Top sources retrieved:\n\(topSources)"
+                // The passages-needed rule of Library Settings (5.7, `RetrievalPolicyService.strongPassageShortfall`):
+                // with two or more required, too few passages at the library's minimum score get the closest
+                // sources instead of an answer. Each passage counts at the score the re-ranker gave it: a rescued table
+                // passage is raised to just under the best score so it reaches the answer, and that is not a close
+                // match (review, 2026-10-20). "high_accuracy_blocked" is the rule's older name, which
+                // `VerificationOutcome` reads.
+                let rerankedScores = Dictionary(
+                    rerankedChunks.map { ($0.chunk.id, $0.similarityScore) }, uniquingKeysWith: { first, _ in first })
+                if let shortfall = RetrievalPolicyService.strongPassageShortfall(
+                    diverseChunks, config: retrievalConfig,
+                    score: { rerankedScores[$0.chunk.id] ?? $0.similarityScore })
+                {
+                    let topSources = diverseChunks.prefix(3).enumerated().map { idx, r in
+                        let src = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
+                        let page = r.pageNumber.map { " (p.\($0))" } ?? ""
+                        let score = rerankedScores[r.chunk.id] ?? r.similarityScore
+                        return "- [\(idx + 1)] \(src)\(page), \(String(format: "%.0f%%", score * 100))"
+                    }.joined(separator: "\n")
+                    let cleared = shortfall.found == 0 ? "none did" : "only \(shortfall.found) did"
+                    let minimum = String(format: "%.0f%%", retrievalConfig.minSimilarity * 100)
+                    let caution =
+                        "This library is set to answer only when at least \(shortfall.needed) of the passages found score \(minimum) or more for your question, and \(cleared). The closest passages:\n\(topSources)\n\nTo answer from fewer, lower Passages Needed in Library Settings, under Search."
 
-                        emitThinkingEvent(
-                            .warning,
-                            title: "High accuracy mode paused answer",
-                            detail: "\(supporting.count) strong chunk(s) found"
-                        )
+                    emitThinkingEvent(
+                        .warning,
+                        title: "Too few passages at the minimum score",
+                        detail: "\(shortfall.found) of \(shortfall.needed) scored \(minimum) or more"
+                    )
 
-                        let metadata = ResponseMetadata(
-                            timeToFirstToken: nil,
-                            totalGenerationTime: 0,
-                            tokensGenerated: 0,
-                            tokensPerSecond: nil,
-                            modelUsed: llmService.modelName,
-                            retrievalTime: retrievalTime,
-                            retrievalConfigSummary: retrievalConfig.summary,
-                            gatingDecision: "high_accuracy_blocked",
-                            toolCallsMade: 0,
-                            embeddingProvider: embeddingProviderId
-                        )
+                    let metadata = ResponseMetadata(
+                        timeToFirstToken: nil,
+                        totalGenerationTime: 0,
+                        tokensGenerated: 0,
+                        tokensPerSecond: nil,
+                        modelUsed: llmService.modelName,
+                        retrievalTime: retrievalTime,
+                        retrievalConfigSummary: retrievalConfig.summary,
+                        gatingDecision: "high_accuracy_blocked",
+                        toolCallsMade: 0,
+                        embeddingProvider: embeddingProviderId
+                    )
 
-                        let response = RAGResponse(
-                            queryId: ragQueryValue.id,
-                            retrievedChunks: diverseChunks,
-                            generatedResponse: caution,
-                            metadata: metadata,
-                            confidenceScore: 0.0,
-                            qualityWarnings: ["High Accuracy mode: insufficient supporting evidence"],
-                            structuredAnswer: StructuredAnswer.refusal(
-                                reason: caution,
-                                missing: [
-                                    "High Accuracy mode blocked the answer because the retrieved evidence was too weak."
-                                ],
-                                topScore: diverseChunks.first?.similarityScore ?? 0,
-                                loops: 1,
-                                retrievedChunks: diverseChunks
-                            )
+                    let response = RAGResponse(
+                        queryId: ragQueryValue.id,
+                        retrievedChunks: diverseChunks,
+                        generatedResponse: caution,
+                        metadata: metadata,
+                        confidenceScore: 0.0,
+                        qualityWarnings: ["Passages needed: \(shortfall.found) of \(shortfall.needed) scored \(minimum) or more"],
+                        structuredAnswer: StructuredAnswer.refusal(
+                            reason: caution,
+                            missing: [
+                                "At least \(shortfall.needed) passages scoring \(String(format: "%.0f%%", retrievalConfig.minSimilarity * 100)) or more, which Library Settings asks for."
+                            ],
+                            topScore: diverseChunks.first?.similarityScore ?? 0,
+                            loops: 1,
+                            retrievedChunks: diverseChunks
                         )
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: response
-                        )
-                    }
+                    )
+                    return await finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
+                    )
                 }
 
                 let isAppleFMOnDevice = llmService is AppleFoundationLLMService
@@ -15633,8 +15642,9 @@ class RAGService: ObservableObject {
                 // Use adaptive mode's temperature
                 genConfig.temperature = min(genConfig.temperature, qualityModeTemperature)
 
-                // High Accuracy retrieval config overrides quality mode
-                if retrievalConfig == .highAccuracy {
+                // High Accuracy retrieval config overrides quality mode. By style, so the cap holds while the library
+                // reads as High Precision in Library Settings (5.7).
+                if retrievalConfig.style == .precise {
                     genConfig.temperature = min(genConfig.temperature, 0.2)
                 }
 

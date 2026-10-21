@@ -199,10 +199,7 @@ struct ContainerSettingsSheet: View {
                 privateCloudComputeSection
                 chunkingSection
                 aiFeatureOverridesSection
-                // Search behavior presets removed — auto-tuned by AdaptivePipelineOptimizer
-                if settings.developerRAGTuningEnabled {
-                    retrievalTuningSection
-                }
+                searchSection
                 embeddingProviderSection
                 // Vector database section hidden — always uses persistent JSON storage
                 // vectorDatabaseSection

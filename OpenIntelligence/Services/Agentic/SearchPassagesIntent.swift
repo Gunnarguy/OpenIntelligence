@@ -54,7 +54,7 @@ struct SearchPassagesIntent: AppIntent {
             throw OIIntentError("The search did not finish: \(error.localizedDescription)")
         }
 
-        let passages = chunks.prefix(limit).map { OIPassageEntity($0) }
+        let passages = OIPassageEntity.handedOut(Array(chunks.prefix(limit)))
         let dialog: IntentDialog =
             passages.isEmpty
             ? "No passages matched."

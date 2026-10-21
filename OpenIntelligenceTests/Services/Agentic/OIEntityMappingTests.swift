@@ -119,6 +119,27 @@ final class OIEntityMappingTests: XCTestCase {
         XCTAssertEqual(answer.textWithSources, "Rent is late after the 5th.\n\nSources:\n- Lease.pdf, page 3")
     }
 
+    func testAnAnswersOwnLineOfSourceLabelsGivesWayToTheList() {
+        let answer = OIAnswerEntity()
+        answer.text = "The pet deposit is $300.00.\n\nSources: [S1]"
+        answer.sourceList = "- Lease.pdf, page 1"
+        XCTAssertEqual(answer.textWithSources, "The pet deposit is $300.00.\n\nSources:\n- Lease.pdf, page 1")
+
+        answer.text = "Rent is $1,200 [S1] and late after the 5th [S2].\nSources: [S1], [S2]\n"
+        XCTAssertEqual(
+            answer.textWithSources, "Rent is $1,200 [S1] and late after the 5th [S2].\n\nSources:\n- Lease.pdf, page 1",
+            "inline labels stay; the closing line goes")
+
+        answer.text = "Sources of income are listed on page 2."
+        XCTAssertEqual(
+            answer.textWithSources, "Sources of income are listed on page 2.\n\nSources:\n- Lease.pdf, page 1",
+            "a sentence that starts with the word is kept")
+
+        answer.sourceList = ""
+        answer.text = "The pet deposit is $300.00.\n\nSources: [S1]"
+        XCTAssertEqual(answer.textWithSources, answer.text, "with no list to replace it, the line stays")
+    }
+
     // MARK: - Mode menu
 
     func testTheMenuHasThreeModesAndEachMapsToItsEngineMode() {
