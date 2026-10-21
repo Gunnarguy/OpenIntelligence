@@ -4,6 +4,7 @@
 
 > **Documentation status:** Generated from the July 2026 audit, whose artifacts are in `Docs/AuditArtifacts/ArchitectureAtlas/` (this file is registered there as the Phase 8 map in `ARTIFACT_REGISTRY.csv`); **not regenerated since**, so the code wins where a section here disagrees with it. This file does not track the shipped version: read `Docs/SHIPPED_VERSION.json` (`app_store` for what is live, `in_review` for what is submitted). `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` outranks this file where the two disagree (canonical §1).
 > **Component count is drifting.** The 270 figure below came from the audit's component definition at generation time. As of 2026-08-05 the tree holds **278 first-party Swift files** (301 including vendored `swift-transformers`). Those are not necessarily the same metric, so treat 270 as the audit's number rather than a current count, and re-run the audit before quoting either figure publicly. `[evidence_level: code_verified_for_the_file_count, confidence: exact_for_files_unverified_for_component_parity]`
+> **Corrected 2026-10-20 against the code at `1e379aa`:** in section 20, Standard's single-shot bullet (it searches again by rule and can make more than one model call), the chain's session count and the token budget no loop reads, the title-routing menu, `executeRecursiveResearch`'s two call sites, and "The gap" paragraph (the coverage gate, the quality branch, about five sessions on an iPhone). Also the config Deep Think's orchestrator gets ("Adaptive generation profiles", item 3), section 10's PCC sentence, section 16's ingestion diagram (two keyword-index writes, a flat vector file), the gates' callers in section 4, and the entity index in section 5. Each correction is marked where it is made.
 
 ## 1. Executive Overview
 The OpenIntelligence Architecture Atlas is the canonical representation of the repository's components, execution flows, and system boundaries. It was generated via a strict evidence-based static analysis protocol. The system is composed of 270 Swift components divided into 30 subsystems, with high-risk boundaries located in iCloud sync, StoreKit entitlements, and Private Cloud Compute (PCC) routing.
@@ -93,7 +94,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - `RAGService.enrichImportedDocument`, `deferEnrichment` and `runDeferredEnrichmentsIfNeeded` *(added 2026-10-15, 5.7)*: the overview, tags and suggested questions an import asks Apple's model for, made after the document is saved, and in the background left on a list that the app works through when it is in front (`ContentView`'s scene phase, and the import queue's end). Detail in `Docs/INGESTION_PIPELINE.md`. `[evidence_level: test_verified (DeferredEnrichmentTests), confidence: medium]`
 - `RAGService.leadingWithTopRanked` and `extractRelevantSentences(leadingCandidateWhole:)` *(added 2026-10-15, 5.7)*: the answer path's invariant that the passage the reranker ranks first reaches the model whole, as [S1], ahead of the sentences the extractive path chooses by the question's words. Detail in `Docs/RETRIEVAL_PIPELINE.md`. `[evidence_level: test_verified (LeadingEvidenceTests), confidence: medium]`
 - `RAGService.extractedValueAnswersQuestion` and `lookupWords(in:)` *(added 2026-10-15, 5.7)*: the check `highPrecisionLookupOverrideAnswer` makes before a value `SpecificationExtractor` read from a passage replaces or pre-empts the model's answer, at the one function all five such places go through: the value's label, or the sentence of the line that holds it (`valueLine`), has to share a word with the question's subject (the question's words without `genericValueWords`, with `SpecificationExtractor.subjectSynonyms` added). A value that fails is not used and the model answers. `[evidence_level: test_verified (ExtractedValueRelevanceTests), confidence: medium; the false-lock rate on real libraries is not measured]`
-- `NumericValueExtractor` *(added 2026-10-09, 5.7)*: reads the numbers in a sentence as values (a scale word, thousands separators, a number that is part of a name or code) and says whether a passage states them; `isCountedByGate` keeps the gate to the numbers it counted before 5.7. Called by `VerificationGateService.runGateC` and `evaluateClaim` (Standard) and by `SourceOnlyAnswerService` (the check Deep Think and Maximum run afterwards). `[evidence_level: test_verified, confidence: high, evidence_source: NumericSanityGateTests, 2026-10-09; NumericValueExtractor.swift]`
+- `NumericValueExtractor` *(added 2026-10-09, 5.7)*: reads the numbers in a sentence as values (a scale word, thousands separators, a number that is part of a name or code) and says whether a passage states them; `isCountedByGate` keeps the gate to the numbers it counted before 5.7. Called by `VerificationGateService.runGateC` and `evaluateClaim`, which Standard runs and, from 5.7, Deep Think and Maximum run as a label unless the source-only check replaced or refined the answer, and by `SourceOnlyAnswerService` (the check Deep Think and Maximum run afterwards for a lookup that is not source-locked). (Corrected 2026-10-20: this said the gates were Standard's alone.) `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:11214-11262, :18205-18252, :19521-19524 at 1e379aa, v5.6.0 RAGService.swift has no verifyAgenticAnswer]` `[evidence_level: test_verified, confidence: high, evidence_source: NumericSanityGateTests, 2026-10-09; NumericValueExtractor.swift]`
 - `DetectedValueCheck` *(added 2026-10-15, 5.7)*: reads amounts of money, dates (written with a year) and measurements in an answer and its passages with `dataDetectorMatches`, and reports one the passages contradict: the same amount only in other currencies, another day of the same month, the same value only with other units. Gate C fails on one, `runGateB` marks the claim Partial, and the source-only check marks it unsupported. `[evidence_level: test_verified (DetectedValueCheckTests), measured on macOS 27 for the detector's readings; confidence: medium; evidence_source: Services/RAG/Safety/DetectedValueCheck.swift]`
 - `DomainIsolationService` and Gate I *(changed 2026-10-15, 5.7)*: keywords count as whole words (`normalize` pads a lowercased word list), the two-letter abbreviations "um", "ip", "po" and "iv" are gone, and the gate engages only when the question scores two or more keywords. Matching inside words had failed right answers about everyday documents ("um" in "number", "ip" in "trip"). `RAGService`'s verification event now names the failed gates, and `VerificationGatesOverlayView` marks its step failed with them. `[evidence_level: measured for the demo failures, test_verified (DomainIsolationTests); confidence: medium; evidence_source: Services/RAG/Safety/DomainIsolationService.swift; RAGService.swift, the `.verification` event]`
 - `ModelErrorClassifier` *(added 2026-10-09, 5.7)*: says what kind of failure a generation error is (context overflow, rate limit, unreadable response, filtered, other) from its type, and from phrases for an unknown type or a passed-along message. Read by `AgenticOrchestrator.executeReasoningChain` and by `RAGService.generateWithFallback` and `isContextOverflowError`. `[evidence_level: test_verified, confidence: high, evidence_source: ModelErrorClassifierTests, 2026-10-09]`
@@ -124,7 +125,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   restating a definition.
 - **Deleting a library goes through one function, `LibraryDeletion.delete` in
   `Features/Documents/Library/LibraryDeletion.swift`.** It removes the container, its documents,
-  chunks, vectors, Spotlight entries and entity-index rows, and its iCloud copy where it has one, and
+  chunks, vectors, Spotlight entries and entity-index rows (corrected 2026-10-20: nothing in this build writes the entity index, because `EntityIndexService.indexChunk` and `indexChunks` have no callers outside that file, so the rows are only ones an earlier build saved), and its iCloud copy where it has one, and
   it **aborts before touching anything local if the iCloud delete fails**, because deleting locally
   while the shared copy survives means the next sync restores the library. `DocumentLibraryView` and
   `ContainerSettingsSheet` both call it; the latter defers its `dismiss()` until the outcome is
@@ -134,6 +135,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
   `containerService.deleteContainer` alone, leaving documents behind, because it is `public` and
   synchronous and cannot adopt an async path without breaking the SDK.
   `[evidence_level: code_verified+build_verified, confidence: exact, evidence_source: LibraryDeletion.swift]`
+  `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "indexChunk(\|indexChunks(" OpenIntelligence OpenIntelligenceTests finds only EntityIndexService.swift:137 and its header comment at :31, and LibraryDeletion.swift:117 removes the rows]`
 - **File placement under `OpenIntelligence/Services/` is a target decision, not just organisation.**
   The `OpenIntelligenceEngine` framework synchronises eighteen folders, including
   `Services/Infrastructure/Integration`, and excludes `Services/Infrastructure/Presentation` and all
@@ -301,7 +303,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 > **5.6, 2026-10-07.** A "Just Once" consent grant now ends with the question it was given for in every mode. `RAGService.queryInternal` clears `transientConsentGrants` before `executeAgenticQuery`, as it already did for Standard further down. Detail and evidence: `Docs/PRIVACY_AND_ROUTING.md`, "Evidence minimization and consent". `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, read 2026-10-07]`
 > **5.7, 2026-10-14.** An ask action may come forward to ask for Private Cloud Compute consent (`AskActionRunner.foregroundRequest`, `RAGService.bringAppForwardForConsent`), and the planner counts its question as one a person can be asked about. A request from an engine the chat does not show reaches `ContentView` through `CloudConsentRelay`; one no window shows within 15 s is given up without being remembered. Detail: `Docs/PRIVACY_AND_ROUTING.md`, "Evidence minimization and consent". `[evidence_level: test_verified for the relay (CloudConsentRelayTests); code_verified for the action's side, confidence: medium until a device run]`
 - **Public Model Targets**: On-device execution uses `SystemLanguageModel.default`. Native PCC uses `PrivateCloudComputeLanguageModel` on iOS/macOS 27+ only. The app makes no 3B, 20B, Advanced, or server parameter-count claim because the public SDK does not expose those identities. iOS/macOS 26 stays local; it is never labeled simulated PCC. `[evidence_level: compile_verified+code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift, LLMModel.swift]`
-- **Post-Retrieval Plan**: Local retrieval produces `PostRetrievalEvidence`; `ModelExecutionPlanner` combines it with user/privacy/network/foreground constraints, exact-or-labeled-fallback token budgets, signed entitlement, live PCC availability, and quota. Only the synthesis stage may target PCC; verification stays deterministic/local. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift]`
+- **Post-Retrieval Plan**: Local retrieval produces `PostRetrievalEvidence`; `ModelExecutionPlanner` combines it with user/privacy/network/foreground constraints, exact-or-labeled-fallback token budgets, signed entitlement, live PCC availability, and quota. Under Hybrid only the calls that write an answer may target PCC. In Deep Think and Maximum the planner runs for each model call: the sessions, research decisions and Maximum's running answers are held on the device unless the person picked PCC in the model picker, and helper calls always are (`Docs/PRIVACY_AND_ROUTING.md`, "Fallback and stream integrity"). Verification stays deterministic and local. (Corrected 2026-10-20: this said only the synthesis stage may target PCC.) `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:9123-9152, :9234-9240, :9268]` `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift]`
 - **Picker Policy vs. Actual Route**: `SettingsStore.fmPreference` persists the user policy independently of runtime notifications. Chat captures Hybrid as post-retrieval choice, On-Device as `onDeviceOnly`, and PCC as `cloudOnly`; the picker label always renders that policy. `ModelExecutionReceipt.completedTarget` drives a separate per-answer route badge, including planner-time and runtime PCC-to-local fallback. `[evidence_level: build_verified+code_verified, confidence: high_pending_ui_runtime_validation, evidence_source: ChatScreen.swift, ModelStatusIndicator.swift, ModelExecutionPlan.swift, LLMService.swift, MessageBubbleV2.swift and generic iOS 27 simulator build 2026-07-16]`
 - **Entitlement and Quota**: `EntitlementChecker` uses native macOS `SecTask` declarations, parses the embedded signed provisioning profile for iOS/Catalyst development and ad-hoc builds, and permits only the approved PCC key to proceed to Apple's documented availability/quota checks when a distribution build omits that profile. `LiveFoundationModelCapabilityProvider` snapshots quota/context state, maps unknown future quota cases to fail-closed `.unknown`, and `FoundationModelSessionFactory` rechecks availability and quota immediately before construction. Source enablement and generic arm64 iPhoneOS compilation are complete; signed installation/distribution verification is pending. `[evidence_level: build_verified+sdk_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: EngineSDKCompatibility.swift, FoundationModelCapabilityProvider.swift, FoundationModelSessionFactory.swift, OpenIntelligence.entitlements]` An engine with no store, which an action builds while the app is closed, reads the saved plan and document packs for its document check (`EntitlementStore.savedDocumentAllowance`, 5.7; until then it used the free plan's limit).
 - **Quota fail-closed, and where it was not**: `PCCQuotaState.authorizesCloudExecution` is the single rule deciding whether a quota state permits a cloud attempt; `.belowLimit` and `.approachingLimit` do, `.limitReached`, `.unsupported` and `.unknown` do not. Both `canUsePCC` and `ModelExecutionReceipt.nonAuthorizingQuotaStates` derive from it. Before 2026-08-11 they were two hardcoded copies and had diverged: the planner tested only `!= .limitReached`, so `.unknown` authorized an attempt the route gate scores as `unauthorizedCloudAttempts`. Reachable in production because `FoundationModelCapabilityProvider` maps `pcc.quotaUsage.status` through an `@unknown default`. `[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: ModelExecutionPlan.swift, RouteEvalMetrics.swift, PCCQuotaAuthorizationTests.swift]`
@@ -407,9 +409,9 @@ flowchart TD
     SCAN["Predictive Pre-Scan (10 pages)"]
     A1 --> SCAN
     SCAN --> A2["File Size Check"]
-    A2 -- "< 10MB" --> A3["Standard Extraction & Parsing"]
-    A3 --> A4["Semantic Chunking"]
-    A4 --> A5["Vector & SQLite Indexing"]
+    A2 -- "< 10MB" --> A3["Standard Extraction & Parsing, then the whole text (and each page of a multi-page PDF) into SQLite FTS5"]
+    A3 --> A4["Chunking by word count within sections, tables and topic shifts"]
+    A4 --> A5["Embed, add the vectors to the library's flat file, then one FTS5 row per passage"]
     
     A2 -- ">= 10MB" --> S1["Stream Batches (15 pages)"]
     S1 --> S2["Extract Chunks"]
@@ -427,6 +429,8 @@ flowchart TD
     T4 -- "No" --> S6
   end
 ```
+
+**Corrected 2026-10-20:** the diagram showed one indexing step after chunking. The document's whole text (and, for a multi-page PDF, each page) reaches the keyword index before the text is cut, and each passage's row comes after its vectors are stored. The vectors are kept in arrival order in one flat file per library, rewritten whole at each save, with no index: a search compares the question with every vector. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.swift:987, :1008-1009, :1046, RAGService.swift:7894, :7981 at 1e379aa, BNNSVectorDatabase.swift:32-36, :1063, :1104-1120]`
 
 Queue tombstones are part of the existing iCloud Drive-coordinated `ingestion_queue.json` record. A tombstone removes the matching item before duplicate reconciliation, including when the queue otherwise has no active items. Automatic empty-vector repairs are globally serialized in-process and check persistent per-library device-local suppression before each document-safe stage; explicit user imports and manual rebuilds clear that local suppression. `[evidence_level: build_verified, confidence: high_pending_runtime_validation, evidence_source: WorkspaceSyncService.swift, RAGService.swift, IngestionQueueOverlay.swift]`
 
@@ -624,9 +628,17 @@ Recorded 2026-08-14. The three quality modes are a deliberate compute ladder and
 between them is by design; what this section records is what happens *inside* the two modes that are
 supposed to be agentic.
 
-- **Standard is single-shot on purpose, and that is correct.** One retrieval, chunks packed into a
-  character budget, one generation, `Agentic: NO`. It is the fast, cheap tier and it is not supposed
-  to reach for tools or re-retrieve. Do not read the items below as an argument for making it
+- **Standard is single-shot on purpose, and that is correct.** One retrieval pass, chunks packed into a
+  character budget, one answer generation, `Agentic: NO`. No model decides to search again and no
+  tool is attached once context is assembled. Code rules can still search again inside that pass: a
+  wider search when the first looks weak, a keyword retry when the top score is under 0.45, a BM25
+  pass for "list all" questions and a corrective lexical or page search, each triggered by its own
+  rule. Besides the answer it can make a citation retry, one repair call, continuation passes when an
+  answer stops early, and, for a lookup whose gates failed, the source-only check's two on-device
+  calls. It is the fast, cheap tier and it is not supposed to reach for tools or let a model decide to
+  retrieve again. (Corrected 2026-10-20: this said "one retrieval" and "one generation".)
+  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:13135-13328, :14098-14182, :14636-14755, :14769-14775, :16289-16374, :16868-16876 at 1e379aa, LLMService.swift:1149-1162, SourceOnlyAnswerService.swift:363-441]`
+  Do not read the items below as an argument for making it
   agentic. `[evidence: code_verified, exact, device trace 2026-08-14 message D74F98E4; RAGService useAgentic gate]`
 - **Deep Think and Maximum are where the agentic loop is supposed to fire.** The rest of this section
   is about those two modes only.
@@ -651,13 +663,19 @@ supposed to be agentic.
   character-sized path through sentence extraction, and the chain never plans more windows than
   before. Maximum's own loop is unchanged. `[evidence: test_verified for the arithmetic,
   code_verified for the loop, not run on a device]`
-  **Per device (2026-10-18).** The chain stops at 8 sessions on every device
-  (`AgenticPolicyService.maxSessionsForMode`, `min(8, sessionCount + 4)`). What
+  **Per device (2026-10-18).** In Deep Think the chain runs one session per distinct window of its
+  passages and stops at 8 sessions at most on every device
+  (`AgenticPolicyService.maxSessionsForMode`, `min(8, sessionCount + 4)`), so a 20-passage pool at
+  four passages a window gives about 5. In Maximum, when the first search grades good, the same chain
+  runs with the unlimited preset, whose ceiling is 50, over windows of the same pool. (Corrected
+  2026-10-20: this said the chain stops at 8 sessions on every device, in both modes.) What
   `DeviceCapabilityService.optimizedAgenticConfig` changes by device is the confidence the run aims
   for, by tier (85% on `.baseline`, the A17 Pro; 90% on `.enhanced`, A18 and M1-family Macs; 92% on
   `.advanced`; 95% on `.ultraAdvanced`), the step budget (`maxSteps` 5, 8, 10, and 12 to 32 by memory on the top tier), which picks the chain's starting length
   (`.standard`, 4 sessions, below 8 steps; `.deep`, 5, from 8) and caps sub-queries at `maxSteps - 2`,
-  and the token budget. Settings, the thinking stream's planning line ("up to N steps") and the
+  and the token budget (`maxTotalTokens`: 20,000, 32,000, 40,000, and 56,000 to 128,000 by memory),
+  which only the decomposed pipeline and recursive research read, never the chain or Maximum's loop.
+  Settings, the thinking stream's planning line ("up to N steps") and the
   Device & Performance pill ("N max sessions") showed `maxSteps` as a session count until 5.7: 5 on
   an iPhone 15 Pro and 13 on an 18 GB M3 Pro. The Self-RAG check after the chain keyed on that
   budget too (`maxSteps >= 8`), so Deep Think on an A17 Pro skipped it; from 2026-10-19 it keys on the mode
@@ -665,9 +683,11 @@ supposed to be agentic.
   `[evidence_level: code_verified, confidence: high, evidence_source: DeviceCapabilityService.swift
   optimizedAgenticConfig; AgenticOrchestrator.swift reasoningChainConfig, isDeepThinkMode;
   AgenticPolicyService.swift reasoningPolicy; RAGService.swift modeDetail]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:212-216, :4990-4994, :5119-5130, :5155, :1751, :2942, AgenticPolicyService.swift:299-305]`
   **Partially corrected 2026-08-14:** the chain now opens with a routing turn
-  (`routeChunksByTitle`) that shows the model the section titles of everything retrieval found and
-  lets it choose what to read. A title costs ~50 characters against several hundred for body text,
+  (`routeChunksByTitle`) that shows the model the section titles of what retrieval found, as many as
+  fit an 1,800-character menu and only when at least four are listed, and lets it pick up to 8 to
+  read first (corrected 2026-10-20: this said every title, with a free choice). A title costs ~50 characters against several hundred for body text,
   so twenty titles fit in one window where three chunks do not. The model therefore chooses the
   reading order, which cosine similarity previously chose on its behalf before anything was read.
   It reorders and never drops, so a wrong choice costs ordering rather than evidence. It is still
@@ -675,11 +695,17 @@ supposed to be agentic.
   from what it was given rather than asking for more. `disableToolsForSession = true` is hardcoded, so the model has no tools in any
   session and cannot request anything. The registered exact-match tools (`count_pattern`,
   `search_exact_pattern`) are therefore unreachable from a reasoning session.
-  `[evidence: code_verified, exact, AgenticOrchestrator.swift:4195 and the sessionContexts loop preceding it]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:4760-4878 (routeChunksByTitle), :5313 (disableToolsForSession), :4931-5130 (the sessionContexts loop)]`
 - **The one genuine loop is a fallback, now gated on measurement rather than prose.**
   `executeRecursiveResearch` implements the real thing: it asks the model to decide, parses
-  `.answer` or `.search(query)`, and re-retrieves on demand. It still has exactly one call site,
-  reached only in an agentic mode and only after the chain has finished.
+  `.answer` or `.search(query)`, and re-retrieves on demand. It has two call sites,
+  both reached only in Deep Think and only after the chain has finished: research after a chain from
+  an excellent first search (up to 5 rounds), and the research call inside Deep Think's Self-RAG loop
+  after an excellent or good one (up to 3 rounds a call, and at most two calls, because the loop stops
+  at its third strike before researching). Maximum reaches neither. (Corrected 2026-10-20: this said
+  exactly one call site, which the 2026-10-18 note below already contradicts.)
+  `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:545-631, :685-734, :798, :904, :3803-3867]`
+  `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "executeRecursiveResearch(" OpenIntelligence OpenIntelligenceTests finds only AgenticOrchestrator.swift:731 and :3855]`
   **Changed 2026-08-14:** that call was gated solely on
   `answerIndicatesRetrievalMiss(chainResult.finalAnswer)`, a string heuristic scanning the answer
   for hedging. It fails in both directions: a confidently wrong answer contains no hedging so the
@@ -723,10 +749,19 @@ supposed to be agentic.
   this path has no test coverage and the behavioural claim is not device-verified.]`
 
 **The gap, stated precisely.** In Deep Think and Maximum, the modes that exist specifically to buy
-more compute, the extra compute is spent re-reading fixed slices of one retrieval rather than acting
-on it. Eight sessions with no tools over precomputed windows is more inference, not more agency. The
-loop that would make it agency is reachable only after those sessions finish and only if a regex
-over the final answer decides they failed.
+more compute, the extra compute is spent re-reading one retrieval rather than acting on it. In Deep
+Think that retrieval is up to five searches, each through the full pipeline and fused into 20
+passages, and the chain runs only when they grade excellent or good: a moderate search gets one
+synthesis and a low one Speculative RAG. The chain is then one session per distinct window of those
+passages, at most 8 and about 5 on an iPhone. Maximum's own loop, after an excellent search, gathers
+one larger pool (a 50-passage search and up to three variations of 20) and reads three unread
+passages a session, up to 50. Neither gives a session a tool. That is more inference, not more
+agency. The loop that would make it agency is reachable only after the sessions finish, and only in
+Deep Think: research when the chain ends below its own sub-question coverage target or its answer
+reads like a miss (excellent searches only), and the research call in the Self-RAG loop. (Corrected
+2026-10-20: this said eight sessions, and that research runs only if a regex over the final answer
+decides the sessions failed, which the 2026-08-14 coverage gate above had already changed.)
+`[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:339, :544-1143, :685-691, :2185-2258, :3855, :5119-5130, :5313, :6572-6575, :6901-6919, :8045-8085, AgenticPolicyService.swift:99-126]`
 
 **A separate concern, not to be confused with the above.** Standard's context packing has its own
 defects, and they are packing defects rather than agency defects: the budget drops chunks past its
@@ -782,7 +817,13 @@ Three properties of the design, each load-bearing:
    only when first written.* On the Standard path the gate sits **below** the `if useAgentic`
    return and mutates `inferenceConfig` directly. Deep Think and Maximum leave before that point
    through `executeAgenticQuery`, which reads neither `inferenceConfig` nor the `config` parameter
-   for generation: it builds `optimizedConfig` from `qualityMode.agenticConfig`. Placing the gate
+   for generation: it builds `optimizedConfig` from the device's tier for Deep Think
+   (`DeviceCapabilityService.optimizedAgenticConfig()`) and from `qualityMode.agenticConfig`, the
+   `.unlimited` preset, for Maximum, and takes only the routing choice from `config`
+   (`UserRoutingPreference(config:)`). `RAGQualityMode.agenticConfig`'s `.thorough` for Deep Think is
+   never used. (Corrected 2026-10-20: this said `optimizedConfig` comes from `qualityMode.agenticConfig`
+   in both modes.) `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:10790, :10864-10872 at 1e379aa, RAGQualityMode.swift:178-183]`
+   Placing the gate
    above the branch, which is where it was first written, mutated a local the agentic path never
    reads **while logging the change as though it had landed**, which is this repository's recurring
    failure shape.
