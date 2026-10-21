@@ -10,6 +10,7 @@
 		B016E7B72F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
 		E0A100022F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
 		E0A100042F0F5F5F00AABA0D /* OpenIntelligenceEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */; };
+		AA1C05DFB217B24343F90AC9 /* OpenIntelligenceEngine.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E0A100302F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = E0A100312F0F5F5F00AABA0C /* Tokenizers */; };
 		E0A100322F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = E0A100312F0F5F5F00AABA0C /* Tokenizers */; };
 		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -94,6 +95,17 @@
 				F0C100012F1A000100AA1001 /* OpenIntelligenceCapture.appex in Embed ExtensionKit Extensions */,
 			);
 			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		601D6FF225360C5F89012022 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				AA1C05DFB217B24343F90AC9 /* OpenIntelligenceEngine.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -468,6 +480,7 @@
 			buildPhases = (
 				6FB4BEE880D86874B2120AC7 /* Sources */,
 				0DC56E4EF82F88294775D241 /* Frameworks */,
+				601D6FF225360C5F89012022 /* Embed Frameworks */,
 				29833E3824F6652362B1FC83 /* Resources */,
 			);
 			buildRules = (
@@ -1133,6 +1146,7 @@
 				CURRENT_PROJECT_VERSION = 150;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
 				ENABLE_MODULE_VERIFIER = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;
@@ -1173,6 +1187,7 @@
 				CURRENT_PROJECT_VERSION = 150;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
 				ENABLE_MODULE_VERIFIER = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;

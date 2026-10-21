@@ -282,7 +282,7 @@ enum DeviceFormFactor: String, Sendable {
         case .iPadMini: return 2
         case .iPadAir: return 3
         case .iPadPro: return 4
-        case .mac: return 6 // Macs have better thermal headroom
+        case .mac: return 6 // A MacBook Pro or Studio has the headroom; a fanless Air does not, so the Vision throttle also follows the live thermal state
         case .unknown: return 2
         }
     }
@@ -527,6 +527,25 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return 4
         }
         return 2
+    }
+
+    /// Vision concurrency after the live thermal state is applied. The chip picks the ceiling, but no public API says
+    /// whether a Mac has a fan (a fanless MacBook Air throttled to 100% CPU against 400% over a five-hour import), so
+    /// the measured state lowers it: half the ceiling (at least 2) at `.fair`, 2 at `.serious`, 1 at `.critical`.
+    /// Never raises a ceiling that is already lower. Pure, so the shipping branch is the tested one.
+    nonisolated static func thermallyLimitedVisionConcurrency(
+        ceiling: Int,
+        thermalState: ProcessInfo.ThermalState
+    ) -> Int {
+        let limited: Int
+        switch thermalState {
+        case .nominal: limited = ceiling
+        case .fair: limited = max(2, ceiling / 2)
+        case .serious: limited = 2
+        case .critical: limited = 1
+        @unknown default: limited = max(2, ceiling / 2)
+        }
+        return max(1, min(ceiling, limited))
     }
 
     /// Brief cooldown that lets Metal/Vision finish outstanding work between OCR requests.

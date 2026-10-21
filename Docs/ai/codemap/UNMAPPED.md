@@ -62,7 +62,6 @@ From `python3 .claude/codemap/codemap.py orphans`: starting at `@main` (and App 
 | `EmptyVisualizationsView` | `OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift:278` | VisualizationsView |  |
 | `EvalCategory` | `OpenIntelligence/Services/Evaluation/RAGEvalCase.swift:62` | RAGEvalCase, RAGEvalDataset |  |
 | `EvalError` | `OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift:104` | RAGEvalDataset |  |
-| `EvidenceThreadDebugService` | `OpenIntelligence/Features/Debug/EvidenceThreadDebugService.swift:13` | - |  |
 | `FTS5PatternCount` | `OpenIntelligence/Services/Storage/SQLiteFullTextService.swift:35` | - |  |
 | `FTS5StatCard` | `OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift:3617` | FTS5StorageView |  |
 | `FTS5StorageView` | `OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift:3156` | - |  |

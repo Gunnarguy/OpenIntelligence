@@ -455,7 +455,7 @@ extension GlossaryTermID {
                 // path, iCloud sync for libraries you deliberately share, and an
                 // unqualified "nothing uses the network" would be false for it. This is the
                 // same framing `HowItWorksView` uses, verified 2026-08-10.
-                technical: "Reading, splitting, embedding, indexing, retrieval and ranking have no network path. The only outbound call in the answer path is Private Cloud Compute, gated on per-request consent. Sharing a library through iCloud is separate, opt in, and not part of answering a question.",
+                technical: "Reading, splitting, embedding, indexing, retrieval and ranking have no network path. The only outbound call in the answer path is Private Cloud Compute, gated on your permission. Sharing a library through iCloud is separate, opt in, and not part of answering a question.",
                 seeAlso: [.privateCloudCompute, .routing, .index, .languageModel],
                 synonyms: ["local", "offline", "private", "no server", "no upload", "airplane mode"]
             )
@@ -466,7 +466,7 @@ extension GlossaryTermID {
                 term: "Private Cloud Compute",
                 icon: "cloud",
                 section: .answering,
-                plain: (DeviceCapabilities.pccRoutingCompiledIn ? "" : "Not in this version: support is built and arrives with iOS and macOS 27; every answer is written on this device. When it is on: ") + "Apple's servers, for the one case where a question needs more room than this device's model has. It is used for the writing step only, one request at a time, and only after you approve that request. Your files are not uploaded. The passages the answer needs are.",
+                plain: (DeviceCapabilities.pccRoutingCompiledIn ? "" : "Not in this version: support is built and arrives with iOS and macOS 27; every answer is written on this device. When it is on: ") + "Apple's servers. They can write an answer too big for this device, a Deep Think or Maximum answer from more than one document, or every answer if you pick them in the model picker. Only the writing step, and only with your permission, unless you allowed it without asking. Your files aren't uploaded; the passages the answer needs are.",
                 technical: "`CloudEvidenceMinimizer` bounds the payload to a selected set of source IDs, names, page numbers and passage text. The consent sheet shows the provider, the model, prompt size, context size, chunk count and total estimated bytes before anything leaves. Setting routing to On-Device means this path is never taken.",
                 seeAlso: [.onDevice, .routing, .contextWindow, .languageModel],
                 synonyms: ["pcc", "cloud", "apple", "consent", "routing", "escalate"]
@@ -515,7 +515,7 @@ extension GlossaryTermID {
                 icon: "signpost.right.and.left",
                 section: .answering,
                 plain: DeviceCapabilities.pccRoutingCompiledIn
-                    ? "The decision behind every answer about where it gets written: on this device, or on Apple's Private Cloud Compute, only after you approve it. You can pin it to always stay on-device in Settings."
+                    ? "The decision behind every answer about where it gets written: on this device, or on Apple's Private Cloud Compute, only with your permission. You can pin it to always stay on-device in Settings."
                     : "The decision behind every answer about where it gets written. In this version the answer is always on this device; Private Cloud Compute is built and arrives with iOS and macOS 27, and the picker already lets you pin routing to On-Device for then.",
                 technical: "On-Device, Private Cloud Compute, and Hybrid (decided per query from the evidence actually retrieved) are the three routes most people see. Setting routing to On-Device removes Private Cloud Compute as an option entirely rather than merely preferring the other path.",
                 seeAlso: [.onDevice, .privateCloudCompute],

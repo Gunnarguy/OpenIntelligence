@@ -4507,7 +4507,7 @@ struct UnifiedMetricsBar: View {
             Text(execution == .privateCloudCompute
                 ? "Routed to Private Cloud Compute servers."
                 : DeviceCapabilities.pccRoutingCompiledIn
-                    ? "On-device model. An oversized request can route to Private Cloud Compute after you approve it."
+                    ? "On-device model. With your permission, a large answer or a multi-document Deep Think or Maximum answer can be written on Private Cloud Compute, and every answer when it is picked in the model picker."
                     : "On-device model. Nothing leaves this device in this version.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)

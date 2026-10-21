@@ -430,7 +430,11 @@ nonisolated enum LoggingConfiguration {
     /// Mark query completion in the trace log
     static func traceQueryEnd(responseLength: Int, duration: TimeInterval) {
         guard _fileLogEnabled else { return }
-        let footer = "◀ QUERY COMPLETE: \(responseLength) chars in \(String(format: "%.1fs", duration))\n\n"
+        // The only caller is `RAGService.query`'s exit `defer`, which cannot see the answer and passes 0, so every
+        // footer read "0 chars" whatever was written (5.7). The answer's length is the "Response length" line above.
+        let time = String(format: "%.1fs", duration)
+        let footer = responseLength > 0
+            ? "◀ QUERY COMPLETE: \(responseLength) chars in \(time)\n\n" : "◀ QUERY COMPLETE in \(time)\n\n"
         guard let data = footer.data(using: .utf8) else { return }
         stateLock.lock()
         let handle = traceFileHandle()

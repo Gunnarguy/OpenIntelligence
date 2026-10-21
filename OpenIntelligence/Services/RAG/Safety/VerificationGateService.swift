@@ -1644,8 +1644,39 @@ actor VerificationGateService {
         )
     }
 
+    /// The words of a sentence with three or more letters or digits, less a few English function words. The coverage
+    /// check falls back to these when `NLTagger` finds no noun or number in the sentence; it works in every script
+    /// that separates words with spaces or punctuation, including Greek, which the tagger has no word classes for.
+    nonisolated static func contentWordTerms(in text: String) -> [String] {
+        let fillers: Set<String> = [
+            "the", "and", "for", "are", "was", "were", "but", "not", "with", "that", "this", "these", "those",
+            "from", "has", "have", "had", "its", "their", "there", "than", "then", "into", "can", "may", "will",
+            "all", "any", "one", "per", "you", "your", "they", "them", "which", "who", "what", "when", "where",
+            "should", "would", "could", "must", "also", "been", "being", "our", "his", "her", "she", "him",
+        ]
+        var seen = Set<String>()
+        return text
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 3 && !fillers.contains($0) && seen.insert($0).inserted }
+    }
+
+    /// Whether a text is written in a script without spaces between words (Chinese, Japanese, Thai, Lao, Khmer,
+    /// Myanmar), where splitting on spaces gives whole clauses rather than words.
+    nonisolated static func usesUnspacedScript(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF,  // kana, Han
+                0x0E00...0x0EFF, 0x1000...0x109F, 0x1780...0x17FF:  // Thai, Lao, Myanmar, Khmer
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
     /// Check if claim text appears in corpus (fuzzy matching)
-    private func isClaimCovered(claim: String, inCorpus corpus: String, query: String) -> Bool {
+    func isClaimCovered(claim: String, inCorpus corpus: String, query: String) -> Bool {
         // Extract key terms from claim (nouns, numbers, codes)
         let tagger = NLTagger(tagSchemes: [.lexicalClass])
         tagger.string = claim
@@ -1664,7 +1695,14 @@ actor VerificationGateService {
         // Also extract numbers
         keyTerms.append(contentsOf: extractNumbers(from: claim))
 
-        guard !keyTerms.isEmpty else { return true }  // No key terms = vacuously covered
+        // A sentence the tagger finds no nouns in (a language it does not tag, or a tagger that tags nothing, as the
+        // iOS 27 Simulator's did for "The security deposit is two months of rent.") is checked on its content words
+        // instead of passing as covered with nothing compared (5.7).
+        // Not for a script written without spaces: its "words" would be whole clauses, found only in a verbatim copy.
+        if keyTerms.isEmpty && !Self.usesUnspacedScript(claim) {
+            keyTerms = Self.contentWordTerms(in: claim)
+        }
+        guard !keyTerms.isEmpty else { return true }  // No words at all to compare
 
         // Extract query terms as a set
         let queryTerms = Set(extractQueryAnchorTerms(from: query))

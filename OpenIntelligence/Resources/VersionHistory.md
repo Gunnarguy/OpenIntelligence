@@ -86,6 +86,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Focus filters.** In Settings, Focus, a Focus can have an OpenIntelligence filter that picks which libraries the app shows while it's on, and the first of them opens.  A Work Focus can keep your work library in front.
 - **The Siri phrase shows up where you'd use it.** On iPhone and iPad, the empty Chat screen shows Apple's tip with the phrase for asking a question.  Close it and it stays closed.
 - **Add to Library from Shortcuts and Siri uses your plan.**  With the app closed, it used the free plan's limit of five documents, so a Pro or Lifetime library of five or more refused it.  It uses your plan and any document packs now.
+- **Find Passages stays at 20.**  The Limit never goes above 20, even when a shortcut passes in a bigger number.
 
 ### Spotlight
 - **A Spotlight result opens what you tapped.** Tapping a document or a library in Spotlight used to open the Documents tab of whatever library was active.  Now a library opens that library and a document opens its own page.
@@ -166,6 +167,8 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **An answer's details show Apple's token count.**  On iOS and macOS 27, the details under an answer list what Apple's model spent on the whole answer: tokens in, how many of those it had cached, tokens out, and reasoning tokens when Private Cloud Compute reasoned.
 - **Fact Check catches three more slips.**  A sentence of an answer now reads Partly Supported when it leaves out a "not" your document has ("Pets are allowed without written permission" against a lease that says they aren't), when its day doesn't match ("the 16th day" where the lease says the 6th), or when its words are all in your documents but no one sentence of them says it.  Each one says why under the sentence.
 - **Private Cloud Compute always asks first.**  A question typed to a library with no documents yet could go to Private Cloud Compute without asking you: with Hybrid when it was too long for your device, and every time with Private Cloud Compute picked in the model picker, even after you'd said Don't Allow.  Now it stays on your device.
+- **Fact Check no longer waves through sentences it couldn't read.**  When the app couldn't pick out the key words of a sentence in an answer, it counted that sentence as backed by your documents without comparing anything.  That happened most in languages like Greek.  Now it checks the sentence's ordinary words against your documents instead.
+- **A saved answer opens every source it cites.**  A saved conversation kept only an answer's first 12 sources, so after you reopened the app a tap on [S13] or later opened nothing, and Copy left those out.  Now it keeps every source the answer cites.
 
 ### Settings
 - **The Database tab speaks plainly.**  It led with "SQLite FTS5" and showed storage internals to everyone, and a card said searches were "100X" faster than a method the app no longer has, which nobody had measured.  Now it says what the keyword index does in plain words, the speed figures are gone, and the storage details are there with Technical Details on.  Rebuild Index says what it rebuilds too: the whole-document index, not the one that answers your questions.
@@ -182,6 +185,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **The GPU button on the import panel works.**  It changed its own label and nothing else.  It switches the same setting as Settings now, through all four choices.
 - **Deep Think's numbers are the real ones.**  Settings showed 5 sessions on an iPhone 15 Pro and 13 on some Macs.  Its reasoning chain stops at 8 sessions on every device, and Settings and its badge now show how sure it aims to be on yours, from 85% to 95%.
 - **Your library's model is named right on a Mac.**  Library Settings called a library built on a Mac with macOS 27 "Apple Natural Language", and other screens said every library was 512-dimensional and ran on the Neural Engine.  Each one now shows your library's own model, its size and where it runs.
+- **The Glossary and the bar under each answer say when Private Cloud Compute is used.**  They said only an answer too large for your device went there.  They now match Settings: a Deep Think or Maximum answer from more than one document can go too, every answer does when you pick Private Cloud Compute in the model picker, and after Always Allow the app doesn't ask again.
 
 ### Notifications
 - **A notification when it's done.** Settings has a new Notifications page with one switch.  With it on, you get a notification when an import finishes, or when an answer that took more than 20 seconds is ready, if OpenIntelligence isn't in front.  It's off until you turn it on, and it never shows your question or a file name.
@@ -192,6 +196,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 
 ### When your device is busy
 - **The app eases off when iOS asks.** iOS 27 can tell apps to use less when the device is under pressure.  When it does, an import leaves a short gap between batches and Deep Think and Maximum leave a second between steps.  The answer isn't cut short.  It takes a little longer.
+- **Long imports stay steadier on a Mac that runs warm.**  On the Mac, text recognition now eases off when the Mac heats up, instead of running flat out until a fanless MacBook Air throttles.
 
 ## v5.6 - October 8, 2026
 

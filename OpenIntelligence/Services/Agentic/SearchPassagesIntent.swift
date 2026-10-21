@@ -25,7 +25,7 @@ struct SearchPassagesIntent: AppIntent {
     @Parameter(title: "Search", description: "Words or a question to match")
     var query: String
 
-    @Parameter(title: "Limit", description: "The most passages to return", default: 5, inclusiveRange: (1, 20))
+    @Parameter(title: "Limit", description: "The most passages to return, at most 20", default: 5, inclusiveRange: (1, 20))
     var limit: Int
 
     static var parameterSummary: some ParameterSummary {
@@ -34,12 +34,22 @@ struct SearchPassagesIntent: AppIntent {
         }
     }
 
+    /// The most passages one run hands back. The parameter's range stops at it in the editor, but a
+    /// shortcut can pass a number from another step, so the run clamps it as well.
+    static let maxPassages = 20
+
+    /// A requested limit held to 1...`maxPassages`.
+    static func clampedLimit(_ requested: Int) -> Int {
+        min(max(requested, 1), maxPassages)
+    }
+
     func perform() async throws -> some IntentResult & ReturnsValue<[OIPassageEntity]> & ProvidesDialog {
         let wanted = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !wanted.isEmpty else {
             throw $query.needsValueError("What should I search for?")
         }
-        Log.info("[Shortcuts] Find Passages invoked (queryChars=\(wanted.count), limit=\(limit))", category: .pipeline)
+        let cap = Self.clampedLimit(self.limit)
+        Log.info("[Shortcuts] Find Passages invoked (queryChars=\(wanted.count), limit=\(cap))", category: .pipeline)
 
         let engine = await MainActor.run { IntentSupport.engine() }
         let documentCount = await MainActor.run { engine.documents.count }
@@ -49,12 +59,12 @@ struct SearchPassagesIntent: AppIntent {
 
         let chunks: [RetrievedChunk]
         do {
-            chunks = try await engine.searchDocumentsRaw(query: wanted, topK: limit)
+            chunks = try await engine.searchDocumentsRaw(query: wanted, topK: cap)
         } catch {
             throw OIIntentError("The search did not finish: \(error.localizedDescription)")
         }
 
-        let passages = OIPassageEntity.handedOut(Array(chunks.prefix(limit)))
+        let passages = OIPassageEntity.handedOut(Array(chunks.prefix(cap)))
         let dialog: IntentDialog =
             passages.isEmpty
             ? "No passages matched."

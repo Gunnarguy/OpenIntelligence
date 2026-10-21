@@ -74,4 +74,24 @@ final class SpotlightItemsTests: XCTestCase {
         XCTAssertEqual(SpotlightIndexService.passageTitle(documentName: "Notes.txt", pageNumber: nil), "Notes.txt")
         XCTAssertEqual(SpotlightIndexService.passageTitle(documentName: "Notes.txt", pageNumber: 0), "Notes.txt")
     }
+
+    /// A document's entry keeps the identifier a tap is routed by, never expires and sits in its library's domain (5.7).
+    func testADocumentsEntryKeepsItsIdentifierAndNeverExpires() {
+        let document = OIDocumentEntity(id: UUID(), filename: "Lease.pdf", totalChunks: 4, libraryName: "Home")
+        let item = SpotlightIndexService.documentItem(document, domain: "oi.docs.home")
+        XCTAssertEqual(item.uniqueIdentifier, "document-\(document.id.uuidString)")
+        XCTAssertEqual(item.domainIdentifier, "oi.docs.home")
+        XCTAssertEqual(item.expirationDate, .distantFuture)
+        XCTAssertEqual(item.attributeSet.title, "Lease.pdf")
+        XCTAssertEqual(AppLink.destination(forSpotlightIdentifier: item.uniqueIdentifier), .document(document.id))
+    }
+
+    /// Find Passages never hands back more than 20, whatever number a shortcut passes in.
+    func testFindPassagesHoldsItsLimitToTwenty() {
+        XCTAssertEqual(SearchPassagesIntent.clampedLimit(500), 20)
+        XCTAssertEqual(SearchPassagesIntent.clampedLimit(20), 20)
+        XCTAssertEqual(SearchPassagesIntent.clampedLimit(5), 5)
+        XCTAssertEqual(SearchPassagesIntent.clampedLimit(0), 1)
+        XCTAssertEqual(SearchPassagesIntent.clampedLimit(-3), 1)
+    }
 }

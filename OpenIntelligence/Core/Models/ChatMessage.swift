@@ -8,7 +8,12 @@
 import Foundation
 
 struct ChatMessage: Identifiable, Codable, Sendable {
+    /// The fewest passages a saved answer keeps. An answer whose labels go past it keeps every passage up to its
+    /// highest label (5.7): through 5.6 it kept the first 12, so after a relaunch a tap on [S13] opened nothing and
+    /// Copy left that label out of its source list.
     nonisolated private static let maxPersistedRetrievedChunks = 12
+    /// A bound on what one saved answer can hold, so a stray "S900" in an answer cannot save hundreds of passages.
+    nonisolated private static let maxPersistedCitedChunks = 64
     nonisolated private static let maxPersistedChunkCharacters = 600
 
     let id: UUID
@@ -129,7 +134,8 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     nonisolated private func sanitizedRetrievedChunks() -> [RetrievedChunk]? {
         guard let retrievedChunks, !retrievedChunks.isEmpty else { return nil }
 
-        return Array(retrievedChunks.prefix(Self.maxPersistedRetrievedChunks)).map { chunk in
+        let keep = Self.persistedChunkCount(content: content, available: retrievedChunks.count)
+        return Array(retrievedChunks.prefix(keep)).map { chunk in
             let sanitizedChunk = DocumentChunk(
                 id: chunk.chunk.id,
                 documentId: chunk.chunk.documentId,
@@ -148,6 +154,28 @@ struct ChatMessage: Identifiable, Codable, Sendable {
                 pageNumber: chunk.pageNumber
             )
         }
+    }
+
+    /// How many of an answer's passages are saved: at least the first 12, and every one up to the highest [Sn]
+    /// label the answer's text cites, bounded by `maxPersistedCitedChunks` and by what the answer has. A label
+    /// counts in any of the forms the app writes: "[S13]", "[S2, S13]", "[S2, 13]", "(S13)".
+    nonisolated static func persistedChunkCount(content: String, available: Int) -> Int {
+        var highest = 0
+        // A marker as answers write it ("[S1]", "[S1, S2]", "[S1, 2]", "(S15)"), then every number inside it.
+        if let marker = try? NSRegularExpression(pattern: #"[\[(]S\d{1,4}(?:\s*[,;]\s*S?\d{1,4})*[\])]"#),
+            let number = try? NSRegularExpression(pattern: #"\d{1,4}"#)
+        {
+            let range = NSRange(content.startIndex..., in: content)
+            for match in marker.matches(in: content, range: range) {
+                for found in number.matches(in: content, range: match.range) {
+                    if let r = Range(found.range, in: content), let n = Int(content[r]) {
+                        highest = max(highest, n)
+                    }
+                }
+            }
+        }
+        let wanted = max(maxPersistedRetrievedChunks, min(highest, maxPersistedCitedChunks))
+        return min(wanted, available)
     }
 
     nonisolated private static func truncated(_ value: String, maxLength: Int) -> String {

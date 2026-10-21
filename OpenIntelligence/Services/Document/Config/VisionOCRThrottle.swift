@@ -116,18 +116,18 @@ nonisolated private let gpuCooldownSeconds: TimeInterval = {
 ///
 /// Unlike DispatchSemaphore, this doesn't block threads - it suspends tasks cooperatively.
 private actor AsyncVisionSemaphore {
-    private var availableSlots: Int
+    private var inFlight = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
-    init(maxConcurrent: Int) {
-        self.availableSlots = maxConcurrent
-    }
+    /// The limit is read at every acquire and release, so a Mac that heats up lowers it for the next operation
+    /// without restarting the throttle. Operations already running finish.
+    init() {}
 
     /// Acquire a slot, suspending if none available
     /// Swift's runtime propagates the caller's priority to the actor
     func acquire() async {
-        if availableSlots > 0 {
-            availableSlots -= 1
+        if inFlight < currentVisionConcurrencyLimit() {
+            inFlight += 1
             return
         }
 
@@ -140,23 +140,33 @@ private actor AsyncVisionSemaphore {
 
     /// Release a slot, waking the next waiter if any
     func release() {
-        if let waiter = waiters.first {
-            waiters.removeFirst()
-            waiter.resume()
-        } else {
-            availableSlots += 1
+        inFlight -= 1
+        // Hand the slot on only while there is room under the current limit, which may have dropped.
+        if !waiters.isEmpty, inFlight < currentVisionConcurrencyLimit() {
+            inFlight += 1
+            waiters.removeFirst().resume()
         }
     }
 
     /// Current state for debugging
-    var debugState: (available: Int, waiting: Int) {
-        (availableSlots, waiters.count)
+    var debugState: (inFlight: Int, waiting: Int) {
+        (inFlight, waiters.count)
     }
 }
 
 /// Global async semaphore for Vision operations
 /// Uses actor isolation for proper Swift Concurrency integration
-nonisolated private let asyncVisionSemaphore = AsyncVisionSemaphore(maxConcurrent: maxConcurrentVisionOps)
+nonisolated private let asyncVisionSemaphore = AsyncVisionSemaphore()
+
+/// The ceiling for the next Vision operation. On a Mac it follows `ProcessInfo.thermalState`, because the chip
+/// alone cannot tell a fanless MacBook Air from a MacBook Pro; elsewhere it is the fixed ceiling.
+nonisolated private func currentVisionConcurrencyLimit() -> Int {
+    guard isRunningOnMac else { return maxConcurrentVisionOps }
+    return DeviceCapabilityService.thermallyLimitedVisionConcurrency(
+        ceiling: maxConcurrentVisionOps,
+        thermalState: ProcessInfo.processInfo.thermalState
+    )
+}
 
 /// Dedicated high-priority queue for legacy synchronous Vision operations.
 ///
@@ -180,6 +190,9 @@ enum VisionOCRThrottle {
     nonisolated private static func executeSyncOperation<T>(_ operation: @escaping () throws -> T) -> Result<T, Error> {
         let cooldown = gpuCooldownSeconds
         var result: Result<T, Error>?
+
+        // Applies to operations queued from here on; ones already running finish.
+        syncVisionOperationQueue.maxConcurrentOperationCount = currentVisionConcurrencyLimit()
 
         syncVisionOperationQueue.addOperations([
             BlockOperation {

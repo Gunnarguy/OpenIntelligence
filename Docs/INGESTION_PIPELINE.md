@@ -1109,6 +1109,18 @@ the pages rendered and recognised at once; its mode names the profile the import
 ProcessingSummary, ProcessingSummaryView.swift, IngestionQueueOverlay.swift, IngestionLiveActivityService.swift,
 DeviceCapabilityService.swift migrateGPUExecutionProfile; not yet seen on a device]`
 
+### Vision concurrency on a Mac follows the thermal state *(added 2026-10-21, for 5.7)*
+
+`VisionOCRThrottle`'s async semaphore reads its limit at every acquire and release instead of fixing it at
+launch. On a Mac the limit is `DeviceCapabilityService.thermallyLimitedVisionConcurrency`: the chip's ceiling at
+`.nominal`, half of it (at least 2) at `.fair`, 2 at `.serious` and 1 at `.critical`; the synchronous queue's
+`maxConcurrentOperationCount` is set from the same value before each use. No public API says whether a Mac has a
+fan, and a fanless MacBook Air ran its Vision work at 100% CPU against 400% over a five-hour import at the old fixed
+ceiling. iPhone and iPad keep the fixed ceiling. Operations already running finish; the limit applies to the next.
+`[evidence_level: test_verified (VisionThermalLimitTests), not run on a fanless Mac, confidence: medium,
+evidence_source: VisionOCRThrottle.swift AsyncVisionSemaphore, currentVisionConcurrencyLimit;
+DeviceCapabilityService.swift thermallyLimitedVisionConcurrency]`
+
 ### Pause, text left by an unfinished import, and text set sideways *(added 2026-10-14, for 5.7)*
 
 **Pause.** The import queue has a Pause button while an import runs (`RAGService.pauseIngestionQueue`).

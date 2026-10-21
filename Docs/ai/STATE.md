@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-10-21, about 11:30 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
+Updated: 2026-10-21, about 13:30 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
 iPhone, iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout, level with `origin/main`
 Last verified commit: 15b908a plus this session's commit (the planless route fix and the Settings heading style)
@@ -73,6 +73,13 @@ only on his phone or Mac.
 
 ## Verification (2026-10-21, output read)
 
+- About 13:20, the S-row fixes (Private Cloud Compute copy, claim coverage fallback, saved answers keep cited passages,
+  Find Passages clamp, Mac Vision thermal limit, real-speech test, `@rpath` install name, trace footer): full suite on the
+  build before the last edits -> `Executed 1356 tests, with 8 tests skipped and 1 failure` (GlossaryTests: the new
+  Private Cloud Compute entry ran 376 characters against 360); after shortening it and the reviewer's fixes,
+  `build-for-testing` -> `XCODEBUILD_EXIT=0` and GlossaryTests, ClaimCoverageFallbackTests, SavedAnswerPassagesTests,
+  VersionHistoryTests, SpotlightItemsTests, WhatsNewCoverageTests -> `Executed 38 tests, with 0 failures`.
+  `verify_doc_claims.py`, `codemap.py check` (0 errors), `secret_scan.py` clean.
 - About 11:00, on this session's tree (planless route fix, Settings headings): `build57.sh build-for-testing` ->
   `TEST BUILD SUCCEEDED`, 0 errors, no warning in the changed files; full `test-without-building` -> `Executed 1341 tests,
   with 7 tests skipped and 1 failure`, the one being VersionHistoryTests (the bundled `VersionHistory.md` had not been
@@ -111,8 +118,18 @@ only on his phone or Mac.
 
 ## Exact Next Action
 
-Take the next open v5.7 row that a Simulator check can close. First candidate: row `40049a74d54f814eadbace9c62d87ef9`
-("Summarize my lease" put the Lisbon itinerary's flight table first, scored 0.980, To Do). It needs a demo simulator
-again: the A17 was deleted at 10:31 (see Working Set), so make one (iPhone 15 Pro, iOS 27.0), run
-`~/.agents/oi-robot/scripts/demo_from_tree.sh <udid>` and `setup_demo_device.sh <udid>`, import the household set,
-then `testHouseholdLongMode` with `TEST_RUNNER_OI_Q="Summarize my lease."` and read the trace's candidate ranking.
+Run the device session with him: `~/.agents/data/openintelligence-5.7-closeout/device-checklist-2026-10-21.md` sorts the 98
+In Progress v5.7 rows (65 iPhone, 16 Mac, 3 App Store Connect, 3 need engineering, 11 unclear), fastest first. After each
+group he does, copy the trace off the phone (`xcrun devicectl device copy from --device 00008140-001130DA1863C01C
+--domain-type appDataContainer --domain-identifier Gunndamental.OpenIntelligence --source Documents/pipeline_trace.log
+--destination <file>`; the phone has a development build, bundle version 150) and close the rows it proves. Rebuild to the
+phone first so it carries this afternoon's commit (`~/.agents/oi-robot/scripts/builddevice.sh <log>`, then `devicectl
+device install app`). Then the S-row fixes need their own closes: `SpeechTranscriptionTests` on the iPhone (skips in the
+Simulator; also proves the `@rpath` install-name change), a fanless-Mac import for the thermal limit.
+
+Decisions waiting for him: the Spotlight document tap (dropping the app item opens the document but cuts its Siri and
+Apple Intelligence link; row `3ff49a74d54f81fea954d76ff336595e`); the OCR render-scale patch, deferred unmeasured to
+`~/.agents/data/openintelligence-5.7-closeout/deferred-5.8/`; clearing the 519 iCloud conflict copies his phone's trace
+reports; whether the research To Do rows move to Future Backlog. Store notes (iOS ones at 4,038 characters, Apple's limit
+believed 4,000, unconfirmed) and the in-app What's New (one list for both platforms, 15 items, last edited 2026-10-15) are
+written once, at the end, from the final changelog.
