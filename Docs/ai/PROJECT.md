@@ -1,5 +1,11 @@
 # Project
 
+Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress), where "In scope"
+disagreed with the code or left out what it does: which Office files fail, what the vector index is, the
+weighted fusion, the defaults a new install starts with for Private Cloud Compute, and the three answer
+modes, with a pointer to `Docs/HOW_IT_WORKS.md` section 07 for the loop. Line numbers are that tree's, with
+`RAGService.swift` re-pinned to the file as it stood at 22:27 PDT, and they will move.
+
 ## Purpose
 
 Ask questions of your own documents and get answers that cite the excerpt they came from, without
@@ -24,10 +30,41 @@ developers, and product copy is read by people who will not check the source.
   scope**: modern iWork stores content as compressed protobuf in `Index/*.iwa`, no Apple API
   exposes it, and `extractTextFromIWorkDocument` throws on every such file by construction. The
   picker still offers them so the failure is reachable and explained rather than hidden.
+  Corrected 2026-10-20: "Office files" means `.docx`, `.xlsx` and `.pptx`, read from their zipped XML. A
+  legacy `.doc`, `.xls` or `.ppt` does not open as a ZIP, and its import fails with "Office document
+  detected. For best results, export as PDF before importing." `[evidence_level: code_verified,
+  confidence: high, evidence_source: DocumentProcessor.swift:9389-9487, 10015-10020, 10118-10119]`
 - On-device indexing: dense vectors plus a SQLite FTS5 keyword index.
+  Corrected 2026-10-20: the vectors are 384 numbers a passage from MiniLM-L6-v2 (512 from `NLEmbedding`
+  when it stands in), kept in one flat file per library in arrival order, rewritten whole at each save, and
+  searched by comparing the question with every vector, not through an approximate index such as HNSW. The keyword index stems words
+  (porter) and weights section titles. `Docs/INGESTION_PIPELINE.md` §4 has the detail. `[evidence_level:
+  code_verified, confidence: high, evidence_source: CoreMLSentenceEmbeddingProvider.swift:66,
+  EmbeddingService.swift:181-213, BNNSVectorDatabase.swift:26-41, 1104-1201, SQLiteFullTextService.swift:242-255,
+  1440-1461]`
 - Hybrid retrieval with reciprocal rank fusion and cross-encoder reranking.
+  Added 2026-10-20: the fusion is weighted, with `k = 60`. `[evidence_level: code_verified, confidence:
+  exact, evidence_source: HybridSearchService.swift:1328-1334, QueryProfileService.swift:49-52]`
 - Answers with tappable citations back to the source excerpt.
 - Optional final-answer generation on Apple Private Cloud Compute, with consent.
+  Corrected 2026-10-20: a new install starts with the route Hybrid and the PCC permission "Ask when
+  needed", so the first question the route planner sends to PCC brings up the consent sheet (Always Allow,
+  Just Once, Deny), and after Always Allow later sends are not asked about. PCC needs iOS or macOS 27, a
+  build made with Swift 6.4 or later, the app's entitlement, and quota left. `[evidence_level:
+  code_verified, confidence: high, evidence_source: SettingsStore.swift:44-50, 450-462, LLMModel.swift:218,
+  264-268, ChatScreen.swift:3172-3190, RAGService.swift:4391-4440, FoundationModelSessionFactory.swift:86-110]`
+- Three answer modes (added 2026-10-20): Standard, the default for a new install, gathers its evidence in
+  one pipeline and writes the answer in one generation, with at most a citation retry and an integrity repair
+  on the same route. The nine verification gates then run once and never send the answer back to the model:
+  Standard can withhold an answer they score low, and a lookup whose gates failed, unless the extracted-value
+  override already replaced its answer, then gets the source-only check, two on-device calls that can rewrite
+  or withhold it. Deep Think and Maximum search with several phrasings and, when what they find grades
+  excellent or good, read it over several sessions, on the device unless the person picked PCC in the model
+  picker, before a final synthesis, with no tools in any session. They run the gates from 5.7, as a label only
+  (in 5.6 those answers read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop and its stop rules.
+  `[evidence_level: code_verified, confidence: high, evidence_source: SettingsStore.swift:617-624,
+  RAGService.swift:11588, 11239-11263, 16274-16392, 16571-16834, 16870-16894, 19500-19525,
+  AgenticOrchestrator.swift:339, 544-1143, 5313, 9228-9240]`
 - iCloud sync of the document library across a user's own devices.
 - Siri Shortcuts and App Intents.
 - Paid tiers with quotas.
