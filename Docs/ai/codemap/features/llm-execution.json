@@ -266,7 +266,7 @@
    "kind": "function",
    "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
    "line": 8904,
-   "match": "func generateWithFreshSession(prompt: String, maxTokens: Int) async throws -> LLMResponse {",
+   "match": "func generateWithFreshSession(prompt: String, maxTokens: Int, skipContinuation: Bool = false) async throws -> LLMResponse {",
    "status": "VERIFIED",
    "by": "build"
   },
