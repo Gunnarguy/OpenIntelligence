@@ -218,6 +218,8 @@ another session's build saturating every core. So it is the machine, not the app
 attempt, after shutting the simulator down, booting it and waiting for `xcrun simctl bootstatus <UDID> -b`, ran the
 whole suite each of the three times the first attempt failed this way.
 
+**Import tests refused with "Document quota reached" (2026-10-20).** The hosted tests run in the test simulator's copy of the app, on its free plan of five documents, and documents an earlier run left there count. That evening a library the opt-in `AnswerQualityEvaluationTests` had made held five, so the four tests that had imported a note by the time the run was stopped (the Add to Library test in `ImportTargetLibraryTests` and three in `ShortcutsActionTests`) each waited out their minute and failed. Before reading an import test's failure into a code change, run `grep -c 'Document quota reached' <log>`. `xcrun simctl uninstall <test UDID> Gunndamental.OpenIntelligence` removes the app's copy and everything in it, and the next run installs it again; the rerun that evening ran 1,324 tests with 7 skipped and 0 failures (the seventh skip is the silent-audio test, which skips on a freshly installed app). *Recorded.*
+
 ### The actions through the system: the UI-testing target *(added 2026-10-14)*
 
 `OpenIntelligenceUITests` has its own scheme, so the commands above are unchanged. It runs actions the
