@@ -10329,15 +10329,40 @@ extension DocumentProcessor {
         return url
     }
 
+    /// The key an import's checkpoints are kept under: the file's name, its size and the bytes at its start and its end
+    /// (5.7). Through 5.6 it was the file's path and modification date, which change when the queued copy is staged
+    /// again, so on the owner's iPhone (2026-10-21) an app update in the middle of a 913-page PDF changed the key and
+    /// the 248 pages already read were read again from page 1. The bytes are read through `FileHandle`, at most 2 MB.
+    /// A file that cannot be read falls back to the old key, so it still gets a directory of its own.
     func computeDocumentFingerprint(at url: URL) -> String {
         let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
         let size = (attrs?[.size] as? Int64) ?? 0
-        let date = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let path = url.path
-        let key = "\(path)_\(size)_\(date)"
-        let data = Data(key.utf8)
-        let hash = SHA256.hash(data: data)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
+        var hasher = SHA256()
+        hasher.update(data: Data("\(url.lastPathComponent)_\(size)".utf8))
+        if let sample = Self.fingerprintSample(of: url, size: size) {
+            hasher.update(data: sample)
+        } else {
+            let date = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            hasher.update(data: Data("\(url.path)_\(date)".utf8))
+        }
+        return hasher.finalize().compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    /// The first and last megabyte of a file (the whole file when it is under 2 MB), or nil when it cannot be read.
+    nonisolated static func fingerprintSample(of url: URL, size: Int64) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        let window: Int64 = 1_048_576
+        guard var sample = try? handle.read(upToCount: Int(min(size, window))) else { return nil }
+        if size > window * 2 {
+            guard (try? handle.seek(toOffset: UInt64(size - window))) != nil,
+                let tail = try? handle.read(upToCount: Int(window))
+            else { return nil }
+            sample.append(tail)
+        } else if size > window, let rest = try? handle.readToEnd() {
+            sample.append(rest)
+        }
+        return sample
     }
 
     /// Clean up any checkpoint files for the given document URL

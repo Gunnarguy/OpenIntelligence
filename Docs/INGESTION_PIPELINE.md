@@ -1009,6 +1009,13 @@ PDFKit's Hebrew order, probes on macOS 27 the same day); confidence: high for th
 - Each page's intermediate `PageParseResult` is serialized to a Codable JSON format.
 - Ingestion state and progress are tracked in a session-level `ingestion_state.json` file inside the checkpoints folder:
   `localCacheDir()/IngestionCheckpoints/<docFingerprint>/ingestion_state.json`
+- `<docFingerprint>` is a SHA-256 of the file's name, its size and its first and last megabyte
+  (`DocumentProcessor.computeDocumentFingerprint`, `fingerprintSample`), *changed 2026-10-21 for 5.7*. It was the
+  file's path and modification date, which change when the queued copy is staged again: on the owner's iPhone an app
+  update during a 913-page PDF changed the key (`0732812…` to `146c02f…` in the trace) and the 248 pages already read
+  were read again from page 1. A file that cannot be read keeps the old key. `[evidence_level: test_verified
+  (CheckpointFingerprintTests), measured (the owner's trace, 2026-10-21) for the defect, not yet re-run on the iPhone,
+  confidence: high]`
 - This state file persists a stable `documentId` (ensuring chunks are indexed under the same ID on resume), `lastCompletedPage` index, and accumulated counts (chunks, words, chars).
 - If the queue is paused or the app restarts mid-ingest:
   1. The engine restores the stable `documentId` and counts from `ingestion_state.json`.
