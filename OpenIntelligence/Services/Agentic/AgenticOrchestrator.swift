@@ -1289,7 +1289,10 @@ final class AgenticOrchestrator: Sendable {
                 Output ONLY the new query phrase, nothing else .
             """
 
-        let response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 128)
+        // A search phrase has no closing full stop, so continuation took it for a cut-off sentence and asked for more,
+        // which came back as "... in this libraryusing document specificationswithin this library" on the owner's
+        // iPhone (Deep Think, 2026-10-21). A query is one line; nothing is continued (5.7).
+        let response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 128, skipContinuation: true)
         let reformulated = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Validate it's actually different and reasonable
@@ -9120,7 +9123,7 @@ extension RAGService {
 
     /// Generate with a fresh session (no accumulated context)
     /// Used by AgenticOrchestrator for each thinking step
-    func generateWithFreshSession(prompt: String, maxTokens: Int) async throws -> LLMResponse {
+    func generateWithFreshSession(prompt: String, maxTokens: Int, skipContinuation: Bool = false) async throws -> LLMResponse {
         try Task.checkCancellation()
         #if canImport(FoundationModels)
             // Create a temporary AppleFoundationLLMService for isolated generation
@@ -9140,6 +9143,7 @@ extension RAGService {
             // final post-retrieval synthesis may be selected for PCC.
             config.executionContext = .onDeviceOnly
             config.allowPrivateCloudCompute = false
+            config.skipContinuation = skipContinuation
 
             return try await tempService.generate(
                 prompt: prompt,

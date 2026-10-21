@@ -760,6 +760,17 @@ actor VerificationGateService {
     ///   - response: The LLM-generated response text
     ///   - chunks: Retrieved source chunks with abbreviation metadata
     /// - Returns: Gate result with confidence reflecting abbreviation faithfulness
+    /// The words at the end of an expansion whose first letters spell the abbreviation, or the whole expansion when
+    /// they do not: "Incidence Curves Showing Mild Cognitive Impairment" for MCI is "Mild Cognitive Impairment".
+    nonisolated static func acronymTail(of expansion: String, abbreviation: String) -> String {
+        let letters = Array(abbreviation.lowercased().filter(\.isLetter))
+        let words = expansion.split(whereSeparator: { $0.isWhitespace || $0 == "-" }).map(String.init)
+        guard !letters.isEmpty, words.count >= letters.count else { return expansion }
+        let tail = Array(words.suffix(letters.count))
+        let initials = tail.compactMap { $0.lowercased().first(where: \.isLetter) }
+        return initials == letters ? tail.joined(separator: " ") : expansion
+    }
+
     private func runGateF(response: String, chunks: [RetrievedChunk]) -> RAGVerificationResult.GateResult {
 
         // Step 1: Collect all abbreviation definitions from source chunks
@@ -820,10 +831,16 @@ actor VerificationGateService {
 
             checkedCount += 1
 
-            // Compare: do the response's expansion words match the source's expansion words?
-            let responseWords = Set(responseExpansion.split(separator: " ").map { String($0).lowercased() }
+            // Compare: do the response's expansion words match the source's expansion words? Each side is cut to the
+            // words whose initials spell the abbreviation (`acronymTail`, 5.7): a figure caption "Incidence Curves
+            // Showing Mild Cognitive Impairment (MCI)" and an answer's "with incident mild cognitive impairment (MCI)"
+            // both expand MCI as "mild cognitive impairment", and the words before it failed a correct answer on the
+            // owner's iPhone (Deep Think, 2026-10-21).
+            let responseWords = Set(Self.acronymTail(of: responseExpansion, abbreviation: abbr)
+                .split(separator: " ").map { String($0).lowercased() }
                 .filter { $0.count > 2 })
-            let sourceWords = Set(sourceExpansion.lowercased().split(separator: " ").map { String($0) }
+            let sourceWords = Set(Self.acronymTail(of: sourceExpansion, abbreviation: abbr).lowercased()
+                .split(separator: " ").map { String($0) }
                 .filter { $0.count > 2 })
 
             // Calculate Jaccard similarity between expansion word sets

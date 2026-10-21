@@ -158,7 +158,11 @@ struct PageComplexityAnalysis: Sendable {
 
 /// The brain of adaptive OCR - must accurately classify every page type
 /// Uses multiple detection methods for maximum accuracy
-final class PageComplexityAnalyzer: @unchecked Sendable {
+///
+/// `nonisolated` (5.7): the module's default isolation is the main actor, so without it every analysis, Vision text
+/// detection included, ran on the main thread. On the owner's iPhone (Instruments, 2026-10-21) `analyzeBatch` held the
+/// main thread for 1.62 and 0.57 s at the start of a small PDF import.
+nonisolated final class PageComplexityAnalyzer: @unchecked Sendable {
 
     /// Shared instance for document processing
     static let shared = PageComplexityAnalyzer()
@@ -203,7 +207,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
     ///   - pageNumber: 1-based page number for logging
     ///   - pageImage: Optional pre-rendered image (reuses if available)
     /// - Returns: Comprehensive complexity analysis
-    func analyze(page: PDFPage, pageNumber: Int, pageImage: CIImage? = nil) async -> PageComplexityAnalysis {
+    @concurrent func analyze(page: PDFPage, pageNumber: Int, pageImage: CIImage? = nil) async -> PageComplexityAnalysis {
         let startTime = Date()
 
         // Get page dimensions
@@ -364,7 +368,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
     }
 
     /// Batch analyze multiple pages concurrently
-    func analyzeBatch(pages: [(PDFPage, Int)]) async -> [PageComplexityAnalysis] {
+    @concurrent func analyzeBatch(pages: [(PDFPage, Int)]) async -> [PageComplexityAnalysis] {
         await withTaskGroup(of: (Int, PageComplexityAnalysis).self) { group in
             for (page, pageNumber) in pages {
                 group.addTask {

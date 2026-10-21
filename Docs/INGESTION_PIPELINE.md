@@ -1116,6 +1116,15 @@ the pages rendered and recognised at once; its mode names the profile the import
 ProcessingSummary, ProcessingSummaryView.swift, IngestionQueueOverlay.swift, IngestionLiveActivityService.swift,
 DeviceCapabilityService.swift migrateGPUExecutionProfile; not yet seen on a device]`
 
+### Page analysis and the embedding model's mode switch run off the main thread *(added 2026-10-21, for 5.7)*
+
+`PageComplexityAnalyzer` is `nonisolated` and its `analyze` and `analyzeBatch` are `@concurrent`; it had taken the
+module's default main-actor isolation, so Vision text detection for the complexity pre-scan ran on the main thread
+(1.62 and 0.57 s hangs at the start of an import on the owner's iPhone, Instruments, 2026-10-21). The embedding
+provider's ingestion mode (`CoreMLSentenceEmbeddingProvider.enableIngestionMode`, `disableIngestionMode`) now records
+the compute units it wants, and the model is reloaded on the next embed, off the main thread; the reload had held the
+main thread for 2.36 s. `[evidence_level: measured (the hangs), test_verified (IngestionModeSwitchTests), confidence: high]`
+
 ### Vision concurrency on a Mac follows the thermal state *(added 2026-10-21, for 5.7)*
 
 `VisionOCRThrottle`'s async semaphore reads its limit at every acquire and release instead of fixing it at

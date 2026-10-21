@@ -51,4 +51,23 @@ final class ClaimCoverageFallbackTests: XCTestCase {
     func testPronounsDoNotCountAsContentWords() {
         XCTAssertEqual(VerificationGateService.contentWordTerms(in: "You should pay them which rent"), ["pay", "rent"])
     }
+
+    /// Gate F compares only the words that spell the abbreviation (5.7): a caption "Incidence Curves Showing Mild
+    /// Cognitive Impairment (MCI)" failed an answer's correct "mild cognitive impairment (MCI)".
+    func testAcronymTailKeepsTheWordsThatSpellTheAbbreviation() {
+        XCTAssertEqual(
+            VerificationGateService.acronymTail(
+                of: "Incidence Curves Showing Mild Cognitive Impairment", abbreviation: "MCI"),
+            "Mild Cognitive Impairment")
+        XCTAssertEqual(
+            VerificationGateService.acronymTail(of: "with incident mild cognitive impairment", abbreviation: "MCI"),
+            "mild cognitive impairment")
+        XCTAssertEqual(
+            VerificationGateService.acronymTail(of: "Montreal Cognitive Index", abbreviation: "MCI"),
+            "Montreal Cognitive Index")
+        XCTAssertEqual(
+            VerificationGateService.acronymTail(of: "a test of retrieval", abbreviation: "RAG"),
+            "a test of retrieval", "no tail spells it, so the whole expansion is kept")
+    }
 }
+

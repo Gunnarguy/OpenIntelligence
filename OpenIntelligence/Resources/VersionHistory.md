@@ -170,6 +170,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **Private Cloud Compute always asks first.**  A question typed to a library with no documents yet could go to Private Cloud Compute without asking you: with Hybrid when it was too long for your device, and every time with Private Cloud Compute picked in the model picker, even after you'd said Don't Allow.  Now it stays on your device.
 - **Fact Check no longer waves through sentences it couldn't read.**  When the app couldn't pick out the key words of a sentence in an answer, it counted that sentence as backed by your documents without comparing anything.  That happened most in languages like Greek.  Now it checks the sentence's ordinary words against your documents instead.
 - **A saved answer opens every source it cites.**  A saved conversation kept only an answer's first 12 sources, so after you reopened the app a tap on [S13] or later opened nothing, and Copy left those out.  Now it keeps every source the answer cites.
+- **Fact Check no longer fails an answer over a figure caption.**  A Deep Think comparison of two papers was marked unverified because the check read a figure's caption as the definition of "MCI".  The same question now passes.
 
 ### Settings
 - **The Database tab speaks plainly.**  It led with "SQLite FTS5" and showed storage internals to everyone, and a card said searches were "100X" faster than a method the app no longer has, which nobody had measured.  Now it says what the keyword index does in plain words, the speed figures are gone, and the storage details are there with Technical Details on.  Rebuild Index says what it rebuilds too: the whole-document index, not the one that answers your questions.
@@ -199,6 +200,7 @@ This one's about getting things in and out of the app.  JSON and JSONL files imp
 - **The app eases off when iOS asks.** iOS 27 can tell apps to use less when the device is under pressure.  When it does, an import leaves a short gap between batches and Deep Think and Maximum leave a second between steps.  The answer isn't cut short.  It takes a little longer.
 - **Long imports stay steadier on a Mac that runs warm.**  On the Mac, text recognition now eases off when the Mac heats up, instead of running flat out until a fanless MacBook Air throttles.
 - **The app answers your taps right after you open it.**  For the first several seconds after opening, the app could freeze while it checked your iCloud libraries.  On my iPhone that was three freezes, about 6.7 seconds in total.  The check now runs in the background, and the first screen also draws faster.
+- **Starting an import doesn't freeze the app.**  When an import began, the app could stop responding for two to four seconds while it got the search model and the page reader ready.  That work now happens in the background.
 
 ## v5.6 - October 8, 2026
 

@@ -98,6 +98,15 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         /// Set once a load has been attempted, successfully or not, so a missing or corrupt model
         /// is not re-read from disk on every embed call.
         private var modelLoadAttempted = false
+
+        /// The compute units `model` was loaded with, and the ones the next `loadedModel()` should switch it to.
+        ///
+        /// An ingestion-mode switch only records what it wants (5.7); the reload happens in `loadedModel()`, on the
+        /// next embed, which runs off the main thread. The switch is called from `RAGService.addDocument` on the main
+        /// actor, and reloading this 43 MiB model there held the main thread for 2.36 s at the start of an import on
+        /// the owner's iPhone (Instruments, 2026-10-21).
+        private var loadedComputeUnits: MLComputeUnits?
+        private var wantedComputeUnits: MLComputeUnits?
     #endif
 
     private var tokenizer: Tokenizer?
@@ -138,17 +147,11 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         guard !isIngestionMode else { return }
         isIngestionMode = true
         #if canImport(CoreML)
-            // Same lock as the lazy load, so a mode switch cannot race a first embed.
+            // Same lock as the lazy load, so a mode switch cannot race a first embed. Nothing loads here.
             modelLock.lock()
             defer { modelLock.unlock() }
-            modelLoadAttempted = true
-            if let reloaded = Self.makeModel(computeUnits: DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion) {
-                model = reloaded
-                Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (ANE freed for Vision)", category: .embedding)
-            } else {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to reload model for ingestion", category: .embedding)
-                isIngestionMode = false
-            }
+            wantedComputeUnits = DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion
+            Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (the model switches on the next embed)", category: .embedding)
         #endif
     }
 
@@ -161,13 +164,9 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
             // Only restore a model that was actually loaded. If nothing has embedded yet there is
             // nothing to restore, and loading 43 MiB here would reintroduce the cost this change
             // exists to remove, on a path the user cannot see.
-            guard model != nil else { return }
-            if let restored = Self.makeModel(computeUnits: DeviceCapabilityService.shared.preferredComputeUnits) {
-                model = restored
-                Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF → restored default compute units", category: .embedding)
-            } else {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to restore default model", category: .embedding)
-            }
+            guard model != nil || wantedComputeUnits != nil else { return }
+            wantedComputeUnits = DeviceCapabilityService.shared.preferredComputeUnits
+            Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF (default compute units on the next embed)", category: .embedding)
         #endif
     }
 
@@ -184,11 +183,26 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         modelLock.lock()
         defer { modelLock.unlock() }
 
+        if let wanted = wantedComputeUnits {
+            wantedComputeUnits = nil
+            if model == nil || loadedComputeUnits != wanted {
+                if let reloaded = Self.makeModel(computeUnits: wanted) {
+                    model = reloaded
+                    loadedComputeUnits = wanted
+                    modelLoadAttempted = true
+                    Log.info("[CoreMLSentenceEmbeddingProvider] Model loaded for compute units \(wanted.rawValue)", category: .embedding)
+                } else {
+                    Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load the model for compute units \(wanted.rawValue); keeping the one loaded", category: .embedding)
+                }
+            }
+        }
         if let model { return model }
         if modelLoadAttempted { return nil }
         modelLoadAttempted = true
 
-        model = Self.makeModel(computeUnits: DeviceCapabilityService.shared.preferredComputeUnits)
+        let units = DeviceCapabilityService.shared.preferredComputeUnits
+        model = Self.makeModel(computeUnits: units)
+        if model != nil { loadedComputeUnits = units }
         return model
     }
 
