@@ -17159,10 +17159,15 @@ class RAGService: ObservableObject {
                     title: "Generating answer",
                     detail: llmService.modelName
                 )
+                // A library with no documents gives the library's tools nothing to find, so they are not handed to
+                // the model here (5.7): their descriptions took part of the window, and a call could only come back
+                // empty (found by the PostDesk session's code trace, 2026-10-21).
+                var noDocumentsConfig = inferenceConfig
+                noDocumentsConfig.disableTools = true
                 let llmResponse = try await generateWithFallback(
                     prompt: question,
                     context: nil,  // No document context
-                    config: inferenceConfig,
+                    config: noDocumentsConfig,
                     sourceChunks: []
                 )
 

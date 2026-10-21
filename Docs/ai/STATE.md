@@ -3,7 +3,7 @@
 Updated: 2026-10-21, about 06:15 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
 iPhone, iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 780d801
+Last verified commit: c1e3147
 
 Earlier detail is in git: `git show 1e379aa:Docs/ai/STATE.md` (late on 2026-10-20) and the copies it names; the long
 record through 2026-10-10 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -21,7 +21,7 @@ only on his phone or Mac.
 
 | What | Where it stands |
 |---|---|
-| Last commit | The one that contains this file, after `780d801` (the PostDesk session's canonical docs pass, checked and pushed): the placeholder `AppleEvaluationsBridge` deleted and `Docs/EVALS.md` describing the two Evaluations suites; before it `cbc3e48` (`AnswerQualityEvaluationTests`, 0.3 correct over 20 cases) and `0b2174b` (engine badges, "Vocabulary", the whole-passage trace line). |
+| Last commit | The one that contains this file, after `c1e3147`: a question to a library with no documents is answered with the library's tools off (the PostDesk session's note 3). Before it: `c1e3147` (the placeholder `AppleEvaluationsBridge` deleted, `Docs/EVALS.md` corrected), `780d801` (the PostDesk session's canonical docs pass, checked and pushed), `cbc3e48` (`AnswerQualityEvaluationTests`, 0.3 correct over 20 cases), `0b2174b` (engine badges, "Vocabulary", the whole-passage trace line). |
 | Before it | `fa80e71` (labels in reading order; the rank-2 fix in the assembler, the graph packer and the rescue; Private Cloud Compute envelope order; Deep Think evidence on Private Cloud Compute; two Device & Performance cards), `1e379aa`, and the PostDesk session's doc commits through `11c07db`. |
 | Rows | Closed 2026-10-21: `40049a74d54f8113bb46eb9888627861` (label numbering) and `40049a74d54f81f4b04ae5141899c808` (rank 2 cut; trace lines "keeps candidates [1, 3, 5, 6, 4, 2] of 6" and "[1, 3, ..., 4, 2] of 17"). Filed: `40049a74d54f814eadbace9c62d87ef9` ("Summarize my lease" put the Lisbon itinerary's flight table first, scored 0.980; To Do). `40049a74d54f81f3964fc8a7a0792cd5` (Deep Think steps without evidence on Private Cloud Compute): In Progress, closes on his device. `40049a74d54f81e0bd99fa0e5f5e4186` (saved answers keep 12 passages): To Do, needs `ChatMessage.swift`. `3fe49a74d54f81ce84a1f0b59e2e1ec7` (Settings jargon): open; the last item is one title style per level (next action). |
 | Native Surfaces Catalogue | Version 28 at https://claude.ai/artifact/Thu24syf3CbVtpwhjAm4mJ (118 rows, 24 seen working). Source: the session scratchpad's `Native-Surfaces-Catalogue.html`; read the live one first if that is gone. |
