@@ -69,7 +69,7 @@ struct TelemetryDashboardView: View {
         VStack(spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "line.3.horizontal.decrease.circle")
-                    .foregroundStyle(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text("Filter")
                     .font(.subheadline)
                     .fontWeight(.semibold)

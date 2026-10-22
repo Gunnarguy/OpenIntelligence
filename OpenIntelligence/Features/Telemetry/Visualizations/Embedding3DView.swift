@@ -1061,10 +1061,10 @@ struct EmbeddingSpaceRenderer: View {
         .frame(height: heroHeight)
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 12)
         .padding(.horizontal, heroHorizontalPadding)
-        .animation(DSAnimations.defaultSpring, value: focusMode)
-        .animation(DSAnimations.quick, value: showHUD)
-        .animation(DSAnimations.standard, value: isSearching)
-        .animation(DSAnimations.standard, value: hasSeenOnboarding)
+        .animation(DSAnimations.gentleSpring, value: focusMode)
+        .animation(DSAnimations.fastEase, value: showHUD)
+        .animation(DSAnimations.fastEase, value: isSearching)
+        .animation(DSAnimations.fastEase, value: hasSeenOnboarding)
     }
 
     // MARK: - Search & Help UI
@@ -1155,7 +1155,7 @@ struct EmbeddingSpaceRenderer: View {
             }
 
             Button {
-                withAnimation(DSAnimations.quick) { isSearching = false }
+                withAnimation(DSAnimations.fastEase) { isSearching = false }
                 searchQuery = ""
                 highlightedPointIndices = []
             } label: {
@@ -1184,7 +1184,7 @@ struct EmbeddingSpaceRenderer: View {
                 .foregroundStyle(.white)
 
             Button {
-                withAnimation(DSAnimations.standard) {
+                withAnimation(DSAnimations.fastEase) {
                     hasSeenOnboarding = true
                 }
             } label: {
@@ -1215,7 +1215,7 @@ struct EmbeddingSpaceRenderer: View {
                 Spacer()
 
                 Button {
-                    withAnimation(DSAnimations.quick) {
+                    withAnimation(DSAnimations.fastEase) {
                         showPointDetail = false
                         tappedPointIndex = nil
                     }
@@ -1816,7 +1816,7 @@ struct EmbeddingSpaceRenderer: View {
                     title: "HUD",
                     isActive: showHUD,
                     action: {
-                        withAnimation(DSAnimations.quick) {
+                        withAnimation(DSAnimations.fastEase) {
                             showHUD.toggle()
                         }
                     }
@@ -1827,7 +1827,7 @@ struct EmbeddingSpaceRenderer: View {
                     title: "Labels",
                     isActive: showClusterLabels,
                     action: {
-                        withAnimation(DSAnimations.quick) {
+                        withAnimation(DSAnimations.fastEase) {
                             showClusterLabels.toggle()
                             sceneReloadToken = UUID() // Force scene rebuild
                         }
@@ -1839,7 +1839,7 @@ struct EmbeddingSpaceRenderer: View {
                     title: "Focus",
                     isActive: focusMode,
                     action: {
-                        withAnimation(DSAnimations.defaultSpring) {
+                        withAnimation(DSAnimations.gentleSpring) {
                             focusMode.toggle()
                         }
                     }
@@ -1918,7 +1918,7 @@ struct EmbeddingSpaceRenderer: View {
                         title: "Search",
                         isActive: isSearching,
                         action: {
-                            withAnimation(DSAnimations.quick) {
+                            withAnimation(DSAnimations.fastEase) {
                                 isSearching.toggle()
                             }
                         }
@@ -1950,7 +1950,7 @@ struct EmbeddingSpaceRenderer: View {
                         title: "HUD",
                         isActive: showHUD,
                         action: {
-                            withAnimation(DSAnimations.quick) {
+                            withAnimation(DSAnimations.fastEase) {
                                 showHUD.toggle()
                             }
                         }
@@ -1961,7 +1961,7 @@ struct EmbeddingSpaceRenderer: View {
                         title: "Labels",
                         isActive: showClusterLabels,
                         action: {
-                            withAnimation(DSAnimations.quick) {
+                            withAnimation(DSAnimations.fastEase) {
                                 showClusterLabels.toggle()
                                 sceneReloadToken = UUID()
                             }
@@ -1973,7 +1973,7 @@ struct EmbeddingSpaceRenderer: View {
                         title: "Focus",
                         isActive: focusMode,
                         action: {
-                            withAnimation(DSAnimations.defaultSpring) {
+                            withAnimation(DSAnimations.gentleSpring) {
                                 focusMode.toggle()
                             }
                         }
@@ -2437,7 +2437,7 @@ struct EmbeddingSpaceRenderer: View {
                         )
                         .scaleEffect(depthScale(label.depthHint))
                         .opacity(depthOpacity(label.depthHint, score: label.score))
-                        .animation(DSAnimations.defaultSpring, value: label.id)
+                        .animation(DSAnimations.gentleSpring, value: label.id)
                         .transition(.scale.combined(with: .opacity))
                         .zIndex(Double(label.depthHint))
                 }
@@ -2474,7 +2474,7 @@ struct EmbeddingSpaceRenderer: View {
                     .shadow(color: label.accent.opacity(0.5), radius: 2, x: 0, y: 0)
 
                 Text(label.title)
-                    .font(.caption2.weight(.semibold).design(.rounded))
+                    .font(.system(.caption2, design: .rounded, weight: .semibold))
                     .lineLimit(1)
                     .foregroundStyle(.primary)
 
@@ -2483,7 +2483,7 @@ struct EmbeddingSpaceRenderer: View {
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                     Text(keyword)
-                        .font(.caption2.weight(.medium).design(.rounded))
+                        .font(.system(.caption2, design: .rounded, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

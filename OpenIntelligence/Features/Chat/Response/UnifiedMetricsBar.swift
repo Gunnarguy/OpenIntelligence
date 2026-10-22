@@ -2932,12 +2932,12 @@ struct UnifiedMetricsBar: View {
 
                     HStack(spacing: DSSpacing.sm) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                 .fill(Color.blue)
                                 .frame(width: geo.size.width * vectorWeight)
                         }
                         .frame(height: 8)
-                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
+                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
 
                         Text("\(Int(vectorWeight * 100))%")
                             .font(.system(.caption, design: .monospaced).weight(.bold))
@@ -2963,12 +2963,12 @@ struct UnifiedMetricsBar: View {
 
                     HStack(spacing: DSSpacing.sm) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                 .fill(Color.orange)
                                 .frame(width: geo.size.width * lexicalWeight)
                         }
                         .frame(height: 8)
-                        .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
+                        .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
 
                         Text("\(Int(lexicalWeight * 100))%")
                             .font(.system(.caption, design: .monospaced).weight(.bold))
@@ -3239,10 +3239,10 @@ struct UnifiedMetricsBar: View {
 
                             HStack(spacing: DSSpacing.xs) {
                                 ZStack(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                         .fill(Color.secondary.opacity(0.2))
                                         .frame(width: 70, height: 8)
-                                    RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                         .fill(contextColor)
                                         .frame(width: 70 * contextUsageRatio, height: 8)
                                 }
@@ -3412,12 +3412,12 @@ struct UnifiedMetricsBar: View {
 
                     // Visual bar
                     GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(Color.blue)
                             .frame(width: geo.size.width * vectorWeight)
                     }
                     .frame(height: 6)
-                    .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
+                    .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
 
                     Text("\(Int(vectorWeight * 100))% weight")
                         .font(.system(.caption2, design: .monospaced).weight(.medium))
@@ -3441,12 +3441,12 @@ struct UnifiedMetricsBar: View {
 
                     // Visual bar
                     GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(Color.orange)
                             .frame(width: geo.size.width * lexicalWeight)
                     }
                     .frame(height: 6)
-                    .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
+                    .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
 
                     Text("\(Int(lexicalWeight * 100))% weight")
                         .font(.system(.caption2, design: .monospaced).weight(.medium))
@@ -3746,9 +3746,9 @@ struct UnifiedMetricsBar: View {
                 // Mini progress bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(Color.secondary.opacity(0.2))
-                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(contextColor)
                             .frame(width: geo.size.width * contextUsageRatio)
                     }
@@ -4195,10 +4195,10 @@ struct UnifiedMetricsBar: View {
                 // Vector bar
                 GeometryReader { geo in
                     HStack(spacing: 0) {
-                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(Color.blue)
                             .frame(width: geo.size.width * vectorWeight)
-                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(Color.orange)
                             .frame(width: geo.size.width * lexicalWeight)
                     }

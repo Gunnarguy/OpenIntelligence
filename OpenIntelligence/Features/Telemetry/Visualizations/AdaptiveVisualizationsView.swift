@@ -1473,7 +1473,7 @@ struct RetrievalFlowView: View {
                     VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                         Text(String(format: "%.2f", chunk.avgSimilarity))
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                         Text("avg sim")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -2455,7 +2455,7 @@ struct Fullscreen3DAtlasView: View {
                             Spacer()
                             Text(String(format: "%.1fx", pointScale))
                                 .font(.caption.monospacedDigit())
-                                .foregroundStyle(.accentColor)
+                                .foregroundStyle(Color.accentColor)
                         }
 
                         Slider(value: $pointScale, in: 0.5 ... 2.0, step: 0.1)
