@@ -38,10 +38,10 @@ struct ThreadSidebarView: View {
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .imageScale(.large)
-                            .foregroundColor(.accentColor)
+                            .foregroundStyle(DSColors.accent)
                     }
                 }
-                .padding()
+                .padding(DSSpacing.lg)
                 .background(DSColors.surface)
                 
                 List {
@@ -52,11 +52,11 @@ struct ThreadSidebarView: View {
                             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                                 Text(thread.title)
                                     .font(.headline)
-                                    .foregroundColor(DSColors.primaryText)
+                                    .foregroundStyle(DSColors.primaryText)
                                     .lineLimit(1)
                                 Text(thread.updatedAt, style: .date)
                                     .font(DSTypography.caption)
-                                    .foregroundColor(DSColors.secondaryText)
+                                    .foregroundStyle(DSColors.secondaryText)
                             }
                             .padding(.vertical, DSSpacing.xs)
                         }
@@ -88,7 +88,7 @@ struct ThreadSidebarView: View {
             // Tap outside to dismiss
             Color.black.opacity(0.001)
                 .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(DSAnimations.snappySpring) {
                         isPresented = false
                     }
                 }
