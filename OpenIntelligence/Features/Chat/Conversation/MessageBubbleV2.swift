@@ -50,7 +50,7 @@ struct MessageBubbleV2: View {
 
     /// Responsive spacer: compact (iPhone) gets more content width, regular (iPad/Mac) keeps roomy margins
     private var bubbleSpacerMinLength: CGFloat {
-        horizontalSizeClass == .compact ? DSSpacing.xl : 60
+        horizontalSizeClass == .compact ? 24 : 60
     }
 
     init(
@@ -95,7 +95,7 @@ struct MessageBubbleV2: View {
     }
 
     var body: some View {
-        VStack(alignment: isUser ? .trailing : .leading, spacing: DSSpacing.xs) {
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
             // Main bubble with tap-to-reveal actions
             HStack(alignment: .bottom, spacing: 0) {
                 if isUser { Spacer(minLength: bubbleSpacerMinLength) }
@@ -111,10 +111,11 @@ struct MessageBubbleV2: View {
                         )
                     } else {
                         // Message content
+                        // 14 points at the default text size, scaled with Dynamic Type on iPhone and iPad (5.7).
                         MarkdownText(
                             message.content,
-                            font: .body,
-                            foregroundColor: DSColors.primaryText
+                            scaledSize: 14,
+                            foregroundColor: isUser ? .white : DSColors.primaryText
                         )
 
                         // Visual Evidence (if any)
@@ -123,16 +124,16 @@ struct MessageBubbleV2: View {
                                 metadata: visualEvidence.metadata,
                                 ocrText: visualEvidence.ocrText
                             )
-                            .padding(.vertical, DSSpacing.sm)
+                            .padding(.vertical, 8)
                         }
 
                         // Reasoning trace (expandable "show your work" section), with the technical view (5.7)
                         if showsTechnicalDetails, !displayedReasoningTrace.isEmpty {
                             Divider()
-                                .padding(.vertical, DSSpacing.sm)
+                                .padding(.vertical, 8)
 
                             Button {
-                                withAnimation(DSAnimations.snappySpring) {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     showReasoningTrace.toggle()
                                     if showReasoningTrace {
                                         DSHaptics.expand()
@@ -141,7 +142,7 @@ struct MessageBubbleV2: View {
                                     }
                                 }
                             } label: {
-                                HStack(spacing: DSSpacing.xs) {
+                                HStack(spacing: 6) {
                                     Image(systemName: showReasoningTrace ? "chevron.down" : "chevron.right")
                                         .scaledFont(size: 10, weight: .medium)
                                     
@@ -159,7 +160,6 @@ struct MessageBubbleV2: View {
                                         .scaledFont(size: 13, weight: .medium)
                                     Text("(\(displayedReasoningTrace.count) steps)")
                                         .scaledFont(size: 11)
-                                        .monospacedDigit()
                                         .foregroundStyle(DSColors.secondaryText)
                                     Spacer()
                                 }
@@ -168,7 +168,7 @@ struct MessageBubbleV2: View {
                             .buttonStyle(.plain)
 
                             if showReasoningTrace {
-                                VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                                VStack(alignment: .leading, spacing: 10) {
                                     ForEach(Array(displayedReasoningTrace.enumerated()), id: \.offset) { idx, step in
                                         ReasoningStepView(
                                             step: step,
@@ -177,30 +177,22 @@ struct MessageBubbleV2: View {
                                         )
                                     }
                                 }
-                                .padding(.top, DSSpacing.sm)
+                                .padding(.top, 8)
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                             }
                         }
                     }
                 }
-                .padding(.horizontal, isUser ? DSSpacing.lg : 0)
-                .padding(.vertical, isUser ? DSSpacing.md : DSSpacing.xs)
-                .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
                 .background(bubbleBackground)
-                .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
+                .clipShape(BubbleShape(isUser: isUser))
+                .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
                 .onTapGesture {
-                    withAnimation(DSAnimations.snappySpring) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                         showActions.toggle()
                         DSHaptics.soft()
                     }
-                }
-                .onHover { hovering in
-                    withAnimation(DSAnimations.fastEase) {
-                        showActions = hovering
-                    }
-                }
-                .contextMenu {
-                    messageContextMenu
                 }
 
                 if !isUser { Spacer(minLength: bubbleSpacerMinLength) }
@@ -236,7 +228,7 @@ struct MessageBubbleV2: View {
 
             // Timestamp and mode indicator - detailed metrics shown in header area
             if showMetadata, !showActions {
-                HStack(spacing: DSSpacing.xs) {
+                HStack(spacing: 6) {
                     if let descriptor = responseRouteBadge {
                         Button {
                             showDetails = true
@@ -251,7 +243,6 @@ struct MessageBubbleV2: View {
 
                     Text(relativeTime(message.timestamp))
                         .scaledFont(size: 10)
-                        .monospacedDigit()
                         .foregroundStyle(DSColors.secondaryText)
 
                     // Mode indicator for assistant messages: the mode chips and the tool count go with the
@@ -262,7 +253,7 @@ struct MessageBubbleV2: View {
                             EmptyView()
                         } else if meta.usedAgenticMode {
                             let isMaximum = meta.qualityModeName == "Maximum"
-                            HStack(spacing: DSSpacing.xxs) {
+                            HStack(spacing: 2) {
                                 Image(systemName: isMaximum ? "flame.fill" : "brain")
                                     .scaledFont(size: 8, weight: .medium)
                                 Text(isMaximum ? "Max" : "Deep")
@@ -270,13 +261,13 @@ struct MessageBubbleV2: View {
                             }
                             .foregroundStyle(isMaximum ? DSColors.readable(.orange) : DSColors.readable(.purple))
                         } else if meta.canGoDeeper {
-                            HStack(spacing: DSSpacing.xxs) {
+                            HStack(spacing: 2) {
                                 Image(systemName: "bolt")
                                     .scaledFont(size: 8, weight: .medium)
                                 Text("Standard")
                                     .scaledFont(size: 9, weight: .medium)
                             }
-                            .foregroundStyle(DSColors.readable(DSColors.accent))
+                            .foregroundStyle(DSColors.readable(.blue))
                         }
 
                         // Verification gate inline badge
@@ -290,7 +281,7 @@ struct MessageBubbleV2: View {
                         }
                     }
                 }
-                .padding(.horizontal, isUser ? 0 : DSSpacing.xs)
+.padding(.horizontal, isUser ? 0 : 4)
             }
 
             // Detailed metrics accessible via tap on message
@@ -330,97 +321,9 @@ struct MessageBubbleV2: View {
     }
 
     @ViewBuilder
-    private var messageContextMenu: some View {
-        if !isUser, message.metadata?.canGoDeeper == true, let onGoDeeper {
-            Button {
-                onGoDeeper()
-            } label: {
-                Label("Go Deeper", systemImage: "brain")
-            }
-        }
-
-        Button {
-            SystemClipboard.copy(AnswerShareFormatter.copyText(for: message))
-            DSHaptics.copy()
-        } label: {
-            Label("Copy", systemImage: "doc.on.doc")
-        }
-
-        if !isUser, let onRegenerate {
-            Button {
-                onRegenerate()
-            } label: {
-                Label("Retry", systemImage: "arrow.clockwise")
-            }
-        }
-
-        if !isUser, message.metadata != nil {
-            Button {
-                showDetails = true
-            } label: {
-                Label("Details", systemImage: "info.circle")
-            }
-        }
-
-        if !isUser, message.pipelineTrace != nil || message.metadata != nil {
-            Button {
-                exportPipelineTrace()
-            } label: {
-                Label("Trace", systemImage: "doc.text.magnifyingglass")
-            }
-        }
-
-        Button {
-            shareMessage()
-        } label: {
-            Label("Share", systemImage: "square.and.arrow.up")
-        }
-
-        if !isUser {
-            Button {
-                shareMessageAsImage()
-            } label: {
-                Label("Image", systemImage: "photo")
-            }
-        }
-
-        if !isUser, let onTranslate {
-            Button {
-                onTranslate(message.content)
-            } label: {
-                Label("Translate", systemImage: "translate")
-            }
-        }
-
-        if !isUser, let onIllustrate {
-            Button {
-                onIllustrate(message.content)
-            } label: {
-                Label("Illustrate", systemImage: "photo.on.rectangle.angled")
-            }
-        }
-
-        if !isUser {
-            Divider()
-
-            Button {
-                toggleHidden()
-            } label: {
-                Label(message.isHidden ? "Unhide" : "Hide", systemImage: message.isHidden ? "eye" : "eye.slash")
-            }
-
-            Button(role: .destructive) {
-                showReportSheet = true
-            } label: {
-                Label("Report", systemImage: "flag")
-            }
-        }
-    }
-
-    @ViewBuilder
     private var hiddenMessageView: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            HStack(spacing: DSSpacing.xs) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
                 Image(systemName: "eye.slash")
                     .scaledFont(size: 12, weight: .semibold)
                 Text("Message hidden")
@@ -436,9 +339,13 @@ struct MessageBubbleV2: View {
     @ViewBuilder
     private var bubbleBackground: some View {
         if isUser {
-            DSColors.surfaceElevated
+            LinearGradient(
+                colors: [DSColors.accent, DSColors.accent.opacity(0.85)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         } else {
-            Color.clear
+            DSColors.surface
         }
     }
 
@@ -500,7 +407,7 @@ struct MessageBubbleV2: View {
         // A hidden answer leaves the "Your Library" widget too (5.7, `WidgetSnapshot`).
         if message.isHidden { WidgetSnapshot.forgetAnswer(messageId: message.id) }
         DSHaptics.selection()
-        withAnimation(DSAnimations.snappySpring) {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
             showActions = false
         }
     }
@@ -545,7 +452,7 @@ struct MessageBubbleV2: View {
         DSHaptics.success()
         sharePayload = SharePayload(items: [reportText])
 
-        withAnimation(DSAnimations.snappySpring) {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
             showActions = false
         }
     }
@@ -642,7 +549,7 @@ private struct ResponseRouteBadge: View {
     private var color: Color {
         switch descriptor.kind {
         case .onDevice: return .green
-        case .privateCloudCompute: return DSColors.accent
+        case .privateCloudCompute: return .blue
         case .onDeviceFallback: return .orange
         }
     }
@@ -658,12 +565,42 @@ private struct ResponseRouteBadge: View {
         }
             .scaledFont(size: 9, weight: .semibold)
             .foregroundStyle(DSColors.primaryText)
-            .padding(.horizontal, DSSpacing.sm)
-            .padding(.vertical, DSSpacing.xxs)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
             .background(color.opacity(0.13), in: Capsule())
             .overlay(Capsule().stroke(color.opacity(0.25), lineWidth: 0.5))
             .accessibilityLabel("Answer generated by \(descriptor.spokenTitle)")
             .accessibilityHint("Opens routing details")
+    }
+}
+
+// MARK: - Bubble Shape
+
+// Custom bubble shape with tail
+private struct BubbleShape: Shape {
+    let isUser: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let radius: CGFloat = 18
+        let tailSize: CGFloat = 6
+
+        var path = Path()
+
+        if isUser {
+            path.addRoundedRect(
+                in: CGRect(x: 0, y: 0, width: rect.width - tailSize / 2, height: rect.height),
+                cornerSize: CGSize(width: radius, height: radius),
+                style: .continuous
+            )
+        } else {
+            path.addRoundedRect(
+                in: CGRect(x: tailSize / 2, y: 0, width: rect.width - tailSize / 2, height: rect.height),
+                cornerSize: CGSize(width: radius, height: radius),
+                style: .continuous
+            )
+        }
+
+        return path
     }
 }
 
@@ -676,7 +613,7 @@ private struct ReasoningStepView: View {
     let modeName: String?
 
     var body: some View {
-        HStack(alignment: .top, spacing: DSSpacing.sm) {
+        HStack(alignment: .top, spacing: 10) {
             VStack(spacing: 0) {
                 // The step's color in its dot; its name in the label color, because green words measured under 4.5
                 // to 1 even in Apple's high-contrast green (5.7).
@@ -688,9 +625,9 @@ private struct ReasoningStepView: View {
                     .fill(stepColor.opacity(0.1))
                     .frame(width: 2)
             }
-            .padding(.top, DSSpacing.xs)
+            .padding(.top, 4)
 
-            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            VStack(alignment: .leading, spacing: 4) {
                 let parts = step.components(separatedBy: ": ")
                 let label = parts.first ?? "Step \(index + 1)"
                 let content = parts.count > 1 ? parts.dropFirst().joined(separator: ": ") : step
@@ -706,7 +643,7 @@ private struct ReasoningStepView: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.bottom, DSSpacing.sm)
+            .padding(.bottom, 8)
         }
     }
 
@@ -717,9 +654,9 @@ private struct ReasoningStepView: View {
         }
         
         switch index {
-        case 0: return DSColors.accent
-        case 1: return .purple
-        default: return .green
+        case 0: return .blue      // Analyzing
+        case 1: return .purple    // Patterns
+        default: return .green    // Synthesis/Other
         }
     }
 }
@@ -739,7 +676,7 @@ private struct VerificationBadge: View {
     var body: some View {
         // The words in the label color and the status color in the icon and the tint, as on the other tinted
         // chips (5.7).
-        HStack(spacing: DSSpacing.xxs) {
+        HStack(spacing: 3) {
             Image(systemName: status.icon)
                 .scaledFont(size: 8, weight: .bold)
                 .foregroundStyle(DSColors.readable(status.color))
@@ -747,8 +684,8 @@ private struct VerificationBadge: View {
                 .scaledFont(size: 10, weight: .medium)
         }
         .foregroundStyle(DSColors.primaryText)
-        .padding(.horizontal, DSSpacing.xs)
-        .padding(.vertical, DSSpacing.xxs)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill(status.color.opacity(0.12))
@@ -789,7 +726,7 @@ private struct VerificationBadge: View {
         var color: Color {
             switch self {
             case .verified: return .green
-            case .partiallyVerified: return .orange
+            case .partiallyVerified: return .yellow
             case .lowConfidence: return .orange
             case .unverified: return .red
             case .noSources: return .secondary
@@ -814,10 +751,10 @@ private struct VerificationBadge: View {
 }
 
 #Preview {
-    VStack(spacing: DSSpacing.lg) {
+    VStack(spacing: 16) {
         MessageBubbleV2(message: .constant(ChatMessage(role: .user, content: "What's in my documents about machine learning?")))
         MessageBubbleV2(message: .constant(ChatMessage(role: .assistant, content: "Based on your documents, I found several references to machine learning concepts including neural networks, gradient descent, and backpropagation.")))
     }
-    .padding(DSSpacing.lg)
+    .padding()
     .background(DSColors.background)
 }

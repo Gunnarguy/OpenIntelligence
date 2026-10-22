@@ -279,6 +279,9 @@ struct UnifiedMetricsBar: View {
             // Row 1: Primary metrics - adapts per mode. The mode's badges at the leading edge and the answer's figures
             // with the chevron at the trailing edge, each group going onto further lines when it does not fit: across
             // one line, up to eight fixed-size badges ran past the screen at the larger text sizes (5.7).
+            // The chevron has its own place at the top trailing corner (5.7): inside the wrapping row it moved with
+            // every badge's width and could land on the next line or over the detail text (owner, 2026-10-22).
+            HStack(alignment: .top, spacing: DSSpacing.xs) {
             WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs, lastAtTrailingEdge: true) {
                 WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
                     // 1. QUALITY MODE BADGE - Distinct per mode
@@ -318,14 +321,16 @@ struct UnifiedMetricsBar: View {
                     if currentThermal == .serious || currentThermal == .critical {
                         systemStateBadge
                     }
-
-                    // Expand chevron
-                    Image(systemName: showExpandedDetails ? "chevron.up.circle.fill" : "chevron.down.circle")
-                        .scaledFont(size: 12, weight: .medium)
-                        .foregroundStyle(DSColors.secondaryText)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Expand chevron
+                Image(systemName: showExpandedDetails ? "chevron.up.circle.fill" : "chevron.down.circle")
+                    .scaledFont(size: 12, weight: .medium)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .padding(.top, DSSpacing.xxs)
+            }
 
             // Row 2: Mode-specific detail row
             modeSpecificDetailRow

@@ -57,13 +57,13 @@ struct MessageActionsBar: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DSSpacing.xxs) {
+            HStack(spacing: 2) {
                 // "Go Deeper" button for single-pass responses that could benefit from agentic mode
                 if !isUser, canGoDeeper, let onGoDeeper {
                     ActionButton(
                         icon: "brain",
                         label: "Go Deeper",
-                        color: DSColors.readable(.purple)
+                        color: .purple
                     ) {
                         onGoDeeper()
                     }
@@ -75,7 +75,7 @@ struct MessageActionsBar: View {
                         ActionButton(
                             icon: feedbackSubmitted == true ? "hand.thumbsup.fill" : "hand.thumbsup",
                             label: "Good",
-                            color: feedbackSubmitted == true ? DSColors.readable(.green) : .secondary
+                            color: feedbackSubmitted == true ? .green : .secondary
                         ) {
                             feedbackSubmitted = true
                             onThumbsUp()
@@ -87,7 +87,7 @@ struct MessageActionsBar: View {
                         ActionButton(
                             icon: feedbackSubmitted == false ? "hand.thumbsdown.fill" : "hand.thumbsdown",
                             label: "Bad",
-                            color: feedbackSubmitted == false ? DSColors.readable(.red) : .secondary
+                            color: feedbackSubmitted == false ? .red : .secondary
                         ) {
                             feedbackSubmitted = false
                             onThumbsDown()
@@ -100,28 +100,28 @@ struct MessageActionsBar: View {
                 ActionButton(
                     icon: copiedFeedback ? "checkmark" : "doc.on.doc",
                     label: copiedFeedback ? "Copied" : "Copy",
-                    color: copiedFeedback ? DSColors.readable(.green) : .secondary
+                    color: copiedFeedback ? .green : .secondary
                 ) {
                     copyToClipboard()
                 }
 
                 // Regenerate (assistant only)
                 if !isUser, let onRegenerate {
-                    ActionButton(icon: "arrow.clockwise", label: "Retry", color: .secondary) {
+                    ActionButton(icon: "arrow.clockwise", label: "Retry", color: .orange) {
                         onRegenerate()
                     }
                 }
 
                 // Details (assistant only, if has metadata)
                 if !isUser, message.metadata != nil, let onShowDetails {
-                    ActionButton(icon: "info.circle", label: "Details", color: .secondary) {
+                    ActionButton(icon: "info.circle", label: "Details", color: .blue) {
                         onShowDetails()
                     }
                 }
 
                 // Export Trace (assistant only, if has pipeline trace or metadata)
                 if !isUser, (message.pipelineTrace != nil || message.metadata != nil), let onExportTrace {
-                    ActionButton(icon: "doc.text.magnifyingglass", label: "Trace", color: .secondary) {
+                    ActionButton(icon: "doc.text.magnifyingglass", label: "Trace", color: .cyan) {
                         onExportTrace()
                     }
                 }
@@ -139,41 +139,41 @@ struct MessageActionsBar: View {
 
                 // Report (assistant only)
                 if !isUser, let onReport {
-                    ActionButton(icon: "flag", label: "Report", color: DSColors.readable(.red)) {
+                    ActionButton(icon: "flag", label: "Report", color: .red) {
                         onReport()
                     }
                 }
 
                 // Share
                 if let onShare {
-                    ActionButton(icon: "square.and.arrow.up", label: "Share", color: .secondary) {
+                    ActionButton(icon: "square.and.arrow.up", label: "Share", color: .purple) {
                         onShare()
                     }
                 }
 
                 // Share as a picture (assistant only)
                 if !isUser, let onShareImage {
-                    ActionButton(icon: "photo", label: "Image", color: .secondary) {
+                    ActionButton(icon: "photo", label: "Image", color: .purple) {
                         onShareImage()
                     }
                 }
 
                 // Translate (assistant only)
                 if !isUser, let onTranslate {
-                    ActionButton(icon: "translate", label: "Translate", color: .secondary) {
+                    ActionButton(icon: "translate", label: "Translate", color: .cyan) {
                         onTranslate()
                     }
                 }
 
                 // Illustrate (assistant only)
                 if !isUser, let onIllustrate {
-                    ActionButton(icon: "photo.on.rectangle.angled", label: "Illustrate", color: .secondary) {
+                    ActionButton(icon: "photo.on.rectangle.angled", label: "Illustrate", color: .mint) {
                         onIllustrate()
                     }
                 }
             }
-            .padding(.horizontal, DSSpacing.sm)
-            .padding(.vertical, DSSpacing.xs)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
         }
         .scrollClipDisabled()
         .background(
@@ -209,14 +209,14 @@ private struct ActionButton: View {
             DSHaptics.selection()
             action()
         }) {
-            VStack(spacing: DSSpacing.xxs) {
+            VStack(spacing: 2) {
                 Image(systemName: icon)
-                    .scaledFont(size: 14, weight: .medium)
+                    .font(.system(size: 14, weight: .medium))
                 Text(label)
-                    .scaledFont(size: 9, weight: .medium)
+                    .font(.system(size: 9, weight: .medium))
             }
             .foregroundStyle(color)
-            .frame(minWidth: 50, minHeight: DSSpacing.tapTarget)
+            .frame(width: 50, height: 40)
             .contentShape(Rectangle())
         }
         .buttonStyle(ActionButtonStyle())
@@ -228,7 +228,7 @@ private struct ActionButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
             .opacity(configuration.isPressed ? 0.7 : 1.0)
-            .animation(DSAnimations.fastEase, value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
@@ -240,33 +240,33 @@ struct MessageMetadataPanel: View {
     @State private var expanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+        VStack(alignment: .leading, spacing: 8) {
             // Header row - always visible
             Button {
-                withAnimation(DSAnimations.snappySpring) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     expanded.toggle()
                 }
             } label: {
-                HStack(spacing: DSSpacing.sm) {
+                HStack(spacing: 8) {
                     Image(systemName: "chart.bar.doc.horizontal")
-                        .scaledFont(size: 11, weight: .semibold)
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DSColors.accent)
 
                     Text("Response Metrics")
-                        .scaledFont(size: 12, weight: .semibold)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(DSColors.primaryText)
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .scaledFont(size: 10, weight: .semibold)
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(Color.secondary)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                 }
-                .padding(.horizontal, DSSpacing.md)
-                .padding(.vertical, DSSpacing.sm)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(DSColors.accent.opacity(0.08))
                 )
             }
@@ -276,33 +276,33 @@ struct MessageMetadataPanel: View {
             if expanded {
                 VStack(spacing: 0) {
                     MetricRow(label: "Model", value: metadata.modelUsed, icon: "cpu")
-                    Divider().padding(.horizontal, DSSpacing.md)
+                    Divider().padding(.horizontal, 12)
                     MetricRow(label: "TTFT", value: formatTTFT(metadata.timeToFirstToken), icon: "bolt")
-                    Divider().padding(.horizontal, DSSpacing.md)
+                    Divider().padding(.horizontal, 12)
                     MetricRow(label: "Total Time", value: String(format: "%.2fs", metadata.totalGenerationTime), icon: "clock")
-                    Divider().padding(.horizontal, DSSpacing.md)
+                    Divider().padding(.horizontal, 12)
                     MetricRow(label: "Tokens", value: "\(metadata.tokensGenerated)", icon: "textformat.123")
                     if let tps = metadata.tokensPerSecond {
-                        Divider().padding(.horizontal, DSSpacing.md)
+                        Divider().padding(.horizontal, 12)
                         MetricRow(label: "Speed", value: String(format: "%.1f tok/s", tps), icon: "speedometer")
                     }
-                    Divider().padding(.horizontal, DSSpacing.md)
+                    Divider().padding(.horizontal, 12)
                     MetricRow(label: "Retrieval", value: String(format: "%.0fms", metadata.retrievalTime * 1000), icon: "magnifyingglass")
                     if let chunks = chunks, !chunks.isEmpty {
-                        Divider().padding(.horizontal, DSSpacing.md)
+                        Divider().padding(.horizontal, 12)
                         MetricRow(label: "Sources", value: "\(chunks.count) chunks", icon: "doc.text")
                     }
                     if metadata.isHighAccuracyMode {
-                        Divider().padding(.horizontal, DSSpacing.md)
-                        MetricRow(label: "Retrieval", value: metadata.retrievalConfigSummary, icon: "slider.horizontal.3", valueColor: DSColors.readable(.purple))
+                        Divider().padding(.horizontal, 12)
+                        MetricRow(label: "Retrieval", value: metadata.retrievalConfigSummary, icon: "slider.horizontal.3", valueColor: .purple)
                     }
                     if let tools = metadata.toolCallsMade, tools > 0 {
-                        Divider().padding(.horizontal, DSSpacing.md)
+                        Divider().padding(.horizontal, 12)
                         MetricRow(label: "Tool Calls", value: "\(tools)", icon: "wrench.and.screwdriver")
                     }
                 }
                 .background(
-                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(DSColors.surface)
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -326,25 +326,24 @@ private struct MetricRow: View {
     var valueColor: Color = DSColors.primaryText
 
     var body: some View {
-        HStack(spacing: DSSpacing.sm) {
+        HStack(spacing: 10) {
             Image(systemName: icon)
-                .scaledFont(size: 11, weight: .medium)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.secondary)
                 .frame(width: 16)
 
             Text(label)
-                .scaledFont(size: 12, weight: .medium)
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.secondary)
 
             Spacer()
 
             Text(value)
-                .scaledFont(size: 12, weight: .semibold, design: .monospaced)
-                .monospacedDigit()
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(valueColor)
         }
-        .padding(.horizontal, DSSpacing.md)
-        .padding(.vertical, DSSpacing.sm)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }
 
