@@ -17,7 +17,7 @@ struct EmptyDocumentsView: View {
     let onPickFiles: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DSSpacing.lg) {
                 // Hero icon with liquid gradient
                 ZStack {
                     Circle()
@@ -35,7 +35,7 @@ struct EmptyDocumentsView: View {
                         .glassCircleEffectHelper()
 
                     Image(systemName: "doc.viewfinder.fill")
-                        .font(.system(size: 44, weight: .bold))
+                        .font(.largeTitle.weight(.bold))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
@@ -45,37 +45,36 @@ struct EmptyDocumentsView: View {
                         )
                         .shadow(color: Color.accentColor.opacity(0.2), radius: 8, x: 0, y: 3)
                 }
-                .padding(.top, 16)
+                .padding(.top, DSSpacing.lg)
 
-                VStack(spacing: 6) {
+                VStack(spacing: DSSpacing.xs) {
                     Text("No Documents Yet")
                         .font(.headline.weight(.bold))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
 
                     Text("Start with files that keep their structure")
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(DSColors.secondaryText)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, DSSpacing.xl)
                 }
 
                 if isAtDocumentLimit {
                     // The words in the label color and the orange in the icon and the tint, as on the other tinted
                     // chips (5.7): the readable orange on its own tint measured 4.43 to 1 on the Mac.
-                    HStack(spacing: 6) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(DSColors.readable(.orange))
                         Text("Limit of \(documentLimit) documents reached.")
                     }
-                    .font(.caption2.weight(.bold))
+                    .font(.caption2.weight(.semibold).monospacedDigit())
                     .foregroundStyle(DSColors.primaryText)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 }
 
-                VStack(spacing: 10) {
+                VStack(spacing: DSSpacing.sm) {
                     Button(action: {
                         DSHaptics.medium()
                         onPickFiles()
@@ -83,10 +82,10 @@ struct EmptyDocumentsView: View {
                         Label("Add Your Documents", systemImage: "tray.and.arrow.down")
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
+                            .padding(.vertical, DSSpacing.xs)
                     }
                     .buttonStyle(.borderedProminent)
-                    .cornerRadius(12)
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                     Button(action: {
                         DSHaptics.light()
@@ -96,7 +95,7 @@ struct EmptyDocumentsView: View {
                             if isImportingSamples {
                                 ProgressView()
                                     .scaleEffect(0.7)
-                                    .padding(.trailing, 2)
+                                    .padding(.trailing, DSSpacing.xxs)
                             }
                             // Primary text on the gray button: the button's own gray label "failed" the audit.
                             Text(hasImportedSamples ? "Re-import Samples" : "Import Sample Workspace")
@@ -104,7 +103,7 @@ struct EmptyDocumentsView: View {
                                 .foregroundStyle(DSColors.primaryText)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 3)
+                        .padding(.vertical, DSSpacing.xxs)
                     }
                     .buttonStyle(.bordered)
                     .tint(DSColors.primaryText)
@@ -116,10 +115,10 @@ struct EmptyDocumentsView: View {
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
-                .padding(.horizontal, 2)
+                .padding(.horizontal, DSSpacing.xxs)
 
                 // Features
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     DocumentFeatureRow(
                         icon: "doc.on.doc.fill",
                         title: "Multiple Formats",
@@ -138,25 +137,25 @@ struct EmptyDocumentsView: View {
                         description: "Content never leaves your device for processing"
                     )
                 }
-                .padding(16)
+                .padding(DSSpacing.lg)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .fill(.ultraThinMaterial)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
                 )
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DSSpacing.xs)
                 
                 Text("PDFs, DOCX/XLSX/PPTX, TXT/MD, CSV, images, and transcripts import cleanly. Legacy formats and dense scientific tables may need conversion first.")
                     .font(.caption2.weight(.medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(DSColors.secondaryText)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, DSSpacing.xl)
             }
             .frame(maxWidth: .infinity)
-            .padding(.bottom, 16)
+            .padding(.bottom, DSSpacing.lg)
     }
 }
 
@@ -166,19 +165,19 @@ struct DocumentFeatureRow: View {
     let description: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             ZStack {
                 Circle()
                     .fill(Color.accentColor.opacity(0.1))
                     .frame(width: 36, height: 36)
                 
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.accentColor)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
             }
             .glassCircleEffectHelper()
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(DSColors.primaryText)

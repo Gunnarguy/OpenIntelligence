@@ -71,16 +71,16 @@ struct VisualizationsView: View {
         Group {
             if activeDocuments.isEmpty {
                 EmptyVisualizationsView(onAddDocuments: onRequestAddDocuments)
-                    .padding(.top, 32)
+                    .padding(.top, DSSpacing.xxl)
             } else {
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: DSSpacing.xl) {
                         containerPicker
                         summaryCard
                         tabPicker
                         tabContent
                     }
-                    .padding(.vertical, 24)
+                    .padding(.vertical, DSSpacing.xl)
                 }
             }
         }
@@ -95,23 +95,23 @@ struct VisualizationsView: View {
     private var containerPicker: some View {
         if containerService.containers.count > 1 {
             ContainerPickerStrip(containerService: containerService)
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
         }
     }
 
     private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
+            HStack(alignment: .top, spacing: DSSpacing.md) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(activeContainerName)
                         .font(.headline)
                     Text(summaryLine)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                     if let updated = lastUpdatedDocumentsSummary {
                         Text(updated)
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -121,37 +121,37 @@ struct VisualizationsView: View {
                     Button(action: action) {
                         Label("Add Documents", systemImage: "plus")
                             .font(.caption)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Color.accentColor.opacity(0.15))
-                            .foregroundColor(.accentColor)
+                            .padding(.horizontal, DSSpacing.md)
+                            .padding(.vertical, DSSpacing.sm)
+                            .background(DSColors.accent.opacity(0.15))
+                            .foregroundStyle(DSColors.accent)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 StatCard(
                     icon: "doc.text",
                     label: "Documents",
                     value: "\(activeDocuments.count)",
-                    color: .blue
+                    color: DSColors.accent
                 )
 
                 StatCard(
                     icon: "cube.box",
                     label: "Chunks",
                     value: "\(totalChunkCount)",
-                    color: .purple
+                    color: DSColors.accent
                 )
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     private var summaryLine: String {
@@ -203,7 +203,7 @@ struct VisualizationsView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     @ViewBuilder
@@ -219,7 +219,7 @@ struct VisualizationsView: View {
     }
 
     private var overviewTab: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DSSpacing.xl) {
             ChunkDistributionView(
                 documents: activeDocuments,
                 chunkCount: totalChunkCount
@@ -235,7 +235,7 @@ struct VisualizationsView: View {
     }
 
     private var retrievalTab: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DSSpacing.xl) {
             embeddingSection
             RetrievalPatternsView(
                 totalChunkCount: totalChunkCount,
@@ -248,7 +248,7 @@ struct VisualizationsView: View {
     }
 
     private var clusteringTab: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DSSpacing.xl) {
             SemanticClusteringView()
         }
         .transition(.opacity.combined(with: .move(edge: .trailing)))
@@ -278,7 +278,7 @@ struct VisualizationsView: View {
 struct EmptyVisualizationsView: View {
     let onAddDocuments: (() -> Void)?
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DSSpacing.xl) {
             Spacer()
 
             // Hero icon with gradient
@@ -287,8 +287,8 @@ struct EmptyVisualizationsView: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.purple.opacity(0.2),
-                                Color.blue.opacity(0.1),
+                                DSColors.accent.opacity(0.2),
+                                DSColors.accent.opacity(0.08),
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -297,24 +297,18 @@ struct EmptyVisualizationsView: View {
                     .frame(width: 120, height: 120)
 
                 Image(systemName: "chart.xyaxis.line")
-                    .font(.system(size: 50))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.purple, Color.blue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .font(.largeTitle)
+                    .foregroundStyle(DSColors.accent.gradient)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 Text("No Data to Visualize")
                     .font(.title2)
                     .fontWeight(.bold)
 
                 Text("Add documents to see embedding visualizations")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
                 Button {
@@ -322,10 +316,10 @@ struct EmptyVisualizationsView: View {
                 } label: {
                     Label("Add Documents", systemImage: "plus")
                         .font(.subheadline)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.accentColor.opacity(0.15))
-                        .foregroundColor(.accentColor)
+                        .padding(.horizontal, DSSpacing.lg)
+                        .padding(.vertical, DSSpacing.sm)
+                        .background(DSColors.accent.opacity(0.15))
+                        .foregroundStyle(DSColors.accent)
                         .clipShape(Capsule())
                 }
             }
@@ -355,7 +349,7 @@ struct EmbeddingSpaceView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             header
             projectionPicker
             EmbeddingSpaceRenderer(
@@ -372,14 +366,14 @@ struct EmbeddingSpaceView: View {
 
     private var header: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Embedding Space")
                     .font(.title2)
                     .fontWeight(.bold)
 
                 Text("\(chunkCount) chunks translated into a map—dots that sit close together discuss similar ideas.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -388,10 +382,10 @@ struct EmbeddingSpaceView: View {
                 showingInfo = true
             } label: {
                 Image(systemName: "info.circle")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(DSColors.accent)
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     // Uses `embeddingDimension`, the value this view is already handed, rather than a
@@ -417,19 +411,19 @@ struct EmbeddingSpaceView: View {
                 explanation: "We flatten \(embeddingDimension)-number vectors into something you can see.\n\n• PCA: super fast overview of the biggest themes.\n• t-SNE: highlights tiny topic bubbles.\n• UMAP: balanced layout when your library mixes formats."
             )
         }
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     private var statsRow: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             EmbeddingLegendCard()
 
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 StatCard(
                     icon: "cube.box",
                     label: "Chunks",
                     value: "\(chunkCount)",
-                    color: .blue
+                    color: DSColors.accent
                 )
 
                 StatCard(
@@ -443,37 +437,37 @@ struct EmbeddingSpaceView: View {
                     icon: "ruler",
                     label: "Dimensions",
                     value: "\(embeddingDimension)",
-                    color: .purple
+                    color: DSColors.accent
                 )
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 }
 
 struct EmbeddingLegendCard: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "dot.radiowaves.left.and.right")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(DSColors.accent)
                 Text("How to read this map")
                     .font(.headline)
             }
 
             Text("Each dot is a document chunk. Neighbors share meaning, tone, or phrasing—spread apart points are unrelated topics.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 AxisRow(title: "X axis", detail: "Left ↔ Right shows the biggest difference our model detected (often topic vs. reference material).", color: .blue)
                 AxisRow(title: "Y axis", detail: "Up ↕ Down captures the second strongest pattern, like narrative vs. tables.", color: .green)
                 AxisRow(title: "Z axis", detail: "Depth adds nuance—tilt the scene with two fingers to reveal stacked subtopics.", color: .purple)
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.background)
         )
     }
@@ -484,19 +478,19 @@ struct EmbeddingLegendCard: View {
         let color: Color
 
         var body: some View {
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .top, spacing: DSSpacing.sm) {
                 Circle()
                     .fill(color.opacity(0.9))
                     .frame(width: 8, height: 8)
-                    .padding(.top, 5)
+                    .padding(.top, DSSpacing.xs)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(title)
                         .font(.caption)
                         .fontWeight(.semibold)
                     Text(detail)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -509,14 +503,14 @@ struct EmbeddingSpacePlaceholder: View {
     let documentCount: Int
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DSSpacing.lg) {
             // Chart placeholder
             ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.background)
                     .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
 
-                VStack(spacing: 16) {
+                VStack(spacing: DSSpacing.lg) {
                     // Simulated scatter plot
                     GeometryReader { _ in
                         Canvas { context, size in
@@ -525,33 +519,33 @@ struct EmbeddingSpacePlaceholder: View {
                         }
                     }
                     .frame(height: 300)
-                    .padding()
+                    .padding(DSSpacing.lg)
 
-                    VStack(spacing: 8) {
+                    VStack(spacing: DSSpacing.sm) {
                         Text("🔮 Embedding Atlas Integration")
                             .font(.headline)
 
                         Text("Future: Interactive visualization with Apple's Embedding Atlas")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.bottom, DSSpacing.lg)
 
                     EmbeddingLegendCard()
-                        .padding(.horizontal)
-                        .padding(.bottom)
+                        .padding(.horizontal, DSSpacing.lg)
+                        .padding(.bottom, DSSpacing.lg)
                 }
             }
 
             // Stats cards
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 StatCard(
                     icon: "cube.box",
                     label: "Chunks",
                     value: "\(chunkCount)",
-                    color: .blue
+                    color: DSColors.accent
                 )
 
                 StatCard(
@@ -565,7 +559,7 @@ struct EmbeddingSpacePlaceholder: View {
                     icon: "ruler",
                     label: "Dimensions",
                     value: "512",
-                    color: .purple
+                    color: DSColors.accent
                 )
             }
         }
@@ -611,11 +605,11 @@ struct ChunkDistributionView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             Text("Chunk Distribution")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // Chart
             if #available(iOS 16.0, *) {
@@ -625,32 +619,26 @@ struct ChunkDistributionView: View {
                             x: .value("Size", item.avgSize),
                             y: .value("Document", item.document)
                         )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .foregroundStyle(DSColors.accent.gradient)
                     }
                 }
                 .frame(height: CGFloat(documents.count * 50))
-                .padding()
+                .padding(DSSpacing.lg)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .fill(DSColors.background)
                         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
                 )
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
             }
 
             // Stats grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                 StatCard(
                     icon: "doc.text",
                     label: "Total Docs",
                     value: "\(documents.count)",
-                    color: .blue
+                    color: DSColors.accent
                 )
 
                 StatCard(
@@ -664,7 +652,7 @@ struct ChunkDistributionView: View {
                     icon: "chart.bar",
                     label: "Avg per Doc",
                     value: "\(documents.isEmpty ? 0 : chunkCount / documents.count)",
-                    color: .purple
+                    color: DSColors.accent
                 )
 
                 StatCard(
@@ -674,7 +662,7 @@ struct ChunkDistributionView: View {
                     color: .orange
                 )
             }
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
     }
 
@@ -751,7 +739,7 @@ struct AdvancedCorpusStatsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack {
                 Text("Corpus Analytics")
                     .font(.title2)
@@ -760,38 +748,38 @@ struct AdvancedCorpusStatsView: View {
                 Spacer()
 
                 Button {
-                    withAnimation(.spring(response: 0.3)) {
+                    withAnimation(DSAnimations.snappySpring) {
                         showNerdStats.toggle()
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: showNerdStats ? "chevron.up" : "chevron.down")
                         Text(showNerdStats ? "Hide Details" : "🤓 Nerd Mode")
                     }
                     .font(.caption)
-                    .foregroundColor(.purple)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.purple.opacity(0.12))
-                    .cornerRadius(8)
+                    .foregroundStyle(DSColors.accent)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(DSColors.accent.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
 
             // Quick stats row
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    CorpusQuickStat(icon: "character", label: "Characters", value: formatLargeNumber(totalCharacters), color: .blue)
+                HStack(spacing: DSSpacing.md) {
+                    CorpusQuickStat(icon: "character", label: "Characters", value: formatLargeNumber(totalCharacters), color: DSColors.accent)
                     CorpusQuickStat(icon: "text.word.spacing", label: "Est. Words", value: formatLargeNumber(totalWords), color: .green)
-                    CorpusQuickStat(icon: "doc.on.doc", label: "Avg Chunks/Doc", value: String(format: "%.1f", chunksPerDocStats.avg), color: .purple)
+                    CorpusQuickStat(icon: "doc.on.doc", label: "Avg Chunks/Doc", value: String(format: "%.1f", chunksPerDocStats.avg), color: DSColors.accent)
                     CorpusQuickStat(icon: "ruler", label: "Median Chunk", value: "\(chunkSizeStats.median) chars", color: .orange)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
             }
 
             if showNerdStats {
-                VStack(spacing: 16) {
+                VStack(spacing: DSSpacing.lg) {
                     // Document type breakdown
                     documentTypeSection
 
@@ -804,52 +792,52 @@ struct AdvancedCorpusStatsView: View {
                     // Data quality indicators
                     dataQualitySection
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
 
     private var documentTypeSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Image(systemName: "doc.badge.gearshape")
-                    .foregroundColor(.indigo)
+                    .foregroundStyle(DSColors.accent)
                 Text("Document Types")
                     .font(.headline)
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 ForEach(documentTypeBreakdown, id: \.type) { item in
-                    VStack(spacing: 4) {
+                    VStack(spacing: DSSpacing.xs) {
                         Text("\(item.count)")
-                            .font(.title3.bold())
+                            .font(.title3.bold().monospacedDigit())
                         Text(item.type)
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, DSSpacing.md)
                     .background(typeColor(item.type).opacity(0.12))
-                    .cornerRadius(10)
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                 }
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(14)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var chunkStatsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "chart.bar.doc.horizontal")
-                    .foregroundColor(.cyan)
+                    .foregroundStyle(DSColors.accent)
                 Text("Chunk Statistics")
                     .font(.headline)
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
                 NerdStatRow(label: "Min chunks/doc", value: "\(chunksPerDocStats.min)")
                 NerdStatRow(label: "Max chunks/doc", value: "\(chunksPerDocStats.max)")
                 NerdStatRow(label: "Std deviation", value: String(format: "%.2f", chunksPerDocStats.stdDev))
@@ -860,27 +848,27 @@ struct AdvancedCorpusStatsView: View {
                 NerdStatRow(label: "Tokens (est.)", value: formatLargeNumber(totalCharacters / 4))
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(14)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var temporalAnalysisSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "clock.badge.checkmark")
-                    .foregroundColor(.mint)
+                    .foregroundStyle(DSColors.accent)
                 Text("Temporal Analysis")
                     .font(.headline)
             }
 
             let timeStats = ingestionTimeStats
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 if let oldest = timeStats.oldest {
                     HStack {
                         Text("Oldest document:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(oldest, style: .date)
                             .font(.caption.monospacedDigit())
@@ -890,7 +878,7 @@ struct AdvancedCorpusStatsView: View {
                     HStack {
                         Text("Newest document:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(newest, style: .date)
                             .font(.caption.monospacedDigit())
@@ -900,7 +888,7 @@ struct AdvancedCorpusStatsView: View {
                     HStack {
                         Text("Average age:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(formatTimeInterval(avgAge))
                             .font(.caption.monospacedDigit())
@@ -910,7 +898,7 @@ struct AdvancedCorpusStatsView: View {
                     HStack {
                         Text("Corpus span:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(formatTimeInterval(newest.timeIntervalSince(oldest)))
                             .font(.caption.monospacedDigit())
@@ -918,16 +906,16 @@ struct AdvancedCorpusStatsView: View {
                 }
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(14)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var dataQualitySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "checkmark.seal")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
                 Text("Data Quality Indicators")
                     .font(.headline)
             }
@@ -936,15 +924,15 @@ struct AdvancedCorpusStatsView: View {
             let coverageScore = calculateCoverageScore()
             let freshnessScore = calculateFreshnessScore()
 
-            VStack(spacing: 10) {
+            VStack(spacing: DSSpacing.sm) {
                 QualityIndicatorRow(label: "Chunk Uniformity", score: uniformityScore, description: uniformityDescription(uniformityScore))
                 QualityIndicatorRow(label: "Content Coverage", score: coverageScore, description: coverageDescription(coverageScore))
                 QualityIndicatorRow(label: "Data Freshness", score: freshnessScore, description: freshnessDescription(freshnessScore))
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(14)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Helpers
@@ -975,12 +963,12 @@ struct AdvancedCorpusStatsView: View {
     private func typeColor(_ type: String) -> Color {
         switch type.lowercased() {
         case "pdf": return .red
-        case "txt", "text": return .blue
-        case "md", "markdown": return .purple
+        case "txt", "text": return DSColors.accent
+        case "md", "markdown": return DSColors.accent
         case "csv": return .green
         case "json": return .orange
-        case "html": return .cyan
-        default: return .gray
+        case "html": return DSColors.accent
+        default: return .secondary
         }
     }
 
@@ -1056,23 +1044,23 @@ private struct CorpusQuickStat: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
                     .font(.caption)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                 Text(label)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             Text(value)
                 .font(.headline.monospacedDigit())
                 .fontWeight(.semibold)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.md)
         .background(color.opacity(0.1))
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -1084,16 +1072,16 @@ private struct NerdStatRow: View {
         HStack {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Spacer()
             Text(value)
                 .font(.caption.monospacedDigit())
                 .fontWeight(.medium)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color.cyan.opacity(0.06))
-        .cornerRadius(6)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .background(DSColors.accent.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 
@@ -1103,7 +1091,7 @@ private struct QualityIndicatorRow: View {
     let description: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             HStack {
                 Text(label)
                     .font(.caption)
@@ -1111,14 +1099,14 @@ private struct QualityIndicatorRow: View {
                 Spacer()
                 Text(String(format: "%.0f%%", score * 100))
                     .font(.caption.monospacedDigit())
-                    .foregroundColor(scoreColor)
+                    .foregroundStyle(DSColors.readable(scoreColor))
             }
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.gray.opacity(0.2))
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                        .fill(Color.secondary.opacity(0.2))
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .fill(scoreColor)
                         .frame(width: geo.size.width * CGFloat(score))
                 }
@@ -1127,13 +1115,13 @@ private struct QualityIndicatorRow: View {
 
             Text(description)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
     private var scoreColor: Color {
         if score > 0.8 { return .green }
-        if score > 0.5 { return .yellow }
+        if score > 0.5 { return .orange }
         return .orange
     }
 }
@@ -1145,22 +1133,22 @@ struct QueryAnalyticsView: View {
     @ObservedObject private var telemetry = TelemetryCenter.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             Text("Query Analytics")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // Recent queries from telemetry
             if telemetry.events.isEmpty {
                 EmptyAnalyticsView()
-                    .padding()
+                    .padding(DSSpacing.lg)
             } else {
                 QueryStatsGrid()
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
 
                 RecentQueriesList(telemetry: telemetry)
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
             }
         }
     }
@@ -1168,22 +1156,22 @@ struct QueryAnalyticsView: View {
 
 struct EmptyAnalyticsView: View {
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.system(size: 50))
-                .foregroundColor(.secondary)
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
 
             Text("No query data yet")
                 .font(.headline)
 
             Text("Run some queries to see analytics")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, DSSpacing.xxl)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
@@ -1205,12 +1193,12 @@ struct QueryStatsGrid: View {
     }
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
             StatCard(
                 icon: "bubble.left.and.bubble.right",
                 label: "Queries",
                 value: "\(queryCount)",
-                color: .blue
+                color: DSColors.accent
             )
 
             StatCard(
@@ -1234,7 +1222,7 @@ struct RecentQueriesList: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Recent Queries")
                 .font(.headline)
 
@@ -1250,31 +1238,31 @@ struct QueryEventCard: View {
     let index: Int
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: DSSpacing.md) {
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.16))
+                    .fill(DSColors.accent.opacity(0.16))
                     .frame(width: 32, height: 32)
 
                 Text("\(index)")
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .fontWeight(.bold)
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(DSColors.accent)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(event.title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
 
                 Text(event.formattedTimestamp)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
 
                 if let duration = event.duration {
                     Text(String(format: "%.2f s", duration))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -1282,12 +1270,12 @@ struct QueryEventCard: View {
 
             Image(systemName: "chevron.right")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
+        .padding(.vertical, DSSpacing.sm)
+        .padding(.horizontal, DSSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
         )
     }
@@ -1327,7 +1315,7 @@ struct RetrievalPatternsView: View {
             if history.isEmpty {
                 Text("Run a few queries to populate retrieval analytics.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 statsGrid(
@@ -1339,29 +1327,29 @@ struct RetrievalPatternsView: View {
 
                 if !chunkStats.isEmpty {
                     chunkChart(chunkStats.prefix(8))
-                        .padding(.top, 8)
+                        .padding(.top, DSSpacing.sm)
                 }
 
                 if !documentStats.isEmpty {
                     documentChart(documentStats.prefix(6))
-                        .padding(.top, 12)
+                        .padding(.top, DSSpacing.md)
                 }
 
                 if !chunkStats.isEmpty {
                     chunkDetailSection(chunkStats.prefix(3))
-                        .padding(.top, 12)
+                        .padding(.top, DSSpacing.md)
                 }
 
                 VisualizationInfoSection(title: "🔍 Atlas-inspired cross filtering") {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text("Apple's Embedding Atlas advocates linking projection, clustering, and metadata views so you can spot the sources that actually ground responses.")
                             .font(.caption2)
                         Text("These retrieval metrics are computed directly from your live history, making it easy to compare hit coverage against chunking strategy or embedding quality.")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.top, 12)
+                .padding(.top, DSSpacing.md)
             }
         }
     }
@@ -1372,19 +1360,19 @@ struct RetrievalPatternsView: View {
         coverageLabel: String,
         topDocument: String
     ) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
             StatCard(
                 icon: "arrow.2.squarepath",
                 label: "Retrievals",
                 value: "\(totalRetrievals)",
-                color: .blue
+                color: DSColors.accent
             )
 
             StatCard(
                 icon: "number",
                 label: "Unique Chunks",
                 value: "\(uniqueChunks)",
-                color: .purple
+                color: DSColors.accent
             )
 
             StatCard(
@@ -1416,8 +1404,8 @@ struct RetrievalPatternsView: View {
                 .foregroundStyle(color(for: stat.docId))
                 .annotation(position: .trailing) {
                     Text("\(stat.hits) hits\navg \(String(format: "%.2f", stat.averageSimilarity))")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                 }
             }
@@ -1438,13 +1426,13 @@ struct RetrievalPatternsView: View {
                 .foregroundStyle(color(for: stat.id))
                 .annotation(position: .trailing) {
                     Text("\(stat.uniqueChunks) chunks")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
                 .annotation(position: .trailing) {
                     Text("\(stat.hits)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -1452,13 +1440,13 @@ struct RetrievalPatternsView: View {
     }
 
     private func chunkDetailSection(_ stats: ArraySlice<ChunkHitStat>) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Most-retrieved chunks")
                 .font(.headline)
 
             ForEach(Array(stats)) { stat in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                    HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
                         Circle()
                             .fill(color(for: stat.docId))
                             .frame(width: 10, height: 10)
@@ -1470,43 +1458,43 @@ struct RetrievalPatternsView: View {
                         Spacer()
 
                         Text(String(format: "%.2f", stat.averageSimilarity))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.accentColor.opacity(0.12), in: Capsule())
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xs)
+                            .background(DSColors.accent.opacity(0.12), in: Capsule())
                     }
 
                     if let section = stat.sectionTitle, !section.isEmpty {
                         Text(section)
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     Text(stat.snippet)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(3)
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: DSSpacing.md) {
                         if let page = stat.pageNumber {
                             Label("Page \(page)", systemImage: "doc")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
                         }
 
                         Label("\(stat.hits) hits", systemImage: "arrow.counterclockwise")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
 
                         Label(relativeTime(for: stat.lastRetrieved), systemImage: "clock")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(12)
+                .padding(DSSpacing.md)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .fill(DSColors.background)
                 )
             }
@@ -1663,18 +1651,18 @@ struct DashboardSectionCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
+            HStack(alignment: .top, spacing: DSSpacing.md) {
                 Image(systemName: icon)
                     .font(.title3)
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(DSColors.accent)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
-                            .fill(Color.accentColor.opacity(0.12))
+                            .fill(DSColors.accent.opacity(0.12))
                     )
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(title)
                         .font(.title3)
                         .fontWeight(.semibold)
@@ -1682,7 +1670,7 @@ struct DashboardSectionCard<Content: View>: View {
                     if let subtitle {
                         Text(subtitle)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
                 }
@@ -1691,12 +1679,12 @@ struct DashboardSectionCard<Content: View>: View {
 
             content
         }
-        .padding(.vertical, 20)
-        .padding(.horizontal, 18)
+        .padding(.vertical, DSSpacing.lg)
+        .padding(.horizontal, DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(18)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
         .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 }
 
@@ -1707,19 +1695,19 @@ struct PerformanceMetricsView: View {
     @ObservedObject private var telemetry = TelemetryCenter.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             Text("Performance Metrics")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // Pipeline stage breakdown
             PipelineStagesCard()
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // System metrics
             SystemMetricsGrid()
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
         }
     }
 }
@@ -1729,14 +1717,14 @@ struct PipelineStagesCard: View {
 
     var stageMetrics: [(stage: String, avgTime: Double, color: Color)] {
         [
-            ("Embedding", avgDuration(for: .embedding), .purple),
-            ("Retrieval", avgDuration(for: .retrieval), .blue),
+            ("Embedding", avgDuration(for: .embedding), DSColors.accent),
+            ("Retrieval", avgDuration(for: .retrieval), DSColors.accent),
             ("Generation", avgDuration(for: .generation), .green),
         ]
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Pipeline Stages")
                 .font(.headline)
 
@@ -1748,9 +1736,9 @@ struct PipelineStagesCard: View {
                 )
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
@@ -1781,9 +1769,9 @@ struct StageMetricRow: View {
             Spacer()
 
             Text(String(format: "%.2fs", avgTime))
-                .font(.subheadline)
+                .font(.subheadline.monospacedDigit())
                 .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -1791,12 +1779,12 @@ struct StageMetricRow: View {
 struct SystemMetricsGrid: View {
     var body: some View {
         #if canImport(UIKit)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                 StatCard(
                     icon: "memorychip",
                     label: "Device",
                     value: UIDevice.current.model,
-                    color: .blue
+                    color: DSColors.accent
                 )
 
                 StatCard(
@@ -1807,12 +1795,12 @@ struct SystemMetricsGrid: View {
                 )
             }
         #else
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                 StatCard(
                     icon: "desktopcomputer",
                     label: "Device",
                     value: "Mac",
-                    color: .blue
+                    color: DSColors.accent
                 )
 
                 StatCard(
@@ -1835,19 +1823,19 @@ struct StatCard: View {
     let color: Color
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DSSpacing.sm) {
             ZStack {
                 Circle()
                     .fill(color.opacity(0.2))
-                    .frame(width: 44, height: 44)
+                    .frame(width: DSSpacing.tapTarget, height: DSSpacing.tapTarget)
 
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                     .font(.title3)
             }
 
             Text(value)
-                .font(.title3)
+                .font(.title3.monospacedDigit())
                 .fontWeight(.bold)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
@@ -1855,12 +1843,12 @@ struct StatCard: View {
 
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.03), radius: 4, x: 0, y: 2)
         )
@@ -1912,48 +1900,48 @@ struct EmbeddingInfoSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     VisualizationInfoSection(title: "What are Embeddings?") {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DSSpacing.sm) {
                             Image(systemName: "brain.head.profile")
-                                .foregroundColor(.purple)
+                                .foregroundStyle(DSColors.accent)
                             Text("Think of them as GPS pins for sentences—chunks that mean the same thing land near each other even if they use different words.")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
                     VisualizationInfoSection(title: "Current Method: \(embeddingMethodName)") {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DSSpacing.sm) {
                             Image(systemName: "cpu.fill")
-                                .foregroundColor(.orange)
+                                .foregroundStyle(.orange)
                             Text(embeddingMethodDescription)
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
                     VisualizationInfoSection(title: "Projection Methods") {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DSSpacing.sm) {
                             Image(systemName: "chart.xyaxis.line")
-                                .foregroundColor(.green)
+                                .foregroundStyle(.green)
                             Text("PCA, t-SNE, and UMAP flatten the embedding fingerprint into a 3D view so you can literally see topic islands and overlaps.")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
                     VisualizationInfoSection(title: "Future: Embedding Atlas") {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DSSpacing.sm) {
                             Image(systemName: "sparkles")
-                                .foregroundColor(.orange)
+                                .foregroundStyle(.orange)
                             Text("Apple's Embedding Atlas will add pinch-to-explore controls and shareable scenes.")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
             .navigationTitle("Embedding Space")
             #if os(iOS)
@@ -1973,17 +1961,17 @@ struct VisualizationInfoSection<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text(title)
                 .font(.headline)
-                .foregroundColor(.blue)
+                .foregroundStyle(DSColors.accent)
 
             content()
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.blue.opacity(0.1))
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.accent.opacity(0.1))
         )
     }
 }
@@ -2004,7 +1992,7 @@ struct SimilarityHeatmapView: View {
     private let rowLabelWidth: CGFloat = 140
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DSSpacing.lg) {
             headerSection
             heatmapSection
             statsSection
@@ -2017,28 +2005,26 @@ struct SimilarityHeatmapView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "square.grid.3x3.fill")
-                        .foregroundStyle(
-                            LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        )
+                        .foregroundStyle(DSColors.accent)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text("Similarity Heatmap")
                             .font(.title2)
                             .fontWeight(.bold)
                         Text("Pairwise cosine similarity across sampled chunks from the active library.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
                 if let stamp = formattedLastUpdated() {
                     Text("Updated \(stamp)")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Button {
                     guard !isLoading else { return }
@@ -2055,40 +2041,40 @@ struct SimilarityHeatmapView: View {
             }
 
             VisualizationInfoSection(title: "💡 Why cosine similarity?") {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Embeddings are high-dimensional vectors. Cosine similarity measures the angle between them, giving a scale from 0 (unrelated) to 1 (identical).")
                         .font(.caption2)
                     Text("Cells along the diagonal are always 1.0 because a chunk is perfectly similar to itself.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.background)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .shadow(color: .black.opacity(0.05), radius: 8)
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     @ViewBuilder
     private var heatmapSection: some View {
         if isLoading {
             ProgressView("Computing similarities…")
-                .padding()
+                .padding(DSSpacing.lg)
                 .frame(maxWidth: .infinity, minHeight: 200)
                 .background(DSColors.surface)
-                .cornerRadius(16)
-                .padding(.horizontal)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                .padding(.horizontal, DSSpacing.lg)
         } else if sampleChunks.isEmpty {
             Text("Add documents or run a query to populate similarity data.")
                 .font(.caption)
-                .foregroundColor(.secondary)
-                .padding()
+                .foregroundStyle(.secondary)
+                .padding(DSSpacing.lg)
                 .frame(maxWidth: .infinity)
                 .background(DSColors.surface)
-                .cornerRadius(16)
-                .padding(.horizontal)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                .padding(.horizontal, DSSpacing.lg)
         } else {
             heatmapGrid
         }
@@ -2096,15 +2082,15 @@ struct SimilarityHeatmapView: View {
 
     private var heatmapGrid: some View {
         ScrollView([.horizontal, .vertical]) {
-            VStack(spacing: 2) {
-                HStack(spacing: 2) {
+            VStack(spacing: DSSpacing.xxs) {
+                HStack(spacing: DSSpacing.xxs) {
                     Color.clear.frame(width: rowLabelWidth, height: cellSize)
                     ForEach(sampleChunks) { chunk in
                         headerLabel(for: chunk)
                     }
                 }
                 ForEach(sampleChunks) { rowChunk in
-                    HStack(spacing: 2) {
+                    HStack(spacing: DSSpacing.xxs) {
                         sideLabel(for: rowChunk)
                         ForEach(sampleChunks) { columnChunk in
                             heatmapCell(rowChunk, columnChunk)
@@ -2112,33 +2098,33 @@ struct SimilarityHeatmapView: View {
                     }
                 }
             }
-            .padding()
+            .padding(DSSpacing.lg)
         }
         .frame(maxHeight: 420)
         .background(DSColors.surface)
-        .cornerRadius(16)
-        .padding(.horizontal)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     private var statsSection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             StatCard(
                 icon: "number",
                 label: "Chunks",
                 value: "\(sampleChunks.count)",
-                color: .purple
+                color: DSColors.accent
             )
             StatCard(
                 icon: "doc.text.fill",
                 label: "Documents",
                 value: "\(uniqueDocumentCount)",
-                color: .blue
+                color: DSColors.accent
             )
             StatCard(
                 icon: "waveform.path.ecg",
                 label: "Avg Similarity",
                 value: String(format: "%.2f", averagePairSimilarity),
-                color: .pink
+                color: .secondary
             )
             StatCard(
                 icon: "arrow.up",
@@ -2147,7 +2133,7 @@ struct SimilarityHeatmapView: View {
                 color: .orange
             )
         }
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     private func refreshSample() async {
@@ -2230,8 +2216,8 @@ struct SimilarityHeatmapView: View {
             .frame(width: cellSize, height: cellSize)
             .overlay(
                 Text(value)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(textColor)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(textColor)
             )
             .accessibilityLabel(
                 Text("Similarity between \(label(for: row)) and \(label(for: column)) is \(value)")
@@ -2350,23 +2336,23 @@ struct PipelineTimelineView: View {
             subtitle: "Track where the current request is spending time"
         ) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     ForEach(stages) { stage in
                         StageChip(stage: stage, isActive: isStageActive(stage.category), color: color(for: stage.category))
                     }
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, DSSpacing.xs)
             }
 
             if !recentEvents.isEmpty {
                 Divider()
-                    .padding(.vertical, 8)
+                    .padding(.vertical, DSSpacing.sm)
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     Text("Recent activity")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     ForEach(recentEvents, id: \.id) { event in
                         ActivityRow(event: event, accent: color(for: event.category))
@@ -2375,24 +2361,24 @@ struct PipelineTimelineView: View {
             }
 
             VisualizationInfoSection(title: "Stage reference") {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     ForEach(stages) { stage in
-                        HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: DSSpacing.sm) {
                             Image(systemName: stage.icon)
                                 .font(.caption)
-                                .foregroundColor(color(for: stage.category))
+                                .foregroundStyle(color(for: stage.category))
                                 .frame(width: 18, height: 18)
 
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                 Text(stage.name)
                                     .font(.caption)
                                     .fontWeight(.semibold)
                                 Text(stage.detail)
                                     .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                        .padding(.vertical, 3)
+                        .padding(.vertical, DSSpacing.xxs)
                     }
                 }
             }
@@ -2409,12 +2395,12 @@ struct PipelineTimelineView: View {
     private func color(for category: TelemetryCategory) -> Color {
         switch category {
         case .ingestion: return .orange
-        case .embedding: return .purple
-        case .retrieval: return .blue
+        case .embedding: return DSColors.accent
+        case .retrieval: return DSColors.accent
         case .generation: return .green
-        case .storage: return .teal
-        case .system: return .gray
-        case .billing: return .mint
+        case .storage: return DSColors.accent
+        case .system: return .secondary
+        case .billing: return .green
         case .error: return .red
         }
     }
@@ -2425,12 +2411,12 @@ struct PipelineTimelineView: View {
         let color: Color
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: stage.icon)
                         .font(.subheadline)
-                        .foregroundColor(isActive ? .white : color)
-                        .padding(8)
+                        .foregroundStyle(isActive ? .white : color)
+                        .padding(DSSpacing.sm)
                         .background(
                             Circle().fill(isActive ? color : color.opacity(0.12))
                         )
@@ -2438,22 +2424,22 @@ struct PipelineTimelineView: View {
                     Text(stage.name)
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                 }
 
                 Text(stage.detail)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
-            .padding(14)
+            .padding(DSSpacing.md)
             .frame(width: 200, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(isActive ? color.opacity(0.12) : DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .stroke(isActive ? color.opacity(0.5) : Color.clear, lineWidth: 1)
             )
         }
@@ -2464,33 +2450,33 @@ struct PipelineTimelineView: View {
         let accent: Color
 
         var body: some View {
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 Circle()
                     .fill(accent)
                     .frame(width: 8, height: 8)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(event.title)
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
 
                     Text(event.timestamp, style: .relative)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 if let duration = event.duration {
                     Text(String(format: "%.0f ms", duration * 1000))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(12)
+            .padding(DSSpacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.surface)
             )
         }
@@ -2520,7 +2506,7 @@ struct SemanticClusteringView: View {
             title: "Semantic Clustering",
             subtitle: "Sample embeddings to discover the highest-signal topics"
         ) {
-            VStack(spacing: 20) {
+            VStack(spacing: DSSpacing.lg) {
                 clusterControls
 
                 if let error = lastError {
@@ -2551,34 +2537,34 @@ struct SemanticClusteringView: View {
     }
 
     private var clusterControls: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Cluster granularity")
                         .font(.headline)
 
                     Text("Tighter clusters surface more niche themes.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 Text("K = \(selectedK)")
-                    .font(.headline)
+                    .font(.headline.monospacedDigit())
                     .fontWeight(.semibold)
-                    .foregroundColor(.purple)
+                    .foregroundStyle(DSColors.accent)
             }
 
             Slider(value: Binding(
                 get: { Double(selectedK) },
                 set: { selectedK = Int($0) }
             ), in: 2 ... 10, step: 1)
-                .tint(.purple)
+                .tint(DSColors.accent)
                 .accessibilityLabel("Cluster granularity")
                 .accessibilityValue("K = \(selectedK)")
 
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 Button {
                     guard !isLoading else { return }
                     refreshNonce &+= 1
@@ -2600,12 +2586,12 @@ struct SemanticClusteringView: View {
                 if let stamp = formattedLastUpdated {
                     Label("Updated \(stamp)", systemImage: "clock")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Label("\(sampleChunks.count) chunks", systemImage: "square.stack.3d.down.right")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -2613,30 +2599,30 @@ struct SemanticClusteringView: View {
     private func errorCard(_ message: String) -> some View {
         Text(message)
             .font(.caption)
-            .foregroundColor(.red)
-            .padding()
+            .foregroundStyle(DSColors.readable(.red))
+            .padding(DSSpacing.lg)
             .frame(maxWidth: .infinity)
-            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var loadingCard: some View {
         ProgressView("Clustering embeddings…")
-            .padding()
+            .padding(DSSpacing.lg)
             .frame(maxWidth: .infinity)
-            .background(DSColors.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var emptyStateCard: some View {
         Text("Import documents or run queries to generate chunk embeddings for clustering.")
             .font(.caption)
-            .foregroundColor(.secondary)
-            .padding()
+            .foregroundStyle(.secondary)
+            .padding(DSSpacing.lg)
             .frame(maxWidth: .infinity)
-            .background(DSColors.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var clusterDistributionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Cluster Distribution")
                 .font(.headline)
             Chart {
@@ -2648,37 +2634,37 @@ struct SemanticClusteringView: View {
                     .foregroundStyle(clusterColor(index))
                     .annotation(position: .trailing) {
                         Text("\(cluster.count) chunks")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
             .frame(height: CGFloat(max(clusters.count, 1) * 48))
-            .padding(.horizontal, 4)
+            .padding(.horizontal, DSSpacing.xs)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.background)
         )
     }
 
     private var clusterSummarySection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 MetricPill(icon: "number", label: "Clusters", value: "\(clusters.count)")
                 MetricPill(icon: "doc.on.doc", label: "Unique docs", value: "\(uniqueDocumentCount)")
                 MetricPill(icon: "chart.bar", label: "Avg size", value: averageClusterSize)
                 MetricPill(icon: "chart.pie", label: "Largest", value: "\(maxClusterSize)")
                 MetricPill(icon: "link", label: "Avg sim", value: String(format: "%.2f", averagePairSimilarity))
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         }
     }
 
     private var clusterPreviewSection: some View {
         DisclosureGroup(isExpanded: $showClusterTopics) {
-            VStack(spacing: 12) {
+            VStack(spacing: DSSpacing.md) {
                 ForEach(Array(clusters.enumerated()), id: \.offset) { index, cluster in
                     ClusterPreviewCard(
                         index: index,
@@ -2688,7 +2674,7 @@ struct SemanticClusteringView: View {
                     )
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, DSSpacing.sm)
         } label: {
             HStack {
                 Text("Topic highlights")
@@ -2696,7 +2682,7 @@ struct SemanticClusteringView: View {
                 Spacer()
                 Text("Tap to \(showClusterTopics ? "collapse" : "expand")")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -2707,26 +2693,26 @@ struct SemanticClusteringView: View {
         let value: String
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: icon)
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(DSColors.accent)
                     Text(label.uppercased())
                         .font(.caption2)
                         .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Text(value)
-                    .font(.headline)
+                    .font(.headline.monospacedDigit())
                     .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.background)
             )
         }
@@ -2967,7 +2953,7 @@ struct SemanticClusteringView: View {
 struct ClusteringInfoCard: View {
     var body: some View {
         VisualizationInfoSection(title: "🧠 What is K-means Clustering?") {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Automatically groups similar chunks together:")
                     .font(.caption)
                     .fontWeight(.medium)
@@ -2985,7 +2971,7 @@ struct ClusteringInfoCard: View {
 
                 Text("Use this to discover main topics in your knowledge base without manual tagging!")
                     .font(.caption2)
-                    .foregroundColor(.blue)
+                    .foregroundStyle(DSColors.accent)
                     .fontWeight(.medium)
             }
         }
@@ -3020,58 +3006,58 @@ struct ClusterPreviewCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Circle()
                     .fill(color)
                     .frame(width: 12, height: 12)
 
                 Text("Topic \(index + 1)")
-                    .font(.headline)
+                    .font(.headline.monospacedDigit())
 
                 Spacer()
 
                 Text("\(cluster.count) chunks")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
 
             if let docName = representativeDocName {
                 Text(docName)
                     .font(.caption)
                     .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             if !snippet.isEmpty {
                 Text(snippet)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(3)
             }
 
             if !docCounts.isEmpty {
                 Divider()
-                    .padding(.vertical, 4)
+                    .padding(.vertical, DSSpacing.xs)
 
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: DSSpacing.md) {
                     ForEach(Array(docCounts.prefix(3)), id: \.0) { item in
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text(item.0)
                                 .font(.caption2)
                                 .fontWeight(.medium)
                                 .lineLimit(2)
                             Text("\(item.1) chunks")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(color.opacity(0.1))
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -3163,13 +3149,13 @@ struct FTS5StorageView: View {
     @State private var showDocumentList = false
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DSSpacing.lg) {
             // Header with status
             headerSection
 
             if isLoading {
                 ProgressView("Loading FTS5 statistics...")
-                    .padding()
+                    .padding(DSSpacing.lg)
             } else if let stats = stats {
                 // Main stats grid
                 mainStatsGrid(stats)
@@ -3195,7 +3181,7 @@ struct FTS5StorageView: View {
                 emptyState
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
         .task {
             await loadStatistics()
         }
@@ -3203,16 +3189,16 @@ struct FTS5StorageView: View {
 
     private var headerSection: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "cylinder.split.1x2.fill")
-                        .foregroundColor(.blue)
+                        .foregroundStyle(DSColors.accent)
                     Text("SQLite FTS5 Storage")
                         .font(.headline)
                 }
                 Text("Full-text search with inverted index")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -3224,22 +3210,22 @@ struct FTS5StorageView: View {
                 )
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func mainStatsGrid(_ stats: SQLiteFullTextService.FTS5Statistics) -> some View {
         LazyVGrid(columns: [
             GridItem(.flexible()),
             GridItem(.flexible())
-        ], spacing: 12) {
+        ], spacing: DSSpacing.md) {
             FTS5StatCard(
                 icon: "doc.text.fill",
                 title: "Documents",
                 value: "\(stats.totalDocuments)",
                 subtitle: "Indexed",
-                color: .blue
+                color: DSColors.accent
             )
 
             FTS5StatCard(
@@ -3247,7 +3233,7 @@ struct FTS5StorageView: View {
                 title: "Characters",
                 value: formatNumber(stats.totalCharacters),
                 subtitle: "Total stored",
-                color: .purple
+                color: DSColors.accent
             )
 
             FTS5StatCard(
@@ -3271,7 +3257,7 @@ struct FTS5StorageView: View {
                 title: "Avg Doc Size",
                 value: formatNumber(stats.averageDocumentSize),
                 subtitle: "characters",
-                color: .cyan
+                color: DSColors.accent
             )
 
             FTS5StatCard(
@@ -3279,73 +3265,73 @@ struct FTS5StorageView: View {
                 title: "Containers",
                 value: "\(stats.containerStats.count)",
                 subtitle: "Active",
-                color: .indigo
+                color: DSColors.accent
             )
         }
     }
 
     private func indexHealthCard(_ indexInfo: SQLiteFullTextService.FTS5IndexInfo, stats: SQLiteFullTextService.FTS5Statistics) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack {
                 Image(systemName: "wand.and.stars")
-                    .foregroundColor(.purple)
+                    .foregroundStyle(DSColors.accent)
                 Text("Index Health")
                     .font(.headline)
                 Spacer()
             }
 
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: DSSpacing.lg) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Unique Terms")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(formatNumber(indexInfo.uniqueTerms))
-                        .font(.title2)
+                        .font(.title2.monospacedDigit())
                         .fontWeight(.semibold)
                 }
 
                 Divider()
                     .frame(height: 40)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Total Occurrences")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(formatNumber(indexInfo.totalTerms))
-                        .font(.title2)
+                        .font(.title2.monospacedDigit())
                         .fontWeight(.semibold)
                 }
 
                 Divider()
                     .frame(height: 40)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Avg Frequency")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(String(format: "%.1f", indexInfo.averageTermFrequency))
-                        .font(.title2)
+                        .font(.title2.monospacedDigit())
                         .fontWeight(.semibold)
                 }
             }
 
             // Compression ratio bar
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Text("Storage Efficiency")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     Text(String(format: "%.1f%%", min(100, indexInfo.compressionRatio * 100)))
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                         .fontWeight(.medium)
                 }
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.gray.opacity(0.2))
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                            .fill(Color.secondary.opacity(0.2))
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .fill(compressionColor(indexInfo.compressionRatio))
                             .frame(width: geo.size.width * min(1, CGFloat(indexInfo.compressionRatio)))
                     }
@@ -3354,19 +3340,19 @@ struct FTS5StorageView: View {
 
                 Text(compressionDescription(indexInfo.compressionRatio))
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func containerBreakdownCard(_ stats: SQLiteFullTextService.FTS5Statistics) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "square.stack.3d.up.fill")
-                    .foregroundColor(.indigo)
+                    .foregroundStyle(DSColors.accent)
                 Text("Container Breakdown")
                     .font(.headline)
                 Spacer()
@@ -3374,43 +3360,43 @@ struct FTS5StorageView: View {
 
             ForEach(stats.containerStats) { container in
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(container.containerId.uuidString.prefix(8) + "...")
-                            .font(.caption)
+                            .font(.caption.monospaced())
                             .fontWeight(.medium)
                         Text("\(container.documentCount) docs • \(formatNumber(container.totalWords)) words")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
                     Text(formatNumber(container.totalCharacters))
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                         .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text("chars")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, DSSpacing.xs)
 
                 if container.id != stats.containerStats.last?.id {
                     Divider()
                 }
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private var documentSizeChart: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "chart.bar.fill")
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
                 Text("Document Size Distribution")
                     .font(.headline)
                 Spacer()
@@ -3419,7 +3405,7 @@ struct FTS5StorageView: View {
                     showDocumentList.toggle()
                 } label: {
                     Image(systemName: showDocumentList ? "list.bullet" : "chart.bar")
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(DSColors.accent)
                 }
             }
 
@@ -3429,105 +3415,99 @@ struct FTS5StorageView: View {
                 documentBarChart
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var documentBarChart: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DSSpacing.sm) {
             ForEach(documentStats.prefix(10)) { doc in
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Text(doc.documentId.uuidString.prefix(8) + "...")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
                         .frame(width: 80, alignment: .leading)
 
                     GeometryReader { geo in
                         let maxChars = documentStats.map(\.characterCount).max() ?? 1
                         let width = geo.size.width * CGFloat(doc.characterCount) / CGFloat(maxChars)
 
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [.blue, .purple],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                            .fill(DSColors.accent.gradient)
                             .frame(width: max(4, width))
                     }
                     .frame(height: 12)
 
                     Text(formatNumber(doc.characterCount))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                         .frame(width: 50, alignment: .trailing)
                 }
             }
 
             if documentStats.count > 10 {
                 Text("+ \(documentStats.count - 10) more documents")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.top, DSSpacing.xs)
             }
         }
     }
 
     private var documentListView: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: DSSpacing.xs) {
             HStack {
                 Text("Document ID")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Text("Chars")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Text("Words")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .frame(width: 60)
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, DSSpacing.xs)
 
             ForEach(documentStats.prefix(15)) { doc in
                 HStack {
                     Text(doc.documentId.uuidString.prefix(12) + "...")
-                        .font(.caption)
-                        .foregroundColor(.primary)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.primary)
                     Spacer()
                     Text(formatNumber(doc.characterCount))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                     Text(formatNumber(doc.wordCount))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                         .frame(width: 60, alignment: .trailing)
                 }
             }
 
             if documentStats.count > 15 {
                 Text("+ \(documentStats.count - 15) more documents")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.top, DSSpacing.xs)
             }
         }
     }
 
     private var actionsSection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             Button {
                 Task { await loadStatistics() }
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
                     .font(.caption)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.15))
-                    .foregroundColor(.accentColor)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.vertical, DSSpacing.sm)
+                    .background(DSColors.accent.opacity(0.15))
+                    .foregroundStyle(DSColors.accent)
                     .clipShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -3536,30 +3516,30 @@ struct FTS5StorageView: View {
                 Spacer()
                 Text("Last updated: \(lastMod, style: .relative) ago")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.top, 8)
+        .padding(.top, DSSpacing.sm)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             Image(systemName: "cylinder")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary.opacity(0.5))
+                .font(.largeTitle)
+                .foregroundStyle(.secondary.opacity(0.5))
 
             Text("No FTS5 Data")
                 .font(.headline)
 
             Text("Add documents to populate the full-text search index")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(32)
+        .padding(DSSpacing.xxl)
         .frame(maxWidth: .infinity)
         .background(DSColors.surface)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Helpers
@@ -3592,7 +3572,7 @@ struct FTS5StorageView: View {
         if ratio < 0.3 {
             return .green
         } else if ratio < 0.6 {
-            return .blue
+            return DSColors.accent
         } else if ratio < 0.9 {
             return .orange
         } else {
@@ -3622,29 +3602,29 @@ private struct FTS5StatCard: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                 Spacer()
             }
 
             Text(value)
-                .font(.title2)
+                .font(.title2.monospacedDigit())
                 .fontWeight(.bold)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.caption)
                     .fontWeight(.medium)
                 Text(subtitle)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -3654,18 +3634,19 @@ private struct StatusBadge: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
             Text(status)
                 .font(.caption)
                 .fontWeight(.medium)
+                .foregroundStyle(DSColors.readable(color))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(color.opacity(0.15))
-        .cornerRadius(8)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 

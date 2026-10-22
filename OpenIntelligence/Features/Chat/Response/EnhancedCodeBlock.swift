@@ -54,14 +54,14 @@ struct EnhancedCodeBlock: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header bar
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: languageInfo.icon)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(languageInfo.color)
 
                 Text(displayLanguage.uppercased())
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .font(.system(.caption2, design: .monospaced).weight(.bold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
@@ -69,22 +69,22 @@ struct EnhancedCodeBlock: View {
                 Button {
                     copyCode()
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.caption2.weight(.medium))
                         Text(copied ? "Copied" : "Copy")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.caption2.weight(.medium))
                     }
                     .foregroundStyle(copied ? .green : DSColors.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
                     .background(copied ? Color.green.opacity(0.15) : DSColors.accent.opacity(0.15))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.sm)
             .background(DSColors.surfaceElevated)
 
             Divider()
@@ -96,13 +96,14 @@ struct EnhancedCodeBlock: View {
                     VStack(alignment: .trailing, spacing: 0) {
                         ForEach(lines.indices, id: \.self) { index in
                             Text("\(index + 1)")
-                                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                                .font(.system(.caption, design: .monospaced))
+                                .monospacedDigit()
                                 .foregroundStyle(.tertiary)
                                 .frame(height: 18)
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.sm)
                     .background(DSColors.surfaceElevated.opacity(0.5))
 
                     // Separator
@@ -120,16 +121,16 @@ struct EnhancedCodeBlock: View {
                             .frame(height: 18, alignment: .leading)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.vertical, DSSpacing.sm)
                 }
             }
             .background(DSColors.surface)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(DSColors.border.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .stroke(DSColors.border, lineWidth: 0.5)
         )
     }
 
@@ -141,14 +142,14 @@ struct EnhancedCodeBlock: View {
         NSPasteboard.general.setString(code, forType: .string)
         #endif
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withAnimation(DSAnimations.snappySpring) {
             copied = true
         }
         DSHaptics.copy()
 
         // Reset after delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation {
+            withAnimation(DSAnimations.fastEase) {
                 copied = false
             }
         }
@@ -164,7 +165,7 @@ private struct SyntaxHighlightedLine: View {
     var body: some View {
         // Simple syntax highlighting using AttributedString
         Text(highlightedText)
-            .font(.system(size: 12, weight: .regular, design: .monospaced))
+            .font(.system(.caption, design: .monospaced))
     }
 
     private var highlightedText: AttributedString {
@@ -205,7 +206,7 @@ private struct SyntaxHighlightedLine: View {
                 for match in plainText.matches(of: regex) {
                     if let range = Range(match.range, in: text) {
                         text[range].foregroundColor = .purple
-                        text[range].font = .system(size: 12, weight: .semibold, design: .monospaced)
+                        text[range].font = .system(.caption, design: .monospaced).weight(.semibold)
                     }
                 }
             }
@@ -240,7 +241,7 @@ private struct SyntaxHighlightedLine: View {
                 for match in plainText.matches(of: regex) {
                     if let range = Range(match.range, in: text) {
                         text[range].foregroundColor = .gray
-                        text[range].font = .system(size: 12, weight: .regular, design: .monospaced).italic()
+                        text[range].font = .system(.caption, design: .monospaced).italic()
                     }
                 }
             }
@@ -270,9 +271,9 @@ struct CompactCodeBlock: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             Text(code)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(DSColors.primaryText)
-                .padding(10)
+                .padding(DSSpacing.sm)
 
             Spacer(minLength: 0)
 
@@ -283,21 +284,21 @@ struct CompactCodeBlock: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(code, forType: .string)
                 #endif
-                withAnimation { copied = true }
+                withAnimation(DSAnimations.fastEase) { copied = true }
                 DSHaptics.selection()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation { copied = false }
+                    withAnimation(DSAnimations.fastEase) { copied = false }
                 }
             } label: {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 11))
-                    .foregroundStyle(copied ? .green : .secondary)
-                    .padding(8)
+                    .font(.caption2)
+                    .foregroundStyle(copied ? .green : DSColors.secondaryText)
+                    .padding(DSSpacing.sm)
             }
             .buttonStyle(.plain)
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 

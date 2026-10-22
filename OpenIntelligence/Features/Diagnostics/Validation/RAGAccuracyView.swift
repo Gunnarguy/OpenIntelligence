@@ -69,7 +69,8 @@ struct RAGAccuracyView: View {
                         } else if let result = embeddingSanityResult {
                             Text(String(format: "%.0f%%", result.correlation * 100))
                                 .font(.caption.monospaced())
-                                .foregroundStyle(result.passed ? .green : .red)
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.readable(result.passed ? .green : .red))
                         }
                     }
                 }
@@ -111,8 +112,8 @@ struct RAGAccuracyView: View {
                                 .scaleEffect(0.8)
                         } else if let report = benchmarkReport {
                             Text(report.metrics.passed ? "PASS" : "FAIL")
-                                .font(.caption.bold())
-                                .foregroundStyle(report.metrics.passed ? .green : .red)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(DSColors.readable(report.metrics.passed ? .green : .red))
                         }
                     }
                 }
@@ -161,9 +162,7 @@ struct RAGAccuracyView: View {
             }
         }
         .navigationTitle("RAG Accuracy")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.large)
-        #endif
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             if embeddingSnapshot == nil {
                 embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()
@@ -175,8 +174,8 @@ struct RAGAccuracyView: View {
 
     @ViewBuilder
     private var quickStatusCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            HStack(spacing: DSSpacing.sm) {
                 let status = determineOverallStatus()
                 Circle()
                     .fill(status.color)
@@ -186,25 +185,26 @@ struct RAGAccuracyView: View {
                 Spacer()
             }
 
-            HStack(spacing: 20) {
+            HStack(spacing: DSSpacing.xl) {
                 metricPill("Embedding", value: embeddingSanityResult?.correlation, threshold: 0.8)
                 metricPill("Retrieval", value: benchmarkReport?.metrics.recallAt5, threshold: 0.6)
                 metricPill("Answers", value: benchmarkReport?.metrics.f1Score, threshold: 0.5)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     @ViewBuilder
     private func metricPill(_ label: String, value: Float?, threshold: Float) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: DSSpacing.xxs) {
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             if let v = value {
                 Text(String(format: "%.0f%%", v * 100))
-                    .font(.caption.bold().monospaced())
-                    .foregroundStyle(v >= threshold ? .green : .red)
+                    .font(.caption.weight(.bold).monospaced())
+                    .monospacedDigit()
+                    .foregroundStyle(DSColors.readable(v >= threshold ? .green : .red))
             } else {
                 Text("—")
                     .font(.caption)
@@ -223,20 +223,21 @@ struct RAGAccuracyView: View {
         if let quick = quickSanityPassed {
             return quick ? ("Quick Check Passed", .green) : ("Quick Check Failed", .red)
         }
-        return ("Not Tested", .gray)
+        return ("Not Tested", .secondary)
     }
 
     // MARK: - Embedding Results View
 
     @ViewBuilder
     private func embeddingResultsView(_ result: EmbeddingSanityResult) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text(result.passed ? "✅ PASSED" : "❌ FAILED")
-                    .font(.caption.bold())
+                    .font(.caption.weight(.bold))
                 Spacer()
                 Text("Correlation: \(String(format: "%.1f%%", result.correlation * 100))")
                     .font(.caption.monospaced())
+                    .monospacedDigit()
             }
 
             if !result.details.isEmpty {
@@ -246,27 +247,28 @@ struct RAGAccuracyView: View {
                     .lineLimit(10)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     // MARK: - Full Metrics View
 
     @ViewBuilder
     private func fullMetricsView(_ metrics: RAGQualityMetrics) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Overall status
             HStack {
                 Text(metrics.passed ? "✅ PIPELINE VERIFIED" : "❌ ISSUES DETECTED")
-                    .font(.caption.bold())
+                    .font(.caption.weight(.bold))
                 Spacer()
                 Text(String(format: "%.0f%%", metrics.overallScore * 100))
-                    .font(.caption.bold().monospaced())
+                    .font(.caption.weight(.bold).monospaced())
+                    .monospacedDigit()
             }
 
             Divider()
 
             // Metrics grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
                 metricRow("Recall@1", metrics.recallAt1, threshold: 0.5)
                 metricRow("Recall@5", metrics.recallAt5, threshold: 0.6)
                 metricRow("MRR", metrics.mrr, threshold: 0.7)
@@ -278,27 +280,27 @@ struct RAGAccuracyView: View {
             // Failures
             if !metrics.failures.isEmpty {
                 Divider()
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Issues:")
-                        .font(.caption.bold())
-                        .foregroundStyle(.red)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(DSColors.readable(.red))
                     ForEach(metrics.failures, id: \.self) { failure in
                         Text("• \(failure)")
                             .font(.caption2)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(DSColors.readable(.red))
                     }
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     @ViewBuilder
     private func pipelineCensusView(_ census: RAGBenchmarkPipelineCensus) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Divider()
             Text("Pipeline Census")
-                .font(.caption.bold())
+                .font(.caption.weight(.bold))
 
             metricRow("Recursive RAG", Float(census.recursiveRAGCases) / Float(max(census.totalCases, 1)), threshold: 0)
             metricRow("Query rewrite", Float(census.queryRewriteCases) / Float(max(census.totalCases, 1)), threshold: 0)
@@ -313,26 +315,27 @@ struct RAGAccuracyView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.top, 8)
+        .padding(.top, DSSpacing.sm)
     }
 
     @ViewBuilder
     private func benchmarkCaseResultsView(_ caseResults: [RAGBenchmarkCaseResult]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Divider()
             Text("Benchmark Cases")
-                .font(.caption.bold())
+                .font(.caption.weight(.bold))
 
             ForEach(caseResults) { result in
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     HStack {
                         Image(systemName: result.exactMatch ? "checkmark.circle.fill" : (result.f1Score >= 0.5 ? "exclamationmark.circle.fill" : "xmark.circle.fill"))
                             .foregroundStyle(result.exactMatch ? .green : (result.f1Score >= 0.5 ? .orange : .red))
                         Text(result.queryClass.rawValue)
-                            .font(.caption.bold())
+                            .font(.caption.weight(.bold))
                         Spacer()
                         Text(String(format: "F1 %.0f%%", result.f1Score * 100))
                             .font(.caption.monospaced())
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
 
@@ -345,10 +348,10 @@ struct RAGAccuracyView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 2)
+                .padding(.vertical, DSSpacing.xxs)
             }
         }
-        .padding(.top, 8)
+        .padding(.top, DSSpacing.sm)
     }
 
     @ViewBuilder
@@ -360,7 +363,8 @@ struct RAGAccuracyView: View {
             Spacer()
             Text(String(format: "%.1f%%", value * 100))
                 .font(.caption.monospaced())
-                .foregroundStyle(value >= threshold ? Color.primary : Color.red)
+                .monospacedDigit()
+                .foregroundStyle(value >= threshold ? Color.primary : DSColors.readable(.red))
         }
     }
 
@@ -368,7 +372,7 @@ struct RAGAccuracyView: View {
 
     @ViewBuilder
     private var explanationView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             explanationItem("Embedding Sanity", "Verifies \"dog\" ≈ \"canine\" and \"pizza\" ≠ \"democracy\". If this fails, semantic search is broken.")
             explanationItem("Recall@K", "% of queries where the correct document appears in top K results. Target: >60%")
             explanationItem("MRR", "Mean Reciprocal Rank — how high correct answers rank. Target: >0.70")
@@ -379,9 +383,9 @@ struct RAGAccuracyView: View {
 
     @ViewBuilder
     private func explanationItem(_ title: String, _ description: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(title)
-                .font(.caption.bold())
+                .font(.caption.weight(.bold))
             Text(description)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

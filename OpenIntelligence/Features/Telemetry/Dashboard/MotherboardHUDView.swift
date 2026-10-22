@@ -512,11 +512,11 @@ struct HardwareXRayOverlay: View {
                             #endif
                     }
 
-                    // Device info (for debugging only)
+                    // Device info (for debugging only; fixed size kept on the Silicon HUD overlay)
                     if showDeviceInfo && showVisualBorders {
                         Text("\(layout.displayName)")
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundColor(.gray.opacity(0.3))
+                            .foregroundStyle(.secondary)
                             .position(x: screenWidth / 2, y: screenHeight * 0.02)
                             .allowsHitTesting(false)
                     }
@@ -585,20 +585,20 @@ private struct GlowingSoCBorder: View {
     var body: some View {
         ZStack {
             // Single soft glow layer (not 3 separate ones)
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .strokeBorder(color.opacity(baseOpacity * 0.3), lineWidth: borderWidth + 2)
                 .blur(radius: glowRadius)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Main border - more visible
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .strokeBorder(color.opacity(baseOpacity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Inner tint - more visible fill
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .fill(color.opacity(0.05 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
@@ -648,20 +648,20 @@ private struct GlowingTapticBorder: View {
     var body: some View {
         ZStack {
             // Single soft glow
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .strokeBorder(hapticColor.opacity(baseOpacity * 0.5), lineWidth: borderWidth + 2)
                 .blur(radius: glowRadius)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Main border - thin
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .strokeBorder(hapticColor.opacity(baseOpacity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Inner fill — visible flash on fire
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .fill(hapticColor.opacity(0.08 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
@@ -698,10 +698,10 @@ private struct FloatingTapticIndicator: View {
                 .frame(width: 6 * scale, height: 6 * scale)
                 .scaleEffect(0.8 + 0.4 * intensity)
 
-            // Label
+            // Label (Silicon HUD keeps capped @ScaledMetric fixed sizes so the overlay stays compact)
             Text("Taptic")
                 .font(.system(size: 10 * scale, weight: .semibold, design: .monospaced))
-                .foregroundColor(hapticColor)
+                .foregroundStyle(hapticColor)
         }
         .padding(.horizontal, 10 * scale)
         .padding(.vertical, 5 * scale)
@@ -766,7 +766,7 @@ private struct SiliconLegend: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2 * scale) {
-            // Chip header - compact single line
+            // Chip header - compact single line (Silicon HUD keeps capped @ScaledMetric fixed sizes)
             HStack(spacing: 3 * scale) {
                 Image(systemName: "cpu")
                     .font(.system(size: 9 * scale, weight: .medium))
@@ -777,7 +777,7 @@ private struct SiliconLegend: View {
                 Text(chipName)
                     .font(.system(size: 9 * scale, weight: .semibold, design: .monospaced))
             }
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
 
             // Per-component breakdown with % contribution bars
             if !activities.isEmpty {
@@ -792,19 +792,19 @@ private struct SiliconLegend: View {
                         // Component name — compact fixed width
                         Text(activity.name)
                             .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
-                            .foregroundColor(componentColor(activity.color))
+                            .foregroundStyle(componentColor(activity.color))
                             .frame(width: 28 * scale, alignment: .leading)
 
                         // Mini percentage bar - narrower
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 // Track
-                                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                                Capsule()
                                     .fill(Color.white.opacity(0.15))
                                     .frame(height: 2 * scale)
 
                                 // Fill
-                                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                                Capsule()
                                     .fill(componentColor(activity.color).opacity(activity.isActive ? 1 : 0.5))
                                     .frame(
                                         // `ComponentActivity` guarantees a finite percentage, and
@@ -828,8 +828,8 @@ private struct SiliconLegend: View {
                         // not screen +infinity. ComponentActivity now guarantees finite,
                         // so this is the second line of defence rather than the first.
                         Text("\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
-                            .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
-                            .foregroundColor(.white)
+                            .font(.system(size: 8 * scale, weight: .medium, design: .monospaced).monospacedDigit())
+                            .foregroundStyle(.white)
                             .frame(width: 26 * scale, alignment: .trailing)
                     }
                 }
@@ -843,13 +843,13 @@ private struct SiliconLegend: View {
 
                         Text("Tap")
                             .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
-                            .foregroundColor(componentColor(taptic.color))
+                            .foregroundStyle(componentColor(taptic.color))
                             .frame(width: 28 * scale, alignment: .leading)
 
                         // Show fire count instead of % — it's an output device
                         Text("×\(taptic.opsCount)")
-                            .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
-                            .foregroundColor(.white)
+                            .font(.system(size: 8 * scale, weight: .regular, design: .monospaced).monospacedDigit())
+                            .foregroundStyle(.white)
                             .frame(width: 50 * scale, alignment: .trailing)
                     }
                 }
@@ -859,38 +859,38 @@ private struct SiliconLegend: View {
                 HStack(spacing: 3 * scale) {
                     Image(systemName: "memorychip")
                         .font(.system(size: 6 * scale, weight: .semibold))
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                         .frame(width: 4 * scale, alignment: .center)
 
                     Text("RAM")
                         .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                         .frame(width: 28 * scale, alignment: .leading)
 
                     Text(availableRAMText)
-                        .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
-                        .foregroundColor(.white)
+                        .font(.system(size: 8 * scale, weight: .regular, design: .monospaced).monospacedDigit())
+                        .foregroundStyle(.white)
                         .frame(width: 50 * scale, alignment: .trailing)
                 }
             } else if !metricsSummary.isEmpty {
                 // Fallback to compact summary
                 Text(metricsSummary)
-                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
-                    .foregroundColor(.cyan)
+                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced).monospacedDigit())
+                    .foregroundStyle(.white)
                     .lineLimit(2)
             } else {
                 Text("idle")
                     .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.8))
             }
         }
         .padding(.horizontal, 6 * scale)
         .padding(.vertical, 4 * scale)
         .background(
-            RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .fill(Color.black.opacity(Self.backingOpacity))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
                 )
         )
@@ -925,6 +925,7 @@ private struct SiliconLegend: View {
     /// useful thing to know about it.
     @ViewBuilder
     private var dragHint: some View {
+        // Silicon HUD keeps capped @ScaledMetric fixed sizes so the hint stays compact above the legend
         HStack(spacing: 4 * scale) {
             Image(systemName: "hand.draw")
                 .font(.system(size: 9 * scale, weight: .semibold))
@@ -936,10 +937,10 @@ private struct SiliconLegend: View {
         .padding(.horizontal, 8 * scale)
         .padding(.vertical, 4 * scale)
         .background(
-            RoundedRectangle(cornerRadius: 9 * scale, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .fill(Color.black.opacity(Self.backingOpacity))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 9 * scale, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .strokeBorder(Color.accentColor, lineWidth: 1))
         )
         .shadow(color: .black.opacity(0.35), radius: 4, y: 2)

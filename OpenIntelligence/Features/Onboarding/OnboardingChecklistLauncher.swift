@@ -14,34 +14,34 @@ struct OnboardingChecklistLauncher: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: DSSpacing.sm) {
             // Main launcher button
             Button(action: action) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: DSSpacing.md) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text("Setup checklist")
                             .font(.headline)
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(.primary)
                         Text("Tap to continue setup")
-                            .font(.caption)
-                            .foregroundStyle(Color.secondary)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                     Image(systemName: "arrow.uturn.forward.circle.fill")
                         .font(.title3.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(DSColors.accent)
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 14)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.md)
                 .background(
                     .ultraThinMaterial,
-                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                         // Was `Color.white.opacity(0.15)`, which is very nearly invisible on a
                         // light background: the pill sits on `.ultraThinMaterial` over whatever
                         // is behind it, so a white hairline only reads against a dark one.
-                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                        .stroke(DSColors.border, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -52,12 +52,14 @@ struct OnboardingChecklistLauncher: View {
             Button(action: onDismissPermanently) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(.secondary)
                     .background(
                         Circle()
                             .fill(.ultraThinMaterial)
-                            .frame(width: 32, height: 32)
+                            .frame(width: DSSpacing.xxl, height: DSSpacing.xxl)
                     )
+                    .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Dismiss setup checklist permanently")

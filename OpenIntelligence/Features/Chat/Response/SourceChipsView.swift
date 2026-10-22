@@ -57,7 +57,7 @@ struct SourceChipsView: View {
         }
         .onAppear {
             // Stagger chip appearance
-            withAnimation {
+            withAnimation(DSAnimations.snappySpring) {
                 appearedCount = topChips.count + 1
             }
         }
@@ -101,16 +101,18 @@ private struct SourceChip: View {
                 
                 // Source label
                 Text("#\(chip.index)")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundColor(chip.tint)
+                    .font(.caption2.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(chip.tint)
                 
                 // Similarity percentage
                 Text("\(Int(chip.percent * 100))%")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(DSColors.secondaryText)
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(DSColors.secondaryText)
             }
             .padding(.horizontal, DSSpacing.xs)
-            .padding(.vertical, 5)
+            .padding(.vertical, DSSpacing.xs)
             .background(
                 Capsule()
                     .fill(DSColors.chipBackground(for: chip.tint))
@@ -145,7 +147,7 @@ private struct SourceChipPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .animation(DSAnimations.fastEase, value: configuration.isPressed)
     }
 }
 
@@ -160,15 +162,16 @@ private struct MoreChip: View {
             DSHaptics.light()
             onTap()
         }) {
-            HStack(spacing: 3) {
+            HStack(spacing: DSSpacing.xxs) {
                 Text("+\(remaining)")
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .font(.caption2.weight(.semibold))
+                    .monospacedDigit()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 7, weight: .bold))
+                    .font(.caption2.weight(.bold))
             }
-            .foregroundColor(DSColors.accent)
+            .foregroundStyle(DSColors.accent)
             .padding(.horizontal, DSSpacing.xs)
-            .padding(.vertical, 5)
+            .padding(.vertical, DSSpacing.xs)
             .background(
                 Capsule()
                     .fill(DSColors.chipBackground(for: DSColors.accent))

@@ -17,10 +17,10 @@ struct StatsFooter: View {
         // Side by side, and one under the other at accessibility sizes; in the readable gray, where gray at 80% measured
         // 3.48 to 3.53 to 1 (5.7).
         let countsLayout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 16))
-        return VStack(spacing: 12) {
+            ? AnyLayout(VStackLayout(spacing: DSSpacing.xs)) : AnyLayout(HStackLayout(spacing: DSSpacing.lg))
+        return VStack(spacing: DSSpacing.md) {
             countsLayout {
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "doc.on.doc.fill")
                     Text("\(totalDocuments) Documents")
                 }
@@ -33,18 +33,18 @@ struct StatsFooter: View {
                         .frame(width: 3, height: 3)
                 }
                 
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "cube.box.fill")
                     Text("\(totalChunks) Chunks")
                 }
             }
-            .scaledFont(size: 11, weight: .semibold)
+            .font(.caption.weight(.semibold).monospacedDigit())
             .foregroundStyle(DSColors.secondaryText)
 
             // Auto Intelligence status indicator
             AutoIntelligenceBadge(isEnabled: autoIntelligenceEnabled)
         }
-        .padding(.vertical, 24)
+        .padding(.vertical, DSSpacing.xl)
         .frame(maxWidth: .infinity)
         .listRowBackground(Color.clear)
     }
@@ -57,20 +57,20 @@ struct AutoIntelligenceBadge: View {
     var body: some View {
         // White on the readable purple and blue, where on the plain ones it measured 3.59 to 1; the label color on the
         // gray tint when it is off (5.7).
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: isEnabled ? "wand.and.stars" : "slider.horizontal.3")
-                .scaledFont(size: 10, weight: .bold)
+                .font(.caption2.weight(.semibold))
             Text(isEnabled ? "Auto Intelligence Active" : "Manual Pipeline Mode")
-                .scaledFont(size: 10, weight: .bold, design: .rounded)
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(isEnabled ? Color.white : DSColors.primaryText)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.xs)
         .background(
             ZStack {
                 if isEnabled {
                     LinearGradient(
-                        colors: [DSColors.readable(.purple), DSColors.readable(.blue)], startPoint: .leading,
+                        colors: [DSColors.readable(.accentColor), DSColors.readable(.accentColor)], startPoint: .leading,
                         endPoint: .trailing)
                 } else {
                     Color.secondary.opacity(0.12)
@@ -78,7 +78,7 @@ struct AutoIntelligenceBadge: View {
             }
         )
         .clipShape(Capsule())
-        .shadow(color: isEnabled ? .purple.opacity(0.3) : .clear, radius: 8, x: 0, y: 4)
+        .shadow(color: isEnabled ? Color.accentColor.opacity(0.3) : .clear, radius: 8, x: 0, y: 4)
     }
 }
 

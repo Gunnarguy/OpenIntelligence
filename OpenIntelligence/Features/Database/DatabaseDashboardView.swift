@@ -85,11 +85,11 @@ struct DatabaseDashboardView: View {
 
             var color: Color {
                 switch self {
-                case .info: return .blue
+                case .info: return .accentColor
                 case .success: return .green
                 case .warning: return .orange
                 case .error: return .red
-                case .step: return .purple
+                case .step: return .accentColor
                 }
             }
         }
@@ -141,7 +141,7 @@ struct DatabaseDashboardView: View {
     var body: some View {
         ZStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: DSSpacing.lg) {
                     // Header
                     headerSection
 
@@ -168,7 +168,7 @@ struct DatabaseDashboardView: View {
                         searchSection
                     }
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
             .background(DSColors.background.ignoresSafeArea())
 
@@ -277,12 +277,12 @@ struct DatabaseDashboardView: View {
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            HStack(spacing: DSSpacing.md) {
                 ZStack {
                     Circle()
                         .fill(LinearGradient(
-                            colors: [.blue, .purple],
+                            colors: [DSColors.accent, DSColors.accent.opacity(0.85)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ))
@@ -290,17 +290,17 @@ struct DatabaseDashboardView: View {
 
                     Image(systemName: "cylinder.split.1x2.fill")
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(settings.showTechnicalDetails ? "SQLite FTS5" : "Keyword Index")
                         .font(.title2)
                         .fontWeight(.bold)
 
                     Text(settings.showTechnicalDetails ? "Full-Text Search Engine" : "Finds the exact words of a question in your documents")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -330,22 +330,21 @@ struct DatabaseDashboardView: View {
 
             // Quick stats row, scoped to the selection above.
             if let stats = stats {
-                HStack(spacing: 16) {
-                    QuickStat(value: "\(scopedDocumentCount(stats))", label: "Docs", icon: "doc.fill", color: .blue)
-                    QuickStat(value: formatLargeNumber(scopedWordCount(stats)), label: "Words", icon: "textformat", color: .green)
+                HStack(spacing: DSSpacing.lg) {
+                    QuickStat(value: "\(scopedDocumentCount(stats))", label: "Docs", icon: "doc.fill", color: .accentColor)
+                    QuickStat(value: formatLargeNumber(scopedWordCount(stats)), label: "Words", icon: "textformat", color: .accentColor)
                     // Size, terms and every other file-level figure are properties of the
                     // SQLite file itself and cannot be attributed to one library, so they
                     // stay whole-database and say so rather than silently implying scope.
-                    QuickStat(value: formatBytes(stats.databaseSizeBytes), label: "Size (all)", icon: "externaldrive.fill", color: .orange)
+                    QuickStat(value: formatBytes(stats.databaseSizeBytes), label: "Size (all)", icon: "externaldrive.fill", color: .accentColor)
                     if let indexInfo = indexInfo {
-                        QuickStat(value: formatLargeNumber(indexInfo.uniqueTerms), label: "Terms (all)", icon: "list.bullet", color: .purple)
+                        QuickStat(value: formatLargeNumber(indexInfo.uniqueTerms), label: "Terms (all)", icon: "list.bullet", color: .accentColor)
                     }
                 }
             }
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(16)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     /// Library scope for the per-library figures on this screen.
@@ -457,7 +456,7 @@ struct DatabaseDashboardView: View {
     @ViewBuilder
     private var scopePicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 scopeChip(
                     label: "All Libraries",
                     icon: "square.stack.3d.up",
@@ -474,8 +473,8 @@ struct DatabaseDashboardView: View {
                     )
                 }
             }
-            .padding(.horizontal, 2)
-            .padding(.vertical, 2)
+            .padding(.horizontal, DSSpacing.xxs)
+            .padding(.vertical, DSSpacing.xxs)
         }
         .accessibilityLabel("Statistics scope")
         .accessibilityHint("Choose whether the counts cover every library or one library by name")
@@ -511,21 +510,21 @@ struct DatabaseDashboardView: View {
         Button {
             guard databaseScope != scope else { return }
             DSHaptics.light()
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
+            withAnimation(DSAnimations.snappySpring) {
                 databaseScope = scope
             }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption.weight(.medium))
                 Text(label)
                     .font(.subheadline)
                     .fontWeight(isSelected ? .semibold : .regular)
                     .lineLimit(1)
             }
-            .foregroundColor(isSelected ? tint : .secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .foregroundStyle(isSelected ? tint : .secondary)
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, DSSpacing.sm)
             .background(
                 Capsule().fill(tint.opacity(isSelected ? 0.16 : 0.06))
             )
@@ -544,49 +543,49 @@ struct DatabaseDashboardView: View {
 
     private var sectionPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 ForEach(DatabaseSection.allCases.filter { settings.showTechnicalDetails || !$0.isTechnical }) { section in
                     Button {
-                        withAnimation(.spring(response: 0.3)) {
+                        withAnimation(DSAnimations.snappySpring) {
                             selectedSection = section
                         }
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: section.icon)
                             Text(section.label)
                         }
                         .font(.subheadline)
                         .fontWeight(shownSection == section ? .semibold : .regular)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, DSSpacing.lg)
+                        .padding(.vertical, DSSpacing.sm)
                         .background(
                             shownSection == section
                                 ? Color.accentColor.opacity(0.15)
-                                : Color.gray.opacity(0.1)
+                                : DSColors.surface,
+                            in: Capsule()
                         )
-                        .foregroundColor(shownSection == section ? .accentColor : .secondary)
-                        .cornerRadius(20)
+                        .foregroundStyle(shownSection == section ? Color.accentColor : .secondary)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, DSSpacing.xs)
         }
     }
 
     // MARK: - Overview Section
 
     private var overviewSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             if isLoading {
                 ProgressView("Loading database statistics...")
-                    .padding(40)
+                    .padding(DSSpacing.xxl)
             } else if let stats = stats {
                 // Main metrics grid
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible())
-                ], spacing: 12) {
+                ], spacing: DSSpacing.md) {
                     // Scoped alongside the headline row. Leaving these reading whole-store
                     // totals underneath a scoped header would have moved the confusion
                     // down the page rather than fixed it.
@@ -595,7 +594,7 @@ struct DatabaseDashboardView: View {
                         title: "Documents",
                         value: "\(scopedDocumentCount(stats))",
                         subtitle: scopeSubtitle,
-                        color: .blue,
+                        color: .accentColor,
                         trend: nil
                     )
 
@@ -604,7 +603,7 @@ struct DatabaseDashboardView: View {
                         title: "Characters",
                         value: formatLargeNumber(scopedCharacterCount(stats)),
                         subtitle: scopeSubtitle,
-                        color: .purple,
+                        color: .accentColor,
                         trend: nil
                     )
 
@@ -613,7 +612,7 @@ struct DatabaseDashboardView: View {
                         title: "Words",
                         value: formatLargeNumber(scopedWordCount(stats)),
                         subtitle: scopeSubtitle,
-                        color: .green,
+                        color: .accentColor,
                         trend: nil
                     )
 
@@ -622,42 +621,41 @@ struct DatabaseDashboardView: View {
                         title: "Database Size",
                         value: formatBytes(stats.databaseSizeBytes),
                         subtitle: "On disk",
-                        color: .orange,
+                        color: .accentColor,
                         trend: nil
                     )
                 }
 
                 // Quick stats row: storage internals, with Technical Details on.
                 if settings.showTechnicalDetails, let diag = deepDiagnostics {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         QuickStat(
                             value: "\(diag.pageCount)",
                             label: "Pages",
                             icon: "square.grid.3x3",
-                            color: .blue
+                            color: .accentColor
                         )
                         QuickStat(
                             value: "\(diag.pageSize)B",
                             label: "Page Size",
                             icon: "ruler",
-                            color: .green
+                            color: .accentColor
                         )
                         QuickStat(
                             value: diag.journalMode.uppercased(),
                             label: "Journal",
                             icon: "doc.badge.gearshape",
-                            color: .purple
+                            color: .accentColor
                         )
                         QuickStat(
                             value: "\(topTerms.count)",
                             label: "Unique Terms",
                             icon: "textformat.abc",
-                            color: .orange
+                            color: .accentColor
                         )
                     }
-                    .padding()
-                    .background(DSColors.surface)
-                    .cornerRadius(12)
+                    .padding(DSSpacing.lg)
+                    .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                 }
 
                 // Performance card
@@ -679,19 +677,19 @@ struct DatabaseDashboardView: View {
     }
 
     private func databaseHealthCard(_ diag: SQLiteFullTextService.DeepDiagnostics) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: diag.integrityCheckResult.lowercased().contains("ok") ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .foregroundColor(diag.integrityCheckResult.lowercased().contains("ok") ? .green : .red)
+                    .foregroundStyle(diag.integrityCheckResult.lowercased().contains("ok") ? .green : .red)
                 Text("Database Health")
                     .font(.headline)
                 Spacer()
                 Text(diag.integrityCheckResult.lowercased().contains("ok") ? "Healthy" : "Issues Detected")
                     .font(.caption)
-                    .foregroundColor(diag.integrityCheckResult.lowercased().contains("ok") ? .green : .red)
+                    .foregroundStyle(diag.integrityCheckResult.lowercased().contains("ok") ? .green : .red)
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
                 HealthIndicator(
                     label: settings.showTechnicalDetails ? "Integrity" : "Index Check",
                     status: diag.integrityCheckResult.lowercased().contains("ok") ? .good : .bad
@@ -709,12 +707,11 @@ struct DatabaseDashboardView: View {
             if diag.freePageCount > 0 || diag.walSizeBytes > 10_000_000 {
                 Text("💡 Consider running Optimize in the Maintenance tab to reclaim space")
                     .font(.caption2)
-                    .foregroundColor(.orange)
+                    .foregroundStyle(DSColors.readable(.orange))
             }
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(12)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     /// How keyword search works. Through 5.6 this card was "Performance Advantage", with "100X", "10X" and
@@ -722,10 +719,10 @@ struct DatabaseDashboardView: View {
     /// anywhere in the repository (checked 2026-10-20: BenchmarkRuns/LEDGER.md, Docs, the audits), so they
     /// are gone and the card says what the index does.
     private var performanceCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "bolt.fill")
-                    .foregroundColor(.yellow)
+                    .foregroundStyle(DSColors.accent)
                 Text(settings.showTechnicalDetails ? "Keyword Index" : "How Keyword Search Works")
                     .font(.headline)
                 Spacer()
@@ -741,37 +738,38 @@ struct DatabaseDashboardView: View {
                     "The app keeps an index of the words in your documents, so a search looks words up instead of reading every passage, and the best matches come first."
                 )
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(12)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func containerBreakdownCard(_ stats: SQLiteFullTextService.FTS5Statistics) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "square.stack.3d.up.fill")
-                    .foregroundColor(.indigo)
+                    .foregroundStyle(DSColors.accent)
                 Text("Libraries")
                     .font(.headline)
                 Spacer()
                 Text("\(stats.containerStats.count) \(stats.containerStats.count == 1 ? "library" : "libraries")")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
 
             ForEach(stats.containerStats) { container in
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(containerName(for: container.containerId))
                             .font(.subheadline)
                             .fontWeight(.medium)
                         Text("\(container.documentCount) docs • \(formatLargeNumber(container.totalWords)) words")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
@@ -779,36 +777,37 @@ struct DatabaseDashboardView: View {
                     Text(formatLargeNumber(container.totalCharacters))
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, DSSpacing.xs)
 
                 if container.id != stats.containerStats.last?.id {
                     Divider()
                 }
             }
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(12)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Documents Section
 
     private var documentsSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             if documentStats.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: DSSpacing.md) {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary.opacity(0.5))
+                        .font(.largeTitle)
+                        .imageScale(.large)
+                        .foregroundStyle(.secondary)
                     Text(settings.showTechnicalDetails ? "No Documents Indexed" : "No Documents Yet")
                         .font(.headline)
                     Text(settings.showTechnicalDetails ? "Add documents to populate the FTS5 index" : "Documents you add are listed here with their words and characters.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(40)
+                .padding(DSSpacing.xxl)
             } else {
                 // Document list header.
                 //
@@ -818,17 +817,18 @@ struct DatabaseDashboardView: View {
                 // documents under a heading that claimed nothing. The rows follow the scope now,
                 // and the heading says which scope produced them.
                 HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Indexed Documents")
                             .font(.headline)
                         Text(scopeLabel)
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Text("\(documentStats.count) total • Tap to preview")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
 
                 // Summary computed from `documentStats`, which is the very list below it.
@@ -840,7 +840,7 @@ struct DatabaseDashboardView: View {
                 // word count of *every* library by the document count of *one*, so with
                 // six libraries it reported a number that described nothing. Deriving all
                 // three from the displayed rows makes the summary true by construction.
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     MiniStatCard(label: "Words", value: formatLargeNumber(listedWordCount))
                     MiniStatCard(label: "Characters", value: formatLargeNumber(listedCharacterCount))
                     MiniStatCard(
@@ -850,7 +850,7 @@ struct DatabaseDashboardView: View {
                 }
 
                 // Document list
-                LazyVStack(spacing: 8) {
+                LazyVStack(spacing: DSSpacing.sm) {
                     ForEach(documentStats) { doc in
                         Button {
                             selectedDocument = doc
@@ -867,19 +867,18 @@ struct DatabaseDashboardView: View {
     // MARK: - Intelligence Section
 
     private var intelligenceSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             // Header
             HStack {
                 Image(systemName: "wand.and.stars")
-                    .foregroundColor(.purple)
+                    .foregroundStyle(DSColors.accent)
                     .font(.title2)
                 Text(settings.showTechnicalDetails ? "Auto Intelligence Adaptations" : "How Each Library Is Tuned")
                     .font(.headline)
                 Spacer()
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Per-library intelligence cards
             ForEach(containerService.containers) { container in
@@ -893,15 +892,15 @@ struct DatabaseDashboardView: View {
             }
 
             // Explanation card
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 HStack {
                     Image(systemName: "lightbulb.fill")
-                        .foregroundColor(.yellow)
+                        .foregroundStyle(DSColors.accent)
                     Text(settings.showTechnicalDetails ? "How Auto Intelligence Works" : "What the App Adjusts")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.subheadline.weight(.medium))
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     // Each line says what the code does (2026-10-20): the analysis measures vocabulary richness,
                     // technical density, code, math and structured passages (`analyzeLibrary`); each import sets
                     // its passage plan from a scan of the new document when the library is on Auto
@@ -933,50 +932,49 @@ struct DatabaseDashboardView: View {
 
                 Text(settings.showTechnicalDetails ? "Each library is analyzed on its own documents" : "Each library is looked at on its own")
                     .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, DSSpacing.xs)
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
     }
 
     // MARK: - Index Section
 
     private var indexSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             if let indexInfo = indexInfo {
                 // Term statistics
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     HStack {
                         Image(systemName: "text.book.closed.fill")
-                            .foregroundColor(.blue)
+                            .foregroundStyle(DSColors.accent)
                         Text("Vocabulary Statistics")
                             .font(.headline)
                         Spacer()
                     }
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                         IndexStatCard(
                             title: "Unique Terms",
                             value: formatLargeNumber(indexInfo.uniqueTerms),
                             icon: "textformat.abc",
-                            color: .blue
+                            color: .accentColor
                         )
 
                         IndexStatCard(
                             title: "Total Occurrences",
                             value: formatLargeNumber(indexInfo.totalTerms),
                             icon: "number",
-                            color: .green
+                            color: .accentColor
                         )
 
                         IndexStatCard(
                             title: "Avg Frequency",
                             value: String(format: "%.1f", indexInfo.averageTermFrequency),
                             icon: "chart.line.uptrend.xyaxis",
-                            color: .purple
+                            color: .accentColor
                         )
 
                         IndexStatCard(
@@ -987,42 +985,40 @@ struct DatabaseDashboardView: View {
                         )
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // Tokenizer info
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "scissors")
-                            .foregroundColor(.orange)
+                            .foregroundStyle(DSColors.accent)
                         Text("Tokenizer Configuration")
                             .font(.headline)
                         Spacer()
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         TokenizerInfoRow(label: "Tokenizer", value: "porter unicode61")
                         TokenizerInfoRow(label: "Stemming", value: "English Porter Stemmer")
                         TokenizerInfoRow(label: "Case Handling", value: "Case-insensitive (Unicode)")
                         TokenizerInfoRow(label: "Ranking", value: "BM25 (built-in)")
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // FTS5 features
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "sparkles")
-                            .foregroundColor(.purple)
+                            .foregroundStyle(DSColors.accent)
                         Text("FTS5 Capabilities")
                             .font(.headline)
                         Spacer()
                     }
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
                         FeatureBadge(name: "MATCH Queries", enabled: true)
                         FeatureBadge(name: "bm25() Ranking", enabled: true)
                         FeatureBadge(name: "snippet()", enabled: true)
@@ -1033,12 +1029,11 @@ struct DatabaseDashboardView: View {
                         FeatureBadge(name: "Column Filters", enabled: true)
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             } else {
                 ProgressView("Loading index info...")
-                    .padding(40)
+                    .padding(DSSpacing.xxl)
             }
         }
     }
@@ -1046,25 +1041,26 @@ struct DatabaseDashboardView: View {
     // MARK: - Vocabulary Section (Power User)
 
     private var vocabularySection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             // Top terms
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 HStack {
                     Image(systemName: "textformat.abc")
-                        .foregroundColor(.purple)
+                        .foregroundStyle(DSColors.accent)
                     Text("Top 100 Terms by Frequency")
                         .font(.headline)
                     Spacer()
                     Text("\(topTerms.count) terms")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
 
                 if topTerms.isEmpty {
                     Text("No vocabulary data yet. Add documents to populate.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding()
+                        .foregroundStyle(.secondary)
+                        .padding(DSSpacing.lg)
                 } else {
                     // Term frequency chart
                     Chart(topTerms.prefix(20)) { term in
@@ -1072,13 +1068,7 @@ struct DatabaseDashboardView: View {
                             x: .value("Occurrences", term.totalOccurrences),
                             y: .value("Term", term.term)
                         )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .foregroundStyle(DSColors.accent.gradient)
                     }
                     .chartXAxisLabel("Total Occurrences")
                     .frame(height: 400)
@@ -1086,7 +1076,7 @@ struct DatabaseDashboardView: View {
                     Divider()
 
                     // Full term list
-                    LazyVStack(spacing: 6) {
+                    LazyVStack(spacing: DSSpacing.xs) {
                         HStack {
                             Text("Term")
                                 .font(.caption.weight(.semibold))
@@ -1098,7 +1088,7 @@ struct DatabaseDashboardView: View {
                                 .font(.caption.weight(.semibold))
                                 .frame(width: 60)
                         }
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                         ForEach(topTerms) { term in
                             HStack {
@@ -1111,22 +1101,21 @@ struct DatabaseDashboardView: View {
                                     .frame(width: 60)
                                 Text("\(term.totalOccurrences)")
                                     .font(.caption.monospacedDigit())
-                                    .foregroundColor(.accentColor)
+                                    .foregroundStyle(DSColors.accent)
                                     .frame(width: 60)
                             }
                         }
                     }
                 }
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Term distribution histogram
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 HStack {
                     Image(systemName: "chart.bar.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(DSColors.accent)
                     Text("Term Frequency Distribution")
                         .font(.headline)
                     Spacer()
@@ -1138,7 +1127,7 @@ struct DatabaseDashboardView: View {
                             x: .value("Bucket", dist.bucket),
                             y: .value("Terms", dist.termCount)
                         )
-                        .foregroundStyle(.orange.gradient)
+                        .foregroundStyle(DSColors.accent.gradient)
                     }
                     .chartYAxisLabel("Number of Terms")
                     .chartXAxisLabel("Occurrence Count")
@@ -1146,53 +1135,51 @@ struct DatabaseDashboardView: View {
 
                     Text("Shows how many terms appear with each frequency range")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
     }
 
     // MARK: - Performance Section
 
     private var performanceSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             // Deep diagnostics header
             if let diag = deepDiagnostics {
                 // Database file info
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "internaldrive.fill")
-                            .foregroundColor(.blue)
+                            .foregroundStyle(DSColors.accent)
                         Text("Storage Details")
                             .font(.headline)
                         Spacer()
                     }
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        DiagnosticCard(label: "Database", value: formatBytes(diag.databaseSizeBytes), icon: "cylinder.fill", color: .blue)
-                        DiagnosticCard(label: "WAL File", value: formatBytes(diag.walSizeBytes), icon: "doc.fill", color: .green)
-                        DiagnosticCard(label: "SHM File", value: formatBytes(diag.shmSizeBytes), icon: "doc.fill", color: .orange)
-                        DiagnosticCard(label: "Total", value: formatBytes(diag.databaseSizeBytes + diag.walSizeBytes + diag.shmSizeBytes), icon: "externaldrive.fill", color: .purple)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
+                        DiagnosticCard(label: "Database", value: formatBytes(diag.databaseSizeBytes), icon: "cylinder.fill", color: .accentColor)
+                        DiagnosticCard(label: "WAL File", value: formatBytes(diag.walSizeBytes), icon: "doc.fill", color: .accentColor)
+                        DiagnosticCard(label: "SHM File", value: formatBytes(diag.shmSizeBytes), icon: "doc.fill", color: .accentColor)
+                        DiagnosticCard(label: "Total", value: formatBytes(diag.databaseSizeBytes + diag.walSizeBytes + diag.shmSizeBytes), icon: "externaldrive.fill", color: .accentColor)
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // Page statistics
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "square.grid.3x3.fill")
-                            .foregroundColor(.cyan)
+                            .foregroundStyle(DSColors.accent)
                         Text("Page Statistics")
                             .font(.headline)
                         Spacer()
                     }
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                         MiniStatCard(label: "Page Size", value: "\(diag.pageSize) B")
                         MiniStatCard(label: "Pages", value: "\(diag.pageCount)")
                         MiniStatCard(label: "Free Pages", value: "\(diag.freePageCount)")
@@ -1201,15 +1188,14 @@ struct DatabaseDashboardView: View {
                         MiniStatCard(label: "MMap", value: formatBytes(diag.mMapSize))
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // SQLite settings
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "gearshape.2.fill")
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.secondary)
                         Text("SQLite Configuration")
                             .font(.headline)
                         Spacer()
@@ -1219,36 +1205,35 @@ struct DatabaseDashboardView: View {
                         HStack {
                             Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Spacer()
                             Text(diag.pragmaSettings[key] ?? "—")
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.primary)
+                                .foregroundStyle(.primary)
                         }
                     }
 
                     Divider()
 
                     // Database path
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text("Database Path")
                             .font(.caption.weight(.semibold))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Text(diag.databasePath)
                             .font(.system(.caption2, design: .monospaced))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(.primary)
                             .textSelection(.enabled)
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 // Table stats
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "tablecells.fill")
-                            .foregroundColor(.indigo)
+                            .foregroundStyle(DSColors.accent)
                         Text("Table Statistics")
                             .font(.headline)
                         Spacer()
@@ -1261,42 +1246,40 @@ struct DatabaseDashboardView: View {
                             Spacer()
                             Text("\(table.rowCount) rows")
                                 .font(.caption.monospacedDigit())
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text("~\(formatBytes(table.estimatedSize))")
                                 .font(.caption.monospacedDigit())
-                                .foregroundColor(.accentColor)
+                                .foregroundStyle(DSColors.accent)
                         }
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             } else {
                 ProgressView("Loading diagnostics...")
-                    .padding(40)
+                    .padding(DSSpacing.xxl)
             }
 
             // Search performance test
             if let metrics = searchMetrics {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "speedometer")
-                            .foregroundColor(.green)
+                            .foregroundStyle(.green)
                         Text("Last Search Performance")
                             .font(.headline)
                         Spacer()
                     }
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        DiagnosticCard(label: "Latency", value: String(format: "%.2f ms", metrics.queryLatencyMs), icon: "clock.fill", color: .green)
-                        DiagnosticCard(label: "Docs Scanned", value: "\(metrics.documentsScanned)", icon: "doc.text.magnifyingglass", color: .blue)
-                        DiagnosticCard(label: "Results", value: "\(metrics.resultsReturned)", icon: "list.bullet", color: .purple)
-                        DiagnosticCard(label: "Index Hits", value: "\(metrics.indexHits)", icon: "target", color: .orange)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
+                        DiagnosticCard(label: "Latency", value: String(format: "%.2f ms", metrics.queryLatencyMs), icon: "clock.fill", color: .accentColor)
+                        DiagnosticCard(label: "Docs Scanned", value: "\(metrics.documentsScanned)", icon: "doc.text.magnifyingglass", color: .accentColor)
+                        DiagnosticCard(label: "Results", value: "\(metrics.resultsReturned)", icon: "list.bullet", color: .accentColor)
+                        DiagnosticCard(label: "Index Hits", value: "\(metrics.indexHits)", icon: "target", color: .accentColor)
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
         }
     }
@@ -1304,12 +1287,12 @@ struct DatabaseDashboardView: View {
     // MARK: - Maintenance Section
 
     private var maintenanceSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             // Integrity check
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 HStack {
                     Image(systemName: "checkmark.shield.fill")
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                     Text("Integrity Check")
                         .font(.headline)
                     Spacer()
@@ -1326,7 +1309,7 @@ struct DatabaseDashboardView: View {
                     ForEach(integrityResults, id: \.self) { result in
                         HStack {
                             Image(systemName: result.lowercased().contains("ok") ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundColor(result.lowercased().contains("ok") ? .green : .red)
+                                .foregroundStyle(result.lowercased().contains("ok") ? .green : .red)
                             Text(result)
                                 .font(.caption)
                         }
@@ -1334,18 +1317,17 @@ struct DatabaseDashboardView: View {
                 } else {
                     Text("Run integrity check to verify database health")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Optimize database
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 HStack {
                     Image(systemName: "bolt.circle.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
                     Text("Optimize Database")
                         .font(.headline)
                     Spacer()
@@ -1376,34 +1358,33 @@ struct DatabaseDashboardView: View {
 
                 Text(settings.showTechnicalDetails ? "Runs VACUUM and FTS5 optimize to reclaim space and merge the index" : "Compacts the index and frees the space it no longer uses")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 if let result = lastOptimizeResult {
                     Label(result, systemImage: "checkmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                 }
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Rebuild index
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 HStack {
                     Image(systemName: "arrow.triangle.2.circlepath")
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                     Text("Rebuild Index")
                         .font(.headline)
                     Spacer()
 
                     if !rebuildLogs.isEmpty {
                         Button {
-                            withAnimation(.spring(response: 0.3)) {
+                            withAnimation(DSAnimations.snappySpring) {
                                 showRebuildLog.toggle()
                             }
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: showRebuildLog ? "chevron.up" : "chevron.down")
                                 Text("Log")
                             }
@@ -1435,7 +1416,7 @@ struct DatabaseDashboardView: View {
                 // passage table that answers questions; "Completely rebuilds the FTS5 index" said otherwise (2026-10-20).
                 Text(settings.showTechnicalDetails ? "⚠️ Rebuilds the documents FTS5 table from its stored text; the chunks table is not rebuilt." : "⚠️ Builds the whole-document word index again from its stored text. The index that answers questions by passage isn't touched.")
                     .font(.caption)
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
 
                 // Live rebuild log
                 if showRebuildLog && !rebuildLogs.isEmpty {
@@ -1444,32 +1425,31 @@ struct DatabaseDashboardView: View {
 
                 // Current status during rebuild
                 if isRebuildingIndex, let lastLog = rebuildLogs.last {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         ProgressView()
                             .controlSize(.small)
                         Text(lastLog.message)
                             .font(.caption.monospaced())
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 4)
+                    .padding(.top, DSSpacing.xs)
                 }
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Database info
             if let diag = deepDiagnostics {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "info.circle.fill")
-                            .foregroundColor(.blue)
+                            .foregroundStyle(Color.accentColor)
                         Text("Database Info")
                             .font(.headline)
                         Spacer()
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         if settings.showTechnicalDetails {
                             DatabaseInfoRow(label: "Journal Mode", value: diag.journalMode.uppercased())
                             DatabaseInfoRow(label: "Auto Vacuum", value: diag.autoVacuum)
@@ -1484,13 +1464,12 @@ struct DatabaseDashboardView: View {
                             let wastedBytes = Int64(diag.freePageCount * diag.pageSize)
                             Text("💡 \(formatBytes(wastedBytes)) could be reclaimed with Optimize")
                                 .font(.caption)
-                                .foregroundColor(.orange)
+                                .foregroundStyle(.orange)
                         }
                     }
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
         }
     }
@@ -1498,11 +1477,11 @@ struct DatabaseDashboardView: View {
     // MARK: - Search Section
 
     private var searchSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             // Search input
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 TextField(settings.showTechnicalDetails ? "Search FTS5 index..." : "Search for words in your documents…", text: $searchQuery)
                     .textFieldStyle(.plain)
                     .onSubmit {
@@ -1518,27 +1497,26 @@ struct DatabaseDashboardView: View {
                         searchResults = []
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding()
-            .background(DSColors.surface)
-            .cornerRadius(12)
+            .padding(DSSpacing.lg)
+            .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Search tips
             if searchResults.isEmpty && searchQuery.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Image(systemName: "lightbulb.fill")
-                            .foregroundColor(.yellow)
+                            .foregroundStyle(Color.accentColor)
                         Text(settings.showTechnicalDetails ? "FTS5 Query Syntax" : "Ways to Search")
                             .font(.headline)
                         Spacer()
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         SearchTip(syntax: "word1 word2", description: "Match documents containing both words (AND)")
                         SearchTip(syntax: "\"exact phrase\"", description: "Match exact phrase in order")
                         SearchTip(syntax: "word1 OR word2", description: "Match either word")
@@ -1551,53 +1529,52 @@ struct DatabaseDashboardView: View {
 
                     Text(settings.showTechnicalDetails ? "Queries are case-insensitive. BM25 ranking is used for relevance scoring." : "Capital letters don't matter, and the best matches come first.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, DSSpacing.xs)
                 }
-                .padding()
-                .background(DSColors.surface)
-                .cornerRadius(12)
+                .padding(DSSpacing.lg)
+                .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
 
             // Search performance metrics
             if let metrics = searchMetrics {
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.md) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "clock.fill")
                             .font(.caption2)
-                            .foregroundColor(.green)
+                            .foregroundStyle(.green)
                         Text(String(format: "%.2f ms", metrics.queryLatencyMs))
                             .font(.caption.monospacedDigit())
                     }
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.caption2)
-                            .foregroundColor(.blue)
+                            .foregroundStyle(Color.accentColor)
                         Text("\(metrics.documentsScanned) scanned")
-                            .font(.caption)
+                            .font(.caption.monospacedDigit())
                     }
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "list.bullet")
                             .font(.caption2)
-                            .foregroundColor(.purple)
+                            .foregroundStyle(.secondary)
                         Text("\(metrics.resultsReturned) returned")
-                            .font(.caption)
+                            .font(.caption.monospacedDigit())
                     }
                     Spacer()
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
             }
 
             // Search results
             if !searchResults.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     HStack {
                         Text("Results")
                             .font(.headline)
                         Spacer()
                         Text("\(searchResults.count) matches")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
 
                     ForEach(searchResults, id: \.documentId) { result in
@@ -1609,25 +1586,23 @@ struct DatabaseDashboardView: View {
     }
 
     private var emptyDatabaseState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             Image(systemName: "cylinder")
-                .font(.system(size: 64))
-                .foregroundColor(.secondary.opacity(0.4))
+                .font(.largeTitle)
+                .foregroundStyle(.secondary.opacity(0.4))
 
             Text(settings.showTechnicalDetails ? "Database Empty" : "No Documents Yet")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.title2.weight(.semibold))
 
             Text(settings.showTechnicalDetails ? "Add documents to populate the SQLite FTS5 full-text search index" : "Add documents and their words show up here.")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, DSSpacing.xxl)
         }
-        .padding(40)
+        .padding(DSSpacing.xxl)
         .frame(maxWidth: .infinity)
-        .background(DSColors.surface)
-        .cornerRadius(16)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Helpers
@@ -1674,7 +1649,7 @@ struct DatabaseDashboardView: View {
 
     private func compressionColor(_ ratio: Double) -> Color {
         if ratio < 0.3 { return .green }
-        else if ratio < 0.6 { return .blue }
+        else if ratio < 0.6 { return .accentColor }
         else if ratio < 0.9 { return .orange }
         else { return .red }
     }
@@ -1695,14 +1670,14 @@ struct DatabaseDashboardView: View {
     // MARK: - Rebuild Log View
 
     private var rebuildLogView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text("🔧 Rebuild Log")
                     .font(.caption.weight(.semibold))
                 Spacer()
                 Text("\(rebuildLogs.count) entries")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
                 Button {
                     rebuildLogs = []
                     showRebuildLog = false
@@ -1711,39 +1686,38 @@ struct DatabaseDashboardView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             }
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
+                LazyVStack(alignment: .leading, spacing: DSSpacing.xs) {
                     ForEach(rebuildLogs) { entry in
-                        HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: DSSpacing.sm) {
                             Image(systemName: entry.type.icon)
                                 .font(.caption2)
-                                .foregroundColor(entry.type.color)
+                                .foregroundStyle(entry.type.color)
                                 .frame(width: 14)
 
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                 Text(entry.message)
                                     .font(.caption.monospaced())
-                                    .foregroundColor(.primary)
+                                    .foregroundStyle(.primary)
                                 Text(entry.timestamp, style: .time)
-                                    .font(.system(size: 9).monospaced())
-                                    .foregroundColor(.secondary)
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
                             }
 
                             Spacer()
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, DSSpacing.xxs)
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, DSSpacing.sm)
             }
             .frame(maxHeight: 200)
-            .background(Color.black.opacity(0.05))
-            .cornerRadius(8)
+            .background(Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
-        .padding(.top, 8)
+        .padding(.top, DSSpacing.sm)
     }
 
     // MARK: - Detailed Rebuild Process
@@ -1846,16 +1820,15 @@ private struct QuickStat: View {
     let color: Color
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundColor(color)
+                .foregroundStyle(color)
             Text(value)
-                .font(.subheadline)
-                .fontWeight(.bold)
+                .font(.subheadline.weight(.bold).monospacedDigit())
             Text(label)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -1866,18 +1839,16 @@ private struct DatabaseStatusBadge: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
             Text(status)
-                .font(.caption)
-                .fontWeight(.medium)
+                .font(.caption.weight(.medium))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.15))
-        .cornerRadius(20)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.xs)
+        .background(color.opacity(0.15), in: Capsule())
     }
 }
 
@@ -1890,34 +1861,31 @@ private struct DatabaseMetricCard: View {
     let trend: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                 Spacer()
                 if let trend = trend {
                     Text(trend)
                         .font(.caption2)
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                 }
             }
 
             Text(value)
-                .font(.title)
-                .fontWeight(.bold)
+                .font(.title.weight(.bold).monospacedDigit())
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.caption.weight(.medium))
                 Text(subtitle)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(12)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -1926,13 +1894,12 @@ private struct IndexFactRow: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .font(.subheadline.weight(.medium))
             Text(detail)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1945,36 +1912,33 @@ private struct DocumentStatRow: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(documentName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.subheadline.weight(.medium))
                     .lineLimit(1)
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Label("Added \(doc.createdAt, style: .relative) ago", systemImage: "clock")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                 Text("\(doc.characterCount.formatted()) chars")
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.caption.weight(.medium).monospacedDigit())
                 Text("\(doc.wordCount.formatted()) words")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
 
             Image(systemName: "chevron.right")
                 .font(.caption)
-                .foregroundColor(.secondary.opacity(0.5))
+                .foregroundStyle(.tertiary)
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(10)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -1985,24 +1949,22 @@ private struct IndexStatCard: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                 Spacer()
             }
 
             Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(.title2.weight(.bold).monospacedDigit())
 
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
-        .padding()
-        .background(color.opacity(0.1))
-        .cornerRadius(10)
+        .padding(DSSpacing.lg)
+        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -2014,11 +1976,10 @@ private struct TokenizerInfoRow: View {
         HStack {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Spacer()
             Text(value)
-                .font(.caption)
-                .fontWeight(.medium)
+                .font(.caption.weight(.medium))
         }
     }
 }
@@ -2028,17 +1989,16 @@ private struct FeatureBadge: View {
     let enabled: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: enabled ? "checkmark.circle.fill" : "xmark.circle")
-                .foregroundColor(enabled ? .green : .red)
+                .foregroundStyle(enabled ? .green : .red)
                 .font(.caption)
             Text(name)
                 .font(.caption2)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(enabled ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-        .cornerRadius(8)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .background(enabled ? Color.green.opacity(0.1) : Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 
@@ -2047,17 +2007,16 @@ private struct SearchTip: View {
     let description: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: DSSpacing.md) {
             Text(syntax)
                 .font(.system(.caption, design: .monospaced))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.accentColor.opacity(0.1))
-                .cornerRadius(6)
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xs)
+                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
 
             Text(description)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             Spacer()
         }
@@ -2069,31 +2028,28 @@ private struct SearchResultRow: View {
     let documentName: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text(documentName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(String(format: "%.2f", -result.bm25Score))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(6)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xxs)
+                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
             }
 
             if let snippet = result.snippet, !snippet.isEmpty {
                 Text(snippet)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(3)
             }
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(10)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -2105,25 +2061,23 @@ private struct DiagnosticCard: View {
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                     .font(.caption)
                 Spacer()
             }
             Text(value)
-                .font(.title3)
-                .fontWeight(.bold)
+                .font(.title3.weight(.bold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
-        .padding()
-        .background(color.opacity(0.1))
-        .cornerRadius(10)
+        .padding(DSSpacing.lg)
+        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -2133,19 +2087,17 @@ private struct MiniStatCard: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text(value)
-                .font(.caption)
-                .fontWeight(.semibold)
+                .font(.caption.weight(.semibold).monospacedDigit())
                 .lineLimit(1)
             Text(label)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
-        .padding(8)
+        .padding(DSSpacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.1))
-        .cornerRadius(8)
+        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 
@@ -2158,11 +2110,10 @@ private struct DatabaseInfoRow: View {
         HStack {
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Spacer()
             Text(value)
-                .font(.system(.caption, design: .monospaced))
-                .fontWeight(.medium)
+                .font(.system(.caption, design: .monospaced).weight(.medium))
         }
     }
 }
@@ -2193,18 +2144,17 @@ private struct HealthIndicator: View {
     let status: Status
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: status.icon)
-                .foregroundColor(status.color)
+                .foregroundStyle(status.color)
                 .font(.caption)
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(status.color.opacity(0.1))
-        .cornerRadius(8)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .background(status.color.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 
@@ -2231,32 +2181,32 @@ struct LibraryIntelligenceCard: View {
     var showsTechnicalDetails: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Header with library info
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: container.icon)
-                    .foregroundColor(Color(hex: container.colorHex) ?? .accentColor)
+                    .foregroundStyle(Color(hex: container.colorHex) ?? .accentColor)
                     .font(.title3)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(container.name)
                         .font(.headline)
 
-                    HStack(spacing: 6) {
+                    HStack(spacing: DSSpacing.xs) {
                         if container.autoAdaptDimension {
                             Label("Auto", systemImage: "wand.and.stars")
                                 .font(.caption2)
-                                .foregroundColor(.purple)
+                                .foregroundStyle(Color.accentColor)
                         } else {
                             Label("Manual", systemImage: "slider.horizontal.3")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
 
                         if let lastTune = container.lastSelfTuneAt {
                             Text("• Updated \(lastTune, style: .relative) ago")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -2265,7 +2215,7 @@ struct LibraryIntelligenceCard: View {
 
                 // Status indicator
                 Circle()
-                    .fill(container.autoAdaptDimension ? Color.green : Color.gray)
+                    .fill(container.autoAdaptDimension ? Color.green : Color.secondary)
                     .frame(width: 8, height: 8)
             }
 
@@ -2273,7 +2223,7 @@ struct LibraryIntelligenceCard: View {
 
             // Chunking adaptations
             if let report = intelligenceReport {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     if report.corpus.isEstimate {
                         // A large library is measured from a sample of its passages.
                         Text(
@@ -2281,7 +2231,7 @@ struct LibraryIntelligenceCard: View {
                                 ? "Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks"
                                 : "Measured from \(report.corpus.analysedChunkCount) of its \(report.corpus.chunkCount) passages")
                             .font(.caption2.weight(.medium))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     // The library analysis's plan is shown and never applied: each import sets its own from a
@@ -2293,66 +2243,66 @@ struct LibraryIntelligenceCard: View {
                             : "What the analysis suggests. Each document gets its own when it's added."
                     )
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                     IntelligenceMetricRow(
                         icon: "rectangle.split.3x1",
                         label: showsTechnicalDetails ? "Chunking Strategy" : "Splitting",
                         value: report.chunking.strategy.rawValue.capitalized,
-                        color: .blue
+                        color: .accentColor
                     )
 
                     IntelligenceMetricRow(
                         icon: "textformat.size",
                         label: showsTechnicalDetails ? "Target Chunk Size" : "Passage Length",
                         value: "\(report.chunking.targetWordWindow) words",
-                        color: .green
+                        color: .accentColor
                     )
 
                     IntelligenceMetricRow(
                         icon: "arrow.left.arrow.right",
                         label: "Overlap",
                         value: "\(report.chunking.overlapWords) words",
-                        color: .orange
+                        color: .accentColor
                     )
 
                     if !report.chunking.rationales.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             Text(showsTechnicalDetails ? "Rationale:" : "Why:")
                                 .font(.caption2.weight(.medium))
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
 
                             ForEach(report.chunking.rationales.prefix(3), id: \.self) { reason in
-                                HStack(alignment: .top, spacing: 6) {
+                                HStack(alignment: .top, spacing: DSSpacing.xs) {
                                     Text("•")
-                                        .foregroundColor(.accentColor)
+                                        .foregroundStyle(Color.accentColor)
                                     Text(reason)
                                         .font(.caption2)
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         }
-                        .padding(.top, 4)
+                        .padding(.top, DSSpacing.xs)
                     }
                 }
             } else if isAnalyzing {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     ProgressView()
                         .scaleEffect(0.7)
                     Text(showsTechnicalDetails ? "Analyzing corpus…" : "Analyzing…")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             } else if container.autoAdaptDimension {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     Text("Not analyzed yet in this session.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     Text("Analyzing a library means opening it and reading up to 4,000 of its passages, so it runs when you ask rather than for all libraries at once.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let onAnalyze {
@@ -2360,16 +2310,16 @@ struct LibraryIntelligenceCard: View {
                             DSHaptics.light()
                             onAnalyze()
                         } label: {
-                            HStack(spacing: 5) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: "wand.and.stars")
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .font(.caption.weight(.semibold))
                                 Text("Analyze this library")
                                     .font(.caption.weight(.medium))
                             }
-                            .foregroundColor(.purple)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(Color.purple.opacity(0.12)))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, DSSpacing.md)
+                            .padding(.vertical, DSSpacing.xs)
+                            .background(Capsule().fill(Color.accentColor.opacity(0.12)))
                         }
                         .buttonStyle(.plain)
                     }
@@ -2377,32 +2327,32 @@ struct LibraryIntelligenceCard: View {
             } else {
                 // Manual mode - show current directive
                 if let directive = container.chunkingDirective {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         IntelligenceMetricRow(
                             icon: "rectangle.split.3x1",
                             label: showsTechnicalDetails ? "Chunking Strategy" : "Splitting",
                             value: directive.strategy.capitalized,
-                            color: .gray
+                            color: .secondary
                         )
 
                         IntelligenceMetricRow(
                             icon: "textformat.size",
                             label: showsTechnicalDetails ? "Target Chunk Size" : "Passage Length",
                             value: "\(directive.targetWordWindow) words",
-                            color: .gray
+                            color: .secondary
                         )
 
                         IntelligenceMetricRow(
                             icon: "arrow.left.arrow.right",
                             label: "Overlap",
                             value: "\(directive.overlapWords) words",
-                            color: .gray
+                            color: .secondary
                         )
                     }
                 } else {
                     Text(showsTechnicalDetails ? "Using default chunking settings" : "Using the standard passage length")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -2410,12 +2360,12 @@ struct LibraryIntelligenceCard: View {
             if let report = intelligenceReport {
                 Divider()
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(showsTechnicalDetails ? "Corpus Signals" : "What's in It")
                         .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
-                    HStack(spacing: 16) {
+                    HStack(spacing: DSSpacing.lg) {
                         CorpusSignalBadge(
                             icon: "doc.text",
                             label: "\(report.corpus.documentCount) docs"
@@ -2440,12 +2390,11 @@ struct LibraryIntelligenceCard: View {
                 }
             }
         }
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(12)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(container.autoAdaptDimension ? Color.purple.opacity(0.3) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .stroke(container.autoAdaptDimension ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
         )
     }
 }
@@ -2460,14 +2409,14 @@ struct IntelligenceMetricRow: View {
     var body: some View {
         HStack {
             Image(systemName: icon)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 20)
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Spacer()
             Text(value)
-                .font(.caption.weight(.medium))
+                .font(.caption.weight(.medium).monospacedDigit())
         }
     }
 }
@@ -2478,13 +2427,13 @@ struct CorpusSignalBadge: View {
     let label: String
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2)
+                .font(.caption2.monospacedDigit())
         }
-        .foregroundColor(.secondary)
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -2495,17 +2444,17 @@ struct IntelligenceExplanationRow: View {
     let description: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .foregroundColor(.accentColor)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 24)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.caption.weight(.medium))
                 Text(description)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -2554,33 +2503,32 @@ struct DocumentPreviewSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     // Metadata header
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DSSpacing.md) {
                         HStack {
                             Image(systemName: "doc.text.fill")
-                                .foregroundColor(.accentColor)
+                                .foregroundStyle(Color.accentColor)
                             Text("Document Metadata")
                                 .font(.headline)
                             Spacer()
                         }
 
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                             MetadataCard(label: "Document ID", value: documentId.uuidString, isMonospace: true)
                             MetadataCard(label: "Characters", value: characterCount.formatted())
                             MetadataCard(label: "Words", value: wordCount.formatted())
                             MetadataCard(label: "Avg Word Length", value: wordCount > 0 ? String(format: "%.1f", Double(characterCount) / Double(wordCount)) : "—")
                         }
                     }
-                    .padding()
-                    .background(DSColors.systemGray6)
-                    .cornerRadius(12)
+                    .padding(DSSpacing.lg)
+                    .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                     // Content preview
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DSSpacing.md) {
                         HStack {
                             Image(systemName: "text.alignleft")
-                                .foregroundColor(.blue)
+                                .foregroundStyle(Color.accentColor)
                             Text("Indexed Content")
                                 .font(.headline)
                             Spacer()
@@ -2612,80 +2560,77 @@ struct DocumentPreviewSheet: View {
                         if isLoading {
                             ProgressView("Loading content...")
                                 .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(40)
+                                .padding(DSSpacing.xxl)
                         } else if displayContent.isEmpty {
                             Text("No content available")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding()
+                                .foregroundStyle(.secondary)
+                                .padding(DSSpacing.lg)
                         } else {
                             if isTruncated {
-                                HStack(spacing: 6) {
+                                HStack(spacing: DSSpacing.xs) {
                                     Image(systemName: "info.circle.fill")
-                                        .foregroundColor(.orange)
+                                        .foregroundStyle(.orange)
                                     Text("Showing first \(Self.displayLimit.formatted()) of \(fullContentCharacterCount.formatted()) characters. Use Share to export full content.")
                                         .font(.caption2)
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(.secondary)
                                 }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(Color.orange.opacity(0.1))
-                                .cornerRadius(8)
+                                .padding(.horizontal, DSSpacing.sm)
+                                .padding(.vertical, DSSpacing.xs)
+                                .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                             }
 
                             Text(displayContent)
                                 .font(.system(.caption, design: .monospaced))
                                 .textSelection(.enabled)
-                                .padding()
+                                .padding(DSSpacing.lg)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(DSColors.background)
-                                .cornerRadius(8)
+                                .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                                 )
                         }
                     }
-                    .padding()
-                    .background(DSColors.systemGray6)
-                    .cornerRadius(12)
+                    .padding(DSSpacing.lg)
+                    .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                     // Analysis — uses pre-computed stats (NOT computed in view body)
                     if let stats = analysisStats {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: DSSpacing.md) {
                             HStack {
                                 Image(systemName: "chart.bar.fill")
-                                    .foregroundColor(.purple)
+                                    .foregroundStyle(Color.accentColor)
                                 Text("Quick Analysis")
                                     .font(.headline)
                                 Spacer()
                             }
 
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                AnalysisCard(label: "Lines", value: "\(stats.lines)", icon: "list.number", color: .blue)
-                                AnalysisCard(label: "Sentences", value: "\(max(1, stats.sentences))", icon: "text.quote", color: .green)
-                                AnalysisCard(label: "Paragraphs", value: "\(stats.paragraphs)", icon: "text.alignleft", color: .orange)
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
+                                AnalysisCard(label: "Lines", value: "\(stats.lines)", icon: "list.number", color: .accentColor)
+                                AnalysisCard(label: "Sentences", value: "\(max(1, stats.sentences))", icon: "text.quote", color: .accentColor)
+                                AnalysisCard(label: "Paragraphs", value: "\(stats.paragraphs)", icon: "text.alignleft", color: .accentColor)
                             }
 
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                                 Text("Character Breakdown")
                                     .font(.caption.weight(.semibold))
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
 
-                                CharacterBreakdownRow(label: "Uppercase", count: stats.uppercaseCount, total: stats.totalChars, color: .blue)
-                                CharacterBreakdownRow(label: "Lowercase", count: stats.lowercaseCount, total: stats.totalChars, color: .green)
-                                CharacterBreakdownRow(label: "Digits", count: stats.digitCount, total: stats.totalChars, color: .orange)
-                                CharacterBreakdownRow(label: "Whitespace", count: stats.whitespaceCount, total: stats.totalChars, color: .gray)
-                                CharacterBreakdownRow(label: "Punctuation", count: stats.punctuationCount, total: stats.totalChars, color: .purple)
+                                CharacterBreakdownRow(label: "Uppercase", count: stats.uppercaseCount, total: stats.totalChars, color: .accentColor)
+                                CharacterBreakdownRow(label: "Lowercase", count: stats.lowercaseCount, total: stats.totalChars, color: .accentColor)
+                                CharacterBreakdownRow(label: "Digits", count: stats.digitCount, total: stats.totalChars, color: .accentColor)
+                                CharacterBreakdownRow(label: "Whitespace", count: stats.whitespaceCount, total: stats.totalChars, color: .secondary)
+                                CharacterBreakdownRow(label: "Punctuation", count: stats.punctuationCount, total: stats.totalChars, color: .accentColor)
                             }
                         }
-                        .padding()
-                        .background(DSColors.systemGray6)
-                        .cornerRadius(12)
+                        .padding(DSSpacing.lg)
+                        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                     }
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
+            .background(DSColors.background.ignoresSafeArea())
             .navigationTitle(documentName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -2762,20 +2707,19 @@ private struct MetadataCard: View {
     var isMonospace: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text(label)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Text(value)
-                .font(isMonospace ? .system(.caption2, design: .monospaced) : .caption)
+                .font(isMonospace ? .system(.caption2, design: .monospaced) : .caption.monospacedDigit())
                 .fontWeight(.medium)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(8)
-        .background(DSColors.background)
-        .cornerRadius(8)
+        .padding(DSSpacing.sm)
+        .background(DSColors.background, in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 
@@ -2787,21 +2731,19 @@ private struct AnalysisCard: View {
     let color: Color
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .font(.caption)
             Text(value)
-                .font(.headline)
-                .fontWeight(.bold)
+                .font(.headline.weight(.bold).monospacedDigit())
             Text(label)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
-        .padding(10)
+        .padding(DSSpacing.sm)
         .frame(maxWidth: .infinity)
-        .background(color.opacity(0.1))
-        .cornerRadius(8)
+        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
 
@@ -2824,15 +2766,13 @@ private struct CharacterBreakdownRow: View {
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .fill(Color.secondary.opacity(0.1))
                         .frame(height: 8)
-                        .cornerRadius(4)
 
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .fill(color)
                         .frame(width: geometry.size.width * CGFloat(percentage), height: 8)
-                        .cornerRadius(4)
                 }
             }
             .frame(height: 8)
@@ -2843,7 +2783,7 @@ private struct CharacterBreakdownRow: View {
 
             Text(String(format: "%.1f%%", percentage * 100))
                 .font(.caption2.monospacedDigit())
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .frame(width: 45, alignment: .trailing)
         }
     }

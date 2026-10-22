@@ -220,7 +220,7 @@ struct DocumentLibraryView: View {
 
     /// The empty state itself, scrolled by `emptyStateContent`, or with the header at accessibility text sizes (5.7).
     private var emptyStateStack: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             EmptyDocumentsView(
                 isImportingSamples: isImportingSamples,
                 hasImportedSamples: onboardingStore.hasImportedSamples,
@@ -230,9 +230,9 @@ struct DocumentLibraryView: View {
                 onImportSamples: importSampleWorkspace,
                 onPickFiles: presentDocumentPickerOrUpgrade
             )
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, DSSpacing.xl)
     }
 
     /// Content shown below the persistent `documentHeader`, for a library with documents.
@@ -254,7 +254,7 @@ struct DocumentLibraryView: View {
     /// accessibility text sizes (5.7).
     @ViewBuilder
     private var documentCards: some View {
-        LazyVStack(spacing: 12) {
+        LazyVStack(spacing: DSSpacing.md) {
             ForEach(filteredDocuments) { document in
                 NavigationLink(destination: DocumentDetailsView(
                     document: document,
@@ -269,7 +269,7 @@ struct DocumentLibraryView: View {
                 .modifier(DocumentSwipeToDelete { swipeDelete(document) })
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
 
         // Stats footer with Auto Intelligence indicator
         StatsFooter(
@@ -277,13 +277,13 @@ struct DocumentLibraryView: View {
             totalChunks: filteredTotalChunks,
             autoIntelligenceEnabled: containerService.activeContainer?.autoAdaptDimension ?? true
         )
-            .padding(.horizontal)
-            .padding(.bottom, 20)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.bottom, DSSpacing.lg)
 
         // The Siri phrase that finds passages in the open library, the one listed above (5.7).
         SiriPhraseTip(.findPassages)
-            .padding(.horizontal)
-            .padding(.bottom, 20)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.bottom, DSSpacing.lg)
     }
 
     /// The confirmation a swipe asks for before it deletes a document in an iCloud library (`swipeDelete`), on the
@@ -318,9 +318,9 @@ struct DocumentLibraryView: View {
     /// The header above the row of libraries: the title, the storage picker and the action buttons. It takes dropped
     /// files, and the row of libraries below it does not (`takingDroppedFiles(as:)`).
     private var documentHeader: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             documentSectionHeader
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             documentActionStrip
                 // This action empties a library and keeps the library itself, which is exactly
@@ -448,7 +448,7 @@ struct DocumentLibraryView: View {
     @ViewBuilder
     private var documentBanners: some View {
         sharedWorkspaceBanner
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
 
         if shouldShowQuotaBanner {
             DocumentQuotaBanner(
@@ -458,7 +458,7 @@ struct DocumentLibraryView: View {
                 addOnPacks: entitlementStore.addOnPacks,
                 onUpgrade: { presentPlanSheet(for: .quotaBanner) }
             )
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
     }
 
@@ -480,26 +480,26 @@ struct DocumentLibraryView: View {
         let stacked = dynamicTypeSize.isAccessibilitySize
         let layout =
             stacked
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.sm))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: DSSpacing.md))
         return layout {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text("Documents")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(DSColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(documentSectionSubtitle)
-                    .font(.caption2.weight(.medium))
+                    .font(.caption2.weight(.medium).monospacedDigit())
                     .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if !stacked {
-                Spacer(minLength: 8)
+                Spacer(minLength: DSSpacing.sm)
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 if activeLibrary != nil {
                     Picker("Sync Mode", selection: syncModeBinding) {
                         Text("Local").tag(LibrarySyncMode.localOnly)
@@ -520,17 +520,19 @@ struct DocumentLibraryView: View {
                             ProgressView()
                                 .progressViewStyle(.circular)
                                 .scaleEffect(0.8)
-                                .frame(width: 32, height: 32)
+                                .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
                         } else {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.accentColor)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color.accentColor)
                                 .frame(width: 32, height: 32)
                                 .background(
                                     Circle()
                                         .fill(Color.accentColor.opacity(0.08))
                                 )
                                 .glassCircleEffectHelper()
+                                .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
+                                .contentShape(Rectangle())
                         }
                     }
                     .buttonStyle(.plain)
@@ -566,7 +568,7 @@ struct DocumentLibraryView: View {
     /// that tab renders `AdaptiveVisualizationsView()` which takes no parameters. The chip was a
     /// second button for the Atlas tab sitting two inches above the Atlas tab.
     private var documentActionStrip: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             DocumentActionChip(
                 title: "Add Document",
                 systemImage: "plus",
@@ -676,16 +678,16 @@ struct DocumentLibraryView: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DSSpacing.lg)
+        .padding(.vertical, DSSpacing.sm)
     }
 
     @ViewBuilder
     private var sharedWorkspaceBanner: some View {
         if let bootstrapConflict = workspaceSyncService.pendingBootstrapConflict,
            hasConfiguredICloudLibraries {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "icloud.trianglebadge.exclamationmark")
                         .font(.subheadline)
                         .foregroundStyle(Color.accentColor)
@@ -709,7 +711,7 @@ struct DocumentLibraryView: View {
                             ? "iCloud has libraries that are not on this device yet."
                             : "This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Sync / \(bootstrapConflict.localDocumentCount) docs, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) docs.")
                 )
-                .font(.caption)
+                .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
 
                 if !bootstrapConflict.localOnlyLibraryNames.isEmpty {
@@ -732,13 +734,13 @@ struct DocumentLibraryView: View {
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .minimumScaleFactor(0.9)
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(isRefreshingSharedWorkspace)
                 } else {
                     ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 10) {
+                        HStack(spacing: DSSpacing.sm) {
                             Button {
                                 resolvePendingBootstrap(.mergeLibraries)
                             } label: {
@@ -750,7 +752,7 @@ struct DocumentLibraryView: View {
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .minimumScaleFactor(0.9)
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget)
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(isRefreshingSharedWorkspace)
@@ -766,13 +768,13 @@ struct DocumentLibraryView: View {
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .minimumScaleFactor(0.9)
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget)
                             }
                             .buttonStyle(.bordered)
                             .disabled(isRefreshingSharedWorkspace)
                         }
 
-                        VStack(spacing: 10) {
+                        VStack(spacing: DSSpacing.sm) {
                             Button {
                                 resolvePendingBootstrap(.mergeLibraries)
                             } label: {
@@ -784,7 +786,7 @@ struct DocumentLibraryView: View {
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .minimumScaleFactor(0.9)
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget)
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(isRefreshingSharedWorkspace)
@@ -800,7 +802,7 @@ struct DocumentLibraryView: View {
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .minimumScaleFactor(0.9)
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget)
                             }
                             .buttonStyle(.bordered)
                             .disabled(isRefreshingSharedWorkspace)
@@ -818,27 +820,27 @@ struct DocumentLibraryView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .padding(12)
+            .padding(DSSpacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
             )
         } else if shouldShowCompactSharedWorkspaceBanner {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: compactSharedWorkspaceBannerIcon)
                         .font(.subheadline)
                         .foregroundStyle(compactSharedWorkspaceBannerIconColor)
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(compactSharedWorkspaceBannerTitle)
                             .font(.subheadline.weight(.semibold))
                         Text(compactSharedWorkspaceSummary)
-                            .font(.caption)
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
@@ -846,9 +848,9 @@ struct DocumentLibraryView: View {
                     Spacer()
 
                     Text(compactSharedWorkspaceModeLabel)
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
                         .background(compactSharedWorkspaceModeColor.opacity(0.15))
                         .foregroundStyle(compactSharedWorkspaceModeColor)
                         .clipShape(Capsule())
@@ -861,13 +863,13 @@ struct DocumentLibraryView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(12)
+            .padding(DSSpacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .stroke(compactSharedWorkspaceBannerIconColor.opacity(0.16), lineWidth: 1)
             )
         }
@@ -1057,14 +1059,14 @@ struct DocumentLibraryView: View {
 
     @ViewBuilder
     private func syncBenefitRow(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 16)
             Text(text)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -1258,7 +1260,7 @@ struct DocumentLibraryView: View {
             let samplesMs = Date().timeIntervalSince(samplesStarted) * 1000
 
             if !refreshed.isEmpty {
-                withAnimation { refreshedSampleNames = refreshed }
+                withAnimation(DSAnimations.snappySpring) { refreshedSampleNames = refreshed }
             }
 
             Log.info(
@@ -1287,13 +1289,13 @@ struct DocumentLibraryView: View {
         if ragService.librariesNeedingIndexRebuild.contains(containerId) {
             HStack(alignment: .top, spacing: DSSpacing.sm) {
                 Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(.orange)
-                    .padding(.top, 2)
+                    .padding(.top, DSSpacing.xxs)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("This library needs its search index rebuilt")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Your documents are intact. Answers here can miss information until the index is rebuilt, which takes a moment and does not re-import anything.")
@@ -1324,10 +1326,10 @@ struct DocumentLibraryView: View {
         if let removal = ragService.pendingRemovals.last {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.red)
                 Text(removal.summary)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -1360,13 +1362,13 @@ struct DocumentLibraryView: View {
         if let names = refreshedSampleNames, !names.isEmpty {
             HStack(alignment: .top, spacing: DSSpacing.sm) {
                 Image(systemName: "checkmark.seal")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.blue)
-                    .padding(.top, 2)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.top, DSSpacing.xxs)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(names.count == 1 ? "Updated a sample document" : "Updated \(names.count) sample documents")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("\(names.joined(separator: ", ")) described things this app does not actually do. Because the app answers questions out of these documents, a wrong sentence in one becomes a wrong answer. They were re-imported with the corrections. Nothing you imported yourself was touched.")
@@ -1378,13 +1380,13 @@ struct DocumentLibraryView: View {
                 Spacer(minLength: DSSpacing.xs)
 
                 Button("OK") {
-                    withAnimation { refreshedSampleNames = nil }
+                    withAnimation(DSAnimations.snappySpring) { refreshedSampleNames = nil }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
             .padding(DSSpacing.md)
-            .background(Color.blue.opacity(0.12))
+            .background(Color.accentColor.opacity(0.12))
             .accessibilityElement(children: .combine)
         }
     }
@@ -1654,17 +1656,17 @@ struct DocumentLibraryView: View {
             // libraries, are in `libraryContentView` and the import panel (`takingDroppedFiles(as:)`).
             .overlay {
                 if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .strokeBorder(
                             Color.accentColor,
                             style: StrokeStyle(lineWidth: 3, dash: [8])
                         )
-                        .padding(8)
+                        .padding(DSSpacing.sm)
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }
             }
-            .animation(.easeOut(duration: 0.15), value: isDropTargeted)
+            .animation(DSAnimations.fastEase, value: isDropTargeted)
             .navigationTitle("Documents")
             #if os(iOS)
             // Inline at accessibility text sizes (5.7): there the large title wrapped to "Docu-" and "ments" and took a
@@ -1728,7 +1730,7 @@ struct DocumentLibraryView: View {
                 pausedByPerson: ragService.ingestionPausedByPerson
             )
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, DSSpacing.lg)
         .padding(.bottom, ingestionQueueBottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     }
@@ -1737,7 +1739,7 @@ struct DocumentLibraryView: View {
 #if os(iOS)
         72
 #else
-        16
+        DSSpacing.lg
 #endif
     }
 
@@ -1761,7 +1763,7 @@ struct DocumentLibraryView: View {
                 // which closes an alert it had open if the text size changes while one is up.
                 withSwipeDeleteAlert(
                     ScrollView {
-                        VStack(spacing: 12) {
+                        VStack(spacing: DSSpacing.md) {
                             takingDroppedFiles(as: .header) {
                                 documentHeader
                             }
@@ -1769,7 +1771,7 @@ struct DocumentLibraryView: View {
                             libraryPicker
 
                             takingDroppedFiles(as: .documents) {
-                                VStack(spacing: 12) {
+                                VStack(spacing: DSSpacing.md) {
                                     documentBanners
 
                                     if filteredDocuments.isEmpty {
@@ -1784,7 +1786,7 @@ struct DocumentLibraryView: View {
                     .modifier(SwipeActionsContainerOn27())
                 )
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: DSSpacing.md) {
                     takingDroppedFiles(as: .header) {
                         documentHeader
                     }
@@ -1792,7 +1794,7 @@ struct DocumentLibraryView: View {
                     libraryPicker
 
                     takingDroppedFiles(as: .documents) {
-                        VStack(spacing: 12) {
+                        VStack(spacing: DSSpacing.md) {
                             documentBanners
 
                             if filteredDocuments.isEmpty {
@@ -2285,21 +2287,21 @@ struct DocumentLibraryView: View {
         var iconOnly: Bool = false
 
         var body: some View {
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: systemImage)
-                    .font(.system(size: iconOnly ? 15 : 11, weight: .bold))
+                    .font(iconOnly ? .subheadline.weight(.bold) : .caption.weight(.bold))
 
                 if !iconOnly {
                     Text(title)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.caption.weight(.bold))
                         .lineLimit(1)
                 }
             }
             // 44pt minimum touch target in icon-only form. An unreliable tap reads as a slow
             // app, so the target stays full size even though the chip looks smaller.
-            .frame(minWidth: iconOnly ? 44 : 0, minHeight: iconOnly ? 44 : 0)
-            .padding(.horizontal, iconOnly ? 0 : 12)
-            .padding(.vertical, iconOnly ? 0 : 8)
+            .frame(minWidth: iconOnly ? DSSpacing.tapTarget : 0, minHeight: iconOnly ? DSSpacing.tapTarget : 0)
+            .padding(.horizontal, iconOnly ? 0 : DSSpacing.md)
+            .padding(.vertical, iconOnly ? 0 : DSSpacing.sm)
             .background(.ultraThinMaterial)
             .foregroundStyle(isEnabled ? tint : .secondary)
             .clipShape(Capsule())
@@ -2344,22 +2346,22 @@ private struct DocumentUtilityChipLabel: View {
     var showsProgress: Bool = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             if showsProgress {
                 ProgressView()
                     .controlSize(.small)
             } else {
                 Image(systemName: systemImage)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
             }
 
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .lineLimit(1)
         }
         .foregroundStyle(tint)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(
             Capsule()
                 .fill(tint.opacity(0.1))

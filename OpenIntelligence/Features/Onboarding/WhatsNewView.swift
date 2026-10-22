@@ -51,6 +51,7 @@ struct WhatsNewView: View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("Version \(release.version)")
                 .font(DSTypography.chip)
+                .monospacedDigit()
                 .foregroundStyle(.tint)
             Text(release.headline)
                 .font(.title3.weight(.semibold))
@@ -62,14 +63,14 @@ struct WhatsNewView: View {
     private func row(for item: WhatsNewRelease.Item) -> some View {
         HStack(alignment: .top, spacing: DSSpacing.sm) {
             Image(systemName: item.symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.tint)
-                .frame(width: 24, alignment: .center)
-                .padding(.top, 2)
+                .frame(width: DSSpacing.xl, alignment: .center)
+                .padding(.top, DSSpacing.xxs)
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(item.title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(item.detail)

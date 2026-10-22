@@ -7,10 +7,10 @@ struct TermsOfServiceView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     Text("Terms of Service")
                         .font(.largeTitle.weight(.bold))
-                        .padding(.bottom, 8)
+                        .padding(.bottom, DSSpacing.sm)
 
                     Text("Last updated: February 28, 2026")
                         .font(.caption)
@@ -85,7 +85,8 @@ For questions about these Terms, please contact us:
 """)
                     }
                 }
-                .padding(24)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.xl)
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -102,7 +103,7 @@ For questions about these Terms, please contact us:
     }
 
     private func section(title: String, content: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text(title)
                 .font(.headline)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility3)

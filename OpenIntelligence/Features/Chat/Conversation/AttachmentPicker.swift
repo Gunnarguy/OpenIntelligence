@@ -268,7 +268,7 @@ struct AttachmentPreviewChip: View {
     let onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             // Thumbnail or icon
             #if os(iOS)
                 if let thumbnail = attachment.thumbnail {
@@ -276,14 +276,14 @@ struct AttachmentPreviewChip: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 } else {
                     Image(systemName: attachment.type.icon)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(DSColors.accent)
                         .frame(width: 28, height: 28)
                         .background(DSColors.accent.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 }
             #else
                 if let thumbnail = attachment.thumbnail {
@@ -291,20 +291,20 @@ struct AttachmentPreviewChip: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 28, height: 28)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 } else {
                     Image(systemName: attachment.type.icon)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(DSColors.accent)
                         .frame(width: 28, height: 28)
                         .background(DSColors.accent.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 }
             #endif
 
             // Filename
             Text(attachment.url.lastPathComponent)
-                .font(.system(size: 13, weight: .medium))
+                .font(.footnote.weight(.medium))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -312,15 +312,15 @@ struct AttachmentPreviewChip: View {
             // Remove button
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
+                    .font(.body)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(Color.primary.opacity(0.06))
         )
     }
@@ -368,7 +368,7 @@ struct AttachmentMenuButton: View {
             }
         } label: {
             Image(systemName: "paperclip")
-                .font(.system(size: 18, weight: .medium))
+                .font(.body.weight(.medium))
                 .foregroundStyle(DSColors.accent)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())

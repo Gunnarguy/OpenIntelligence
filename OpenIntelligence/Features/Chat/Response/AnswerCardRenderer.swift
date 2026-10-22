@@ -109,53 +109,53 @@ struct AnswerCardView: View {
     private let accent = Color(red: 0.05, green: 0.42, blue: 0.43)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(accent)
                 Text("OpenIntelligence")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ink)
             }
 
             Text(rendered(answer))
-                .font(.system(size: 16))
+                .font(.body)
                 .foregroundStyle(ink)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !sources.isEmpty {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Sources")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(muted)
                     ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
                         Text(AnswerShareFormatter.line(for: source))
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundStyle(ink.opacity(0.8))
                             .lineLimit(2)
                     }
                     if moreSources > 0 {
                         Text("and \(moreSources) more")
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundStyle(muted)
                     }
                 }
-                .padding(.top, 2)
+                .padding(.top, DSSpacing.xxs)
             }
 
             HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(AnswerShareFormatter.attribution)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(ink)
                     // The App Store subtitle, word for word.
                     Text("Chat With Your Files Offline, on the App Store")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundStyle(muted)
                 }
-                Spacer(minLength: 12)
+                Spacer(minLength: DSSpacing.md)
                 if let code {
                     Image(decorative: code, scale: 1)
                         .interpolation(.none)
@@ -164,7 +164,7 @@ struct AnswerCardView: View {
                 }
             }
         }
-        .padding(24)
+        .padding(DSSpacing.xl)
         .background(Color.white)
     }
 

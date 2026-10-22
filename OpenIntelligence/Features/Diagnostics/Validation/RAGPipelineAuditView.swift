@@ -21,15 +21,11 @@ struct RAGPipelineAuditView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [DSColors.background, DSColors.surface.opacity(0.95)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            DSColors.background
+                .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: DSSpacing.lg) {
                     snapshotCard
                     corpusCard
                     chunkingCard
@@ -39,10 +35,12 @@ struct RAGPipelineAuditView: View {
                     featureCard
                     contextCard
                 }
-                .padding(16)
+                .monospacedDigit()
+                .padding(DSSpacing.lg)
             }
         }
         .navigationTitle("RAG Audit")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             ragService.refreshIntelligence(for: activeContainerId, force: true)
         }
@@ -166,7 +164,7 @@ struct RAGPipelineAuditView: View {
     private var vectorStoreCard: some View {
         SurfaceCard {
             SectionHeader(icon: "externaldrive", title: "Vector Store Audit")
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 if isRunningVectorAudit {
                     ProgressView().scaleEffect(0.9)
                 }

@@ -23,24 +23,27 @@ struct LaunchSaleBanner: View {
         if let offer = currentOffer, dismissedWindowEnd != offer.endDate.timeIntervalSince1970 {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "tag.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.orange)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DSColors.warning)
                 Text("Lifetime is \(offer.percentOff)% off until \(LaunchSale.deadlineText(for: offer.endDate)). One payment, no renewal.")
                     .font(DSTypography.caption)
+                    .monospacedDigit()
                     .foregroundStyle(DSColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: DSSpacing.xs)
                 Button {
-                    withAnimation { dismissedWindowEnd = offer.endDate.timeIntervalSince1970 }
+                    withAnimation(DSAnimations.fastEase) { dismissedWindowEnd = offer.endDate.timeIntervalSince1970 }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(DSColors.secondaryText)
+                        .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss")
             }
-            .padding(.horizontal, DSSpacing.md)
+            .padding(.horizontal, DSSpacing.lg)
             .padding(.vertical, DSSpacing.sm)
             .background(Color.orange.opacity(0.12))
             .contentShape(Rectangle())

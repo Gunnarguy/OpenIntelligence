@@ -214,8 +214,8 @@
                 } label: {
                     Image(systemName: flashEnabled ? "bolt.fill" : "bolt.slash")
                         .font(.title2)
-                        .foregroundColor(.white)
-                        .padding(12)
+                        .foregroundStyle(.white)
+                        .padding(DSSpacing.md)
                         .background(Circle().fill(Color.black.opacity(0.5)))
                 }
 
@@ -232,15 +232,15 @@
                 .tint(.white)
                 .background(Capsule().fill(Color.black.opacity(0.5)))
             }
-            .padding()
+            .padding(DSSpacing.lg)
         }
 
         // MARK: - Live Metrics HUD
 
         private var metricsHUD: some View {
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 // Top row: FPS, Aesthetics, Confidence
-                HStack(spacing: 16) {
+                HStack(spacing: DSSpacing.lg) {
                     MetricPill(
                         icon: "speedometer",
                         value: String(format: "%.0f", frameRate),
@@ -261,76 +261,76 @@
                         icon: "slider.horizontal.3",
                         value: String(format: "%.0f%%", confidenceThreshold * 100),
                         label: "Threshold",
-                        color: .blue
+                        color: .accentColor
                     )
                 }
 
                 // Second row: Detection counts by type
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     ForEach(RegionType.allCases.filter { $0 != .all }) { type in
                         let count = regionCounts[type] ?? 0
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: type.icon)
                                 .font(.caption2)
                             Text("\(count)")
                                 .font(.caption.monospacedDigit())
                         }
-                        .foregroundColor(count > 0 ? type.color : .gray)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .foregroundStyle(count > 0 ? type.color : .secondary)
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
                         .background(Capsule().fill(Color.black.opacity(0.5)))
                     }
                 }
 
                 // Third row: Pose detection counts
                 if !humanPoses.isEmpty || !animalPoses.isEmpty {
-                    HStack(spacing: 16) {
+                    HStack(spacing: DSSpacing.lg) {
                         if !humanPoses.isEmpty {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: "figure.walk")
                                     .font(.caption2)
                                 Text("\(humanPoses.count) skeleton\(humanPoses.count == 1 ? "" : "s")")
                                     .font(.caption.monospacedDigit())
                             }
-                            .foregroundColor(.cyan)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.cyan.opacity(0.2)))
+                            .foregroundStyle(DSColors.accent)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xs)
+                            .background(Capsule().fill(DSColors.chipBackground(for: DSColors.accent)))
                         }
 
                         if !animalPoses.isEmpty {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: "pawprint.fill")
                                     .font(.caption2)
                                 Text("\(animalPoses.count) animal\(animalPoses.count == 1 ? "" : "s")")
                                     .font(.caption.monospacedDigit())
                             }
-                            .foregroundColor(.orange)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.orange.opacity(0.2)))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xs)
+                            .background(Capsule().fill(DSColors.chipBackground(for: .orange)))
                         }
                     }
                 }
 
                 // Confidence slider
-                HStack {
+                HStack(spacing: DSSpacing.sm) {
                     Text("Min Confidence")
                         .font(.caption2)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundStyle(.secondary)
                     Slider(value: $confidenceThreshold, in: 0.1...0.9, step: 0.1)
                         .tint(.white)
                         .accessibilityLabel("Min Confidence")
                         .accessibilityValue("\(Int((confidenceThreshold * 100).rounded()))%")
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, DSSpacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
 
         // MARK: - Helper Functions
@@ -339,8 +339,8 @@
         private func colorForDetectedObject(_ label: String) -> Color {
             if label.hasPrefix("🐾") { return .orange }
             if label.hasPrefix("🌿") { return .green }
-            if label.hasPrefix("📱") { return .blue }
-            if label.hasPrefix("🚗") { return .purple }
+            if label.hasPrefix("📱") { return .accentColor }
+            if label.hasPrefix("🚗") { return .accentColor }
             if label.hasPrefix("🍽️") { return .red }
             return .orange
         }
@@ -348,32 +348,32 @@
         // MARK: - Live Labels View
 
         private var liveLabelsView: some View {
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 // Scene labels
                 if !sceneLabels.isEmpty {
                     // A plain `HStack` here could not fit three long classifications on a phone,
                     // so SwiftUI compressed them into each other: "Computer" rendered on top of
                     // "Consumer Electronics". `FlowLayout` is already used for the detected-object
                     // chips immediately below and wraps instead of overlapping.
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "photo")
-                                .foregroundColor(.pink)
+                                .foregroundStyle(DSColors.accent)
                             Text("Scene:")
-                                .font(.caption.bold())
-                                .foregroundColor(.white)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.white)
                             Spacer()
                         }
 
-                        FlowLayout(spacing: 6) {
+                        FlowLayout(spacing: DSSpacing.xs) {
                             ForEach(sceneLabels.prefix(3), id: \.self) { label in
                                 Text(label)
-                                    .font(.caption)
+                                    .font(.caption2.weight(.semibold))
                                     .lineLimit(1)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Capsule().fill(Color.pink.opacity(0.8)))
-                                    .foregroundColor(.white)
+                                    .padding(.horizontal, DSSpacing.sm)
+                                    .padding(.vertical, DSSpacing.xs)
+                                    .background(Capsule().fill(DSColors.accent.opacity(0.85)))
+                                    .foregroundStyle(.white)
                             }
                         }
                     }
@@ -381,27 +381,27 @@
 
                 // Detected objects - now with emoji prefixes for categories
                 if !detectedObjects.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "sparkle.magnifyingglass")
-                                .foregroundColor(.orange)
+                                .foregroundStyle(.orange)
                             Text("Detected:")
-                                .font(.caption.bold())
-                                .foregroundColor(.white)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.white)
                             Spacer()
                         }
 
                         // Wrap objects in a flowing layout
-                        FlowLayout(spacing: 6) {
+                        FlowLayout(spacing: DSSpacing.xs) {
                             ForEach(detectedObjects.prefix(8), id: \.self) { obj in
                                 // Color based on emoji prefix
                                 let color = colorForDetectedObject(obj)
                                 Text(obj)
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, DSSpacing.sm)
+                                    .padding(.vertical, DSSpacing.xs)
                                     .background(Capsule().fill(color.opacity(0.85)))
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                             }
                         }
                     }
@@ -411,55 +411,58 @@
                 let faceCount = regionCounts[.face] ?? 0
                 let humanCount = regionCounts[.human] ?? 0
                 if faceCount > 0 || humanCount > 0 {
-                    HStack {
+                    HStack(spacing: DSSpacing.sm) {
                         if faceCount > 0 {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: "face.smiling")
-                                    .foregroundColor(.cyan)
+                                    .foregroundStyle(DSColors.accent)
                                 Text("\(faceCount) face\(faceCount == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Capsule().fill(Color.cyan.opacity(0.8)))
-                                    .foregroundColor(.white)
+                                    .font(.caption2.weight(.semibold))
+                                    .monospacedDigit()
+                                    .padding(.horizontal, DSSpacing.sm)
+                                    .padding(.vertical, DSSpacing.xs)
+                                    .background(Capsule().fill(DSColors.accent.opacity(0.85)))
+                                    .foregroundStyle(.white)
                             }
                         }
                         if humanCount > 0 {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: "figure.stand")
-                                    .foregroundColor(.mint)
+                                    .foregroundStyle(.green)
                                 Text("\(humanCount) person\(humanCount == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Capsule().fill(Color.mint.opacity(0.8)))
-                                    .foregroundColor(.white)
+                                    .font(.caption2.weight(.semibold))
+                                    .monospacedDigit()
+                                    .padding(.horizontal, DSSpacing.sm)
+                                    .padding(.vertical, DSSpacing.xs)
+                                    .background(Capsule().fill(Color.green.opacity(0.85)))
+                                    .foregroundStyle(.white)
                             }
                         }
                         Spacer()
                     }
                 }
             }
-            .padding()
+            .padding(DSSpacing.lg)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
 
         // MARK: - Live OCR Preview
 
         private var liveOCRPreview: some View {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "text.viewfinder")
                     Text("Live Text")
-                        .font(.caption.bold())
+                        .font(.caption.weight(.bold))
                     Spacer()
                     Text("\(liveOCRText.count) chars")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
 
                 ScrollView {
@@ -469,29 +472,29 @@
                 }
                 .frame(maxHeight: 80)
             }
-            .padding()
+            .padding(DSSpacing.lg)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(.ultraThinMaterial)
             )
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
 
         // MARK: - Bottom Capture Bar
 
         private var bottomCaptureBar: some View {
-            HStack(spacing: 40) {
+            HStack(spacing: DSSpacing.xxl) {
                 // Quick capture (text only)
                 Button {
                     captureTextOnly()
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: DSSpacing.xs) {
                         Image(systemName: "doc.text.viewfinder")
                             .font(.title2)
                         Text("Text")
                             .font(.caption2)
                     }
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                 }
 
                 // Main capture button
@@ -519,17 +522,17 @@
                 Button {
                     captureDocument()
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: DSSpacing.xs) {
                         Image(systemName: "doc.richtext")
                             .font(.title2)
                         Text("Document")
                             .font(.caption2)
                     }
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                 }
             }
-            .padding(.vertical, 30)
-            .padding(.horizontal)
+            .padding(.vertical, DSSpacing.xl)
+            .padding(.horizontal, DSSpacing.lg)
             .background(
                 Rectangle()
                     .fill(
@@ -593,7 +596,7 @@
             regionCounts = counts
             aestheticsScore = analysis.aestheticsScore
 
-            withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+            withAnimation(DSAnimations.snappySpring) {
                 detectedRegions = trackedRegions
                 humanPoses = trackedHuman
                 animalPoses = trackedAnimal
@@ -786,13 +789,13 @@
             switch self {
             case .all: return .white
             case .text: return .green
-            case .table: return .blue
-            case .document: return .yellow
-            case .barcode: return .purple
+            case .table: return .accentColor
+            case .document: return .orange
+            case .barcode: return .accentColor
             case .object: return .orange
-            case .scene: return .pink
-            case .face: return .cyan
-            case .human: return .mint
+            case .scene: return .accentColor
+            case .face: return .accentColor
+            case .human: return .green
             }
         }
     }
@@ -1096,7 +1099,7 @@
                 // Face silhouette with stylized features
                 Canvas { context, size in
                     let rect = frame
-                    let faceColor = Color.cyan
+                    let faceColor = Color.accentColor
 
                     // Face oval
                     let faceRect = CGRect(
@@ -1120,15 +1123,15 @@
                     // Draw strokes
                     context.stroke(facePath, with: .color(faceColor), style: StrokeStyle(lineWidth: 2.5))
                 }
-                .shadow(color: .cyan.opacity(0.6), radius: 6)
+                .shadow(color: Color.accentColor.opacity(0.6), radius: 6)
 
                 // Label
                 Text("Face")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.cyan.opacity(0.85)))
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.85)))
                     .position(x: frame.midX, y: frame.minY - 14)
             }
         }
@@ -1156,7 +1159,7 @@
         }
 
         private var cornerRadius: CGFloat {
-            min(8, min(frame.width, frame.height) * 0.1)
+            DSCorners.chip
         }
 
         var body: some View {
@@ -1177,7 +1180,7 @@
                             .fill(region.type.color.opacity(0.05))
                     )
                     .shadow(color: region.type.color.opacity(0.4), radius: 3)
-                    .animation(.interpolatingSpring(stiffness: 200, damping: 25), value: frame)
+                    .animation(DSAnimations.snappySpring, value: frame)
 
                 // Type label.
                 //
@@ -1191,13 +1194,13 @@
                 // The label stays for the types that are few and genuinely need naming: a document
                 // edge, a recognised animal, a face, a person.
                 if region.type != .text {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: region.type.icon)
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.caption2.weight(.bold))
 
                         if let preview = region.preview {
                             Text(preview.prefix(15))
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.caption2.weight(.medium))
                                 .lineLimit(1)
                         }
 
@@ -1207,13 +1210,13 @@
                         // screen: the same number, repeated, meaning nothing.
                         if region.confidence > 0, region.type != .document {
                             Text(String(format: "%.0f%%", region.confidence * 100))
-                                .font(.system(size: 9, weight: .bold).monospacedDigit())
-                                .foregroundColor(.white.opacity(0.8))
+                                .font(.caption2.weight(.bold).monospacedDigit())
+                                .foregroundStyle(.white)
                         }
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
                     .background(
                         Capsule()
                             .fill(region.type.color.opacity(0.9))
@@ -1279,10 +1282,10 @@
         let sourceSize: CGSize
 
         // Anatomical color scheme
-        private let boneColor = Color.cyan  // Main skeleton
+        private let boneColor = Color.accentColor  // Main skeleton
         private let jointColor = Color.white  // Joint nodes
-        private let spineColor = Color.cyan.opacity(0.9)  // Spine emphasis
-        private let glowColor = Color.cyan.opacity(0.5)
+        private let spineColor = Color.accentColor.opacity(0.9)  // Spine emphasis
+        private let glowColor = Color.accentColor.opacity(0.5)
 
         var body: some View {
             ZStack {
@@ -1314,10 +1317,10 @@
                 if let headJoint = pose.joints.first(where: { $0.name.contains("nose") }) {
                     let pos = convertPoint(headJoint.position)
                     Text("Human")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
                         .background(Capsule().fill(boneColor.opacity(0.85)))
                         .position(x: pos.x, y: pos.y - 35)
                 }
@@ -1411,10 +1414,10 @@
                 if let headJoint = pose.joints.first(where: { $0.name.contains("nose") }) {
                     let pos = convertPoint(headJoint.position)
                     Text("Animal")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
                         .background(Capsule().fill(boneColor.opacity(0.85)))
                         .position(x: pos.x, y: pos.y - 30)
                 }
@@ -1593,18 +1596,18 @@
 
         var body: some View {
             NavigationStack {
-                VStack(spacing: 20) {
+                VStack(spacing: DSSpacing.lg) {
                     // Preview
                     if let image = result.image {
                         Image(decorative: image, scale: 1.0)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(maxHeight: 200)
-                            .cornerRadius(12)
+                            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                     }
 
                     // Stats
-                    HStack(spacing: 20) {
+                    HStack(spacing: DSSpacing.lg) {
                         StatBadge(
                             icon: "character.cursor.ibeam",
                             value: "\(result.recognizedText.count)",
@@ -1629,19 +1632,19 @@
                     // Title input
                     TextField("Document title (optional)", text: $customTitle)
                         .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
 
                     // Container selector
                     HStack {
                         Text("Add to:")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
 
                         Text(containerService.activeContainer?.name ?? "Default Library")
                             .fontWeight(.medium)
 
                         Spacer()
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
 
                     // Text preview
                     GroupBox("Captured Text") {
@@ -1652,11 +1655,11 @@
                         }
                         .frame(maxHeight: 150)
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
 
                     Spacer()
                 }
-                .padding(.top)
+                .padding(.top, DSSpacing.lg)
                 .navigationTitle("Confirm Capture")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -1689,17 +1692,18 @@
         let label: String
 
         var body: some View {
-            VStack(spacing: 4) {
+            VStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
                     .font(.title2)
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(DSColors.accent)
 
                 Text(value)
                     .font(.headline)
+                    .monospacedDigit()
 
                 Text(label)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             .frame(minWidth: 60)
         }
@@ -1714,22 +1718,22 @@
         let color: Color
 
         var body: some View {
-            HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
                     .font(.caption2)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
 
                 VStack(alignment: .leading, spacing: 0) {
                     Text(value)
-                        .font(.caption.bold().monospacedDigit())
-                        .foregroundColor(.white)
+                        .font(.caption.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.white)
                     Text(label)
-                        .font(.system(size: 8))
-                        .foregroundColor(.white.opacity(0.7))
+                        .font(.caption2)
+                        .foregroundStyle(.white)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
             .background(Capsule().fill(Color.black.opacity(0.6)))
         }
     }

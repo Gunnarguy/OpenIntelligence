@@ -78,42 +78,42 @@ struct ChunkInspectorView: View {
     }
 
     private var inspectionHeader: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             Picker("Mode", selection: $inspectionMode) {
                 ForEach(InspectionMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
 
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.lg) {
                 statPill(icon: "doc.text", value: "\(ragService.documents.count)", label: "Docs")
                 if let container = containerService.activeContainer {
                     statPill(icon: "cube.box", value: container.name, label: "Container")
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, DSSpacing.md)
         .background(DSColors.systemGroupedBackground)
     }
 
     private func statPill(icon: String, value: String, label: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.caption.bold())
+            Text(value).font(.caption.weight(.bold)).monospacedDigit()
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(Capsule())
     }
 
     private var searchInterface: some View {
-        VStack(spacing: 12) {
-            HStack {
+        VStack(spacing: DSSpacing.md) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: inspectionMode == .exactMatch ? "textformat.abc" : "magnifyingglass")
                     .foregroundStyle(.secondary)
                 TextField(inspectionMode == .exactMatch ? "Exact phrase..." : "Semantic query...", text: $searchQuery)
@@ -128,19 +128,19 @@ struct ChunkInspectorView: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(DSSpacing.md)
             .background(DSColors.secondarySystemGroupedBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .padding(.horizontal)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            .padding(.horizontal, DSSpacing.lg)
 
             if searchQuery.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         ForEach(dynamicQuickSearchTerms, id: \.self) { term in
                             quickSearchChip(term)
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
                 }
             }
 
@@ -148,7 +148,7 @@ struct ChunkInspectorView: View {
                 corpusVerificationBadge(v)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, DSSpacing.md)
     }
 
     private func quickSearchChip(_ text: String) -> some View {
@@ -156,48 +156,59 @@ struct ChunkInspectorView: View {
             searchQuery = text
             performSearch()
         } label: {
-            Text(text).font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.15)).foregroundStyle(Color.accentColor).clipShape(Capsule())
+            Text(text)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xs)
+                .background(DSColors.chipBackground(for: DSColors.accent))
+                .foregroundStyle(DSColors.accent)
+                .clipShape(Capsule())
         }
     }
 
     private func corpusVerificationBadge(_ v: CorpusVerificationResult) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: v.found ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .foregroundStyle(v.found ? .green : .red)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(v.found ? "Found in corpus" : "NOT found").font(.caption.bold()).foregroundStyle(v.found ? .green : .red)
-                Text("\(v.occurrences) occurrences in \(v.documentCount) docs").font(.caption2).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                Text(v.found ? "Found in corpus" : "NOT found")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(DSColors.readable(v.found ? .green : .red))
+                Text("\(v.occurrences) occurrences in \(v.documentCount) docs")
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(10)
-        .background(v.found ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .padding(.horizontal)
+        .padding(DSSpacing.sm)
+        .background(DSColors.chipBackground(for: v.found ? .green : .red))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     private var documentBrowser: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     ForEach(ragService.documents) { doc in
                         Button {
                             selectedDocument = doc
                             loadChunksForDocument(doc)
                         } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: DocumentRow.iconName(for: doc.contentType)).font(.caption)
-                                Text(doc.filename).font(.caption).lineLimit(1)
+                            HStack(spacing: DSSpacing.xs) {
+                                Image(systemName: DocumentRow.iconName(for: doc.contentType)).font(.caption2.weight(.semibold))
+                                Text(doc.filename).font(.caption2.weight(.semibold)).lineLimit(1)
                             }
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(selectedDocument?.id == doc.id ? Color.accentColor : DSColors.secondarySystemGroupedBackground)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xs)
+                            .background(selectedDocument?.id == doc.id ? DSColors.accent : DSColors.secondarySystemGroupedBackground)
                             .foregroundStyle(selectedDocument?.id == doc.id ? .white : .primary)
                             .clipShape(Capsule())
                         }
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
             }
 
             HStack {
@@ -211,19 +222,22 @@ struct ChunkInspectorView: View {
                     Button("Lists") { filterStructureType = "list" }
                     Button("Paragraphs") { filterStructureType = "paragraph" }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                         Text(filterStructureType ?? "Filter").font(.caption)
                     }
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
 
             if let doc = selectedDocument {
-                Text("\(filteredAndSortedChunks.count) chunks from \(doc.filename)").font(.caption).foregroundStyle(.secondary)
+                Text("\(filteredAndSortedChunks.count) chunks from \(doc.filename)")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, DSSpacing.md)
     }
 
     private var filteredAndSortedChunks: [ChunkInspectionResult] {
@@ -242,8 +256,8 @@ struct ChunkInspectorView: View {
     private var resultsList: some View {
         Group {
             if inspectionResults.isEmpty && allDocumentChunks.isEmpty && !isSearching {
-                VStack(spacing: 16) {
-                    Image(systemName: "doc.text.magnifyingglass").font(.system(size: 48)).foregroundStyle(.secondary)
+                VStack(spacing: DSSpacing.lg) {
+                    Image(systemName: "doc.text.magnifyingglass").font(.largeTitle).foregroundStyle(.secondary)
                     Text(inspectionMode == .browseAll ? "Select a document" : "Enter a search query").font(.headline).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -375,39 +389,44 @@ struct ChunkRowView: View {
     let chunk: ChunkInspectionResult
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 if let st = chunk.structureType {
                     structureBadge(st)
                 }
                 if let p = chunk.pageNumber {
                     Text("p.\(p)")
-                        .font(.caption2)
+                        .font(.caption2.weight(.semibold))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, DSSpacing.xs)
+                        .padding(.vertical, DSSpacing.xxs)
                         .background(DSColors.tertiarySystemGroupedBackground)
                         .clipShape(Capsule())
                 }
                 Text("#\(chunk.chunkIndex)")
                     .font(.caption2.monospaced())
+                    .monospacedDigit()
                     .foregroundStyle(.tertiary)
                 Spacer()
                 if let sim = chunk.similarity {
-                    HStack(spacing: 2) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "target").font(.caption2)
-                        Text(String(format: "%.1f%%", sim * 100)).font(.caption2.bold())
+                        Text(String(format: "%.1f%%", sim * 100))
+                            .font(.caption2.weight(.bold))
+                            .monospacedDigit()
                     }
-                    .foregroundStyle(sim >= 0.6 ? .green : sim >= 0.4 ? .orange : .red)
+                    .foregroundStyle(DSColors.readable(sim >= 0.6 ? .green : sim >= 0.4 ? .orange : .red))
                 }
                 Text("\(chunk.wordCount)w")
                     .font(.caption2)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             if let path = chunk.sectionPath, !path.isEmpty {
                 Text(path.joined(separator: " › "))
                     .font(.caption2)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(DSColors.accent)
                     .lineLimit(1)
             }
             Text(chunk.snippet ?? chunk.content)
@@ -415,26 +434,26 @@ struct ChunkRowView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(4)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, DSSpacing.sm)
     }
 
     private func structureBadge(_ type: String) -> some View {
         let (icon, color): (String, Color) = {
             switch type.lowercased() {
-            case "table": return ("tablecells", .cyan)
+            case "table": return ("tablecells", .accentColor)
             case "list": return ("list.bullet", .green)
-            case "title", "header": return ("textformat", .purple)
-            default: return ("text.alignleft", .gray)
+            case "title", "header": return ("textformat", .accentColor)
+            default: return ("text.alignleft", .secondary)
             }
         }()
-        return HStack(spacing: 2) {
+        return HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
             Text(type.capitalized)
         }
-        .font(.caption2)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(color.opacity(0.15))
+        .font(.caption2.weight(.semibold))
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
+        .background(DSColors.chipBackground(for: color))
         .foregroundStyle(color)
         .clipShape(Capsule())
     }
@@ -449,7 +468,7 @@ struct ChunkDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     metadataCard
                     contentCard
                     if let prefix = chunk.contextualPrefix, !prefix.isEmpty {
@@ -466,7 +485,7 @@ struct ChunkDetailSheet: View {
                     }
                     technicalCard
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
             .navigationTitle("Chunk Details")
             .navigationBarTitleDisplayMode(.inline)
@@ -492,9 +511,9 @@ struct ChunkDetailSheet: View {
     }
 
     private var metadataCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Metadata").font(.headline)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                 metadataItem("Chunk", value: "#\(chunk.chunkIndex)")
                 metadataItem("Page", value: chunk.pageNumber.map { "Page \($0)" } ?? "N/A")
                 metadataItem("Structure", value: chunk.structureType?.capitalized ?? "Text")
@@ -502,120 +521,123 @@ struct ChunkDetailSheet: View {
                 metadataItem("Similarity", value: chunk.similarity.map { String(format: "%.2f", $0) } ?? "N/A")
             }
         }
-        .padding()
-        .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func metadataItem(_ label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.caption.bold())
+            Text(value).font(.caption.weight(.bold)).monospacedDigit()
         }
     }
 
     private var contentCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text("Full Content").font(.headline)
                 Spacer()
-                Text("\(chunk.content.count) chars").font(.caption).foregroundStyle(.secondary)
+                Text("\(chunk.content.count) chars")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
             Text(chunk.content)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
-                .padding()
+                .padding(DSSpacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(DSColors.tertiarySystemGroupedBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
-        .padding()
-        .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func prefixCard(_ prefix: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Contextual Prefix").font(.headline)
             Text(prefix)
                 .font(.caption)
-                .foregroundStyle(.blue)
-                .padding()
+                .foregroundStyle(DSColors.accent)
+                .padding(DSSpacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(DSColors.chipBackground(for: DSColors.accent))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
-        .padding()
-        .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func sectionPathCard(_ path: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Section Hierarchy").font(.headline)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
+                HStack(spacing: DSSpacing.xs) {
                     ForEach(Array(path.enumerated()), id: \.offset) { i, s in
                         if i > 0 {
                             Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
                         }
                         Text(s)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.15))
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xs)
+                            .background(DSColors.chipBackground(for: DSColors.accent))
                             .clipShape(Capsule())
                     }
                 }
             }
         }
-        .padding()
-        .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var entitiesCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Named Entities").font(.headline)
-            FlowLayout(spacing: 6) {
+            FlowLayout(spacing: DSSpacing.xs) {
                 ForEach(chunk.entities, id: \.self) { e in
                     Text(e)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.purple.opacity(0.15))
-                        .foregroundStyle(.purple)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
+                        .background(DSColors.chipBackground(for: DSColors.accent))
+                        .foregroundStyle(DSColors.accent)
                         .clipShape(Capsule())
                 }
             }
         }
-        .padding()
-        .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var keywordsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Keywords").font(.headline)
-            FlowLayout(spacing: 6) {
+            FlowLayout(spacing: DSSpacing.xs) {
                 ForEach(chunk.keywords, id: \.self) { k in
                     Text(k)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.15))
-                        .foregroundStyle(.orange)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
+                        .background(DSColors.chipBackground(for: .secondary))
+                        .foregroundStyle(.secondary)
                         .clipShape(Capsule())
                 }
             }
         }
-        .padding()
-        .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var technicalCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Technical Info").font(.headline)
             Text("ID: \(chunk.id.uuidString)")
                 .font(.caption.monospaced())
@@ -626,9 +648,9 @@ struct ChunkDetailSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 

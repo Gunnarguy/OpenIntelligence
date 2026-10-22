@@ -84,7 +84,7 @@ struct MessageListV2: View {
         GeometryReader { outerGeo in
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 16) {
+                    LazyVStack(spacing: DSSpacing.lg) {
                         if messages.isEmpty {
                             EmptyStateV2()
                                 .id("empty")
@@ -138,8 +138,8 @@ struct MessageListV2: View {
                                 .background(BottomAnchorGeometry())
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.lg)
                 }
                 .coordinateSpace(name: "MessageListV2Scroll")
                 .scrollDismissesKeyboard(.interactively)
@@ -197,12 +197,12 @@ struct MessageListV2: View {
 
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
         if animated {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(DSAnimations.snappySpring) {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         } else {
             // Smooth micro-animation for streaming - keeps text visible without jarring
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(DSAnimations.fastEase) {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
@@ -215,12 +215,12 @@ struct MessageListV2: View {
 // Empty state
 private struct EmptyStateV2: View {
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             Text("Local-First")
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(DSColors.accent)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.xs)
                 .background(
                     Capsule(style: .continuous)
                         .fill(DSColors.accent.opacity(0.12))
@@ -232,26 +232,26 @@ private struct EmptyStateV2: View {
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "bubble.left.and.bubble.right")
-                    .scaledFont(size: 32, weight: .light)
+                    .font(.largeTitle)
                     .foregroundStyle(DSColors.accent.opacity(0.6))
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 Text("Grounded chat over your library")
-                    .scaledFont(size: 20, weight: .semibold)
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
 
                 Text(
                     "Grounded answers over your files, with strong support for PDFs, modern Office files, text, scans, images, code, and transcriptable media."
                 )
-                .scaledFont(size: 15)
+                .font(.subheadline)
                 .foregroundStyle(DSColors.secondaryText)
                 .multilineTextAlignment(.center)
             }
 
             // The phrase Siri has for asking a question, until the person closes the tip.
             SiriPhraseTip()
-                .padding(.top, 4)
+                .padding(.top, DSSpacing.xs)
         }
         .frame(maxWidth: .infinity)
     }
@@ -276,26 +276,25 @@ private struct StreamingBubbleV2: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var spacerMinLength: CGFloat {
-        horizontalSizeClass == .compact ? 24 : 60
+        horizontalSizeClass == .compact ? DSSpacing.xl : 60
     }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 if isChecking {
                     // The text has stopped, so it is parsed as markdown once here rather than per
                     // pump tick (see the note below), and the cursor goes: nothing more is being
                     // written, and a cursor blinking over a finished answer is what made a check
                     // that ran for minutes look like a stalled answer.
-                    // 15 points at the default text size, scaled with Dynamic Type on iPhone and iPad (5.7).
                     MarkdownText(
                         text,
-                        scaledSize: 15,
+                        font: .body,
                         foregroundColor: DSColors.primaryText
                     )
 
                     if showsCheckingLabel {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DSSpacing.xs) {
                             ProgressView()
                                 .controlSize(.mini)
                             Text(checkingLabel)
@@ -309,16 +308,13 @@ private struct StreamingBubbleV2: View {
                     streamingText
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+            .padding(.vertical, DSSpacing.xs)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: spacerMinLength)
         }
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+            withAnimation(DSAnimations.stagePulse) {
                 cursorVisible.toggle()
             }
         }
@@ -329,7 +325,7 @@ private struct StreamingBubbleV2: View {
             }
             try? await Task.sleep(for: .milliseconds(600))
             guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(DSAnimations.fastEase) {
                 showsCheckingLabel = true
             }
         }
@@ -338,33 +334,9 @@ private struct StreamingBubbleV2: View {
     /// The text as it arrives, with the cursor.
     private var streamingText: some View {
         // Message content with cursor
-        HStack(alignment: .bottom, spacing: 2) {
-            // Plain `Text` while the answer is still arriving, markdown once it stops.
-            //
-            // This view is handed the whole accumulated `streamingText` on every pump
-            // tick, and `MarkdownText.body` calls `MarkdownParser.parse` as its first
-            // statement — 14 whole-string ICU substitutions, roughly two regex
-            // evaluations per line, and an `AttributedString(markdown:)` per paragraph.
-            // The pump runs at 80ms and tightens to 20ms under backlog, so that is
-            // 12.5-50Hz of O(length) parsing on the main actor, during the one
-            // interaction the user watches most closely, and every intermediate result
-            // is discarded a few milliseconds later.
-            //
-            // No functionality is lost: the identical `MarkdownText` renders the moment
-            // the stream closes and the message becomes a normal history row, so the
-            // final answer is formatted exactly as before. What changes is that partial
-            // markdown is no longer rendered mid-stream — which also removes the flicker
-            // of half-open ** and ``` sequences resolving as tokens arrive.
-            //
-            // The per-parse cost is unmeasured; the log this came from carries no
-            // timings. Confirm with the SwiftUI instrument's Long View Body Updates lane
-            // on a Release device build before assuming a magnitude.
-            //
-            // 5.6: still plain `Text`, with the markdown markers filtered out in one pass
-            // (`StreamingMarkdown`), so "### Heading" and "**bold**" no longer show as typed
-            // while the answer arrives.
+        HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
             Text(StreamingMarkdown.withoutMarkers(text))
-                .scaledFont(size: 15)
+                .font(.body)
                 .foregroundStyle(DSColors.primaryText)
                 .textSelection(.enabled)
 
@@ -393,7 +365,7 @@ private struct TypingBubbleV2: View {
 
     private var modeColor: Color {
         switch mode.canonical {
-        case .standard: return .blue
+        case .standard: return DSColors.accent
         case .deepThink: return .purple
         case .maximum: return .orange
         default: return DSColors.accent
@@ -416,7 +388,7 @@ private struct TypingBubbleV2: View {
     }
 
     private var spacerMinLength: CGFloat {
-        horizontalSizeClass == .compact ? 24 : 60
+        horizontalSizeClass == .compact ? DSSpacing.xl : 60
     }
 
     var body: some View {
@@ -430,21 +402,20 @@ private struct TypingBubbleV2: View {
     /// The plain chat's bubble (5.7): what it is doing, in words, with a spinner, and nothing of the machinery.
     private var plainBody: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 ProgressView()
                     .controlSize(.small)
                 Text(ChatProgress.phrase(for: latestEvent?.kind, thinksInSteps: mode.canonical != .standard))
-                    .scaledFont(size: 15)
+                    .font(.subheadline)
                     .foregroundStyle(DSColors.secondaryText)
                     .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.25), value: latestEvent?.kind)
+                    .animation(DSAnimations.fastEase, value: latestEvent?.kind)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.vertical, DSSpacing.md)
             .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.updatesFrequently)
 
@@ -454,9 +425,9 @@ private struct TypingBubbleV2: View {
 
     private var technicalBody: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 // Header: Stage + Progress
-                HStack(spacing: 10) {
+                HStack(spacing: DSSpacing.sm) {
                     ZStack {
                         Circle()
                             .stroke(modeColor.opacity(0.1), lineWidth: 1.5)
@@ -468,7 +439,7 @@ private struct TypingBubbleV2: View {
 
                         if let latest = latestEvent {
                             Image(systemName: latest.kind.systemIconName)
-                                .scaledFont(size: 8, weight: .bold)
+                                .font(.caption2.bold())
                                 .foregroundStyle(modeColor)
                                 .transition(.scale.combined(with: .opacity))
                                 .id("icon-\(latest.id)")
@@ -482,11 +453,11 @@ private struct TypingBubbleV2: View {
 
                     VStack(alignment: .leading, spacing: 0) {
                         Text(latestEvent?.title ?? "Initializing \(mode.displayName)...")
-                            .scaledFont(size: 12, weight: .semibold)
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(DSColors.primaryText)
 
                         Text(mode.displayName.uppercased())
-                            .scaledFont(size: 7, weight: .bold)
+                            .font(.caption2.bold())
                             .foregroundStyle(modeColor.opacity(0.8))
                             .tracking(0.5)
                     }
@@ -497,8 +468,8 @@ private struct TypingBubbleV2: View {
                     LivePipelinePreview(events: events, tint: modeColor)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.vertical, DSSpacing.md)
             .background(
                 ZStack {
                     DSColors.surface
@@ -513,14 +484,13 @@ private struct TypingBubbleV2: View {
                     }
                 }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: events.count)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
+            .animation(DSAnimations.snappySpring, value: events.count)
 
             Spacer(minLength: spacerMinLength)
         }
         .onAppear {
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+            withAnimation(DSAnimations.stagePulse) {
                 pulse.toggle()
             }
         }
@@ -538,32 +508,27 @@ private struct LivePipelinePreview: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             ForEach(Array(recentEvents.enumerated()), id: \.element.id) { index, event in
                 let isLatest = index == recentEvents.count - 1
 
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .top, spacing: DSSpacing.sm) {
                     // In the label color on the step list's tint, in a column that grows with its text (5.7).
                     Text(event.kind.displayName.uppercased())
-                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                        .font(.caption2.bold().monospaced())
                         .foregroundStyle(DSColors.primaryText)
                         .frame(width: kindColumn, alignment: .leading)
 
-                    VStack(alignment: .leading, spacing: 1) {
-                        // Titles are short and generated by us, so one line is enough.
-                        // Details are not: they carry retrieved snippets and model
-                        // reasoning, and at one line they cut mid-word
-                        // ("[Document Analysis Results] — Document […"), hiding the
-                        // part that says what the step actually did.
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(event.title)
-                            .scaledFont(size: 11, weight: isLatest ? .semibold : .medium)
+                            .font(.caption.weight(isLatest ? .semibold : .medium))
                             .foregroundStyle(DSColors.primaryText)
                             .lineLimit(2)
                             .minimumScaleFactor(0.85)
 
                         if let detail = event.detail, !detail.isEmpty {
                             Text(detail)
-                                .scaledFont(size: 10, weight: .regular, design: .monospaced)
+                                .font(.caption2.monospaced())
                                 .foregroundStyle(DSColors.secondaryText)
                                 .lineLimit(3)
                                 .minimumScaleFactor(0.8)
@@ -575,14 +540,14 @@ private struct LivePipelinePreview: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(tint.opacity(0.08))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .stroke(tint.opacity(0.18), lineWidth: 1)
         )
     }

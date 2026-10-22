@@ -21,7 +21,7 @@ extension ContainerSettingsSheet {
         Section(header: Text("Library identity")) {
             Text("Give this workspace a clear name, friendly icon, and color so you always know which knowledge base you're editing.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             TextField("Name", text: $name)
 
@@ -50,14 +50,14 @@ extension ContainerSettingsSheet {
             // runs and is unchanged. Real late chunking is tracked on the roadmap.
             Text("Documents are split using embedding-based boundary detection. Topic shifts are detected via cosine similarity drops between adjacent sentences, producing semantically coherent chunks.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             Toggle(isOn: $autoAdaptDimension) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Auto Intelligence")
                     Text("Automatically optimizes chunking based on your content")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -65,16 +65,16 @@ extension ContainerSettingsSheet {
                 if let lastSelfTuneSummary {
                     Label("Last tuned: \(lastSelfTuneSummary)", systemImage: "checkmark.circle.fill")
                         .font(.caption2)
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                 } else {
                     Label("Will analyze your documents and tune automatically", systemImage: "wand.and.stars")
                         .font(.caption2)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
             } else {
                 Label("Manual mode: You control all chunking settings below", systemImage: "slider.horizontal.3")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             if autoAdaptDimension {
@@ -111,29 +111,28 @@ extension ContainerSettingsSheet {
                 // every file type in this library. That is the actual cost, and it is what this
                 // copy describes. `ChunkingLimitsTests.testPerFileTypeDefaultsRemainDistinct`
                 // fails if those presets ever collapse into one, which would make this untrue.
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "wrench.and.screwdriver")
                             .font(.caption2)
                         Text("ADVANCED. YOU DO NOT NEED TO CHANGE THIS")
-                            .font(.caption2.weight(.semibold))
-                            .tracking(0.5)
+                            .font(.subheadline.weight(.medium))
                     }
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
 
                     Text("Left alone, the app already picks a chunk size from the kind of file you imported: smaller for code, larger for reports and transcripts, and it skips prose based splitting on source files entirely. Setting a value here replaces that with one size for every file type in this library, which usually makes results worse rather than better. Changing it also re-chunks and re-indexes every document in the library.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(10)
+                .padding(DSSpacing.sm)
                 .background(Color.orange.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .padding(.bottom, 4)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
+                .padding(.bottom, DSSpacing.xs)
                 .accessibilityElement(children: .combine)
 
                 // Strategy picker
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     Text("Strategy")
                         .font(.subheadline.weight(.semibold))
 
@@ -146,19 +145,19 @@ extension ContainerSettingsSheet {
 
                     Text(chunkingStrategyDescription)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, DSSpacing.xs)
 
                 // Word window slider
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack {
                         Text("Target Words per Chunk")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text("\(targetWordWindow)")
                             .font(.subheadline.monospacedDigit())
-                            .foregroundColor(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
 
                     // Bounded by the ceiling the pipeline enforces, read from the same constant
@@ -176,20 +175,20 @@ extension ContainerSettingsSheet {
                     .accessibilityValue("\(targetWordWindow) words")
 
                     Text("Smaller = more precise matches, larger = more context per chunk. \(SemanticChunker.ChunkingConfig.maxTargetSize) words is the most the embedding model can take with room for its prefix.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, DSSpacing.xs)
 
                 // Overlap slider
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack {
                         Text("Overlap Words")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text("\(overlapWords)")
                             .font(.subheadline.monospacedDigit())
-                            .foregroundColor(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
 
                     // Same reason as the target slider: this ran to 200 against an enforced
@@ -205,9 +204,9 @@ extension ContainerSettingsSheet {
 
                     Text("How many words to repeat between chunks. More overlap = better context continuity, but more storage.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, DSSpacing.xs)
 
                 // Visual preview
                 ChunkingPreview(targetWords: targetWordWindow, overlap: overlapWords)
@@ -242,18 +241,18 @@ extension ContainerSettingsSheet {
         Section(header: Text("AI features — per-library overrides")) {
             Text("Control which Apple Intelligence features are active for this library. Where supported, these can diverge from the global defaults.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             Toggle(isOn: $autoTagOnIngestion) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Auto-Tag on Ingestion")
                     Text("Automatically generate content tags when documents are added")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Translation Language")
                     .font(.subheadline.weight(.semibold))
 
@@ -274,9 +273,9 @@ extension ContainerSettingsSheet {
 
                 Text("Choose a target retrieval language for this library. Changing it requires re-indexing existing documents.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         }
     }
 
@@ -284,20 +283,20 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var siliconNativeChunkingInfo: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "bolt.horizontal.fill")
                     .font(.caption)
-                    .foregroundColor(.cyan)
+                    .foregroundStyle(Color.accentColor)
                 Text("Silicon-Native Acceleration")
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(DeviceCapabilityService.shared.chipName)
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(.cyan)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.cyan.opacity(0.15))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
+                    .background(Color.accentColor.opacity(0.15))
                     .clipShape(Capsule())
             }
 
@@ -306,9 +305,9 @@ extension ContainerSettingsSheet {
             // 2026-10-18), and a large library is searched with Metal under Performance and Maximum (5.7).
             Text("Vector search uses Apple's Accelerate framework on the CPU. With the GPU setting on Performance or Maximum, a library of 1,000 passages or more is searched on the GPU with Metal. Batch sizes are set for your device.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 siliconFeatureRow(
                     icon: "function",
                     label: "vDSP Vector Math",
@@ -326,7 +325,7 @@ extension ContainerSettingsSheet {
                 )
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 siliconInfoPill(
                     icon: "square.stack.3d.up",
                     label: "Vector",
@@ -344,41 +343,41 @@ extension ContainerSettingsSheet {
                 )
             }
         }
-        .padding(12)
-        .background(Color.cyan.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(Color.accentColor.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private func siliconFeatureRow(icon: String, label: String, detail: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(.cyan)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 16)
             Text(label)
                 .font(.caption.weight(.medium))
             Spacer()
             Text(detail)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private func siliconInfoPill(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.semibold).monospacedDigit())
         }
-        .foregroundColor(.cyan)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.cyan.opacity(0.15))
+        .foregroundStyle(Color.accentColor)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .background(Color.accentColor.opacity(0.15))
         .clipShape(Capsule())
     }
 
@@ -386,20 +385,20 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     private func corpusIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Header with live status
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "brain.head.profile")
                     .font(.subheadline)
-                    .foregroundColor(.purple)
+                    .foregroundStyle(Color.accentColor)
                 Text("Live Corpus Intelligence")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("Analyzed")
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(.green)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(Color.green.opacity(0.15))
                     .clipShape(Capsule())
             }
@@ -407,66 +406,66 @@ extension ContainerSettingsSheet {
             if report.corpus.isEstimate {
                 // A large library is measured from a sample of its passages.
                 Text("Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
 
             // Content Detection Grid
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8),
-            ], spacing: 8) {
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+            ], spacing: DSSpacing.sm) {
                 intelligenceStatCell(
                     icon: "doc.text.fill",
                     label: "Documents",
                     value: "\(report.corpus.documentCount)",
-                    color: .blue
+                    color: .accentColor
                 )
                 intelligenceStatCell(
                     icon: "square.split.2x2.fill",
                     label: "Chunks",
                     value: "\(report.corpus.chunkCount)",
-                    color: .indigo
+                    color: .accentColor
                 )
                 intelligenceStatCell(
                     icon: "character.textbox",
                     label: "Avg Words",
                     value: "\(Int(report.corpus.avgWordsPerChunk))",
-                    color: .orange
+                    color: .accentColor
                 )
                 intelligenceStatCell(
                     icon: "brain",
                     label: "Complexity",
                     value: complexityLabel(report.corpus.semanticComplexity),
-                    color: .purple
+                    color: .accentColor
                 )
             }
 
             // Content Type Detection
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Content Detected")
                     .font(.caption.weight(.medium))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DSSpacing.xs) {
                         if report.corpus.hasCode {
-                            contentBadge(icon: "chevron.left.forwardslash.chevron.right", label: "Code", color: .green)
+                            contentBadge(icon: "chevron.left.forwardslash.chevron.right", label: "Code", color: .accentColor)
                         }
                         if report.corpus.hasMath {
-                            contentBadge(icon: "function", label: "Math", color: .orange)
+                            contentBadge(icon: "function", label: "Math", color: .accentColor)
                         }
                         if report.corpus.technicalDensity > 0.3 {
-                            contentBadge(icon: "gearshape.2.fill", label: "Technical", color: .blue)
+                            contentBadge(icon: "gearshape.2.fill", label: "Technical", color: .accentColor)
                         }
                         if report.corpus.multilingualScore > 0.2 {
-                            contentBadge(icon: "globe", label: "Multilingual", color: .purple)
+                            contentBadge(icon: "globe", label: "Multilingual", color: .accentColor)
                         }
                         if report.corpus.structuredRatio > 0.4 {
-                            contentBadge(icon: "list.bullet.rectangle", label: "Structured", color: .indigo)
+                            contentBadge(icon: "list.bullet.rectangle", label: "Structured", color: .accentColor)
                         }
                         if report.corpus.vocabularyRichness > 0.4 {
-                            contentBadge(icon: "textformat.abc", label: "Rich Vocab", color: .cyan)
+                            contentBadge(icon: "textformat.abc", label: "Rich Vocab", color: .accentColor)
                         }
                         // Always show at least one badge
                         if !report.corpus.hasCode && !report.corpus.hasMath && report.corpus.technicalDensity <= 0.3 {
@@ -477,62 +476,62 @@ extension ContainerSettingsSheet {
             }
 
             // Recommended Strategy
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "sparkles")
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                     Text("Recommended: \(report.chunking.strategy.rawValue.capitalized)")
                         .font(.caption.weight(.semibold))
                     Spacer()
                     Text("\(report.chunking.targetWordWindow)w / \(report.chunking.overlapWords)w overlap")
                         .font(.caption2.monospacedDigit())
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.purple.opacity(0.08))
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
                 )
         )
     }
 
     @ViewBuilder
     private func intelligenceStatCell(icon: String, label: String, value: String, color: Color) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundColor(color)
-            VStack(alignment: .leading, spacing: 1) {
+                .foregroundStyle(color)
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(value)
                     .font(.caption.weight(.semibold).monospacedDigit())
                 Text(label)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(8)
+        .padding(DSSpacing.sm)
         .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 
     @ViewBuilder
     private func contentBadge(icon: String, label: String, color: Color) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2.weight(.medium))
+                .font(.caption2.weight(.semibold))
         }
-        .foregroundColor(color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .foregroundStyle(color)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -548,78 +547,78 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     private func retrievalIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "magnifyingglass.circle.fill")
                     .font(.caption)
-                    .foregroundColor(.teal)
+                    .foregroundStyle(Color.accentColor)
                 Text("Smart Retrieval Config")
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(report.retrieval.fusionStyle.rawValue.capitalized)
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(.teal)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.teal.opacity(0.15))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
+                    .background(Color.accentColor.opacity(0.15))
                     .clipShape(Capsule())
             }
 
             // Weight visualization
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: DSSpacing.sm) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Semantic")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
-                    HStack(spacing: 4) {
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: DSSpacing.xs) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(Color.blue)
+                            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                                .fill(Color.accentColor)
                                 .frame(width: geo.size.width * report.retrieval.vectorWeight)
                         }
                         .frame(height: 6)
                         Text("\(Int(report.retrieval.vectorWeight * 100))%")
                             .font(.caption2.monospacedDigit())
-                            .foregroundColor(.blue)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Keyword")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
-                    HStack(spacing: 4) {
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: DSSpacing.xs) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(Color.orange)
+                            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                                .fill(Color.secondary)
                                 .frame(width: geo.size.width * report.retrieval.lexicalWeight)
                         }
                         .frame(height: 6)
                         Text("\(Int(report.retrieval.lexicalWeight * 100))%")
                             .font(.caption2.monospacedDigit())
-                            .foregroundColor(.orange)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
 
             // MMR and Reranker info
-            HStack(spacing: 12) {
-                HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.md) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.caption2)
                     Text("MMR: \(String(format: "%.2f", report.retrieval.mmrLambda))")
-                        .font(.caption2.weight(.medium))
+                        .font(.caption2.weight(.medium).monospacedDigit())
                 }
-                .foregroundColor(.teal)
+                .foregroundStyle(Color.accentColor)
 
                 if report.retrieval.reranker != .none {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "arrow.up.arrow.down")
                             .font(.caption2)
                         Text("Reranker: \(report.retrieval.reranker.rawValue.capitalized)")
                             .font(.caption2.weight(.medium))
                     }
-                    .foregroundColor(.purple)
+                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -627,12 +626,12 @@ extension ContainerSettingsSheet {
             if !report.retrieval.notes.isEmpty {
                 Text(report.retrieval.notes.first ?? "")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
-        .background(Color.teal.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(Color.accentColor.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Search Section (5.7)
@@ -646,9 +645,9 @@ extension ContainerSettingsSheet {
         Section {
             Text("How this library finds the passages an answer is written from.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
-            VStack(spacing: 10) {
+            VStack(spacing: DSSpacing.sm) {
                 retrievalStyleCard(
                     style: .automatic,
                     icon: "wand.and.stars",
@@ -689,11 +688,11 @@ extension ContainerSettingsSheet {
             if retrievalConfig.style == .automatic {
                 Text("Automatic picks Technical Manual when most of the library is code, or mostly spreadsheets, and Balanced otherwise. It's on \(retrievalConfig.summary == "Custom" ? "custom values" : retrievalConfig.summary) now.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             } else if retrievalConfig.style == nil {
                 Label("Custom: set in Advanced Controls", systemImage: "slider.horizontal.3")
                     .font(.caption.weight(.medium))
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
             }
 
             DisclosureGroup("Advanced Controls") {
@@ -715,48 +714,48 @@ extension ContainerSettingsSheet {
         isSelected: Bool
     ) -> some View {
         Button {
-            withAnimation(.spring(response: 0.3)) {
+            withAnimation(DSAnimations.snappySpring) {
                 retrievalConfig = .chosen(style, documentTypes: activeContainerDocuments.map(\.contentType))
             }
             DSHaptics.selection()
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 ZStack {
                     Circle()
                         .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
                         .frame(width: 40, height: 40)
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(isSelected ? .accentColor : .secondary)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(title)
                         .font(.subheadline.weight(.medium))
-                        .foregroundColor(isSelected ? .primary : .secondary)
+                        .foregroundStyle(isSelected ? .primary : .secondary)
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 } else {
                     Circle()
                         .stroke(Color.secondary.opacity(0.3), lineWidth: 2)
                         .frame(width: 22, height: 22)
                 }
             }
-            .padding(12)
+            .padding(DSSpacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.08) : DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
             )
         }
@@ -814,14 +813,14 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var advancedSearchControls: some View {
         // Minimum score
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text("Minimum Score")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text(percent(retrievalConfig.minSimilarity))
                     .font(.subheadline.monospacedDigit())
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
             }
             Slider(value: chosenSetting(\.minSimilarity), in: 0.15 ... 0.70) {
                 Text("Minimum Score")
@@ -829,14 +828,14 @@ extension ContainerSettingsSheet {
             .accessibilityValue("\(Int((retrievalConfig.minSimilarity * 100).rounded())) percent")
             Text("The score a passage needs to be used in a Standard answer. Scores are relative: the app ranks the passages it finds for a question against each other, so a passage can score high when nothing matches well. When a question's best passages mostly score lower, or it asks for a single fact, the app lowers the minimum for that question so it can still answer. Find Passages in Shortcuts uses this minimum too.")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             if settings.showTechnicalDetails {
                 Text("In a Standard answer it is compared with the re-ranker's score: the cross-encoder's scores for a question are rescaled to 10 to 90, then lowered for tables of contents, question banks and bibliographies. A step-by-step question uses a minimum of at least 25%. Find Passages compares it with the hybrid search's score, before re-ranking, and never lowers it. Deep Think and Maximum set their own minimum for each research step.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
 
         // Passages needed
         Stepper(value: chosenCount(\.minConfidentChunks), in: 1 ... 5) {
@@ -846,24 +845,24 @@ extension ContainerSettingsSheet {
                 Spacer()
                 Text("\(retrievalConfig.minConfidentChunks)")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
             }
         }
         Text(retrievalConfig.minConfidentChunks >= 2
             ? "A Standard answer is written only when at least \(retrievalConfig.minConfidentChunks) of its passages score at or over the minimum. Otherwise you get the closest passages and how many made it."
             : "At 1, the app answers from its best passages. Set 2 or more to answer only when that many score at or over the minimum.")
-            .font(.caption2)
-            .foregroundColor(.secondary)
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
 
         // Exact words and meaning
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text("Exact Words and Meaning")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("\(percent(retrievalConfig.vectorWeight)) meaning")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
             }
             Slider(value: meaningWeight, in: 0.35 ... 0.75) {
                 Text("Exact Words and Meaning")
@@ -875,24 +874,24 @@ extension ContainerSettingsSheet {
             .accessibilityValue("\(Int((retrievalConfig.vectorWeight * 100).rounded())) percent meaning")
             Text("Toward Words favors passages that use your exact terms. Toward Meaning favors passages that say the same thing in other words. Used in every mode.")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             if settings.showTechnicalDetails {
                 Text("The vector and BM25 weights of the hybrid search. Each question shifts them by up to 10 points by its kind, then each is kept between 35% and 65%.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
 
         // Variety
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text("Variety")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text(String(format: "%.2f", retrievalConfig.mmrLambda))
                     .font(.subheadline.monospacedDigit())
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
             }
             Slider(value: chosenSetting(\.mmrLambda), in: 0.30 ... 0.95) {
                 Text("Variety")
@@ -904,14 +903,14 @@ extension ContainerSettingsSheet {
             .accessibilityValue(String(format: "%.2f", retrievalConfig.mmrLambda))
             Text("Toward Varied, an answer draws on passages that say different things. Toward Closest, it keeps the closest passages even when they repeat each other. Used in every mode.")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             if settings.showTechnicalDetails {
                 Text("Maximal Marginal Relevance λ. Step-by-step questions use at least 0.85 in Standard, so the steps stay together.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     // MARK: - Balanced Defaults Section
@@ -927,7 +926,7 @@ extension ContainerSettingsSheet {
             // enum case name is the leftover; the wording no longer repeats it.
             Text("Apply the recommended configuration: on-device sentence embeddings (all-MiniLM-L6-v2), vectors stored on disk and memory mapped for search, and chunk sizes tuned to each document.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             Button("Apply Balanced Defaults") {
                 applyAccuracyDefaults()
@@ -936,7 +935,7 @@ extension ContainerSettingsSheet {
 
             Text("You can still customize any setting below. Saving will trigger a re-embed if the embedding model or dimension changes.")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -981,7 +980,7 @@ extension ContainerSettingsSheet {
         Section(header: Text("Embedding model — sentence → vector transformation")) {
             Text("Select the neural encoder that maps text to dense vectors. Currently using bundled MiniLM-L6-v2 (384D). All inference runs on-device.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             // Show embedding intelligence when auto-tuning is on
             if autoAdaptDimension, let report = activeIntelligenceReport {
@@ -1005,7 +1004,7 @@ extension ContainerSettingsSheet {
             }
 
             if !providerAlerts.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: DSSpacing.sm) {
                     ForEach(providerAlerts) { alert in
                         SettingHelpCallout(
                             icon: alert.icon,
@@ -1016,65 +1015,65 @@ extension ContainerSettingsSheet {
                         )
                     }
                 }
-                .padding(.top, 6)
+                .padding(.top, DSSpacing.xs)
             }
         }
     }
 
     @ViewBuilder
     private func embeddingIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "arrow.triangle.branch")
                     .font(.caption)
-                    .foregroundColor(.indigo)
+                    .foregroundStyle(Color.accentColor)
                 Text("Smart Embedding Selection")
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text("\(Int(report.embedding.confidence * 100))% match")
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(.green)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(Color.green.opacity(0.15))
                     .clipShape(Capsule())
             }
 
             Text(report.embedding.rationale)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
-            HStack(spacing: 12) {
-                HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.md) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "cpu")
                         .font(.caption2)
                     Text("Dim: \(report.embedding.dimension)")
-                        .font(.caption2.weight(.medium))
+                        .font(.caption2.weight(.medium).monospacedDigit())
                 }
-                .foregroundColor(.indigo)
+                .foregroundStyle(Color.accentColor)
 
                 if report.embedding.requiresCloudConsent {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "cloud")
                             .font(.caption2)
                         Text("Cloud")
                             .font(.caption2.weight(.medium))
                     }
-                    .foregroundColor(.orange)
+                    .foregroundStyle(.orange)
                 } else {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "iphone")
                             .font(.caption2)
                         Text("On-Device")
                             .font(.caption2.weight(.medium))
                     }
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
                 }
             }
         }
-        .padding(12)
-        .background(Color.indigo.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(Color.accentColor.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
@@ -1088,7 +1087,7 @@ extension ContainerSettingsSheet {
     private var embeddingResolutionContent: some View {
         Text("Dimension is fixed by the embedding model (384D for MiniLM-L6-v2). Higher dims = richer semantics, more storage (4 bytes × dim per chunk).")
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
 
         Picker("Dimension", selection: $dim) {
             ForEach(availableDimensionOptions, id: \.value) { option in
@@ -1105,18 +1104,18 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     private var autoAdaptToggle: some View {
         Toggle(isOn: $autoAdaptDimension) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text("Dynamic self-tuning library")
                 if autoAdaptDimension, let directive = activeContainer?.chunkingDirective {
                     Text("Chunking locked on \(directive.strategy.capitalized) • \(directive.targetWordWindow)w / \(directive.overlapWords) overlap from the last run.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
         }
 
         if autoAdaptDimension {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("OpenIntelligence watches the entire corpus. When a fresh upload shifts the optimal chunking windows or embedding space, we'll automatically re-chunk and re-embed the whole library for you.")
                 if let summary = lastSelfTuneSummary {
                     Text("Last tune \(summary). Next one kicks in as soon as the intelligence profile drifts again.")
@@ -1125,47 +1124,47 @@ extension ContainerSettingsSheet {
                 }
             }
             .font(.caption2)
-            .foregroundColor(.accentColor)
-            .padding(.top, 4)
+            .foregroundStyle(Color.accentColor)
+            .padding(.top, DSSpacing.xs)
         } else {
             Text("Leave this off to keep manual control—recommendations still show up, but nothing will re-index or re-chunk without you pressing the button.")
                 .font(.caption2)
-                .foregroundColor(.secondary)
-                .padding(.top, 4)
+                .foregroundStyle(.secondary)
+                .padding(.top, DSSpacing.xs)
         }
     }
 
     @ViewBuilder
     private var dimensionDetailCard: some View {
         if let selectedOption = dimensionOptions.first(where: { $0.value == dim }) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: selectedOption.icon)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                     Text(selectedOption.title)
                         .font(.subheadline.weight(.semibold))
                 }
                 Text(selectedOption.detail)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 if !selectedOption.metrics.isEmpty {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DSSpacing.md) {
                         ForEach(selectedOption.metrics) { metric in
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: metric.icon)
                                     .font(.caption2)
                                 Text(metric.text)
                                     .font(.caption2)
                             }
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
-            .padding(12)
+            .padding(DSSpacing.md)
             .background(Color.accentColor.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
     }
 
@@ -1201,7 +1200,7 @@ extension ContainerSettingsSheet {
     private var vectorDatabaseContent: some View {
         Text("Choose how search indexes are stored. For maximum reliability, use the exact/persistent engine.")
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
 
         // Warn if changing from persistent to in-memory with existing data
         if dbKind == .inMemory, activeContainer?.vectorDBKind != .inMemory, !activeContainerDocuments.isEmpty {
@@ -1246,22 +1245,22 @@ extension ContainerSettingsSheet {
                             .scaleEffect(0.8)
                         Text("Loading deep stats...")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, DSSpacing.sm)
                 } else {
                     libraryNerdStatsContent
                 }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "wrench.and.screwdriver.fill")
-                        .foregroundColor(.orange)
-                    VStack(alignment: .leading, spacing: 2) {
+                        .foregroundStyle(Color.accentColor)
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Library Deep Dive")
                             .font(.subheadline.weight(.semibold))
                         Text("Library-scoped diagnostics")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -1275,7 +1274,7 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     private var libraryNerdStatsContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             // Corpus Intelligence (if available)
             if let report = activeIntelligenceReport {
                 corpusSignalsCard(report.corpus)
@@ -1296,20 +1295,20 @@ extension ContainerSettingsSheet {
             // Retrieval Config Summary
             retrievalConfigSummaryCard
         }
-        .padding(.top, 8)
+        .padding(.top, DSSpacing.sm)
     }
 
     @ViewBuilder
     private func corpusSignalsCard(_ signals: LibraryIntelligenceCenter.CorpusSignals) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Label("Corpus Intelligence", systemImage: "brain.head.profile")
                 .font(.caption.weight(.semibold))
-                .foregroundColor(.pink)
+                .foregroundStyle(Color.accentColor)
 
             LazyVGrid(columns: [
                 GridItem(.flexible()),
                 GridItem(.flexible())
-            ], spacing: 8) {
+            ], spacing: DSSpacing.sm) {
                 nerdStatCell(label: "Vocabulary Richness", value: String(format: "%.1f%%", signals.vocabularyRichness * 100), icon: "book.fill")
                 nerdStatCell(label: "Technical Density", value: String(format: "%.1f%%", signals.technicalDensity * 100), icon: "gearshape.fill")
                 nerdStatCell(label: "Semantic Complexity", value: String(format: "%.2f", signals.semanticComplexity), icon: "waveform.path")
@@ -1317,49 +1316,49 @@ extension ContainerSettingsSheet {
             }
 
             // Content type badges
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 if signals.hasCode {
-                    corpusBadge(text: "Code", icon: "chevron.left.forwardslash.chevron.right", color: .blue)
+                    corpusBadge(text: "Code", icon: "chevron.left.forwardslash.chevron.right", color: .accentColor)
                 }
                 if signals.hasMath {
-                    corpusBadge(text: "Math", icon: "function", color: .purple)
+                    corpusBadge(text: "Math", icon: "function", color: .accentColor)
                 }
                 if signals.multilingualScore > 0.1 {
-                    corpusBadge(text: "Multilingual", icon: "globe", color: .green)
+                    corpusBadge(text: "Multilingual", icon: "globe", color: .accentColor)
                 }
             }
 
             // Language breakdown
             if !signals.languageHypotheses.isEmpty {
                 let sortedLangs = signals.languageHypotheses.sorted { $0.value > $1.value }.prefix(3)
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Text("Languages:")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     ForEach(Array(sortedLangs), id: \.key) { lang, conf in
                         Text("\(lang.rawValue) \(String(format: "%.0f%%", conf * 100))")
                             .font(.caption2.monospacedDigit())
-                            .foregroundColor(.pink.opacity(0.8))
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
         }
-        .padding(12)
-        .background(Color.pink.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private func corpusBadge(text: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 9))
+                .font(.caption2)
             Text(text)
-                .font(.caption2.weight(.medium))
+                .font(.caption2.weight(.semibold))
         }
-        .foregroundColor(color)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .foregroundStyle(color)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1367,10 +1366,10 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     private var vectorSpaceStatsCard: some View {
         if let container = activeContainer {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Label("Vector Space", systemImage: "cube.transparent")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.cyan)
+                    .foregroundStyle(Color.accentColor)
 
                 let documentCount = activeContainerDocuments.count
                 let chunkCount = activeContainerDocuments.reduce(0) { $0 + $1.totalChunks }
@@ -1380,41 +1379,41 @@ extension ContainerSettingsSheet {
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible())
-                ], spacing: 8) {
+                ], spacing: DSSpacing.sm) {
                     nerdStatCell(label: "Chunks", value: "\(chunkCount)", icon: "point.3.filled.connected.trianglepath.dotted")
                     nerdStatCell(label: "Dimension", value: "\(container.embeddingDim)D", icon: "cube.fill")
                     nerdStatCell(label: "Documents", value: "\(documentCount)", icon: "doc.fill")
                     nerdStatCell(label: "Est. Vector Bytes", value: formatBytes(estimatedMemoryBytes), icon: "memorychip")
                 }
 
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                         .font(.caption2)
                     Text("~\(bytesPerVector) bytes/vector")
                         .font(.caption2.monospacedDigit())
                     Text("(Float32 estimate)")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(12)
-            .background(Color.cyan.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(DSSpacing.md)
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
     }
 
     @ViewBuilder
     private var documentDistributionCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Label("Document Distribution", systemImage: "chart.bar.fill")
                 .font(.caption.weight(.semibold))
-                .foregroundColor(.green)
+                .foregroundStyle(Color.accentColor)
 
             if containerFTSStats.isEmpty {
                 Text("No documents in this library")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             } else {
                 // Size distribution
                 let totalChars = containerFTSStats.reduce(0) { $0 + $1.characterCount }
@@ -1425,7 +1424,7 @@ extension ContainerSettingsSheet {
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible())
-                ], spacing: 8) {
+                ], spacing: DSSpacing.sm) {
                     nerdStatCell(label: "Total Chars", value: formatNumber(totalChars), icon: "character")
                     nerdStatCell(label: "Total Words", value: formatNumber(totalWords), icon: "text.word.spacing")
                     nerdStatCell(label: "Avg Chars", value: formatNumber(avgChars), icon: "textformat.size")
@@ -1438,9 +1437,9 @@ extension ContainerSettingsSheet {
                 }
             }
         }
-        .padding(12)
-        .background(Color.green.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
@@ -1448,22 +1447,22 @@ extension ContainerSettingsSheet {
         let sortedBySize = containerFTSStats.sorted { $0.characterCount > $1.characterCount }
         let maxSize = sortedBySize.first?.characterCount ?? 1
 
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("Size Distribution (largest → smallest)")
-                .font(.system(size: 9))
-                .foregroundColor(.secondary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
-            HStack(alignment: .bottom, spacing: 2) {
+            HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
                 ForEach(sortedBySize.prefix(10), id: \.id) { doc in
                     let height = CGFloat(doc.characterCount) / CGFloat(maxSize) * 24
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color.green.opacity(0.6))
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.6))
                         .frame(width: 8, height: max(4, height))
                 }
                 if sortedBySize.count > 10 {
                     Text("...")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(height: 28)
@@ -1472,59 +1471,59 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     private var topTermsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Label("Top Terms (This Library)", systemImage: "textformat.abc")
                 .font(.caption.weight(.semibold))
-                .foregroundColor(.orange)
+                .foregroundStyle(Color.accentColor)
 
             if containerTopTerms.isEmpty {
                 Text("No term data available")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             } else {
                 // Show top 12 terms as tags
-                FlowLayout(spacing: 6) {
+                FlowLayout(spacing: DSSpacing.xs) {
                     ForEach(containerTopTerms.prefix(12)) { term in
-                        HStack(spacing: 3) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Text(term.term)
                                 .font(.caption2.weight(.medium))
                             Text("×\(term.totalOccurrences)")
-                                .font(.system(size: 9).monospacedDigit())
-                                .foregroundColor(.secondary)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.12))
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
+                        .background(Color.accentColor.opacity(0.12))
                         .clipShape(Capsule())
                     }
                 }
 
                 // Vocabulary summary
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     Label("Loaded \(containerTopTerms.count) frequent terms", systemImage: "text.book.closed")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(12)
-        .background(Color.orange.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private var retrievalConfigSummaryCard: some View {
         let config = retrievalConfig
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Label("Retrieval Config", systemImage: "gearshape.2.fill")
                 .font(.caption.weight(.semibold))
-                .foregroundColor(.indigo)
+                .foregroundStyle(Color.accentColor)
 
             LazyVGrid(columns: [
                 GridItem(.flexible()),
                 GridItem(.flexible())
-            ], spacing: 8) {
+            ], spacing: DSSpacing.sm) {
                 nerdStatCell(label: "Min Similarity", value: String(format: "%.2f", config.minSimilarity), icon: "slider.horizontal.3")
                 nerdStatCell(label: "Vector Weight", value: String(format: "%.1f", config.vectorWeight), icon: "cube.fill")
                 nerdStatCell(label: "Lexical Weight", value: String(format: "%.1f", config.lexicalWeight), icon: "text.magnifyingglass")
@@ -1538,36 +1537,36 @@ extension ContainerSettingsSheet {
                 return "Hybrid balanced"
             }()
 
-            HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "info.circle.fill")
                     .font(.caption2)
                 Text("Mode: \(modeDescription)")
                     .font(.caption2)
             }
-            .foregroundColor(.indigo.opacity(0.8))
+            .foregroundStyle(Color.accentColor)
         }
-        .padding(12)
-        .background(Color.indigo.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private func nerdStatCell(label: String, value: String, icon: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .frame(width: 14)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(value)
                     .font(.caption.weight(.semibold).monospacedDigit())
                 Text(label)
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     // MARK: - Formatting Helpers
@@ -1616,7 +1615,7 @@ extension ContainerSettingsSheet {
                     HStack {
                         Spacer()
                         Label("Delete Library", systemImage: "trash")
-                            .foregroundColor(.red)
+                            .foregroundStyle(.red)
                             .fontWeight(.semibold)
                         Spacer()
                     }
@@ -1629,14 +1628,14 @@ extension ContainerSettingsSheet {
     var privateCloudComputeSection: some View {
         let deviceCapabilities = RAGService.checkDeviceCapabilities()
         Section(header: Text("Private Cloud Compute (PCC) Status")) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 // Corrected 2026-10-15: "Deep Think/Maximum and large contexts (>4K tokens) dynamically scale to
                 // Apple's Private Cloud Compute enclaves" named a fixed window (the device reports its own; 8,192 on
                 // the owner's Mac), sent every Deep Think and Maximum answer, and left out the permission.
                 Text("With Hybrid in the model picker, an answer goes to Apple's Private Cloud Compute when its passages don't fit in this device's model, and a Deep Think or Maximum answer when it draws on more than one document. With Private Cloud Compute chosen there, every answer does. Each time only with your permission (Settings, Private Cloud Compute).")
                     .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.bottom, 4)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, DSSpacing.xs)
 
                 // 1. Hardware/OS Support
                 HStack {
@@ -1646,11 +1645,11 @@ extension ContainerSettingsSheet {
                     if deviceCapabilities.supportsPrivateCloudCompute {
                         Text("iOS 27+ Available")
                             .font(.caption.weight(.semibold))
-                            .foregroundColor(.green)
+                            .foregroundStyle(.green)
                     } else {
                         Text("iOS 26 Fallback Only")
                             .font(.caption.weight(.semibold))
-                            .foregroundColor(.orange)
+                            .foregroundStyle(.orange)
                     }
                 }
 
@@ -1662,12 +1661,12 @@ extension ContainerSettingsSheet {
                     #if targetEnvironment(simulator)
                     Text("Simulator (Bypassed)")
                         .font(.caption.weight(.semibold))
-                        .foregroundColor(.orange)
+                        .foregroundStyle(.orange)
                     #else
                     let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
                     Text(hasEntitlement ? "Verified Shipped" : "Missing / Not Signed")
                         .font(.caption.weight(.semibold))
-                        .foregroundColor(hasEntitlement ? .green : .red)
+                        .foregroundStyle(hasEntitlement ? .green : .red)
                     #endif
                 }
 
@@ -1678,12 +1677,12 @@ extension ContainerSettingsSheet {
                     Spacer()
                     Text(self.settings.applePCCConsent == .allowed ? "Allowed" : (self.settings.applePCCConsent == .denied ? "Denied" : "Not Determined"))
                         .font(.caption.weight(.semibold))
-                        .foregroundColor(self.settings.applePCCConsent == .allowed ? .green : .orange)
+                        .foregroundStyle(self.settings.applePCCConsent == .allowed ? .green : .orange)
                 }
 
                 // 4. Effective Routing Fallback
                 Divider()
-                    .padding(.vertical, 4)
+                    .padding(.vertical, DSSpacing.xs)
 
                 HStack {
                     Label("Effective RAG Fallback", systemImage: "arrow.triangle.branch")
@@ -1703,20 +1702,20 @@ extension ContainerSettingsSheet {
                     if canUseNativePCC && self.settings.applePCCConsent == .allowed {
                         Text("Native PCC (Apple Intelligence)")
                             .font(.caption.weight(.bold))
-                            .foregroundColor(.blue)
+                            .foregroundStyle(Color.accentColor)
                     } else {
                         Text("On-Device (Apple Intelligence)")
                             .font(.caption.weight(.bold))
-                            .foregroundColor(.green)
+                            .foregroundStyle(.green)
                     }
                 }
                 
                 Text(effectiveFallbackDescription(capabilities: deviceCapabilities))
                     .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 2)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, DSSpacing.xxs)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         }
     }
     
@@ -1751,26 +1750,26 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     private var aiSubsystemDiagnosticsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "cpu")
                     .font(.caption)
-                    .foregroundColor(.orange)
+                    .foregroundStyle(Color.accentColor)
                 Text("AI Subsystem Diagnostics")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("v4.5.0")
                     .font(.caption2.weight(.medium))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             
             Divider()
             
             // 1. Embedding Model Diagnostics
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Embedding Pipeline")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 
                 HStack {
                     Label("Active Model", systemImage: "cube.transparent")
@@ -1790,11 +1789,11 @@ extension ContainerSettingsSheet {
                     if providerId == "coreai_sentence_embedding" {
                         Text("Core AI on the GPU")
                             .font(.caption.weight(.medium))
-                            .foregroundColor(.indigo)
+                            .foregroundStyle(.secondary)
                     } else {
                         Text("Core ML Neural Engine")
                             .font(.caption.weight(.medium))
-                            .foregroundColor(.orange)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 
@@ -1807,28 +1806,28 @@ extension ContainerSettingsSheet {
                         let isReady = CoreAISentenceEmbeddingProvider.shared.isModelLoaded
                         Text(isReady ? "Verified Ready" : "Unloaded")
                             .font(.caption.weight(.medium))
-                            .foregroundColor(isReady ? .green : .red)
+                            .foregroundStyle(isReady ? .green : .red)
                     } else {
                         Text("Verified Ready")
                             .font(.caption.weight(.medium))
-                            .foregroundColor(.green)
+                            .foregroundStyle(.green)
                     }
                     #else
                     Text("Verified Ready")
                         .font(.caption.weight(.medium))
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                     #endif
                 }
             }
-            .padding(.bottom, 6)
+            .padding(.bottom, DSSpacing.xs)
             
             Divider()
             
             // 2. Tokenizer Diagnostics
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Tokenizer Pipeline")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                 
                 HStack {
                     Label("Core Parser", systemImage: "curlybraces")
@@ -1836,7 +1835,7 @@ extension ContainerSettingsSheet {
                     Spacer()
                     Text("Rust-backed swift-tokenizers")
                         .font(.caption.weight(.medium))
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                 }
                 
                 HStack {
@@ -1844,7 +1843,7 @@ extension ContainerSettingsSheet {
                         .font(.caption)
                     Spacer()
                     Text("30,522 (BERT WordPiece)")
-                        .font(.caption.weight(.medium))
+                        .font(.caption.weight(.medium).monospacedDigit())
                 }
                 
                 HStack {
@@ -1853,7 +1852,7 @@ extension ContainerSettingsSheet {
                     Spacer()
                     Text("Exact Byte-Level Offsets")
                         .font(.caption.weight(.medium))
-                        .foregroundColor(.blue)
+                        .foregroundStyle(.secondary)
                 }
                 
                 HStack {
@@ -1862,13 +1861,13 @@ extension ContainerSettingsSheet {
                     Spacer()
                     Text("Microsecond Batching (<1ms)")
                         .font(.caption.weight(.medium))
-                        .foregroundColor(.cyan)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(12)
-        .background(Color.gray.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -1879,23 +1878,23 @@ struct ChunkingPreview: View {
     let overlap: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text("Chunk Layout Preview")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 // Semantic chunking indicator
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "brain")
                         .font(.caption2)
                     Text("Semantic")
-                        .font(.caption2.weight(.medium))
+                        .font(.caption2.weight(.semibold))
                 }
-                .foregroundColor(.purple)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.purple.opacity(0.12))
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.xxs)
+                .background(Color.accentColor.opacity(0.12))
                 .clipShape(Capsule())
             }
 
@@ -1906,24 +1905,24 @@ struct ChunkingPreview: View {
 
                 HStack(spacing: -overlapWidth) {
                     ForEach(0 ..< 3, id: \.self) { index in
-                        VStack(spacing: 2) {
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        VStack(spacing: DSSpacing.xxs) {
+                            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                 .fill(chunkColor(for: index))
-.frame(width: chunkWidth, height: 20)
-    .overlay(
-        Text("Chunk \(index + 1)")
-            .font(.caption2)
-            .foregroundColor(.white)
-    )
+                                .frame(width: chunkWidth, height: 20)
+                                .overlay(
+                                    Text("Chunk \(index + 1)")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.white)
+                                )
                             // Section snap indicator
                             if index == 0 {
-                                HStack(spacing: 2) {
+                                HStack(spacing: DSSpacing.xxs) {
                                     Image(systemName: "arrow.turn.right.down")
-                                        .font(.system(size: 6))
+                                        .font(.caption2)
                                     Text("Section")
-                                        .font(.system(size: 7))
+                                        .font(.caption2)
                                 }
-                                .foregroundColor(.purple.opacity(0.8))
+                                .foregroundStyle(Color.accentColor)
                             }
                         }
                     }
@@ -1932,15 +1931,15 @@ struct ChunkingPreview: View {
             .frame(height: 36)
 
             // Stats row
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 Label("\(targetWords)w target", systemImage: "text.alignleft")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
 
                 if overlap > 0 {
                     Label("\(overlap)w overlap", systemImage: "arrow.left.arrow.right")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -1949,42 +1948,41 @@ struct ChunkingPreview: View {
                 let overlapPct = targetWords > 0 ? Int(Double(overlap) / Double(targetWords) * 100) : 0
                 Text("\(overlapPct)% context")
                     .font(.caption2.monospacedDigit())
-                    .foregroundColor(.cyan)
+                    .foregroundStyle(Color.accentColor)
             }
 
             // Estimated chunks with semantic features
             let estimatedChunks = max(1, 2000 / max(1, targetWords - overlap))
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("A 2,000-word document → ~\(estimatedChunks) semantic chunks")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
 
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     featureTag(icon: "text.line.first.and.arrowtriangle.forward", label: "Topic boundaries")
                     featureTag(icon: "list.bullet.indent", label: "Section snapping")
                 }
             }
         }
-        .padding(12)
-        .background(Color.gray.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private func featureTag(icon: String, label: String) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 8))
+                .font(.caption2)
             Text(label)
-                .font(.system(size: 9))
+                .font(.caption2)
         }
-        .foregroundColor(.secondary)
+        .foregroundStyle(.secondary)
     }
 
     private func chunkColor(for index: Int) -> Color {
-        let colors: [Color] = [.blue, .purple, .indigo]
-        return colors[index % colors.count].opacity(0.8)
+        Color.accentColor.opacity(index == 1 ? 0.65 : 0.85)
     }
 }
 

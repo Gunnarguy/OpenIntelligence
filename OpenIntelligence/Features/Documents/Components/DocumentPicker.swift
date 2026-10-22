@@ -358,22 +358,22 @@ struct DocumentPicker: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             Image(systemName: "doc.badge.plus")
                 .font(.largeTitle)
-                .foregroundColor(.accentColor)
+                .foregroundStyle(Color.accentColor)
             Text("Choose documents to import")
                 .font(.headline)
             Text("PDFs, Office files, text, code, images, audio, or video. Export Pages, Numbers "
                      + "and Keynote to PDF first.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Choose Files…") { present() }
                 .keyboardShortcut(.defaultAction)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(DSSpacing.lg)
         .onAppear { present() }
     }
 
@@ -392,16 +392,16 @@ struct DocumentPicker: View {
 struct DocumentPicker: View {
     let onDocumentsPicked: ([URL]) -> Void
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DSSpacing.sm) {
             Image(systemName: "doc.badge.gearshape")
                 .font(.title3)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Text("Document picker is unavailable on this platform.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(DSSpacing.lg)
     }
 }
 #endif

@@ -16,28 +16,24 @@ struct ContainerScopingSelfTestsView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [DSColors.background, DSColors.surface.opacity(0.95)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            DSColors.background
+                .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: DSSpacing.lg) {
                     // About
                     SurfaceCard {
                         SectionHeader(icon: "info.circle", title: "About")
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             Text("These diagnostics validate that:")
                                 .font(.subheadline)
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                                 Text("• Document listings reflect the selected library.")
                                 Text("• A one-off per-message override confines retrieval to the override library.")
                                 Text("• Agentic tool calls (search/list/summary) obey the in-flight query container context.")
                             }
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         }
                     }
 
@@ -56,19 +52,19 @@ struct ContainerScopingSelfTestsView: View {
                     if !results.isEmpty {
                         SurfaceCard {
                             SectionHeader(icon: "list.bullet", title: "Results")
-                            VStack(alignment: .leading, spacing: 10) {
+                            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                                 ForEach(results) { r in
-                                    HStack(alignment: .top, spacing: 8) {
+                                    HStack(alignment: .top, spacing: DSSpacing.sm) {
                                         Image(systemName: r.icon)
-                                            .foregroundColor(r.tint)
-                                        VStack(alignment: .leading, spacing: 4) {
+                                            .foregroundStyle(r.tint)
+                                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
                                             Text(r.name)
                                                 .font(.subheadline)
                                                 .fontWeight(.semibold)
                                             if let details = r.details, !details.isEmpty {
                                                 Text(details)
                                                     .font(.caption)
-                                                    .foregroundColor(.secondary)
+                                                    .foregroundStyle(.secondary)
                                                     .textSelection(.enabled)
                                             }
                                         }
@@ -78,10 +74,11 @@ struct ContainerScopingSelfTestsView: View {
                         }
                     }
                 }
-                .padding(16)
+                .padding(DSSpacing.lg)
             }
         }
         .navigationTitle("Container Scoping Tests")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Runner

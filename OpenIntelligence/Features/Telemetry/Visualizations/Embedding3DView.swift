@@ -306,7 +306,7 @@ struct EmbeddingSpaceRenderer: View {
     }()
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             if let err = errorText {
                 errorBanner(err)
             }
@@ -333,7 +333,7 @@ struct EmbeddingSpaceRenderer: View {
     private func errorBanner(_ err: String) -> some View {
         Text(err)
             .font(.caption)
-            .foregroundColor(.red)
+            .foregroundStyle(DSColors.readable(.red))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -349,7 +349,7 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     private var readyContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DSSpacing.lg) {
             heroScene
             controlToolbar
             tuningCard
@@ -361,29 +361,29 @@ struct EmbeddingSpaceRenderer: View {
 
     /// Detailed nerd stats for the embedding space
     private var embeddingSpaceStats: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack {
                 Image(systemName: "chart.dots.scatter")
-                    .foregroundColor(.purple)
+                    .foregroundStyle(DSColors.accent)
                 Text("Embedding Space Analytics")
                     .font(.headline)
                 Spacer()
                 Text("🤓 Nerd Mode")
                     .font(.caption2)
-                    .foregroundColor(.purple)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.purple.opacity(0.15))
-                    .cornerRadius(8)
+                    .foregroundStyle(DSColors.accent)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(DSColors.accent.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
             }
 
             // Core metrics grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.md) {
                 EmbeddingStatMini(
                     label: "Points",
                     value: "\(totalPoints)",
                     icon: "circle.fill",
-                    color: .blue
+                    color: DSColors.accent
                 )
                 EmbeddingStatMini(
                     label: "Documents",
@@ -395,7 +395,7 @@ struct EmbeddingSpaceRenderer: View {
                     label: "Dimensions",
                     value: "\(embeddingDimension)",
                     icon: "cube.fill",
-                    color: .purple
+                    color: DSColors.accent
                 )
                 EmbeddingStatMini(
                     label: "Method",
@@ -407,23 +407,23 @@ struct EmbeddingSpaceRenderer: View {
                     label: "Coverage",
                     value: String(format: "%.0f%%", sampleCoverageRatio * 100),
                     icon: "percent",
-                    color: .cyan
+                    color: DSColors.accent
                 )
                 EmbeddingStatMini(
                     label: "Sample Cap",
                     value: "\(sampleLimit)",
                     icon: "slider.horizontal.3",
-                    color: .pink
+                    color: .secondary
                 )
             }
 
             Divider().opacity(0.3)
 
             // Distribution insights
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Distribution Analysis")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 if !legendItems.isEmpty {
                     let sortedItems = legendItems.sorted { $0.count > $1.count }
@@ -432,32 +432,32 @@ struct EmbeddingSpaceRenderer: View {
                     let avgCount = totalPoints > 0 ? totalPoints / max(legendItems.count, 1) : 0
                     let variance = calculateVariance(legendItems.map { $0.count })
 
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: DSSpacing.lg) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Max pts/doc")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text("\(maxCount)")
                                 .font(.caption.monospacedDigit().weight(.semibold))
                         }
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Min pts/doc")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text("\(minCount)")
                                 .font(.caption.monospacedDigit().weight(.semibold))
                         }
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Avg pts/doc")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text("\(avgCount)")
                                 .font(.caption.monospacedDigit().weight(.semibold))
                         }
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Std Dev")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Text(String(format: "%.1f", sqrt(variance)))
                                 .font(.caption.monospacedDigit().weight(.semibold))
                         }
@@ -465,15 +465,15 @@ struct EmbeddingSpaceRenderer: View {
 
                     // Balance indicator
                     let balanceScore = calculateBalanceScore(legendItems.map { $0.count })
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         Text("Balance Score:")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                     .fill(Color.secondary.opacity(0.2))
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                     .fill(balanceColor(balanceScore))
                                     .frame(width: geo.size.width * CGFloat(balanceScore))
                             }
@@ -481,32 +481,32 @@ struct EmbeddingSpaceRenderer: View {
                         .frame(height: 8)
                         Text(String(format: "%.0f%%", balanceScore * 100))
                             .font(.caption2.monospacedDigit())
-                            .foregroundColor(balanceColor(balanceScore))
+                            .foregroundStyle(DSColors.readable(balanceColor(balanceScore)))
                     }
                     .frame(height: 20)
 
                     Text(balanceDescription(balanceScore))
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
             Divider().opacity(0.3)
 
             // Projection details
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Projection Details")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
-                HStack(spacing: 16) {
+                HStack(spacing: DSSpacing.lg) {
                     ProjectionDetailRow(label: "Algorithm", value: projectionMethodDescription)
                     Spacer()
                 }
 
                 Text(projectionExplainer)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -520,11 +520,11 @@ struct EmbeddingSpaceRenderer: View {
             // Raw data inspector
             rawDataInspector
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     private var embeddingDimension: Int {
@@ -575,19 +575,19 @@ struct EmbeddingSpaceRenderer: View {
 
     @ViewBuilder
     private var spatialDensitySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Image(systemName: "waveform.path.ecg.rectangle")
-                    .foregroundColor(.cyan)
+                    .foregroundStyle(DSColors.accent)
                 Text("Spatial Density Analysis")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             if !points.isEmpty {
                 let stats = computeSpatialStats()
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
                     SpatialStatMini(
                         label: "Centroid",
                         value: String(format: "(%.2f, %.2f, %.2f)", stats.centroid.x, stats.centroid.y, stats.centroid.z),
@@ -621,12 +621,12 @@ struct EmbeddingSpaceRenderer: View {
                 }
 
                 // Axis-wise distribution mini-chart
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Axis Distribution")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         AxisDistributionBar(label: "X", range: stats.xRange, color: .red)
                         AxisDistributionBar(label: "Y", range: stats.yRange, color: .green)
                         AxisDistributionBar(label: "Z", range: stats.zRange, color: .blue)
@@ -636,7 +636,7 @@ struct EmbeddingSpaceRenderer: View {
             } else {
                 Text("No points to analyze")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -645,34 +645,34 @@ struct EmbeddingSpaceRenderer: View {
 
     @ViewBuilder
     private var rawDataInspector: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Image(systemName: "tablecells")
-                    .foregroundColor(.indigo)
+                    .foregroundStyle(DSColors.accent)
                 Text("Raw Data Inspector")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Text("\(points.count) vectors")
                     .font(.caption2.monospacedDigit())
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             if !points.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     // Memory usage estimate
                     let memoryBytes = points.count * 3 * MemoryLayout<Float>.size
                     HStack {
                         Text("3D Memory:")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Text(formatBytes(memoryBytes))
                             .font(.caption2.monospacedDigit())
                             .fontWeight(.medium)
                         Spacer()
                         Text("Float32 × 3")
                             .font(.caption2)
-                            .foregroundColor(.secondary.opacity(0.7))
+                            .foregroundStyle(.secondary)
                     }
 
                     // Original embedding memory estimate
@@ -680,50 +680,50 @@ struct EmbeddingSpaceRenderer: View {
                     HStack {
                         Text("Original (\(embeddingDimension)D):")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Text(formatBytes(embeddingMemory))
                             .font(.caption2.monospacedDigit())
                             .fontWeight(.medium)
                         Spacer()
                         let ratio = Double(memoryBytes) / Double(embeddingMemory)
                         Text(String(format: "%.1f%% of original", ratio * 100))
-                            .font(.caption2)
-                            .foregroundColor(.green)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(DSColors.readable(.green))
                     }
                 }
 
                 Divider().opacity(0.2)
 
                 // Sample point coordinates
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Sample Points")
                         .font(.caption2.weight(.medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     ForEach(Array(points.prefix(3).enumerated()), id: \.offset) { idx, point in
-                        HStack(spacing: 8) {
+                        HStack(spacing: DSSpacing.sm) {
                             Text("[\(idx)]")
                                 .font(.caption2.monospacedDigit())
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .frame(width: 24, alignment: .trailing)
                             Text(String(format: "x:%.4f", point.x))
                                 .font(.caption2.monospacedDigit())
-                                .foregroundColor(.red.opacity(0.8))
+                                .foregroundStyle(DSColors.readable(.red))
                             Text(String(format: "y:%.4f", point.y))
                                 .font(.caption2.monospacedDigit())
-                                .foregroundColor(.green.opacity(0.8))
+                                .foregroundStyle(DSColors.readable(.green))
                             Text(String(format: "z:%.4f", point.z))
                                 .font(.caption2.monospacedDigit())
-                                .foregroundColor(.blue.opacity(0.8))
+                                .foregroundStyle(DSColors.readable(.blue))
                             Spacer()
                         }
                     }
 
                     if points.count > 3 {
                         Text("... + \(points.count - 3) more")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 32)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, DSSpacing.xxl)
                     }
                 }
             }
@@ -921,26 +921,26 @@ struct EmbeddingSpaceRenderer: View {
         let icon: String
 
         var body: some View {
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
                     .font(.caption2)
-                    .foregroundColor(.cyan.opacity(0.8))
+                    .foregroundStyle(DSColors.accent)
                     .frame(width: 14)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(label)
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     Text(value)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(.caption2.weight(.medium).monospaced())
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
-            .background(Color.cyan.opacity(0.06))
-            .cornerRadius(6)
+            .padding(.vertical, DSSpacing.xs)
+            .padding(.horizontal, DSSpacing.sm)
+            .background(DSColors.accent.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
     }
 
@@ -950,16 +950,16 @@ struct EmbeddingSpaceRenderer: View {
         let color: Color
 
         var body: some View {
-            VStack(spacing: 2) {
+            VStack(spacing: DSSpacing.xxs) {
                 Text(label)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(color)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(DSColors.readable(color))
 
                 GeometryReader { geo in
                     let width = range.upperBound - range.lowerBound
                     let normalized = min(1, max(0.1, CGFloat(width)))
 
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [color.opacity(0.3), color.opacity(0.7)],
@@ -972,8 +972,8 @@ struct EmbeddingSpaceRenderer: View {
                 }
 
                 Text(String(format: "%.2f", range.upperBound - range.lowerBound))
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundColor(.secondary)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
         }
@@ -981,33 +981,33 @@ struct EmbeddingSpaceRenderer: View {
 
     private var loadingCard: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-            VStack(spacing: 12) {
+            VStack(spacing: DSSpacing.md) {
                 ProgressView("Preparing 3D embedding space…")
                 Text("Downsampling and projecting to 3D")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
-            .padding()
+            .padding(DSSpacing.lg)
         }
         .frame(height: 340)
     }
 
     private var emptyStateCard: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 Text("No embeddings available for the active container")
                     .font(.subheadline)
                 Text("Add documents or switch libraries to see the 3D map")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
-            .padding()
+            .padding(DSSpacing.lg)
         }
         .frame(height: 340)
     }
@@ -1015,7 +1015,7 @@ struct EmbeddingSpaceRenderer: View {
     private var heroScene: some View {
         let (filteredPoints, filteredColors) = filteredArrays()
         return ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                 .fill(backgroundGradient(for: backgroundStyle))
 
             Embedding3DSceneView(
@@ -1030,7 +1030,7 @@ struct EmbeddingSpaceRenderer: View {
                     showPointDetail = true
                 }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
         }
         .overlay(alignment: .topLeading) {
             if showHUD { sceneHUD }
@@ -1061,10 +1061,10 @@ struct EmbeddingSpaceRenderer: View {
         .frame(height: heroHeight)
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 12)
         .padding(.horizontal, heroHorizontalPadding)
-        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: focusMode)
-        .animation(.easeInOut(duration: 0.2), value: showHUD)
-        .animation(.easeInOut(duration: 0.25), value: isSearching)
-        .animation(.easeInOut(duration: 0.3), value: hasSeenOnboarding)
+        .animation(DSAnimations.defaultSpring, value: focusMode)
+        .animation(DSAnimations.quick, value: showHUD)
+        .animation(DSAnimations.standard, value: isSearching)
+        .animation(DSAnimations.standard, value: hasSeenOnboarding)
     }
 
     // MARK: - Search & Help UI
@@ -1082,27 +1082,27 @@ struct EmbeddingSpaceRenderer: View {
             }
         } label: {
             Image(systemName: showHelpTip ? "xmark.circle.fill" : "questionmark.circle")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(.white.opacity(0.7))
-                .padding(12)
+                .font(.body.weight(.medium))
+                .foregroundStyle(.white.opacity(0.7))
+                .padding(DSSpacing.md)
                 .background(
                     Circle()
                         .fill(.ultraThinMaterial.opacity(showHelpTip ? 0.9 : 0.5))
                 )
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .popover(isPresented: $showHelpTip, arrowEdge: .top) {
             gestureHelpContent
         }
     }
 
     private var gestureHelpContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Navigate Your Knowledge")
                 .font(.headline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 helpRow(icon: "hand.draw", text: "Drag to rotate")
                 helpRow(icon: "arrow.up.left.and.arrow.down.right", text: "Pinch to zoom")
                 helpRow(icon: "hand.tap", text: "Tap a point for details")
@@ -1113,32 +1113,32 @@ struct EmbeddingSpaceRenderer: View {
 
             Text("Points close together = similar content")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .frame(width: 220)
     }
 
     private func helpRow(icon: String, text: String) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundColor(.accentColor)
+                .font(.footnote)
+                .foregroundStyle(DSColors.accent)
                 .frame(width: 20)
             Text(text)
                 .font(.subheadline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
         }
     }
 
     private var searchBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(0.6))
 
             TextField("Search chunks...", text: $searchQuery)
                 .textFieldStyle(.plain)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .submitLabel(.search)
                 .onSubmit {
                     performSearch()
@@ -1150,79 +1150,79 @@ struct EmbeddingSpaceRenderer: View {
                     highlightedPointIndices = []
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundStyle(.white.opacity(0.5))
                 }
             }
 
             Button {
-                withAnimation { isSearching = false }
+                withAnimation(DSAnimations.quick) { isSearching = false }
                 searchQuery = ""
                 highlightedPointIndices = []
             } label: {
                 Text("Done")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.8))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)
         )
         .padding(.horizontal, 60)
-        .padding(.top, 12)
+        .padding(.top, DSSpacing.md)
     }
 
     private var onboardingTip: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: "lightbulb.fill")
-                .foregroundColor(.yellow)
+                .foregroundStyle(.orange)
 
             Text("Drag to explore • Pinch to zoom • Close points = similar ideas")
                 .font(.caption)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
 
             Button {
-                withAnimation {
+                withAnimation(DSAnimations.standard) {
                     hasSeenOnboarding = true
                 }
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundStyle(.white.opacity(0.6))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
         .background(
             Capsule()
                 .fill(.black.opacity(0.7))
         )
-        .padding(.bottom, 16)
+        .padding(.bottom, DSSpacing.lg)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     /// Detail card shown when a point is tapped
     private func tappedPointDetailCard(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Header with close button
             HStack {
                 Label("Chunk \(index + 1)", systemImage: "doc.text.fill")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(.primary)
 
                 Spacer()
 
                 Button {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(DSAnimations.quick) {
                         showPointDetail = false
                         tappedPointIndex = nil
                     }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.secondary)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -1230,13 +1230,13 @@ struct EmbeddingSpaceRenderer: View {
 
             // Document name
             if index < chunkDocNames.count {
-                HStack(spacing: 6) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "folder")
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(DSColors.accent)
                     Text(chunkDocNames[index])
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -1245,20 +1245,20 @@ struct EmbeddingSpaceRenderer: View {
             if index < chunkTexts.count {
                 Text(chunkTexts[index])
                     .font(.caption)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .lineLimit(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text("Loading chunk data...")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .italic()
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .frame(width: 280)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 4)
         )
@@ -1286,17 +1286,17 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     private var tuningCard: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: DSSpacing.md) {
             sampleOptionRow
             Divider().opacity(0.08)
             pointSizeRow
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 18)
+        .padding(.vertical, DSSpacing.lg)
+        .padding(.horizontal, DSSpacing.lg)
         .background(DSColors.surface)
-        .cornerRadius(20)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
         .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     /// 500, 2K, 6K.
@@ -1306,10 +1306,10 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     private var sampleOptionRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DSSpacing.sm) {
             Text("Points")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             ForEach(sampleOptions, id: \.self) { option in
                 Button {
@@ -1320,12 +1320,12 @@ struct EmbeddingSpaceRenderer: View {
                     autoScalePointSize()
                 } label: {
                     Text(sampleOptionLabel(option))
-                        .font(.caption2)
+                        .font(.caption2.monospacedDigit())
                         .fontWeight(sampleLimit == option ? .semibold : .regular)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 12)
-                        .background(sampleLimit == option ? Color.accentColor.opacity(0.16) : DSColors.background)
-                        .foregroundColor(sampleLimit == option ? .accentColor : .primary)
+                        .padding(.vertical, DSSpacing.xs)
+                        .padding(.horizontal, DSSpacing.md)
+                        .background(sampleLimit == option ? DSColors.accent.opacity(0.16) : DSColors.background)
+                        .foregroundStyle(sampleLimit == option ? DSColors.accent : .primary)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -1356,17 +1356,17 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     private var pointSizeRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             Label("Point size", systemImage: "circle.grid.cross")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             Slider(value: $pointScale, in: 0.6...1.6, step: 0.1)
 
             Text(String(format: "%.1fx", pointScale))
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .frame(width: 44)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: DSSpacing.tapTarget)
         }
     }
 
@@ -1788,8 +1788,8 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     private var controlOverlay: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .trailing, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 ControlToggleButton(
                     icon: "arrow.triangle.2.circlepath",
                     title: "Rotate",
@@ -1816,7 +1816,7 @@ struct EmbeddingSpaceRenderer: View {
                     title: "HUD",
                     isActive: showHUD,
                     action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DSAnimations.quick) {
                             showHUD.toggle()
                         }
                     }
@@ -1827,7 +1827,7 @@ struct EmbeddingSpaceRenderer: View {
                     title: "Labels",
                     isActive: showClusterLabels,
                     action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DSAnimations.quick) {
                             showClusterLabels.toggle()
                             sceneReloadToken = UUID() // Force scene rebuild
                         }
@@ -1839,7 +1839,7 @@ struct EmbeddingSpaceRenderer: View {
                     title: "Focus",
                     isActive: focusMode,
                     action: {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
+                        withAnimation(DSAnimations.defaultSpring) {
                             focusMode.toggle()
                         }
                     }
@@ -1848,10 +1848,10 @@ struct EmbeddingSpaceRenderer: View {
                 Button(action: resetScene) {
                     Label("Reset", systemImage: "arrow.counterclockwise")
                         .font(.caption2)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 10)
+                        .padding(.vertical, DSSpacing.xs)
+                        .padding(.horizontal, DSSpacing.sm)
                         .background(Color.black.opacity(0.12))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -1874,51 +1874,51 @@ struct EmbeddingSpaceRenderer: View {
             } label: {
                 Label(backgroundStyle.displayName, systemImage: backgroundStyle.iconName)
                     .font(.caption2)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 12)
+                    .padding(.vertical, DSSpacing.xs)
+                    .padding(.horizontal, DSSpacing.md)
                     .background(Color.black.opacity(0.14))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .clipShape(Capsule())
             }
         }
-        .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .padding(16)
+        .padding(DSSpacing.md)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
+        .padding(DSSpacing.lg)
     }
 
     /// Inline HUD inspired by Apple's Embedding Atlas to explain what the user is seeing.
     @ViewBuilder
     private var sceneHUD: some View {
         if totalPoints > 0 {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 sampleSummaryBadge
                 axisHintPanel
             }
-            .padding(16)
+            .padding(DSSpacing.lg)
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.white.opacity(0.55))
+                RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                    .fill(.regularMaterial)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                            .stroke(DSColors.border, lineWidth: 1)
                     )
             )
             .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 6)
-            .padding(12)
+            .padding(DSSpacing.md)
         }
     }
 
     private var controlToolbar: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DSSpacing.sm) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     // Search button
                     ControlToggleButton(
                         icon: "magnifyingglass",
                         title: "Search",
                         isActive: isSearching,
                         action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DSAnimations.quick) {
                                 isSearching.toggle()
                             }
                         }
@@ -1950,7 +1950,7 @@ struct EmbeddingSpaceRenderer: View {
                         title: "HUD",
                         isActive: showHUD,
                         action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DSAnimations.quick) {
                                 showHUD.toggle()
                             }
                         }
@@ -1961,7 +1961,7 @@ struct EmbeddingSpaceRenderer: View {
                         title: "Labels",
                         isActive: showClusterLabels,
                         action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DSAnimations.quick) {
                                 showClusterLabels.toggle()
                                 sceneReloadToken = UUID()
                             }
@@ -1973,7 +1973,7 @@ struct EmbeddingSpaceRenderer: View {
                         title: "Focus",
                         isActive: focusMode,
                         action: {
-                            withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
+                            withAnimation(DSAnimations.defaultSpring) {
                                 focusMode.toggle()
                             }
                         }
@@ -1982,15 +1982,15 @@ struct EmbeddingSpaceRenderer: View {
                     Button(action: resetScene) {
                         Label("Reset", systemImage: "arrow.counterclockwise")
                             .font(.caption2)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(Color.black.opacity(0.08))
-                            .foregroundColor(.primary)
+                            .padding(.vertical, DSSpacing.xs)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .background(Color.secondary.opacity(0.12))
+                            .foregroundStyle(.primary)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DSSpacing.xs)
             }
 
             Menu {
@@ -2010,48 +2010,50 @@ struct EmbeddingSpaceRenderer: View {
             } label: {
                 Label(backgroundStyle.displayName, systemImage: backgroundStyle.iconName)
                     .font(.caption2)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 12)
-                    .background(Color.black.opacity(0.05))
-                    .foregroundColor(.primary)
+                    .padding(.vertical, DSSpacing.xs)
+                    .padding(.horizontal, DSSpacing.md)
+                    .background(Color.secondary.opacity(0.1))
+                    .foregroundStyle(.primary)
                     .clipShape(Capsule())
             }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 18)
+        .padding(.vertical, DSSpacing.sm)
+        .padding(.horizontal, DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                 .fill(.thinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                        .stroke(DSColors.border, lineWidth: 1)
                 )
         )
         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     private var sampleSummaryBadge: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "chart.scatter")
                 Text(sampleCoverageText)
+                    .monospacedDigit()
             }
             .font(.caption)
-            .foregroundColor(.primary)
+            .foregroundStyle(.primary)
 
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "rectangle.3.group")
                 Text(docCoverageText.isEmpty ? projectionExplainer : docCoverageText)
+                    .monospacedDigit()
             }
             .font(.caption2)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
         }
     }
 
     private var axisHintPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "chart.xyaxis.line")
                 Text("Axis cheat sheet")
                     .font(.caption)
@@ -2064,18 +2066,18 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     private func axisHintRow(label: String, detail: String, color: Color) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: DSSpacing.sm) {
             Circle()
                 .fill(color.opacity(0.9))
                 .frame(width: 8, height: 8)
-                .padding(.top, 4)
-            VStack(alignment: .leading, spacing: 2) {
+                .padding(.top, DSSpacing.xs)
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(label)
                     .font(.caption2)
                     .fontWeight(.semibold)
                 Text(detail)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -2083,26 +2085,26 @@ struct EmbeddingSpaceRenderer: View {
     @ViewBuilder
     private var insightHighlights: some View {
         if !insights.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 HStack {
                     Text("Quick insights")
                         .font(.headline)
                     Spacer()
                     Text(projectionExplainer)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DSSpacing.md) {
                         ForEach(insights) { insight in
                             InsightCard(insight: insight)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, DSSpacing.xs)
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, DSSpacing.lg)
         }
     }
 
@@ -2165,7 +2167,7 @@ struct EmbeddingSpaceRenderer: View {
 
         var body: some View {
             Button(action: action) {
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: icon)
                     Text(title)
                         .lineLimit(1)
@@ -2173,10 +2175,10 @@ struct EmbeddingSpaceRenderer: View {
                         .layoutPriority(1)
                 }
                 .font(.caption2)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .background(isActive ? Color.accentColor : Color.black.opacity(0.1))
-                .foregroundColor(isActive ? .white : .white.opacity(0.85))
+                .padding(.vertical, DSSpacing.xs)
+                .padding(.horizontal, DSSpacing.sm)
+                .background(isActive ? DSColors.accent : Color.secondary.opacity(0.15))
+                .foregroundStyle(isActive ? .white : .primary)
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -2189,32 +2191,32 @@ struct EmbeddingSpaceRenderer: View {
         let label: String
         let value: String
         let icon: String
-        var color: Color = .purple
+        var color: Color = DSColors.accent
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: icon)
-                        .font(.system(size: 10))
-                        .foregroundColor(color.opacity(0.8))
+                        .font(.caption2)
+                        .foregroundStyle(color)
                     Text(label)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
                 }
                 Text(value)
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundColor(.primary)
+                    .font(.footnote.weight(.bold).monospaced())
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                     .fill(color.opacity(0.08))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                             .strokeBorder(color.opacity(0.2), lineWidth: 0.5)
                     )
             )
@@ -2229,17 +2231,17 @@ struct EmbeddingSpaceRenderer: View {
         var body: some View {
             HStack {
                 Text(label)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Text(value)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(valueColor)
+                    .font(.caption2.weight(.medium).monospaced())
+                    .foregroundStyle(valueColor)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.purple.opacity(0.05))
-            .cornerRadius(4)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
+            .background(DSColors.accent.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
     }
 
@@ -2268,67 +2270,67 @@ struct EmbeddingSpaceRenderer: View {
         let sparsity: Double // 0-1
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Vector Space Health")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     // Coverage meter
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Coverage")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(Color.gray.opacity(0.2))
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                                    .fill(Color.secondary.opacity(0.2))
+                                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                     .fill(coverageColor)
                                     .frame(width: geo.size.width * coverage)
                             }
                         }
                         .frame(height: 6)
                         Text(String(format: "%.1f%%", coverage * 100))
-                            .font(.system(size: 9, design: .monospaced))
+                            .font(.caption2.monospaced())
                     }
 
                     // Density meter
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Density")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(Color.gray.opacity(0.2))
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                                    .fill(Color.secondary.opacity(0.2))
+                                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                     .fill(densityColor)
                                     .frame(width: geo.size.width * (1 - sparsity))
                             }
                         }
                         .frame(height: 6)
                         Text(String(format: "%.1f%%", (1 - sparsity) * 100))
-                            .font(.system(size: 9, design: .monospaced))
+                            .font(.caption2.monospaced())
                     }
                 }
             }
-            .padding(10)
-            .background(Color.purple.opacity(0.05))
-            .cornerRadius(8)
+            .padding(DSSpacing.sm)
+            .background(DSColors.accent.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
 
         private var coverageColor: Color {
             if coverage > 0.8 { return .green }
-            if coverage > 0.5 { return .yellow }
+            if coverage > 0.5 { return .orange }
             return .orange
         }
 
         private var densityColor: Color {
             let density = 1 - sparsity
             if density > 0.7 { return .green }
-            if density > 0.4 { return .blue }
-            return .purple
+            if density > 0.4 { return DSColors.accent }
+            return .secondary
         }
     }
 
@@ -2345,7 +2347,7 @@ struct EmbeddingSpaceRenderer: View {
                     title: "Document Legend",
                     explanation: "Each color represents a different document in the active library. The numbers show how many points from that document are included in the current sample, and the percentage of the total points they represent. Tap a document to toggle it on or off in the 3D view."
                 )
-                .padding(.trailing)
+                .padding(.trailing, DSSpacing.lg)
             }
         }
     }
@@ -2358,7 +2360,7 @@ struct EmbeddingSpaceRenderer: View {
 
         var body: some View {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: DSSpacing.sm) {
                     ForEach(items, id: \.id) { item in
                         LegendChip(
                             item: item,
@@ -2370,7 +2372,7 @@ struct EmbeddingSpaceRenderer: View {
                         }
                     }
                 }
-                .padding(.leading)
+                .padding(.leading, DSSpacing.lg)
             }
         }
 
@@ -2401,20 +2403,20 @@ struct EmbeddingSpaceRenderer: View {
         }
 
         var body: some View {
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Circle()
                     .fill(item.color)
                     .frame(width: 10, height: 10)
                 Text("\(item.name) • \(item.count) • \(pctStr)")
-                    .font(.caption2)
+                    .font(.caption2.monospacedDigit())
                     .lineLimit(1)
             }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
+            .padding(.vertical, DSSpacing.xs)
+            .padding(.horizontal, DSSpacing.sm)
             .background(DSColors.surface.opacity(selected ? 0.9 : 0.4))
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(selected ? Color.blue.opacity(0.6) : Color.clear, lineWidth: 1)
+                Capsule()
+                    .stroke(selected ? DSColors.accent.opacity(0.6) : Color.clear, lineWidth: 1)
             )
             .clipShape(Capsule())
             .contentShape(Rectangle())
@@ -2435,7 +2437,7 @@ struct EmbeddingSpaceRenderer: View {
                         )
                         .scaleEffect(depthScale(label.depthHint))
                         .opacity(depthOpacity(label.depthHint, score: label.score))
-                        .animation(.spring(response: 0.4, dampingFraction: 0.92), value: label.id)
+                        .animation(DSAnimations.defaultSpring, value: label.id)
                         .transition(.scale.combined(with: .opacity))
                         .zIndex(Double(label.depthHint))
                 }
@@ -2465,38 +2467,38 @@ struct EmbeddingSpaceRenderer: View {
         }
 
         var body: some View {
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Circle()
                     .fill(label.accent)
-.frame(width: 6, height: 6)
-    .shadow(color: label.accent.opacity(0.5), radius: 2, x: 0, y: 0)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: label.accent.opacity(0.5), radius: 2, x: 0, y: 0)
 
                 Text(label.title)
-.font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.caption2.weight(.semibold).design(.rounded))
                     .lineLimit(1)
-.foregroundColor(.primary)
+                    .foregroundStyle(.primary)
 
                 if let keyword = keywordTag {
                     Text("·")
-.font(.system(size: 9, weight: .medium))
-    .foregroundColor(.secondary.opacity(0.7))
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
                     Text(keyword)
-.font(.system(size: 10, weight: .medium, design: .rounded))
-    .foregroundColor(.secondary)
+                        .font(.caption2.weight(.medium).design(.rounded))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
-.padding(.horizontal, 8)
-    .padding(.vertical, 4)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
             .background(
                 Capsule()
-.fill(.regularMaterial)
+                    .fill(.regularMaterial)
                     .overlay(
                         Capsule()
-.strokeBorder(label.accent.opacity(0.4), lineWidth: 0.5)
+                            .strokeBorder(label.accent.opacity(0.4), lineWidth: 0.5)
                     )
             )
-.shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+            .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
         }
     }
 
@@ -2504,26 +2506,26 @@ struct EmbeddingSpaceRenderer: View {
         let insight: EmbeddingInsight
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: insight.icon)
-                        .foregroundColor(insight.accent)
+                        .foregroundStyle(insight.accent)
                     Text(insight.title)
                         .font(.caption)
                         .fontWeight(.semibold)
                 }
                 Text(insight.detail)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(14)
+            .padding(DSSpacing.md)
             .background(DSColors.background)
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .stroke(insight.accent.opacity(0.4), lineWidth: 1)
             )
-            .cornerRadius(14)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
     }
 
@@ -5057,37 +5059,37 @@ struct EmbeddingSpaceRenderer: View {
     let chunkCount: Int
     let documentCount: Int
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.background)
                     .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                VStack(spacing: 8) {
+                VStack(spacing: DSSpacing.sm) {
                     Image(systemName: "cube.transparent")
                         .font(.title)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text("3D embedding visualization requires SceneKit")
                         .font(.subheadline)
                     Text("This platform does not support SceneKit. A compatible renderer (RealityKit) can be added.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
                     Text("Tracking \(chunkCount) chunks across \(documentCount) documents")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 4)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .padding(.top, DSSpacing.xs)
                     Text(projectionHelper)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     Text("Tip: On compatible devices, use Focus mode to stretch the scene, or hide the HUD for a clean canvas.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.top, 2)
+                        .padding(.top, DSSpacing.xxs)
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
             .frame(height: 360)
 

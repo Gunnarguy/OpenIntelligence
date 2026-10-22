@@ -25,7 +25,7 @@ enum ContainerPillBadgeStyle {
         case .local:
             return isSelected ? .black.opacity(0.18) : Color.secondary.opacity(0.12)
         case .iCloud:
-            return isSelected ? .black.opacity(0.18) : Color.blue.opacity(0.12)
+            return isSelected ? .black.opacity(0.18) : Color.accentColor.opacity(0.12)
         }
     }
 }
@@ -40,20 +40,20 @@ struct ContainerPickerStrip: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
+                GlassEffectContainer(spacing: DSSpacing.sm) {
+                    HStack(spacing: DSSpacing.sm) {
                         pillList
                     }
                     .modifier(LibraryReordering(containerService: containerService))
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.sm)
             } else {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     pillList
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.sm)
             }
         }
     }
@@ -111,7 +111,7 @@ struct ContainerPickerStrip: View {
                     // than as a feeling. Switching libraries is the specific complaint,
                     // and until now nothing on this path was timed at all.
                     NavigationTiming.begin("library")
-                    withAnimation {
+                    withAnimation(DSAnimations.snappySpring) {
                         containerService.setActive(container.id)
                     }
                     SiriDonations.libraryUsed(container)
@@ -144,14 +144,14 @@ struct ContainerPickerStrip: View {
             Button {
                 onCreateLibrary?()
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "plus")
                         .font(.caption2.weight(.semibold))
                     Text("New Library")
                         .font(.footnote.weight(.medium))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.xs)
                 .background(
                     Capsule()
                         .strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4]))
@@ -197,7 +197,7 @@ struct ContainerPill: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: container.icon)
                 .font(.caption2.weight(.medium))
             Text(displayName ?? container.name)
@@ -208,23 +208,22 @@ struct ContainerPill: View {
                 .layoutPriority(1)
             if let badgeText {
                 Text(badgeText)
-                    .font(.system(.caption2, design: .rounded).weight(.bold))
-                    .monospacedDigit()
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(badgeStyle.background(isSelected: isSelected))
                     .foregroundStyle(badgeStyle.foreground(isSelected: isSelected))
                     .clipShape(Capsule())
                     .fixedSize(horizontal: true, vertical: false)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.xs)
         .background(
             Capsule()
                 .fill(isSelected ? containerColor : DSColors.surface)
         )
-        .foregroundColor(isSelected ? .white : .primary)
+        .foregroundStyle(isSelected ? .white : .primary)
         .overlay(
             Capsule()
                 .strokeBorder(isSelected ? Color.clear : containerColor.opacity(0.3), lineWidth: 1)
@@ -347,7 +346,7 @@ private struct LibraryReordering: ViewModifier {
                 } else {
                     target = nil
                 }
-                withAnimation {
+                withAnimation(DSAnimations.snappySpring) {
                     containerService.move(difference.sources, before: target)
                 }
             }

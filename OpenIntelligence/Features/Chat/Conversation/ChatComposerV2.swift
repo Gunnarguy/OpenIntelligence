@@ -87,10 +87,10 @@ struct ChatComposerV2: View {
             // Attachment preview row
             if !pendingAttachments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         ForEach(pendingAttachments) { attachment in
                             AttachmentPreviewChip(attachment: attachment) {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                withAnimation(DSAnimations.snappySpring) {
                                     pendingAttachments.removeAll { $0.id == attachment.id }
                                 }
                                 DSHaptics.light()
@@ -102,8 +102,8 @@ struct ChatComposerV2: View {
                                 ))
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
                 }
                 .background(Color.primary.opacity(0.02))
             }
@@ -113,7 +113,7 @@ struct ChatComposerV2: View {
                 .fill(Color.primary.opacity(0.06))
                 .frame(height: 0.5)
 
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .bottom, spacing: DSSpacing.md) {
                 // Text input with glass effect
                 // The microphone and the paperclip are 44 points square, Apple's default control size on
                 // iPhone and iPad (Human Interface Guidelines, Accessibility) and the size of the send
@@ -121,19 +121,12 @@ struct ChatComposerV2: View {
                 HStack(alignment: .bottom, spacing: 0) {
                     TextField(hint, text: $inputText, axis: .vertical)
                         .lineLimit(1...8)
-                        // Callout on iPhone and iPad: 16 points at the default text size, like the fixed 16 it
-                        // replaces, and it grows with the setting (5.7, Apple's audit: the question field's text did
-                        // not). The Mac has no Dynamic Type and its Callout is 12 points, so there it stays 16.
-                        #if os(macOS)
-                            .font(.system(size: 16))
-                        #else
-                            .font(.callout)
-                        #endif
+                        .font(.body)
                         .focused($isInputFocused)
                         .disabled(isProcessing && !isCheckingAnswer)
                         .writingToolsBehavior(.complete)
-                        .padding(.vertical, 12)
-                        .padding(.leading, 16)
+                        .padding(.vertical, DSSpacing.md)
+                        .padding(.leading, DSSpacing.lg)
 
                     // Dictation: the words go into the field as they are recognised, unsent (5.7).
                     // On the Mac the sandbox and the hardened runtime let the app use the microphone
@@ -143,7 +136,7 @@ struct ChatComposerV2: View {
                             toggleDictation()
                         } label: {
                             Image(systemName: dictation.phase == .listening ? "mic.fill" : "mic")
-                                .font(.system(size: 18, weight: .medium))
+                                .font(.body.weight(.medium))
                                 .foregroundStyle(dictation.phase == .listening ? Color.red : DSColors.accent)
                                 .symbolEffect(.pulse, isActive: dictation.phase != .idle)
                                 .frame(width: 44, height: 44)
@@ -175,17 +168,17 @@ struct ChatComposerV2: View {
                     }
                 }
                 .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                         .fill(.ultraThinMaterial)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                                 .strokeBorder(
                                     isInputFocused ? DSColors.accent.opacity(0.4) : Color.primary.opacity(0.08),
                                     lineWidth: 1
                                 )
                         )
                 )
-                .animation(.easeOut(duration: 0.15), value: isInputFocused)
+                .animation(DSAnimations.fastEase, value: isInputFocused)
 
                 // Send / Stop button
                 Button(action: showsStop ? (onStop ?? {}) : send) {
@@ -196,13 +189,13 @@ struct ChatComposerV2: View {
 
                         if showsStop {
                             // Stop icon
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                                 .fill(.white)
                                 .frame(width: 14, height: 14)
                         } else {
                             // Send arrow
                             Image(systemName: "arrow.up")
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(.body.weight(.semibold))
                                 .foregroundStyle(.white)
                         }
                     }
@@ -210,11 +203,11 @@ struct ChatComposerV2: View {
                 .buttonStyle(.plain)
                 .disabled(!canSend && !isProcessing)
                 .scaleEffect(canSend || isProcessing ? 1.0 : 0.9)
-                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: canSend)
-                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isProcessing)
+                .animation(DSAnimations.snappySpring, value: canSend)
+                .animation(DSAnimations.snappySpring, value: isProcessing)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.vertical, DSSpacing.md)
         }
         .background(.ultraThinMaterial)
         .onSubmit(send)
@@ -298,7 +291,7 @@ struct ChatComposerV2: View {
         } else if canSend {
             return AnyShapeStyle(DSColors.accent)
         } else {
-            return AnyShapeStyle(Color.gray.opacity(0.3))
+            return AnyShapeStyle(Color.secondary.opacity(0.3))
         }
     }
 
@@ -306,7 +299,7 @@ struct ChatComposerV2: View {
         for url in urls {
             let thumbnail = generateThumbnail(for: url)
             let attachment = ChatAttachment(url: url, type: type, thumbnail: thumbnail)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(DSAnimations.snappySpring) {
                 pendingAttachments.append(attachment)
             }
         }

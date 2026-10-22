@@ -16,30 +16,30 @@ struct LiveSystemMonitorWrapper: View {
     var body: some View {
         let state = systemMonitor.currentState
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Header with live indicator
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "gauge.with.dots.needle.bottom.50percent")
                     .font(.caption)
-                    .foregroundColor(.green)
+                    .foregroundStyle(.green)
                 Text("Live System Monitor")
                     .font(.subheadline.weight(.medium))
                 Spacer()
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 6, height: 6)
                     Text("Live")
-                        .font(.caption2.weight(.medium))
-                        .foregroundColor(.green)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(DSColors.readable(.green))
                 }
             }
 
             // Live metrics grid
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10),
-            ], spacing: 10) {
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+            ], spacing: DSSpacing.sm) {
                 // Thermal - Apple's official ProcessInfo.ThermalState terminology
                 liveMetricCard(
                     icon: SystemStateMonitor.thermalIcon(for: state.thermalState),
@@ -78,45 +78,46 @@ struct LiveSystemMonitorWrapper: View {
             }
 
             // Status pills row
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 // Cores
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "cpu")
-                        .font(.caption2)
+                        .font(.caption2.weight(.semibold))
                     Text("\(state.activeProcessorCount)/\(state.processorCount) cores")
-                        .font(.caption2.weight(.medium))
+                        .font(.caption2.weight(.semibold))
+                        .monospacedDigit()
                 }
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.1))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xs)
+                .background(DSColors.surfaceElevated)
                 .clipShape(Capsule())
 
                 if state.isLowPowerModeEnabled {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "leaf.fill")
-                            .font(.caption2)
+                            .font(.caption2.weight(.semibold))
                         Text("Low Power")
-                            .font(.caption2.weight(.medium))
+                            .font(.caption2.weight(.semibold))
                     }
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.12))
+                    .foregroundStyle(DSColors.readable(.orange))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(DSColors.chipBackground(for: .orange))
                     .clipShape(Capsule())
                 }
 
                 if state.isCharging {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "bolt.fill")
-                            .font(.caption2)
+                            .font(.caption2.weight(.semibold))
                         Text("Charging")
-                            .font(.caption2.weight(.medium))
+                            .font(.caption2.weight(.semibold))
                     }
-                    .foregroundColor(.green)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.12))
+                    .foregroundStyle(DSColors.readable(.green))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(DSColors.chipBackground(for: .green))
                     .clipShape(Capsule())
                 }
 
@@ -125,79 +126,80 @@ struct LiveSystemMonitorWrapper: View {
 
             // Status message
             if state.isConstrained {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Pipeline Adjusted")
                             .font(.caption.weight(.semibold))
                         Text(constraintExplanation(state))
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .foregroundColor(.orange)
-                .padding(10)
+                .foregroundStyle(DSColors.readable(.orange))
+                .padding(DSSpacing.sm)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(DSColors.chipBackground(for: .orange))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             } else {
-                HStack(spacing: 6) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.green)
+                        .foregroundStyle(.green)
                     Text("All systems nominal — full performance")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
             // Tip about UnifiedMetricsBar
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "lightbulb.fill")
                     .font(.caption2)
                 Text("Expand the metrics bar in chat for live stats during queries")
                     .font(.caption2)
             }
-            .foregroundColor(.secondary)
-            .padding(.top, 2)
+            .foregroundStyle(.secondary)
+            .padding(.top, DSSpacing.xxs)
         }
-        .padding(12)
-        .background(Color.green.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Helper Views
 
     @ViewBuilder
     private func liveMetricCard(icon: String, label: String, value: String, detail: String = "", color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             // Label row
-            HStack(spacing: 5) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
                     .font(.caption)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                 Text(label)
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(.secondary)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
 
             // Value - prominent
             Text(value)
                 .font(.subheadline.weight(.bold))
-                .foregroundColor(.primary)
+                .monospacedDigit()
+                .foregroundStyle(.primary)
 
             // Detail if provided
             if !detail.isEmpty {
                 Text(detail)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(DSSpacing.sm)
+        .background(DSColors.chipBackground(for: color))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Helper Functions
@@ -239,16 +241,16 @@ struct LiveSystemMonitorWrapper: View {
     private func thermalStateColor(_ thermal: ProcessInfo.ThermalState) -> Color {
         switch thermal {
         case .nominal: return .green
-        case .fair: return .blue
+        case .fair: return .accentColor
         case .serious: return .orange
         case .critical: return .red
-        @unknown default: return .gray
+        @unknown default: return .secondary
         }
     }
 
     private func batteryStateColor(level: Float, isCharging: Bool) -> Color {
         if isCharging { return .green }
-        if level < 0 { return .gray }
+        if level < 0 { return .secondary }
         if level < 0.10 { return .red }
         if level < 0.25 { return .orange }
         return .green
@@ -265,7 +267,7 @@ struct LiveSystemMonitorWrapper: View {
     private func pipelineOptColor(_ level: PipelineOptimizationLevel) -> Color {
         switch level {
         case .full: return .green
-        case .balanced: return .blue
+        case .balanced: return .accentColor
         case .efficient: return .orange
         case .minimal: return .red
         }

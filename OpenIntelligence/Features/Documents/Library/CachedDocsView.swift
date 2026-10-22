@@ -114,7 +114,7 @@ struct CachedDocsView: View {
     // MARK: - Subviews
 
     private var loadingView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             ProgressView()
             Text("Loading cached docs...")
                 .font(.subheadline)
@@ -249,9 +249,9 @@ private struct CachedDocRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(document.title)
                         .font(.headline)
                         .lineLimit(2)
@@ -264,19 +264,19 @@ private struct CachedDocRow: View {
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: DSSpacing.xs) {
                     Text(document.fetchDate.formatted(date: .abbreviated, time: .omitted))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
 
                     Text("\(document.wordCount) words")
-                        .font(.caption2)
+                        .font(.caption2.monospacedDigit())
                         .foregroundStyle(.tertiary)
                 }
             }
 
             // Action buttons
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 Button(action: onPreview) {
                     Label("Preview", systemImage: "eye")
                         .font(.caption)
@@ -306,9 +306,9 @@ private struct CachedDocRow: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
-            .padding(.top, 4)
+            .padding(.top, DSSpacing.xs)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 }
 
@@ -321,10 +321,10 @@ private struct DocPreviewSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     // Metadata header
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             LabeledContent("Source") {
                                 Link(destination: document.url) {
                                     Text(document.url.host ?? "Link")
@@ -338,6 +338,7 @@ private struct DocPreviewSheet: View {
 
                             LabeledContent("Size") {
                                 Text("\(document.wordCount) words")
+                                    .monospacedDigit()
                             }
 
                             LabeledContent("Type") {
@@ -354,8 +355,9 @@ private struct DocPreviewSheet: View {
                         .font(.system(.body, design: .monospaced))
                         .textSelection(.enabled)
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
+            .background(DSColors.background.ignoresSafeArea())
             .navigationTitle(document.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

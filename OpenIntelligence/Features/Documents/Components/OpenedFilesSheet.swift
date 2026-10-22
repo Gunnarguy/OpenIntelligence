@@ -47,17 +47,18 @@ struct OpenedFilesSheet: View {
                         Button {
                             previewing = file
                         } label: {
-                            HStack(spacing: 12) {
+                            HStack(spacing: DSSpacing.md) {
                                 Image(systemName: Self.symbol(for: file))
                                     .font(.title3)
                                     .foregroundStyle(DSColors.accent)
                                     .frame(width: 28)
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                     Text(file.lastPathComponent)
+                                        .font(.subheadline)
                                         .foregroundStyle(DSColors.primaryText)
                                         .lineLimit(2)
                                     Text(Self.detail(of: file))
-                                        .font(.caption)
+                                        .font(.caption.monospacedDigit())
                                         .foregroundStyle(DSColors.secondaryText)
                                 }
                                 Spacer(minLength: 0)
@@ -75,7 +76,7 @@ struct OpenedFilesSheet: View {
                 if libraries.count > 1 {
                     Section("Add to") {
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: DSSpacing.sm) {
                                 ForEach(libraries) { library in
                                     let count = documentCount(library.id)
                                     ContainerPill(
@@ -88,7 +89,7 @@ struct OpenedFilesSheet: View {
                                     )
                                 }
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, DSSpacing.xs)
                         }
                     }
                 }

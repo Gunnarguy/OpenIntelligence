@@ -44,7 +44,7 @@ struct SemanticSearchView: View {
 
     private var content: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: DSSpacing.lg) {
                 ContainerPickerStrip(containerService: containerService)
 
                 querySection
@@ -52,13 +52,13 @@ struct SemanticSearchView: View {
                 statusSection
                 resultsSection
             }
-            .padding()
+            .padding(DSSpacing.lg)
         }
         .background(DSColors.background.ignoresSafeArea())
     }
 
     private var querySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Label("Search Query", systemImage: "magnifyingglass")
                 .font(.headline)
             TextField("Ask about your documents", text: $query)
@@ -79,28 +79,29 @@ struct SemanticSearchView: View {
             .buttonStyle(.borderedProminent)
             .disabled(isSearching)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(cardBackground)
     }
 
     private var tuningSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Tuning")
                 .font(.headline)
             Stepper(value: $topK, in: 1 ... 12, step: 1) {
                 Text("Top results: \(Int(topK))")
+                    .monospacedDigit()
             }
             Toggle("Apply minimum similarity", isOn: $enforceThreshold)
             if enforceThreshold {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Slider(value: $minSimilarity, in: 0.2 ... 0.8, step: 0.05)
                     Text("Threshold: \(similarityLabel(minSimilarity))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(cardBackground)
     }
 
@@ -116,32 +117,30 @@ struct SemanticSearchView: View {
                 let isCoreAI = container.embeddingProviderId == "coreai_sentence_embedding"
                 let isMiniLM = isCoreML || isCoreAI
                 let isContextual = container.embeddingProviderId == "nl_contextual_embedding"
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: isMiniLM ? "cpu.fill" : (isContextual ? "sparkles" : "brain.head.profile"))
-                        .foregroundColor(isMiniLM ? .orange : (isContextual ? .purple : .blue))
+                        .foregroundStyle(Color.accentColor)
                     Text(isMiniLM ? "MiniLM-L6-v2 (384D)" : (isContextual ? "Contextual (512D)" : "NLEmbedding (512D)"))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     if isMiniLM {
                         Text(isCoreAI ? "Core AI" : "Core ML")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundColor(.orange)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.orange.opacity(0.15)))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, DSSpacing.xs)
+                            .padding(.vertical, DSSpacing.xxs)
+                            .background(Capsule().fill(Color.accentColor.opacity(0.15)))
                     } else if isContextual {
                         Text("Contextual")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundColor(.purple)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.purple.opacity(0.15)))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, DSSpacing.xs)
+                            .padding(.vertical, DSSpacing.xxs)
+                            .background(Capsule().fill(Color.accentColor.opacity(0.15)))
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
             }
 
             if isSearching {
@@ -158,18 +157,17 @@ struct SemanticSearchView: View {
                 let hint = scopedDocuments.isEmpty
                     ? "Add documents to \(activeContainerName) before running semantic search."
                     : "Enter a question or keywords to retrieve the most relevant passages."
-                StatusBanner(icon: "lightbulb.fill", color: .blue, message: hint)
+                StatusBanner(icon: "lightbulb.fill", color: .accentColor, message: hint)
             }
         }
     }
 
     private var resultsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             if !results.isEmpty {
                 Text("Results")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                LazyVStack(spacing: 12) {
+                    .font(.headline)
+                LazyVStack(spacing: DSSpacing.md) {
                     ForEach(Array(results.enumerated()), id: \.element.chunk.id) { index, chunk in
                         SemanticResultCard(
                             chunk: chunk,
@@ -182,7 +180,7 @@ struct SemanticSearchView: View {
     }
 
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
+        RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
             .fill(DSColors.surface)
             .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
     }
@@ -256,14 +254,14 @@ private struct SemanticResultCard: View {
     let position: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             header
             snippet
             metadata
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surfaceElevated)
         )
     }
@@ -271,45 +269,43 @@ private struct SemanticResultCard: View {
     private var header: some View {
         HStack {
             Text("#\(position)")
-                .font(.caption)
-                .fontWeight(.bold)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xs)
                 .background(Capsule().fill(DSColors.accent.opacity(0.15)))
-                .foregroundColor(DSColors.accent)
+                .foregroundStyle(DSColors.accent)
             Spacer()
             Text(similarityText)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.primary)
         }
     }
 
     private var snippet: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text(chunk.sourceDocument)
                 .font(.subheadline)
                 .fontWeight(.semibold)
             if let page = chunk.pageNumber {
                 Text("Page \(page)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
             Text(chunk.chunk.content.trimmingCharacters(in: .whitespacesAndNewlines))
                 .font(.body)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
                 .lineLimit(6)
         }
     }
 
     private var metadata: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             Label("Chunk \(chunk.chunk.metadata.chunkIndex + 1)", systemImage: "number")
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
             Label(similarityText, systemImage: "circle.grid.cross")
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -325,18 +321,18 @@ private struct StatusBanner: View {
     let message: String
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: DSSpacing.md) {
             Image(systemName: icon)
-                .foregroundColor(color)
+                .foregroundStyle(color)
             Text(message)
                 .font(.subheadline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
         )
     }
