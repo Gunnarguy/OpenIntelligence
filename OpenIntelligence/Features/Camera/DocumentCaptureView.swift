@@ -48,7 +48,7 @@ struct DocumentCaptureView: View {
 
                     // Mode indicator
                     ModeIndicator(mode: captureManager.detectedMode)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, DSSpacing.md)
 
                     // Live preview (subtle)
                     if !captureManager.livePreview.isEmpty {
@@ -62,7 +62,7 @@ struct DocumentCaptureView: View {
                     ) {
                         capture()
                     }
-                    .padding(.bottom, 40)
+                    .padding(.bottom, DSSpacing.xxl)
                 }
             }
             .navigationTitle("Smart Capture")
@@ -230,10 +230,10 @@ enum CaptureMode: String {
 
     var color: Color {
         switch self {
-        case .document: return .blue
+        case .document: return .accentColor
         case .photo: return .orange
         case .text: return .green
-        case .product: return .purple
+        case .product: return .accentColor
         }
     }
 }
@@ -719,23 +719,24 @@ struct SmartOverlay: View {
                     height: bounds.height * geometry.size.height
                 )
 
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .stroke(
-                        isStable ? Color.green : Color.yellow,
+                        isStable ? Color.green : Color.orange,
                         style: StrokeStyle(lineWidth: 3, lineCap: .round)
                     )
                     .frame(width: frame.width, height: frame.height)
                     .position(x: frame.midX, y: frame.midY)
-                    .animation(.easeInOut(duration: 0.15), value: frame)
-                    .shadow(color: (isStable ? Color.green : Color.yellow).opacity(0.5), radius: 8)
+                    .animation(DSAnimations.fastEase, value: frame)
+                    .shadow(color: (isStable ? Color.green : Color.orange).opacity(0.5), radius: 8)
 
                 // Corner accents
-                DocumentCorners(frame: frame, color: isStable ? .green : .yellow)
+                DocumentCorners(frame: frame, color: isStable ? .green : .orange)
             } else {
                 // Simple center reticle for photos
                 Image(systemName: "viewfinder")
-                    .font(.system(size: 60, weight: .ultraLight))
-                    .foregroundColor(.white.opacity(0.5))
+                    .font(.largeTitle.weight(.ultraLight))
+                    .foregroundStyle(.white)
+                    .opacity(0.5)
                     .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
             }
         }
@@ -746,17 +747,17 @@ struct ModeIndicator: View {
     let mode: CaptureMode
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: mode.icon)
             Text(mode.rawValue)
                 .fontWeight(.medium)
         }
         .font(.subheadline)
-        .foregroundColor(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .foregroundStyle(.white)
+        .padding(.horizontal, DSSpacing.lg)
+        .padding(.vertical, DSSpacing.sm)
         .background(mode.color.opacity(0.8), in: Capsule())
-        .animation(.easeInOut, value: mode)
+        .animation(DSAnimations.fastEase, value: mode)
     }
 }
 
@@ -764,19 +765,19 @@ struct LivePreviewBadge: View {
     let text: String
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: "text.viewfinder")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Text(text)
                 .font(.caption)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
         .background(.ultraThinMaterial, in: Capsule())
-        .padding(.horizontal, 20)
-        .padding(.bottom, 12)
+        .padding(.horizontal, DSSpacing.lg)
+        .padding(.bottom, DSSpacing.md)
     }
 }
 
@@ -859,7 +860,7 @@ struct CaptureButton: View {
                     .frame(width: 72, height: 72)
 
                 Circle()
-                    .fill(isProcessing ? Color.gray : (isReady ? Color.white : Color.white.opacity(0.5)))
+                    .fill(isProcessing ? Color.secondary : (isReady ? Color.white : Color.white.opacity(0.5)))
                     .frame(width: 60, height: 60)
 
                 if isProcessing {
@@ -870,7 +871,7 @@ struct CaptureButton: View {
         }
         .disabled(isProcessing)
         .scaleEffect(isReady ? 1.0 : 0.95)
-        .animation(.spring(response: 0.3), value: isReady)
+        .animation(DSAnimations.snappySpring, value: isReady)
     }
 }
 
@@ -885,25 +886,24 @@ struct SmartCaptureConfirmation: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: DSSpacing.lg) {
                     // Preview
                     Image(decorative: result.image, scale: 1.0)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxHeight: 280)
-                        .cornerRadius(16)
-                        .shadow(radius: 10)
-                        .padding(.horizontal)
+                        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                        .padding(.horizontal, DSSpacing.lg)
 
                     // Mode badge
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         Image(systemName: result.mode.icon)
                         Text(result.mode.rawValue)
                     }
                     .font(.subheadline.weight(.medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
                     .background(result.mode.color, in: Capsule())
 
                     // AI Description
@@ -915,25 +915,25 @@ struct SmartCaptureConfirmation: View {
                         } label: {
                             Label("AI Understanding", systemImage: "sparkles")
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
                     }
 
                     // Detected content
                     if !result.sceneLabels.isEmpty || !result.detectedObjects.isEmpty {
                         GroupBox {
-                            CaptureFlowLayout(spacing: 8) {
+                            CaptureFlowLayout(spacing: DSSpacing.sm) {
                                 ForEach(result.detectedObjects + result.sceneLabels, id: \.self) { label in
                                     Text(label)
-                                        .font(.caption)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(Color.secondary.opacity(0.2), in: Capsule())
+                                        .font(.caption2.weight(.semibold))
+                                        .padding(.horizontal, DSSpacing.sm)
+                                        .padding(.vertical, DSSpacing.xs)
+                                        .background(DSColors.chipBackground(for: .secondary), in: Capsule())
                                 }
                             }
                         } label: {
                             Label("Detected", systemImage: "eye")
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
                     }
 
                     // Extracted text
@@ -944,22 +944,23 @@ struct SmartCaptureConfirmation: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         } label: {
                             Label("Text (\(result.extractedText.split(separator: " ").count) words)", systemImage: "doc.text")
+                                .monospacedDigit()
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
                     }
 
                     // Library info
                     HStack {
                         Text("Adding to:")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Text(containerName)
                             .fontWeight(.medium)
                         Spacer()
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.top, DSSpacing.sm)
                 }
-                .padding(.top, 20)
+                .padding(.top, DSSpacing.lg)
             }
             .navigationTitle("Review Capture")
             .navigationBarTitleDisplayMode(.inline)
@@ -989,7 +990,7 @@ struct SmartCaptureConfirmation: View {
 // MARK: - Flow Layout (Capture View)
 
 private struct CaptureFlowLayout: Layout {
-    var spacing: CGFloat = 8
+    var spacing: CGFloat = DSSpacing.sm
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing)

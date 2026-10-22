@@ -16,16 +16,16 @@ struct ValidationDashboardView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             Text("RAG Validation & Benchmarks")
-                .font(.largeTitle)
-                .bold()
-                .padding(.bottom, 8)
+                .font(.title2.weight(.bold))
+                .padding(.bottom, DSSpacing.sm)
             
             Text("Execute pre-configured RAG validation suites visually, monitoring document ingestion, chunking, and reasoning outputs in real-time.")
-                .foregroundColor(.secondary)
+                .font(.body)
+                .foregroundStyle(.secondary)
             
-            HStack {
+            HStack(spacing: DSSpacing.sm) {
                 Button(action: { showManifestImporter = true }) {
                     Label("Load JSON Suite", systemImage: "doc.badge.gearshape")
                 }
@@ -39,13 +39,13 @@ struct ValidationDashboardView: View {
                 if let url = viewModel.selectedFileURL {
                     Text(url.lastPathComponent)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             
             Divider()
             
-            HStack {
+            HStack(spacing: DSSpacing.sm) {
                 TextField("Query (for single document)", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .disabled(viewModel.isRunning || viewModel.selectedFileURL?.pathExtension == "json")
@@ -55,10 +55,11 @@ struct ValidationDashboardView: View {
                 
                 Button(action: runSingleDocument) {
                     Text(viewModel.isRunning ? "Running..." : "Run Test")
-                        .bold()
+                        .fontWeight(.semibold)
                 }
                 .disabled(viewModel.isRunning || query.isEmpty || viewModel.selectedFileURL == nil || viewModel.selectedFileURL?.pathExtension == "json")
                 .buttonStyle(.borderedProminent)
+                .tint(DSColors.accent)
             }
             
             Divider()
@@ -70,20 +71,16 @@ struct ValidationDashboardView: View {
                 Text(viewModel.outputText)
                     .font(.system(.body, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
+                    .padding(DSSpacing.lg)
             }
-            #if os(macOS)
-            .background(Color(NSColor.textBackgroundColor))
-            #else
-            .background(Color(UIColor.secondarySystemBackground))
-            #endif
-            .cornerRadius(8)
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                    .stroke(DSColors.border, lineWidth: 1)
             )
         }
-        .padding()
+        .padding(DSSpacing.lg)
         #if os(macOS)
         .frame(minWidth: 800, minHeight: 600)
         #endif
