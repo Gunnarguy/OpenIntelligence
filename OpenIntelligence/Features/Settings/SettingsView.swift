@@ -153,7 +153,7 @@ struct SettingsView: View {
                 id: .howItWorks, group: .intelligence,
                 title: "How This Works",
                 subtitle: "What happens to a document, and what stays on this device",
-                icon: "questionmark.circle", tint: .teal,
+                icon: "questionmark.circle", tint: .accentColor,
                 keywords: [
                     "how", "works", "explain", "privacy", "on-device", "on device", "local",
                     "server", "upload", "cloud", "embedding", "chunk", "index", "retrieval",
@@ -167,7 +167,7 @@ struct SettingsView: View {
                 id: .glossary, group: .intelligence,
                 title: "Plain English",
                 subtitle: "Every word this app uses, defined twice",
-                icon: "character.book.closed", tint: .mint,
+                icon: "character.book.closed", tint: .accentColor,
                 keywords: [
                     "glossary", "plain", "english", "definition", "definitions", "meaning",
                     "jargon", "vocabulary", "terms", "what does", "explain", "chunk",
@@ -179,7 +179,7 @@ struct SettingsView: View {
                 id: .intelligenceMode, group: .intelligence,
                 title: "Intelligence Mode",
                 subtitle: "Standard, Deep Think, or Maximum",
-                icon: "sparkles", tint: .blue,
+                icon: "sparkles", tint: .accentColor,
                 keywords: ["standard", "deep think", "maximum", "quality", "reasoning", "verification", "gates", "agentic"]
             ),
             .init(
@@ -193,77 +193,77 @@ struct SettingsView: View {
                 id: .privateCloudCompute, group: .intelligence,
                 title: "Private Cloud Compute",
                 subtitle: "When a question may leave this device",
-                icon: "cloud", tint: .blue,
+                icon: "cloud", tint: .accentColor,
                 keywords: ["pcc", "cloud", "privacy", "consent", "routing", "context window", "quota"]
             ),
             .init(
                 id: .librariesSync, group: .library,
                 title: "Libraries & iCloud",
                 subtitle: "Sharing your libraries between devices",
-                icon: "icloud", tint: .cyan,
+                icon: "icloud", tint: .accentColor,
                 keywords: ["icloud", "sync", "workspace", "shared", "libraries", "containers"]
             ),
             .init(
                 id: .devicePerformance, group: .device,
                 title: "Device & Performance",
                 subtitle: "Chip, memory, GPU profile, and limits",
-                icon: "cpu", tint: .orange,
+                icon: "cpu", tint: .secondary,
                 keywords: ["chip", "neural engine", "tops", "gpu", "metal", "memory", "ram", "thermal", "context window", "batch", "languages"]
             ),
             .init(
                 id: .appearance, group: .device,
                 title: "Appearance",
                 subtitle: "Accent colour and the hardware HUD",
-                icon: "paintbrush", tint: .pink,
+                icon: "paintbrush", tint: .accentColor,
                 keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "telemetry hud", "x-ray", "xray", "glow", "haptics", "technical", "technical details", "console", "stats", "simple"]
             ),
             .init(
                 id: .notifications, group: .device,
                 title: "Notifications",
                 subtitle: "When an import or a long answer finishes",
-                icon: "bell.badge", tint: .red,
+                icon: "bell.badge", tint: .secondary,
                 keywords: ["notifications", "notify", "alert", "banner", "finished", "import", "deep think", "maximum", "background"]
             ),
             .init(
                 id: .plan, group: .account,
                 title: "Plan & Usage",
                 subtitle: "Documents, libraries, and Maximum runs",
-                icon: "creditcard", tint: .green,
+                icon: "creditcard", tint: .accentColor,
                 keywords: ["plan", "billing", "subscription", "pro", "lifetime", "quota", "limit", "upgrade", "purchase"]
             ),
             .init(
                 id: .siriShortcuts, group: .account,
                 title: "Siri & Shortcuts",
                 subtitle: "Voice commands and automation actions",
-                icon: "mic", tint: .indigo,
+                icon: "mic", tint: .accentColor,
                 keywords: ["siri", "shortcuts", "app intents", "automation", "voice"]
             ),
             .init(
                 id: .advanced, group: .system,
                 title: "Advanced",
                 subtitle: "Temperature, response length, system prompt",
-                icon: "slider.horizontal.3", tint: .purple,
+                icon: "slider.horizontal.3", tint: .secondary,
                 keywords: ["system prompt", "instructions", "temperature", "max tokens", "response length", "top p", "top k", "sampling", "penalty", "generation", "tuning", "context length", "context window"]
             ),
             .init(
                 id: .developer, group: .system,
                 title: "Developer & Diagnostics",
                 subtitle: "RAG audit, chunk inspector, telemetry",
-                icon: "wrench.and.screwdriver", tint: .orange,
+                icon: "wrench.and.screwdriver", tint: .secondary,
                 keywords: ["developer", "diagnostics", "debug", "logging", "telemetry", "chunk", "audit", "validation", "benchmark"]
             ),
             .init(
                 id: .about, group: .system,
                 title: "About",
                 subtitle: "Version, device, and what's new",
-                icon: "info.circle", tint: .blue,
+                icon: "info.circle", tint: .secondary,
                 keywords: ["about", "version", "release notes", "what's new", "support", "feedback", "privacy policy", "terms"]
             ),
             .init(
                 id: .versionHistory, group: .system,
                 title: "Version History",
                 subtitle: "Every release, and what changed in it",
-                icon: "clock.arrow.circlepath", tint: .gray,
+                icon: "clock.arrow.circlepath", tint: .secondary,
                 keywords: ["version", "history", "changelog", "release notes", "updates", "what's new", "previous"]
             ),
         ]
@@ -500,7 +500,7 @@ struct SettingsView: View {
                 .frame(width: 44, height: 44)
                 .background(DSColors.accent.opacity(0.12), in: Circle())
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text("OpenIntelligence")
                     .font(.headline)
                 Text(statusText)
@@ -510,7 +510,7 @@ struct SettingsView: View {
                 WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
                     statusPills
                 }
-                .padding(.top, 2)
+                .padding(.top, DSSpacing.xxs)
             }
         }
         .padding(.vertical, DSSpacing.xs)
@@ -553,7 +553,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func settingsRow(_ entry: SettingsEntry) -> some View {
         Label {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(entry.title)
                 Text(entry.subtitle)
                     .font(.caption)
@@ -624,17 +624,13 @@ struct SettingsView: View {
             VStack(spacing: DSSpacing.lg) {
                 content()
             }
-            .padding()
+            .padding(DSSpacing.lg)
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(
-            LinearGradient(
-                colors: [DSColors.background, DSColors.surface.opacity(0.3)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            DSColors.background
+                .ignoresSafeArea()
         )
     }
 
@@ -642,41 +638,29 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var heroCard: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DSSpacing.lg) {
             // Animated icon with gradient background
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.accentColor.opacity(0.3), Color.accentColor.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.accentColor.opacity(0.15))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "brain.head.profile.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.accentColor, .accentColor.opacity(0.7)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .font(.largeTitle)
+                    .foregroundStyle(Color.accentColor)
             }
 
-            VStack(spacing: 4) {
+            VStack(spacing: DSSpacing.xs) {
                 Text("OpenIntelligence")
                     .font(.title2.bold())
 
                 Text(statusText)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             // Pipeline status pills
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 statusPill(
                     icon: "checkmark.circle.fill",
                     text: "On-Device First",
@@ -689,25 +673,25 @@ struct SettingsView: View {
                 )
             }
         }
-.frame(maxWidth: .infinity)
-.padding(.vertical, 24)
-    .background(DSColors.surface)
-.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DSSpacing.xl)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
     }
 
     @ViewBuilder
     private func statusPill(icon: String, text: String, active: Bool) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
                 .foregroundStyle(active ? Color.accentColor : DSColors.secondaryText)
             Text(text)
-                .font(.caption2.weight(.medium))
+                .font(.caption2.weight(.semibold))
                 // Its full height for the width it gets, so at large sizes it wraps instead of ending in "Fir..." (5.7).
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         // The words in the label color when active, the accent in the icon and the tint (5.7, the owner's choice):
         // blue on the blue-tinted pill measured 3.8 to 1.
         .foregroundStyle(active ? DSColors.primaryText : DSColors.secondaryText)
@@ -716,7 +700,7 @@ struct SettingsView: View {
         .background(
             active ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1),
             in: dynamicTypeSize.isAccessibilitySize
-                ? AnyShape(RoundedRectangle(cornerRadius: 12, style: .continuous)) : AnyShape(Capsule()))
+                ? AnyShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)) : AnyShape(Capsule()))
     }
 
     private var statusText: String {
@@ -733,18 +717,18 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var billingCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Header with tier badge
             HStack {
                 Image(systemName: "creditcard.fill")
                     .font(.title2)
-                    .foregroundColor(.accentColor)
-                VStack(alignment: .leading, spacing: 2) {
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Subscription")
                         .font(.headline)
                     Text(subscriptionStatusText)
                         .font(.caption)
-.foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 tierBadge
@@ -763,19 +747,19 @@ struct SettingsView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-.font(.subheadline.weight(.medium))
-    .padding(.vertical, 10)
-    .padding(.horizontal, 14)
-    .background(entitlementStore.effectiveTier == .free ? Color.accentColor : Color.accentColor.opacity(0.1))
-    .foregroundColor(entitlementStore.effectiveTier == .free ? .white : .accentColor)
-    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .font(.subheadline.weight(.medium))
+                .padding(.vertical, DSSpacing.sm)
+                .padding(.horizontal, DSSpacing.md)
+                .background(entitlementStore.effectiveTier == .free ? Color.accentColor : Color.accentColor.opacity(0.1))
+                .foregroundStyle(entitlementStore.effectiveTier == .free ? .white : .accentColor)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
             .buttonStyle(.plain)
 
             // Show quota info
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.lg) {
                 quotaItem(
                     icon: "doc.text",
                     value: entitlementStore.documentLimitDisplayText,
@@ -798,9 +782,9 @@ struct SettingsView: View {
                 lifetimeSupporterBanner
             }
         }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var subscriptionStatusText: String {
@@ -820,51 +804,51 @@ struct SettingsView: View {
     @ViewBuilder
     private var tierBadge: some View {
         Text(entitlementStore.effectiveTier.displayName)
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
             .background(tierBadgeColor.opacity(0.15))
-            .foregroundColor(tierBadgeColor)
+            .foregroundStyle(tierBadgeColor)
             .clipShape(Capsule())
     }
 
     private var tierBadgeColor: Color {
         switch entitlementStore.effectiveTier {
-        case .free: return .gray
-        case .pro: return .purple
-        case .lifetime: return .orange
+        case .free: return .secondary
+        case .pro: return .accentColor
+        case .lifetime: return .accentColor
         }
     }
 
     @ViewBuilder
     private func quotaItem(icon: String, value: String, label: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Text(value)
-.font(.subheadline.weight(.semibold))
-Text(label)
-    .font(.caption)
-    .foregroundColor(.secondary)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private var lifetimeSupporterBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "heart.text.square.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.accentColor)
                 Text("Lifetime")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("Forever unlocked")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.16))
-                    .foregroundColor(.orange)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(Color.accentColor.opacity(0.16))
+                    .foregroundStyle(Color.accentColor)
                     .clipShape(Capsule())
             }
 
@@ -872,7 +856,7 @@ Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 Button {
                     openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "Settings Screen"))
                 } label: {
@@ -890,32 +874,32 @@ Text(label)
                 .buttonStyle(.bordered)
             }
         }
-        .padding(12)
-        .background(Color.orange.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(Color.accentColor.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Model Selection Card
 
     @ViewBuilder
     private var modelSelectionCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "apple.logo")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text("Apple Intelligence")
                     .font(.headline)
                 Spacer()
 
                 // Availability indicator
                 if deviceCapabilities.supportsAppleIntelligence {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Circle()
                             .fill(Color.green)
                             .frame(width: 8, height: 8)
                         Text("Available")
-                            .font(.caption2.weight(.medium))
-                            .foregroundColor(.green)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(DSColors.readable(.green))
                     }
                 }
             }
@@ -924,55 +908,49 @@ Text(label)
             HStack {
                 Image(systemName: "brain.head.profile.fill")
                     .font(.title2)
-.foregroundStyle(
-    LinearGradient(
-        colors: [.accentColor, .purple],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-)
-.frame(width: 40)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 40)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     // The card's own nickname and tagline ("AFM 3 Ecosystem", "Evidence-first routing ...") with
                     // Technical Details on; plain words otherwise (5.7 UI cleanup).
                     Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.nickname : plainModelName)
                         .font(.subheadline.weight(.medium))
                     Text(settings.showTechnicalDetails ? settings.selectedModel.capabilityCard.tagline : plainModelTagline)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
             }
-            .padding(12)
-.background(Color.accentColor.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(DSSpacing.md)
+            .background(Color.accentColor.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // Model capabilities
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 modelCapabilityPill(icon: "text.bubble.fill", label: "Text Generation")
                 // The model's name only with Technical Details on (5.7 UI cleanup).
                 modelCapabilityPill(icon: "photo.fill", label: settings.showTechnicalDetails ? "ADM 3 Visuals" : "Images")
                 modelCapabilityPill(icon: "doc.text.fill", label: settings.showTechnicalDetails ? "RAG-Ready" : "Your documents")
             }
         }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private func modelCapabilityPill(icon: String, label: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2)
+                .font(.caption2.weight(.semibold))
         }
-        .foregroundColor(.accentColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .foregroundStyle(Color.accentColor)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(Color.accentColor.opacity(0.1))
         .clipShape(Capsule())
     }
@@ -981,18 +959,12 @@ Text(label)
 
     @ViewBuilder
     private var privateCloudComputeCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack {
                 Image(systemName: "cloud.fill")
                     .font(.title3)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                VStack(alignment: .leading, spacing: 2) {
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Private Cloud Compute")
                         .font(.headline)
                     // Corrected 2026-10-15: "after you approve each request" is untrue of Allow without asking,
@@ -1003,7 +975,7 @@ Text(label)
                             ? "Needs iOS or macOS 27. Every answer is written on this device."
                             : "Not in this build. Every answer is written on this device.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
 
@@ -1011,13 +983,13 @@ Text(label)
                 // is only "compiled in and iOS or macOS 27", so the Simulator said Available above a quota line
                 // saying Private Cloud Compute is unavailable there (2026-10-15).
                 let pccAvailable = pccCapability?.pccAvailable ?? deviceCapabilities.supportsPrivateCloudCompute
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Circle()
                         .fill(pccAvailable ? Color.green : Color.orange)
                         .frame(width: 8, height: 8)
                     Text(pccAvailable ? "Available" : "Unavailable")
-                        .font(.caption2.weight(.medium))
-                        .foregroundColor(pccAvailable ? .green : .orange)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(DSColors.readable(pccAvailable ? .green : .orange))
                 }
             }
 
@@ -1034,7 +1006,7 @@ Text(label)
                 // `ModelExecutionPlanner` also sends a Deep Think or Maximum answer drawn from more than one
                 // document (`complexityRequestsPCC`), and the model picker's Private Cloud Compute sends every one.
                 Text("Answers are written on this device unless Private Cloud Compute is allowed: with Hybrid, for an answer whose passages don't fit in this device's model, or a Deep Think or Maximum answer drawn from more than one document; with Private Cloud Compute chosen in the model picker, for every answer drawn from your documents.")
-                    .font(.callout)
+                    .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
 
                 VStack(spacing: 0) {
@@ -1043,7 +1015,7 @@ Text(label)
                         label: "On this device",
                         value: onDeviceWindowDescription
                     )
-                    Divider().padding(.leading, 30)
+                    Divider().padding(.leading, DSSpacing.xxl)
                     pccWindowRow(
                         icon: "cloud",
                         label: "Private Cloud Compute",
@@ -1052,7 +1024,7 @@ Text(label)
                 }
                 .padding(.vertical, DSSpacing.xs)
                 .background(DSColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
                 HStack {
                     Text("When to allow it")
@@ -1069,7 +1041,7 @@ Text(label)
 
                 Text("OpenIntelligence does not operate its own servers. Nothing is sent anywhere else. Reading, indexing and searching your documents all happen here regardless of this setting; only the final answer can ever leave.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -1078,11 +1050,11 @@ Text(label)
                 Divider()
                 
                 // PCC Quota Status
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                    HStack(spacing: DSSpacing.sm) {
                         Image(systemName: "chart.bar.fill")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         Text("PCC Quota Status")
                             .font(.subheadline.weight(.medium))
                     }
@@ -1094,11 +1066,11 @@ Text(label)
                             Spacer()
                             Text(capability.pccQuota == .limitReached ? "Limit Reached" : capability.pccQuota.rawValue)
                                 .font(.caption.weight(.semibold))
-                                .foregroundColor(capability.pccQuota == .limitReached ? .red : .green)
+                                .foregroundStyle(DSColors.readable(capability.pccQuota == .limitReached ? .red : .green))
                         }
                         if let contextSize = capability.pccContextSize {
                             LabeledContent("Context", value: "\(contextSize) tokens")
-                                .font(.caption)
+                                .font(.caption.monospacedDigit())
                         }
                     } else if pccCapability == nil {
                         ProgressView("Reading PCC capability…")
@@ -1106,17 +1078,17 @@ Text(label)
                     } else {
                         Text(pccCapability?.unavailabilityReason ?? "PCC is currently unavailable on this device.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.leading, 4)
-                .padding(.top, 4)
+                .padding(.leading, DSSpacing.xs)
+                .padding(.top, DSSpacing.xs)
             }
             #endif
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func refreshPCCCapability() async {
@@ -1129,69 +1101,69 @@ Text(label)
 
     @ViewBuilder
     private var sharedWorkspaceCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "icloud.and.arrow.up.fill")
-                    .foregroundColor(.accentColor)
-                VStack(alignment: .leading, spacing: 2) {
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("iCloud Libraries")
                         .font(.headline)
                     Text("Each library chooses Local Only or iCloud Sync")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
 
                 Text(sharedWorkspaceModeLabel)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
                     .background(sharedWorkspaceModeColor.opacity(0.15))
-                    .foregroundColor(sharedWorkspaceModeColor)
+                    .foregroundStyle(sharedWorkspaceModeColor)
                     .clipShape(Capsule())
             }
 
             Text(sharedWorkspaceSummary)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let compatibilityMessage = workspaceSyncService.syncCompatibilityMessage,
                hasConfiguredICloudLibraries {
                 Text(compatibilityMessage)
                     .font(.caption)
-                    .foregroundColor(.orange)
-                    .padding(10)
+                    .foregroundStyle(DSColors.readable(.orange))
+                    .padding(DSSpacing.sm)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.orange.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if let bootstrapConflict = workspaceSyncService.pendingBootstrapConflict,
                hasConfiguredICloudLibraries {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         Text("Review iCloud library changes")
                         .font(.subheadline.weight(.semibold))
 
                         Text("Only libraries marked iCloud Sync are involved here. This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Sync / \(bootstrapConflict.localDocumentCount) documents, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) documents.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     if !bootstrapConflict.localOnlyLibraryNames.isEmpty {
                         Text("Only on this device: \(bootstrapConflict.localOnlyLibraryNames.joined(separator: ", "))")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     if !bootstrapConflict.sharedOnlyLibraryNames.isEmpty {
                         Text("Only in iCloud: \(bootstrapConflict.sharedOnlyLibraryNames.joined(separator: ", "))")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 10) {
+                        HStack(spacing: DSSpacing.sm) {
                             Button {
                                 resolvePendingBootstrap(.mergeLibraries)
                             } label: {
@@ -1217,7 +1189,7 @@ Text(label)
                             .disabled(isRefreshingSharedWorkspace)
                         }
 
-                        VStack(spacing: 10) {
+                        VStack(spacing: DSSpacing.sm) {
                             Button {
                                 resolvePendingBootstrap(.mergeLibraries)
                             } label: {
@@ -1246,19 +1218,19 @@ Text(label)
 
                     Text("Share Device Libraries to iCloud publishes the libraries listed as only on this device. Add iCloud Libraries Here pulls in the libraries listed as only in iCloud, while any unmatched iCloud-marked libraries on this device are kept as Local Only so they are not deleted.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(12)
+                .padding(DSSpacing.md)
                 .background(Color.accentColor.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
 
             if !workspaceSyncService.requiresBootstrapDecision {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     Button {
                         openURL(OpenIntelligenceDeepLink.documentsURL)
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DSSpacing.sm) {
                             Image(systemName: "folder")
                                 .font(.caption.weight(.semibold))
                             Text("Manage in Documents")
@@ -1272,7 +1244,7 @@ Text(label)
 
                     Text("Change Local Only or iCloud Sync per library, and refresh shared libraries, from the Documents screen.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -1296,14 +1268,14 @@ Text(label)
                 }
             }
             .background(DSColors.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             if let rootDescription = workspaceSyncService.workspaceRootDescription,
                workspaceSyncService.isUsingSharedWorkspace {
                 DisclosureGroup("Storage location") {
                     Text(rootDescription)
                         .font(.caption2.monospaced())
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1316,13 +1288,13 @@ Text(label)
             if let lastErrorMessage = workspaceSyncService.lastErrorMessage {
                 Text(lastErrorMessage)
                     .font(.caption)
-                    .foregroundColor(.orange)
+                    .foregroundStyle(DSColors.readable(.orange))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var syncActivitySummary: String? {
@@ -1437,54 +1409,54 @@ Text(label)
 
     @ViewBuilder
     private func routingFactorPill(icon: String, label: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2)
+                .font(.caption2.weight(.semibold))
         }
-        .foregroundColor(.secondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(Color.secondary.opacity(0.1))
         .clipShape(Capsule())
     }
 
     @ViewBuilder
     private func pccBenefitRow(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 16)
             Text(text)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private func processingModeCompare(icon: String, title: String, pros: String, cons: String, isActive: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
                     .font(.caption)
                 Text(title)
                     .font(.caption.weight(.medium))
             }
-            .foregroundColor(isActive ? .accentColor : .secondary)
+            .foregroundStyle(isActive ? Color.accentColor : .secondary)
 
             Text(pros)
                 .font(.caption2)
-                .foregroundColor(.green)
+                .foregroundStyle(DSColors.readable(.green))
             Text(cons)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(8)
+        .padding(DSSpacing.sm)
         .background(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 
     // MARK: - Context Window Card
@@ -1493,36 +1465,36 @@ Text(label)
     private var contextWindowCard: some View {
         let deviceService = DeviceCapabilityService.shared
 
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text("Active Device")
                     .font(.headline)
                 Spacer()
 
                 // Device tier badge
                 Text(deviceService.tier.displayName)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
                     .background(tierColor(for: deviceService.tier).opacity(0.15))
-                    .foregroundColor(tierColor(for: deviceService.tier))
+                    .foregroundStyle(tierColor(for: deviceService.tier))
                     .clipShape(Capsule())
             }
 
             // Chip & Memory info (dynamic)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "cpu")
                         .font(.caption)
-.foregroundColor(.purple)
-Text(deviceService.chipName)
+                        .foregroundStyle(Color.accentColor)
+                    Text(deviceService.chipName)
                         .font(.subheadline.weight(.medium))
                     Spacer()
                     Text("\(String(format: "%.0f", deviceService.memoryGB)) GB RAM")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
 
                 // The first figure a curious user meets in Settings, and the one most
@@ -1530,16 +1502,16 @@ Text(deviceService.chipName)
                 // plainly that it is a per-chip lookup rather than something the app
                 // measured here.
                 if settings.showTechnicalDetails {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DSSpacing.xs) {
                         Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
                         GlossaryInfoButton(termID: .tops, size: .caption2)
                         Spacer(minLength: 0)
                     }
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     // Was "\(maxSteps) max sessions": 5 on an iPhone 15 Pro and 13 on an 18 GB M3 Pro, while Deep Think's
                     // chain stops at 8 sessions on every device (`AgenticPolicyService.maxSessionsForMode`). What does
                     // differ by device is the confidence it aims for (`optimizedAgenticConfig`) (5.7).
@@ -1547,9 +1519,9 @@ Text(deviceService.chipName)
                     deviceCapabilityPill(icon: "flame", label: "Thermal", value: deviceService.hasThermalHeadroom ? "High" : "Standard")
                 }
             }
-.padding(10)
-.background(Color.purple.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(DSSpacing.md)
+            .background(DSColors.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             Divider()
 
@@ -1561,11 +1533,11 @@ Text(deviceService.chipName)
             }
 
             // Context Window
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "ruler")
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundStyle(Color.accentColor)
                     Text(settings.showTechnicalDetails ? "Context Window" : "How Much the Model Reads")
                         .font(.subheadline.weight(.medium))
                 }
@@ -1582,24 +1554,24 @@ Text(deviceService.chipName)
                             ? "Maximum chains several reasoning sessions on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed findings from the last, and then checks the answer against its sources (Self-RAG 2.0)."
                             : "Maximum asks Apple's model several times in a row, each time with room for \(onDeviceWindowDescription) on this device and a summary of what it found before, then checks the answer against your documents.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
                     Text(
                         settings.showTechnicalDetails
                             ? "Deep Think's reasoning chain runs up to 8 sessions in a row on Apple's model, each with a fresh window (\(onDeviceWindowDescription) on this device) carrying compressed insights from the last, and research rounds can follow it when parts of the question are still uncovered. On the \(DeviceCapabilityService.shared.chipName) it aims for \(Int(agenticConfig.confidenceThreshold * 100))% confidence, and from the fifth session it can stop early once it has that confidence, has covered the question's parts and stops finding anything new."
                             : "Deep Think asks Apple's model up to 8 times in a row, each time with room for \(onDeviceWindowDescription) on this device and a summary of what it found before, and it can search again for parts of the question it hasn't covered. On the \(DeviceCapabilityService.shared.chipName) it aims to be \(Int(agenticConfig.confidenceThreshold * 100))% sure, and from the fifth time it can stop once it is, has covered the question and isn't finding anything new.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text(
                         settings.showTechnicalDetails
                             ? "Standard runs one pass of Apple's model over the passages that fit its window (\(onDeviceWindowDescription) on this device), with verification gates and graph context packing. Use Deep Think or Maximum when you want several reasoning sessions."
                             : "Standard asks Apple's model once, with the passages that fit in \(onDeviceWindowDescription) on this device, and checks the answer against them. Deep Think and Maximum ask several times.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     if settings.ragQualityMode.canonical == .maximum {
                         contextInfoPill(icon: "square.3.layers.3d", label: settings.showTechnicalDetails ? "Per Session" : "Each Time", value: onDeviceWindowDescription)
                         contextInfoPill(icon: "checkmark.seal", label: "Answer Check", value: settings.showTechnicalDetails ? "Self-RAG 2.0" : "Against your documents")
@@ -1614,10 +1586,10 @@ Text(deviceService.chipName)
                     }
                 }
             }
-            .padding(10)
-            .background(Color.orange.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .animation(.easeInOut(duration: 0.2), value: settings.ragQualityMode)
+            .padding(DSSpacing.md)
+            .background(DSColors.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            .animation(DSAnimations.fastEase, value: settings.ragQualityMode)
 
             Divider()
 
@@ -1642,11 +1614,11 @@ Text(deviceService.chipName)
             }
 
             // Language Support
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "globe")
                         .font(.caption)
-                        .foregroundColor(.blue)
+                        .foregroundStyle(Color.accentColor)
                     Text("Language Support")
                         .font(.subheadline.weight(.medium))
                 }
@@ -1658,49 +1630,49 @@ Text(deviceService.chipName)
                 if let languages = modelLanguageNames, !languages.isEmpty {
                     Text(settings.showTechnicalDetails ? "SystemLanguageModel.supportedLanguages on this device:" : "Apple's model on this device answers in:")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     Text(languages.joined(separator: ", "))
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("Apple's model hasn't said which languages it answers in on this device.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
-.padding(10)
-    .background(Color.blue.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(DSSpacing.md)
+            .background(DSColors.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func tierColor(for tier: DeviceCapabilityTier) -> Color {
         switch tier {
-        case .unsupported: return .gray
-        case .baseline: return .blue
-        case .enhanced: return .green
-        case .advanced: return .purple
-        case .ultraAdvanced: return .orange
+        case .unsupported: return .secondary
+        case .baseline: return .secondary
+        case .enhanced: return .accentColor
+        case .advanced: return .accentColor
+        case .ultraAdvanced: return .accentColor
         }
     }
 
     @ViewBuilder
     private func deviceCapabilityPill(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.semibold).monospacedDigit())
         }
-        .foregroundColor(.secondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(Color.secondary.opacity(0.1))
         .clipShape(Capsule())
     }
@@ -1718,33 +1690,33 @@ Text(deviceService.chipName)
                     return "Up to \(Int(envelope.maxSafeGPUAccelerationLevel * 100))% safe on this device"
                 }()
 
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                    HStack(spacing: DSSpacing.sm) {
                         Image(systemName: "cpu.fill")
                             .font(.caption)
-                            .foregroundColor(.indigo)
+                            .foregroundStyle(Color.accentColor)
                         Text("Hardware Envelope")
                             .font(.subheadline.weight(.medium))
                         Spacer()
                         Text("Core ML + Metal")
-                            .font(.caption2.weight(.medium))
-                            .foregroundColor(.indigo)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.indigo.opacity(0.15))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xxs)
+                            .background(Color.accentColor.opacity(0.15))
                             .clipShape(Capsule())
                     }
 
                     Text("These ceilings come from public hardware signals the app can inspect safely: device ID, chip mapping, RAM, Metal working-set budget, threadgroup limits, and crash-tested Vision/Core ML guardrails. Apple does not expose live Neural Engine occupancy.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     // This is the densest jargon in the app, and it is reached by anyone
                     // curious enough to open Device & Performance rather than only by
                     // developers. The rows that name a concept carry its definition; the
                     // rows that report a raw system value do not, because there is nothing
                     // to define about a Metal device name.
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         hardwareLimitRow(icon: "number", label: "Device ID", value: envelope.deviceIdentifier, term: .chip)
                         hardwareLimitRow(icon: "memorychip", label: "Metal Device", value: envelope.metal.deviceName)
                         hardwareLimitRow(icon: "square.stack.3d.up", label: "Unified Memory", value: "\(envelope.metal.hasUnifiedMemory ? "Yes" : "No") • \(envelope.metal.workingSetDescription) working set", term: .unifiedMemory)
@@ -1757,17 +1729,17 @@ Text(deviceService.chipName)
                         hardwareLimitRow(icon: "function", label: "Vector Search Ceiling", value: "\(envelope.vectorBatchSize) batch • matrix @ \(envelope.batchMatrixMultiplyThreshold)+", term: .searchBatch)
                     }
                 }
-                .padding(12)
-                .background(Color.indigo.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(DSSpacing.md)
+                .background(DSColors.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
             }
 
             @ViewBuilder
             private func hardwareLimitRow(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: icon)
                         .font(.caption2)
-                        .foregroundColor(.indigo)
+                        .foregroundStyle(.secondary)
                         .frame(width: 16)
                     Text(label)
                         .font(.caption.weight(.medium))
@@ -1776,59 +1748,59 @@ Text(deviceService.chipName)
                     }
                     Spacer()
                     Text(value)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                 }
             }
 
     @ViewBuilder
     private func contextInfoPill(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.semibold).monospacedDigit())
         }
-        .foregroundColor(.secondary)
-.padding(.horizontal, 8)
-    .padding(.vertical, 4)
-    .background(Color.secondary.opacity(0.1))
-    .clipShape(Capsule())
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(Capsule())
     }
 
     @ViewBuilder
     private func neuralEngineInfoRow(icon: String, label: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
                 .font(.caption2)
         }
-.foregroundColor(.secondary)
+        .foregroundStyle(.secondary)
     }
 
     // MARK: - Silicon-Native RAG Engine Section
 
     @ViewBuilder
     private func siliconNativeRAGSection(deviceService: DeviceCapabilityService) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Header
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "bolt.horizontal.fill")
                     .font(.caption)
-                    .foregroundColor(.cyan)
+                    .foregroundStyle(Color.accentColor)
                 Text("Silicon-Native RAG Engine")
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text("Accelerate")
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(.cyan)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.cyan.opacity(0.15))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xxs)
+                    .background(Color.accentColor.opacity(0.15))
                     .clipShape(Capsule())
             }
 
@@ -1840,10 +1812,10 @@ Text(deviceService.chipName)
             // `searchesLargeLibrariesOnGPU(for:)` with the stores' own thresholds (5.7).
             Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) on the CPU. With the GPU setting on Performance or Maximum, Metal shaders take over cosine similarity for a library of 1,000 passages or more and the diversity step for more than 50 results. Batch sizes are set for the \(deviceService.chipName).")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             // Optimizations grid
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 siliconFeatureRow(
                     icon: "function",
                     label: "vDSP Vector Math",
@@ -1867,7 +1839,7 @@ Text(deviceService.chipName)
             }
 
             // Batch size info
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 siliconInfoPill(
                     icon: "square.stack.3d.up",
                     label: "Vector Batch",
@@ -1887,41 +1859,41 @@ Text(deviceService.chipName)
                 )
             }
         }
-        .padding(12)
-        .background(Color.cyan.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     @ViewBuilder
     private func siliconFeatureRow(icon: String, label: String, detail: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(.cyan)
+                .foregroundStyle(.secondary)
                 .frame(width: 16)
             Text(label)
                 .font(.caption.weight(.medium))
             Spacer()
             Text(detail)
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private func siliconInfoPill(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {
-        let pill = HStack(spacing: 4) {
+        let pill = HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.semibold).monospacedDigit())
         }
-        .foregroundColor(.cyan)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.cyan.opacity(0.15))
+        .foregroundStyle(Color.accentColor)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
+        .background(Color.accentColor.opacity(0.15))
         .clipShape(Capsule())
 
         if let term {
@@ -1938,22 +1910,22 @@ Text(deviceService.chipName)
     @State private var gpuProfile: GPUExecutionProfile = DeviceCapabilityService.shared.gpuExecutionProfile
 
     private func gpuAccelerationSection(deviceService: DeviceCapabilityService) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Header
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "square.stack.3d.up.fill")
                     .font(.caption)
-                    .foregroundColor(.green)
+                    .foregroundStyle(Color.accentColor)
                 Text("GPU Acceleration")
                     .font(.subheadline.weight(.medium))
                 Spacer()
 
                 // Mode badge
                 Text(gpuModeName)
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(gpuModeColor)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(gpuModeColor)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(gpuModeColor.opacity(0.15))
                     .clipShape(Capsule())
             }
@@ -1962,28 +1934,28 @@ Text(deviceService.chipName)
             // embedding model, the Core Image cleanup of scanned pages and Metal vector search, never Apple's model.
             Text("Sets which chips the app's own embedding model, its large searches and an extra cleanup pass over scanned PDF pages can use. Apple's frameworks make the final choice among the ones allowed. Answers from Apple's model, text recognition and the reranker work the same way in every profile.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             if deviceService.activeGPUExecutionProfile != gpuProfile {
-                HStack(spacing: 6) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "shield.lefthalf.filled")
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundStyle(DSColors.readable(.orange))
                     Text("On the \(deviceService.chipName), \(gpuProfile.displayName) runs as \(deviceService.activeGPUExecutionProfile.displayName), to keep long imports stable.")
                         .font(.caption2)
-                        .foregroundColor(.orange)
+                        .foregroundStyle(DSColors.readable(.orange))
                 }
-                .padding(8)
+                .padding(DSSpacing.sm)
                 .background(Color.orange.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
             }
 
             // Discrete profiles avoid implying a precise GPU percentage that Core ML cannot promise.
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Execution Profile")
                     .font(.subheadline.weight(.medium))
 
-                HStack(spacing: 6) {
+                HStack(spacing: DSSpacing.xs) {
                     ForEach(GPUExecutionProfile.allCases) { profile in
                         executionProfileCard(profile)
                     }
@@ -1991,63 +1963,63 @@ Text(deviceService.chipName)
 
                 // What the selected profile actually does, listed rather than
                 // summarised, so switching between them reads as cause and effect.
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(gpuProfile.engagement.summary)
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     ForEach(gpuProfile.engagement.effects, id: \.self) { effect in
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
                             Image(systemName: "chevron.forward")
-                                .font(.system(size: 7, weight: .bold))
-                                .foregroundColor(gpuModeColor(for: gpuProfile).opacity(0.75))
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(gpuModeColor(for: gpuProfile).opacity(0.75))
                             Text(effect)
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
-                .animation(.snappy(duration: 0.25), value: gpuProfile)
+                .animation(DSAnimations.snappySpring, value: gpuProfile)
 
                 // What the profile does when an import goes on in the background, for this device (5.7).
                 Text(backgroundImportNote(for: gpuProfile, deviceService: deviceService))
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text("Changes apply from the next import, and to searching by the next time the app opens at the latest. Every scanned page is prepared for text recognition on the GPU in every profile.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if settings.showTechnicalDetails {
                     Text("Covered: the Core ML embedding model (the default for a new library on iPhone and iPad), an extra Core Image pass over rendered PDF pages, and Metal for vector search over 1,000 or more passages. Not covered: a Core AI library (the default on a Mac with macOS 27), which embeds on the GPU in every profile; the reranker, which may use all three chips; and text recognition, whose page preparation runs on the GPU.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(10)
-            .background(Color.green.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .animation(.easeInOut(duration: 0.15), value: gpuProfile)
+            .padding(DSSpacing.md)
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            .animation(DSAnimations.fastEase, value: gpuProfile)
 
             Divider()
-                .padding(.vertical, 2)
+                .padding(.vertical, DSSpacing.xxs)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Text(settings.showTechnicalDetails ? "Adaptive Visual Ingestion" : "Reading PDFs and Images")
                         .font(.subheadline.weight(.medium))
                     Spacer()
                     Text("Automatic")
-                        .font(.caption2.weight(.medium))
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.15))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xxs)
+                        .background(Color.accentColor.opacity(0.15))
                         .clipShape(Capsule())
                 }
 
@@ -2057,18 +2029,18 @@ Text(deviceService.chipName)
                         : "A PDF page or an image gets a closer reading when it needs one: text that comes out garbled, tables, columns, pictures or small print. A page whose text is already clean gets a lighter one."
                 )
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
-            .padding(10)
-            .background(Color.orange.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(DSSpacing.md)
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
             // The live policy, read from the same properties the execution paths consult, so it shows the
             // device's ceiling, a background import and the Simulator's CPU-only Core ML as they are (5.7: behind
             // Technical Details; the "Thermal Impact" row is gone, it ranked Maximum hotter than Performance when in
             // the foreground the two run the same rules).
             if settings.showTechnicalDetails {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 gpuSettingRow(
                     icon: "cpu",
                     label: "Embedding model, searching",
@@ -2090,18 +2062,18 @@ Text(deviceService.chipName)
                     value: deviceService.useMetalForVectorOps ? "Metal on the GPU" : "Accelerate on the CPU"
                 )
             }
-            .animation(.easeInOut(duration: 0.2), value: gpuProfile)
+            .animation(DSAnimations.fastEase, value: gpuProfile)
 
             Divider()
-                .padding(.vertical, 2)
+                .padding(.vertical, DSSpacing.xxs)
 
             // Pipeline concurrency remains tier-based rather than profile-controlled.
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Pipeline Concurrency")
                     .font(.subheadline.weight(.medium))
                 Text("Set by the \(deviceService.chipName), not by the profile.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 gpuSettingRow(
                     icon: "doc.text.image",
@@ -2124,15 +2096,15 @@ Text(deviceService.chipName)
                     value: "\(deviceService.embeddingConcurrency) parallel"
                 )
             }
-            .animation(.easeInOut(duration: 0.2), value: gpuProfile)
+            .animation(DSAnimations.fastEase, value: gpuProfile)
             }
             // Until 5.7 a warning here said Maximum "may cause device heating during large document ingestion".
             // An import runs the same rules in Balanced, Performance and Maximum while the app is open, so the
             // warning singled out a profile that imports no differently.
         }
-        .padding(12)
-        .background(Color.green.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(DSSpacing.md)
+        .background(DSColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .onAppear {
             gpuProfile = DeviceCapabilityService.shared.gpuExecutionProfile
         }
@@ -2183,8 +2155,8 @@ Text(deviceService.chipName)
 
     private func gpuModeColor(for profile: GPUExecutionProfile) -> Color {
         switch profile {
-        case .efficiency: return .blue
-        case .balanced: return .green
+        case .efficiency: return .secondary
+        case .balanced: return .accentColor
         case .performance: return .orange
         case .maximum: return .red
         }
@@ -2203,22 +2175,22 @@ Text(deviceService.chipName)
         Button {
             guard gpuProfile != profile else { return }
             DSHaptics.light()
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+            withAnimation(DSAnimations.snappySpring) {
                 gpuProfile = profile
             }
             DeviceCapabilityService.shared.gpuExecutionProfile = profile
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: DSSpacing.xs) {
                 Text(profile.displayName)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
-                    .foregroundColor(isSelected ? accent : .secondary)
+                    .font(.caption2.weight(isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? accent : .secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
                 // The engine badges, with Technical Details on (5.7). With it off, the lines under the cards name
                 // each engine in words for the profile chosen, and VoiceOver reads them from the hint below.
                 if settings.showTechnicalDetails {
-                    HStack(spacing: 2.5) {
+                    HStack(spacing: DSSpacing.xxs) {
                         engineChip("CPU", isOn: profile.engagement.usesCPU, accent: accent, isSelected: isSelected)
                         engineChip("ANE", isOn: profile.engagement.usesNeuralEngine, accent: accent, isSelected: isSelected)
                         engineChip("GPU", isOn: profile.engagement.usesGPU, accent: accent, isSelected: isSelected)
@@ -2226,13 +2198,13 @@ Text(deviceService.chipName)
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
+            .padding(.vertical, DSSpacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                     .fill(accent.opacity(isSelected ? 0.16 : 0.05))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                     .strokeBorder(accent.opacity(isSelected ? 0.55 : 0.0), lineWidth: 1)
             )
             .scaleEffect(isSelected ? 1.0 : 0.97)
@@ -2247,14 +2219,14 @@ Text(deviceService.chipName)
     /// it, so the difference between profiles is visible at a glance.
     private func engineChip(_ name: String, isOn: Bool, accent: Color, isSelected: Bool) -> some View {
         Text(name)
-            .font(.system(size: 7, weight: .semibold, design: .rounded))
+            .font(.system(.caption2, design: .rounded).weight(.semibold))
             // One line, smaller rather than broken: in a quarter-width card on an iPhone 15 Pro the badges wrapped
             // as "CP U" and "AN E" (2026-10-21).
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .foregroundColor(isOn ? (isSelected ? accent : .secondary) : .secondary.opacity(0.28))
-            .padding(.horizontal, 3.5)
-            .padding(.vertical, 1.5)
+            .foregroundStyle(isOn ? (isSelected ? accent : .secondary) : .secondary.opacity(0.28))
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
             .background(
                 Capsule().fill(isOn ? accent.opacity(isSelected ? 0.20 : 0.08) : Color.clear)
             )
@@ -2262,17 +2234,17 @@ Text(deviceService.chipName)
 
     @ViewBuilder
     private func gpuSettingRow(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(.green)
+                .foregroundStyle(.secondary)
                 .frame(width: 16)
             Text(label)
                 .font(.caption)
             Spacer()
             Text(value)
-                .font(.caption2.weight(.medium))
-                .foregroundColor(.secondary)
+                .font(.caption2.weight(.medium).monospacedDigit())
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -2280,11 +2252,11 @@ Text(deviceService.chipName)
 
     @ViewBuilder
     private var generationTuningCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             // Header
             HStack {
                 Image(systemName: "slider.horizontal.below.square.filled.and.square")
-                    .foregroundColor(.purple)
+                    .foregroundStyle(Color.accentColor)
                 Text("Generation Tuning")
                     .font(.headline)
                 Spacer()
@@ -2292,10 +2264,10 @@ Text(deviceService.chipName)
 
             Text("Customize how the AI responds to your questions.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             // System Prompt
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack {
                     Label("System Prompt", systemImage: "text.quote")
                         .font(.subheadline.weight(.medium))
@@ -2303,13 +2275,13 @@ Text(deviceService.chipName)
                     // Reset button inline
                     if settings.systemPrompt != "You are a helpful assistant." {
                         Button {
-                            withAnimation {
+                            withAnimation(DSAnimations.fastEase) {
                                 settings.systemPrompt = "You are a helpful assistant."
                             }
                         } label: {
                             Text("Reset")
                                 .font(.caption2.weight(.medium))
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -2322,12 +2294,12 @@ Text(deviceService.chipName)
 
                 Text("Instructions given to the AI before each conversation.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Retrieval Card Helpers
@@ -2356,10 +2328,10 @@ Text(deviceService.chipName)
 
     @ViewBuilder
     private var retrievalCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack {
                 Image(systemName: "sparkles.rectangle.stack")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text("Intelligence Mode")
                     .font(.headline)
                 Spacer()
@@ -2367,16 +2339,16 @@ Text(deviceService.chipName)
 
             Text("Choose how OpenIntelligence processes your questions.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             // Mode Picker - Standard vs Deep Think
-            VStack(spacing: 12) {
+            VStack(spacing: DSSpacing.md) {
                 ForEach(RAGQualityMode.userVisibleCases, id: \.id) { mode in
                     intelligenceModeRow(mode: mode, isSelected: settings.ragQualityMode.canonical == mode)
                         .onTapGesture {
                             guard canSelectMode(mode) else { return }
                             let previousMode = settings.ragQualityMode.canonical
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(DSAnimations.snappySpring) {
                                 settings.ragQualityMode = mode
                             }
                             DSHaptics.selection()
@@ -2395,15 +2367,15 @@ Text(deviceService.chipName)
             if !settings.showTechnicalDetails {
                 Text("Technical Details, in Appearance, lists the techniques behind the selected mode.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             } else {
             Divider()
 
             // Mode-specific features
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: modeHeaderIcon)
-                        .foregroundColor(modeAccentColor)
+                        .foregroundStyle(modeAccentColor)
                         .font(.caption)
                     Text(modeHeaderTitle)
                         .font(.subheadline.weight(.medium))
@@ -2411,36 +2383,36 @@ Text(deviceService.chipName)
 
                 // Data-driven feature list — avoids stack overflow from
                 // 25+ inline featureRow calls generating a massive generic type.
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     ForEach(currentModeFeatures) { feature in
                         if feature.isDivider {
                             Divider()
-                                .padding(.vertical, 4)
+                                .padding(.vertical, DSSpacing.xs)
                         } else if feature.isWarning {
-                            HStack(spacing: 6) {
+                            HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
+                                    .foregroundStyle(.orange)
                                     .font(.caption)
                                 Text(feature.label)
                                     .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
-                            .padding(.top, 4)
+                            .padding(.top, DSSpacing.xs)
                         } else {
                             featureRow(icon: feature.icon, label: feature.label, description: feature.desc, color: feature.color)
                         }
                     }
                 }
             }
-            .padding(10)
+            .padding(DSSpacing.md)
             .background(modeAccentColor.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .animation(.easeInOut(duration: 0.25), value: settings.ragQualityMode)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            .animation(DSAnimations.fastEase, value: settings.ragQualityMode)
             }
         }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Feature List Data Model
@@ -2501,7 +2473,7 @@ Text(deviceService.chipName)
 
         // Deep Think only: Standard and Maximum keep the passages whole (`RAGQualityMode.usesContextualCompression`) (5.7).
         if settings.ragQualityMode.usesContextualCompression {
-            items.append(.init(id: "compression", icon: "text.redaction", label: "Contextual Compression", desc: "LLM extracts query-relevant sentences from chunks", color: settings.ragQualityMode.usesAgenticOrchestrator ? .purple : .blue))
+            items.append(.init(id: "compression", icon: "text.redaction", label: "Contextual Compression", desc: "LLM extracts query-relevant sentences from chunks", color: settings.ragQualityMode.usesAgenticOrchestrator ? .purple : .accentColor))
         }
 
         // Deep Think + Maximum shared
@@ -2567,32 +2539,32 @@ Text(deviceService.chipName)
     private func intelligenceModeRow(mode: RAGQualityMode, isSelected: Bool) -> some View {
         let accent = modeColor(for: mode)
 
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.md) {
                 ZStack {
                     Circle()
                         .fill(isSelected ? accent.opacity(0.15) : Color.secondary.opacity(0.1))
                         .frame(width: 42, height: 42)
                     Image(systemName: mode.icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isSelected ? accent : .secondary)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(isSelected ? accent : .secondary)
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(mode.displayName)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(isSelected ? .primary : .secondary)
+                        .foregroundStyle(isSelected ? .primary : .secondary)
                     // Plain by default; the pipeline's own words with Technical Details on (5.7).
                     Text(settings.showTechnicalDetails ? mode.description : plainModeSummary(for: mode))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(accent)
+                        .foregroundStyle(accent)
                 } else {
                     Circle()
                         .stroke(Color.secondary.opacity(0.3), lineWidth: 2)
@@ -2602,20 +2574,20 @@ Text(deviceService.chipName)
 
             Text(modeCallout(for: mode))
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 ForEach(modeBadges(for: mode), id: \.self) { badge in
                     modeBadge(text: badge, color: accent)
                 }
             }
         }
-        .padding(14)
+        .padding(DSSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(isSelected ? accent.opacity(0.08) : Color.secondary.opacity(0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .stroke(isSelected ? accent.opacity(0.35) : Color.secondary.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -2623,10 +2595,10 @@ Text(deviceService.chipName)
 
     private func modeColor(for mode: RAGQualityMode) -> Color {
         switch mode.canonical {
-        case .standard: return .blue
+        case .standard: return .accentColor
         case .deepThink: return .purple
         case .maximum: return .orange
-        default: return .blue
+        default: return .accentColor
         }
     }
 
@@ -2692,26 +2664,26 @@ Text(deviceService.chipName)
     private func modeBadge(text: String, color: Color) -> some View {
         Text(text)
             .font(.caption2.weight(.semibold))
-            .foregroundColor(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .foregroundStyle(color)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
             .background(color.opacity(0.12))
             .clipShape(Capsule())
     }
 
     @ViewBuilder
     private func featureRow(icon: String, label: String, description: String, color: Color = .green) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(label)
                     .font(.caption.weight(.medium))
                 Text(description)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -2759,50 +2731,40 @@ Text(deviceService.chipName)
 
     @ViewBuilder
     private var appleIntelligenceFeaturesCard: some View {
+        let badgeColor: Color = activeAIFeatureCount == totalAIFeatureCount ? .green : .orange
+
         VStack(spacing: 0) {
             // Header
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.blue.opacity(0.2), Color.purple.opacity(0.2)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "apple.intelligence")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
                 }
                 // The page's title and the model card above already say "Apple Intelligence" (5.7 UI cleanup).
                 Text(settings.showTechnicalDetails ? "Apple Intelligence" : "Features")
                     .font(.headline)
                 Spacer()
                 Text(settings.showTechnicalDetails ? "\(activeAIFeatureCount)/\(totalAIFeatureCount)" : "\(activeAIFeatureCount) of \(totalAIFeatureCount) on")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundColor(.white)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(DSColors.readable(badgeColor))
                     .padding(.horizontal, DSSpacing.sm)
-                    .padding(.vertical, 3)
-                    .background(activeAIFeatureCount == totalAIFeatureCount ? Color.green : Color.orange)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(badgeColor.opacity(0.15))
                     .clipShape(Capsule())
             }
-            .padding()
+            .padding(DSSpacing.lg)
 
-            Divider().padding(.horizontal)
+            Divider().padding(.horizontal, DSSpacing.lg)
 
-            VStack(spacing: 2) {
+            VStack(spacing: DSSpacing.xxs) {
                 // Toggleable features
                 aiFeatureToggleRow(
                     icon: "text.bubble.fill",
-                    color: .blue,
+                    color: .accentColor,
                     title: "Smart Replies",
                     subtitle: settings.showTechnicalDetails ? "Conversational follow-up suggestions" : "Suggested follow-up questions under an answer",
                     isOn: $settings.enableSmartReplies
@@ -2810,7 +2772,7 @@ Text(deviceService.chipName)
 
                 aiFeatureToggleRow(
                     icon: "tag.fill",
-                    color: .orange,
+                    color: .accentColor,
                     title: "Content Tagging",
                     subtitle: settings.showTechnicalDetails ? "LLM-powered topic, action & object tagging" : "Labels each document's topics with Apple's model as it's added",
                     isOn: $settings.enableContentTagging
@@ -2818,7 +2780,7 @@ Text(deviceService.chipName)
 
                 aiFeatureToggleRow(
                     icon: "magnifyingglass",
-                    color: .pink,
+                    color: .accentColor,
                     title: "Spotlight Indexing",
                     subtitle: settings.showTechnicalDetails ? "System-wide search integration" : "Find your documents from Spotlight search",
                     isOn: $settings.enableSpotlightIndexing
@@ -2826,7 +2788,7 @@ Text(deviceService.chipName)
 
                 aiFeatureToggleRow(
                     icon: "arrow.clockwise.circle.fill",
-                    color: .teal,
+                    color: .accentColor,
                     title: "Background Maintenance",
                     subtitle: settings.showTechnicalDetails ? "Scheduled index health checks & Spotlight refresh" : "Checks the search index and refreshes Spotlight on a schedule",
                     isOn: $settings.enableBackgroundMaintenance
@@ -2846,7 +2808,7 @@ Text(deviceService.chipName)
                 // something false.
                 aiFeatureInfoRow(
                     icon: "pencil.and.outline",
-                    color: .indigo,
+                    color: .secondary,
                     title: "Writing Tools",
                     subtitle: "Summarize, rewrite, proofread"
                 )
@@ -2856,59 +2818,59 @@ Text(deviceService.chipName)
                 // button too since the audio-input entitlement went in (2026-10-14).
                 aiFeatureInfoRow(
                     icon: "waveform",
-                    color: .green,
+                    color: .secondary,
                     title: "Speech Analysis",
                     subtitle: speechAnalysisSubtitle
                 )
 
                 aiFeatureInfoRow(
                     icon: "character.book.closed.fill",
-                    color: .purple,
+                    color: .secondary,
                     title: "Translation",
                     subtitle: settings.showTechnicalDetails ? "Multilingual document analysis" : "Searches across languages when a library has a translation language set"
                 )
 
-                Divider().padding(.horizontal)
+                Divider().padding(.horizontal, DSSpacing.lg)
 
                 // Smart Reply count stepper
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     Image(systemName: "number.circle.fill")
                         .font(.caption2)
-                        .foregroundColor(.blue)
+                        .foregroundStyle(Color.accentColor)
                         .frame(width: 16)
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Smart Reply Count")
                             .font(.caption.weight(.medium))
                         Text("Suggestions per response")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Stepper(value: $settings.smartReplyCount, in: 1...5) {
                         Text("\(settings.smartReplyCount)")
                             .font(.subheadline.monospacedDigit().weight(.semibold))
-                            .foregroundColor(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
                     .fixedSize()
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.sm)
 
-                Divider().padding(.horizontal)
+                Divider().padding(.horizontal, DSSpacing.lg)
 
                 // Same as the three above: `enableScreenAwareness` and
                 // `enableADM3Visuals` had no consumers, while the App Intents and the
                 // Image Playground path they describe are registered and live.
                 aiFeatureInfoRow(
                     icon: "rectangle.inset.filled.and.person.filled",
-                    color: .blue,
+                    color: .secondary,
                     title: "Screen Awareness",
                     subtitle: settings.showTechnicalDetails ? "Seamless AppIntents integration via Shortcuts" : "Siri can tell which document or chat is on your screen"
                 )
 
                 aiFeatureInfoRow(
                     icon: "photo.on.rectangle.angled",
-                    color: .mint,
+                    color: .secondary,
                     title: "Image Playground",
                     subtitle: settings.showTechnicalDetails
                         ? "Interactive ADM 3 image creation from document content"
@@ -2917,63 +2879,63 @@ Text(deviceService.chipName)
 
                 aiFeatureInfoRow(
                     icon: "lightbulb.max.fill",
-                    color: .yellow,
+                    color: .secondary,
                     title: "App Tips",
                     subtitle: settings.showTechnicalDetails ? "Contextual guidance & onboarding" : "Tips that point out features as you go"
                 )
 
                 aiFeatureInfoRow(
                     icon: "text.book.closed.fill",
-                    color: .brown,
+                    color: .secondary,
                     // "Gazetteer" is NaturalLanguage's name for it (`NLGazetteer`), kept with Technical Details on (5.7).
                     title: settings.showTechnicalDetails ? "Gazetteer" : "Vocabulary",
                     subtitle: settings.showTechnicalDetails ? "Builds domain vocabulary during ingestion" : "Learns the special terms in your documents as they're added"
                 )
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
      }
 
     private var siriIntegrationCard: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 ZStack {
                     Circle()
-                        .fill(Color.orange.opacity(0.2))
+                        .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "siri")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.orange)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Siri Voice Shortcuts")
                         .font(.headline)
                     Text("Speak directly to Siri without any manual setup")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("\(RAGAppShortcutsProvider.appShortcuts.count) shortcuts")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.green)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(DSColors.readable(.green))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(Color.green.opacity(0.15))
                     .clipShape(Capsule())
             }
-            .padding()
+            .padding(DSSpacing.lg)
 
-            Divider().padding(.horizontal)
+            Divider().padding(.horizontal, DSSpacing.lg)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 Text("Instant Voice Phrases")
                     .font(.subheadline.weight(.medium))
-                    .padding(.horizontal)
-                    .padding(.top, 12)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.top, DSSpacing.md)
 
-                VStack(spacing: 10) {
+                VStack(spacing: DSSpacing.sm) {
                     #if os(iOS)
                         // Apple's own tip view: it shows the phrase Siri has registered for the
                         // action, in the person's language, so it cannot drift from the provider.
@@ -2993,17 +2955,17 @@ Text(deviceService.chipName)
                     shortcutCommandRow(title: "Find Passages", phrase: "Find passages in OpenIntelligence")
                 }
 
-                Divider().padding(.horizontal)
+                Divider().padding(.horizontal, DSSpacing.lg)
 
                 Text(settings.showTechnicalDetails ? "Trust & Hallucination Prevention" : "Answers Are Checked")
                     .font(.subheadline.weight(.medium))
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
 
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: DSSpacing.md) {
                     Image(systemName: "checkmark.shield.fill")
                         .font(.title2)
-                        .foregroundColor(.green)
-                    VStack(alignment: .leading, spacing: 4) {
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text(settings.showTechnicalDetails ? "Strict Verification Gates" : "The same checks as the chat")
                             .font(.subheadline.weight(.semibold))
                         // The actions ask through `RAGService.query`, the chat's own path and checks. "Needs Verification"
@@ -3015,56 +2977,56 @@ Text(deviceService.chipName)
                                 ? "Siri and Shortcuts ask through RAGService.query, the chat's own pipeline and verification gates. When the source-only check abstains, the answer is prefixed with \"[Needs Verification]\" and its reason (SourceOnlyAnswerService)."
                                 : "An answer from Siri or Shortcuts is checked against your documents the same way as one in the chat. When the last check can't back it, the answer starts with \"Needs Verification\" and says why.")
                             .font(.caption)
-                            .foregroundColor(DSColors.secondaryText)
+                            .foregroundStyle(DSColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: false)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 16)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.bottom, DSSpacing.lg)
             }
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var shortcutsAutomationCard: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 ZStack {
                     Circle()
-                        .fill(Color.blue.opacity(0.2))
+                        .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "square.2.layers.3d")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.blue)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Shortcuts App Integration")
                         .font(.headline)
                     Text("Custom automations & drag-and-drop actions")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("\(Self.shortcutActionGroups.reduce(0) { $0 + $1.actions.count }) Actions Available")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.blue)
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(Color.accentColor.opacity(0.15))
                     .clipShape(Capsule())
             }
-            .padding()
+            .padding(DSSpacing.lg)
 
-            Divider().padding(.horizontal)
+            Divider().padding(.horizontal, DSSpacing.lg)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 Text("App Actions in Shortcuts Library")
                     .font(.subheadline.weight(.medium))
-                    .padding(.horizontal)
-                    .padding(.top, 12)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.top, DSSpacing.md)
 
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     ForEach(Self.shortcutActionGroups, id: \.title) { group in
                         shortcutsActionGroup(title: group.title, actions: group.actions)
                     }
@@ -3075,12 +3037,12 @@ Text(deviceService.chipName)
                             .frame(maxWidth: .infinity)
                     #endif
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 16)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.bottom, DSSpacing.lg)
             }
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     /// Every action the app gives Shortcuts, by the name Shortcuts shows, with what it does. The
@@ -3148,39 +3110,39 @@ Text(deviceService.chipName)
     ]
 
     private func shortcutsActionGroup(title: String, actions: [String: String]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text(title)
                 .font(.caption.bold())
-                .foregroundColor(.accentColor)
+                .foregroundStyle(Color.accentColor)
             
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 ForEach(actions.keys.sorted(), id: \.self) { key in
                     HStack(alignment: .top) {
                         Text(key)
                             .font(.caption.bold())
-                            .foregroundColor(DSColors.primaryText)
+                            .foregroundStyle(DSColors.primaryText)
                             .frame(width: 170, alignment: .leading)
                         Text(actions[key] ?? "")
                             .font(.caption2)
-                            .foregroundColor(DSColors.secondaryText)
+                            .foregroundStyle(DSColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: false)
                         Spacer()
                     }
                 }
             }
-            .padding(.leading, 8)
+            .padding(.leading, DSSpacing.sm)
         }
     }
 
     private func shortcutCommandRow(title: String, phrase: String) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.caption.bold())
-                    .foregroundColor(DSColors.secondaryText)
+                    .foregroundStyle(DSColors.secondaryText)
                 Text("\"\(phrase)\"")
                     .font(.system(.subheadline, design: .monospaced))
-                    .foregroundColor(DSColors.primaryText)
+                    .foregroundStyle(DSColors.primaryText)
             }
             Spacer()
             Button {
@@ -3194,10 +3156,10 @@ Text(deviceService.chipName)
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.caption)
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, DSSpacing.lg)
     }
 
     /// A toggleable Apple Intelligence feature row.
@@ -3209,17 +3171,17 @@ Text(deviceService.chipName)
         subtitle: String,
         isOn: Binding<Bool>
     ) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.caption.weight(.medium))
                 Text(subtitle)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             // The title is the switch's name for VoiceOver; `labelsHidden()` keeps it off the screen (5.7).
@@ -3230,8 +3192,8 @@ Text(deviceService.chipName)
                     DSHaptics.selection()
                 }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.lg)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     /// An info-only (always active) Apple Intelligence feature row.
@@ -3242,29 +3204,29 @@ Text(deviceService.chipName)
         title: String,
         subtitle: String
     ) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.caption.weight(.medium))
                 Text(subtitle)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             Text("Always On")
-                .font(.caption2.weight(.medium))
-                .foregroundColor(.green)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(DSColors.readable(.green))
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(Color.green.opacity(0.12))
                 .clipShape(Capsule())
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.lg)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     // MARK: - Appearance Card (continued)
@@ -3273,14 +3235,14 @@ Text(deviceService.chipName)
     private var appearanceCard: some View {
         VStack(spacing: 0) {
             // Header
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 ZStack {
                     Circle()
-                        .fill(Color.purple.opacity(0.15))
+                        .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "paintpalette.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.purple)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
                 }
 
                 Text("Appearance")
@@ -3288,30 +3250,30 @@ Text(deviceService.chipName)
 
                 Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top)
-            .padding(.bottom, 8)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.top, DSSpacing.lg)
+            .padding(.bottom, DSSpacing.sm)
 
             Divider()
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // Accent Color Row
             VStack(spacing: 0) {
                 AccentColorSettingsRow(accentColorHex: $settings.appAccentColorHex)
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.md)
 
                 Divider()
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
 
                 // The chat's technical view (5.7)
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Technical Details")
                             .font(.subheadline.weight(.medium))
                         Text("In the chat: the live stats, each step as it runs, and the answer mode, reasoning and confidence under an answer. In Settings: the techniques behind each mode.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
@@ -3323,52 +3285,52 @@ Text(deviceService.chipName)
                             DSHaptics.toggle()
                         }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.md)
 
                 Divider()
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
 
                 // Silicon HUD Toggle
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Telemetry HUD")
                             .font(.subheadline.weight(.medium))
                         // Was "Real-time model routing and token telemetry"; the X-Ray shows neither (5.7).
                         Text("A floating map of the chip: this app's CPU use, the work it sends to the Neural Engine and GPU, and free memory")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
                     Toggle("Telemetry HUD", isOn: $settings.showSiliconHUD)
                         .labelsHidden()
-                        .tint(.purple)
+                        .tint(.accentColor)
                         .onChange(of: settings.showSiliconHUD) { _, _ in
                             DSHaptics.toggle()
                         }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.md)
 
                 // HUD Customization (only show when HUD is enabled)
                 if settings.showSiliconHUD {
                     Divider()
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
 
                     // Glow Intensity Slider
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         HStack {
                             Text("Glow Intensity")
                                 .font(.caption.weight(.medium))
                             Spacer()
                             Text("\(Int(settings.hudGlowIntensity * 100))%")
                                 .font(.caption.weight(.semibold).monospacedDigit())
-                                .foregroundColor(.purple)
+                                .foregroundStyle(.secondary)
                         }
                         Slider(value: $settings.hudGlowIntensity, in: 0.1...1.0, step: 0.1)
-                            .tint(.purple)
+                            .tint(.accentColor)
                             // Its name and the number shown beside it, for VoiceOver (5.7).
                             .accessibilityLabel("Glow Intensity")
                             .accessibilityValue("\(Int(settings.hudGlowIntensity * 100))%")
@@ -3376,85 +3338,85 @@ Text(deviceService.chipName)
                                 DSHaptics.tick()
                             }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
 
                     Divider()
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
 
                     // Show Metrics Toggle
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Live Metrics")
                                 .font(.caption.weight(.medium))
                             // Was "Show ops count and latency"; with it on the legend shows each chip's activity and free
                             // memory, and with it off "idle" (`HardwareTelemetryState.componentActivities`) (5.7).
                             Text("Show each chip's activity and free memory in the legend")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Toggle("Live Metrics", isOn: $settings.hudShowMetrics)
                             .labelsHidden()
-                            .tint(.cyan)
+                            .tint(.accentColor)
                             .onChange(of: settings.hudShowMetrics) { _, _ in
                                 DSHaptics.toggle()
                             }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
 
                     Divider()
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
 
                     // Show Taptic Engine Toggle
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Taptic Engine")
                                 .font(.caption.weight(.medium))
                             Text("Show haptic motor activity on HUD")
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Toggle("Taptic Engine", isOn: $settings.hudShowTaptic)
                             .labelsHidden()
-                            .tint(.pink)
+                            .tint(.accentColor)
                             .onChange(of: settings.hudShowTaptic) { _, _ in
                                 DSHaptics.toggle()
                             }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
                 }
 
                 #if os(macOS)
                     Divider()
-                        .padding(.horizontal)
+                        .padding(.horizontal, DSSpacing.lg)
 
                     // The menu bar item (5.7), on until it is turned off here.
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Menu Bar")
                                 .font(.subheadline.weight(.medium))
                             Text("Ask, add documents or search from the menu bar")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
 
                         Spacer()
 
                         Toggle("Menu Bar", isOn: $showsMenuBarItem)
                             .labelsHidden()
-                            .tint(.purple)
+                            .tint(.accentColor)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.md)
                 #endif
             }
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // `developerCard` and `aboutCard` were removed with the Settings restructure.
@@ -3467,14 +3429,14 @@ Text(deviceService.chipName)
     private var supportCard: some View {
         VStack(spacing: 0) {
             // Header
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 ZStack {
                     Circle()
-                        .fill(Color.orange.opacity(0.15))
+                        .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "heart.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.orange)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
                 }
 
                 Text("Support & Feedback")
@@ -3482,102 +3444,102 @@ Text(deviceService.chipName)
 
                 Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top)
-            .padding(.bottom, 8)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.top, DSSpacing.lg)
+            .padding(.bottom, DSSpacing.sm)
 
             Divider()
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // Rate App Row
             Button {
                 openURL(OpenIntelligenceLinks.writeReviewURL)
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     Image(systemName: "star.fill")
-                        .foregroundColor(.orange)
-                        .font(.system(size: 16))
+                        .foregroundStyle(Color.accentColor)
+                        .font(.body)
                         .frame(width: 24, alignment: .center)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Rate on the App Store")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(DSColors.primaryText)
                         Text("Love OpenIntelligence? Rate it 5 stars!")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Image(systemName: "arrow.up.forward")
                         .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.md)
             }
             .buttonStyle(.plain)
 
             Divider()
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // Feedback Row
             Button {
                 openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "Settings Screen"))
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     Image(systemName: "envelope.fill")
-                        .foregroundColor(.accentColor)
-                        .font(.system(size: 16))
+                        .foregroundStyle(Color.accentColor)
+                        .font(.body)
                         .frame(width: 24, alignment: .center)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Send Feedback")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(DSColors.primaryText)
                         Text("Provide feedback to improve the experience")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Image(systemName: "arrow.up.forward")
                         .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.md)
             }
             .buttonStyle(.plain)
 
             Divider()
-                .padding(.horizontal)
+                .padding(.horizontal, DSSpacing.lg)
 
             // Share App Row
             Button {
                 shareApp()
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     Image(systemName: "square.and.arrow.up")
-                        .foregroundColor(.purple)
-                        .font(.system(size: 16))
+                        .foregroundStyle(Color.accentColor)
+                        .font(.body)
                         .frame(width: 24, alignment: .center)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Share with Friends")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(DSColors.primaryText)
                         Text("Recommend OpenIntelligence to others")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Image(systemName: "arrow.up.forward")
                         .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.md)
             }
             .buttonStyle(.plain)
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var speechAnalysisSubtitle: String {
