@@ -22,7 +22,7 @@ struct GroundedAnswerView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Main answer text with interactive citations. `CitationLinker` resolves each label
             // to a chunk when it builds the link: before 5.6 only a bare `[3]` became a link, and
             // the answer prompt asks for `[S3]`, so no citation in a real answer could be tapped.
@@ -32,10 +32,10 @@ struct GroundedAnswerView: View {
                 retrievedChunks: retrievedChunks
             )
             
-            // 14 points at the default text size, scaled with Dynamic Type on iPhone and iPad (5.7).
+            // Dynamic Type body prose for assistant responses (5.7).
             MarkdownText(
                 linkedAnswer,
-                scaledSize: 14,
+                font: .body,
                 foregroundColor: DSColors.primaryText
             )
             .environment(\.openURL, OpenURLAction { url in
@@ -69,10 +69,10 @@ struct GroundedAnswerView: View {
 
             
             if !answer.claims.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack {
                         Text("FACT CHECK")
-                            .scaledFont(size: 9, weight: .bold)
+                            .font(.caption2.weight(.bold))
                             .foregroundStyle(DSColors.secondaryText)
                             .tracking(1)
                         
@@ -80,20 +80,21 @@ struct GroundedAnswerView: View {
                         
                         // The words in the label color and the mode's color in the icon and the tint, as on the
                         // other tinted chips (5.7).
-                        HStack(spacing: 3) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "shield.checkered")
-                                .scaledFont(size: 9)
+                                .font(.caption2)
                                 .foregroundStyle(DSColors.readable(modeColor))
                             Text(Self.factCheckSummary(for: answer.claims))
-                                .scaledFont(size: 9, weight: .medium)
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
                         }
                         .foregroundStyle(DSColors.primaryText)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, DSSpacing.xs)
+                        .padding(.vertical, DSSpacing.xxs)
                         .background(modeColor.opacity(0.1))
                         .clipShape(Capsule())
                     }
-                    .padding(.top, 2)
+                    .padding(.top, DSSpacing.xxs)
                     
                     let destinations = evidenceDestinations
                     ForEach(Array(answer.claims.enumerated()), id: \.offset) { index, claim in
@@ -106,7 +107,7 @@ struct GroundedAnswerView: View {
                             },
                             isExpanded: expandedClaimIndex == index,
                             onTap: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                withAnimation(DSAnimations.snappySpring) {
                                     if expandedClaimIndex == index {
                                         expandedClaimIndex = nil
                                     } else {
@@ -118,30 +119,30 @@ struct GroundedAnswerView: View {
                         )
                     }
                 }
-                .padding(.top, 8)
+                .padding(.top, DSSpacing.sm)
             }
             
             if !answer.missing.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "questionmark.circle.fill")
-                            .scaledFont(size: 12)
+                            .font(.caption)
                             .foregroundStyle(DSColors.readable(.orange))
                         Text("Information Gaps")
-                            .scaledFont(size: 12, weight: .semibold)
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(DSColors.readable(.orange))
                     }
                     
                     ForEach(answer.missing, id: \.self) { item in
                         Text("• \(item)")
-                            .scaledFont(size: 12)
+                            .font(.caption)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
-                .padding(10)
+                .padding(DSSpacing.sm)
                 .background(Color.orange.opacity(0.05))
-                .cornerRadius(8)
-                .padding(.top, 4)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                .padding(.top, DSSpacing.xs)
             }
         }
     }
@@ -218,11 +219,11 @@ private struct ClaimCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // The claim is the card's button, and the card's padding is part of it, so a one-line claim is a target
             // more than 44 points tall; the quotes under it are buttons of their own (5.7).
             Button(action: onTap) {
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .top, spacing: DSSpacing.sm) {
                     // Verdict Icon
                     ZStack {
                         Circle()
@@ -230,13 +231,13 @@ private struct ClaimCard: View {
                             .frame(width: 20, height: 20)
                         
                         Image(systemName: verdictIcon)
-                            .scaledFont(size: 10, weight: .bold)
+                            .font(.caption2.weight(.bold))
                             .foregroundStyle(verdictColor)
                     }
                     
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(GroundedAnswerView.inlineMarkdown(claim.claim))
-                            .scaledFont(size: 12, weight: .medium)
+                            .font(.footnote.weight(.medium))
                             .foregroundStyle(DSColors.primaryText)
                             // The whole claim, open or closed: opening adds the evidence, and two lines cut a
                             // claim off at the larger text sizes (5.7).
@@ -258,7 +259,8 @@ private struct ClaimCard: View {
                                     Text("\(Text(plainVerdict).fontWeight(.bold).foregroundStyle(DSColors.primaryText))\(foundWhere)")
                                 }
                             }
-                            .scaledFont(size: 8)
+                            .font(.caption2)
+                            .monospacedDigit()
                             .foregroundStyle(DSColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                         }
@@ -267,35 +269,35 @@ private struct ClaimCard: View {
                     Spacer()
                     
                     Image(systemName: "chevron.right")
-                        .scaledFont(size: 9, weight: .bold)
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(DSColors.secondaryText)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
-                .padding([.horizontal, .top], 12)
-                .padding(.bottom, isExpanded ? 0 : 12)
+                .padding([.horizontal, .top], DSSpacing.md)
+                .padding(.bottom, isExpanded ? 0 : DSSpacing.md)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
                 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     if let details = claim.verificationDetails {
                         Text(details)
-                            .scaledFont(size: 11)
+                            .font(.caption)
                             .foregroundStyle(DSColors.secondaryText)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xs)
                             .background(verdictColor.opacity(0.05))
-                            .cornerRadius(6)
+                            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                             .padding(.leading, 28)
                     }
                     
                     // Supporting Evidence Quotes
                     let relevantEvidence = matchingEvidence
                     if !relevantEvidence.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             Text("SUPPORTING EVIDENCE")
-                                .scaledFont(size: 8, weight: .bold)
+                                .font(.caption2.weight(.bold))
                                 .foregroundStyle(DSColors.secondaryText)
                                 .padding(.leading, 28)
                             
@@ -305,33 +307,33 @@ private struct ClaimCard: View {
                                 Button {
                                     onOpenEvidence(ev)
                                 } label: {
-                                    VStack(alignment: .leading, spacing: 3) {
+                                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                         Text("\"\(ev.quote)\"")
-                                            .scaledFont(size: 10, weight: .medium, design: .serif)
+                                            .font(.system(.caption, design: .serif).weight(.medium))
                                             .foregroundStyle(DSColors.primaryText.opacity(0.9))
                                             .italic()
 
-                                        HStack(spacing: 3) {
+                                        HStack(spacing: DSSpacing.xxs) {
                                             Image(systemName: "doc.fill")
-                                                .scaledFont(size: 7)
+                                                .font(.caption2)
                                             Text(ev.documentName ?? "Unknown")
                                             if let page = ev.page {
                                                 Text("• P.\(page)")
                                             }
                                             if destination != nil {
                                                 Image(systemName: "chevron.right")
-                                                    .scaledFont(size: 7, weight: .bold)
+                                                    .font(.caption2.weight(.bold))
                                             }
                                         }
-                                        .scaledFont(size: 8, weight: .bold)
+                                        .font(.caption2.weight(.bold))
                                         // The accent on a quote that opens something, gray on one that does not.
                                         .foregroundStyle(
                                             destination == nil ? DSColors.secondaryText : DSColors.readable(DSColors.accent))
                                     }
-                                    .padding(8)
+                                    .padding(DSSpacing.sm)
                                     .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget, alignment: .leading)
                                     .background(DSColors.background.opacity(0.5))
-                                    .cornerRadius(6)
+                                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
@@ -344,11 +346,11 @@ private struct ClaimCard: View {
                     
                     // The confidence goes with the technical view (5.7).
                     if showsTechnicalDetails {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DSSpacing.xs) {
                             Spacer().frame(width: 20)
                         
                             Text("CONFIDENCE")
-                                .scaledFont(size: 8, weight: .bold)
+                                .font(.caption2.weight(.bold))
                                 .foregroundStyle(DSColors.secondaryText)
                         
                             ProgressView(value: claim.confidence)
@@ -357,27 +359,27 @@ private struct ClaimCard: View {
                                 .frame(width: 50)
                         
                             Text("\(Int(claim.confidence * 100))%")
-                                .scaledFont(size: 9, weight: .bold, design: .rounded)
+                                .font(.caption2.weight(.bold))
+                                .monospacedDigit()
                                 .foregroundStyle(DSColors.primaryText)
                         }
                     }
                 }
-                .padding([.horizontal, .bottom], 12)
+                .padding([.horizontal, .bottom], DSSpacing.md)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
-                .shadow(color: .black.opacity(isExpanded ? 0.08 : 0.02), radius: isExpanded ? 4 : 2, x: 0, y: 1)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .stroke(verdictColor.opacity(isExpanded ? 0.3 : 0.1), lineWidth: 1)
         )
         // A tap anywhere else on the card opens or closes the claim, as the whole card did through 5.6, instead of
         // reaching the message under it, whose tap shows its actions (5.7).
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         .onTapGesture(perform: onTap)
     }
     
