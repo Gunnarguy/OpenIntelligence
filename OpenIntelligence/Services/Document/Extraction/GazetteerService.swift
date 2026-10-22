@@ -222,18 +222,40 @@ actor GazetteerService {
     /// Check if a query term matches any gazetteer entries
     /// Used to boost entity-based retrieval
     func matchingTerms(for query: String) -> [GazetteerEntity] {
-        let queryWords = query.lowercased().components(separatedBy: .whitespacesAndNewlines)
+        let queryWords = Self.words(in: query)
         var matches: [GazetteerEntity] = []
 
         for (label, terms) in vocabulary {
-            for term in terms {
-                if queryWords.contains(term.lowercased()) || query.lowercased().contains(term.lowercased()) {
-                    matches.append(GazetteerEntity(term: term, label: label, source: "gazetteer"))
-                }
+            for term in terms where Self.term(term, matches: queryWords) {
+                matches.append(GazetteerEntity(term: term, label: label, source: "gazetteer"))
             }
         }
 
         return matches
+    }
+
+    /// A query's words, split on anything that is not a letter or a digit, in their own case.
+    nonisolated static func words(in text: String) -> [String] {
+        text.split(whereSeparator: { !($0.isLetter || $0.isNumber) }).map(String.init)
+    }
+
+    /// Whether a term is in a query as whole words (5.7). It used to match as a substring of the lowercased query, so
+    /// the all-caps fragments a document's headings put in the gazetteer ("PA", "RE", "DO", "TW", "MP") matched inside
+    /// "compare", "documents", "two" and "library", and were appended to Deep Think's keyword search on the owner's
+    /// iPhone (2026-10-21: "Compare the two documents in this library RE PA DO ARE TWO"). A term written all in capitals
+    /// is an abbreviation and matches only the same capitals, so "THIS" or "ARE" does not match the words "this" or
+    /// "are"; any other term matches its words in order, ignoring case.
+    nonisolated static func term(_ term: String, matches queryWords: [String]) -> Bool {
+        let termWords = words(in: term)
+        guard !termWords.isEmpty, termWords.count <= queryWords.count else { return false }
+        let isAbbreviation = term.contains(where: \.isLetter) && term == term.uppercased()
+        let fold: (String) -> String = isAbbreviation ? { $0 } : { $0.lowercased() }
+        let target = termWords.map(fold)
+        let haystack = queryWords.map(fold)
+        for start in 0...(haystack.count - target.count) where Array(haystack[start..<(start + target.count)]) == target {
+            return true
+        }
+        return false
     }
 
     // MARK: - Statistics

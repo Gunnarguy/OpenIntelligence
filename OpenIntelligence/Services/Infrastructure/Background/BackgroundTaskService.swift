@@ -684,6 +684,10 @@ final class BackgroundTaskService: Sendable {
         )
 
         task.expirationHandler = { [weak self] in
+            // The import is not lost when the system takes the task back: its pages are saved and it continues
+            // when the app is opened (`Back in front: continuing ...`). The system's banner said "Task failed" on the
+            // owner's iPhone (2026-10-21), so the task says what happened before it ends (5.7).
+            task.updateTitle(task.title, subtitle: "Paused. It continues where it left off when you open the app.")
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 // What the device was like when the system took the task back, kept with the

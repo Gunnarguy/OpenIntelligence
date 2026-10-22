@@ -1308,6 +1308,7 @@ extension PageComplexityAnalyzer {
 
     /// Log comprehensive batch summary
     func logBatchSummary(_ analyses: [PageComplexityAnalysis]) {
+        guard !analyses.isEmpty else { return }  // every page came from a checkpoint (5.7)
         let groups = groupByStrategy(analyses)
         let totalPages = analyses.count
         let totalAnalysisTime = analyses.map { $0.analysisTimeMs }.reduce(0, +)

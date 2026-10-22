@@ -2592,6 +2592,7 @@ struct ChatScreen: View {
 
             chatContentArea
             followUpSuggestionsBar
+            unansweredQuestionBar
 
             Divider().opacity(0.5)
 
@@ -2722,6 +2723,49 @@ struct ChatScreen: View {
             .padding(.vertical, 4)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .animation(.easeInOut(duration: 0.25), value: followUpSuggestions.isEmpty)
+        }
+    }
+
+    /// The chat's last message when it is a question with no answer and nothing is working on one (5.7). On the
+    /// owner's iPhone (2026-10-21) a Deep Think question ended with the app in the background, and the reopened chat
+    /// showed the question and nothing under it, with no way to get the answer but typing it again.
+    private var unansweredQuestion: ChatMessage? {
+        guard !isProcessing, !isCheckingFinishedAnswer, questionAfterCheck == nil,
+            let last = messages.last, last.role == .user
+        else { return nil }
+        return last
+    }
+
+    @ViewBuilder private var unansweredQuestionBar: some View {
+        if let question = unansweredQuestion {
+            HStack(spacing: 8) {
+                Text("This answer didn't finish.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button {
+                    DSHaptics.selection()
+                    messages.removeAll { $0.id == question.id }
+                    sendMessage(question.content)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption2)
+                        Text("Ask again")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(DSColors.surface)
+                    .foregroundColor(.accentColor)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, DSSpacing.md)
+            .padding(.vertical, 4)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 

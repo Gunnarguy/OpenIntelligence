@@ -7795,8 +7795,12 @@ class RAGService: ObservableObject {
             let filenameForProgress = filename
 
             // Batch embed with progress callback for live UI updates
+            // Kept in the import's checkpoint folder, which is removed when the import finishes (5.7).
+            let embeddingCache = documentProcessor.checkpointDirectoryURL(
+                for: documentProcessor.computeDocumentFingerprint(at: url))
             embeddings = try await containerEmbeddingService.generateEmbeddings(
                 for: textsToEmbed,
+                cacheDirectory: embeddingCache,
                 progressHandler: { [weak self] (completed: Int, total: Int) in
                     Task { @MainActor in
                         let progress = Double(completed) / Double(max(1, total))
@@ -12221,7 +12225,9 @@ class RAGService: ObservableObject {
                     let gazetteerMatches = await GazetteerService.shared.matchingTerms(for: effectiveQuery)
                     if !gazetteerMatches.isEmpty {
                         let gazetteerTerms = gazetteerMatches.map { $0.term }
-                        let uniqueGazetteerTerms = gazetteerTerms.filter { !expandedQueries.contains($0) }
+                        let uniqueGazetteerTerms = gazetteerTerms.filter { term in
+                            !expandedQueries.contains { $0.caseInsensitiveCompare(term) == .orderedSame }
+                        }
                         let gazetteerSpace = qualityModeMaxQueryExpansions - expandedQueries.count
                         let gazetteerToAdd = Array(uniqueGazetteerTerms.prefix(max(0, gazetteerSpace)))
                         expandedQueries.append(contentsOf: gazetteerToAdd)
@@ -21972,7 +21978,11 @@ extension RAGService: RAGToolHandler {
         // Gazetteer domain vocabulary enrichment
         let gazetteerMatchesFR = await GazetteerService.shared.matchingTerms(for: semanticQuery)
         if !gazetteerMatchesFR.isEmpty {
-            let uniqueGazetteer = gazetteerMatchesFR.map { $0.term }.filter { !expandedQueries.contains($0) }
+            // A matched term is in the question already; appended again it only repeats words (5.7).
+            let uniqueGazetteer = gazetteerMatchesFR.map { $0.term }.filter { term in
+                !semanticQuery.localizedCaseInsensitiveContains(term)
+                    && !expandedQueries.contains { $0.caseInsensitiveCompare(term) == .orderedSame }
+            }
             expandedQueries.append(contentsOf: uniqueGazetteer.prefix(5))
             if !uniqueGazetteer.isEmpty {
                 Log.debug(

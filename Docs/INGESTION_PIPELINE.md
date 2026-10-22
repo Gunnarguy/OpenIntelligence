@@ -1116,6 +1116,20 @@ the pages rendered and recognised at once; its mode names the profile the import
 ProcessingSummary, ProcessingSummaryView.swift, IngestionQueueOverlay.swift, IngestionLiveActivityService.swift,
 DeviceCapabilityService.swift migrateGPUExecutionProfile; not yet seen on a device]`
 
+### A resume skips the pre-scan and the embedding its checkpoints hold *(added 2026-10-21, for 5.7)*
+
+The complexity pre-scan leaves out pages with a `page_<n>.json` checkpoint, and `addDocument` passes the import's
+checkpoint folder to `EmbeddingService.generateEmbeddings(for:cacheDirectory:progressHandler:)`, which writes each batch
+of 16 vectors there (`embeddings-<SHA-256 of provider, dimension and texts>.bin`) and reads it back on a resume; the folder
+is removed with the checkpoints when the import finishes. Chunking still runs again. `[evidence_level: code_verified,
+not yet re-run on a device, confidence: medium]`
+
+### The 500 MB guard does not apply to a PDF read in page ranges *(added 2026-10-21, for 5.7)*
+
+`processDocument` rejects a file over 500 MB that it would read whole (`maxNonStreamableSizeMB`). It used to measure
+the whole file on every page batch of `importLargePDFStreamed` too, so no PDF over 500 MB could be imported; a call with
+a `pageRange` now skips it. `[evidence_level: code_verified, build_verified, not run with a file over 500 MB, confidence: high]`
+
 ### Page analysis and the embedding model's mode switch run off the main thread *(added 2026-10-21, for 5.7)*
 
 `PageComplexityAnalyzer` is `nonisolated` and its `analyze` and `analyzeBatch` are `@concurrent`; it had taken the

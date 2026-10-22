@@ -836,8 +836,12 @@ class DocumentProcessor {
         // Loading a 500MB+ file into a String would consume 1.5-2 GB
         // with normalization copies — guaranteed OOM on 8 GB devices.
         // ═══════════════════════════════════════════════════════════════
+        //
+        // A PDF read in page ranges (`pageRange`, from `RAGService.importLargePDFStreamed`, which takes every PDF over
+        // 10 MB) never holds the whole file as text, so the guard does not apply to it (5.7). It measured the whole
+        // file on every page batch, so no PDF over 500 MB could be imported at all.
         let maxNonStreamableSizeMB: Double = 500
-        if fileSizeMB > maxNonStreamableSizeMB && documentType != .xml {
+        if pageRange == nil, fileSizeMB > maxNonStreamableSizeMB && documentType != .xml {
             Log.error("[DocumentProcessor] File too large: \(String(format: "%.0f", fileSizeMB)) MB (limit: \(String(format: "%.0f", maxNonStreamableSizeMB)) MB)", category: .ingestion)
             throw DocumentProcessingError.fileTooLarge(sizeMB: fileSizeMB, limitMB: maxNonStreamableSizeMB)
         }
@@ -4382,8 +4386,14 @@ class DocumentProcessor {
         // Simple single-column pages skip Vision entirely → massive speedup
         // ═══════════════════════════════════════════════════════════════════════
         let complexityStartTime = Date()
+        // A page with a checkpoint is loaded from it below and never rendered, so it is not analysed either (5.7):
+        // a resumed 913-page import on the owner's iPhone re-scanned every page first (24 s) before loading 568 saved
+        // ones.
         let pagesToAnalyze: [(PDFPage, Int)] = (startPageIdx...endPageIdx).compactMap { index in
-            guard let page = pdfDocument.page(at: index) else { return nil }
+            let saved = checkpointDir.appendingPathComponent("page_\(index).json")
+            guard !FileManager.default.fileExists(atPath: saved.path),
+                let page = pdfDocument.page(at: index)
+            else { return nil }
             return (page, index + 1)
         }
         let complexityAnalyses = await PageComplexityAnalyzer.shared.analyzeBatch(pages: pagesToAnalyze)

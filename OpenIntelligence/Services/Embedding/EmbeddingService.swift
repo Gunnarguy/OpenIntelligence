@@ -6,6 +6,7 @@
 //
 
 import Accelerate
+import CryptoKit
 import Foundation
 import NaturalLanguage
 
@@ -259,6 +260,7 @@ class EmbeddingService {
     /// Generate embeddings for multiple text chunks in batch with optional progress callback
     func generateEmbeddings(
         for texts: [String],
+        cacheDirectory: URL? = nil,
         progressHandler: ((Int, Int) -> Void)? = nil
     ) async throws -> [[Float]] {
         // Sustained while the batch runs, on the chip this provider runs on (5.7; it was always the Neural Engine).
@@ -296,10 +298,19 @@ class EmbeddingService {
                 let batchEnd = min(batchStart + batchSize, texts.count)
                 let batch = Array(texts[batchStart..<batchEnd])
 
+                // A batch embedded before an interruption is read back from the import's checkpoint folder (5.7):
+                // on the owner's iPhone an app update during the embedding of 5,164 passages started all of them again.
+                let cacheURL = cacheDirectory.map { $0.appendingPathComponent(Self.embeddingCacheName(for: batch, provider: providerIdentifier, dimension: targetDimension)) }
+                if let cacheURL, let cached = Self.readCachedEmbeddings(at: cacheURL, count: batch.count, dimension: targetDimension) {
+                    allEmbeddings.append(contentsOf: cached)
+                    progressHandler(batchEnd, texts.count)
+                    continue
+                }
                 let rawBatch = try await provider.embedBatch(texts: batch)
                 try Task.checkCancellation()
                 let adjusted = rawBatch.map { adjustDimension($0) }
                 allEmbeddings.append(contentsOf: adjusted)
+                if let cacheURL { Self.writeCachedEmbeddings(adjusted, to: cacheURL) }
 
                 // Report progress
                 progressHandler(batchEnd, texts.count)
@@ -316,6 +327,32 @@ class EmbeddingService {
         } catch {
             throw EmbeddingError.wrap(error, provider: providerIdentifier)
         }
+    }
+
+    /// The file a batch's vectors are kept in: the provider, the dimension and every text of the batch, hashed.
+    nonisolated static func embeddingCacheName(for texts: [String], provider: String, dimension: Int) -> String {
+        var hasher = SHA256()
+        hasher.update(data: Data("\(provider)|\(dimension)|\(texts.count)".utf8))
+        for text in texts {
+            hasher.update(data: Data(text.utf8))
+            hasher.update(data: Data([0x1F]))
+        }
+        return "embeddings-" + hasher.finalize().map { String(format: "%02x", $0) }.joined() + ".bin"
+    }
+
+    /// A batch's vectors from its cache file, or nil when it is missing or does not hold exactly that many vectors.
+    nonisolated static func readCachedEmbeddings(at url: URL, count: Int, dimension: Int) -> [[Float]]? {
+        guard let data = try? Data(contentsOf: url),
+            data.count == count * dimension * MemoryLayout<Float>.size
+        else { return nil }
+        let flat: [Float] = data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        return stride(from: 0, to: flat.count, by: dimension).map { Array(flat[$0..<($0 + dimension)]) }
+    }
+
+    nonisolated static func writeCachedEmbeddings(_ vectors: [[Float]], to url: URL) {
+        let flat = vectors.flatMap { $0 }
+        let data = flat.withUnsafeBufferPointer { Data(buffer: $0) }
+        try? data.write(to: url, options: .atomic)
     }
 
     /// Generate embeddings for multiple text chunks in batch (no progress callback)

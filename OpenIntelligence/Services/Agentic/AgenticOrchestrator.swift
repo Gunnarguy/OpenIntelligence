@@ -5921,6 +5921,10 @@ extension AgenticOrchestrator {
                     .map { "[\($0.offset + 1)] \($0.element)" }
                     .joined(separator: "\n")
 
+                // The findings carry the sessions' own labels ([S5], [S13]); the synthesis sees no passages. The prompt
+                // ended "Cite as [S1], [S2].", and the model copied the example: on the owner's iPhone (2026-10-21) a
+                // two-document comparison's write-up scored citations 0/5 in Self-RAG, because its labels pointed at
+                // passages that did not hold the claims (5.7).
                 let synthesisPrompt = """
                     QUESTION: \(query)
 
@@ -5931,7 +5935,8 @@ extension AgenticOrchestrator {
                     Combine ALL findings into flowing prose with complete sentences and full paragraphs.
                     Use ### section headers to organize topics. Use **bold** sparingly for key terms only.
                     Write naturally — use paragraphs for explanations, and bullets only for actual sequential steps or specification lists.
-                    Include every relevant detail found across all sessions. Cite as [S1], [S2].
+                    Include every relevant detail found across all sessions.
+                    The findings already carry source labels such as [S5] or [S13]. Keep each label with the sentence it supports, written exactly as it appears in the findings. Never invent a label, renumber one, or move a label to a sentence it did not support.
                     """
 
                 let synthesisSystemPrompt =
@@ -7990,7 +7995,7 @@ extension AgenticOrchestrator {
 
             TASK: Synthesize ALL findings into ONE comprehensive answer.
             Integrate across clusters. Include specific values and data. Use **bold** sparingly for key terms only.
-            Never repeat content. Cite [S1], [S2].
+            Never repeat content. Keep each finding's [S#] labels exactly as written; never invent or renumber one.
 
             SYNTHESIS:
             """
@@ -7998,7 +8003,7 @@ extension AgenticOrchestrator {
         let systemPrompt = """
             Synthesize document findings. Include ALL specific values, numbers, and data points.
             Cross-reference multiple sources. Never repeat content. Use **bold** sparingly for key terms only.
-            Cite as [S1], [S2]. Write like a domain expert — format naturally for the content.
+            Keep the findings' [S#] labels exactly as written. Write like a domain expert — format naturally for the content.
             """
 
         var totalTokens = 0
@@ -8300,7 +8305,7 @@ extension AgenticOrchestrator {
                 Include every relevant detail, value, specification, and procedure.
                 Write in complete sentences and natural paragraphs — not just bullet points.
                 Use bullet points only for actual lists of items (like steps or specifications).
-                Cite sources as [S1], [S2].
+                Cite each fact with the [S#] label of the passage it came from, written exactly as it is labeled above.
                 """
             return (prompt, systemPrompt)
 
@@ -8318,7 +8323,7 @@ extension AgenticOrchestrator {
                 Using these additional documents, write ONLY new details about: "\(query)"
                 Do NOT repeat or rephrase anything from prior findings above.
                 Focus exclusively on details, values, or procedures NOT already covered.
-                Write in complete sentences and full paragraphs. Cite as [S1], [S2].
+                Write in complete sentences and full paragraphs. Cite each fact with the [S#] label of the passage it came from, written exactly as it is labeled above.
                 """
             return (prompt, systemPrompt)
 
@@ -8338,7 +8343,7 @@ extension AgenticOrchestrator {
                 Use ### section headers to organize topics. Use **bold** sparingly for key terms only.
                 Write in complete sentences and full paragraphs — not just bullet lists.
                 Use bullet points only for actual sequential steps or specification lists.
-                Include every relevant detail found. Cite as [S1], [S2].
+                Include every relevant detail found. Cite each fact with the [S#] label of the passage it came from, written exactly as it is labeled above.
                 """
             return (prompt, systemPrompt)
 
@@ -8367,7 +8372,7 @@ extension AgenticOrchestrator {
                 Do NOT repeat or rephrase information already covered above.
                 If the documents contain relevant details not yet mentioned, describe them thoroughly.
                 Write in complete sentences and full paragraphs, as plain prose.
-                Do not reply with JSON, field names, or any structured format. Cite as [S1], [S2].
+                Do not reply with JSON, field names, or any structured format. Cite each fact with the [S#] label of the passage it came from, written exactly as it is labeled above.
                 """
             return (prompt, systemPrompt)
         }
