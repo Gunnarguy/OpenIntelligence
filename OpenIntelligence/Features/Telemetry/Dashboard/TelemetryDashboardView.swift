@@ -31,12 +31,12 @@ struct TelemetryDashboardView: View {
                     EmptyTelemetryView()
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 12) {
+                        LazyVStack(spacing: DSSpacing.md) {
                             ForEach(filteredEvents) { event in
                                 ModernTelemetryCard(event: event)
                             }
                         }
-                        .padding()
+                        .padding(DSSpacing.lg)
                     }
                 }
             }
@@ -66,10 +66,10 @@ struct TelemetryDashboardView: View {
     }
 
     private var modernFilterBar: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: "line.3.horizontal.decrease.circle")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(.accentColor)
                 Text("Filter")
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -84,7 +84,7 @@ struct TelemetryDashboardView: View {
             }
             .pickerStyle(.segmented)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(DSColors.background)
     }
 }
@@ -93,7 +93,7 @@ struct TelemetryDashboardView: View {
 
 private struct EmptyTelemetryView: View {
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DSSpacing.xl) {
             Spacer()
 
             ZStack {
@@ -111,7 +111,8 @@ private struct EmptyTelemetryView: View {
                     .frame(width: 120, height: 120)
 
                 Image(systemName: "waveform.path.ecg")
-                    .font(.system(size: 50))
+                    .font(.largeTitle)
+                    .imageScale(.large)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
@@ -121,14 +122,14 @@ private struct EmptyTelemetryView: View {
                     )
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 Text("No Telemetry Yet")
                     .font(.title2)
                     .fontWeight(.bold)
 
                 Text("Run an import or chat to see live metrics")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -141,56 +142,56 @@ private struct ModernTelemetryCard: View {
     let event: TelemetryEvent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack(alignment: .top) {
                 // Category icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .fill(categoryColor.opacity(0.2))
-                        .frame(width: 44, height: 44)
+                        .frame(width: DSSpacing.tapTarget, height: DSSpacing.tapTarget)
 
                     Image(systemName: event.category.symbolName)
-                        .foregroundColor(categoryColor)
+                        .foregroundStyle(categoryColor)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(event.title)
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
 
                     if let duration = event.formattedDuration {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "clock")
                                 .font(.caption2)
                             Text(duration)
-                                .font(.caption)
+                                .font(.caption.monospacedDigit())
                         }
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                     }
                 }
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: DSSpacing.xs) {
                     // Severity badge
                     Text(event.severity.rawValue.capitalized)
                         .font(.caption2)
                         .fontWeight(.medium)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
                         .background(severityColor.opacity(0.2))
-                        .foregroundStyle(severityColor)
+                        .foregroundStyle(DSColors.readable(severityColor))
                         .clipShape(Capsule())
 
                     Text(event.formattedTimestamp)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
 
             // Metadata
             if !event.metadata.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     ForEach(event.metadata.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                         HStack(alignment: .top) {
                             Text("\(key):")
@@ -198,18 +199,18 @@ private struct ModernTelemetryCard: View {
                                 .foregroundStyle(.secondary)
                                 .frame(minWidth: 80, alignment: .leading)
                             Text(value)
-                                .font(.caption)
+                                .font(.caption.monospacedDigit())
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, DSSpacing.xs)
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
@@ -217,7 +218,7 @@ private struct ModernTelemetryCard: View {
 
     private var severityColor: Color {
         switch event.severity {
-        case .info: return .blue
+        case .info: return DSColors.accent
         case .warning: return .orange
         case .error: return .red
         }
@@ -225,13 +226,13 @@ private struct ModernTelemetryCard: View {
 
     private var categoryColor: Color {
         switch event.category {
-        case .ingestion: return .blue
-        case .embedding: return .purple
+        case .ingestion: return DSColors.accent
+        case .embedding: return DSColors.accent
         case .retrieval: return .green
         case .generation: return .orange
-        case .storage: return .cyan
-        case .system: return .gray
-        case .billing: return .pink
+        case .storage: return .secondary
+        case .system: return .secondary
+        case .billing: return .secondary
         case .error: return .red
         }
     }
