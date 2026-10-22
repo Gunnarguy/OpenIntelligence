@@ -11,27 +11,27 @@ struct DocumentRow: View {
     let document: Document
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: iconName(for: document.contentType))
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text(document.filename)
                     .font(.headline)
             }
 
             HStack {
                 Text("\(document.totalChunks) chunks")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
                 Text(document.addedAt, style: .relative)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 
     private func iconName(for type: DocumentType) -> String {
