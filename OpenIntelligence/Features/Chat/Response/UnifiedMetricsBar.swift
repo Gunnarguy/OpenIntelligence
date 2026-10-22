@@ -244,7 +244,7 @@ struct UnifiedMetricsBar: View {
         VStack(spacing: 0) {
             // Main compact strip
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                withAnimation(DSAnimations.snappySpring) {
                     showExpandedDetails.toggle()
                 }
                 DSHaptics.selection()
@@ -262,9 +262,9 @@ struct UnifiedMetricsBar: View {
                     ))
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showExpandedDetails)
-        .animation(.easeInOut(duration: 0.3), value: execution)
-        .animation(.easeInOut(duration: 0.2), value: stage)
+        .animation(DSAnimations.snappySpring, value: showExpandedDetails)
+        .animation(DSAnimations.fastEase, value: execution)
+        .animation(DSAnimations.fastEase, value: stage)
     }
 
     // MARK: - Main Compact Strip (Premium Two-Row Layout)
@@ -275,12 +275,12 @@ struct UnifiedMetricsBar: View {
     /// - **Maximum**: Gold/orange theme, shows "Confidence" meter (unlimited → 98% target)
 
     private var mainCompactStrip: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: DSSpacing.xs) {
             // Row 1: Primary metrics - adapts per mode. The mode's badges at the leading edge and the answer's figures
             // with the chevron at the trailing edge, each group going onto further lines when it does not fit: across
             // one line, up to eight fixed-size badges ran past the screen at the larger text sizes (5.7).
-            WrappingRowLayout(spacing: 6, lineSpacing: 6, lastAtTrailingEdge: true) {
-                WrappingRowLayout(spacing: 6, lineSpacing: 6) {
+            WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs, lastAtTrailingEdge: true) {
+                WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
                     // 1. QUALITY MODE BADGE - Distinct per mode
                     premiumQualityBadge
 
@@ -302,7 +302,7 @@ struct UnifiedMetricsBar: View {
                     }
                 }
 
-                WrappingRowLayout(spacing: 6, lineSpacing: 6) {
+                WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
                     // 5. GENERATION STATS - Speed + output
                     if tokensGenerated > 0 || isProcessing {
                         premiumGenerationBadge
@@ -321,7 +321,7 @@ struct UnifiedMetricsBar: View {
 
                     // Expand chevron
                     Image(systemName: showExpandedDetails ? "chevron.up.circle.fill" : "chevron.down.circle")
-                        .scaledFont(size: 12, weight: .medium)
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
@@ -330,14 +330,14 @@ struct UnifiedMetricsBar: View {
             // Row 2: Mode-specific detail row
             modeSpecificDetailRow
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
+        .padding(.vertical, DSSpacing.sm)
+        .padding(.horizontal, DSSpacing.sm)
         .background(
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(.ultraThinMaterial)
                 // Mode-colored gradient border
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .stroke(
                         LinearGradient(
                             colors: [qualityModeColor.opacity(0.4), .clear, qualityModeColor.opacity(0.2)],
@@ -397,25 +397,25 @@ struct UnifiedMetricsBar: View {
     }
 
     private var liveReasoningDetailRow: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: liveReasoningKind?.systemIconName ?? qualityMode.icon)
-                    .scaledFont(size: 8, weight: .semibold)
+                    .font(.caption2.weight(.semibold))
 
                 Text(isMaximumMode ? "Thinking" : isRecursiveRAG ? "Reasoning" : "Working")
-                    .scaledFont(size: 8, weight: .bold)
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(DSColors.primaryText)
             }
             .foregroundStyle(DSColors.readable(liveReasoningAccent))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
             .background(
                 Capsule()
                     .fill(liveReasoningAccent.opacity(0.12))
             )
 
             Text(liveReasoningSummary)
-                .scaledFont(size: 9, weight: .medium)
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(DSColors.secondaryText)
                 .lineLimit(2)
 
@@ -430,7 +430,7 @@ struct UnifiedMetricsBar: View {
     }
 
     private var standardModeDetailRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             if sourceCount > 0 {
                 premiumSourcesBadge
             }
@@ -445,7 +445,7 @@ struct UnifiedMetricsBar: View {
     }
 
     private var deepThinkDetailRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             // Sources badge
             if sourceCount > 0 {
                 premiumSourcesBadge
@@ -466,9 +466,9 @@ struct UnifiedMetricsBar: View {
     }
 
     private var maximumModeDetailRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             // Confidence progress bar toward 98%
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         // Background track
@@ -491,7 +491,7 @@ struct UnifiedMetricsBar: View {
                                 )
                             )
                             .frame(width: max(0, geo.size.width * CGFloat(liveConfidence)), height: 6)
-                            .animation(.easeInOut(duration: 0.3), value: liveConfidence)
+                            .animation(DSAnimations.fastEase, value: liveConfidence)
                     }
                 }
                 .frame(height: 6)
@@ -514,7 +514,7 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Quality Mode (The Brain)
 
     private var premiumQualityBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             // Animated brain icon
             ZStack {
                 if isProcessing {
@@ -522,22 +522,22 @@ struct UnifiedMetricsBar: View {
                         .fill(qualityModeColor.opacity(0.2))
                         .frame(width: 18, height: 18)
                         .scaleEffect(1.0 + sin(pulsePhase) * 0.15)
-                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulsePhase)
+                        .animation(DSAnimations.stagePulse, value: pulsePhase)
                         .onAppear { pulsePhase = .pi * 2 }
                 }
                 Image(systemName: qualityMode.icon)
-                    .scaledFont(size: 9, weight: .bold)
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(DSColors.readable(qualityModeColor))
             }
 
             Text(qualityModeLabel)
-                .scaledFont(size: 9, weight: .bold)
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(DSColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xs)
         .background(
             Capsule()
                 .fill(qualityModeColor.opacity(0.12))
@@ -574,7 +574,7 @@ struct UnifiedMetricsBar: View {
         let matchPct = Int(matchScore * 100)
         let matchColor = matchScoreColor(matchScore)
 
-        return HStack(spacing: 2) {
+        return HStack(spacing: DSSpacing.xxs) {
             // Circular match indicator
             ZStack {
                 Circle()
@@ -588,11 +588,12 @@ struct UnifiedMetricsBar: View {
             }
 
             Text("\(matchPct)%")
-                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(matchColor.opacity(0.1))
@@ -609,7 +610,7 @@ struct UnifiedMetricsBar: View {
         let targetReached = confidence >= target
         let color: Color = targetReached ? .green : .purple
 
-        return HStack(spacing: 2) {
+        return HStack(spacing: DSSpacing.xxs) {
             // Circular confidence indicator
             ZStack {
                 Circle()
@@ -620,21 +621,22 @@ struct UnifiedMetricsBar: View {
                     .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .frame(width: 12, height: 12)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.3), value: confidence)
+                    .animation(DSAnimations.fastEase, value: confidence)
             }
 
             Text("\(pct)%")
-                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
 
             if targetReached {
                 Image(systemName: "checkmark.circle.fill")
-                    .scaledFont(size: 7)
+                    .font(.caption2)
                     .foregroundStyle(DSColors.readable(.green))
             }
         }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(color.opacity(0.1))
@@ -648,7 +650,7 @@ struct UnifiedMetricsBar: View {
         let targetReached = confidence >= 0.98
         let color: Color = targetReached ? .green : .orange
 
-        return HStack(spacing: 2) {
+        return HStack(spacing: DSSpacing.xxs) {
             // Circular confidence indicator
             ZStack {
                 Circle()
@@ -662,21 +664,22 @@ struct UnifiedMetricsBar: View {
                     )
                     .frame(width: 12, height: 12)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.3), value: confidence)
+                    .animation(DSAnimations.fastEase, value: confidence)
             }
 
             Text("\(pct)%")
-                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
 
             if targetReached {
                 Image(systemName: "star.fill")
-                    .scaledFont(size: 7)
+                    .font(.caption2)
                     .foregroundStyle(DSColors.readable(.yellow))
             }
         }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(color.opacity(0.1))
@@ -690,18 +693,19 @@ struct UnifiedMetricsBar: View {
     private var modeProgressIndicator: some View {
         if isMaximumMode {
             // Maximum: Unlimited sessions indicator
-            HStack(spacing: 1) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "infinity")
-                    .scaledFont(size: 7, weight: .bold)
+                    .font(.caption2.weight(.bold))
                 if maximumModeSessionCount > 0 {
                     Text("×\(maximumModeSessionCount)")
-                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
+                        .monospacedDigit()
                         .foregroundStyle(DSColors.primaryText)
                 }
             }
             .foregroundStyle(DSColors.readable(.orange))
-            .padding(.horizontal, 4)
-            .padding(.vertical, 3)
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
             .background(
                 Capsule()
                     .fill(Color.orange.opacity(0.12))
@@ -709,16 +713,17 @@ struct UnifiedMetricsBar: View {
             .fixedSize()
         } else if isRecursiveRAG {
             // Deep Think: session count (no max - it goes until confident)
-            HStack(spacing: 1) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "brain.head.profile")
-                    .scaledFont(size: 7, weight: .semibold)
+                    .font(.caption2.weight(.semibold))
                 Text("×\(recursiveCallCount)")
-                    .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                    .font(.system(.caption2, design: .monospaced).weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(DSColors.primaryText)
             }
             .foregroundStyle(DSColors.readable(.purple))
-            .padding(.horizontal, 4)
-            .padding(.vertical, 3)
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
             .background(
                 Capsule()
                     .fill(Color.purple.opacity(0.12))
@@ -758,16 +763,17 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Sessions (Reasoning Depth)
 
     private var premiumSessionsBadge: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "brain.head.profile")
-                .scaledFont(size: 7, weight: .semibold)
+                .font(.caption2.weight(.semibold))
             Text("×\(recursiveCallCount)")
-                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
         .foregroundStyle(DSColors.readable(.purple))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(Color.purple.opacity(0.12))
@@ -783,16 +789,17 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Context (Input Tokens)
 
     private var premiumContextBadge: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "arrow.down.doc.fill")
-                .scaledFont(size: 7, weight: .semibold)
+                .font(.caption2.weight(.semibold))
             Text(formatTokenCount(contextTokens))
-                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
         .foregroundStyle(DSColors.readable(contextColor))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(contextColor.opacity(0.1))
@@ -804,16 +811,17 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Generation (Speed + Output + Words)
 
     private var premiumGenerationBadge: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             // Speed metric
-            HStack(spacing: 1) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "bolt.fill")
-                    .scaledFont(size: 7, weight: .bold)
+                    .font(.caption2.weight(.bold))
                 Text(String(format: "%.0f", tokensPerSecond))
-                    .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                    .font(.system(.caption2, design: .monospaced).weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(DSColors.primaryText)
                 Text("t/s")
-                    .scaledFont(size: 6, weight: .medium)
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(DSColors.primaryText)
                     .opacity(0.7)
             }
@@ -828,11 +836,12 @@ struct UnifiedMetricsBar: View {
                     .frame(width: 1, height: 10)
 
                 // Output token count
-                HStack(spacing: 1) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: tokenCounterIcon)
-                        .scaledFont(size: 7, weight: .semibold)
+                        .font(.caption2.weight(.semibold))
                     Text(formatTokenCount(tokensGenerated))
-                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
+                        .monospacedDigit()
                         .foregroundStyle(DSColors.primaryText)
                 }
                 .foregroundStyle(DSColors.readable(tokenCounterColor))
@@ -846,11 +855,12 @@ struct UnifiedMetricsBar: View {
                     .fill(.secondary.opacity(0.3))
                     .frame(width: 1, height: 10)
 
-                HStack(spacing: 1) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "character.cursor.ibeam")
-                        .scaledFont(size: 7, weight: .semibold)
+                        .font(.caption2.weight(.semibold))
                     Text(formatLargeCount(characterCount))
-                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
+                        .monospacedDigit()
                         .foregroundStyle(DSColors.primaryText)
                 }
                 .foregroundStyle(DSColors.readable(.purple))
@@ -858,8 +868,8 @@ struct UnifiedMetricsBar: View {
                 .fixedSize()
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(liveTokenMetricColor.opacity(0.08))
@@ -873,17 +883,18 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Time
 
     private var premiumTimeBadge: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: isProcessing ? "hourglass" : "checkmark.circle.fill")
-                .scaledFont(size: 7, weight: .medium)
+                .font(.caption2.weight(.medium))
                 .symbolEffect(.pulse, isActive: isProcessing)
             Text(formatElapsed(elapsedTime))
-                .scaledFont(size: 8, weight: .semibold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
         .foregroundStyle(DSColors.readable(isProcessing ? .orange : .green))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill((isProcessing ? Color.orange : Color.green).opacity(0.1))
@@ -894,16 +905,17 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Sources (Row 2)
 
     private var premiumSourcesBadge: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "doc.text.magnifyingglass")
-                .scaledFont(size: 7, weight: .semibold)
+                .font(.caption2.weight(.semibold))
             Text("\(sourceCount)")
-                .scaledFont(size: 8, weight: .bold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
         .foregroundStyle(DSColors.readable(sourceQualityColor))
-        .padding(.horizontal, 4)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(sourceQualityColor.opacity(0.1))
@@ -914,16 +926,17 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Tools (Row 2)
 
     private var premiumToolsBadge: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "wrench.and.screwdriver.fill")
-                .scaledFont(size: 8, weight: .semibold)
+                .font(.caption2.weight(.semibold))
             Text("\(toolCallCount)")
-                .scaledFont(size: 9, weight: .bold, design: .monospaced)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
         .foregroundStyle(DSColors.readable(.purple))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(Color.purple.opacity(0.12))
@@ -933,15 +946,15 @@ struct UnifiedMetricsBar: View {
     // MARK: - Legacy Badges (kept for expanded view compatibility)
 
     private var qualityBadgeDescriptive: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: qualityMode.icon)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(qualityModeLabel)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(qualityModeColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(qualityModeColor.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -958,15 +971,15 @@ struct UnifiedMetricsBar: View {
     // MARK: - Descriptive Advanced RAG Badge
 
     private var advancedRAGBadgeDescriptive: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "sparkles")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(advancedRAGLabelDescriptive)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(.yellow)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.yellow.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -982,14 +995,15 @@ struct UnifiedMetricsBar: View {
     // MARK: - Elapsed Time Badge
 
     private var elapsedTimeBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: isProcessing ? "timer" : "checkmark.circle.fill")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
             Text(formatElapsed(elapsedTime))
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .monospacedDigit()
             if !isProcessing {
                 Text("done")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .opacity(0.7)
             }
         }
@@ -1002,22 +1016,24 @@ struct UnifiedMetricsBar: View {
         // For Deep Think: Context window is IRRELEVANT - we chain multiple sessions
         if isRecursiveRAG {
             return AnyView(
-                HStack(spacing: 3) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "arrow.trianglehead.branch")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                     if recursiveCallCount > 0 {
                         Text("\(recursiveCallCount) sessions")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
+                            .monospacedDigit()
                     }
                     if contextTokens > 0 {
                         Text("• \(formatTokenCount(contextTokens)) tokens")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.caption2.weight(.medium))
+                            .monospacedDigit()
                             .opacity(0.8)
                     }
                 }
                 .foregroundStyle(.purple)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(Color.purple.opacity(0.12))
                 .clipShape(Capsule())
             )
@@ -1025,21 +1041,22 @@ struct UnifiedMetricsBar: View {
 
         // Standard mode: show context with label
         return AnyView(
-            HStack(spacing: 3) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "doc.viewfinder")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                 Text("Context:")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .opacity(0.7)
                 Text(formatTokenCount(contextTokens))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.bold))
+                    .monospacedDigit()
                 Text("tokens")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .opacity(0.6)
             }
             .foregroundStyle(contextColor)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
             .background(contextColor.opacity(0.1))
             .clipShape(Capsule())
         )
@@ -1048,21 +1065,22 @@ struct UnifiedMetricsBar: View {
     // MARK: - Descriptive Speed Badge
 
     private var speedBadgeDescriptive: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "gauge.with.needle.fill")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("Speed:")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.7)
             Text(String(format: "%.0f", tokensPerSecond))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
             Text("t/s")
-                .font(.system(size: 8, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.6)
         }
         .foregroundStyle(speedColor)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(speedColor.opacity(0.1))
         .clipShape(Capsule())
     }
@@ -1070,21 +1088,22 @@ struct UnifiedMetricsBar: View {
     // MARK: - Descriptive Output Tokens Badge
 
     private var outputTokensBadgeDescriptive: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "text.bubble.fill")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("Output:")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.7)
             Text(formatTokenCount(tokensGenerated))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
             Text("tokens")
-                .font(.system(size: 8, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.6)
         }
         .foregroundStyle(.green)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.green.opacity(0.1))
         .clipShape(Capsule())
     }
@@ -1092,26 +1111,27 @@ struct UnifiedMetricsBar: View {
     // MARK: - Descriptive Sources Badge
 
     private var sourcesBadgeDescriptive: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("\(sourceCount)")
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption2.weight(.bold))
+                .monospacedDigit()
             Text(sourceCount == 1 ? "source" : "sources")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.7)
             // Show quality indicator
             if let score = averageSourceScore {
                 Text("•")
-                    .font(.system(size: 5))
+                    .font(.caption2)
                     .opacity(0.5)
                 Text(sourceQualityLabel(score))
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
             }
         }
         .foregroundStyle(sourceQualityColor)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(sourceQualityColor.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1126,18 +1146,19 @@ struct UnifiedMetricsBar: View {
     // MARK: - Descriptive Tool Call Badge
 
     private var toolCallBadgeDescriptive: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "function")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("\(toolCallCount)")
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption2.weight(.bold))
+                .monospacedDigit()
             Text(toolCallCount == 1 ? "tool call" : "tool calls")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.7)
         }
         .foregroundStyle(.purple)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.purple.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1145,15 +1166,16 @@ struct UnifiedMetricsBar: View {
     // MARK: - Output Tokens Badge (LLM response size)
 
     private var outputTokensBadge: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "text.bubble.fill")
-                .font(.system(size: 7, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(formatTokenCount(tokensGenerated))
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
         }
         .foregroundStyle(.green)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.green.opacity(0.1))
         .clipShape(Capsule())
     }
@@ -1161,15 +1183,16 @@ struct UnifiedMetricsBar: View {
     // MARK: - Character Count Badge
 
     private var characterCountBadge: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "textformat.size")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(formatCount(characterCount))
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .monospacedDigit()
         }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .foregroundStyle(DSColors.secondaryText)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.secondary.opacity(0.1))
         .clipShape(Capsule())
     }
@@ -1180,7 +1203,7 @@ struct UnifiedMetricsBar: View {
     private var executionBadge: some View {
         let device = DeviceCapabilityService.shared
 
-        return HStack(spacing: 4) {
+        return HStack(spacing: DSSpacing.xs) {
             ZStack {
                 // Pulse animation during generation
                 if isProcessing && stage == .generating {
@@ -1190,51 +1213,54 @@ struct UnifiedMetricsBar: View {
                         .scaleEffect(pulsePhase)
                         .opacity(Double(1.0 - pulsePhase * 0.5))
                         .onAppear {
-                            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: false)) {
+                            withAnimation(DSAnimations.stagePulse) {
                                 pulsePhase = 1.5
                             }
                         }
                 }
 
                 Image(systemName: executionBadgeIcon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
             }
 
             // Clean label: "Neural Engine" for on-device, "PCC" for cloud
             Text(executionBadgeLabel)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2.weight(.semibold))
 
             // Chip specs for on-device (e.g., "A18 Pro • 38T")
             if execution == .onDevice || (execution == .unknown && !isProcessing) {
                 Text("•")
-                    .font(.system(size: 5))
+                    .font(.caption2)
                     .opacity(0.4)
                 Text("\(device.chipName)")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .opacity(0.8)
                 Text("\(Int(device.memoryGB))GB")
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                    .monospacedDigit()
                     .opacity(0.7)
                 // Show Neural Engine TOPS for visual confirmation
                 Text("\(device.npuTops)T")
-                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
                     .opacity(0.6)
             }
 
             // TTFT when available (only during processing)
             if isProcessing, let t = ttft {
                 Text("•")
-                    .font(.system(size: 5))
+                    .font(.caption2)
                     .opacity(0.5)
                 Text(formatDuration(t))
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
             }
         }
         .foregroundStyle(executionBadgeColor)
         .lineLimit(1)
         .minimumScaleFactor(0.7)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xs)
         .background(executionBadgeColor.opacity(0.12))
         .clipShape(Capsule())
         .onChange(of: isProcessing) { _, newValue in
@@ -1266,7 +1292,7 @@ struct UnifiedMetricsBar: View {
     }
 
     private var stageBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             // Pulsing dot when LLM is actively generating (from session.isResponding)
             if isLLMActivelyGenerating, stage == .generating {
                 Circle()
@@ -1275,20 +1301,20 @@ struct UnifiedMetricsBar: View {
                     .scaleEffect(pulsePhase == 1 ? 1.3 : 0.8)
                     .opacity(pulsePhase == 1 ? 1.0 : 0.6)
                     .animation(
-                        .easeInOut(duration: 0.6).repeatForever(autoreverses: true),
+                        DSAnimations.stagePulse,
                         value: pulsePhase
                     )
                     .onAppear { pulsePhase = 1 }
             }
 
             Image(systemName: stage.icon)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
             Text(stage.description)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
         }
         .foregroundStyle(stageColor)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xs)
         .background(stageColor.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1307,28 +1333,30 @@ struct UnifiedMetricsBar: View {
         // Just show total tokens used across all sessions
         if isRecursiveRAG {
             return AnyView(
-                HStack(spacing: 2) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "arrow.trianglehead.branch")
-                        .font(.system(size: 7, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
 
                     // Show sessions count (this is what matters)
                     if recursiveCallCount > 0 {
                         Text("\(recursiveCallCount)×")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .font(.system(.caption2, design: .monospaced).weight(.bold))
+                            .monospacedDigit()
                     }
 
                     // Total tokens (summed across all sessions)
                     if contextTokens > 0 {
                         Text(formatTokenCount(contextTokens))
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .font(.system(.caption2, design: .monospaced).weight(.bold))
+                            .monospacedDigit()
                     } else {
                         Text("...")
-                            .font(.system(size: 7, weight: .medium))
+                            .font(.caption2.weight(.medium))
                     }
                 }
                 .foregroundStyle(.purple)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(Color.purple.opacity(0.12))
                 .clipShape(Capsule())
             )
@@ -1337,20 +1365,21 @@ struct UnifiedMetricsBar: View {
         // Standard mode: show token count with context-appropriate icon
         // Using doc.viewfinder to represent "retrieved context"
         return AnyView(
-            HStack(spacing: 2) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "doc.viewfinder")
-                    .font(.system(size: 7, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                 if contextTokens > 0 {
                     Text(formatTokenCount(contextTokens))
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
+                        .monospacedDigit()
                 } else {
                     Text("—")
-                        .font(.system(size: 7, weight: .medium))
+                        .font(.caption2.weight(.medium))
                 }
             }
             .foregroundStyle(contextColor)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
             .background(contextColor.opacity(0.1))
             .clipShape(Capsule())
         )
@@ -1379,46 +1408,49 @@ struct UnifiedMetricsBar: View {
     }
 
     private var speedBadge: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "gauge.with.needle.fill")
-                .font(.system(size: 6, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(String(format: "%.0f", tokensPerSecond))
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                .monospacedDigit()
             Text("t/s")
-                .font(.system(size: 6, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.7)
         }
         .foregroundStyle(speedColor)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(speedColor.opacity(0.1))
         .clipShape(Capsule())
     }
 
     private var sourcesBadge: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 6, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("\(sourceCount)")
-                .font(.system(size: 8, weight: .bold))
+                .font(.caption2.weight(.bold))
+                .monospacedDigit()
         }
         .foregroundStyle(sourceQualityColor)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(sourceQualityColor.opacity(0.12))
         .clipShape(Capsule())
     }
 
     private var coverageBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("\(coveredDocuments)/\(totalDocuments)")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                .monospacedDigit()
         }
         .foregroundStyle(.blue)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xs)
         .background(Color.blue.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1426,15 +1458,15 @@ struct UnifiedMetricsBar: View {
     // pccActiveBadge removed - executionBadge already shows "PCC" when active
 
     private var cloudFallbackBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "cloud.slash")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("Local Fallback")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(.orange)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xs)
         .background(Color.orange.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1442,15 +1474,15 @@ struct UnifiedMetricsBar: View {
     // MARK: - Advanced RAG Badge (compact indicator for enhanced features)
 
     private var advancedRAGBadge: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "sparkles")
-                .font(.system(size: 6, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(advancedRAGLabel)
-                .font(.system(size: 7, weight: .semibold))
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(.yellow)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.yellow.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1466,22 +1498,22 @@ struct UnifiedMetricsBar: View {
     // MARK: - RAG Mode Badge
 
     private var ragModeBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: retrievalMode.icon)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(retrievalMode.rawValue)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             if semanticChunksUsed {
                 Text("•")
-                    .font(.system(size: 4))
+                    .font(.caption2)
                     .opacity(0.5)
                 Image(systemName: "brain")
-                    .font(.system(size: 7, weight: .medium))
+                    .font(.caption2.weight(.medium))
             }
         }
         .foregroundStyle(retrievalMode.color)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xs)
         .background(retrievalMode.color.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1497,10 +1529,10 @@ struct UnifiedMetricsBar: View {
     private var qualityBadge: some View {
         // Show quality mode icon with appropriate color
         Image(systemName: qualityMode.icon)
-            .font(.system(size: 8, weight: .semibold))
-.foregroundStyle(qualityModeColor.opacity(0.8))
-            .padding(3)
-.background(qualityModeColor.opacity(0.08))
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(qualityModeColor.opacity(0.8))
+            .padding(DSSpacing.xxs)
+            .background(qualityModeColor.opacity(0.08))
             .clipShape(Circle())
     }
 
@@ -1553,7 +1585,7 @@ struct UnifiedMetricsBar: View {
             return confidence >= 0.70  // Standard: 70%+ is solid
         }()
 
-        return HStack(spacing: 3) {
+        return HStack(spacing: DSSpacing.xxs) {
             // Circular progress indicator
             ZStack {
                 Circle()
@@ -1568,27 +1600,28 @@ struct UnifiedMetricsBar: View {
                     )
                     .frame(width: 14, height: 14)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.3), value: confidence)
+                    .animation(DSAnimations.fastEase, value: confidence)
             }
 
             // Confidence label + percentage
             Text("Confidence:")
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .opacity(0.7)
             Text("\(confidencePercent)%")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(badgeColor)
 
             // Target indicator (mode-appropriate)
             if targetReached {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 9))
+                    .font(.caption2)
                     .foregroundStyle(.green)
             }
         }
         .foregroundStyle(badgeColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(badgeColor.opacity(0.1))
         .clipShape(Capsule())
         .overlay(
@@ -1614,12 +1647,12 @@ struct UnifiedMetricsBar: View {
         let thermalColor = systemStateThermalColor(state.thermalState)
 
         // Always show thermal indicator (it's useful info about device state)
-        HStack(spacing: 2) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: SystemStateMonitor.thermalIcon(for: state.thermalState))
-                .scaledFont(size: 9, weight: .semibold)
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(DSColors.readable(thermalColor))
-        .padding(4)
+        .padding(DSSpacing.xs)
         .background(thermalColor.opacity(0.1))
         .clipShape(Circle())
     }
@@ -1635,15 +1668,16 @@ struct UnifiedMetricsBar: View {
     }
 
     private var toolCallBadge: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "function")
-                .font(.system(size: 6, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("\(toolCallCount)")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
         }
         .foregroundStyle(.purple)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.purple.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1651,17 +1685,18 @@ struct UnifiedMetricsBar: View {
     // MARK: - Micro Metric
 
     private func microMetric(icon: String, value: String, label: String) -> some View {
-        HStack(spacing: 2) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(DSColors.secondaryText)
             Text(value)
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
             if !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary.opacity(0.7))
+                    .font(.caption2)
+                    .foregroundStyle(DSColors.secondaryText.opacity(0.7))
             }
         }
     }
@@ -1768,105 +1803,108 @@ struct UnifiedMetricsBar: View {
         #else
         .frame(maxHeight: 650)
         #endif
-        .padding(14)
+        .padding(DSSpacing.md)
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .padding(.top, 4)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+        .padding(.top, DSSpacing.xs)
     }
 
     // MARK: - Section: Library Context (NEW)
 
     private var libraryContextSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "books.vertical.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.teal)
                 Text("Knowledge Base")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 // Library name
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Text(containerName)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DSColors.primaryText)
 
                     Spacer()
 
                     // Chunk stats
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "square.stack.3d.up.fill")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundStyle(.teal)
                         Text("\(totalStoredChunks) chunks")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
                 // Technical specs row
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     if embeddingDim > 0 {
-                        HStack(spacing: 3) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "cube.fill")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                             Text("\(embeddingDim)-dim")
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                                .monospacedDigit()
                         }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                     }
 
                     if !vectorDBKind.isEmpty {
-                        HStack(spacing: 3) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "cylinder.fill")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                             Text(vectorDBKind)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                     }
 
                     if chunkingTargetWords > 0 {
-                        HStack(spacing: 3) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "text.justify.left")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                             Text("~\(chunkingTargetWords)w/chunk")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
                         }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
-            .padding(10)
+            .padding(DSSpacing.sm)
             .background(Color.teal.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
     }
 
     // MARK: - Section: Pipeline Journey (NEW - Chunk Funnel)
 
     private var pipelineJourneySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "arrow.down.right.circle.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.cyan)
                 Text("Pipeline Journey")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 Text("chunk selection funnel")
-                    .font(.system(size: 9))
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
 
             // Visual funnel
-            VStack(spacing: 4) {
+            VStack(spacing: DSSpacing.xs) {
                 pipelineFunnelRow(
                     label: "Vector Store",
                     count: totalStoredChunks,
@@ -1926,32 +1964,34 @@ struct UnifiedMetricsBar: View {
                 )
 
                 if droppedCount > 0 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "xmark.circle")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                             .foregroundStyle(.red.opacity(0.6))
                         Text("\(droppedCount) dropped (low similarity)")
-                            .font(.system(size: 9))
+                            .font(.caption2)
+                            .monospacedDigit()
                             .foregroundStyle(.red.opacity(0.6))
                     }
-                    .padding(.top, 4)
+                    .padding(.top, DSSpacing.xs)
                 }
 
                 if uniqueDocCount > 0 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "doc.on.doc.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                         Text("from \(uniqueDocCount) unique documents")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(DSColors.secondaryText)
                     }
-                    .padding(.top, 2)
+                    .padding(.top, DSSpacing.xxs)
                 }
             }
-            .padding(10)
+            .padding(DSSpacing.sm)
             .background(Color.cyan.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
     }
 
@@ -1963,15 +2003,15 @@ struct UnifiedMetricsBar: View {
         widthRatio: Double,
         isHighlighted: Bool = false
     ) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(color)
                 .frame(width: 14)
 
             Text(label)
-                .font(.system(size: 10, weight: isHighlighted ? .semibold : .regular))
-                .foregroundStyle(isHighlighted ? .primary : .secondary)
+                .font(.caption2.weight(isHighlighted ? .semibold : .regular))
+                .foregroundStyle(isHighlighted ? DSColors.primaryText : DSColors.secondaryText)
                 .frame(width: 90, alignment: .leading)
 
             GeometryReader { geo in
@@ -1982,7 +2022,8 @@ struct UnifiedMetricsBar: View {
             .frame(height: 6)
 
             Text("\(count)")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(.caption, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(color)
                 .frame(width: 40, alignment: .trailing)
         }
@@ -1991,23 +2032,24 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: Token Budget (NEW)
 
     private var tokenBudgetSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "chart.pie.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.mint)
                 Text("Token Budget")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 Text("\(baseWindowTokens) window")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
                     .foregroundStyle(.tertiary)
             }
 
-            VStack(spacing: 6) {
+            VStack(spacing: DSSpacing.xs) {
                 tokenBudgetRow(label: "Base Window", value: baseWindowTokens, color: .gray, isTotal: true)
                 tokenBudgetRow(label: "− Safety Margin", value: -safetyTokens, color: .red)
                 tokenBudgetRow(label: "− Prompt Overhead", value: -promptOverheadTokens, color: .orange)
@@ -2019,9 +2061,9 @@ struct UnifiedMetricsBar: View {
                 tokenBudgetRow(label: "= Available for Context", value: availableContextTokens, color: .green, isResult: true)
                 tokenBudgetRow(label: "  Actually Used", value: contextTokens, color: .teal, isHighlighted: true)
             }
-            .padding(10)
+            .padding(DSSpacing.sm)
             .background(Color.mint.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
     }
 
@@ -2035,13 +2077,14 @@ struct UnifiedMetricsBar: View {
     ) -> some View {
         HStack {
             Text(label)
-                .font(.system(size: 10, weight: isResult || isHighlighted ? .semibold : .regular))
-                .foregroundStyle(isResult || isHighlighted ? .primary : .secondary)
+                .font(.caption2.weight(isResult || isHighlighted ? .semibold : .regular))
+                .foregroundStyle(isResult || isHighlighted ? DSColors.primaryText : DSColors.secondaryText)
 
             Spacer()
 
             Text(value >= 0 ? "\(value)" : "\(abs(value))")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(.caption, design: .monospaced).weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(color)
         }
     }
@@ -2049,65 +2092,68 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: Confidence Metrics (NEW)
 
     private var confidenceMetricsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "gauge.with.dots.needle.33percent")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.yellow)
                 Text("Confidence & Quality")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 if lenientRetrieval {
-                    HStack(spacing: 3) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "hand.thumbsup.fill")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                         Text("Lenient")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.caption2.weight(.medium))
                     }
                     .foregroundStyle(.orange)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(Color.orange.opacity(0.12))
                     .clipShape(Capsule())
                 }
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 // Similarity scores
-                HStack(spacing: 16) {
-                    VStack(alignment: .center, spacing: 2) {
+                HStack(spacing: DSSpacing.lg) {
+                    VStack(alignment: .center, spacing: DSSpacing.xxs) {
                         Text(String(format: "%.1f%%", topSimilarity * 100))
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.headline.weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(similarityColor(topSimilarity))
                         Text("Top Match")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                     .frame(maxWidth: .infinity)
 
                     if secondSimilarity > 0 {
-                        VStack(alignment: .center, spacing: 2) {
+                        VStack(alignment: .center, spacing: DSSpacing.xxs) {
                             Text(String(format: "%.1f%%", secondSimilarity * 100))
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .font(.subheadline.weight(.semibold))
+                                .monospacedDigit()
                                 .foregroundStyle(similarityColor(secondSimilarity))
                             Text("2nd Best")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         .frame(maxWidth: .infinity)
                     }
 
                     if avgTop5Similarity > 0 {
-                        VStack(alignment: .center, spacing: 2) {
+                        VStack(alignment: .center, spacing: DSSpacing.xxs) {
                             Text(String(format: "%.1f%%", avgTop5Similarity * 100))
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .font(.subheadline.weight(.semibold))
+                                .monospacedDigit()
                                 .foregroundStyle(similarityColor(avgTop5Similarity))
                             Text("Avg Top 5")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -2115,25 +2161,26 @@ struct UnifiedMetricsBar: View {
 
                 // Threshold info
                 if dynamicMinThreshold > 0 {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "line.horizontal.3.decrease")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                         Text("Dynamic threshold: \(String(format: "%.1f%%", dynamicMinThreshold * 100))")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(DSColors.secondaryText)
 
                         if acceptanceOverride {
                             Text("• Override active")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.caption2.weight(.medium))
                                 .foregroundStyle(.orange)
                         }
                     }
                 }
             }
-            .padding(10)
+            .padding(DSSpacing.sm)
             .background(Color.yellow.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
     }
 
@@ -2147,26 +2194,27 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: Timing Breakdown (NEW)
 
     private var timingBreakdownSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "clock.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.pink)
                 Text("Timing Breakdown")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 let totalTime = embeddingElapsed + searchElapsed + max(generationElapsed, elapsedTime)
                 if totalTime > 0 {
                     Text(String(format: "%.1fs total", totalTime))
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.medium))
+                        .monospacedDigit()
                         .foregroundStyle(.tertiary)
                 }
             }
 
-            VStack(spacing: 6) {
+            VStack(spacing: DSSpacing.xs) {
                 // Visual timeline
                 let total = embeddingElapsed + searchElapsed + max(generationElapsed, elapsedTime)
                 if total > 0 {
@@ -2195,51 +2243,55 @@ struct UnifiedMetricsBar: View {
                 }
 
                 // Legend
-                HStack(spacing: 16) {
+                HStack(spacing: DSSpacing.lg) {
                     if embeddingElapsed > 0 {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Circle().fill(Color.blue).frame(width: 8, height: 8)
                             Text("Embed: \(formatDuration(embeddingElapsed))")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
 
                     if searchElapsed > 0 {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Circle().fill(Color.purple).frame(width: 8, height: 8)
                             Text("Search: \(formatDuration(searchElapsed))")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
 
                     let genTime = max(generationElapsed, elapsedTime)
                     if genTime > 0 {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Circle().fill(Color.green).frame(width: 8, height: 8)
                             Text("Generate: \(formatDuration(genTime))")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
                 }
 
                 // TTFT if available
                 if let ttft = ttft, ttft > 0 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                             .foregroundStyle(.yellow)
                         Text("Time to first token: \(formatDuration(ttft))")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
-            .padding(10)
+            .padding(DSSpacing.sm)
             .background(Color.pink.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
         }
     }
 
@@ -2257,45 +2309,47 @@ struct UnifiedMetricsBar: View {
     }
 
     private var standardModeReasoningSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "bolt.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.blue)
                 Text("Standard Retrieval")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 Text("single-pass")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.blue)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(Color.blue.opacity(0.12))
                     .clipShape(Capsule())
             }
 
             // What techniques were used
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 // Hybrid search weights
-                HStack(spacing: 16) {
-                    HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.lg) {
+                    HStack(spacing: DSSpacing.xs) {
                         Circle().fill(Color.blue).frame(width: 8, height: 8)
                         Text("Semantic: \(Int(vectorWeight * 100))%")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
                     }
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Circle().fill(Color.orange).frame(width: 8, height: 8)
                         Text("Keyword: \(Int(lexicalWeight * 100))%")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
                     }
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DSColors.secondaryText)
 
                 // Active techniques
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     if hydeEnabled {
                         techniquePill(icon: "wand.and.stars", text: "HyDE", color: .purple)
                     }
@@ -2313,70 +2367,73 @@ struct UnifiedMetricsBar: View {
 
             ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var deepThinkReasoningSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "brain.head.profile.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.purple)
                 Text("Deep Think Reasoning")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 Text("multi-session")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.purple)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(Color.purple.opacity(0.12))
                     .clipShape(Capsule())
             }
 
             // Session info
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: DSSpacing.lg) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("\(recursiveCallCount)")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.title2.weight(.bold))
+                        .monospacedDigit()
                         .foregroundStyle(.purple)
                     Text("reasoning sessions")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
 
                 if liveConfidence > 0 || !isProcessing {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("\(Int(liveConfidence * 100))%")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.title2.weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(liveConfidence >= 0.85 ? .green : .purple)
                         Text("final confidence")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
                 Spacer()
 
                 if contextTokens > 0 {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                         Text(formatTokenCount(contextTokens))
-                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .font(.system(.headline, design: .monospaced).weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(.purple)
                         Text("total tokens")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
 
             // Techniques used
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 techniquePill(icon: "arrow.triangle.branch", text: "Multi-Query", color: .purple)
                 if graphExpansionActive {
                     techniquePill(icon: "point.3.connected.trianglepath.dotted", text: "Graph Expansion", color: .indigo)
@@ -2388,75 +2445,79 @@ struct UnifiedMetricsBar: View {
 
             ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.purple.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var maximumModeReasoningSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
                 Text("Maximum Reasoning")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 // Was "unlimited": Maximum stops at 50 sessions, fewer when few passages match (5.7).
                 Text("up to 50")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.orange)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(Color.orange.opacity(0.12))
                     .clipShape(Capsule())
             }
 
             // Session info - bigger numbers for Maximum
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: DSSpacing.lg) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("\(maximumModeSessionCount)")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.title.weight(.bold))
+                        .monospacedDigit()
                         .foregroundStyle(.orange)
                     Text("reasoning sessions")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
 
                 // Confidence with progress to 98%
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    HStack(spacing: DSSpacing.xs) {
                         Text("\(Int(liveConfidence * 100))%")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.title2.weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(liveConfidence >= 0.98 ? .green : .orange)
                         Text("/ 98%")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                     Text(liveConfidence >= 0.98 ? "target reached!" : "confidence target")
-                        .font(.system(size: 10))
-                        .foregroundStyle(liveConfidence >= 0.98 ? .green : .secondary)
+                        .font(.caption2)
+                        .foregroundStyle(liveConfidence >= 0.98 ? .green : DSColors.secondaryText)
                 }
 
                 Spacer()
 
                 if contextTokens > 0 {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                         Text(formatTokenCount(contextTokens))
-                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .font(.system(.headline, design: .monospaced).weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(.orange)
                         Text("total tokens")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
 
             // Maximum mode techniques
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 techniquePill(icon: "arrow.triangle.branch", text: "Multi-Query", color: .orange)
                 techniquePill(icon: "repeat", text: "Iterative Refinement", color: .yellow)
                 if graphExpansionActive {
@@ -2466,23 +2527,23 @@ struct UnifiedMetricsBar: View {
 
             ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(
             LinearGradient(colors: [.orange.opacity(0.08), .yellow.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func techniquePill(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 8))
+                .font(.caption2)
             Text(text)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -2490,55 +2551,58 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: Quality Signals
 
     private var qualitySignalsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.green)
                 Text("Confidence & Quality")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.lg) {
                 // Top match score
                 if topSimilarity > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xs) {
                             Text("\(Int(topSimilarity * 100))%")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .font(.title3.weight(.bold))
+                                .monospacedDigit()
                                 .foregroundStyle(matchScoreColor(topSimilarity))
                             Image(systemName: "star.fill")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                                 .foregroundStyle(.yellow)
                         }
                         Text("best match")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
                 // Second best (gap indicates confidence)
                 if secondSimilarity > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("\(Int(secondSimilarity * 100))%")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .font(.callout.weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(matchScoreColor(secondSimilarity))
                         Text("2nd best")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
                 // Average of top results
                 if avgTop5Similarity > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("\(Int(avgTop5Similarity * 100))%")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .font(.callout.weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(matchScoreColor(avgTop5Similarity))
                         Text("avg top 5")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
@@ -2546,20 +2610,21 @@ struct UnifiedMetricsBar: View {
 
                 // MMR diversity used
                 if mmrDiversity > 0 {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                         Text("λ=\(String(format: "%.1f", mmrDiversity))")
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .font(.system(.subheadline, design: .monospaced).weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(.teal)
                         Text("diversity")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.green.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
@@ -2573,28 +2638,28 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: Query Understanding
 
     private var queryUnderstandingSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Section header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.indigo)
                 Text("Query Understanding")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 if hydeEnabled {
-                    HStack(spacing: 3) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "wand.and.stars")
-                            .font(.system(size: 9))
+                            .font(.caption2)
                         Text("HyDE Active")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.caption2.weight(.medium))
                     }
                     .foregroundStyle(.purple)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
                     .background(Color.purple.opacity(0.12))
                     .clipShape(Capsule())
                 }
@@ -2602,52 +2667,52 @@ struct UnifiedMetricsBar: View {
 
             // Original query (full, not truncated)
             if !originalQuery.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("You asked:")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(DSColors.secondaryText)
                     Text(originalQuery)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.primary)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true) // Full text, never truncate
                 }
             }
 
             // Rewritten/clarified query (if different)
             if !rewrittenQuery.isEmpty && rewrittenQuery != originalQuery {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "arrow.right.circle.fill")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundStyle(.green)
                         Text("Clarified to:")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                     Text(rewrittenQuery)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(.green)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(8)
+                .padding(DSSpacing.sm)
                 .background(Color.green.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
             }
 
             // Extracted keywords & intent
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.md) {
                 // Keywords
                 if !extractedKeywords.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Key terms extracted:")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        FlowLayout(spacing: 4) {
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(DSColors.secondaryText)
+                        FlowLayout(spacing: DSSpacing.xxs) {
                             ForEach(extractedKeywords.prefix(8), id: \.self) { keyword in
                                 Text(keyword)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, DSSpacing.sm)
+                                    .padding(.vertical, DSSpacing.xxs)
                                     .background(Color.blue.opacity(0.12))
                                     .foregroundStyle(.blue)
                                     .clipShape(Capsule())
@@ -2660,72 +2725,74 @@ struct UnifiedMetricsBar: View {
 
                 // Query expansions
                 if expansionCount > 0 {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                         Text("\(expansionCount)")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.headline.weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(.purple)
                         Text("query variations")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
 
             // Intent classification
             if !queryIntent.isEmpty {
-                HStack(spacing: 6) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "lightbulb.fill")
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .foregroundStyle(.yellow)
                     Text("Detected intent: \(queryIntent)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.primary)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(DSColors.primaryText)
                 }
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.indigo.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Section: Search Results
 
     private var searchResultsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Section header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "magnifyingglass.circle.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.blue)
                 Text("Search Results")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             // Best match info (if available)
             if topMatchScore > 0 {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.md) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "star.fill")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                                 .foregroundStyle(.yellow)
                             Text("Best Match")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                         }
                         if !topMatchSource.isEmpty {
                             Text(topMatchSource)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.primary)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(DSColors.primaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("\(Int(topMatchScore * 100))% vector similarity")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.caption.weight(.bold))
+                                .monospacedDigit()
                                 .foregroundStyle(matchScoreColor(topMatchScore))
                             Text("Database match vs. LLM confidence")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
 
@@ -2740,50 +2807,56 @@ struct UnifiedMetricsBar: View {
                             .stroke(matchScoreColor(topMatchScore), style: StrokeStyle(lineWidth: 4, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                         Text("\(Int(topMatchScore * 100))")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.caption.weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(matchScoreColor(topMatchScore))
                     }
                     .frame(width: 40, height: 40)
                 }
-                .padding(10)
+                .padding(DSSpacing.sm)
                 .background(matchScoreColor(topMatchScore).opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
             }
 
             // Stats grid
-            HStack(spacing: 20) {
+            HStack(spacing: DSSpacing.lg) {
                 if sourceCount > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Text("\(sourceCount)")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .font(.title2.weight(.bold))
+                                .monospacedDigit()
                                 .foregroundStyle(sourceQualityColor)
                             Text("sources")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         if let avg = averageSourceScore {
                             Text("\(Int(avg * 100))% avg vector distance")
-                                .font(.system(size: 11))
+                                .font(.caption)
+                                .monospacedDigit()
                                 .foregroundStyle(sourceQualityColor)
                         }
                     }
                 }
 
                 if totalDocuments > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Text("\(coveredDocuments)")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .font(.title2.weight(.bold))
+                                .monospacedDigit()
                                 .foregroundStyle(.blue)
                             Text("of \(totalDocuments) docs")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         if totalChunks > 0 {
                             Text("\(totalChunks) passages scanned")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
                 }
@@ -2791,112 +2864,115 @@ struct UnifiedMetricsBar: View {
                 Spacer()
 
                 if toolCallCount > 0 {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "wrench.and.screwdriver.fill")
-                                .font(.system(size: 14))
+                                .font(.subheadline)
                             Text("\(toolCallCount)")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .font(.title2.weight(.bold))
+                                .monospacedDigit()
                         }
                         .foregroundStyle(.purple)
                         Text("agentic tools invoked")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Section: Search Strategy
 
     private var searchStrategySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Section header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "brain.head.profile.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.purple)
                 Text("Search Strategy")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 // Retrieval mode badge
-                HStack(spacing: 3) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: retrievalMode.icon)
-                        .font(.system(size: 9))
+                        .font(.caption2)
                     Text(retrievalMode.rawValue)
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                 }
                 .foregroundStyle(retrievalMode.color)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(retrievalMode.color.opacity(0.12))
                 .clipShape(Capsule())
             }
 
             // Visual weight comparison
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.md) {
                 // Semantic search
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Circle()
                             .fill(Color.blue)
                             .frame(width: 10, height: 10)
                         Text("Semantic Search")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                     }
                     Text("Finds content with similar meaning, even if different words are used")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                                 .fill(Color.blue)
                                 .frame(width: geo.size.width * vectorWeight)
                         }
                         .frame(height: 8)
-                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
 
                         Text("\(Int(vectorWeight * 100))%")
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced).weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(.blue)
                     }
                 }
                 .frame(maxWidth: .infinity)
 
                 // Keyword search
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Circle()
                             .fill(Color.orange)
                             .frame(width: 10, height: 10)
                         Text("Keyword Search")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                     }
                     Text("Matches exact words and phrases using BM25 scoring algorithm")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                                 .fill(Color.orange)
                                 .frame(width: geo.size.width * lexicalWeight)
                         }
                         .frame(height: 8)
-                        .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
 
                         Text("\(Int(lexicalWeight * 100))%")
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced).weight(.bold))
+                            .monospacedDigit()
                             .foregroundStyle(.orange)
                     }
                 }
@@ -2904,36 +2980,36 @@ struct UnifiedMetricsBar: View {
             }
 
             // Additional strategy details
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 if semanticChunksUsed {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundStyle(.green)
                         Text("Smart chunking preserves topic boundaries")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
                 Spacer()
 
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "shuffle")
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .foregroundStyle(.cyan)
                     Text("Diversity: \(diversityDescriptionFull)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
                 }
             }
 
             // NEW: Advanced RAG Features (FullBlownUpgrade)
             advancedRAGFeaturesSection
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.purple.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Advanced RAG Features (FullBlownUpgrade)
@@ -2943,22 +3019,22 @@ struct UnifiedMetricsBar: View {
         let hasAdvancedFeatures = hierarchicalChunkingActive || graphExpansionActive || intentAwareWeightsActive
 
         if hasAdvancedFeatures {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Divider()
-                    .padding(.vertical, 4)
+                    .padding(.vertical, DSSpacing.xxs)
 
                 // Header for advanced features
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.yellow)
                     Text("Advanced RAG")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.yellow)
                 }
 
                 // Feature badges in a flow layout
-                FlowLayout(spacing: 6) {
+                FlowLayout(spacing: DSSpacing.xs) {
                     // Hierarchical Chunking badge
                     if hierarchicalChunkingActive {
                         advancedFeatureBadge(
@@ -3014,22 +3090,23 @@ struct UnifiedMetricsBar: View {
         color: Color,
         tooltip: String
     ) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(title)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             if let detail {
                 Text("•")
-                    .font(.system(size: 5))
+                    .font(.caption2)
                     .opacity(0.6)
                 Text(detail)
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.caption2.weight(.medium))
+                    .monospacedDigit()
             }
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xxs)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
         .help(tooltip)
@@ -3044,44 +3121,44 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: Where It's Running
 
     private var whereRunningSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Section header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: execution.icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(execution.color)
                 Text("Processing Location")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 // Main execution info
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(executionExplanationFull)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.primary)
-.fixedSize(horizontal: false, vertical: true) // Never truncate
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(DSColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true) // Never truncate
 
                     if let modelName, !modelName.isEmpty {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "brain")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(DSColors.secondaryText)
                             Text(modelName)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
 
                     // Privacy assurance
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: execution == .privateCloudCompute ? "lock.shield.fill" : "iphone")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundStyle(.green)
                         Text(privacyExplanation)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
 
@@ -3092,98 +3169,104 @@ struct UnifiedMetricsBar: View {
                     // Deep Think / Maximum mode: Show tokens and sessions instead
                     // Use mode-appropriate color (purple for Deep Think, orange for Maximum)
                     let modeColor: Color = isMaximumMode ? .orange : .purple
-                    VStack(alignment: .trailing, spacing: 6) {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            HStack(spacing: 4) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xs) {
+                        VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
+                            HStack(spacing: DSSpacing.xxs) {
                                 Image(systemName: "arrow.trianglehead.branch")
-                                    .font(.system(size: 8))
+                                    .font(.caption2)
                                     .foregroundStyle(modeColor)
                                 Text("Multi-Session")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.secondary)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(DSColors.secondaryText)
                             }
 
-                            HStack(spacing: 6) {
+                            HStack(spacing: DSSpacing.xs) {
                                 // Sessions count
                                 if recursiveCallCount > 0 {
-                                    HStack(spacing: 2) {
+                                    HStack(spacing: DSSpacing.xxs) {
                                         Text("\(recursiveCallCount)")
-                                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                            .font(.system(.subheadline, design: .monospaced).weight(.bold))
+                                            .monospacedDigit()
                                             .foregroundStyle(modeColor)
                                         Text("sessions")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.secondary)
+                                            .font(.caption2)
+                                            .foregroundStyle(DSColors.secondaryText)
                                     }
                                 }
                             }
 
                             // Total tokens
                             if contextTokens > 0 {
-                                HStack(spacing: 2) {
+                                HStack(spacing: DSSpacing.xxs) {
                                     Text(formatTokenCount(contextTokens))
-                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                        .font(.system(.caption, design: .monospaced).weight(.bold))
+                                        .monospacedDigit()
                                         .foregroundStyle(modeColor)
                                     Text("tokens")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
+                                        .font(.caption2)
+                                        .foregroundStyle(DSColors.secondaryText)
                                 }
                             }
                         }
 
                         // Response time
                         if let t = ttft {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xxs) {
                                 Image(systemName: "clock.fill")
-                                    .font(.system(size: 10))
+                                    .font(.caption2)
                                 Text("First token in \(formatDuration(t))")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.caption.weight(.medium))
+                                    .monospacedDigit()
                             }
                             .foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
                         }
                     }
                 } else {
                     // Standard mode: Show context window usage
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xs) {
                         // Context bar with smart label
-                        VStack(alignment: .trailing, spacing: 4) {
-                            HStack(spacing: 4) {
+                        VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
+                            HStack(spacing: DSSpacing.xxs) {
                                 if hierarchicalChunkingActive {
                                     Image(systemName: "rectangle.3.group")
-                                        .font(.system(size: 8))
+                                        .font(.caption2)
                                         .foregroundStyle(.cyan)
                                 }
                                 Text(hierarchicalChunkingActive ? "Smart Context" : "Context Window")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.secondary)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(DSColors.secondaryText)
                             }
 
-                            HStack(spacing: 6) {
+                            HStack(spacing: DSSpacing.xs) {
                                 ZStack(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                                         .fill(Color.secondary.opacity(0.2))
                                         .frame(width: 70, height: 8)
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                                         .fill(contextColor)
                                         .frame(width: 70 * contextUsageRatio, height: 8)
                                 }
 
                                 Text("\(Int(contextUsageRatio * 100))%")
-                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                    .font(.system(.caption, design: .monospaced).weight(.bold))
+                                    .monospacedDigit()
                                     .foregroundStyle(contextColor)
                             }
 
                             Text(contextDetailLabel)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.secondaryText)
                         }
 
                         // Response time
                         if let t = ttft {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xxs) {
                                 Image(systemName: "clock.fill")
-                                    .font(.system(size: 10))
+                                    .font(.caption2)
                                 Text("First token in \(formatDuration(t))")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.caption.weight(.medium))
+                                    .monospacedDigit()
                             }
                             .foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
                         }
@@ -3191,9 +3274,9 @@ struct UnifiedMetricsBar: View {
                 }
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(execution.color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var executionExplanationFull: String {
@@ -3226,180 +3309,180 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: Agentic Tools Used
 
     private var agenticToolsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "wrench.and.screwdriver.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.purple)
                 Text("Agentic Tools")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
                 Text("\(toolCallCount) invoked")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption.weight(.medium))
+                    .monospacedDigit()
                     .foregroundStyle(.purple)
             }
 
             let toolEvents = thinkingEvents.filter { $0.kind == .toolCall || $0.kind == .agentic }
             if !toolEvents.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     ForEach(toolEvents) { event in
-                        HStack(alignment: .top, spacing: 6) {
+                        HStack(alignment: .top, spacing: DSSpacing.xs) {
                             Image(systemName: "circle.fill")
-                                .font(.system(size: 4))
+                                .font(.caption2)
                                 .foregroundStyle(.purple.opacity(0.6))
-                                .padding(.top, 4)
-                            VStack(alignment: .leading, spacing: 2) {
+                                .padding(.top, DSSpacing.xxs)
+                            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                 Text(event.title)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.primary)
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(DSColors.primaryText)
                                 if let detail = event.detail {
                                     Text(detail)
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
+                                        .font(.caption2)
+                                        .foregroundStyle(DSColors.secondaryText)
                                         .lineLimit(1)
-                                        .minimumScaleFactor(0.7)
                                 }
                             }
                         }
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, DSSpacing.xxs)
             } else if toolCallCount > 0 {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .top, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    HStack(alignment: .top, spacing: DSSpacing.xs) {
                         Image(systemName: "circle.fill")
-                            .font(.system(size: 4))
+                            .font(.caption2)
                             .foregroundStyle(.purple.opacity(0.6))
-                            .padding(.top, 4)
-                        VStack(alignment: .leading, spacing: 2) {
+                            .padding(.top, DSSpacing.xxs)
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text("Vector Search Engine")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.primary)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(DSColors.primaryText)
                             Text("The AI autonomously searched your documents and retrieved additional context.")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(DSColors.secondaryText)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.7)
                         }
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, DSSpacing.xxs)
             } else {
                 Text("No additional tools were required to answer this query.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.purple.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Section: How Smart It's Being
 
     private var howSmartSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Section header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.purple)
                 Text("Search Intelligence")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             // Two-column layout for search methods
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.md) {
                 // Meaning-based search
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Circle()
                             .fill(Color.blue)
                             .frame(width: 8, height: 8)
                         Text("Meaning")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                     }
                     Text("Finds similar ideas")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
 
                     // Visual bar
                     GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                             .fill(Color.blue)
                             .frame(width: geo.size.width * vectorWeight)
                     }
                     .frame(height: 6)
-                    .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                    .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
 
                     Text("\(Int(vectorWeight * 100))% weight")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.medium))
+                        .monospacedDigit()
                         .foregroundStyle(.blue)
                 }
                 .frame(maxWidth: .infinity)
 
                 // Keyword-based search
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Circle()
                             .fill(Color.orange)
                             .frame(width: 8, height: 8)
                         Text("Keywords")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                     }
                     Text("Matches exact words")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
 
                     // Visual bar
                     GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                             .fill(Color.orange)
                             .frame(width: geo.size.width * lexicalWeight)
                     }
                     .frame(height: 6)
-                    .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                    .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous))
 
                     Text("\(Int(lexicalWeight * 100))% weight")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.medium))
+                        .monospacedDigit()
                         .foregroundStyle(.orange)
                 }
                 .frame(maxWidth: .infinity)
             }
 
             // Bottom row: diversity setting
-            HStack(spacing: 16) {
-                HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.md) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "shuffle")
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .foregroundStyle(.cyan)
                     Text("Diversity: \(diversityDescription)")
-                        .font(.system(size: 11))
+                        .font(.caption)
                 }
 
                 if semanticChunksUsed {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundStyle(.green)
                         Text("Smart chunking enabled")
-                            .font(.system(size: 11))
+                            .font(.caption)
                     }
                 }
 
                 Spacer()
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DSColors.secondaryText)
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.purple.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var diversityDescription: String {
@@ -3411,51 +3494,54 @@ struct UnifiedMetricsBar: View {
     // MARK: - Section: What It Found
 
     private var whatFoundSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Section header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.blue)
                 Text("Search Results")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             // Stats in readable format
-            HStack(spacing: 20) {
+            HStack(spacing: DSSpacing.lg) {
                 if sourceCount > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Text("\(sourceCount)")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(.headline.weight(.bold))
+                                .monospacedDigit()
                                 .foregroundStyle(sourceQualityColor)
                             Text("sources used")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         if let avg = averageSourceScore {
                             Text("\(sourceQualityLabel(avg)) relevance")
-                                .font(.system(size: 11))
+                                .font(.caption)
                                 .foregroundStyle(sourceQualityColor)
                         }
                     }
                 }
 
                 if totalDocuments > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Text("\(coveredDocuments)/\(totalDocuments)")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(.headline.weight(.bold))
+                                .monospacedDigit()
                                 .foregroundStyle(.blue)
                             Text("docs searched")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                         if totalChunks > 0 {
                             Text("\(totalChunks) passages scanned")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
                 }
@@ -3463,24 +3549,25 @@ struct UnifiedMetricsBar: View {
                 Spacer()
 
                 if toolCallCount > 0 {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        HStack(spacing: 4) {
+                    VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "wrench.and.screwdriver")
-                                .font(.system(size: 12))
+                                .font(.caption)
                             Text("\(toolCallCount)")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(.headline.weight(.bold))
+                                .monospacedDigit()
                         }
                         .foregroundStyle(.purple)
                         Text("tools used")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - Section: Device Health
@@ -3489,31 +3576,31 @@ struct UnifiedMetricsBar: View {
         let state = systemMonitor.currentState
         let device = DeviceCapabilityService.shared
 
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: DSSpacing.sm) {
             // Header with live indicator
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.green)
                 Text("Device Status")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
 
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xxs) {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 6, height: 6)
                     Text("Live")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(.green)
                 }
             }
 
             // Horizontal scroll of status pills
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: DSSpacing.sm) {
                     // Chip
                     statusPill(
                         icon: "cpu",
@@ -3552,7 +3639,7 @@ struct UnifiedMetricsBar: View {
 
             // Warnings (only if constrained - removed cloud status chips as they're not useful)
             if state.isConstrained {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     warningChip(
                         icon: "exclamationmark.triangle.fill",
                         text: "Performance reduced: \(constraintReason(state))",
@@ -3561,9 +3648,9 @@ struct UnifiedMetricsBar: View {
                 }
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private func thermalSubtitle(_ state: ProcessInfo.ThermalState) -> String {
@@ -3585,37 +3672,39 @@ struct UnifiedMetricsBar: View {
     }
 
     private func statusPill(icon: String, title: String, subtitle: String, color: Color) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(color)
                 .frame(width: 24)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(DSColors.primaryText)
                 Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(DSColors.secondaryText)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
         .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
     }
 
     private func warningChip(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(.caption2)
             Text(text)
-                .font(.system(size: 11, weight: .medium))
+                .font(.caption.weight(.medium))
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -3623,21 +3712,21 @@ struct UnifiedMetricsBar: View {
     // MARK: - Legacy Compact Row: Execution + Context (kept for reference)
 
     private var executionContextRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             // Execution
-            HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: execution.icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(execution.color)
                 Text(execution.displayName)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                 if let modelName, !modelName.isEmpty {
                     Text("•")
-                        .font(.system(size: 6))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
                     Text(modelName)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(DSColors.secondaryText)
                         .lineLimit(1)
                 }
             }
@@ -3645,20 +3734,21 @@ struct UnifiedMetricsBar: View {
             Spacer()
 
             // Context gauge inline
-            HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.xxs) {
                 Text("Context:")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(DSColors.secondaryText)
                 Text("\(contextTokens)/\(maxContextTokens)")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
                     .foregroundStyle(contextColor)
 
                 // Mini progress bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                             .fill(Color.secondary.opacity(0.2))
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                             .fill(contextColor)
                             .frame(width: geo.size.width * contextUsageRatio)
                     }
@@ -3669,7 +3759,8 @@ struct UnifiedMetricsBar: View {
             // TTFT if available
             if let t = ttft {
                 Text(String(format: "%.0fms", t * 1000))
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
                     .foregroundStyle(t < 0.5 ? .green : .blue)
             }
         }
@@ -3681,7 +3772,7 @@ struct UnifiedMetricsBar: View {
         let state = systemMonitor.currentState
         let device = DeviceCapabilityService.shared
 
-        return HStack(spacing: 10) {
+        return HStack(spacing: DSSpacing.sm) {
             // Chip
             compactMetric(icon: "cpu", value: device.chipName, color: .purple)
 
@@ -3718,38 +3809,39 @@ struct UnifiedMetricsBar: View {
             Spacer()
 
             // Live indicator
-            HStack(spacing: 3) {
+            HStack(spacing: DSSpacing.xxs) {
                 Circle()
                     .fill(Color.green)
                     .frame(width: 5, height: 5)
                 Text("Live")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.green)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
+        .padding(.vertical, DSSpacing.xxs)
+        .padding(.horizontal, DSSpacing.sm)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 
     // MARK: - Compact Row: RAG Pipeline
 
     private var ragPipelineRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DSSpacing.sm) {
             // Mode
-            HStack(spacing: 3) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: retrievalMode.icon)
-                    .font(.system(size: 9))
+                    .font(.caption2)
                 Text(retrievalMode.rawValue)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
             }
             .foregroundStyle(retrievalMode.color)
 
             // Semantic/Lexical split bar
-            HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.xxs) {
                 Text("V:\(Int(vectorWeight * 100))")
-                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
                     .foregroundStyle(.blue)
 
                 GeometryReader { geo in
@@ -3764,80 +3856,87 @@ struct UnifiedMetricsBar: View {
                 .clipShape(Capsule())
 
                 Text("L:\(Int(lexicalWeight * 100))")
-                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .monospacedDigit()
                     .foregroundStyle(.orange)
             }
 
             // Chunking
             if semanticChunksUsed {
-                HStack(spacing: 2) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "brain")
-                        .font(.system(size: 8))
+                        .font(.caption2)
                     Text("Semantic")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(.purple)
             }
 
             // MMR
             Text("MMR:\(String(format: "%.1f", mmrDiversity))")
-                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .monospacedDigit()
                 .foregroundStyle(.cyan)
 
             Spacer()
 
             // Silicon badge
-            HStack(spacing: 2) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "bolt.horizontal.fill")
-                    .font(.system(size: 7))
+                    .font(.caption2)
                 Text("vDSP")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.caption2.weight(.medium))
             }
             .foregroundStyle(.cyan)
         }
-        .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .background(Color.purple.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .padding(.vertical, DSSpacing.xxs)
+        .padding(.horizontal, DSSpacing.sm)
+        .background(Color.purple.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 
     // MARK: - Compact Row: Coverage
 
     private var coverageRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             if sourceCount > 0 {
-                HStack(spacing: 3) {
+                HStack(spacing: DSSpacing.xxs) {
                     Circle()
                         .fill(sourceQualityColor)
                         .frame(width: 5, height: 5)
                     Text("\(sourceCount) sources")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption2.weight(.medium))
+                        .monospacedDigit()
                     if let avg = averageSourceScore {
                         Text("(\(String(format: "%.0f%%", avg * 100)) avg)")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
             }
 
             if totalDocuments > 0 {
                 Text("\(coveredDocuments)/\(totalDocuments) docs")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.caption2.weight(.medium))
+                    .monospacedDigit()
                     .foregroundStyle(.blue)
             }
 
             if totalChunks > 0 {
                 Text("\(totalChunks) chunks")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             if toolCallCount > 0 {
-                HStack(spacing: 2) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "wrench.and.screwdriver")
-                        .font(.system(size: 8))
+                        .font(.caption2)
                     Text("\(toolCallCount)")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption2.weight(.medium))
+                        .monospacedDigit()
                 }
                 .foregroundStyle(.purple)
             }
@@ -3849,7 +3948,7 @@ struct UnifiedMetricsBar: View {
     // MARK: - Compact Row: Warnings
 
     private var statusWarningsRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             if pccActive {
                 miniWarning(icon: "cloud.fill", text: "PCC Active", color: .blue)
             }
@@ -3869,29 +3968,30 @@ struct UnifiedMetricsBar: View {
 
     @ViewBuilder
     private func compactMetric(icon: String, value: String, color: Color) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(color)
             Text(value)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.primary)
+                .font(.caption2.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(DSColors.primaryText)
         }
     }
 
     @ViewBuilder
     private func miniWarning(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 8))
+                .font(.caption2)
             Text(text)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
         }
-.foregroundStyle(color)
-    .padding(.horizontal, 6)
-    .padding(.vertical, 3)
-    .background(color.opacity(0.12))
-    .clipShape(Capsule())
+        .foregroundStyle(color)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
     }
 
     // MARK: - System State Detail Card (Legacy - kept for reference)
@@ -3900,31 +4000,31 @@ struct UnifiedMetricsBar: View {
         let state = systemMonitor.currentState
         let deviceService = DeviceCapabilityService.shared
 
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.purple)
                 Text("System State")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
                 Spacer()
                 // Live indicator
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xxs) {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 6, height: 6)
                     Text("Live")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(.green)
                 }
             }
 
             // 2-column grid for better readability
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10),
-            ], spacing: 10) {
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+            ], spacing: DSSpacing.sm) {
                 // Thermal - Apple's exact terminology
                 systemMetricCell(
                     icon: SystemStateMonitor.thermalIcon(for: state.thermalState),
@@ -3981,7 +4081,7 @@ struct UnifiedMetricsBar: View {
             }
 
             // Status indicators row
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 if state.isLowPowerModeEnabled {
                     statusPill(icon: "leaf.fill", text: "Low Power Mode", color: .orange)
                 }
@@ -3999,60 +4099,60 @@ struct UnifiedMetricsBar: View {
 
             // Constrained state warning
             if state.isConstrained {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12))
-                    VStack(alignment: .leading, spacing: 2) {
+                        .font(.caption)
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Pipeline Adjusted")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                         Text(constraintReason(state))
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DSColors.secondaryText)
                     }
                 }
                 .foregroundStyle(.orange)
-                .padding(10)
+                .padding(DSSpacing.sm)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // MARK: - RAG Intelligence Card
 
     private var ragIntelligenceCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             // Header
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.purple)
                 Text("RAG Pipeline")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
                 Spacer()
                 // Silicon badge
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "bolt.horizontal.fill")
-                        .font(.system(size: 8))
+                        .font(.caption2)
                     Text(DeviceCapabilityService.shared.chipName)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(.cyan)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(Color.cyan.opacity(0.12))
                 .clipShape(Capsule())
             }
 
             // 2-column grid for RAG metrics
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 10),
-                GridItem(.flexible(), spacing: 10),
-            ], spacing: 10) {
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+                GridItem(.flexible(), spacing: DSSpacing.sm),
+            ], spacing: DSSpacing.sm) {
                 // Retrieval Mode
                 ragMetricCell(
                     icon: retrievalMode.icon,
@@ -4091,14 +4191,14 @@ struct UnifiedMetricsBar: View {
             }
 
             // Fusion visualization
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 // Vector bar
                 GeometryReader { geo in
                     HStack(spacing: 0) {
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                             .fill(Color.blue)
                             .frame(width: geo.size.width * vectorWeight)
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        RoundedRectangle(cornerRadius: DSCorners.badge, style: .continuous)
                             .fill(Color.orange)
                             .frame(width: geo.size.width * lexicalWeight)
                     }
@@ -4107,12 +4207,12 @@ struct UnifiedMetricsBar: View {
                 .clipShape(Capsule())
 
                 Text("RRF")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.purple)
             }
 
             // Feature pills
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 ragFeaturePill(icon: "function", label: "vDSP Math")
                 ragFeaturePill(icon: "arrow.triangle.branch", label: "MMR \(String(format: "%.2f", mmrDiversity))")
                 if totalChunks > 0 {
@@ -4121,9 +4221,9 @@ struct UnifiedMetricsBar: View {
                 Spacer()
             }
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var retrievalModeDetail: String {
@@ -4136,85 +4236,89 @@ struct UnifiedMetricsBar: View {
 
     @ViewBuilder
     private func ragMetricCell(icon: String, label: String, value: String, detail: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(color)
                 Text(label)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             Text(value)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+                .font(.footnote.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(DSColors.primaryText)
 
             Text(detail)
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(DSColors.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(8)
+        .padding(DSSpacing.sm)
         .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
     }
 
     @ViewBuilder
     private func ragFeaturePill(icon: String, label: String) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(label)
-                .font(.system(size: 8, weight: .medium))
+                .font(.caption2.weight(.medium))
+                .monospacedDigit()
         }
         .foregroundStyle(.cyan)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, DSSpacing.xs)
+        .padding(.vertical, DSSpacing.xxs)
         .background(Color.cyan.opacity(0.12))
         .clipShape(Capsule())
     }
 
     @ViewBuilder
     private func systemMetricCell(icon: String, label: String, value: String, detail: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             // Label row
-            HStack(spacing: 5) {
+            HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(color)
                 Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             // Value - prominent
             Text(value)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+                .font(.subheadline.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(DSColors.primaryText)
 
             // Detail - subtle
             Text(detail)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.caption2.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(DSColors.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(DSSpacing.sm)
         .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
     }
 
     @ViewBuilder
     private func statusPill(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text(text)
-                .font(.system(size: 9, weight: .medium))
+                .font(.caption2.weight(.medium))
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xxs)
         .background(color.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -4296,46 +4400,47 @@ struct UnifiedMetricsBar: View {
     }
 
     private var executionDetailCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: execution.icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(execution.color)
                 Text("Execution")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             Text(execution.displayName)
-                .font(.system(size: 14, weight: .medium))
+                .font(.subheadline.weight(.medium))
 
             if let modelName, !modelName.isEmpty {
                 Text(modelName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(DSColors.secondaryText)
                     .lineLimit(1)
             }
 
             Text(executionExplanationFull)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-.fixedSize(horizontal: false, vertical: true)
+                .font(.caption)
+                .foregroundStyle(DSColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let t = ttft {
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xxs) {
                     Text("TTFT:")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(DSColors.secondaryText)
                     Text(String(format: "%.2fs", t))
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                        .monospacedDigit()
                         .foregroundStyle(t < 1.0 ? .green : .blue)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(DSSpacing.sm)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     // executionExplanation defined earlier in file
@@ -4348,28 +4453,28 @@ struct UnifiedMetricsBar: View {
             return ("iphone", "Processing on-device", .green)
         }()
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
             Text(text)
-                .font(.system(size: 11))
+                .font(.caption)
         }
         .foregroundStyle(tint)
-        .padding(10)
+        .padding(DSSpacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
     }
 
     private var coverageDetailCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.blue)
                 Text("Coverage")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             Text(
@@ -4377,51 +4482,54 @@ struct UnifiedMetricsBar: View {
                     ? "\(coveredDocuments) / \(totalDocuments) docs"
                     : "\(coveredDocuments) docs"
             )
-                .font(.system(size: 14, weight: .medium))
+            .font(.subheadline.weight(.medium))
+            .monospacedDigit()
 
             Text(
                 totalChunks > 0
                     ? "\(sourceCount) / \(totalChunks) chunks"
                     : "\(sourceCount) chunks"
             )
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(.secondary)
+            .font(.system(.caption, design: .monospaced).weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(DSColors.secondaryText)
 
             if let avg = averageSourceScore {
                 Text(String(format: "Avg score: %.2f", avg))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(DSColors.secondaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(DSSpacing.sm)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var routingDetailCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "point.3.connected.trianglepath.dotted")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.blue)
                 Text("Routing")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             Text(routingTitle)
-                .font(.system(size: 14, weight: .medium))
+                .font(.subheadline.weight(.medium))
 
             Text(routingExplanation)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(DSColors.secondaryText)
                 .lineLimit(3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(DSSpacing.sm)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var routingTitle: String {
@@ -4447,18 +4555,19 @@ struct UnifiedMetricsBar: View {
     }
 
     private var contextDetailCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "rectangle.stack")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(contextColor)
                 Text("Context")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DSColors.secondaryText)
             }
 
             Text("\(formatTokenLimit(contextTokens)) / \(formatTokenLimit(maxContextTokens)) tokens")
-                .font(.system(size: 14, weight: .medium))
+                .font(.subheadline.weight(.medium))
+                .monospacedDigit()
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -4472,14 +4581,15 @@ struct UnifiedMetricsBar: View {
             .frame(height: 6)
 
             Text(contextExplanation)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(DSColors.secondaryText)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(DSSpacing.sm)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var contextExplanation: String {
@@ -4496,26 +4606,26 @@ struct UnifiedMetricsBar: View {
     }
 
     private var architectureNote: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "cpu")
-.font(.system(size: 11))
-    .foregroundStyle(.purple)
+                    .font(.caption)
+                    .foregroundStyle(.purple)
                 Text("Apple Intelligence")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.caption.weight(.medium))
             }
             Text(execution == .privateCloudCompute
                 ? "Routed to Private Cloud Compute servers."
                 : DeviceCapabilities.pccRoutingCompiledIn
                     ? "On-device model. With your permission, a large answer or a multi-document Deep Think or Maximum answer can be written on Private Cloud Compute, and every answer when it is picked in the model picker."
                     : "On-device model. Nothing leaves this device in this version.")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(DSColors.secondaryText)
         }
-        .padding(10)
+        .padding(DSSpacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.purple.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
     }
 
     // MARK: - Helpers

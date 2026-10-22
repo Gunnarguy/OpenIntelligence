@@ -24,25 +24,26 @@ struct WritingToolsResultSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     // Header with icon
-                    HStack(spacing: 10) {
+                    HStack(spacing: DSSpacing.sm) {
                         Image(systemName: iconForTitle)
-                            .font(.system(size: 24, weight: .medium))
+                            .font(.title2.weight(.medium))
                             .foregroundStyle(colorForTitle)
                             .frame(width: 40, height: 40)
                             .background(colorForTitle.opacity(0.12))
                             .clipShape(Circle())
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text(title)
                                 .font(.headline)
+                                .foregroundStyle(DSColors.primaryText)
                             Text("via Apple Intelligence")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DSColors.secondaryText)
                         }
                     }
-                    .padding(.bottom, 4)
+                    .padding(.bottom, DSSpacing.xs)
 
                     Divider()
 
@@ -56,15 +57,15 @@ struct WritingToolsResultSheet: View {
                     HStack {
                         Text("Helpful?")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DSColors.secondaryText)
                         Spacer()
                         Button {
                             onFeedback?(true)
                         } label: {
                             Image(systemName: "hand.thumbsup")
-                                .font(.system(size: 18))
+                                .font(.body)
                                 .foregroundStyle(.green)
-                                .padding(8)
+                                .padding(DSSpacing.sm)
                                 .background(Color.green.opacity(0.1))
                                 .clipShape(Circle())
                         }
@@ -73,9 +74,9 @@ struct WritingToolsResultSheet: View {
                             onFeedback?(false)
                         } label: {
                             Image(systemName: "hand.thumbsdown")
-                                .font(.system(size: 18))
-                                .foregroundStyle(.secondary)
-                                .padding(8)
+                                .font(.body)
+                                .foregroundStyle(DSColors.secondaryText)
+                                .padding(DSSpacing.sm)
                                 .background(Color.secondary.opacity(0.1))
                                 .clipShape(Circle())
                         }
@@ -85,26 +86,26 @@ struct WritingToolsResultSheet: View {
                     Divider()
 
                     // Action buttons
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         Button {
                             onCopy()
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.footnote.weight(.medium))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
+                                .padding(.vertical, DSSpacing.sm)
                                 .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                         }
                         .buttonStyle(.plain)
 
                         ShareLink(item: result) {
                             Label("Share", systemImage: "square.and.arrow.up")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.footnote.weight(.medium))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
+                                .padding(.vertical, DSSpacing.sm)
                                 .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                         }
                         .buttonStyle(.plain)
 
@@ -112,18 +113,19 @@ struct WritingToolsResultSheet: View {
                             onInsertAsReply()
                         } label: {
                             Label("Insert", systemImage: "text.insert")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.footnote.weight(.medium))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
+                                .padding(.vertical, DSSpacing.sm)
                                 .foregroundStyle(.white)
                                 .background(colorForTitle)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
+            .background(DSColors.background)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
