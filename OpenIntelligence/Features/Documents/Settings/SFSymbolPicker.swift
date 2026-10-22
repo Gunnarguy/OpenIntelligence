@@ -140,7 +140,7 @@ struct SFSymbolPicker: View {
     }
 
     private let columns = [
-        GridItem(.adaptive(minimum: 50, maximum: 60), spacing: 8),
+        GridItem(.adaptive(minimum: 50, maximum: 60), spacing: DSSpacing.sm),
     ]
 
     var body: some View {
@@ -148,20 +148,20 @@ struct SFSymbolPicker: View {
             VStack(spacing: 0) {
                 // Category tabs
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         ForEach(SymbolCategory.allCases, id: \.self) { category in
                             categoryTab(category)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
                 }
                 .background(DSColors.surface)
 
                 Divider()
 
                 // Search
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
                     TextField("Search symbols...", text: $searchText)
@@ -175,70 +175,70 @@ struct SFSymbolPicker: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.sm)
                 .background(DSColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.sm)
 
                 // Symbol grid
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: DSSpacing.lg) {
                         // Suggested icons section (when available)
                         if showSuggestions {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
+                            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                                HStack(spacing: DSSpacing.xs) {
                                     Image(systemName: "sparkles")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.orange)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.accentColor)
                                     Text("Suggested for your content")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(.primary)
                                 }
-                                .padding(.horizontal, 16)
+                                .padding(.horizontal, DSSpacing.lg)
 
                                 ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 10) {
+                                    HStack(spacing: DSSpacing.sm) {
                                         ForEach(suggestedIcons, id: \.self) { symbol in
                                             suggestedSymbolButton(symbol)
                                         }
                                     }
-                                    .padding(.horizontal, 16)
+                                    .padding(.horizontal, DSSpacing.lg)
                                 }
                             }
-                            .padding(.top, 8)
+                            .padding(.top, DSSpacing.sm)
 
                             Divider()
-                                .padding(.horizontal, 16)
+                                .padding(.horizontal, DSSpacing.lg)
                         }
 
                         // All symbols grid
-                        LazyVGrid(columns: columns, spacing: 8) {
+                        LazyVGrid(columns: columns, spacing: DSSpacing.sm) {
                             ForEach(filteredSymbols, id: \.self) { symbol in
                                 symbolButton(symbol)
                             }
                         }
-.padding(.horizontal, 16)
-    .padding(.bottom, 16)
+                        .padding(.horizontal, DSSpacing.lg)
+                        .padding(.bottom, DSSpacing.lg)
                     }
                 }
 
                 // Current selection preview
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     Image(systemName: selectedSymbol)
-                        .font(.system(size: 32))
-                        .foregroundColor(.accentColor)
+                        .font(.title)
+                        .foregroundStyle(Color.accentColor)
                         .frame(width: 50, height: 50)
                         .background(Color.accentColor.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Selected")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(selectedSymbol)
-                            .font(.system(size: 14, weight: .medium, design: .monospaced))
+                            .font(.subheadline.weight(.medium).monospaced())
                     }
 
                     Spacer()
@@ -248,7 +248,7 @@ struct SFSymbolPicker: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-                .padding(16)
+                .padding(DSSpacing.lg)
                 .background(DSColors.surface)
             }
             .navigationTitle("Choose Icon")
@@ -266,19 +266,19 @@ struct SFSymbolPicker: View {
     @ViewBuilder
     private func categoryTab(_ category: SymbolCategory) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(DSAnimations.fastEase) {
                 selectedCategory = category
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: category.icon)
-                    .font(.system(size: 11))
+                    .font(.caption)
                 Text(category.rawValue)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
             }
             .foregroundStyle(selectedCategory == category ? .white : .primary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
             .background(
                 selectedCategory == category
                     ? Color.accentColor
@@ -295,17 +295,17 @@ struct SFSymbolPicker: View {
             selectedSymbol = symbol
             DSHaptics.selection()
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: DSSpacing.xs) {
                 Image(systemName: symbol)
-                    .font(.system(size: 22))
-                    .frame(width: 44, height: 44)
+                    .font(.title2)
+                    .frame(width: DSSpacing.tapTarget, height: DSSpacing.tapTarget)
                     .foregroundStyle(selectedSymbol == symbol ? .white : .primary)
                     .background(
                         selectedSymbol == symbol
                             ? Color.accentColor
                             : DSColors.surfaceElevated
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
             }
         }
         .buttonStyle(.plain)
@@ -317,28 +317,28 @@ struct SFSymbolPicker: View {
             selectedSymbol = symbol
             DSHaptics.selection()
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: DSSpacing.xs) {
                 ZStack {
                     Circle()
                         .fill(
                             selectedSymbol == symbol
                                 ? Color.accentColor
-                                : Color.orange.opacity(0.15)
+                                : Color.accentColor.opacity(0.15)
                         )
                         .frame(width: 56, height: 56)
 
                     Image(systemName: symbol)
-                        .font(.system(size: 26))
+                        .font(.title)
                         .foregroundStyle(
                             selectedSymbol == symbol
                                 ? .white
-                                : .orange
+                                : Color.accentColor
                         )
                 }
                 .overlay(
                     Circle()
                         .strokeBorder(
-                            selectedSymbol == symbol ? Color.accentColor : Color.orange.opacity(0.3),
+                            selectedSymbol == symbol ? Color.accentColor : Color.accentColor.opacity(0.3),
                             lineWidth: selectedSymbol == symbol ? 0 : 2
                         )
                 )
@@ -366,15 +366,15 @@ struct SFSymbolPickerButton: View {
         Button {
             showingPicker = true
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: selectedSymbol)
-                    .font(.system(size: 20))
-                    .foregroundColor(.accentColor)
+                    .font(.title3)
+                    .foregroundStyle(Color.accentColor)
                     .frame(width: 36, height: 36)
                     .background(Color.accentColor.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Icon")
                         .font(.subheadline)
                         .foregroundStyle(.primary)
@@ -387,10 +387,10 @@ struct SFSymbolPickerButton: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingPicker) {
