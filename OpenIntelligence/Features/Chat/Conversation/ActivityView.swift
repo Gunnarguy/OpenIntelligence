@@ -32,10 +32,10 @@ import SwiftUI
         @Environment(\.dismiss) private var dismiss
 
         var body: some View {
-            VStack(spacing: 24) {
+            VStack(spacing: DSSpacing.xl) {
                 Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 32))
-                    .foregroundColor(.accentColor)
+                    .font(.largeTitle)
+                    .foregroundStyle(DSColors.accent)
                 
                 Text("Share Item")
                     .font(.headline)
@@ -65,7 +65,7 @@ import SwiftUI
                     }
                 } else {
                     Text("No shareable content found.")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 
                 Button("Done") {
@@ -73,7 +73,7 @@ import SwiftUI
                 }
                 .keyboardShortcut(.defaultAction)
             }
-            .padding(32)
+            .padding(DSSpacing.xxl)
             .frame(width: 300)
         }
     }

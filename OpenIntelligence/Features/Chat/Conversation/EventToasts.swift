@@ -64,17 +64,17 @@ struct EventToastView: View {
         HStack(spacing: DSSpacing.xs) {
             // Animated icon
             Image(systemName: toast.icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(toast.tint)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(toast.tint)
                 .symbolEffect(.bounce, options: .nonRepeating, value: isVisible)
             
             Text(toast.title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(DSColors.primaryText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(DSColors.primaryText)
                 .lineLimit(1)
         }
         .padding(.horizontal, DSSpacing.sm)
-        .padding(.vertical, 8)
+        .padding(.vertical, DSSpacing.sm)
         .background(
             .ultraThinMaterial,
             in: Capsule()
@@ -114,7 +114,7 @@ struct ToastStackView: View {
     }
     
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: DSSpacing.xs) {
             ForEach(visibleItems) { toast in
                 EventToastView(toast: toast)
                     .transition(
