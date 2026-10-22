@@ -36,7 +36,7 @@ struct ModernDocumentCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: DSSpacing.lg) {
             // Icon with liquid gradient background
             ZStack {
                 Circle()
@@ -51,48 +51,48 @@ struct ModernDocumentCard: View {
                     .glassCircleEffectHelper()
 
                 Image(systemName: DocumentRow.iconName(for: document.contentType))
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 // The name and its figures grow with the text size, and the figures in the readable gray go onto
                 // further lines when they do not fit across (5.7): gray on this card measured 3.38 to 1.
                 Text(document.filename)
-                    .scaledFont(size: 16, weight: .bold)
-                    .foregroundColor(.primary)
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(.primary)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
 
-                WrappingRowLayout(spacing: 12, lineSpacing: 4) {
-                    HStack(spacing: 4) {
+                WrappingRowLayout(spacing: DSSpacing.md, lineSpacing: DSSpacing.xs) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "cube.box.fill")
                         Text("\(document.totalChunks)")
                     }
-                    .scaledFont(size: 11, weight: .medium)
+                    .font(.caption.weight(.medium).monospacedDigit())
                     .foregroundStyle(DSColors.secondaryText)
 
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "clock")
                         Text(document.addedAt, style: .relative)
                     }
-                    .scaledFont(size: 11, weight: .medium)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(DSColors.secondaryText)
                     
                     if isSharedICloudDocument {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "icloud.fill")
                             Text("Synced")
                         }
-                        .scaledFont(size: 11, weight: .bold)
-                        .foregroundStyle(DSColors.readable(.blue))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(DSColors.readable(.accentColor))
                     }
                 }
 
                 // Content tags row (iOS 26+)
                 if !displayTags.isEmpty {
                     ContentTagsRow(tags: displayTags, hasMoreTags: (document.contentTags?.count ?? 0) > 3)
-                        .padding(.top, 2)
+                        .padding(.top, DSSpacing.xxs)
                 }
             }
 
@@ -100,18 +100,18 @@ struct ModernDocumentCard: View {
 
             // Chevron
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.secondary.opacity(0.5))
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(12)
+        .padding(DSSpacing.md)
         // The regular material, a little more opaque than the thin one it replaces, so gray text on the card reads at
         // 4.5 to 1 over the library's background (5.7).
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(.regularMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
@@ -229,37 +229,23 @@ struct ContentTagsRow: View {
 
     /// Gradient colors for tag backgrounds based on index
     private func tagColor(for index: Int) -> Color {
-        let colors: [Color] = [
-            .blue.opacity(0.15),
-            .purple.opacity(0.15),
-            .green.opacity(0.15),
-            .orange.opacity(0.15),
-            .pink.opacity(0.15),
-        ]
-        return colors[index % colors.count]
+        Color.accentColor.opacity(0.15)
     }
 
     private func tagTextColor(for index: Int) -> Color {
-        let colors: [Color] = [
-            .blue,
-            .purple,
-            .green,
-            .orange,
-            .pink,
-        ]
-        return colors[index % colors.count]
+        Color.accentColor
     }
 
     var body: some View {
         // The words in the label color, the tag's color in its tint and edge, and the tags on further lines when they
         // do not fit across (5.7).
-        WrappingRowLayout(spacing: 6, lineSpacing: 4) {
+        WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
             ForEach(Array(tags.enumerated()), id: \.offset) { index, tag in
                 Text(tag)
-                    .scaledFont(size: 9, weight: .bold)
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
                     .background(
                         Capsule()
                             .fill(tagColor(for: index).opacity(0.5))
@@ -272,9 +258,9 @@ struct ContentTagsRow: View {
 
             if hasMoreTags {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(DSColors.secondaryText)
-                    .padding(.leading, 2)
+                    .padding(.leading, DSSpacing.xxs)
                     .accessibilityLabel("More tags")
             }
         }
