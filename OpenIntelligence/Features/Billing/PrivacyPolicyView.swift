@@ -8,10 +8,10 @@ struct PrivacyPolicyView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DSSpacing.lg) {
                     Text("Privacy Policy")
                         .font(.largeTitle.weight(.bold))
-                        .padding(.bottom, 8)
+                        .padding(.bottom, DSSpacing.sm)
 
                     Text("Last updated: October 17, 2026")
                         .font(.caption)
@@ -71,7 +71,8 @@ For privacy questions: Gunnarguy@me.com
 """)
                     }
                 }
-                .padding(24)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.xl)
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -93,7 +94,7 @@ For privacy questions: Gunnarguy@me.com
     }
 
     private func section(title: String, content: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text(title)
                 .font(.headline)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility3)

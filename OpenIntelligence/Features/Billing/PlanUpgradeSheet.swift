@@ -38,7 +38,7 @@ struct PlanUpgradeSheet: View {
             product: .proMonthly,
             tagline: "Maximum mode every day, billed monthly",
             badgeText: "Month to month",
-            tint: .purple,
+            tint: .accentColor,
             isFeatured: false,
             features: [
                 "Maximum mode with no daily cap",
@@ -53,7 +53,7 @@ struct PlanUpgradeSheet: View {
             product: .proAnnual,
             tagline: "Maximum mode every day, one payment a year",
             badgeText: nil,
-            tint: .purple,
+            tint: .accentColor,
             isFeatured: true,
             features: [
                 "Maximum mode with no daily cap",
@@ -84,28 +84,28 @@ struct PlanUpgradeSheet: View {
             title: "The same model in every plan",
             subtitle: "Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent: all of it is free. Pro and Lifetime remove the limits.",
             icon: "bolt.fill",
-            tint: .orange
+            tint: .accentColor
         ),
         PlanStorySlide(
             title: "Privacy guarantee",
             subtitle:
                 "Reading, searching and citing happen on your device in every plan. Nothing ever goes to a third-party AI provider.",
             icon: "lock.shield.fill",
-            tint: .teal
+            tint: .accentColor
         ),
         PlanStorySlide(
             title: "Maximum, every day",
             subtitle:
                 "Maximum is the highest-effort mode, three runs a day on the free plan. Pro lifts the cap; Lifetime does too, with unlimited documents, for one payment.",
             icon: "arrow.up.right.circle.fill",
-            tint: .purple
+            tint: .orange
         ),
     ]
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: DSSpacing.xl) {
                     heroSection
                     launchSaleBanner
                     socialProofBanner
@@ -120,8 +120,8 @@ struct PlanUpgradeSheet: View {
                     managementControls
                     complianceFooter
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.xl)
             }
             .background(
                 LinearGradient(
@@ -190,7 +190,7 @@ struct PlanUpgradeSheet: View {
 
 extension PlanUpgradeSheet {
     fileprivate var heroSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text(entryPoint.headline)
                 .font(.title2.weight(.semibold))
             Text(entryPoint.subheadline)
@@ -198,9 +198,9 @@ extension PlanUpgradeSheet {
                 .foregroundStyle(DSColors.secondaryText)
             HStack {
                 Label("Current plan: \(entitlementStore.activeTier.displayName)", systemImage: "creditcard")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
                     .background(Color.accentColor.opacity(0.1))
                     .clipShape(Capsule())
                 Spacer()
@@ -213,32 +213,33 @@ extension PlanUpgradeSheet {
     /// `AppStoreRatingSnapshot.minimumRatingCount`. Until 5.4 this banner said "Upgrade anytime,
     /// cancel in App Store settings", which is a footer, not proof.
     fileprivate var socialProofBanner: some View {
-        // The words in the label color and the color in the icons (5.7): gray words on the purple tint measured 3.34
+        // The words in the label color and the color in the icons (5.7): gray words on the tint measured 3.34
         // to 1.
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Label {
                 Text("App Store privacy label: Data Not Collected")
             } icon: {
                 Image(systemName: "hand.raised.fill")
-                    .foregroundStyle(DSColors.readable(.purple))
+                    .foregroundStyle(DSColors.readable(.accentColor))
             }
             if let rating = AppStoreRatingService.cached(), rating.isWorthShowing {
                 Label {
                     Text(rating.line)
+                        .monospacedDigit()
                 } icon: {
                     Image(systemName: "star.fill")
-                        .foregroundStyle(DSColors.readable(.purple))
+                        .foregroundStyle(DSColors.readable(.accentColor))
                 }
             }
         }
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(DSColors.primaryText)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DSSpacing.lg)
+        .padding(.vertical, DSSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.purple.opacity(0.08))
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
         )
     }
 
@@ -250,27 +251,28 @@ extension PlanUpgradeSheet {
     @ViewBuilder
     fileprivate var launchSaleBanner: some View {
         if let offer = saleOffer(for: .lifetimeCohort) {
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "tag.fill")
                     .foregroundStyle(.green)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Launch sale: Lifetime is \(offer.percentOff)% off")
                         .font(.subheadline.weight(.bold))
+                        .monospacedDigit()
                     Text("Ends \(LaunchSale.deadlineText(for: offer.endDate)). One payment, no renewal.")
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DSSpacing.lg)
+            .padding(.vertical, DSSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(Color.green.opacity(0.10))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .strokeBorder(Color.green.opacity(0.35), lineWidth: 1)
             )
             .accessibilityElement(children: .combine)
@@ -278,18 +280,18 @@ extension PlanUpgradeSheet {
     }
 
     fileprivate var whyUpgradeNowSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Why upgrade now?")
                 .font(.headline)
-            VStack(alignment: .leading, spacing: 8) {
-                BenefitRow(icon: "doc.badge.plus", text: "Higher document limits", tint: .orange)
-                BenefitRow(icon: "square.stack.3d.up.fill", text: "More libraries", tint: .blue)
-                BenefitRow(icon: "creditcard", text: "One-time lifetime option", tint: .purple)
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                BenefitRow(icon: "doc.badge.plus", text: "Higher document limits", tint: .accentColor)
+                BenefitRow(icon: "square.stack.3d.up.fill", text: "More libraries", tint: .accentColor)
+                BenefitRow(icon: "creditcard", text: "One-time lifetime option", tint: .accentColor)
             }
         }
-        .padding(16)
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface.opacity(0.6))
         )
     }
@@ -318,10 +320,10 @@ extension PlanUpgradeSheet {
         ZStack {
             ForEach(storySlides.indices, id: \.self) { index in
                 storySlideView(storySlides[index])
-                    .padding(16)
+                    .padding(DSSpacing.lg)
             }
         }
-        .padding(.bottom, 36)
+        .padding(.bottom, DSSpacing.xxl)
         .hidden()
         .accessibilityHidden(true)
         .overlay {
@@ -329,17 +331,17 @@ extension PlanUpgradeSheet {
                 ForEach(storySlides.indices, id: \.self) { index in
                     let slide = storySlides[index]
                     storySlideView(slide)
-                        .padding(16)
+                        .padding(DSSpacing.lg)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .background(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                                 .fill(slide.tint.opacity(0.15))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                                 .stroke(slide.tint.opacity(0.2), lineWidth: 1)
                         )
-                        .padding(.bottom, 36)
+                        .padding(.bottom, DSSpacing.xxl)
                         .tag(index)
                 }
             }
@@ -351,7 +353,7 @@ extension PlanUpgradeSheet {
     }
 
     fileprivate func storySlideView(_ slide: PlanStorySlide) -> some View {
-        HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .top, spacing: DSSpacing.lg) {
             ZStack {
                 Circle()
                     .fill(slide.tint.opacity(0.2))
@@ -359,7 +361,7 @@ extension PlanUpgradeSheet {
                 Image(systemName: slide.icon)
                     .foregroundStyle(slide.tint)
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(slide.title)
                     .font(.headline)
                 // The label color on the slide's tint, where gray measured 4.53 to 1 on the orange one (5.7).
@@ -373,28 +375,28 @@ extension PlanUpgradeSheet {
     }
 
     fileprivate var multiDocumentTip: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: DSSpacing.md) {
             Image(systemName: "rectangle.stack.badge.person.crop")
                 .font(.title3)
-                .foregroundStyle(Color.accentColor)
-            VStack(alignment: .leading, spacing: 4) {
+                .foregroundStyle(DSColors.accent)
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Built for personal research")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                 Text("Spin up as many document chats as you need while keeping each workspace organized.")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(Color.accentColor.opacity(0.08))
         )
     }
 
     fileprivate var managementControls: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DSSpacing.md) {
             Button(action: manageSubscriptions) {
                 Label("Manage Subscription", systemImage: "person.crop.circle.badge.checkmark")
                     .frame(maxWidth: .infinity)
@@ -437,14 +439,14 @@ extension PlanUpgradeSheet {
     }
 
     fileprivate var complianceFooter: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text(
                 "Subscriptions automatically renew at the price and duration selected above unless cancelled at least 24 hours before the end of the current period. Payments are charged to your App Store account. You can manage your subscriptions and turn off auto-renewal in your App Store Account Settings after purchase."
             )
-            .font(.caption2)
+            .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.lg) {
                 Link(
                     "Terms of Use (EULA)",
                     destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
@@ -763,9 +765,9 @@ private struct PlanTierCard: View {
     let ctaAction: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(option.planName)
                         .font(.headline)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
@@ -782,18 +784,19 @@ private struct PlanTierCard: View {
                         .font(.caption2.weight(.semibold))
                         .lineLimit(1)
                         .fixedSize()
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, DSSpacing.sm)
+                        .padding(.vertical, DSSpacing.xs)
                         .background(option.tint.opacity(0.15))
                         .clipShape(Capsule())
                         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
                     Text(price + (priceSuffix ?? ""))
                         .font(.title.bold())
+                        .monospacedDigit()
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
@@ -801,6 +804,7 @@ private struct PlanTierCard: View {
                     if let saleOffer {
                         Text(saleOffer.regularDisplayPrice)
                             .font(.headline)
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
                             .strikethrough(true, color: .secondary)
                             .lineLimit(1)
@@ -808,10 +812,11 @@ private struct PlanTierCard: View {
                             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
 
                         Text("\(saleOffer.percentOff)% off")
-                            .font(.caption.weight(.bold))
+                            .font(.caption2.weight(.semibold))
+                            .monospacedDigit()
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.vertical, DSSpacing.xxs)
                             .background(Capsule().fill(Color.green))
                             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     }
@@ -830,10 +835,10 @@ private struct PlanTierCard: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.top, -8)
+                .padding(.top, -DSSpacing.sm)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 ForEach(option.features, id: \.self) { feature in
                     Label(feature, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.secondary)
@@ -847,9 +852,9 @@ private struct PlanTierCard: View {
                 // In release builds, tapping triggers a refresh + retry; in DEBUG we may simulate.
                 .disabled(hasAccess || isProcessing)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: option.isFeatured ? option.tint.opacity(0.2) : .clear, radius: 20, x: 0, y: 10)
         )
@@ -936,16 +941,18 @@ private struct PlanPriceCaptions: View {
         }
         if let dealBadge {
             Text(dealBadge)
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
                 .lineLimit(1)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(Capsule().fill(Color.green.opacity(0.18)))
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
         ForEach(lines, id: \.self) { line in
             Text(line)
                 .font(.caption)
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
@@ -966,10 +973,10 @@ private struct BenefitRow: View {
     let tint: Color
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
                 .foregroundStyle(tint)
-                .frame(width: 24)
+                .frame(width: DSSpacing.xl)
             Text(text)
                 .font(.subheadline)
         }
