@@ -30,27 +30,27 @@ struct ThinkingStreamView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header - shows latest action, tappable to expand/collapse
-            Button(action: { withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { isExpanded.toggle() } }) {
+            Button(action: { withAnimation(DSAnimations.snappySpring) { isExpanded.toggle() } }) {
                 headerView
             }
             .buttonStyle(.plain)
 
             // Expanded: Full console log of all events or visual gates
             if isExpanded {
-                VStack(spacing: 8) {
+                VStack(spacing: DSSpacing.sm) {
                     // Mode Picker
                     Picker("View Mode", selection: $viewMode) {
                         Text("Gates").tag(ViewMode.visualGates)
                         Text("Console").tag(ViewMode.console)
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 8)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.top, DSSpacing.sm)
                     
                     if viewMode == .visualGates {
                         VerificationGatesOverlayView(events: events, qualityMode: qualityMode)
-                            .padding(.horizontal, 10)
-                            .padding(.bottom, 8)
+                            .padding(.horizontal, DSSpacing.sm)
+                            .padding(.bottom, DSSpacing.sm)
                     } else {
                         consoleLogView
                     }
@@ -61,12 +61,12 @@ struct ThinkingStreamView: View {
                 ))
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isExpanded)
-        .animation(.easeInOut(duration: 0.15), value: events.count)
+        .animation(DSAnimations.snappySpring, value: isExpanded)
+        .animation(DSAnimations.fastEase, value: events.count)
         // Auto-expand when events start coming in
         .onChange(of: events.count) { _, newCount in
             if newCount >= 1 && !hasAutoExpanded {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                withAnimation(DSAnimations.snappySpring) {
                     isExpanded = true
                     hasAutoExpanded = true
                 }
@@ -82,47 +82,49 @@ struct ThinkingStreamView: View {
     // MARK: - Header (compact summary when collapsed)
 
     private var headerView: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             // Pulsing dot when active
             ThinkingPulse()
 
             // Latest operation (what's happening RIGHT NOW)
             if let latest = latestEvent {
                 Text(latest.title)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.semibold))
                     .foregroundStyle(colorFor(latest.kind))
                     .lineLimit(1)
 
                 if let detail = latest.detail, !detail.isEmpty {
                     Text("·")
-                        .font(.system(size: 8))
+                        .font(.caption2)
                         .foregroundStyle(DSColors.secondaryText.opacity(0.5))
                     Text(detail)
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.medium))
                         .foregroundStyle(DSColors.secondaryText.opacity(0.8))
                         .lineLimit(1)
                 }
             } else {
                 Text("Initializing...")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced).weight(.medium))
                     .foregroundStyle(DSColors.secondaryText)
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: DSSpacing.xs)
 
             // Event count + elapsed
             if events.count > 0 {
-                HStack(spacing: 3) {
+                HStack(spacing: DSSpacing.xxs) {
                     Text("\(events.count)")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
+                        .monospacedDigit()
                         .foregroundStyle(DSColors.accent)
 
                     if let elapsed = pipelineElapsed, elapsed > 0.1 {
                         Text("·")
-                            .font(.system(size: 6))
+                            .font(.caption2)
                             .foregroundStyle(DSColors.secondaryText.opacity(0.4))
                         Text(formatElapsed(elapsed))
-                            .font(.system(size: 8, weight: .medium, design: .monospaced))
+                            .font(.system(.caption2, design: .monospaced).weight(.medium))
+                            .monospacedDigit()
                             .foregroundStyle(DSColors.secondaryText.opacity(0.7))
                     }
                 }
@@ -130,13 +132,13 @@ struct ThinkingStreamView: View {
 
             // Expand/collapse
             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(DSColors.secondaryText.opacity(0.5))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(DSColors.surface.opacity(0.85))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 
     // MARK: - Console Log View (the raw pipeline output)
@@ -157,7 +159,7 @@ struct ThinkingStreamView: View {
                 .onChange(of: events.count) { _, _ in
                     // Auto-scroll to latest event
                     if let latest = latestEvent {
-                        withAnimation(.easeOut(duration: 0.15)) {
+                        withAnimation(DSAnimations.fastEase) {
                             proxy.scrollTo(latest.id, anchor: .bottom)
                         }
                     }
@@ -167,18 +169,19 @@ struct ThinkingStreamView: View {
             // Expand/collapse button for full history
             if events.count > 8 {
                 Button(action: {
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    withAnimation(DSAnimations.snappySpring) {
                         isFullHeight.toggle()
                     }
                 }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Image(systemName: isFullHeight ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
-                            .font(.system(size: 7, weight: .medium))
+                            .font(.caption2.weight(.medium))
                         Text(isFullHeight ? "Compact" : "Full History (\(events.count))")
-                            .font(.system(size: 7, weight: .medium, design: .monospaced))
+                            .font(.system(.caption2, design: .monospaced).weight(.medium))
+                            .monospacedDigit()
                     }
                     .foregroundStyle(DSColors.accent.opacity(0.7))
-                    .padding(.vertical, 3)
+                    .padding(.vertical, DSSpacing.xxs)
                     .frame(maxWidth: .infinity)
                     .background(Color.white.opacity(0.03))
                     // The label stays small, and the whole row takes the tap (5.7): a tap on the 10-point-tall
@@ -189,17 +192,17 @@ struct ThinkingStreamView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 4)
+        .padding(.vertical, DSSpacing.xxs)
+        .padding(.horizontal, DSSpacing.xs)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .fill(Color.black.opacity(0.85))  // Console-like dark background
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
                 .stroke(DSColors.accent.opacity(0.2), lineWidth: 0.5)
         )
-        .padding(.top, 2)
+        .padding(.top, DSSpacing.xxs)
     }
 
     private func formatElapsed(_ elapsed: TimeInterval) -> String {
@@ -262,32 +265,33 @@ private struct ConsoleLogRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 4) {
+        HStack(alignment: .center, spacing: DSSpacing.xs) {
             // Timestamp (compact)
             Text(timestamp)
-                .font(.system(size: 7, weight: .medium, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .monospacedDigit()
                 .foregroundStyle(Color.gray.opacity(0.5))
-                .frame(width: 28, alignment: .leading)
+                .frame(width: 36, alignment: .leading)
 
             // Kind indicator (short colored tag)
             Text(shortKindLabel)
-                .font(.system(size: 6, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
                 .foregroundStyle(tint)
-                .frame(width: 36, alignment: .leading)
+                .frame(width: 52, alignment: .leading)
 
             // Title (the main message)
             Text(event.title)
-                .font(.system(size: 7, weight: .medium, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.medium))
                 .foregroundStyle(isLatest ? Color.white : Color.white.opacity(0.8))
                 .lineLimit(1)
 
             // Detail (additional info)
             if let detail = event.detail, !detail.isEmpty {
                 Text("→")
-                    .font(.system(size: 6))
+                    .font(.caption2)
                     .foregroundStyle(Color.gray.opacity(0.4))
                 Text(detail)
-                    .font(.system(size: 7, weight: .regular, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(tint.opacity(0.85))
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
@@ -302,8 +306,9 @@ private struct ConsoleLogRow: View {
                     .frame(width: 3, height: 3)
             }
         }
-        .padding(.vertical, 1)
-        .padding(.horizontal, 2)
+        .dynamicTypeSize(...DynamicTypeSize.large)
+        .padding(.vertical, DSSpacing.xxs)
+        .padding(.horizontal, DSSpacing.xxs)
         .background(isLatest ? tint.opacity(0.08) : Color.clear)
     }
 
@@ -356,7 +361,7 @@ private struct ThinkingPulse: View {
             .frame(width: 5, height: 5)
             .scaleEffect(isPulsing ? 1.3 : 1.0)
             .opacity(isPulsing ? 0.6 : 1.0)
-            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: isPulsing)
+            .animation(DSAnimations.stagePulse, value: isPulsing)
             .onAppear { isPulsing = true }
     }
 }
