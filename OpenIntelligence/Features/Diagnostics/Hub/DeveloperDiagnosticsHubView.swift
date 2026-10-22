@@ -129,13 +129,13 @@ struct DeveloperDiagnosticsHubView: View {
 
             // Quick Presets
             Section {
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     Button("Production") { applyProductionPreset() }
                         .buttonStyle(.bordered)
-                        .tint(.gray)
+                        .tint(.secondary)
                     Button("Dev") { applyDevelopmentPreset() }
                         .buttonStyle(.bordered)
-                        .tint(.blue)
+                        .tint(DSColors.accent)
                     Button("Debug") { applyDebugPreset() }
                         .buttonStyle(.bordered)
                         .tint(.orange)
@@ -235,8 +235,8 @@ struct DeveloperDiagnosticsHubView: View {
     private var systemStatusRow: some View {
         let caps = RAGService.checkDeviceCapabilities()
 
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(spacing: DSSpacing.sm) {
                 Circle()
                     .fill(caps.supportsAppleIntelligence ? Color.green : Color.orange)
                     .frame(width: 8, height: 8)
@@ -244,14 +244,14 @@ struct DeveloperDiagnosticsHubView: View {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(settings.ragQualityMode.canonical.displayName)
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.accentColor.opacity(0.15))
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, DSSpacing.sm)
+                    .padding(.vertical, DSSpacing.xs)
+                    .background(DSColors.chipBackground(for: DSColors.accent))
                     .clipShape(Capsule())
             }
 
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.lg) {
                 statusItem("Docs", value: "\(ragService.documents.count)")
                 statusItem("Mode", value: settings.ragQualityMode.canonical.displayName)
                 statusItem("Model", value: settings.selectedModel.displayName)
@@ -263,11 +263,12 @@ struct DeveloperDiagnosticsHubView: View {
 
     @ViewBuilder
     private func statusItem(_ label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(label)
                 .foregroundStyle(.tertiary)
             Text(value)
                 .fontWeight(.medium)
+                .monospacedDigit()
         }
     }
 

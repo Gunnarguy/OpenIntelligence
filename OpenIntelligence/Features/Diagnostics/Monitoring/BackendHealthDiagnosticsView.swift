@@ -12,20 +12,16 @@ struct BackendHealthDiagnosticsView: View {
     @ObservedObject var ragService: RAGService
 
     @State private var appleFMStatus: String = "Unknown"
-    @State private var appleFMColor: Color = .gray
+    @State private var appleFMColor: Color = .secondary
     @State private var isChecking = false
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [DSColors.background, DSColors.surface.opacity(0.95)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            DSColors.background
+                .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: DSSpacing.lg) {
                     // Overview
                     overviewCard
 
@@ -35,19 +31,20 @@ struct BackendHealthDiagnosticsView: View {
                     // On-Device Analysis diagnostics
                     onDeviceAnalysisCard
                 }
-                .padding(16)
+                .padding(DSSpacing.lg)
             }
         }
         .navigationTitle("Backend Health")
-.onAppear {
-    Task { await checkAppleFMAvailability() }
-}
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            Task { await checkAppleFMAvailability() }
+        }
     }
 
     // MARK: - Overview Card
 
     @ViewBuilder
-    private var overviewCard: some View { 
+    private var overviewCard: some View {
         SurfaceCard {
             SectionHeader(icon: "info.circle", title: "Overview")
             LabeledContent("Active Backend", value: ragService.llmService.modelName)
@@ -62,18 +59,18 @@ struct BackendHealthDiagnosticsView: View {
         SurfaceCard {
             SectionHeader(icon: "brain.head.profile", title: "Apple Intelligence")
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) { 
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
+                HStack(spacing: DSSpacing.sm) {
                     Circle()
                         .fill(appleFMColor)
                         .frame(width: 10, height: 10)
                     Text(appleFMStatus)
-.font(.subheadline)
-Spacer()
+                        .font(.subheadline)
+                    Spacer()
                     Button {
                         Task { await checkAppleFMAvailability() }
                     } label: {
-                        if isChecking { 
+                        if isChecking {
                             ProgressView().scaleEffect(0.8)
                         } else {
                             Text("Check")
@@ -81,12 +78,12 @@ Spacer()
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-.disabled(isChecking)
+                    .disabled(isChecking)
                 }
 
                 // Capabilities summary
                 let capabilities = RAGService.checkDeviceCapabilities()
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     capabilityRow(
                         label: "Foundation Models",
                         available: capabilities.supportsFoundationModels
@@ -109,17 +106,17 @@ Spacer()
         SurfaceCard {
             SectionHeader(icon: "doc.text.magnifyingglass", title: "On-Device Analysis")
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
+                HStack(spacing: DSSpacing.sm) {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 10, height: 10)
                     Text("Available")
-.font(.subheadline)
+                        .font(.subheadline)
                     Spacer()
                 }
 
-                VStack(alignment: .leading, spacing: 6) { 
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     capabilityRow(label: "NLTagger Analysis", available: true)
                     capabilityRow(label: "Extractive QA", available: true)
                     capabilityRow(label: "Keyword Extraction", available: true)
@@ -134,13 +131,13 @@ Spacer()
 
     @ViewBuilder
     private func capabilityRow(label: String, available: Bool) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: available ? "checkmark.circle.fill" : "xmark.circle")
                 .font(.caption)
-                .foregroundColor(available ? .green : .secondary)
+                .foregroundStyle(available ? .green : .secondary)
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -150,7 +147,7 @@ Spacer()
         defer { isChecking = false }
 
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) { 
+        if #available(iOS 26.0, *) {
             let fm = AppleFoundationLLMService()
             if fm.isAvailable {
                 appleFMStatus = "Available"
@@ -165,10 +162,10 @@ Spacer()
             return
         }
         appleFMStatus = "Requires iOS 26"
-        appleFMColor = .gray
+        appleFMColor = .secondary
         #else
         appleFMStatus = "FoundationModels SDK not available"
-        appleFMColor = .gray
+        appleFMColor = .secondary
         #endif
     }
 }
