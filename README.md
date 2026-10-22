@@ -54,13 +54,13 @@ an answer is more trustworthy when you can see what it was built from.
 
 | | |
 | :-- | :-- |
-| **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, images, audio, and video. From 5.7, JSON and JSON Lines files import as records. Pages, Numbers and Keynote are not readable and must be exported first. Vision handles OCR when a PDF's text layer is unreliable. |
+| **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, images, audio, and video. From 5.7, JSON and JSON Lines files import as records, a PDF of any size imports, and a search no longer picks up stray letters. Pages, Numbers and Keynote are not readable and must be exported first. Vision handles OCR when a PDF's text layer is unreliable. |
 | **Searches two ways at once** | Meaning-based vector search and keyword BM25 run together, then fuse and re-rank. Hunting a part number and asking a conceptual question both work. |
 | **Shows its work** | A live pipeline view names each stage as it runs, and every claim links back to the excerpt behind it. |
 | **Explains its own vocabulary** | Every figure it shows defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and says that it is a per-chip rating rather than a measurement. |
 | **Answers offline** | Airplane mode included. |
 | **Works with Siri, Shortcuts and Spotlight** | From 5.7, Shortcuts actions ask a library in any answer mode and hand the answer and its sources to the next step, and others find passages, check a claim, add a file, a link or text, and create, open and switch libraries. A question from Siri that needs Private Cloud Compute brings the app forward to ask first. Spotlight opens the document you tap, and Visual Intelligence lists the documents that mention what the camera sees. |
-| **Follows you between devices** | From 5.7, Handoff carries what's open, conversations in an iCloud library sync with it, and on the Mac there's a menu bar item, Services menu entries and keyboard shortcuts. |
+| **Follows you between devices** | From 5.7, an interrupted import picks up where it was, even after an app update, and keeps the pages and embeddings it already had; Handoff carries what's open, conversations in an iCloud library sync with it, and on the Mac there's a menu bar item, Services menu entries and keyboard shortcuts. |
 
 ### Quality modes
 
@@ -207,7 +207,8 @@ of starting over.
 
 From 5.7 a text, Markdown or JSON Lines file over 8 MB is imported the same way, in pieces of
 about 2 MB with a checkpoint after each. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro
-Max as 144,247 passages on 2026-10-10.
+Max as 144,247 passages on 2026-10-10.  A resumed import skips the pages it already read and the passages it
+already embedded, and a PDF over 500 MB, which used to be turned away, imports too.
 
 ## Status
 
@@ -219,7 +220,10 @@ synced from the same database the work is planned in.
 **5.7 is in preparation and is not on the App Store yet.** It adds JSON and JSON Lines import as records,
 imports of very large text files in pieces, Shortcuts actions that return their results, Siri that asks
 before using Private Cloud Compute, Spotlight and Visual Intelligence that find documents, Handoff, a Mac
-menu bar item and Services, dictation, and sharing or exporting an answer with its sources. Statements in
+menu bar item and Services, dictation, and sharing or exporting an answer with its sources.  It
+also says Paused, not failed, when iOS stops a background import, adds an Ask again button for a question the
+app closed on, makes every label in an answer open its passage, opens faster and starts imports without
+freezing, and gives every screen the same spacing, corners and colors. Statements in
 this file marked "from 5.7" describe that release.
 
 **Private Cloud Compute shipped in 5.2**, live on both platforms since 2026-09-10, and execution is

@@ -5,29 +5,29 @@ YOUR DOCUMENTS
 
 • JSON and JSONL files import as records, with their field names and numbers kept as they are.
 
-• Very large text and JSONL files import a piece at a time, an interrupted import picks up where it was, and the import queue has a Pause button.
+• Big imports keep going.  Very large text and JSONL files import a piece at a time, a PDF of any size imports (over 500 MB used to be turned away), and an interrupted import picks up where it was, even after an app update, without redoing the pages and embeddings it had.  The queue has a Pause button, and if iOS stops an import in the background the banner says Paused.
 
-• You can drop a file on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
+• You can drop a file or a whole folder on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
 
-• Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and text files that aren't UTF-8 come in readable.
+• Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and non-UTF-8 text files come in readable.
 
-• Addresses, phone numbers, dates and amounts are found anywhere in a document now, not only in its tables.
+• Addresses, phone numbers, dates and amounts are found anywhere in a document, not only in its tables.
 
-• An import stops and says so if the search model comes back empty, and a document that went missing from search is rebuilt when you open its library.
+• An import stops and says so if the search model comes back empty, and a document missing from search is rebuilt.
 
 
 LARGE LIBRARIES
 
-• A very large library doesn't hold the app up.  With 144,247 passages, the app read them all twice at every launch, and now it's once.
+• A very large library doesn't hold the app up: it's read once at launch, not twice, the app answers taps right after you open it, and starting an import doesn't freeze it.
 
-• The Atlas opens on a very large library, and it names its clusters and axes from your own documents.
+• The Atlas opens on a very large library, and names its clusters from your own documents.
 
 
 SIRI, SHORTCUTS AND SPOTLIGHT
 
 • Actions hand back what they found, so the next step of a shortcut can use the answer and its sources.  "Ask My Documents" and "Ask a Library" have a Mode menu.
 
-• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Active Library, Set Answer Mode, Get Settings, Open Library, Open Document and Export Conversation.
+• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Answer Mode, Open Library and Open Document.
 
 • If a question from Siri needs Private Cloud Compute and you haven't decided yet, the app comes up and asks first.
 
@@ -38,35 +38,35 @@ SIRI, SHORTCUTS AND SPOTLIGHT
 
 SHARING
 
-• A shared answer takes its sources with it, Image makes a card of an answer to post, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.
+• A shared answer takes its sources with it, Image makes a card of it, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.  Copy works on the Mac now.
 
-• Copy Link on a document or a library opens it in the app on your other devices, or the App Store where it isn't.
-
-• Copy works on the Mac.  The Copy button under an answer showed "Copied" and copied nothing.
+• Copy Link on a document or a library opens it in the app on your other devices.
 
 
 ANSWERS
 
-• Tap a point in an answer and the PDF it came from opens on that page, with the passage highlighted.
+• Every label in an answer, like [S5], opens the passage it came from, and tapping a point in an answer opens the PDF on that page with the passage highlighted.
 
-• The chat is plainer to look at.  Technical Details, under ⋯ or in Settings, brings back the stats and every step, and it stays on if you've used the app before.
+• If a question didn't get its answer because the app was closed, there's an Ask again button.  Searches no longer pick up stray letters.
+
+• The chat is plainer to look at.  Technical Details, under ⋯ or in Settings, brings back the stats and every step.
 
 • Ask out loud: the chat field has a microphone, and dictation runs on your device.
 
-• Sentences from your documents aren't cut in half before the model reads them, numbers are checked as numbers, and a code like E1 counts as a keyword.
+• Sentences from your documents aren't cut in half, numbers are checked as numbers, and a code like E1 counts as a keyword.
 
-• Deep Think and Maximum answers get the same checks a Standard answer does, and Deep Think keeps its full answer instead of swapping it for one short line that can be wrong.
+• Deep Think and Maximum answers get the same checks a Standard answer does, and Deep Think keeps its full answer instead of one short line that can be wrong.
 
 
 ALSO
 
-• Handoff, and conversations in an iCloud library sync with it.  iCloud only sends a library's files when they change.
+• Every screen has the same look now: spacing, corners and colors match.
 
-• A notification when an import or a long answer is done, if you turn it on.  On iOS 27 and macOS 27 the app can offer to email me a crash report, and it only goes anywhere if you send it.
+• Handoff, and conversations in an iCloud library sync with it.
 
-• Redeem a Code on the plans screen.
+• A notification when an import or a long answer is done, if you turn it on, and on iOS 27 and macOS 27 an offer to email me a crash report, sent only if you say so.
 
-• Easier to read: darker gray text, black or white words on colored labels, and a deeper blue in light mode.  VoiceOver names every switch and slider.
+• Easier to read: darker gray text, clearer colored labels and a deeper blue in light mode.  VoiceOver names every switch and slider.
 
 
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.

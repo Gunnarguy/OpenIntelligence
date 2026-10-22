@@ -203,6 +203,36 @@ final class WhatsNewStore: ObservableObject {
                     detail:
                         "Cluster names used to come from a built-in list of subjects, and they changed from one launch to the next.  Now a cluster is named by the words that set it apart from the rest of the library, each axis is labelled at both ends, and the same library gives the same map every time."
                 ),
+                .init(
+                    symbol: "pause.circle",
+                    title: "An interrupted import picks up where it was",
+                    detail:
+                        "If the phone locks, you leave the app or the app is updated in the middle of a big PDF or text file, the import continues from the last saved piece and skips the pages and embeddings it already had.  If iOS takes back the time an import had in the background, the banner says it's paused, not that it failed."
+                ),
+                .init(
+                    symbol: "doc.richtext",
+                    title: "PDFs over 500 MB import",
+                    detail:
+                        "A PDF bigger than 500 MB used to be turned away, even though big PDFs are read a few pages at a time.  Now any PDF imports, as long as there's room for it on your device."
+                ),
+                .init(
+                    symbol: "text.quote",
+                    title: "Labels open the passage they came from",
+                    detail:
+                        "A label like [S5] in an answer could open nothing, or the passage next to the right one.  Now each label opens the passage the answer was written from, Deep Think included.  Searches no longer pick up stray letters like PA, RE and DO from inside your words, and if the app closes in the middle of an answer there's an Ask again button."
+                ),
+                .init(
+                    symbol: "bolt",
+                    title: "The app answers sooner after you open it",
+                    detail:
+                        "For the first several seconds after opening, the app could freeze while it checked your iCloud libraries, and starting an import could freeze it for two to four seconds.  Both now happen in the background."
+                ),
+                .init(
+                    symbol: "paintbrush",
+                    title: "Every screen has the same look",
+                    detail:
+                        "Spacing, corners and colors were different from screen to screen.  They match now, and color only means something: green, orange and red for status, and one color per answer mode."
+                ),
             ]
         ),
         "5.6": WhatsNewRelease(

@@ -1,1 +1,1 @@
-Ask your own PDFs, contracts and notes, and see the passage each answer came from.  It needs Apple Intelligence: iPhone 15 Pro, iPhone 16 or later, or an M1 iPad or Mac.
+New in 5.7: getting things in and out.  JSON and JSONL files, Shortcuts and Siri, Spotlight, and big imports that pick up where they stopped.  Needs Apple Intelligence.

@@ -1,9 +1,10 @@
 # Current State
 
-Updated: 2026-10-21, about 13:30 PT (5.7 is open and unreleased, no 5.7 build in TestFlight; 5.6 has been live on
-iPhone, iPad and Mac since 2026-10-08; every commit since then is pushed with `[ci skip]`)
-Branch/worktree: `main`, primary checkout, level with `origin/main`
-Last verified commit: 15b908a plus this session's commit (the planless route fix and the Settings heading style)
+Updated: 2026-10-22 (5.7 code is pushed at `a727698`; the release copy was refreshed the same day, in the commit that
+follows it. No 5.7 build exists yet, because every push since 5.6 carried `[ci skip]`; 5.6 has been live on iPhone, iPad
+and Mac since 2026-10-08)
+Branch/worktree: `main`, primary checkout; the copy commit is local until the owner pushes
+Last verified commit: `a727698` (code); the copy commit changes text only
 
 Earlier detail is in git: `git show 1e379aa:Docs/ai/STATE.md` (late on 2026-10-20); the long record through 2026-10-10
 is `Docs/Archive/STATE_record_through_2026-10-10.md`.
@@ -118,6 +119,15 @@ only on his phone or Mac.
 
 ## Exact Next Action
 
+**Updated 2026-10-22.** The release copy now covers all of 5.7: both `release_notes.txt` files (iOS and macOS, rewritten,
+each under 3,950 characters), both `promotional_text.txt` files, the in-app What's New (20 items) and the README. Next:
+(1) push without `[ci skip]` to start build 1 (the owner's call; the build number starts the first 5.7 Xcode Cloud run);
+(2) install the TestFlight build on his iPhone; (3) the device pass on the four fixes with no device check yet (Deep Think
+citation labels and the stray-letters search fix, the Paused banner, a PDF over 500 MB, embedding reuse on resume) plus
+the 104 In Progress and 27 To Do v5.7 Notion rows, using
+`~/.agents/data/openintelligence-5.7-closeout/device-checklist-2026-10-21.md`; (4) check the App Store screenshots;
+(5) submit. The 2026-10-21 text below still applies for the device-session details.
+
 Run the device session with him: `~/.agents/data/openintelligence-5.7-closeout/device-checklist-2026-10-21.md` sorts the 98
 In Progress v5.7 rows (65 iPhone, 16 Mac, 3 App Store Connect, 3 need engineering, 11 unclear), fastest first. After each
 group he does, copy the trace off the phone (`xcrun devicectl device copy from --device 00008140-001130DA1863C01C
@@ -130,6 +140,5 @@ Simulator; also proves the `@rpath` install-name change), a fanless-Mac import f
 Decisions waiting for him: the Spotlight document tap (dropping the app item opens the document but cuts its Siri and
 Apple Intelligence link; row `3ff49a74d54f81fea954d76ff336595e`); the OCR render-scale patch, deferred unmeasured to
 `~/.agents/data/openintelligence-5.7-closeout/deferred-5.8/`; clearing the 519 iCloud conflict copies his phone's trace
-reports; whether the research To Do rows move to Future Backlog. Store notes (iOS ones at 4,038 characters, Apple's limit
-believed 4,000, unconfirmed) and the in-app What's New (one list for both platforms, 15 items, last edited 2026-10-15) are
-written once, at the end, from the final changelog.
+reports; whether the research To Do rows move to Future Backlog. Store notes and the in-app What's New were rewritten on 2026-10-22 from the changelog (iOS notes 3,945 characters, Apple's
+limit believed 4,000, unconfirmed; What's New is one list for both platforms, 20 items); redo them if the changelog moves.
