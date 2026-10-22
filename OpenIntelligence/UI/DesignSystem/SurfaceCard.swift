@@ -12,11 +12,11 @@ public struct SurfaceCard<Content: View>: View {
     private let shadowYOffset: CGFloat
 
     public init(
-        padding: CGFloat = 18,
-        cornerRadius: CGFloat = 18,
+        padding: CGFloat = DSSpacing.lg,
+        cornerRadius: CGFloat = DSCorners.card,
         shadowOpacity: CGFloat = 0.04,
-        shadowRadius: CGFloat = 8,
-        shadowYOffset: CGFloat = 4,
+        shadowRadius: CGFloat = DSSpacing.sm,
+        shadowYOffset: CGFloat = DSSpacing.xs,
         @ViewBuilder content: () -> Content
     ) {
         self.padding = padding
@@ -28,7 +28,7 @@ public struct SurfaceCard<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             content
         }
         .padding(padding)
@@ -54,22 +54,22 @@ public struct SectionHeader: View {
     }
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.accentColor)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(DSColors.accent)
                     .frame(width: 20)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title.uppercased())
-                    .font(.footnote.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                     .textCase(.uppercase)
                     .tracking(0.8)
                 if let caption, !caption.isEmpty {
                     Text(caption)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)
@@ -88,6 +88,6 @@ public struct SectionFooter: View {
     public var body: some View {
         Text(text)
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
     }
 }

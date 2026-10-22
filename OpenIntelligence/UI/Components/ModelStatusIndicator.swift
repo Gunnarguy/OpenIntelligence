@@ -83,10 +83,10 @@ struct ModelStatusIndicator: View {
         let value: String
         
         var body: some View {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(label)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 Text(value)
                     .font(.subheadline.weight(.medium))
@@ -98,13 +98,13 @@ struct ModelStatusIndicator: View {
         let text: String
         
         var body: some View {
-            HStack(alignment: .top, spacing: 4) {
+            HStack(alignment: .top, spacing: DSSpacing.xs) {
                 Text("•")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 Text(text)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -122,12 +122,12 @@ struct ModelStatusIndicator: View {
                 .fill(statusColor.opacity(0.14))
                 .frame(width: 20, height: 20)
             Image(systemName: preferenceIcon(for: settings.fmPreference))
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(statusColor)
         }
         .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
         .onAppear {
-            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+            withAnimation(DSAnimations.stagePulse) {
                 pulseScale = 1.15
             }
         }
@@ -138,7 +138,7 @@ struct ModelStatusIndicator: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(settings.fmPreference.pickerDisplayName)
                 .font(.caption.weight(.semibold))
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
             // The second line is unconditional. It carries the live route while a query
             // runs, and otherwise a short description of where this preference sends
             // work. Making it conditional is what let the pill collapse to one line and
@@ -218,20 +218,20 @@ struct ModelStatusIndicator: View {
             case .onDevice:
                 return .green
             case .privateCloudCompute:
-                return .blue
+                return .accentColor
             default:
-                return .purple
+                return .accentColor
             }
         }
         switch shownStatus {
         case .ready:
             switch settings.fmPreference.canonical {
-            case .automatic: return .purple
+            case .automatic: return .accentColor
             case .core3B, .advanced20B: return .green
-            case .privateCloudCompute: return .blue
+            case .privateCloudCompute: return .accentColor
             }
         case .loading:
-            return .blue
+            return .accentColor
         case .unavailable:
             return .red
         }
@@ -251,23 +251,23 @@ struct ModelQuickSelector: View {
         Button {
             showSelector = true
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 modelIcon
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(settings.selectedModel.displayName)
                         .font(.subheadline.weight(.semibold))
                     Text(statusText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
-            .padding(12)
+            .padding(DSSpacing.md)
             .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showSelector) {
@@ -279,15 +279,15 @@ struct ModelQuickSelector: View {
     private var modelIcon: some View {
         Image(systemName: settings.selectedModel.iconName)
             .font(.title2)
-            .foregroundColor(iconColor)
+            .foregroundStyle(iconColor)
             .frame(width: 40, height: 40)
             .background(iconColor.opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 
     private var iconColor: Color {
         switch settings.selectedModel {
-        case .appleIntelligence: return .blue
+        case .appleIntelligence: return .accentColor
         case .onDeviceAnalysis: return .orange
         }
     }
@@ -342,19 +342,19 @@ struct QuickModelPickerSheet: View {
                 dismiss()
             }
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 Image(systemName: type.iconName)
                     .font(.title3)
-                    .foregroundColor(isAvailable ? .accentColor : .secondary)
+                    .foregroundStyle(isAvailable ? Color.accentColor : .secondary)
                     .frame(width: 32)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(type.displayName)
-                        .font(.body)
-                        .foregroundColor(isAvailable ? .primary : .secondary)
+                        .font(.subheadline)
+                        .foregroundStyle(isAvailable ? .primary : .secondary)
                     Text(type.description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
@@ -362,7 +362,7 @@ struct QuickModelPickerSheet: View {
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.accentColor)
+                        .foregroundStyle(DSColors.accent)
                 }
             }
         }
@@ -374,11 +374,11 @@ struct QuickModelPickerSheet: View {
     let rag = RAGService()
     let settings = SettingsStore(ragService: rag)
     let resolution = ModelResolutionService(ragService: rag, settingsStore: settings)
-    return VStack(spacing: 20) {
+    return VStack(spacing: DSSpacing.lg) {
         ModelStatusIndicator()
         ModelQuickSelector(deviceCapabilities: DeviceCapabilities())
     }
-    .padding()
+    .padding(DSSpacing.lg)
     .environmentObject(settings)
     .environmentObject(resolution)
 }

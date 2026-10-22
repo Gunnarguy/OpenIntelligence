@@ -18,18 +18,18 @@ struct InfoButtonView: View {
         }) {
             Image(systemName: "info.circle")
                 .font(.body)
-                .foregroundColor(.accentColor)
+                .foregroundStyle(DSColors.accent)
         }
         .popover(isPresented: $showingPopover) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
                 Text(title)
                     .font(.headline)
 
                 Text(explanation)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .padding()
+            .padding(DSSpacing.lg)
             .frame(maxWidth: 300)
         }
     }
