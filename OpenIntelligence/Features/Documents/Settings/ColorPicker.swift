@@ -87,7 +87,7 @@ struct LibraryColorPicker: View {
     @State private var showCustomInput = false
 
     private let columns = [
-        GridItem(.adaptive(minimum: 44, maximum: 52), spacing: 10),
+        GridItem(.adaptive(minimum: 44, maximum: 52), spacing: DSSpacing.sm),
     ]
 
     var body: some View {
@@ -95,13 +95,13 @@ struct LibraryColorPicker: View {
             VStack(spacing: 0) {
                 // Palette tabs
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         ForEach(LibraryColorPalette.allCases, id: \.self) { palette in
                             paletteTab(palette)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.vertical, DSSpacing.sm)
                 }
                 .background(DSColors.surface)
 
@@ -109,17 +109,17 @@ struct LibraryColorPicker: View {
 
                 // Color grid
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 10) {
+                    LazyVGrid(columns: columns, spacing: DSSpacing.sm) {
                         ForEach(selectedPalette.colors, id: \.self) { hex in
                             colorButton(hex: hex)
                         }
                     }
-                    .padding(16)
+                    .padding(DSSpacing.lg)
 
                     // Custom hex input section
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
                         Button {
-                            withAnimation {
+                            withAnimation(DSAnimations.snappySpring) {
                                 showCustomInput.toggle()
                             }
                         } label: {
@@ -135,7 +135,7 @@ struct LibraryColorPicker: View {
                         .buttonStyle(.plain)
 
                         if showCustomInput {
-                            HStack(spacing: 12) {
+                            HStack(spacing: DSSpacing.md) {
                                 TextField("#RRGGBB", text: $customHex)
                                     .textFieldStyle(.roundedBorder)
                                     #if os(iOS)
@@ -158,7 +158,7 @@ struct LibraryColorPicker: View {
                             }
 
                             if let color = Color(hex: customHex) {
-                                HStack(spacing: 8) {
+                                HStack(spacing: DSSpacing.sm) {
                                     Circle()
                                         .fill(color)
                                         .frame(width: 24, height: 24)
@@ -169,11 +169,11 @@ struct LibraryColorPicker: View {
                             }
                         }
                     }
-                    .padding(16)
+                    .padding(DSSpacing.lg)
                     .background(DSColors.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.bottom, DSSpacing.lg)
                 }
 
                 // Current selection preview
@@ -196,7 +196,7 @@ struct LibraryColorPicker: View {
 
     @ViewBuilder
     private var selectionPreview: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             if let color = Color(hex: selectedColorHex) {
                 Circle()
                     .fill(color)
@@ -208,12 +208,12 @@ struct LibraryColorPicker: View {
                     .shadow(color: color.opacity(0.4), radius: 6, y: 2)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text("Selected")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(selectedColorHex.uppercased())
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .font(.subheadline.weight(.medium).monospaced())
             }
 
             Spacer()
@@ -223,26 +223,26 @@ struct LibraryColorPicker: View {
             }
             .buttonStyle(.borderedProminent)
         }
-        .padding(16)
+        .padding(DSSpacing.lg)
         .background(DSColors.surface)
     }
 
     @ViewBuilder
     private func paletteTab(_ palette: LibraryColorPalette) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(DSAnimations.fastEase) {
                 selectedPalette = palette
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: DSSpacing.xs) {
                 Image(systemName: palette.icon)
-                    .font(.system(size: 11))
+                    .font(.caption)
                 Text(palette.rawValue)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
             }
             .foregroundStyle(selectedPalette == palette ? .white : .primary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
             .background(
                 selectedPalette == palette
                     ? Color.accentColor
@@ -296,7 +296,7 @@ struct ColorPickerButton: View {
         Button {
             showingPicker = true
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: DSSpacing.sm) {
                 if let color = Color(hex: selectedColorHex) {
                     Circle()
                         .fill(color)
@@ -307,11 +307,11 @@ struct ColorPickerButton: View {
                         )
                 } else {
                     Circle()
-                        .fill(Color.gray)
+                        .fill(Color.secondary)
                         .frame(width: 28, height: 28)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(label)
                         .font(.subheadline)
                         .foregroundStyle(.primary)
@@ -324,10 +324,10 @@ struct ColorPickerButton: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingPicker) {
@@ -359,18 +359,18 @@ struct AccentColorPicker: View {
     ]
 
     private let columns = [
-        GridItem(.adaptive(minimum: 70, maximum: 90), spacing: 12),
+        GridItem(.adaptive(minimum: 70, maximum: 90), spacing: DSSpacing.md),
     ]
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
+                LazyVGrid(columns: columns, spacing: DSSpacing.lg) {
                     ForEach(accentColors, id: \.hex) { item in
                         accentButton(name: item.name, hex: item.hex)
                     }
                 }
-                .padding(20)
+                .padding(DSSpacing.lg)
             }
             .navigationTitle("Accent Color")
             .navigationBarTitleDisplayMode(.inline)
@@ -393,7 +393,7 @@ struct AccentColorPicker: View {
             selectedAccentHex = hex.isEmpty ? nil : hex
             DSHaptics.selection()
         } label: {
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 ZStack {
                     if hex.isEmpty {
                         // System default - show gradient
@@ -413,7 +413,7 @@ struct AccentColorPicker: View {
 
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.body.weight(.bold))
                             .foregroundStyle(.white)
                     }
                 }
@@ -431,7 +431,6 @@ struct AccentColorPicker: View {
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .frame(height: 28)
             }
         }
         .buttonStyle(.plain)
@@ -459,7 +458,7 @@ struct AccentColorSettingsRow: View {
         Button {
             showingPicker = true
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 Circle()
                     .fill(displayColor)
                     .frame(width: 28, height: 28)
@@ -468,7 +467,7 @@ struct AccentColorSettingsRow: View {
                             .strokeBorder(.primary.opacity(0.1), lineWidth: 1)
                     )
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Accent Color")
                         .font(.subheadline)
                         .foregroundStyle(.primary)
@@ -480,10 +479,10 @@ struct AccentColorSettingsRow: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingPicker) {
