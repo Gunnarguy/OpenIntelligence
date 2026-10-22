@@ -129,7 +129,7 @@ struct DocumentDetailsView: View {
                 // largest sizes the badge broke into "MARK-" and "DOWN" (5.7).
                 WrappingRowLayout(spacing: DSSpacing.sm, lineSpacing: DSSpacing.sm, lastAtTrailingEdge: true) {
                     Text(document.contentType.rawValue.uppercased())
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption)
                         .padding(.horizontal, DSSpacing.md)
                         .padding(.vertical, DSSpacing.xs)
                         .background(
@@ -189,7 +189,7 @@ struct DocumentDetailsView: View {
         DocumentDetailCardView(icon: "text.quote", title: "Cited Excerpt", caption: "Source of the generated answer") {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text(chunk.chunk.content)
-                    .font(.subheadline)
+                    .scaledFont(size: 14)
                     .foregroundStyle(DSColors.primaryText)
                     .padding(DSSpacing.md)
                     .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
@@ -202,11 +202,11 @@ struct DocumentDetailsView: View {
                     Spacer()
                     if let page = chunk.pageNumber {
                         Text("Page \(page)")
-                            .font(.caption.monospacedDigit())
+                            .scaledFont(size: 11)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                     Text("Relevance Score: \(Int(chunk.similarityScore * 100))%")
-                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .scaledFont(size: 11, weight: .semibold)
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
@@ -443,10 +443,10 @@ struct DocumentDetailsView: View {
 
                         VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             Text("Optical Character Recognition")
-                                .font(.subheadline.weight(.semibold))
+                                .font(.subheadline)
 
                             Text("\(ocrPages) page\(ocrPages == 1 ? "" : "s") processed with Vision framework")
-                                .font(.caption.monospacedDigit())
+                                .font(.caption)
                                 .foregroundStyle(DSColors.secondaryText)
                         }
 
@@ -619,14 +619,14 @@ private struct DocumentDetailCardView<Content: View>: View {
                 HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
                     if let icon {
                         Image(systemName: icon)
-                            .font(.body.weight(.semibold))
+                            .scaledFont(size: 16, weight: .semibold)
                             .foregroundStyle(Color.accentColor)
                             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                             .frame(minWidth: 20)
                     }
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(title)
-                            .font(.headline)
+                            .font(.footnote)
                             // Read as written: the capitals are only drawn, and VoiceOver was given
                             // "OPENINTELLIGENCE-PRODUCT-GUIDE.MD" for a file's name (5.7).
                             .accessibilityLabel(title)
@@ -671,7 +671,7 @@ private struct QuickStatView: View {
                 .accessibilityHidden(true)
             inner {
                 Text(value)
-                    .font(.title3.weight(.bold).monospacedDigit())
+                    .font(.title3)
                 Text(label)
                     .font(.caption2)
                     .foregroundStyle(DSColors.secondaryText)
@@ -699,7 +699,7 @@ private struct VectorMetricRow: View {
                 Text(label)
                     .font(.subheadline)
                 Text(value)
-                    .font(.headline.monospacedDigit())
+                    .font(.headline)
                     .foregroundStyle(valueColor)
                 Text(detail)
                     .font(.caption2)
@@ -728,9 +728,9 @@ private struct ContentMetricRow: View {
                 Text(label)
                     .font(.subheadline)
                 Text(value)
-                    .font(.headline.monospacedDigit())
+                    .font(.headline)
                 Text(detail)
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(DSColors.secondaryText)
             }
             Spacer()
@@ -756,13 +756,13 @@ private struct ChunkMetricRow: View {
                 Text(label)
                     .font(.subheadline)
                 Text(value)
-                    .font(.headline.monospacedDigit())
+                    .font(.headline)
             }
 
             Spacer()
 
             Text(badge)
-                .font(.caption2.weight(.semibold).monospacedDigit())
+                .font(.caption2)
                 .padding(.horizontal, DSSpacing.sm)
                 .padding(.vertical, DSSpacing.xxs)
                 .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
@@ -796,7 +796,7 @@ private struct PerformanceRow: View {
                     .monospacedDigit()
                     .foregroundStyle(.primary)
                 Text(detail)
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(DSColors.secondaryText)
             }
             Spacer()
@@ -816,7 +816,7 @@ private struct TechnicalRow: View {
                 .foregroundStyle(DSColors.secondaryText)
             Spacer()
             Text(value)
-                .font(.subheadline.monospacedDigit())
+                .font(.subheadline)
                 .foregroundStyle(.primary)
         }
         .padding(.vertical, DSSpacing.xs)
@@ -841,10 +841,10 @@ private struct ContentTagPill: View {
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "tag.fill")
-                .font(.caption2)
+                .scaledFont(size: 10)
                 .foregroundStyle(DSColors.readable(tagTextColor))
             Text(tag)
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 12, weight: .medium)
                 // The word in the label color, the tag's color in the icon and the tint (5.7).
                 .foregroundStyle(DSColors.primaryText)
         }

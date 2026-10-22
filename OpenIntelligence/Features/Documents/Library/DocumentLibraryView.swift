@@ -490,7 +490,7 @@ struct DocumentLibraryView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(documentSectionSubtitle)
-                    .font(.caption2.weight(.medium).monospacedDigit())
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(DSColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -523,7 +523,7 @@ struct DocumentLibraryView: View {
                                 .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
                         } else {
                             Image(systemName: "arrow.clockwise")
-                                .font(.subheadline.weight(.bold))
+                                .scaledFont(size: 14, weight: .bold)
                                 .foregroundStyle(Color.accentColor)
                                 .frame(width: 32, height: 32)
                                 .background(
@@ -711,7 +711,7 @@ struct DocumentLibraryView: View {
                             ? "iCloud has libraries that are not on this device yet."
                             : "This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Sync / \(bootstrapConflict.localDocumentCount) docs, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) docs.")
                 )
-                .font(.caption.monospacedDigit())
+                .font(.caption)
                 .foregroundStyle(.secondary)
 
                 if !bootstrapConflict.localOnlyLibraryNames.isEmpty {
@@ -840,7 +840,7 @@ struct DocumentLibraryView: View {
                         Text(compactSharedWorkspaceBannerTitle)
                             .font(.subheadline.weight(.semibold))
                         Text(compactSharedWorkspaceSummary)
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
@@ -848,7 +848,7 @@ struct DocumentLibraryView: View {
                     Spacer()
 
                     Text(compactSharedWorkspaceModeLabel)
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, DSSpacing.xs)
                         .background(compactSharedWorkspaceModeColor.opacity(0.15))
@@ -1289,13 +1289,13 @@ struct DocumentLibraryView: View {
         if ragService.librariesNeedingIndexRebuild.contains(containerId) {
             HStack(alignment: .top, spacing: DSSpacing.sm) {
                 Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
-                    .font(.body.weight(.semibold))
+                    .scaledFont(size: 16, weight: .semibold)
                     .foregroundStyle(.orange)
                     .padding(.top, DSSpacing.xxs)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("This library needs its search index rebuilt")
-                        .font(.subheadline.weight(.semibold))
+                        .scaledFont(size: 15, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Your documents are intact. Answers here can miss information until the index is rebuilt, which takes a moment and does not re-import anything.")
@@ -1326,10 +1326,10 @@ struct DocumentLibraryView: View {
         if let removal = ragService.pendingRemovals.last {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "trash")
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 14, weight: .semibold)
                     .foregroundStyle(.red)
                 Text(removal.summary)
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 15, weight: .semibold)
                     .foregroundStyle(DSColors.primaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -1362,13 +1362,13 @@ struct DocumentLibraryView: View {
         if let names = refreshedSampleNames, !names.isEmpty {
             HStack(alignment: .top, spacing: DSSpacing.sm) {
                 Image(systemName: "checkmark.seal")
-                    .font(.body.weight(.semibold))
+                    .scaledFont(size: 16, weight: .semibold)
                     .foregroundStyle(Color.accentColor)
                     .padding(.top, DSSpacing.xxs)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(names.count == 1 ? "Updated a sample document" : "Updated \(names.count) sample documents")
-                        .font(.subheadline.weight(.semibold))
+                        .scaledFont(size: 15, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("\(names.joined(separator: ", ")) described things this app does not actually do. Because the app answers questions out of these documents, a wrong sentence in one becomes a wrong answer. They were re-imported with the corrections. Nothing you imported yourself was touched.")
@@ -2289,11 +2289,11 @@ struct DocumentLibraryView: View {
         var body: some View {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: systemImage)
-                    .font(iconOnly ? .subheadline.weight(.bold) : .caption.weight(.bold))
+                    .scaledFont(size: iconOnly ? 15 : 11, weight: .bold)
 
                 if !iconOnly {
                     Text(title)
-                        .font(.caption.weight(.bold))
+                        .scaledFont(size: 11, weight: .bold)
                         .lineLimit(1)
                 }
             }
@@ -2352,11 +2352,11 @@ private struct DocumentUtilityChipLabel: View {
                     .controlSize(.small)
             } else {
                 Image(systemName: systemImage)
-                    .font(.caption2.weight(.semibold))
+                    .scaledFont(size: 10, weight: .semibold)
             }
 
             Text(title)
-                .font(.caption.weight(.semibold))
+                .scaledFont(size: 11, weight: .semibold)
                 .lineLimit(1)
         }
         .foregroundStyle(tint)

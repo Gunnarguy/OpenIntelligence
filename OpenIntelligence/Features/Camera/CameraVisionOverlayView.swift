@@ -360,7 +360,7 @@
                             Image(systemName: "photo")
                                 .foregroundStyle(DSColors.accent)
                             Text("Scene:")
-                                .font(.caption.weight(.bold))
+                                .font(.caption.bold())
                                 .foregroundStyle(.white)
                             Spacer()
                         }
@@ -368,7 +368,7 @@
                         FlowLayout(spacing: DSSpacing.xs) {
                             ForEach(sceneLabels.prefix(3), id: \.self) { label in
                                 Text(label)
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption)
                                     .lineLimit(1)
                                     .padding(.horizontal, DSSpacing.sm)
                                     .padding(.vertical, DSSpacing.xs)
@@ -386,7 +386,7 @@
                             Image(systemName: "sparkle.magnifyingglass")
                                 .foregroundStyle(.orange)
                             Text("Detected:")
-                                .font(.caption.weight(.bold))
+                                .font(.caption.bold())
                                 .foregroundStyle(.white)
                             Spacer()
                         }
@@ -397,7 +397,7 @@
                                 // Color based on emoji prefix
                                 let color = colorForDetectedObject(obj)
                                 Text(obj)
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption)
                                     .padding(.horizontal, DSSpacing.sm)
                                     .padding(.vertical, DSSpacing.xs)
                                     .background(Capsule().fill(color.opacity(0.85)))
@@ -417,7 +417,7 @@
                                 Image(systemName: "face.smiling")
                                     .foregroundStyle(DSColors.accent)
                                 Text("\(faceCount) face\(faceCount == 1 ? "" : "s")")
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption)
                                     .monospacedDigit()
                                     .padding(.horizontal, DSSpacing.sm)
                                     .padding(.vertical, DSSpacing.xs)
@@ -430,7 +430,7 @@
                                 Image(systemName: "figure.stand")
                                     .foregroundStyle(.green)
                                 Text("\(humanCount) person\(humanCount == 1 ? "" : "s")")
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption)
                                     .monospacedDigit()
                                     .padding(.horizontal, DSSpacing.sm)
                                     .padding(.vertical, DSSpacing.xs)
@@ -457,7 +457,7 @@
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "text.viewfinder")
                     Text("Live Text")
-                        .font(.caption.weight(.bold))
+                        .font(.caption.bold())
                     Spacer()
                     Text("\(liveOCRText.count) chars")
                         .font(.caption2)
@@ -1127,7 +1127,7 @@
 
                 // Label
                 Text("Face")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 10, weight: .bold)
                     .foregroundStyle(.white)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
@@ -1196,11 +1196,11 @@
                 if region.type != .text {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: region.type.icon)
-                            .font(.caption2.weight(.bold))
+                            .scaledFont(size: 10, weight: .bold)
 
                         if let preview = region.preview {
                             Text(preview.prefix(15))
-                                .font(.caption2.weight(.medium))
+                                .scaledFont(size: 10, weight: .medium)
                                 .lineLimit(1)
                         }
 
@@ -1210,7 +1210,7 @@
                         // screen: the same number, repeated, meaning nothing.
                         if region.confidence > 0, region.type != .document {
                             Text(String(format: "%.0f%%", region.confidence * 100))
-                                .font(.caption2.weight(.bold).monospacedDigit())
+                                .scaledFont(size: 9, weight: .bold)
                                 .foregroundStyle(.white)
                         }
                     }
@@ -1317,7 +1317,7 @@
                 if let headJoint = pose.joints.first(where: { $0.name.contains("nose") }) {
                     let pos = convertPoint(headJoint.position)
                     Text("Human")
-                        .font(.caption.weight(.bold))
+                        .scaledFont(size: 11, weight: .bold)
                         .foregroundStyle(.white)
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, DSSpacing.xs)
@@ -1414,7 +1414,7 @@
                 if let headJoint = pose.joints.first(where: { $0.name.contains("nose") }) {
                     let pos = convertPoint(headJoint.position)
                     Text("Animal")
-                        .font(.caption.weight(.bold))
+                        .scaledFont(size: 11, weight: .bold)
                         .foregroundStyle(.white)
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, DSSpacing.xs)
@@ -1725,10 +1725,10 @@
 
                 VStack(alignment: .leading, spacing: 0) {
                     Text(value)
-                        .font(.caption.weight(.bold).monospacedDigit())
+                        .font(.caption.bold().monospacedDigit())
                         .foregroundStyle(.white)
                     Text(label)
-                        .font(.caption2)
+                        .scaledFont(size: 8)
                         .foregroundStyle(.white)
                 }
             }

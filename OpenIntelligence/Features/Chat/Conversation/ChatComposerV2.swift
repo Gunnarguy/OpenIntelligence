@@ -136,7 +136,7 @@ struct ChatComposerV2: View {
                             toggleDictation()
                         } label: {
                             Image(systemName: dictation.phase == .listening ? "mic.fill" : "mic")
-                                .font(.body.weight(.medium))
+                                .scaledFont(size: 18, weight: .medium)
                                 .foregroundStyle(dictation.phase == .listening ? Color.red : DSColors.accent)
                                 .symbolEffect(.pulse, isActive: dictation.phase != .idle)
                                 .frame(width: 44, height: 44)
@@ -195,7 +195,7 @@ struct ChatComposerV2: View {
                         } else {
                             // Send arrow
                             Image(systemName: "arrow.up")
-                                .font(.body.weight(.semibold))
+                                .scaledFont(size: 18, weight: .semibold)
                                 .foregroundStyle(.white)
                         }
                     }

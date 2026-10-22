@@ -1069,7 +1069,7 @@ struct SelectableOptionCard: View {
 
         var body: some View {
             Text(text.uppercased())
-                .font(.caption2.weight(.semibold))
+                .font(.caption2)
                 .foregroundStyle(color)
                 .padding(.horizontal, DSSpacing.xs)
                 .padding(.vertical, DSSpacing.xxs)
@@ -1148,7 +1148,7 @@ struct AutoIntelligencePanel: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(relationshipSummary)
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
@@ -1321,7 +1321,7 @@ private struct InsightLine: View {
             }
 
             Text(value)
-                .font(.subheadline.monospacedDigit())
+                .font(.callout)
                 .foregroundStyle(.primary)
 
             if let detail, !detail.isEmpty {
@@ -1354,7 +1354,7 @@ private struct DocumentContextSummary: View {
 
             if documents.count > featuredDocuments.count {
                 Text("+\(documents.count - featuredDocuments.count) more captured in this library")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
@@ -1400,7 +1400,7 @@ private struct TopicChip: View {
 
     var body: some View {
         Text(text)
-            .font(.caption2.weight(.semibold))
+            .font(.caption2)
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xs)
             .background(
@@ -1452,7 +1452,7 @@ struct ReembedStatusBanner: View {
                 Spacer()
                 if progress.total > 0 {
                     Text("\(progress.completed)/\(progress.total)")
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }

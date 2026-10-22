@@ -112,7 +112,7 @@ struct RAGAccuracyView: View {
                                 .scaleEffect(0.8)
                         } else if let report = benchmarkReport {
                             Text(report.metrics.passed ? "PASS" : "FAIL")
-                                .font(.caption.weight(.bold))
+                                .font(.caption.bold())
                                 .foregroundStyle(DSColors.readable(report.metrics.passed ? .green : .red))
                         }
                     }
@@ -202,7 +202,7 @@ struct RAGAccuracyView: View {
                 .foregroundStyle(.secondary)
             if let v = value {
                 Text(String(format: "%.0f%%", v * 100))
-                    .font(.caption.weight(.bold).monospaced())
+                    .font(.caption.bold().monospaced())
                     .monospacedDigit()
                     .foregroundStyle(DSColors.readable(v >= threshold ? .green : .red))
             } else {
@@ -233,7 +233,7 @@ struct RAGAccuracyView: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text(result.passed ? "✅ PASSED" : "❌ FAILED")
-                    .font(.caption.weight(.bold))
+                    .font(.caption.bold())
                 Spacer()
                 Text("Correlation: \(String(format: "%.1f%%", result.correlation * 100))")
                     .font(.caption.monospaced())
@@ -258,10 +258,10 @@ struct RAGAccuracyView: View {
             // Overall status
             HStack {
                 Text(metrics.passed ? "✅ PIPELINE VERIFIED" : "❌ ISSUES DETECTED")
-                    .font(.caption.weight(.bold))
+                    .font(.caption.bold())
                 Spacer()
                 Text(String(format: "%.0f%%", metrics.overallScore * 100))
-                    .font(.caption.weight(.bold).monospaced())
+                    .font(.caption.bold().monospaced())
                     .monospacedDigit()
             }
 
@@ -282,7 +282,7 @@ struct RAGAccuracyView: View {
                 Divider()
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Issues:")
-                        .font(.caption.weight(.bold))
+                        .font(.caption.bold())
                         .foregroundStyle(DSColors.readable(.red))
                     ForEach(metrics.failures, id: \.self) { failure in
                         Text("• \(failure)")
@@ -300,7 +300,7 @@ struct RAGAccuracyView: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Divider()
             Text("Pipeline Census")
-                .font(.caption.weight(.bold))
+                .font(.caption.bold())
 
             metricRow("Recursive RAG", Float(census.recursiveRAGCases) / Float(max(census.totalCases, 1)), threshold: 0)
             metricRow("Query rewrite", Float(census.queryRewriteCases) / Float(max(census.totalCases, 1)), threshold: 0)
@@ -323,7 +323,7 @@ struct RAGAccuracyView: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Divider()
             Text("Benchmark Cases")
-                .font(.caption.weight(.bold))
+                .font(.caption.bold())
 
             ForEach(caseResults) { result in
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
@@ -331,7 +331,7 @@ struct RAGAccuracyView: View {
                         Image(systemName: result.exactMatch ? "checkmark.circle.fill" : (result.f1Score >= 0.5 ? "exclamationmark.circle.fill" : "xmark.circle.fill"))
                             .foregroundStyle(result.exactMatch ? .green : (result.f1Score >= 0.5 ? .orange : .red))
                         Text(result.queryClass.rawValue)
-                            .font(.caption.weight(.bold))
+                            .font(.caption.bold())
                         Spacer()
                         Text(String(format: "F1 %.0f%%", result.f1Score * 100))
                             .font(.caption.monospaced())
@@ -385,7 +385,7 @@ struct RAGAccuracyView: View {
     private func explanationItem(_ title: String, _ description: String) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(title)
-                .font(.caption.weight(.bold))
+                .font(.caption.bold())
             Text(description)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

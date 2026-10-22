@@ -38,7 +38,7 @@ struct StatsFooter: View {
                     Text("\(totalChunks) Chunks")
                 }
             }
-            .font(.caption.weight(.semibold).monospacedDigit())
+            .scaledFont(size: 11, weight: .semibold)
             .foregroundStyle(DSColors.secondaryText)
 
             // Auto Intelligence status indicator
@@ -59,9 +59,9 @@ struct AutoIntelligenceBadge: View {
         // gray tint when it is off (5.7).
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: isEnabled ? "wand.and.stars" : "slider.horizontal.3")
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 10, weight: .bold)
             Text(isEnabled ? "Auto Intelligence Active" : "Manual Pipeline Mode")
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 10, weight: .bold, design: .rounded)
         }
         .foregroundStyle(isEnabled ? Color.white : DSColors.primaryText)
         .padding(.horizontal, DSSpacing.md)

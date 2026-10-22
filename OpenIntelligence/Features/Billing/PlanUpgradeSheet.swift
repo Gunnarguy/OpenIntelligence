@@ -198,7 +198,7 @@ extension PlanUpgradeSheet {
                 .foregroundStyle(DSColors.secondaryText)
             HStack {
                 Label("Current plan: \(entitlementStore.activeTier.displayName)", systemImage: "creditcard")
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
                     .background(Color.accentColor.opacity(0.1))
@@ -259,7 +259,7 @@ extension PlanUpgradeSheet {
                         .font(.subheadline.weight(.bold))
                         .monospacedDigit()
                     Text("Ends \(LaunchSale.deadlineText(for: offer.endDate)). One payment, no renewal.")
-                        .font(.footnote)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -381,9 +381,9 @@ extension PlanUpgradeSheet {
                 .foregroundStyle(DSColors.accent)
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Built for personal research")
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline.weight(.semibold))
                 Text("Spin up as many document chats as you need while keeping each workspace organized.")
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -443,7 +443,7 @@ extension PlanUpgradeSheet {
             Text(
                 "Subscriptions automatically renew at the price and duration selected above unless cancelled at least 24 hours before the end of the current period. Payments are charged to your App Store account. You can manage your subscriptions and turn off auto-renewal in your App Store Account Settings after purchase."
             )
-            .font(.caption)
+            .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: DSSpacing.lg) {
@@ -812,7 +812,7 @@ private struct PlanTierCard: View {
                             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
 
                         Text("\(saleOffer.percentOff)% off")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption.weight(.bold))
                             .monospacedDigit()
                             .foregroundStyle(.white)
                             .padding(.horizontal, DSSpacing.sm)
@@ -941,7 +941,7 @@ private struct PlanPriceCaptions: View {
         }
         if let dealBadge {
             Text(dealBadge)
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .monospacedDigit()
                 .lineLimit(1)
                 .padding(.horizontal, DSSpacing.sm)

@@ -112,7 +112,7 @@ struct GlossaryView: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Every word this app puts on screen, explained twice. Plain first, and the mechanism underneath if you want it.")
-                .font(.body)
+                .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
 
             Toggle(isOn: $showsTechnical) {
@@ -120,7 +120,7 @@ struct GlossaryView: View {
                     Text("Always show the technical version")
                         .font(.subheadline.weight(.medium))
                     Text("Applies to every definition in the app, including the ones you tap from other screens")
-                        .font(.footnote)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -145,12 +145,12 @@ struct GlossaryView: View {
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(term.term)
-                        .font(.subheadline.weight(.medium))
+                        .font(.body.weight(.medium))
                     // One line of the plain register, so the list is scannable without
                     // opening anything. The full definition and the technical register
                     // are both one tap away.
                     Text(term.plain)
-                        .font(.footnote)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }

@@ -828,7 +828,7 @@ private struct SiliconLegend: View {
                         // not screen +infinity. ComponentActivity now guarantees finite,
                         // so this is the second line of defence rather than the first.
                         Text("\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
-                            .font(.system(size: 8 * scale, weight: .medium, design: .monospaced).monospacedDigit())
+                            .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
                             .foregroundStyle(.white)
                             .frame(width: 26 * scale, alignment: .trailing)
                     }
@@ -848,7 +848,7 @@ private struct SiliconLegend: View {
 
                         // Show fire count instead of % — it's an output device
                         Text("×\(taptic.opsCount)")
-                            .font(.system(size: 8 * scale, weight: .regular, design: .monospaced).monospacedDigit())
+                            .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
                             .foregroundStyle(.white)
                             .frame(width: 50 * scale, alignment: .trailing)
                     }
@@ -868,14 +868,14 @@ private struct SiliconLegend: View {
                         .frame(width: 28 * scale, alignment: .leading)
 
                     Text(availableRAMText)
-                        .font(.system(size: 8 * scale, weight: .regular, design: .monospaced).monospacedDigit())
+                        .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
                         .foregroundStyle(.white)
                         .frame(width: 50 * scale, alignment: .trailing)
                 }
             } else if !metricsSummary.isEmpty {
                 // Fallback to compact summary
                 Text(metricsSummary)
-                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced).monospacedDigit())
+                    .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
                     .foregroundStyle(.white)
                     .lineLimit(2)
             } else {

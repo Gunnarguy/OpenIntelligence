@@ -35,7 +35,7 @@ struct EmptyDocumentsView: View {
                         .glassCircleEffectHelper()
 
                     Image(systemName: "doc.viewfinder.fill")
-                        .font(.largeTitle.weight(.bold))
+                        .scaledFont(size: 44, weight: .bold)
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
@@ -67,7 +67,7 @@ struct EmptyDocumentsView: View {
                             .foregroundStyle(DSColors.readable(.orange))
                         Text("Limit of \(documentLimit) documents reached.")
                     }
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(DSColors.primaryText)
                     .padding(.horizontal, DSSpacing.md)
                     .padding(.vertical, DSSpacing.xs)
@@ -172,7 +172,7 @@ struct DocumentFeatureRow: View {
                     .frame(width: 36, height: 36)
                 
                 Image(systemName: icon)
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 15, weight: .semibold)
                     .foregroundStyle(Color.accentColor)
             }
             .glassCircleEffectHelper()

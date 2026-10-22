@@ -213,7 +213,7 @@ struct LibraryColorPicker: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(selectedColorHex.uppercased())
-                    .font(.subheadline.weight(.medium).monospaced())
+                    .scaledFont(size: 14, weight: .medium, design: .monospaced)
             }
 
             Spacer()
@@ -236,9 +236,9 @@ struct LibraryColorPicker: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: palette.icon)
-                    .font(.caption)
+                    .scaledFont(size: 11)
                 Text(palette.rawValue)
-                    .font(.caption.weight(.medium))
+                    .scaledFont(size: 12, weight: .medium)
             }
             .foregroundStyle(selectedPalette == palette ? .white : .primary)
             .padding(.horizontal, DSSpacing.sm)
@@ -324,7 +324,7 @@ struct ColorPickerButton: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .scaledFont(size: 12, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -413,7 +413,7 @@ struct AccentColorPicker: View {
 
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.body.weight(.bold))
+                            .scaledFont(size: 18, weight: .bold)
                             .foregroundStyle(.white)
                     }
                 }
@@ -479,7 +479,7 @@ struct AccentColorSettingsRow: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .scaledFont(size: 12, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)

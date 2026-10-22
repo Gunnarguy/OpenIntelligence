@@ -30,7 +30,7 @@ struct LiveSystemMonitorWrapper: View {
                         .fill(Color.green)
                         .frame(width: 6, height: 6)
                     Text("Live")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(DSColors.readable(.green))
                 }
             }
@@ -82,9 +82,9 @@ struct LiveSystemMonitorWrapper: View {
                 // Cores
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "cpu")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2)
                     Text("\(state.activeProcessorCount)/\(state.processorCount) cores")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2.weight(.medium))
                         .monospacedDigit()
                 }
                 .foregroundStyle(.secondary)
@@ -96,9 +96,9 @@ struct LiveSystemMonitorWrapper: View {
                 if state.isLowPowerModeEnabled {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "leaf.fill")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2)
                         Text("Low Power")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2.weight(.medium))
                     }
                     .foregroundStyle(DSColors.readable(.orange))
                     .padding(.horizontal, DSSpacing.sm)
@@ -110,9 +110,9 @@ struct LiveSystemMonitorWrapper: View {
                 if state.isCharging {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "bolt.fill")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2)
                         Text("Charging")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2.weight(.medium))
                     }
                     .foregroundStyle(DSColors.readable(.green))
                     .padding(.horizontal, DSSpacing.sm)
@@ -179,7 +179,7 @@ struct LiveSystemMonitorWrapper: View {
                     .font(.caption)
                     .foregroundStyle(color)
                 Text(label)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
             }
 

@@ -106,7 +106,7 @@ struct VisualizationsView: View {
                     Text(activeContainerName)
                         .font(.headline)
                     Text(summaryLine)
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     if let updated = lastUpdatedDocumentsSummary {
                         Text(updated)
@@ -297,7 +297,7 @@ struct EmptyVisualizationsView: View {
                     .frame(width: 120, height: 120)
 
                 Image(systemName: "chart.xyaxis.line")
-                    .font(.largeTitle)
+                    .scaledFont(size: 50)
                     .foregroundStyle(DSColors.accent.gradient)
             }
 
@@ -372,7 +372,7 @@ struct EmbeddingSpaceView: View {
                     .fontWeight(.bold)
 
                 Text("\(chunkCount) chunks translated into a map—dots that sit close together discuss similar ideas.")
-                    .font(.caption.monospacedDigit())
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -811,7 +811,7 @@ struct AdvancedCorpusStatsView: View {
                 ForEach(documentTypeBreakdown, id: \.type) { item in
                     VStack(spacing: DSSpacing.xs) {
                         Text("\(item.count)")
-                            .font(.title3.bold().monospacedDigit())
+                            .font(.title3.bold())
                         Text(item.type)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -1158,7 +1158,7 @@ struct EmptyAnalyticsView: View {
     var body: some View {
         VStack(spacing: DSSpacing.md) {
             Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.largeTitle)
+                .scaledFont(size: 50)
                 .foregroundStyle(.secondary)
 
             Text("No query data yet")
@@ -1245,7 +1245,7 @@ struct QueryEventCard: View {
                     .frame(width: 32, height: 32)
 
                 Text("\(index)")
-                    .font(.caption.monospacedDigit())
+                    .font(.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(DSColors.accent)
             }
@@ -1256,12 +1256,12 @@ struct QueryEventCard: View {
                     .fontWeight(.semibold)
 
                 Text(event.formattedTimestamp)
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 if let duration = event.duration {
                     Text(String(format: "%.2f s", duration))
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1404,7 +1404,7 @@ struct RetrievalPatternsView: View {
                 .foregroundStyle(color(for: stat.docId))
                 .annotation(position: .trailing) {
                     Text("\(stat.hits) hits\navg \(String(format: "%.2f", stat.averageSimilarity))")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                 }
@@ -1426,12 +1426,12 @@ struct RetrievalPatternsView: View {
                 .foregroundStyle(color(for: stat.id))
                 .annotation(position: .trailing) {
                     Text("\(stat.uniqueChunks) chunks")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 .annotation(position: .trailing) {
                     Text("\(stat.hits)")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1458,7 +1458,7 @@ struct RetrievalPatternsView: View {
                         Spacer()
 
                         Text(String(format: "%.2f", stat.averageSimilarity))
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, DSSpacing.sm)
                             .padding(.vertical, DSSpacing.xs)
@@ -1479,12 +1479,12 @@ struct RetrievalPatternsView: View {
                     HStack(spacing: DSSpacing.md) {
                         if let page = stat.pageNumber {
                             Label("Page \(page)", systemImage: "doc")
-                                .font(.caption2.monospacedDigit())
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
 
                         Label("\(stat.hits) hits", systemImage: "arrow.counterclockwise")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
 
                         Label(relativeTime(for: stat.lastRetrieved), systemImage: "clock")
@@ -1769,7 +1769,7 @@ struct StageMetricRow: View {
             Spacer()
 
             Text(String(format: "%.2fs", avgTime))
-                .font(.subheadline.monospacedDigit())
+                .font(.subheadline)
                 .fontWeight(.medium)
                 .foregroundStyle(.secondary)
         }
@@ -1835,7 +1835,7 @@ struct StatCard: View {
             }
 
             Text(value)
-                .font(.title3.monospacedDigit())
+                .font(.title3)
                 .fontWeight(.bold)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
@@ -2216,7 +2216,7 @@ struct SimilarityHeatmapView: View {
             .frame(width: cellSize, height: cellSize)
             .overlay(
                 Text(value)
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .scaledFont(size: 11, weight: .semibold)
                     .foregroundStyle(textColor)
             )
             .accessibilityLabel(
@@ -2470,7 +2470,7 @@ struct PipelineTimelineView: View {
 
                 if let duration = event.duration {
                     Text(String(format: "%.0f ms", duration * 1000))
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -2551,7 +2551,7 @@ struct SemanticClusteringView: View {
                 Spacer()
 
                 Text("K = \(selectedK)")
-                    .font(.headline.monospacedDigit())
+                    .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundStyle(DSColors.accent)
             }
@@ -2590,7 +2590,7 @@ struct SemanticClusteringView: View {
                 }
 
                 Label("\(sampleChunks.count) chunks", systemImage: "square.stack.3d.down.right")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
@@ -2634,7 +2634,7 @@ struct SemanticClusteringView: View {
                     .foregroundStyle(clusterColor(index))
                     .annotation(position: .trailing) {
                         Text("\(cluster.count) chunks")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -2705,7 +2705,7 @@ struct SemanticClusteringView: View {
                 }
 
                 Text(value)
-                    .font(.headline.monospacedDigit())
+                    .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
             }
@@ -3013,12 +3013,12 @@ struct ClusterPreviewCard: View {
                     .frame(width: 12, height: 12)
 
                 Text("Topic \(index + 1)")
-                    .font(.headline.monospacedDigit())
+                    .font(.headline)
 
                 Spacer()
 
                 Text("\(cluster.count) chunks")
-                    .font(.caption.monospacedDigit())
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -3048,7 +3048,7 @@ struct ClusterPreviewCard: View {
                                 .fontWeight(.medium)
                                 .lineLimit(2)
                             Text("\(item.1) chunks")
-                                .font(.caption2.monospacedDigit())
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -3286,7 +3286,7 @@ struct FTS5StorageView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(formatNumber(indexInfo.uniqueTerms))
-                        .font(.title2.monospacedDigit())
+                        .font(.title2)
                         .fontWeight(.semibold)
                 }
 
@@ -3298,7 +3298,7 @@ struct FTS5StorageView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(formatNumber(indexInfo.totalTerms))
-                        .font(.title2.monospacedDigit())
+                        .font(.title2)
                         .fontWeight(.semibold)
                 }
 
@@ -3310,7 +3310,7 @@ struct FTS5StorageView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(String(format: "%.1f", indexInfo.averageTermFrequency))
-                        .font(.title2.monospacedDigit())
+                        .font(.title2)
                         .fontWeight(.semibold)
                 }
             }
@@ -3323,7 +3323,7 @@ struct FTS5StorageView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(String(format: "%.1f%%", min(100, indexInfo.compressionRatio * 100)))
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .fontWeight(.medium)
                 }
 
@@ -3362,17 +3362,17 @@ struct FTS5StorageView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(container.containerId.uuidString.prefix(8) + "...")
-                            .font(.caption.monospaced())
+                            .font(.caption)
                             .fontWeight(.medium)
                         Text("\(container.documentCount) docs • \(formatNumber(container.totalWords)) words")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
                     Text(formatNumber(container.totalCharacters))
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
                     Text("chars")
@@ -3425,7 +3425,7 @@ struct FTS5StorageView: View {
             ForEach(documentStats.prefix(10)) { doc in
                 HStack(spacing: DSSpacing.sm) {
                     Text(doc.documentId.uuidString.prefix(8) + "...")
-                        .font(.caption2.monospaced())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .frame(width: 80, alignment: .leading)
 
@@ -3440,7 +3440,7 @@ struct FTS5StorageView: View {
                     .frame(height: 12)
 
                     Text(formatNumber(doc.characterCount))
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .frame(width: 50, alignment: .trailing)
                 }
@@ -3448,7 +3448,7 @@ struct FTS5StorageView: View {
 
             if documentStats.count > 10 {
                 Text("+ \(documentStats.count - 10) more documents")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(.top, DSSpacing.xs)
             }
@@ -3475,14 +3475,14 @@ struct FTS5StorageView: View {
             ForEach(documentStats.prefix(15)) { doc in
                 HStack {
                     Text(doc.documentId.uuidString.prefix(12) + "...")
-                        .font(.caption.monospaced())
+                        .font(.caption)
                         .foregroundStyle(.primary)
                     Spacer()
                     Text(formatNumber(doc.characterCount))
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(formatNumber(doc.wordCount))
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: 60, alignment: .trailing)
                 }
@@ -3490,7 +3490,7 @@ struct FTS5StorageView: View {
 
             if documentStats.count > 15 {
                 Text("+ \(documentStats.count - 15) more documents")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(.top, DSSpacing.xs)
             }
@@ -3525,7 +3525,7 @@ struct FTS5StorageView: View {
     private var emptyState: some View {
         VStack(spacing: DSSpacing.lg) {
             Image(systemName: "cylinder")
-                .font(.largeTitle)
+                .scaledFont(size: 48)
                 .foregroundStyle(.secondary.opacity(0.5))
 
             Text("No FTS5 Data")
@@ -3610,7 +3610,7 @@ private struct FTS5StatCard: View {
             }
 
             Text(value)
-                .font(.title2.monospacedDigit())
+                .font(.title2)
                 .fontWeight(.bold)
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {

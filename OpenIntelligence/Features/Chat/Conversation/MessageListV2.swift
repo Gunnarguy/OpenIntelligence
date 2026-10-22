@@ -217,7 +217,7 @@ private struct EmptyStateV2: View {
     var body: some View {
         VStack(spacing: DSSpacing.lg) {
             Text("Local-First")
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(DSColors.accent)
                 .padding(.horizontal, DSSpacing.md)
                 .padding(.vertical, DSSpacing.xs)
@@ -232,19 +232,19 @@ private struct EmptyStateV2: View {
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.largeTitle)
+                    .scaledFont(size: 32, weight: .light)
                     .foregroundStyle(DSColors.accent.opacity(0.6))
             }
 
             VStack(spacing: DSSpacing.sm) {
                 Text("Grounded chat over your library")
-                    .font(.title3.weight(.semibold))
+                    .scaledFont(size: 20, weight: .semibold)
                     .foregroundStyle(DSColors.primaryText)
 
                 Text(
                     "Grounded answers over your files, with strong support for PDFs, modern Office files, text, scans, images, code, and transcriptable media."
                 )
-                .font(.subheadline)
+                .scaledFont(size: 15)
                 .foregroundStyle(DSColors.secondaryText)
                 .multilineTextAlignment(.center)
             }
@@ -336,7 +336,7 @@ private struct StreamingBubbleV2: View {
         // Message content with cursor
         HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
             Text(StreamingMarkdown.withoutMarkers(text))
-                .font(.body)
+                .scaledFont(size: 15)
                 .foregroundStyle(DSColors.primaryText)
                 .textSelection(.enabled)
 
@@ -406,7 +406,7 @@ private struct TypingBubbleV2: View {
                 ProgressView()
                     .controlSize(.small)
                 Text(ChatProgress.phrase(for: latestEvent?.kind, thinksInSteps: mode.canonical != .standard))
-                    .font(.subheadline)
+                    .scaledFont(size: 15)
                     .foregroundStyle(DSColors.secondaryText)
                     .contentTransition(.opacity)
                     .animation(DSAnimations.fastEase, value: latestEvent?.kind)
@@ -439,7 +439,7 @@ private struct TypingBubbleV2: View {
 
                         if let latest = latestEvent {
                             Image(systemName: latest.kind.systemIconName)
-                                .font(.caption2.bold())
+                                .scaledFont(size: 8, weight: .bold)
                                 .foregroundStyle(modeColor)
                                 .transition(.scale.combined(with: .opacity))
                                 .id("icon-\(latest.id)")
@@ -453,11 +453,11 @@ private struct TypingBubbleV2: View {
 
                     VStack(alignment: .leading, spacing: 0) {
                         Text(latestEvent?.title ?? "Initializing \(mode.displayName)...")
-                            .font(.caption.weight(.semibold))
+                            .scaledFont(size: 12, weight: .semibold)
                             .foregroundStyle(DSColors.primaryText)
 
                         Text(mode.displayName.uppercased())
-                            .font(.caption2.bold())
+                            .scaledFont(size: 7, weight: .bold)
                             .foregroundStyle(modeColor.opacity(0.8))
                             .tracking(0.5)
                     }
@@ -515,20 +515,20 @@ private struct LivePipelinePreview: View {
                 HStack(alignment: .top, spacing: DSSpacing.sm) {
                     // In the label color on the step list's tint, in a column that grows with its text (5.7).
                     Text(event.kind.displayName.uppercased())
-                        .font(.caption2.bold().monospaced())
+                        .scaledFont(size: 8, weight: .bold, design: .monospaced)
                         .foregroundStyle(DSColors.primaryText)
                         .frame(width: kindColumn, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(event.title)
-                            .font(.caption.weight(isLatest ? .semibold : .medium))
+                            .scaledFont(size: 11, weight: isLatest ? .semibold : .medium)
                             .foregroundStyle(DSColors.primaryText)
                             .lineLimit(2)
                             .minimumScaleFactor(0.85)
 
                         if let detail = event.detail, !detail.isEmpty {
                             Text(detail)
-                                .font(.caption2.monospaced())
+                                .scaledFont(size: 10, weight: .regular, design: .monospaced)
                                 .foregroundStyle(DSColors.secondaryText)
                                 .lineLimit(3)
                                 .minimumScaleFactor(0.8)

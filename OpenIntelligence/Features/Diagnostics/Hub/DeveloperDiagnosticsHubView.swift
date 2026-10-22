@@ -244,7 +244,7 @@ struct DeveloperDiagnosticsHubView: View {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(settings.ragQualityMode.canonical.displayName)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
                     .background(DSColors.chipBackground(for: DSColors.accent))

@@ -64,12 +64,12 @@ struct EventToastView: View {
         HStack(spacing: DSSpacing.xs) {
             // Animated icon
             Image(systemName: toast.icon)
-                .font(.caption.weight(.semibold))
+                .scaledFont(size: 11, weight: .semibold)
                 .foregroundStyle(toast.tint)
                 .symbolEffect(.bounce, options: .nonRepeating, value: isVisible)
             
             Text(toast.title)
-                .font(.caption.weight(.medium))
+                .scaledFont(size: 11, weight: .medium)
                 .foregroundStyle(DSColors.primaryText)
                 .lineLimit(1)
         }

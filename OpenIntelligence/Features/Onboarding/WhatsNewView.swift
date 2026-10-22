@@ -63,14 +63,14 @@ struct WhatsNewView: View {
     private func row(for item: WhatsNewRelease.Item) -> some View {
         HStack(alignment: .top, spacing: DSSpacing.sm) {
             Image(systemName: item.symbol)
-                .font(.subheadline.weight(.semibold))
+                .scaledFont(size: 15, weight: .semibold)
                 .foregroundStyle(.tint)
                 .frame(width: DSSpacing.xl, alignment: .center)
                 .padding(.top, DSSpacing.xxs)
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(item.title)
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 15, weight: .semibold)
                     .foregroundStyle(DSColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(item.detail)

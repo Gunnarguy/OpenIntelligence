@@ -111,7 +111,7 @@ private struct EmptyTelemetryView: View {
                     .frame(width: 120, height: 120)
 
                 Image(systemName: "waveform.path.ecg")
-                    .font(.largeTitle)
+                    .scaledFont(size: 50)
                     .imageScale(.large)
                     .foregroundStyle(
                         LinearGradient(
@@ -164,7 +164,7 @@ private struct ModernTelemetryCard: View {
                             Image(systemName: "clock")
                                 .font(.caption2)
                             Text(duration)
-                                .font(.caption.monospacedDigit())
+                                .font(.caption)
                         }
                         .foregroundStyle(.secondary)
                     }
@@ -184,7 +184,7 @@ private struct ModernTelemetryCard: View {
                         .clipShape(Capsule())
 
                     Text(event.formattedTimestamp)
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -199,7 +199,7 @@ private struct ModernTelemetryCard: View {
                                 .foregroundStyle(.secondary)
                                 .frame(minWidth: 80, alignment: .leading)
                             Text(value)
-                                .font(.caption.monospacedDigit())
+                                .font(.caption)
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }

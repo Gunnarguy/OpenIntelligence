@@ -211,9 +211,9 @@ private struct ActionButton: View {
         }) {
             VStack(spacing: DSSpacing.xxs) {
                 Image(systemName: icon)
-                    .font(.subheadline.weight(.medium))
+                    .scaledFont(size: 14, weight: .medium)
                 Text(label)
-                    .font(.caption2.weight(.medium))
+                    .scaledFont(size: 9, weight: .medium)
             }
             .foregroundStyle(color)
             .frame(minWidth: 50, minHeight: DSSpacing.tapTarget)
@@ -249,17 +249,17 @@ struct MessageMetadataPanel: View {
             } label: {
                 HStack(spacing: DSSpacing.sm) {
                     Image(systemName: "chart.bar.doc.horizontal")
-                        .font(.caption.weight(.semibold))
+                        .scaledFont(size: 11, weight: .semibold)
                         .foregroundStyle(DSColors.accent)
 
                     Text("Response Metrics")
-                        .font(.caption.weight(.semibold))
+                        .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
+                        .scaledFont(size: 10, weight: .semibold)
                         .foregroundStyle(Color.secondary)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                 }
@@ -328,18 +328,18 @@ private struct MetricRow: View {
     var body: some View {
         HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.caption.weight(.medium))
+                .scaledFont(size: 11, weight: .medium)
                 .foregroundStyle(Color.secondary)
                 .frame(width: 16)
 
             Text(label)
-                .font(.caption.weight(.medium))
+                .scaledFont(size: 12, weight: .medium)
                 .foregroundStyle(Color.secondary)
 
             Spacer()
 
             Text(value)
-                .font(.caption.weight(.semibold).monospaced())
+                .scaledFont(size: 12, weight: .semibold, design: .monospaced)
                 .monospacedDigit()
                 .foregroundStyle(valueColor)
         }

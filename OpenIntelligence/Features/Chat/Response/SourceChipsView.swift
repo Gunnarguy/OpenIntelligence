@@ -101,13 +101,13 @@ private struct SourceChip: View {
                 
                 // Source label
                 Text("#\(chip.index)")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 9, weight: .bold, design: .rounded)
                     .monospacedDigit()
                     .foregroundStyle(chip.tint)
                 
                 // Similarity percentage
                 Text("\(Int(chip.percent * 100))%")
-                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .scaledFont(size: 9, weight: .medium, design: .monospaced)
                     .monospacedDigit()
                     .foregroundStyle(DSColors.secondaryText)
             }
@@ -164,10 +164,10 @@ private struct MoreChip: View {
         }) {
             HStack(spacing: DSSpacing.xxs) {
                 Text("+\(remaining)")
-                    .font(.caption2.weight(.semibold))
+                    .scaledFont(size: 9, weight: .semibold, design: .rounded)
                     .monospacedDigit()
                 Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 7, weight: .bold)
             }
             .foregroundStyle(DSColors.accent)
             .padding(.horizontal, DSSpacing.xs)

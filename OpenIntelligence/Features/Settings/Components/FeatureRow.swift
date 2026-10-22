@@ -24,7 +24,7 @@ struct FeatureRow: View {
                 Text(title)
                     .font(.subheadline.weight(.medium))
                 Text(description)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }

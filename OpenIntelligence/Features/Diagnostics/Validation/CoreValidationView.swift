@@ -71,7 +71,7 @@ struct CoreValidationView: View {
                         VStack(alignment: .leading, spacing: DSSpacing.lg) {
                             HStack {
                                 Text("Test Results")
-                                    .font(.headline)
+                                    .font(.title3)
 
                                 Spacer()
 
@@ -81,7 +81,7 @@ struct CoreValidationView: View {
                                         Image(systemName: "checkmark.circle.fill")
                                             .foregroundStyle(.green)
                                         Text("\(testResults.filter { $0.status == .passed }.count)")
-                                            .font(.caption.weight(.semibold))
+                                            .font(.caption)
                                             .monospacedDigit()
                                     }
 
@@ -89,7 +89,7 @@ struct CoreValidationView: View {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundStyle(.red)
                                         Text("\(testResults.filter { $0.status == .failed }.count)")
-                                            .font(.caption.weight(.semibold))
+                                            .font(.caption)
                                             .monospacedDigit()
                                     }
                                 }
@@ -547,7 +547,7 @@ private struct StatusPill: View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: systemImage)
             Text(text)
-                .font(.caption2.weight(.semibold))
+                .font(.caption)
         }
         .font(.caption2.weight(.semibold))
         .padding(.horizontal, DSSpacing.sm)
@@ -589,7 +589,7 @@ struct ModernTestResultCard: View {
             Spacer()
 
             Text(String(format: "%.2fs", result.duration))
-                .font(.caption.weight(.medium))
+                .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, DSSpacing.sm)
@@ -614,7 +614,7 @@ struct ModernTestInfoSection: View {
                 Image(systemName: "info.circle.fill")
                     .foregroundStyle(DSColors.accent)
                 Text("What This Tests")
-                    .font(.headline)
+                    .font(.title3)
             }
 
             VStack(spacing: DSSpacing.md) {

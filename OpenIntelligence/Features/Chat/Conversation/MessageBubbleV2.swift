@@ -143,7 +143,7 @@ struct MessageBubbleV2: View {
                             } label: {
                                 HStack(spacing: DSSpacing.xs) {
                                     Image(systemName: showReasoningTrace ? "chevron.down" : "chevron.right")
-                                        .font(.caption2.weight(.medium))
+                                        .scaledFont(size: 10, weight: .medium)
                                     
                                     let modeIcon: String = {
                                         let mode = message.metadata?.qualityModeName?.lowercased() ?? ""
@@ -153,12 +153,12 @@ struct MessageBubbleV2: View {
                                     }()
                                     
                                     Image(systemName: modeIcon)
-                                        .font(.caption2)
+                                        .scaledFont(size: 10)
                                     
                                     Text("Reasoning Process")
-                                        .font(.footnote.weight(.medium))
+                                        .scaledFont(size: 13, weight: .medium)
                                     Text("(\(displayedReasoningTrace.count) steps)")
-                                        .font(.caption)
+                                        .scaledFont(size: 11)
                                         .monospacedDigit()
                                         .foregroundStyle(DSColors.secondaryText)
                                     Spacer()
@@ -250,7 +250,7 @@ struct MessageBubbleV2: View {
                     }
 
                     Text(relativeTime(message.timestamp))
-                        .font(.caption2)
+                        .scaledFont(size: 10)
                         .monospacedDigit()
                         .foregroundStyle(DSColors.secondaryText)
 
@@ -264,17 +264,17 @@ struct MessageBubbleV2: View {
                             let isMaximum = meta.qualityModeName == "Maximum"
                             HStack(spacing: DSSpacing.xxs) {
                                 Image(systemName: isMaximum ? "flame.fill" : "brain")
-                                    .font(.caption2.weight(.medium))
+                                    .scaledFont(size: 8, weight: .medium)
                                 Text(isMaximum ? "Max" : "Deep")
-                                    .font(.caption2.weight(.medium))
+                                    .scaledFont(size: 9, weight: .medium)
                             }
                             .foregroundStyle(isMaximum ? DSColors.readable(.orange) : DSColors.readable(.purple))
                         } else if meta.canGoDeeper {
                             HStack(spacing: DSSpacing.xxs) {
                                 Image(systemName: "bolt")
-                                    .font(.caption2.weight(.medium))
+                                    .scaledFont(size: 8, weight: .medium)
                                 Text("Standard")
-                                    .font(.caption2.weight(.medium))
+                                    .scaledFont(size: 9, weight: .medium)
                             }
                             .foregroundStyle(DSColors.readable(DSColors.accent))
                         }
@@ -422,12 +422,12 @@ struct MessageBubbleV2: View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "eye.slash")
-                    .font(.caption.weight(.semibold))
+                    .scaledFont(size: 12, weight: .semibold)
                 Text("Message hidden")
-                    .font(.footnote.weight(.semibold))
+                    .scaledFont(size: 13, weight: .semibold)
             }
             Text("Tap to view actions")
-                .font(.caption)
+                .scaledFont(size: 12)
                 .foregroundStyle(DSColors.secondaryText)
         }
         .foregroundStyle(DSColors.primaryText)
@@ -656,7 +656,7 @@ private struct ResponseRouteBadge: View {
             Image(systemName: descriptor.systemImage)
                 .foregroundStyle(DSColors.readable(color))
         }
-            .font(.caption2.weight(.semibold))
+            .scaledFont(size: 9, weight: .semibold)
             .foregroundStyle(DSColors.primaryText)
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xxs)
@@ -696,12 +696,12 @@ private struct ReasoningStepView: View {
                 let content = parts.count > 1 ? parts.dropFirst().joined(separator: ": ") : step
 
                 Text(label)
-                    .font(.caption.bold())
+                    .scaledFont(size: 11, weight: .bold)
                     .foregroundStyle(DSColors.primaryText)
                     .textCase(.uppercase)
 
                 Text(content)
-                    .font(.footnote)
+                    .scaledFont(size: 13)
                     .foregroundStyle(DSColors.primaryText.opacity(0.8))
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
@@ -741,10 +741,10 @@ private struct VerificationBadge: View {
         // chips (5.7).
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: status.icon)
-                .font(.caption2.bold())
+                .scaledFont(size: 8, weight: .bold)
                 .foregroundStyle(DSColors.readable(status.color))
             Text(status.label)
-                .font(.caption2.weight(.medium))
+                .scaledFont(size: 10, weight: .medium)
         }
         .foregroundStyle(DSColors.primaryText)
         .padding(.horizontal, DSSpacing.xs)

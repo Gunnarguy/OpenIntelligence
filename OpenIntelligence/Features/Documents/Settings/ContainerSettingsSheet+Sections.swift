@@ -116,7 +116,7 @@ extension ContainerSettingsSheet {
                         Image(systemName: "wrench.and.screwdriver")
                             .font(.caption2)
                         Text("ADVANCED. YOU DO NOT NEED TO CHANGE THIS")
-                            .font(.subheadline.weight(.medium))
+                            .font(.caption2.weight(.semibold))
                     }
                     .foregroundStyle(.orange)
 
@@ -175,7 +175,7 @@ extension ContainerSettingsSheet {
                     .accessibilityValue("\(targetWordWindow) words")
 
                     Text("Smaller = more precise matches, larger = more context per chunk. \(SemanticChunker.ChunkingConfig.maxTargetSize) words is the most the embedding model can take with room for its prefix.")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, DSSpacing.xs)
@@ -292,7 +292,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(DeviceCapabilityService.shared.chipName)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -372,7 +372,7 @@ extension ContainerSettingsSheet {
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold).monospacedDigit())
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(Color.accentColor)
         .padding(.horizontal, DSSpacing.sm)
@@ -395,7 +395,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("Analyzed")
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.green)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -406,7 +406,7 @@ extension ContainerSettingsSheet {
             if report.corpus.isEstimate {
                 // A large library is measured from a sample of its passages.
                 Text("Measured from \(report.corpus.analysedChunkCount) of \(report.corpus.chunkCount) chunks")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
@@ -527,7 +527,7 @@ extension ContainerSettingsSheet {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.medium))
         }
         .foregroundStyle(color)
         .padding(.horizontal, DSSpacing.sm)
@@ -556,7 +556,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text(report.retrieval.fusionStyle.rawValue.capitalized)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -607,7 +607,7 @@ extension ContainerSettingsSheet {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.caption2)
                     Text("MMR: \(String(format: "%.2f", report.retrieval.mmrLambda))")
-                        .font(.caption2.weight(.medium).monospacedDigit())
+                        .font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(Color.accentColor)
 
@@ -725,7 +725,7 @@ extension ContainerSettingsSheet {
                         .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
                         .frame(width: 40, height: 40)
                     Image(systemName: icon)
-                        .font(.body.weight(.medium))
+                        .scaledFont(size: 16, weight: .medium)
                         .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 }
 
@@ -851,7 +851,7 @@ extension ContainerSettingsSheet {
         Text(retrievalConfig.minConfidentChunks >= 2
             ? "A Standard answer is written only when at least \(retrievalConfig.minConfidentChunks) of its passages score at or over the minimum. Otherwise you get the closest passages and how many made it."
             : "At 1, the app answers from its best passages. Set 2 or more to answer only when that many score at or over the minimum.")
-            .font(.caption2.monospacedDigit())
+            .font(.caption2)
             .foregroundStyle(.secondary)
 
         // Exact words and meaning
@@ -1031,7 +1031,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text("\(Int(report.embedding.confidence * 100))% match")
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.green)
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
@@ -1048,7 +1048,7 @@ extension ContainerSettingsSheet {
                     Image(systemName: "cpu")
                         .font(.caption2)
                     Text("Dim: \(report.embedding.dimension)")
-                        .font(.caption2.weight(.medium).monospacedDigit())
+                        .font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(Color.accentColor)
 
@@ -1108,7 +1108,7 @@ extension ContainerSettingsSheet {
                 Text("Dynamic self-tuning library")
                 if autoAdaptDimension, let directive = activeContainer?.chunkingDirective {
                     Text("Chunking locked on \(directive.strategy.capitalized) • \(directive.targetWordWindow)w / \(directive.overlapWords) overlap from the last run.")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1352,9 +1352,9 @@ extension ContainerSettingsSheet {
     private func corpusBadge(text: String, icon: String, color: Color) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .scaledFont(size: 9)
             Text(text)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.medium))
         }
         .foregroundStyle(color)
         .padding(.horizontal, DSSpacing.xs)
@@ -1449,7 +1449,7 @@ extension ContainerSettingsSheet {
 
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("Size Distribution (largest → smallest)")
-                .font(.caption2)
+                .scaledFont(size: 9)
                 .foregroundStyle(.secondary)
 
             HStack(alignment: .bottom, spacing: DSSpacing.xxs) {
@@ -1488,7 +1488,7 @@ extension ContainerSettingsSheet {
                             Text(term.term)
                                 .font(.caption2.weight(.medium))
                             Text("×\(term.totalOccurrences)")
-                                .font(.caption2.monospacedDigit())
+                                .scaledFont(size: 9)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, DSSpacing.sm)
@@ -1501,7 +1501,7 @@ extension ContainerSettingsSheet {
                 // Vocabulary summary
                 HStack(spacing: DSSpacing.md) {
                     Label("Loaded \(containerTopTerms.count) frequent terms", systemImage: "text.book.closed")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1561,7 +1561,7 @@ extension ContainerSettingsSheet {
                 Text(value)
                     .font(.caption.weight(.semibold).monospacedDigit())
                 Text(label)
-                    .font(.caption2)
+                    .scaledFont(size: 9)
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -1843,7 +1843,7 @@ extension ContainerSettingsSheet {
                         .font(.caption)
                     Spacer()
                     Text("30,522 (BERT WordPiece)")
-                        .font(.caption.weight(.medium).monospacedDigit())
+                        .font(.caption.weight(.medium))
                 }
                 
                 HStack {
@@ -1889,7 +1889,7 @@ struct ChunkingPreview: View {
                     Image(systemName: "brain")
                         .font(.caption2)
                     Text("Semantic")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(Color.accentColor)
                 .padding(.horizontal, DSSpacing.xs)
@@ -1911,16 +1911,16 @@ struct ChunkingPreview: View {
                                 .frame(width: chunkWidth, height: 20)
                                 .overlay(
                                     Text("Chunk \(index + 1)")
-                                        .font(.caption2.monospacedDigit())
+                                        .font(.caption2)
                                         .foregroundStyle(.white)
                                 )
                             // Section snap indicator
                             if index == 0 {
                                 HStack(spacing: DSSpacing.xxs) {
                                     Image(systemName: "arrow.turn.right.down")
-                                        .font(.caption2)
+                                        .scaledFont(size: 6)
                                     Text("Section")
-                                        .font(.caption2)
+                                        .scaledFont(size: 7)
                                 }
                                 .foregroundStyle(Color.accentColor)
                             }
@@ -1933,12 +1933,12 @@ struct ChunkingPreview: View {
             // Stats row
             HStack(spacing: DSSpacing.md) {
                 Label("\(targetWords)w target", systemImage: "text.alignleft")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 if overlap > 0 {
                     Label("\(overlap)w overlap", systemImage: "arrow.left.arrow.right")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
 
@@ -1956,7 +1956,7 @@ struct ChunkingPreview: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("A 2,000-word document → ~\(estimatedChunks) semantic chunks")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: DSSpacing.sm) {
@@ -1974,9 +1974,9 @@ struct ChunkingPreview: View {
     private func featureTag(icon: String, label: String) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .scaledFont(size: 8)
             Text(label)
-                .font(.caption2)
+                .scaledFont(size: 9)
         }
         .foregroundStyle(.secondary)
     }

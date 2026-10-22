@@ -21,7 +21,7 @@ struct DocumentRow: View {
 
             HStack {
                 Text("\(document.totalChunks) chunks")
-                    .font(.caption.monospacedDigit())
+                    .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()

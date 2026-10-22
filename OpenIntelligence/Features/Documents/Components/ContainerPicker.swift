@@ -208,7 +208,7 @@ struct ContainerPill: View {
                 .layoutPriority(1)
             if let badgeText {
                 Text(badgeText)
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .font(.system(.caption2, design: .rounded).weight(.bold))
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, DSSpacing.xxs)
                     .background(badgeStyle.background(isSelected: isSelected))

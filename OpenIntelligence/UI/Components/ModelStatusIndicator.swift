@@ -100,10 +100,10 @@ struct ModelStatusIndicator: View {
         var body: some View {
             HStack(alignment: .top, spacing: DSSpacing.xs) {
                 Text("•")
-                    .font(.caption2)
+                    .scaledFont(size: 10)
                     .foregroundStyle(.secondary)
                 Text(text)
-                    .font(.caption2)
+                    .scaledFont(size: 10)
                     .foregroundStyle(.secondary)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
@@ -122,7 +122,7 @@ struct ModelStatusIndicator: View {
                 .fill(statusColor.opacity(0.14))
                 .frame(width: 20, height: 20)
             Image(systemName: preferenceIcon(for: settings.fmPreference))
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 10, weight: .semibold)
                 .foregroundStyle(statusColor)
         }
         .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
@@ -257,7 +257,7 @@ struct ModelQuickSelector: View {
                     Text(settings.selectedModel.displayName)
                         .font(.subheadline.weight(.semibold))
                     Text(statusText)
-                        .font(.footnote)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -350,10 +350,10 @@ struct QuickModelPickerSheet: View {
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(type.displayName)
-                        .font(.subheadline)
+                        .font(.body)
                         .foregroundStyle(isAvailable ? .primary : .secondary)
                     Text(type.description)
-                        .font(.footnote)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

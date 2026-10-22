@@ -490,7 +490,7 @@ struct AdaptiveVisualizationsView: View {
                     } label: {
                         HStack(spacing: DSSpacing.xs) {
                             Image(systemName: method.icon)
-                                .font(.caption2)
+                                .scaledFont(size: 10)
                             Text(method.rawValue)
                                 .font(.caption2)
                                 .fontWeight(.medium)
@@ -518,7 +518,7 @@ struct AdaptiveVisualizationsView: View {
             if atlasStyle == .scene {
                 HStack(spacing: DSSpacing.md) {
                     Image(systemName: "circle.fill")
-                        .font(.caption2)
+                        .scaledFont(size: 6)
                         .imageScale(.small)
                         .foregroundStyle(.white.opacity(0.5))
 
@@ -527,11 +527,11 @@ struct AdaptiveVisualizationsView: View {
                         .accessibilityLabel("Point size")
 
                     Image(systemName: "circle.fill")
-                        .font(.caption)
+                        .scaledFont(size: 12)
                         .foregroundStyle(.white.opacity(0.5))
 
                     Text(String(format: "%.1fx", atlasPointScale))
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.white.opacity(0.6))
                         .frame(width: 32)
                 }
@@ -573,7 +573,7 @@ struct AdaptiveVisualizationsView: View {
                 } label: {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: atlasBackground.icon)
-                            .font(.caption2)
+                            .scaledFont(size: 10)
                         Text(atlasBackground.rawValue)
                             .font(.caption2)
                     }
@@ -605,7 +605,7 @@ struct AdaptiveVisualizationsView: View {
                             .foregroundStyle(.white.opacity(0.9))
 
                         Text("\(topic.chunkCount)")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(.white.opacity(0.5))
                     }
                     .padding(.horizontal, DSSpacing.sm)
@@ -689,7 +689,7 @@ struct AdaptiveVisualizationsView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Text(lastAnalyzed, style: .relative)
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -960,7 +960,7 @@ struct AdaptiveVisualizationsView: View {
     private var emptyStateCard: some View {
         VStack(spacing: DSSpacing.lg) {
             Image(systemName: "books.vertical.circle")
-                .font(.largeTitle)
+                .scaledFont(size: 60)
                 .imageScale(.large)
                 .foregroundStyle(.secondary)
 
@@ -1059,7 +1059,7 @@ struct QuickMetric: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(value)
-                    .font(.caption.monospacedDigit())
+                    .font(.caption)
                     .fontWeight(.semibold)
                 Text(label)
                     .font(.caption2)
@@ -1088,7 +1088,7 @@ struct InsightCard: View {
                         .frame(width: DSSpacing.tapTarget, height: DSSpacing.tapTarget)
 
                     Image(systemName: insight.icon)
-                        .font(.headline)
+                        .scaledFont(size: 18)
                         .foregroundStyle(insight.color)
                 }
 
@@ -1110,7 +1110,7 @@ struct InsightCard: View {
                     VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                         if let first = insight.metrics.first {
                             Text(first.value)
-                                .font(.caption.monospacedDigit())
+                                .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(DSColors.readable(insight.color))
                             Text(first.label)
@@ -1232,7 +1232,7 @@ struct StatTile: View {
                 .foregroundStyle(color)
 
             Text(value)
-                .font(.headline.monospacedDigit())
+                .font(.headline)
                 .fontWeight(.bold)
 
             Text(label)
@@ -1270,7 +1270,7 @@ struct TopicCloudView: View {
                             Spacer()
 
                             Text("\(topic.chunkCount) chunks")
-                                .font(.caption.monospacedDigit())
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
@@ -1336,7 +1336,7 @@ struct ContentBreakdownView: View {
                     .annotation(position: .overlay) {
                         if percentage > 0.1 {
                             Text(String(format: "%.0f%%", percentage * 100))
-                                .font(.caption2.monospacedDigit())
+                                .font(.caption2)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.white)
                         }
@@ -1363,7 +1363,7 @@ struct ContentBreakdownView: View {
                         Spacer()
 
                         Text(String(format: "%.0f%%", percentage * 100))
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -1388,7 +1388,7 @@ struct ClusterOverviewView: View {
                     .foregroundStyle(topic.color)
                     .annotation(position: .trailing) {
                         Text("\(topic.chunkCount)")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -1423,7 +1423,7 @@ struct ClusterOverviewView: View {
                         .foregroundStyle(.secondary)
 
                     Text(String(format: "%.0f%%", profile.topicDiversity * 100))
-                        .font(.headline.monospacedDigit())
+                        .font(.headline)
                         .foregroundStyle(DSColors.accent)
                 }
             }
@@ -1452,7 +1452,7 @@ struct RetrievalFlowView: View {
                             .frame(width: 40, height: 40)
 
                         Text("\(chunk.retrievalCount)")
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(DSColors.readable(.orange))
                     }
@@ -1472,7 +1472,7 @@ struct RetrievalFlowView: View {
 
                     VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                         Text(String(format: "%.2f", chunk.avgSimilarity))
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                             .foregroundStyle(Color.accentColor)
                         Text("avg sim")
                             .font(.caption2)
@@ -1490,7 +1490,7 @@ struct RetrievalFlowView: View {
             HStack(spacing: DSSpacing.xl) {
                 VStack(spacing: DSSpacing.xs) {
                     Text("\(hotChunks.reduce(0) { $0 + $1.retrievalCount })")
-                        .font(.title2.monospacedDigit())
+                        .font(.title2)
                         .fontWeight(.bold)
                         .foregroundStyle(DSColors.readable(.orange))
                     Text("Total Hits")
@@ -1500,7 +1500,7 @@ struct RetrievalFlowView: View {
 
                 VStack(spacing: DSSpacing.xs) {
                     Text("\(totalChunks - coldZones)")
-                        .font(.title2.monospacedDigit())
+                        .font(.title2)
                         .fontWeight(.bold)
                         .foregroundStyle(DSColors.readable(.green))
                     Text("Active")
@@ -1510,7 +1510,7 @@ struct RetrievalFlowView: View {
 
                 VStack(spacing: DSSpacing.xs) {
                     Text("\(coldZones)")
-                        .font(.title2.monospacedDigit())
+                        .font(.title2)
                         .fontWeight(.bold)
                         .foregroundStyle(.secondary)
                     Text("Untouched")
@@ -1534,7 +1534,7 @@ struct DocumentRelationshipView: View {
     var body: some View {
         VStack(spacing: DSSpacing.lg) {
             Image(systemName: "point.3.connected.trianglepath.dotted")
-                .font(.largeTitle)
+                .scaledFont(size: 60)
                 .imageScale(.large)
                 .foregroundStyle(.secondary)
 
@@ -1621,7 +1621,7 @@ struct LibraryTimelineView: View {
                         .foregroundStyle(.secondary)
 
                     Text(formatAge(libraryAge))
-                        .font(.headline.monospacedDigit())
+                        .font(.headline)
                 }
 
                 Spacer()
@@ -1632,7 +1632,7 @@ struct LibraryTimelineView: View {
                         .foregroundStyle(.secondary)
 
                     Text("\(additions.count)")
-                        .font(.headline.monospacedDigit())
+                        .font(.headline)
                         .foregroundStyle(DSColors.readable(.green))
                 }
             }
@@ -1655,7 +1655,7 @@ struct LibraryTimelineView: View {
                                 .fontWeight(.medium)
 
                             Text(addition.addedAt, style: .relative)
-                                .font(.caption2.monospacedDigit())
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
 
@@ -1663,7 +1663,7 @@ struct LibraryTimelineView: View {
 
                         VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                             Text(String(format: "%.0f%%", addition.integrationScore * 100))
-                                .font(.caption.monospacedDigit())
+                                .font(.caption)
                                 .foregroundStyle(DSColors.readable(addition.integrationScore > 0.6 ? .green : .orange))
                             Text("fit")
                                 .font(.caption2)
@@ -1711,15 +1711,15 @@ struct AtlasStatPill: View {
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .scaledFont(size: 9)
                 .foregroundStyle(color)
 
             Text(value)
-                .font(.caption2.weight(.bold).monospacedDigit())
+                .scaledFont(size: 10, weight: .bold, design: .rounded)
                 .foregroundStyle(.white)
 
             Text(label)
-                .font(.caption2)
+                .scaledFont(size: 8)
                 .foregroundStyle(.white.opacity(0.6))
         }
         .padding(.horizontal, DSSpacing.sm)
@@ -1745,7 +1745,7 @@ struct AtlasToggleChip: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
-                    .font(.caption2)
+                    .scaledFont(size: 10)
                 Text(label)
                     .font(.caption2)
             }
@@ -1768,7 +1768,7 @@ struct CompactInsightCard: View {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack(spacing: DSSpacing.sm) {
                     Image(systemName: insight.icon)
-                        .font(.callout)
+                        .scaledFont(size: 16)
                         .foregroundStyle(insight.color)
 
                     Text(insight.title)
@@ -1787,7 +1787,7 @@ struct CompactInsightCard: View {
                 if let metric = insight.metrics.first {
                     HStack(spacing: DSSpacing.xs) {
                         Text(metric.value)
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .fontWeight(.semibold)
                             .foregroundStyle(DSColors.readable(insight.color))
                         Text(metric.label)
@@ -2065,7 +2065,7 @@ struct Fullscreen3DAtlasView: View {
                             Spacer()
 
                             Text("\(item.count)")
-                                .font(.system(size: 9, weight: .regular, design: .rounded).monospacedDigit())
+                                .font(.system(size: 9, weight: .regular, design: .rounded))
                                 .foregroundStyle(.white.opacity(0.4))
                         }
                     }
@@ -2171,7 +2171,7 @@ struct Fullscreen3DAtlasView: View {
                 Label("\(documentsDrawn)", systemImage: "doc.fill")
                 Label("\(docLegendItems.count) \(showsAllLibraries ? "libraries" : "topics")", systemImage: "tag.fill")
             }
-            .font(.caption.monospacedDigit())
+            .font(.caption)
             .foregroundStyle(.white.opacity(0.7))
             .padding(.horizontal, DSSpacing.lg)
             .padding(.vertical, DSSpacing.sm)
@@ -2215,7 +2215,7 @@ struct Fullscreen3DAtlasView: View {
     private var emptyView: some View {
         VStack(spacing: DSSpacing.lg) {
             Image(systemName: "cube.transparent")
-                .font(.largeTitle)
+                .scaledFont(size: 64)
                 .imageScale(.large)
                 .foregroundStyle(.white.opacity(0.3))
 
@@ -2249,7 +2249,7 @@ struct Fullscreen3DAtlasView: View {
                     .foregroundStyle(.white)
 
                 Text("\(projectionMethodName) • \(points.count) points")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.white.opacity(0.6))
 
                 Picker("Libraries", selection: $showsAllLibraries) {
@@ -2986,7 +2986,7 @@ struct CompactAtlasSceneView: View {
     private var emptyPlaceholder: some View {
         VStack(spacing: DSSpacing.sm) {
             Image(systemName: "cube.transparent")
-                .font(.largeTitle)
+                .scaledFont(size: 36)
                 .foregroundStyle(.white.opacity(0.4))
 
             Text("Add documents to visualize")

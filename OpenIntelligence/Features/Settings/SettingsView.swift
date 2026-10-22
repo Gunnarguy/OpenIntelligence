@@ -646,7 +646,7 @@ struct SettingsView: View {
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "brain.head.profile.fill")
-                    .font(.largeTitle)
+                    .scaledFont(size: 36)
                     .foregroundStyle(Color.accentColor)
             }
 
@@ -686,7 +686,7 @@ struct SettingsView: View {
                 .font(.caption2)
                 .foregroundStyle(active ? Color.accentColor : DSColors.secondaryText)
             Text(text)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.medium))
                 // Its full height for the width it gets, so at large sizes it wraps instead of ending in "Fir..." (5.7).
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -804,7 +804,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var tierBadge: some View {
         Text(entitlementStore.effectiveTier.displayName)
-            .font(.caption2.weight(.semibold))
+            .font(.caption.weight(.semibold))
             .padding(.horizontal, DSSpacing.sm)
             .padding(.vertical, DSSpacing.xs)
             .background(tierBadgeColor.opacity(0.15))
@@ -827,7 +827,7 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .font(.subheadline.weight(.semibold))
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -844,7 +844,7 @@ struct SettingsView: View {
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("Forever unlocked")
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
                     .background(Color.accentColor.opacity(0.16))
@@ -898,7 +898,7 @@ struct SettingsView: View {
                             .fill(Color.green)
                             .frame(width: 8, height: 8)
                         Text("Available")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2.weight(.medium))
                             .foregroundStyle(DSColors.readable(.green))
                     }
                 }
@@ -946,7 +946,7 @@ struct SettingsView: View {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2)
         }
         .foregroundStyle(Color.accentColor)
         .padding(.horizontal, DSSpacing.sm)
@@ -988,7 +988,7 @@ struct SettingsView: View {
                         .fill(pccAvailable ? Color.green : Color.orange)
                         .frame(width: 8, height: 8)
                     Text(pccAvailable ? "Available" : "Unavailable")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(DSColors.readable(pccAvailable ? .green : .orange))
                 }
             }
@@ -1006,7 +1006,7 @@ struct SettingsView: View {
                 // `ModelExecutionPlanner` also sends a Deep Think or Maximum answer drawn from more than one
                 // document (`complexityRequestsPCC`), and the model picker's Private Cloud Compute sends every one.
                 Text("Answers are written on this device unless Private Cloud Compute is allowed: with Hybrid, for an answer whose passages don't fit in this device's model, or a Deep Think or Maximum answer drawn from more than one document; with Private Cloud Compute chosen in the model picker, for every answer drawn from your documents.")
-                    .font(.body)
+                    .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
 
                 VStack(spacing: 0) {
@@ -1070,7 +1070,7 @@ struct SettingsView: View {
                         }
                         if let contextSize = capability.pccContextSize {
                             LabeledContent("Context", value: "\(contextSize) tokens")
-                                .font(.caption.monospacedDigit())
+                                .font(.caption)
                         }
                     } else if pccCapability == nil {
                         ProgressView("Reading PCC capability…")
@@ -1115,7 +1115,7 @@ struct SettingsView: View {
                 Spacer()
 
                 Text(sharedWorkspaceModeLabel)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
                     .background(sharedWorkspaceModeColor.opacity(0.15))
@@ -1413,7 +1413,7 @@ struct SettingsView: View {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2)
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, DSSpacing.sm)
@@ -1475,7 +1475,7 @@ struct SettingsView: View {
 
                 // Device tier badge
                 Text(deviceService.tier.displayName)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
                     .background(tierColor(for: deviceService.tier).opacity(0.15))
@@ -1493,7 +1493,7 @@ struct SettingsView: View {
                         .font(.subheadline.weight(.medium))
                     Spacer()
                     Text("\(String(format: "%.0f", deviceService.memoryGB)) GB RAM")
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
@@ -1504,7 +1504,7 @@ struct SettingsView: View {
                 if settings.showTechnicalDetails {
                     HStack(spacing: DSSpacing.xs) {
                         Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                         GlossaryInfoButton(termID: .tops, size: .caption2)
                         Spacer(minLength: 0)
@@ -1668,7 +1668,7 @@ struct SettingsView: View {
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold).monospacedDigit())
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, DSSpacing.sm)
@@ -1699,7 +1699,7 @@ struct SettingsView: View {
                             .font(.subheadline.weight(.medium))
                         Spacer()
                         Text("Core ML + Metal")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2.weight(.medium))
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, DSSpacing.sm)
                             .padding(.vertical, DSSpacing.xxs)
@@ -1748,7 +1748,7 @@ struct SettingsView: View {
                     }
                     Spacer()
                     Text(value)
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
                 }
@@ -1762,7 +1762,7 @@ struct SettingsView: View {
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold).monospacedDigit())
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, DSSpacing.sm)
@@ -1796,7 +1796,7 @@ struct SettingsView: View {
                     .font(.subheadline.weight(.medium))
                 Spacer()
                 Text("Accelerate")
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xxs)
@@ -1888,7 +1888,7 @@ struct SettingsView: View {
             Text(label)
                 .font(.caption2)
             Text(value)
-                .font(.caption2.weight(.semibold).monospacedDigit())
+                .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(Color.accentColor)
         .padding(.horizontal, DSSpacing.sm)
@@ -1922,7 +1922,7 @@ struct SettingsView: View {
 
                 // Mode badge
                 Text(gpuModeName)
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(gpuModeColor)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xxs)
@@ -1972,7 +1972,7 @@ struct SettingsView: View {
                     ForEach(gpuProfile.engagement.effects, id: \.self) { effect in
                         HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xs) {
                             Image(systemName: "chevron.forward")
-                                .font(.caption2.weight(.bold))
+                                .scaledFont(size: 7, weight: .bold)
                                 .foregroundStyle(gpuModeColor(for: gpuProfile).opacity(0.75))
                             Text(effect)
                                 .font(.caption2)
@@ -2015,7 +2015,7 @@ struct SettingsView: View {
                         .font(.subheadline.weight(.medium))
                     Spacer()
                     Text("Automatic")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(Color.accentColor)
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, DSSpacing.xxs)
@@ -2182,7 +2182,7 @@ struct SettingsView: View {
         } label: {
             VStack(spacing: DSSpacing.xs) {
                 Text(profile.displayName)
-                    .font(.caption2.weight(isSelected ? .semibold : .medium))
+                    .scaledFont(size: 10, weight: isSelected ? .semibold : .medium)
                     .foregroundStyle(isSelected ? accent : .secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -2219,7 +2219,7 @@ struct SettingsView: View {
     /// it, so the difference between profiles is visible at a glance.
     private func engineChip(_ name: String, isOn: Bool, accent: Color, isSelected: Bool) -> some View {
         Text(name)
-            .font(.system(.caption2, design: .rounded).weight(.semibold))
+            .scaledFont(size: 7, weight: .semibold, design: .rounded)
             // One line, smaller rather than broken: in a quarter-width card on an iPhone 15 Pro the badges wrapped
             // as "CP U" and "AN E" (2026-10-21).
             .lineLimit(1)
@@ -2243,7 +2243,7 @@ struct SettingsView: View {
                 .font(.caption)
             Spacer()
             Text(value)
-                .font(.caption2.weight(.medium).monospacedDigit())
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
         }
     }
@@ -2546,7 +2546,7 @@ struct SettingsView: View {
                         .fill(isSelected ? accent.opacity(0.15) : Color.secondary.opacity(0.1))
                         .frame(width: 42, height: 42)
                     Image(systemName: mode.icon)
-                        .font(.body.weight(.semibold))
+                        .scaledFont(size: 16, weight: .semibold)
                         .foregroundStyle(isSelected ? accent : .secondary)
                 }
 
@@ -2741,7 +2741,7 @@ struct SettingsView: View {
                         .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "apple.intelligence")
-                        .font(.subheadline.weight(.semibold))
+                        .scaledFont(size: 15, weight: .semibold)
                         .foregroundStyle(Color.accentColor)
                 }
                 // The page's title and the model card above already say "Apple Intelligence" (5.7 UI cleanup).
@@ -2749,7 +2749,7 @@ struct SettingsView: View {
                     .font(.headline)
                 Spacer()
                 Text(settings.showTechnicalDetails ? "\(activeAIFeatureCount)/\(totalAIFeatureCount)" : "\(activeAIFeatureCount) of \(totalAIFeatureCount) on")
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(DSColors.readable(badgeColor))
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
@@ -2906,7 +2906,7 @@ struct SettingsView: View {
                         .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "siri")
-                        .font(.subheadline.weight(.semibold))
+                        .scaledFont(size: 15, weight: .semibold)
                         .foregroundStyle(Color.accentColor)
                 }
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
@@ -2918,7 +2918,7 @@ struct SettingsView: View {
                 }
                 Spacer()
                 Text("\(RAGAppShortcutsProvider.appShortcuts.count) shortcuts")
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(DSColors.readable(.green))
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
@@ -2997,7 +2997,7 @@ struct SettingsView: View {
                         .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "square.2.layers.3d")
-                        .font(.subheadline.weight(.semibold))
+                        .scaledFont(size: 15, weight: .semibold)
                         .foregroundStyle(Color.accentColor)
                 }
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
@@ -3009,7 +3009,7 @@ struct SettingsView: View {
                 }
                 Spacer()
                 Text("\(Self.shortcutActionGroups.reduce(0) { $0 + $1.actions.count }) Actions Available")
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
@@ -3218,7 +3218,7 @@ struct SettingsView: View {
             }
             Spacer()
             Text("Always On")
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(DSColors.readable(.green))
                 .padding(.horizontal, DSSpacing.sm)
                 .padding(.vertical, DSSpacing.xxs)
@@ -3241,7 +3241,7 @@ struct SettingsView: View {
                         .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "paintpalette.fill")
-                        .font(.subheadline)
+                        .scaledFont(size: 14)
                         .foregroundStyle(Color.accentColor)
                 }
 
@@ -3435,7 +3435,7 @@ struct SettingsView: View {
                         .fill(Color.accentColor.opacity(0.15))
                         .frame(width: 32, height: 32)
                     Image(systemName: "heart.fill")
-                        .font(.subheadline)
+                        .scaledFont(size: 14)
                         .foregroundStyle(Color.accentColor)
                 }
 
@@ -3458,7 +3458,7 @@ struct SettingsView: View {
                 HStack(spacing: DSSpacing.md) {
                     Image(systemName: "star.fill")
                         .foregroundStyle(Color.accentColor)
-                        .font(.body)
+                        .scaledFont(size: 16)
                         .frame(width: 24, alignment: .center)
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Rate on the App Store")
@@ -3488,7 +3488,7 @@ struct SettingsView: View {
                 HStack(spacing: DSSpacing.md) {
                     Image(systemName: "envelope.fill")
                         .foregroundStyle(Color.accentColor)
-                        .font(.body)
+                        .scaledFont(size: 16)
                         .frame(width: 24, alignment: .center)
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Send Feedback")
@@ -3518,7 +3518,7 @@ struct SettingsView: View {
                 HStack(spacing: DSSpacing.md) {
                     Image(systemName: "square.and.arrow.up")
                         .foregroundStyle(Color.accentColor)
-                        .font(.body)
+                        .scaledFont(size: 16)
                         .frame(width: 24, alignment: .center)
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Share with Friends")

@@ -74,14 +74,14 @@ struct VerificationGatesOverlayView: View {
                     .foregroundStyle(DSColors.accent)
                     .symbolEffect(.pulse, options: .repeating)
                 Text("Verification Pipeline")
-                    .font(.system(.caption2, design: .monospaced).weight(.bold))
+                    .scaledFont(size: 11, weight: .bold, design: .monospaced)
                     .foregroundStyle(DSColors.primaryText)
                 
                 Spacer()
                 
                 if gates.contains(where: { if case .failed = $0.status { return true }; return false }) {
                     Text("ABSTAINED")
-                        .font(.system(.caption2, design: .monospaced).weight(.black))
+                        .scaledFont(size: 9, weight: .black, design: .monospaced)
                         .foregroundStyle(.white)
                         .padding(.horizontal, DSSpacing.xs)
                         .padding(.vertical, DSSpacing.xxs)
@@ -190,7 +190,7 @@ struct GateRowView: View {
                 .frame(width: 14, height: 14)
             
             Text("Gate \(gate.id): \(gate.title)")
-                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .scaledFont(size: 10, weight: .medium, design: .monospaced)
                 .monospacedDigit()
                 .foregroundStyle(textColor)
             
@@ -198,7 +198,7 @@ struct GateRowView: View {
             
             if case .failed(let reason) = gate.status {
                 Text(reason)
-                    .font(.system(.caption2, design: .monospaced))
+                    .scaledFont(size: 8, weight: .regular, design: .monospaced)
                     .foregroundStyle(.red.opacity(0.8))
                     .lineLimit(1)
                     .transition(.blurReplace)
@@ -224,21 +224,21 @@ struct GateRowView: View {
         switch gate.status {
         case .pending:
             Image(systemName: "circle.dotted")
-                .font(.caption)
+                .scaledFont(size: 12)
                 .foregroundStyle(DSColors.secondaryText.opacity(0.3))
         case .processing:
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.caption)
+                .scaledFont(size: 12)
                 .foregroundStyle(DSColors.accent)
                 .symbolEffect(.rotate, options: .repeating)
         case .passed:
             Image(systemName: "checkmark.circle.fill")
-                .font(.caption)
+                .scaledFont(size: 12)
                 .foregroundStyle(.green)
                 .symbolEffect(.bounce, value: gate.status == .passed)
         case .failed:
             Image(systemName: "xmark.circle.fill")
-                .font(.caption)
+                .scaledFont(size: 12)
                 .foregroundStyle(.red)
                 .symbolEffect(.pulse, value: isFailed(gate.status))
         }

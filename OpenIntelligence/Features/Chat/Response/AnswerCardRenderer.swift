@@ -112,15 +112,15 @@ struct AnswerCardView: View {
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "sparkles")
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 15, weight: .semibold)
                     .foregroundStyle(accent)
                 Text("OpenIntelligence")
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 15, weight: .semibold)
                     .foregroundStyle(ink)
             }
 
             Text(rendered(answer))
-                .font(.body)
+                .scaledFont(size: 16)
                 .foregroundStyle(ink)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -128,17 +128,17 @@ struct AnswerCardView: View {
             if !sources.isEmpty {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Sources")
-                        .font(.caption.weight(.semibold))
+                        .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(muted)
                     ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
                         Text(AnswerShareFormatter.line(for: source))
-                            .font(.caption)
+                            .scaledFont(size: 12)
                             .foregroundStyle(ink.opacity(0.8))
                             .lineLimit(2)
                     }
                     if moreSources > 0 {
                         Text("and \(moreSources) more")
-                            .font(.caption)
+                            .scaledFont(size: 12)
                             .foregroundStyle(muted)
                     }
                 }
@@ -148,11 +148,11 @@ struct AnswerCardView: View {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(AnswerShareFormatter.attribution)
-                        .font(.caption.weight(.medium))
+                        .scaledFont(size: 12, weight: .medium)
                         .foregroundStyle(ink)
                     // The App Store subtitle, word for word.
                     Text("Chat With Your Files Offline, on the App Store")
-                        .font(.caption2)
+                        .scaledFont(size: 11)
                         .foregroundStyle(muted)
                 }
                 Spacer(minLength: DSSpacing.md)

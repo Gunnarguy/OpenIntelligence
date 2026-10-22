@@ -58,7 +58,7 @@ struct OpenedFilesSheet: View {
                                         .foregroundStyle(DSColors.primaryText)
                                         .lineLimit(2)
                                     Text(Self.detail(of: file))
-                                        .font(.caption.monospacedDigit())
+                                        .font(.caption)
                                         .foregroundStyle(DSColors.secondaryText)
                                 }
                                 Spacer(minLength: 0)

@@ -18,7 +18,7 @@ struct ValidationDashboardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             Text("RAG Validation & Benchmarks")
-                .font(.title2.weight(.bold))
+                .font(.largeTitle)
                 .padding(.bottom, DSSpacing.sm)
             
             Text("Execute pre-configured RAG validation suites visually, monitoring document ingestion, chunking, and reasoning outputs in real-time.")

@@ -56,11 +56,11 @@ struct EnhancedCodeBlock: View {
             // Header bar
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: languageInfo.icon)
-                    .font(.caption2.weight(.semibold))
+                    .scaledFont(size: 11, weight: .semibold)
                     .foregroundStyle(languageInfo.color)
 
                 Text(displayLanguage.uppercased())
-                    .font(.system(.caption2, design: .monospaced).weight(.bold))
+                    .scaledFont(size: 10, weight: .bold, design: .monospaced)
                     .foregroundStyle(DSColors.secondaryText)
 
                 Spacer()
@@ -71,9 +71,9 @@ struct EnhancedCodeBlock: View {
                 } label: {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                            .font(.caption2.weight(.medium))
+                            .scaledFont(size: 11, weight: .medium)
                         Text(copied ? "Copied" : "Copy")
-                            .font(.caption2.weight(.medium))
+                            .scaledFont(size: 10, weight: .medium)
                     }
                     .foregroundStyle(copied ? .green : DSColors.accent)
                     .padding(.horizontal, DSSpacing.sm)
@@ -96,7 +96,7 @@ struct EnhancedCodeBlock: View {
                     VStack(alignment: .trailing, spacing: 0) {
                         ForEach(lines.indices, id: \.self) { index in
                             Text("\(index + 1)")
-                                .font(.system(.caption, design: .monospaced))
+                                .scaledFont(size: 12, weight: .regular, design: .monospaced)
                                 .monospacedDigit()
                                 .foregroundStyle(.tertiary)
                                 .frame(height: 18)
@@ -165,7 +165,7 @@ private struct SyntaxHighlightedLine: View {
     var body: some View {
         // Simple syntax highlighting using AttributedString
         Text(highlightedText)
-            .font(.system(.caption, design: .monospaced))
+            .scaledFont(size: 12, weight: .regular, design: .monospaced)
     }
 
     private var highlightedText: AttributedString {
@@ -271,7 +271,7 @@ struct CompactCodeBlock: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             Text(code)
-                .font(.system(.caption, design: .monospaced))
+                .scaledFont(size: 12, design: .monospaced)
                 .foregroundStyle(DSColors.primaryText)
                 .padding(DSSpacing.sm)
 
@@ -291,7 +291,7 @@ struct CompactCodeBlock: View {
                 }
             } label: {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.caption2)
+                    .scaledFont(size: 11)
                     .foregroundStyle(copied ? .green : DSColors.secondaryText)
                     .padding(DSSpacing.sm)
             }

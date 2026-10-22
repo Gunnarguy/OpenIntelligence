@@ -279,7 +279,7 @@ struct AttachmentPreviewChip: View {
                         .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 } else {
                     Image(systemName: attachment.type.icon)
-                        .font(.subheadline.weight(.medium))
+                        .scaledFont(size: 14, weight: .medium)
                         .foregroundStyle(DSColors.accent)
                         .frame(width: 28, height: 28)
                         .background(DSColors.accent.opacity(0.15))
@@ -294,7 +294,7 @@ struct AttachmentPreviewChip: View {
                         .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
                 } else {
                     Image(systemName: attachment.type.icon)
-                        .font(.subheadline.weight(.medium))
+                        .scaledFont(size: 14, weight: .medium)
                         .foregroundStyle(DSColors.accent)
                         .frame(width: 28, height: 28)
                         .background(DSColors.accent.opacity(0.15))
@@ -304,7 +304,7 @@ struct AttachmentPreviewChip: View {
 
             // Filename
             Text(attachment.url.lastPathComponent)
-                .font(.footnote.weight(.medium))
+                .scaledFont(size: 13, weight: .medium)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -312,7 +312,7 @@ struct AttachmentPreviewChip: View {
             // Remove button
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.body)
+                    .scaledFont(size: 16)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
@@ -368,7 +368,7 @@ struct AttachmentMenuButton: View {
             }
         } label: {
             Image(systemName: "paperclip")
-                .font(.body.weight(.medium))
+                .scaledFont(size: 18, weight: .medium)
                 .foregroundStyle(DSColors.accent)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())

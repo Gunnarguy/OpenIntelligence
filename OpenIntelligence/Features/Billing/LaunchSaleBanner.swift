@@ -23,7 +23,7 @@ struct LaunchSaleBanner: View {
         if let offer = currentOffer, dismissedWindowEnd != offer.endDate.timeIntervalSince1970 {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "tag.fill")
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 14, weight: .semibold)
                     .foregroundStyle(DSColors.warning)
                 Text("Lifetime is \(offer.percentOff)% off until \(LaunchSale.deadlineText(for: offer.endDate)). One payment, no renewal.")
                     .font(DSTypography.caption)
@@ -35,7 +35,7 @@ struct LaunchSaleBanner: View {
                     withAnimation(DSAnimations.fastEase) { dismissedWindowEnd = offer.endDate.timeIntervalSince1970 }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.caption.weight(.semibold))
+                        .scaledFont(size: 12, weight: .semibold)
                         .foregroundStyle(DSColors.secondaryText)
                         .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
                         .contentShape(Rectangle())

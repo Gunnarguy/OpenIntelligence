@@ -72,7 +72,7 @@ struct GroundedAnswerView: View {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack {
                         Text("FACT CHECK")
-                            .font(.caption2.weight(.bold))
+                            .scaledFont(size: 9, weight: .bold)
                             .foregroundStyle(DSColors.secondaryText)
                             .tracking(1)
                         
@@ -82,10 +82,10 @@ struct GroundedAnswerView: View {
                         // other tinted chips (5.7).
                         HStack(spacing: DSSpacing.xxs) {
                             Image(systemName: "shield.checkered")
-                                .font(.caption2)
+                                .scaledFont(size: 9)
                                 .foregroundStyle(DSColors.readable(modeColor))
                             Text(Self.factCheckSummary(for: answer.claims))
-                                .font(.caption2.weight(.medium))
+                                .scaledFont(size: 9, weight: .medium)
                                 .monospacedDigit()
                         }
                         .foregroundStyle(DSColors.primaryText)
@@ -126,16 +126,16 @@ struct GroundedAnswerView: View {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "questionmark.circle.fill")
-                            .font(.caption)
+                            .scaledFont(size: 12)
                             .foregroundStyle(DSColors.readable(.orange))
                         Text("Information Gaps")
-                            .font(.caption.weight(.semibold))
+                            .scaledFont(size: 12, weight: .semibold)
                             .foregroundStyle(DSColors.readable(.orange))
                     }
                     
                     ForEach(answer.missing, id: \.self) { item in
                         Text("• \(item)")
-                            .font(.caption)
+                            .scaledFont(size: 12)
                             .foregroundStyle(DSColors.secondaryText)
                     }
                 }
@@ -231,13 +231,13 @@ private struct ClaimCard: View {
                             .frame(width: 20, height: 20)
                         
                         Image(systemName: verdictIcon)
-                            .font(.caption2.weight(.bold))
+                            .scaledFont(size: 10, weight: .bold)
                             .foregroundStyle(verdictColor)
                     }
                     
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text(GroundedAnswerView.inlineMarkdown(claim.claim))
-                            .font(.footnote.weight(.medium))
+                            .scaledFont(size: 12, weight: .medium)
                             .foregroundStyle(DSColors.primaryText)
                             // The whole claim, open or closed: opening adds the evidence, and two lines cut a
                             // claim off at the larger text sizes (5.7).
@@ -259,7 +259,7 @@ private struct ClaimCard: View {
                                     Text("\(Text(plainVerdict).fontWeight(.bold).foregroundStyle(DSColors.primaryText))\(foundWhere)")
                                 }
                             }
-                            .font(.caption2)
+                            .scaledFont(size: 8)
                             .monospacedDigit()
                             .foregroundStyle(DSColors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -269,7 +269,7 @@ private struct ClaimCard: View {
                     Spacer()
                     
                     Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.bold))
+                        .scaledFont(size: 9, weight: .bold)
                         .foregroundStyle(DSColors.secondaryText)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
@@ -283,7 +283,7 @@ private struct ClaimCard: View {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     if let details = claim.verificationDetails {
                         Text(details)
-                            .font(.caption)
+                            .scaledFont(size: 11)
                             .foregroundStyle(DSColors.secondaryText)
                             .padding(.horizontal, DSSpacing.sm)
                             .padding(.vertical, DSSpacing.xs)
@@ -297,7 +297,7 @@ private struct ClaimCard: View {
                     if !relevantEvidence.isEmpty {
                         VStack(alignment: .leading, spacing: DSSpacing.xs) {
                             Text("SUPPORTING EVIDENCE")
-                                .font(.caption2.weight(.bold))
+                                .scaledFont(size: 8, weight: .bold)
                                 .foregroundStyle(DSColors.secondaryText)
                                 .padding(.leading, 28)
                             
@@ -309,23 +309,23 @@ private struct ClaimCard: View {
                                 } label: {
                                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                         Text("\"\(ev.quote)\"")
-                                            .font(.system(.caption, design: .serif).weight(.medium))
+                                            .scaledFont(size: 10, weight: .medium, design: .serif)
                                             .foregroundStyle(DSColors.primaryText.opacity(0.9))
                                             .italic()
 
                                         HStack(spacing: DSSpacing.xxs) {
                                             Image(systemName: "doc.fill")
-                                                .font(.caption2)
+                                                .scaledFont(size: 7)
                                             Text(ev.documentName ?? "Unknown")
                                             if let page = ev.page {
                                                 Text("• P.\(page)")
                                             }
                                             if destination != nil {
                                                 Image(systemName: "chevron.right")
-                                                    .font(.caption2.weight(.bold))
+                                                    .scaledFont(size: 7, weight: .bold)
                                             }
                                         }
-                                        .font(.caption2.weight(.bold))
+                                        .scaledFont(size: 8, weight: .bold)
                                         // The accent on a quote that opens something, gray on one that does not.
                                         .foregroundStyle(
                                             destination == nil ? DSColors.secondaryText : DSColors.readable(DSColors.accent))
@@ -350,7 +350,7 @@ private struct ClaimCard: View {
                             Spacer().frame(width: 20)
                         
                             Text("CONFIDENCE")
-                                .font(.caption2.weight(.bold))
+                                .scaledFont(size: 8, weight: .bold)
                                 .foregroundStyle(DSColors.secondaryText)
                         
                             ProgressView(value: claim.confidence)
@@ -359,7 +359,7 @@ private struct ClaimCard: View {
                                 .frame(width: 50)
                         
                             Text("\(Int(claim.confidence * 100))%")
-                                .font(.caption2.weight(.bold))
+                                .scaledFont(size: 9, weight: .bold, design: .rounded)
                                 .monospacedDigit()
                                 .foregroundStyle(DSColors.primaryText)
                         }

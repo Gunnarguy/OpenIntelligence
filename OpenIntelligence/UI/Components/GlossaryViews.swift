@@ -72,7 +72,7 @@ struct GlossaryTermDetail: View {
                 Text(term.term)
                     .font(.title3.bold())
                 Text(term.section.title)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -83,7 +83,7 @@ struct GlossaryTermDetail: View {
         SurfaceCard {
             SectionHeader(icon: "text.alignleft", title: "In plain words")
             Text(term.plain)
-                .font(.body)
+                .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -98,7 +98,7 @@ struct GlossaryTermDetail: View {
         SurfaceCard {
             DisclosureGroup(isExpanded: $showsTechnical) {
                 Text(term.technical)
-                    .font(.body)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, DSSpacing.sm)
@@ -112,10 +112,10 @@ struct GlossaryTermDetail: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("THE TECHNICAL VERSION")
-                            .font(.subheadline.weight(.medium))
+                            .font(.footnote.weight(.semibold))
                             .tracking(0.8)
                         Text(showsTechnical ? "Shown for every term" : "Names, models and numbers")
-                            .font(.footnote)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
@@ -148,7 +148,7 @@ struct GlossaryTermDetail: View {
                                 .foregroundStyle(DSColors.accent)
                                 .frame(width: 20)
                             Text(related.definition.term)
-                                .font(.subheadline.weight(.medium))
+                                .font(.callout.weight(.medium))
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.right")
                                 .font(.caption.weight(.semibold))

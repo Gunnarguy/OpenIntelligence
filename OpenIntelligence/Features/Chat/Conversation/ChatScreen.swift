@@ -4014,7 +4014,7 @@ struct ChatHeader: View {
                         )
                     )
                 Text("Chat")
-                    .font(.title3.weight(.semibold))
+                    .font(.title3)
             }
 
             Spacer()
@@ -4247,7 +4247,7 @@ struct QualityModeQuickPicker: View {
                         .fill(modeColor.opacity(0.14))
                         .frame(width: 20, height: 20)
                     Image(systemName: selectedMode.canonical.icon)
-                        .font(.caption2.weight(.semibold))
+                        .scaledFont(size: 10, weight: .semibold)
                         .foregroundStyle(modeColor)
                 }
 
@@ -4354,9 +4354,9 @@ struct AccuracyModeBadge: View {
     var body: some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 10, weight: .semibold)
             Text("Reliability First")
-                .font(.caption.weight(.semibold))
+                .scaledFont(size: 11, weight: .semibold)
         }
         .foregroundStyle(Color.green)
         .padding(.horizontal, DSSpacing.sm)
@@ -4382,7 +4382,7 @@ private struct StatChip: View {
             // The count in the label color, the color in the icon and the tint (5.7): colored digits on the tinted
             // capsule measured 4.1 to 1.
             Text(value)
-                .font(.caption.weight(.semibold))
+                .font(.system(.caption, design: .rounded).weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
@@ -4415,7 +4415,7 @@ struct MessageListEmptyContent: View {
                         .frame(width: 120, height: 120)
 
                     Image(systemName: "sparkles")
-                        .font(.largeTitle)
+                        .scaledFont(size: 48)
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [.purple, .blue],
@@ -4427,7 +4427,7 @@ struct MessageListEmptyContent: View {
 
                 VStack(spacing: DSSpacing.sm) {
                     Text("New Chat UI (V2)")
-                        .font(.title3.weight(.bold))
+                        .font(.title3)
 
                     Text(
                         "A modern, modular interface is being enabled behind a feature flag. This is the initial scaffold."
@@ -4534,7 +4534,7 @@ private struct FirstQueryPromptView: View {
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack(alignment: .top, spacing: DSSpacing.md) {
                 Image(systemName: "sparkles")
-                    .font(.title.weight(.semibold))
+                    .scaledFont(size: 28, weight: .semibold)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [DSColors.accent, DSColors.accent.opacity(0.7)],
@@ -4563,7 +4563,7 @@ private struct FirstQueryPromptView: View {
                         onRefresh()
                     } label: {
                         Image(systemName: "arrow.trianglehead.2.clockwise")
-                            .font(.callout.weight(.bold))
+                            .scaledFont(size: 16, weight: .bold)
                             .foregroundStyle(DSColors.accent)
                             .padding(DSSpacing.sm)
                             .background(DSColors.accent.opacity(0.1))
@@ -4607,7 +4607,7 @@ private struct FirstQueryPromptView: View {
                             HStack(spacing: DSSpacing.md) {
                                 if let category = categories[prompt] {
                                     Image(systemName: category.icon)
-                                        .font(.subheadline.weight(.semibold))
+                                        .scaledFont(size: 14, weight: .semibold)
                                         .foregroundStyle(.white)
                                         .frame(width: 32, height: 32)
                                         .background(
@@ -4689,7 +4689,7 @@ struct ChatV2FeatureRow: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline)
                 Text(description)
                     .font(.caption)
                     .foregroundStyle(DSColors.secondaryText)
@@ -4723,7 +4723,7 @@ struct ComposerStub: View {
                         .frame(width: 36, height: 36)
 
                     Image(systemName: "arrow.up")
-                        .font(.callout.weight(.semibold))
+                        .scaledFont(size: 16, weight: .semibold)
                         .foregroundStyle(.white)
                 }
             }

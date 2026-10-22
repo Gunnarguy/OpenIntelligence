@@ -270,7 +270,7 @@ private struct CachedDocRow: View {
                         .foregroundStyle(.tertiary)
 
                     Text("\(document.wordCount) words")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
             }

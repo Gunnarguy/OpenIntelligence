@@ -89,22 +89,22 @@ struct ThinkingStreamView: View {
             // Latest operation (what's happening RIGHT NOW)
             if let latest = latestEvent {
                 Text(latest.title)
-                    .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                    .scaledFont(size: 10, weight: .semibold, design: .monospaced)
                     .foregroundStyle(colorFor(latest.kind))
                     .lineLimit(1)
 
                 if let detail = latest.detail, !detail.isEmpty {
                     Text("·")
-                        .font(.caption2)
+                        .scaledFont(size: 8)
                         .foregroundStyle(DSColors.secondaryText.opacity(0.5))
                     Text(detail)
-                        .font(.system(.caption2, design: .monospaced).weight(.medium))
+                        .scaledFont(size: 9, weight: .medium, design: .monospaced)
                         .foregroundStyle(DSColors.secondaryText.opacity(0.8))
                         .lineLimit(1)
                 }
             } else {
                 Text("Initializing...")
-                    .font(.system(.caption2, design: .monospaced).weight(.medium))
+                    .scaledFont(size: 10, weight: .medium, design: .monospaced)
                     .foregroundStyle(DSColors.secondaryText)
             }
 
@@ -114,16 +114,16 @@ struct ThinkingStreamView: View {
             if events.count > 0 {
                 HStack(spacing: DSSpacing.xxs) {
                     Text("\(events.count)")
-                        .font(.system(.caption2, design: .monospaced).weight(.bold))
+                        .scaledFont(size: 9, weight: .bold, design: .monospaced)
                         .monospacedDigit()
                         .foregroundStyle(DSColors.accent)
 
                     if let elapsed = pipelineElapsed, elapsed > 0.1 {
                         Text("·")
-                            .font(.caption2)
+                            .scaledFont(size: 6)
                             .foregroundStyle(DSColors.secondaryText.opacity(0.4))
                         Text(formatElapsed(elapsed))
-                            .font(.system(.caption2, design: .monospaced).weight(.medium))
+                            .scaledFont(size: 8, weight: .medium, design: .monospaced)
                             .monospacedDigit()
                             .foregroundStyle(DSColors.secondaryText.opacity(0.7))
                     }
@@ -132,7 +132,7 @@ struct ThinkingStreamView: View {
 
             // Expand/collapse
             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 8, weight: .semibold)
                 .foregroundStyle(DSColors.secondaryText.opacity(0.5))
         }
         .padding(.horizontal, DSSpacing.sm)
@@ -175,9 +175,9 @@ struct ThinkingStreamView: View {
                 }) {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: isFullHeight ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
-                            .font(.caption2.weight(.medium))
+                            .scaledFont(size: 7, weight: .medium)
                         Text(isFullHeight ? "Compact" : "Full History (\(events.count))")
-                            .font(.system(.caption2, design: .monospaced).weight(.medium))
+                            .scaledFont(size: 7, weight: .medium, design: .monospaced)
                             .monospacedDigit()
                     }
                     .foregroundStyle(DSColors.accent.opacity(0.7))
@@ -268,30 +268,30 @@ private struct ConsoleLogRow: View {
         HStack(alignment: .center, spacing: DSSpacing.xs) {
             // Timestamp (compact)
             Text(timestamp)
-                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .scaledFont(size: 7, weight: .medium, design: .monospaced)
                 .monospacedDigit()
                 .foregroundStyle(Color.gray.opacity(0.5))
                 .frame(width: 36, alignment: .leading)
 
             // Kind indicator (short colored tag)
             Text(shortKindLabel)
-                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .scaledFont(size: 6, weight: .bold, design: .monospaced)
                 .foregroundStyle(tint)
                 .frame(width: 52, alignment: .leading)
 
             // Title (the main message)
             Text(event.title)
-                .font(.system(.caption2, design: .monospaced).weight(.medium))
+                .scaledFont(size: 7, weight: .medium, design: .monospaced)
                 .foregroundStyle(isLatest ? Color.white : Color.white.opacity(0.8))
                 .lineLimit(1)
 
             // Detail (additional info)
             if let detail = event.detail, !detail.isEmpty {
                 Text("→")
-                    .font(.caption2)
+                    .scaledFont(size: 6)
                     .foregroundStyle(Color.gray.opacity(0.4))
                 Text(detail)
-                    .font(.system(.caption2, design: .monospaced))
+                    .scaledFont(size: 7, weight: .regular, design: .monospaced)
                     .foregroundStyle(tint.opacity(0.85))
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)

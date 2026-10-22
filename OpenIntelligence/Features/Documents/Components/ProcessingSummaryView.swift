@@ -18,11 +18,11 @@ struct ProcessingSummaryView: View {
                     // Success header
                     VStack(spacing: DSSpacing.md) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.largeTitle)
+                            .scaledFont(size: 60)
                             .foregroundStyle(.green)
 
                         Text("Document Processed!")
-                            .font(.title2.weight(.bold))
+                            .font(.title2)
 
                         Text(summary.filename)
                             .font(.headline)

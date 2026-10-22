@@ -160,7 +160,7 @@ struct OnboardingChecklistView: View {
                         Text("See It in Action").font(.headline)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
-                        Image(systemName: "play.fill").font(.footnote)
+                        Image(systemName: "play.fill").scaledFont(size: 13)
                     }
                     .foregroundStyle(palette.buttonLabel)
                     .frame(maxWidth: .infinity)
@@ -197,7 +197,7 @@ struct OnboardingChecklistView: View {
                     onOpenChat()
                 } label: {
                     HStack(spacing: DSSpacing.sm) {
-                        Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.subheadline)
+                        Image(systemName: "bubble.left.and.text.bubble.right.fill").scaledFont(size: 14)
                         Text("Start Asking").font(.headline)
                     }
                     .foregroundStyle(palette.buttonLabel)
@@ -215,7 +215,7 @@ struct OnboardingChecklistView: View {
                     startWithSamples()
                 } label: {
                     HStack(spacing: DSSpacing.sm) {
-                        Image(systemName: "arrow.clockwise").font(.footnote)
+                        Image(systemName: "arrow.clockwise").scaledFont(size: 13)
                         Text("Retry").font(.headline)
                     }
                     .foregroundStyle(palette.buttonLabel)
@@ -259,7 +259,7 @@ struct OnboardingChecklistView: View {
             Spacer(minLength: 0)
 
             Text("Built for Your Files")
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(palette.ink(0.88))
                 .padding(.horizontal, DSSpacing.md)
                 .padding(.vertical, DSSpacing.xs)
@@ -281,7 +281,7 @@ struct OnboardingChecklistView: View {
                     .frame(width: 100, height: 100)
                     .blur(radius: 20)
                 Image(systemName: "brain.head.profile")
-                    .font(.largeTitle.weight(.light))
+                    .scaledFont(size: 56, weight: .light)
                     .imageScale(.large)
                     .foregroundStyle(LinearGradient(colors: [palette.ink, palette.ink(0.8)], startPoint: .top, endPoint: .bottom))
             }
@@ -452,17 +452,17 @@ struct OnboardingChecklistView: View {
         VStack(spacing: DSSpacing.xxs) {
             HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: icon)
-                    .font(.caption2)
+                    .scaledFont(size: 8)
                     .foregroundStyle(color)
                     .symbolEffect(.pulse, options: .repeating, value: isProcessing && !processingComplete)
                 Text(value)
-                    .font(.subheadline.weight(.bold).monospaced())
+                    .scaledFont(size: 14, weight: .bold, design: .monospaced)
                     .monospacedDigit()
                     .foregroundStyle(palette.ink)
                     .contentTransition(.numericText())
             }
             Text(label)
-                .font(.caption2.weight(.medium))
+                .scaledFont(size: 8, weight: .medium)
                 .foregroundStyle(palette.ink(0.4))
                 .definitionUnderline(palette.ink(0.28))
         }
@@ -496,11 +496,11 @@ struct OnboardingChecklistView: View {
         
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: isComplete ? "checkmark" : icon)
-                .font(.caption2.weight(.bold))
+                .scaledFont(size: 7, weight: .bold)
                 .symbolEffect(.bounce, value: isComplete)
                 .symbolEffect(.pulse, options: .repeating, isActive: isActive && !isComplete)
             Text(label)
-                .font(.caption2.weight(isActive ? .bold : .medium))
+                .scaledFont(size: 9, weight: isActive ? .bold : .medium)
         }
         .foregroundStyle(isComplete || isActive ? palette.ink : palette.ink(0.4))
         .padding(.horizontal, DSSpacing.sm)
@@ -528,7 +528,7 @@ struct OnboardingChecklistView: View {
 
     private var chevronDot: some View {
         Image(systemName: "chevron.right")
-            .font(.caption2.weight(.bold))
+            .scaledFont(size: 6, weight: .bold)
             .foregroundStyle(palette.ink(0.2))
     }
 
@@ -540,12 +540,12 @@ struct OnboardingChecklistView: View {
                 HStack(spacing: DSSpacing.xs) {
                     if item.stage == .complete {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.caption2)
+                            .scaledFont(size: 8)
                             .foregroundStyle(.green)
                             .frame(width: DSSpacing.md)
                     } else if item.stage == .failed {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.caption2)
+                            .scaledFont(size: 8)
                             .foregroundStyle(.red)
                             .frame(width: DSSpacing.md)
                     } else {
@@ -555,16 +555,16 @@ struct OnboardingChecklistView: View {
                             .tint(.accentColor)
                     }
                     Text(item.filename)
-                        .font(.caption.weight(.medium))
+                        .scaledFont(size: 11, weight: .medium)
                         .foregroundStyle(palette.ink(item.stage.isTerminal ? 0.5 : 0.9))
                         .lineLimit(1)
                     if !item.stage.isTerminal {
                         Text("\u{00b7} \(item.stage.displayName)")
-                            .font(.caption2)
+                            .scaledFont(size: 10)
                             .foregroundStyle(palette.ink(0.4))
                         if let detail = compactDetail(for: item) {
                             Text("\u{00b7} \(detail)")
-                                .font(.caption2.monospaced())
+                                .scaledFont(size: 9, design: .monospaced)
                                 .monospacedDigit()
                                 .foregroundStyle(palette.ink(0.3))
                         }
@@ -593,14 +593,14 @@ struct OnboardingChecklistView: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "terminal")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 7, weight: .bold)
                     .foregroundStyle(Color.accentColor)
                 Text("PIPELINE")
-                    .font(.caption2.weight(.bold).monospaced())
+                    .scaledFont(size: 8, weight: .bold, design: .monospaced)
                     .foregroundStyle(palette.ink(0.3))
                 Spacer()
                 Text("\(logEntries.count)")
-                    .font(.caption2.monospaced())
+                    .scaledFont(size: 8, design: .monospaced)
                     .monospacedDigit()
                     .foregroundStyle(palette.ink(0.2))
             }
@@ -652,7 +652,7 @@ struct OnboardingChecklistView: View {
             ZStack {
                 Circle().fill(Color.green.opacity(0.15)).frame(width: 64, height: 64)
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.largeTitle)
+                    .scaledFont(size: 36)
                     .foregroundStyle(LinearGradient(colors: [.green, .green.opacity(0.8)], startPoint: .top, endPoint: .bottom))
             }
 
@@ -701,9 +701,9 @@ struct OnboardingChecklistView: View {
     private func deviceChip(icon: String, text: String, term: GlossaryTermID) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 9, weight: .semibold)
             Text(text)
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 10, weight: .semibold)
                 .monospacedDigit()
         }
         .foregroundStyle(.green.opacity(0.9))
@@ -815,14 +815,14 @@ struct OnboardingChecklistView: View {
         return VStack(alignment: .leading, spacing: DSSpacing.xs) {
             if totalWords > 0, smoothTimeMs > 0 {
                 Text("\(totalWords.formatted()) words read, split and made searchable in \(fmtMs(smoothTimeMs)), on this device.")
-                    .font(.caption2)
+                    .scaledFont(size: 10)
                     .monospacedDigit()
                     .foregroundStyle(palette.ink(0.4))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Text("Those batch sizes were chosen for this device, not defaults.")
-                .font(.caption2)
+                .scaledFont(size: 10)
                 .foregroundStyle(palette.ink(0.35))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -832,16 +832,16 @@ struct OnboardingChecklistView: View {
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "hand.tap")
-                        .font(.caption2.weight(.semibold))
+                        .scaledFont(size: 9, weight: .semibold)
                     // Names the two things a reader can do, in the order they can do them: tap one
                     // figure, or open the whole glossary. "Figure or spec" rather than "word",
                     // because what is tappable above is `A19 Pro`, `45 TOPS`, `48/batch` and the
                     // rest, and the previous wording ("see every word") described the destination
                     // rather than telling anyone the chips themselves were interactive.
                     Text("Tap any figure or spec for its definition, or open the full glossary")
-                        .font(.caption2.weight(.medium))
+                        .scaledFont(size: 10, weight: .medium)
                     Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.bold))
+                        .scaledFont(size: 7, weight: .bold)
                 }
                 .foregroundStyle(.green.opacity(0.75))
                 .contentShape(Rectangle())
@@ -1155,12 +1155,12 @@ private struct PipelineLogRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: DSSpacing.xs) {
             Image(systemName: entry.icon)
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 8, weight: .semibold)
                 .foregroundStyle(entry.color)
                 .frame(width: DSSpacing.md, alignment: .center)
 
             Text(entry.text)
-                .font(.caption2.monospaced())
+                .scaledFont(size: 10, weight: .regular, design: .monospaced)
                 .foregroundStyle(palette.ink(0.7))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1168,7 +1168,7 @@ private struct PipelineLogRow: View {
             Spacer(minLength: 0)
 
             Text(timestampString(entry.timestamp))
-                .font(.caption2.monospaced())
+                .scaledFont(size: 8, design: .monospaced)
                 .monospacedDigit()
                 .foregroundStyle(palette.ink(0.2))
         }
@@ -1201,7 +1201,7 @@ private struct UseCaseCard: View {
         HStack(spacing: DSSpacing.md) {
             ZStack {
                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous).fill(iconColor.opacity(0.15)).frame(width: 40, height: 40)
-                Image(systemName: icon).font(.body.weight(.semibold)).foregroundStyle(iconColor)
+                Image(systemName: icon).scaledFont(size: 16, weight: .semibold).foregroundStyle(iconColor)
             }
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(docType).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
@@ -1211,7 +1211,7 @@ private struct UseCaseCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
-            Image(systemName: "arrow.right").font(.caption.weight(.semibold)).foregroundStyle(palette.ink(0.55))
+            Image(systemName: "arrow.right").scaledFont(size: 11, weight: .semibold).foregroundStyle(palette.ink(0.55))
         }
         .padding(.horizontal, DSSpacing.lg).padding(.vertical, DSSpacing.md)
         .background(
@@ -1233,7 +1233,7 @@ private struct ExampleQuestionPill: View {
 
     var body: some View {
         HStack(spacing: DSSpacing.sm) {
-            Image(systemName: icon).font(.caption).foregroundStyle(color)
+            Image(systemName: icon).scaledFont(size: 12).foregroundStyle(color)
             Text(text).font(.subheadline).foregroundStyle(palette.ink(0.85))
             Spacer(minLength: 0)
         }

@@ -57,18 +57,18 @@ public struct SectionHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.body.weight(.semibold))
+                    .scaledFont(size: 16, weight: .semibold)
                     .foregroundStyle(DSColors.accent)
                     .frame(width: 20)
             }
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title.uppercased())
-                    .font(.subheadline.weight(.medium))
+                    .font(.footnote.weight(.semibold))
                     .textCase(.uppercase)
                     .tracking(0.8)
                 if let caption, !caption.isEmpty {
                     Text(caption)
-                        .font(.footnote)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }

@@ -25,11 +25,11 @@ struct ToolCallBadge: View {
             HStack(spacing: DSSpacing.xxs) {
                 // Animated icon with subtle pulse for high counts
                 Image(systemName: count >= 3 ? "gearshape.2.fill" : "wrench.and.screwdriver")
-                    .font(.caption2.weight(.semibold))
+                    .scaledFont(size: 9, weight: .semibold)
                     .symbolEffect(.pulse, options: .repeating, isActive: count >= 5)
                 
                 Text("\(count) tool\(count == 1 ? "" : "s")")
-                    .font(.caption2.weight(.semibold))
+                    .scaledFont(size: 9, weight: .semibold, design: .rounded)
                     .monospacedDigit()
             }
             .foregroundStyle(badgeColor)
@@ -63,9 +63,9 @@ struct MicroToolCallBadge: View {
         if count > 0 {
             HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "wrench.fill")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 7, weight: .bold)
                 Text("\(count)")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 8, weight: .bold, design: .rounded)
                     .monospacedDigit()
             }
             .foregroundStyle(.purple.opacity(0.8))

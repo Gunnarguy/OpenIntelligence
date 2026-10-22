@@ -28,7 +28,7 @@ struct WritingToolsResultSheet: View {
                     // Header with icon
                     HStack(spacing: DSSpacing.sm) {
                         Image(systemName: iconForTitle)
-                            .font(.title2.weight(.medium))
+                            .scaledFont(size: 24, weight: .medium)
                             .foregroundStyle(colorForTitle)
                             .frame(width: 40, height: 40)
                             .background(colorForTitle.opacity(0.12))
@@ -63,7 +63,7 @@ struct WritingToolsResultSheet: View {
                             onFeedback?(true)
                         } label: {
                             Image(systemName: "hand.thumbsup")
-                                .font(.body)
+                                .scaledFont(size: 18)
                                 .foregroundStyle(.green)
                                 .padding(DSSpacing.sm)
                                 .background(Color.green.opacity(0.1))
@@ -74,7 +74,7 @@ struct WritingToolsResultSheet: View {
                             onFeedback?(false)
                         } label: {
                             Image(systemName: "hand.thumbsdown")
-                                .font(.body)
+                                .scaledFont(size: 18)
                                 .foregroundStyle(DSColors.secondaryText)
                                 .padding(DSSpacing.sm)
                                 .background(Color.secondary.opacity(0.1))
@@ -91,7 +91,7 @@ struct WritingToolsResultSheet: View {
                             onCopy()
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
-                                .font(.footnote.weight(.medium))
+                                .scaledFont(size: 13, weight: .medium)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, DSSpacing.sm)
                                 .background(.ultraThinMaterial)
@@ -101,7 +101,7 @@ struct WritingToolsResultSheet: View {
 
                         ShareLink(item: result) {
                             Label("Share", systemImage: "square.and.arrow.up")
-                                .font(.footnote.weight(.medium))
+                                .scaledFont(size: 13, weight: .medium)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, DSSpacing.sm)
                                 .background(.ultraThinMaterial)
@@ -113,7 +113,7 @@ struct WritingToolsResultSheet: View {
                             onInsertAsReply()
                         } label: {
                             Label("Insert", systemImage: "text.insert")
-                                .font(.footnote.weight(.medium))
+                                .scaledFont(size: 13, weight: .medium)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, DSSpacing.sm)
                                 .foregroundStyle(.white)

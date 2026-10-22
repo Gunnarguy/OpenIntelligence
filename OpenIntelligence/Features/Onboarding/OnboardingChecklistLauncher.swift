@@ -23,7 +23,7 @@ struct OnboardingChecklistLauncher: View {
                             .font(.headline)
                             .foregroundStyle(.primary)
                         Text("Tap to continue setup")
-                            .font(.footnote)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     Image(systemName: "arrow.uturn.forward.circle.fill")

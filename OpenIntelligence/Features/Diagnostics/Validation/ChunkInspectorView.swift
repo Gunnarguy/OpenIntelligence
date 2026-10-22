@@ -102,7 +102,7 @@ struct ChunkInspectorView: View {
     private func statPill(icon: String, value: String, label: String) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.caption.weight(.bold)).monospacedDigit()
+            Text(value).font(.caption.bold()).monospacedDigit()
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.horizontal, DSSpacing.sm)
@@ -172,7 +172,7 @@ struct ChunkInspectorView: View {
                 .foregroundStyle(v.found ? .green : .red)
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(v.found ? "Found in corpus" : "NOT found")
-                    .font(.caption.weight(.bold))
+                    .font(.caption2)
                     .foregroundStyle(DSColors.readable(v.found ? .green : .red))
                 Text("\(v.occurrences) occurrences in \(v.documentCount) docs")
                     .font(.caption2)
@@ -197,8 +197,8 @@ struct ChunkInspectorView: View {
                             loadChunksForDocument(doc)
                         } label: {
                             HStack(spacing: DSSpacing.xs) {
-                                Image(systemName: DocumentRow.iconName(for: doc.contentType)).font(.caption2.weight(.semibold))
-                                Text(doc.filename).font(.caption2.weight(.semibold)).lineLimit(1)
+                                Image(systemName: DocumentRow.iconName(for: doc.contentType)).font(.caption)
+                                Text(doc.filename).font(.caption).lineLimit(1)
                             }
                             .padding(.horizontal, DSSpacing.sm)
                             .padding(.vertical, DSSpacing.xs)
@@ -257,7 +257,7 @@ struct ChunkInspectorView: View {
         Group {
             if inspectionResults.isEmpty && allDocumentChunks.isEmpty && !isSearching {
                 VStack(spacing: DSSpacing.lg) {
-                    Image(systemName: "doc.text.magnifyingglass").font(.largeTitle).foregroundStyle(.secondary)
+                    Image(systemName: "doc.text.magnifyingglass").scaledFont(size: 48).foregroundStyle(.secondary)
                     Text(inspectionMode == .browseAll ? "Select a document" : "Enter a search query").font(.headline).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -396,7 +396,7 @@ struct ChunkRowView: View {
                 }
                 if let p = chunk.pageNumber {
                     Text("p.\(p)")
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption2)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, DSSpacing.xs)
@@ -450,7 +450,7 @@ struct ChunkRowView: View {
             Image(systemName: icon)
             Text(type.capitalized)
         }
-        .font(.caption2.weight(.semibold))
+        .font(.caption2)
         .padding(.horizontal, DSSpacing.xs)
         .padding(.vertical, DSSpacing.xxs)
         .background(DSColors.chipBackground(for: color))
@@ -529,7 +529,7 @@ struct ChunkDetailSheet: View {
     private func metadataItem(_ label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.caption.weight(.bold)).monospacedDigit()
+            Text(value).font(.caption.bold()).monospacedDigit()
         }
     }
 
@@ -582,7 +582,7 @@ struct ChunkDetailSheet: View {
                             Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
                         }
                         Text(s)
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption)
                             .padding(.horizontal, DSSpacing.sm)
                             .padding(.vertical, DSSpacing.xs)
                             .background(DSColors.chipBackground(for: DSColors.accent))
@@ -602,7 +602,7 @@ struct ChunkDetailSheet: View {
             FlowLayout(spacing: DSSpacing.xs) {
                 ForEach(chunk.entities, id: \.self) { e in
                     Text(e)
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption)
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, DSSpacing.xs)
                         .background(DSColors.chipBackground(for: DSColors.accent))
@@ -622,7 +622,7 @@ struct ChunkDetailSheet: View {
             FlowLayout(spacing: DSSpacing.xs) {
                 ForEach(chunk.keywords, id: \.self) { k in
                     Text(k)
-                        .font(.caption2.weight(.semibold))
+                        .font(.caption)
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, DSSpacing.xs)
                         .background(DSColors.chipBackground(for: .secondary))

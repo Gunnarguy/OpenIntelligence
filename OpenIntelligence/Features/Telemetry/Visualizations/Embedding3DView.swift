@@ -687,7 +687,7 @@ struct EmbeddingSpaceRenderer: View {
                         Spacer()
                         let ratio = Double(memoryBytes) / Double(embeddingMemory)
                         Text(String(format: "%.1f%% of original", ratio * 100))
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(DSColors.readable(.green))
                     }
                 }
@@ -721,7 +721,7 @@ struct EmbeddingSpaceRenderer: View {
 
                     if points.count > 3 {
                         Text("... + \(points.count - 3) more")
-                            .font(.caption2.monospacedDigit())
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                             .padding(.leading, DSSpacing.xxl)
                     }
@@ -928,10 +928,10 @@ struct EmbeddingSpaceRenderer: View {
                     .frame(width: 14)
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(label)
-                        .font(.caption2)
+                        .scaledFont(size: 9)
                         .foregroundStyle(.secondary)
                     Text(value)
-                        .font(.caption2.weight(.medium).monospaced())
+                        .scaledFont(size: 10, weight: .medium, design: .monospaced)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -952,7 +952,7 @@ struct EmbeddingSpaceRenderer: View {
         var body: some View {
             VStack(spacing: DSSpacing.xxs) {
                 Text(label)
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 9, weight: .bold)
                     .foregroundStyle(DSColors.readable(color))
 
                 GeometryReader { geo in
@@ -972,7 +972,7 @@ struct EmbeddingSpaceRenderer: View {
                 }
 
                 Text(String(format: "%.2f", range.upperBound - range.lowerBound))
-                    .font(.caption2.monospaced())
+                    .scaledFont(size: 8, design: .monospaced)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
@@ -1082,7 +1082,7 @@ struct EmbeddingSpaceRenderer: View {
             }
         } label: {
             Image(systemName: showHelpTip ? "xmark.circle.fill" : "questionmark.circle")
-                .font(.body.weight(.medium))
+                .scaledFont(size: 18, weight: .medium)
                 .foregroundStyle(.white.opacity(0.7))
                 .padding(DSSpacing.md)
                 .background(
@@ -1122,7 +1122,7 @@ struct EmbeddingSpaceRenderer: View {
     private func helpRow(icon: String, text: String) -> some View {
         HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.footnote)
+                .scaledFont(size: 14)
                 .foregroundStyle(DSColors.accent)
                 .frame(width: 20)
             Text(text)
@@ -1209,7 +1209,7 @@ struct EmbeddingSpaceRenderer: View {
             // Header with close button
             HStack {
                 Label("Chunk \(index + 1)", systemImage: "doc.text.fill")
-                    .font(.headline.monospacedDigit())
+                    .font(.headline)
                     .foregroundStyle(.primary)
 
                 Spacer()
@@ -1221,7 +1221,7 @@ struct EmbeddingSpaceRenderer: View {
                     }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
+                        .scaledFont(size: 20)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1320,7 +1320,7 @@ struct EmbeddingSpaceRenderer: View {
                     autoScalePointSize()
                 } label: {
                     Text(sampleOptionLabel(option))
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .fontWeight(sampleLimit == option ? .semibold : .regular)
                         .padding(.vertical, DSSpacing.xs)
                         .padding(.horizontal, DSSpacing.md)
@@ -1364,7 +1364,7 @@ struct EmbeddingSpaceRenderer: View {
             Slider(value: $pointScale, in: 0.6...1.6, step: 0.1)
 
             Text(String(format: "%.1fx", pointScale))
-                .font(.caption.monospacedDigit())
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: DSSpacing.tapTarget)
         }
@@ -2197,14 +2197,14 @@ struct EmbeddingSpaceRenderer: View {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: icon)
-                        .font(.caption2)
+                        .scaledFont(size: 10)
                         .foregroundStyle(color)
                     Text(label)
-                        .font(.caption2.weight(.medium))
+                        .scaledFont(size: 9, weight: .medium)
                         .foregroundStyle(.secondary)
                 }
                 Text(value)
-                    .font(.footnote.weight(.bold).monospaced())
+                    .scaledFont(size: 13, weight: .bold, design: .monospaced)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -2231,11 +2231,11 @@ struct EmbeddingSpaceRenderer: View {
         var body: some View {
             HStack {
                 Text(label)
-                    .font(.caption2)
+                    .scaledFont(size: 11)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text(value)
-                    .font(.caption2.weight(.medium).monospaced())
+                    .scaledFont(size: 11, weight: .medium, design: .monospaced)
                     .foregroundStyle(valueColor)
             }
             .padding(.horizontal, DSSpacing.sm)
@@ -2272,14 +2272,14 @@ struct EmbeddingSpaceRenderer: View {
         var body: some View {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Vector Space Health")
-                    .font(.caption2.weight(.semibold))
+                    .scaledFont(size: 10, weight: .semibold)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: DSSpacing.md) {
                     // Coverage meter
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Coverage")
-                            .font(.caption2)
+                            .scaledFont(size: 9)
                             .foregroundStyle(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
@@ -2292,13 +2292,13 @@ struct EmbeddingSpaceRenderer: View {
                         }
                         .frame(height: 6)
                         Text(String(format: "%.1f%%", coverage * 100))
-                            .font(.caption2.monospaced())
+                            .scaledFont(size: 9, design: .monospaced)
                     }
 
                     // Density meter
                     VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("Density")
-                            .font(.caption2)
+                            .scaledFont(size: 9)
                             .foregroundStyle(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
@@ -2311,7 +2311,7 @@ struct EmbeddingSpaceRenderer: View {
                         }
                         .frame(height: 6)
                         Text(String(format: "%.1f%%", (1 - sparsity) * 100))
-                            .font(.caption2.monospaced())
+                            .scaledFont(size: 9, design: .monospaced)
                     }
                 }
             }
@@ -2408,7 +2408,7 @@ struct EmbeddingSpaceRenderer: View {
                     .fill(item.color)
                     .frame(width: 10, height: 10)
                 Text("\(item.name) • \(item.count) • \(pctStr)")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .lineLimit(1)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -2474,16 +2474,16 @@ struct EmbeddingSpaceRenderer: View {
                     .shadow(color: label.accent.opacity(0.5), radius: 2, x: 0, y: 0)
 
                 Text(label.title)
-                    .font(.system(.caption2, design: .rounded, weight: .semibold))
+                    .scaledFont(size: 11, weight: .semibold, design: .rounded)
                     .lineLimit(1)
                     .foregroundStyle(.primary)
 
                 if let keyword = keywordTag {
                     Text("·")
-                        .font(.caption2.weight(.medium))
+                        .scaledFont(size: 9, weight: .medium)
                         .foregroundStyle(.secondary)
                     Text(keyword)
-                        .font(.system(.caption2, design: .rounded, weight: .medium))
+                        .scaledFont(size: 10, weight: .medium, design: .rounded)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -5076,7 +5076,7 @@ struct EmbeddingSpaceRenderer: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, DSSpacing.lg)
                     Text("Tracking \(chunkCount) chunks across \(documentCount) documents")
-                        .font(.caption2.monospacedDigit())
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .padding(.top, DSSpacing.xs)
                     Text(projectionHelper)

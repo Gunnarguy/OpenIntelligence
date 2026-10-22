@@ -418,3 +418,5 @@ packs not yet expired and any legacy protection, as the app's store last saved t
 Library refused a Pro or Lifetime library of five documents or more. The library limit already read the saved plan
 (`currentLibraryLimit`). Nothing about prices or limits changed. `[evidence_level: test_verified
 (SavedEntitlementSnapshotTests), confidence: high]`
+
+> **5.7, 2026-10-22.** The plan screens (`PlanUpgradeSheet`, `LaunchSaleBanner`) took the app-wide visual standard (colour, spacing, corners) with their text sizes unchanged. No price, plan, limit or purchase path changed (`ui_wiring_check.py` OK). `[evidence_level: build_verified, confidence: high]`

@@ -89,12 +89,12 @@ struct VersionHistoryView: View {
                         .foregroundStyle(DSColors.primaryText)
                     if let date = release.date {
                         Text(date)
-                            .font(.footnote)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     if let summary = release.summary, expanded.contains(release.id) {
                         Text(summary)
-                            .font(.footnote)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, DSSpacing.xxs)
@@ -104,7 +104,7 @@ struct VersionHistoryView: View {
                 Spacer(minLength: DSSpacing.xs)
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.bold())
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(expanded.contains(release.id) ? 90 : 0))
             }
@@ -120,7 +120,7 @@ struct VersionHistoryView: View {
     private func sectionHeading(_ heading: String, count: Int) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Text(heading.uppercased())
-                .font(.subheadline.weight(.medium))
+                .font(.caption2.weight(.bold))
                 .kerning(0.8)
                 .foregroundStyle(DSColors.accent)
             Text("\(count)")
@@ -162,7 +162,7 @@ struct VersionHistoryView: View {
 
                     if let detail = item.detail {
                         Text(detail)
-                            .font(.footnote)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(isOpen ? nil : 3)
                             .fixedSize(horizontal: false, vertical: isOpen)

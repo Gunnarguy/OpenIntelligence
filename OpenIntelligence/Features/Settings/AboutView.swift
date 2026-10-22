@@ -81,7 +81,7 @@ struct AboutView: View {
                         SectionHeader(icon: "info.circle", title: "About OpenIntelligence")
                         VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             Text("OpenIntelligence")
-                                .font(.title2.bold())
+                                .font(.title.bold())
                             Text("Privacy-First RAG Application")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -131,7 +131,7 @@ struct AboutView: View {
                                                 .font(.footnote.weight(.medium))
                                                 .monospacedDigit()
                                             Image(systemName: "arrow.forward")
-                                                .font(.caption2.weight(.semibold))
+                                                .scaledFont(size: 10, weight: .semibold)
                                         }
                                         .foregroundStyle(DSColors.accent)
                                         .padding(.top, DSSpacing.xxs)
@@ -355,7 +355,7 @@ struct AboutView: View {
     private func releaseHighlight(icon: String, tint: Color, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.caption.bold())
+                .font(.caption.weight(.bold))
                 .foregroundStyle(tint)
                 .frame(width: 18, alignment: .center)
 
@@ -363,7 +363,7 @@ struct AboutView: View {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                 Text(detail)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -390,7 +390,7 @@ struct AboutView: View {
                     .fill(tint.opacity(0.12))
                     .frame(width: 36, height: 36)
                 Image(systemName: icon)
-                    .font(.subheadline.weight(.semibold))
+                    .scaledFont(size: 15, weight: .semibold)
                     .foregroundStyle(tint)
             }
 
@@ -399,14 +399,14 @@ struct AboutView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
                 Text(subtitle)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             Image(systemName: "arrow.up.forward")
-                .font(.caption.bold())
+                .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, DSSpacing.xxs)

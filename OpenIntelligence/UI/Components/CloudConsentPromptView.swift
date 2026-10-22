@@ -102,7 +102,7 @@ struct CloudConsentPromptView: View {
                     .frame(width: 64, height: 64)
 
                 Image(systemName: "cloud.fill")
-                    .font(.title.weight(.medium))
+                    .scaledFont(size: 28, weight: .medium)
                     .foregroundStyle(DSColors.accent)
             }
 
@@ -146,7 +146,7 @@ struct CloudConsentPromptView: View {
             )
 
             Text("As Apple describes Private Cloud Compute.")
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
         }
         .padding(DSSpacing.md)
@@ -273,7 +273,7 @@ private struct ConsentFeatureRow: View {
     var body: some View {
         HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.body.weight(.medium))
+                .scaledFont(size: 16, weight: .medium)
                 .foregroundStyle(iconColor)
                 .frame(width: 24)
 
@@ -281,7 +281,7 @@ private struct ConsentFeatureRow: View {
                 Text(title)
                     .font(.subheadline.weight(.medium))
                 Text(subtitle)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 

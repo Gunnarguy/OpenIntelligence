@@ -34,7 +34,7 @@ struct DocumentQuotaBanner: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Text("\(currentCount)/\(limit)")
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(isAtLimit ? DSColors.readable(.orange) : DSColors.secondaryText)
                 }
 
@@ -56,7 +56,7 @@ struct DocumentQuotaBanner: View {
                         .foregroundStyle(DSColors.readable(.orange))
                 } else {
                     Text("\(remaining) imports left on your \(tierName) plan.")
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -70,7 +70,7 @@ struct DocumentQuotaBanner: View {
                             .font(.caption)
                             .foregroundStyle(Color.accentColor)
                         Text("Legacy document-pack bonus: +\(bonusDocs) docs")
-                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(DSColors.secondaryText)
                     }
 

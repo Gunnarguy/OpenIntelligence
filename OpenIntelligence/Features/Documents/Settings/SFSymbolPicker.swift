@@ -190,7 +190,7 @@ struct SFSymbolPicker: View {
                             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                                 HStack(spacing: DSSpacing.xs) {
                                     Image(systemName: "sparkles")
-                                        .font(.caption)
+                                        .scaledFont(size: 12)
                                         .foregroundStyle(Color.accentColor)
                                     Text("Suggested for your content")
                                         .font(.subheadline.weight(.semibold))
@@ -227,7 +227,7 @@ struct SFSymbolPicker: View {
                 // Current selection preview
                 HStack(spacing: DSSpacing.md) {
                     Image(systemName: selectedSymbol)
-                        .font(.title)
+                        .scaledFont(size: 32)
                         .foregroundStyle(Color.accentColor)
                         .frame(width: 50, height: 50)
                         .background(Color.accentColor.opacity(0.1))
@@ -238,7 +238,7 @@ struct SFSymbolPicker: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(selectedSymbol)
-                            .font(.subheadline.weight(.medium).monospaced())
+                            .scaledFont(size: 14, weight: .medium, design: .monospaced)
                     }
 
                     Spacer()
@@ -272,9 +272,9 @@ struct SFSymbolPicker: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: category.icon)
-                    .font(.caption)
+                    .scaledFont(size: 11)
                 Text(category.rawValue)
-                    .font(.caption.weight(.medium))
+                    .scaledFont(size: 12, weight: .medium)
             }
             .foregroundStyle(selectedCategory == category ? .white : .primary)
             .padding(.horizontal, DSSpacing.sm)
@@ -297,7 +297,7 @@ struct SFSymbolPicker: View {
         } label: {
             VStack(spacing: DSSpacing.xs) {
                 Image(systemName: symbol)
-                    .font(.title2)
+                    .scaledFont(size: 22)
                     .frame(width: DSSpacing.tapTarget, height: DSSpacing.tapTarget)
                     .foregroundStyle(selectedSymbol == symbol ? .white : .primary)
                     .background(
@@ -328,7 +328,7 @@ struct SFSymbolPicker: View {
                         .frame(width: 56, height: 56)
 
                     Image(systemName: symbol)
-                        .font(.title)
+                        .scaledFont(size: 26)
                         .foregroundStyle(
                             selectedSymbol == symbol
                                 ? .white
@@ -368,7 +368,7 @@ struct SFSymbolPickerButton: View {
         } label: {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: selectedSymbol)
-                    .font(.title3)
+                    .scaledFont(size: 20)
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 36, height: 36)
                     .background(Color.accentColor.opacity(0.12))
@@ -387,7 +387,7 @@ struct SFSymbolPickerButton: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .scaledFont(size: 12, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)

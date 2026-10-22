@@ -18,7 +18,7 @@ struct VisualEvidenceCard: View {
                     .font(.subheadline)
                     .foregroundStyle(DSColors.accent)
                 Text("Visual Evidence")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline)
                     .foregroundStyle(DSColors.primaryText)
                 Spacer()
                 Text(metadata.timestamp, style: .time)
@@ -33,7 +33,7 @@ struct VisualEvidenceCard: View {
             HStack(spacing: DSSpacing.xl) {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("\(metadata.ocrWordCount)")
-                        .font(.title3.weight(.bold))
+                        .font(.system(.title3, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(DSColors.primaryText)
                     Text("OCR Words")
@@ -45,7 +45,7 @@ struct VisualEvidenceCard: View {
                 if metadata.barcodeCount > 0 {
                     VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text("\(metadata.barcodeCount)")
-                            .font(.title3.weight(.bold))
+                            .font(.system(.title3, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(DSColors.primaryText)
                         Text("Barcodes")
@@ -58,7 +58,7 @@ struct VisualEvidenceCard: View {
                 if !metadata.detectedObjects.isEmpty {
                     VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text("\(metadata.detectedObjects.count)")
-                            .font(.title3.weight(.bold))
+                            .font(.system(.title3, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(DSColors.primaryText)
                         Text("Objects")

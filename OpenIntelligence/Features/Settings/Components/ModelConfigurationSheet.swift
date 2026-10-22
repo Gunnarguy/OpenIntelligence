@@ -125,7 +125,7 @@ struct ModelConfigurationSheet: View {
                         .font(.headline)
 
                     Text(settings.executionPathDescription)
-                        .font(.footnote)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
 
@@ -136,7 +136,7 @@ struct ModelConfigurationSheet: View {
                     Text(settings.privacyBadge.emoji)
                         .font(.title3)
                     Text(settings.mayTransmitData ? "Cloud" : "Local")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -183,7 +183,7 @@ struct ModelConfigurationSheet: View {
                     profileRow("Comparing or investigating", "0.35", "1400")
                     profileRow("Summarizing", "0.40", "1000")
                 }
-                .font(.footnote)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.vertical, DSSpacing.xxs)
             }
@@ -207,7 +207,7 @@ struct ModelConfigurationSheet: View {
                 axis: .vertical
             )
             .lineLimit(3...8)
-            .font(.body)
+            .font(.callout)
 
             if !customReasoningProfile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button("Clear", role: .destructive) {
@@ -278,7 +278,7 @@ struct ModelConfigurationSheet: View {
                         ? "No effect on Predictable sampling, which always takes the most likely next word. Choose Balanced or Adaptive below to use this."
                         : "Lower = more focused, higher = more creative"
                 )
-                .font(.footnote)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -305,7 +305,7 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Maximum response length in tokens (~4 chars each)")
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -331,10 +331,10 @@ struct ModelConfigurationSheet: View {
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(samplingStrategy.technicalName)
-                    .font(.footnote.weight(.semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(samplingStrategy.explanation)
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -353,7 +353,7 @@ struct ModelConfigurationSheet: View {
                         step: 1
                     ) { Text("Top-K") }
                     Text("Choose from the \(topK) most likely next words.")
-                        .font(.footnote)
+                        .font(.caption2)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -369,7 +369,7 @@ struct ModelConfigurationSheet: View {
                     }
                     Slider(value: $topP, in: 0.05...0.99, step: 0.05) { Text("Top-P") }
                     Text("Probability mass to sample from. Lower is more focused.")
-                        .font(.footnote)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, DSSpacing.xs)
@@ -396,7 +396,7 @@ struct ModelConfigurationSheet: View {
                         ? "The same question against the same library returns the same answer."
                         : "Answers vary slightly between runs."
                 )
-                .font(.footnote)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
             }
         } header: {
@@ -440,10 +440,10 @@ struct ModelConfigurationSheet: View {
                 // 32K on a 4K device builds a prompt the model then rejects. That is the
                 // shape of the "4521 tokens against a 4096 window" report.
                 Text("How much conversation and document context to pack into each request.")
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                 Text(contextGuidance)
-                    .font(.footnote)
+                    .font(.caption2)
                     .monospacedDigit()
                     .foregroundStyle(contextLength > onDeviceContextWindow ? DSColors.readable(.orange) : Color.secondary)
             }
@@ -486,7 +486,7 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Penalize frequently used tokens (reduces repetition)")
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -506,7 +506,7 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Penalize any token that appeared before (encourages new topics)")
-                    .font(.footnote)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -531,7 +531,7 @@ struct ModelConfigurationSheet: View {
                 Text(
                     "Additional penalty for repeated sequences (1.0 = off). Not sent anywhere, including to the planned local model host."
                 )
-                .font(.footnote)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
             }
             .padding(.vertical, DSSpacing.xs)
@@ -564,7 +564,7 @@ struct ModelConfigurationSheet: View {
                             .font(.subheadline)
                             .foregroundStyle(.primary)
                         Text(systemPrompt.isEmpty ? "Default assistant behavior" : systemPrompt.prefix(50) + "...")
-                            .font(.footnote)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
@@ -806,7 +806,7 @@ private struct SystemPromptEditorSheet: View {
                                 localPrompt = template.prompt
                             } label: {
                                 Text(template.rawValue)
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption)
                                     .padding(.horizontal, DSSpacing.md)
                                     .padding(.vertical, DSSpacing.xs)
                                     .background(DSColors.surface)

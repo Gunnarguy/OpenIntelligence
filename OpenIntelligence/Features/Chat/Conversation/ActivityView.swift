@@ -34,7 +34,7 @@ import SwiftUI
         var body: some View {
             VStack(spacing: DSSpacing.xl) {
                 Image(systemName: "square.and.arrow.up")
-                    .font(.largeTitle)
+                    .scaledFont(size: 32)
                     .foregroundStyle(DSColors.accent)
                 
                 Text("Share Item")

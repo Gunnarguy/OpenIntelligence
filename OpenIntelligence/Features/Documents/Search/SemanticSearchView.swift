@@ -96,7 +96,7 @@ struct SemanticSearchView: View {
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Slider(value: $minSimilarity, in: 0.2 ... 0.8, step: 0.05)
                     Text("Threshold: \(similarityLabel(minSimilarity))")
-                        .font(.caption.monospacedDigit())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -126,14 +126,14 @@ struct SemanticSearchView: View {
                     Spacer()
                     if isMiniLM {
                         Text(isCoreAI ? "Core AI" : "Core ML")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2)
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, DSSpacing.xs)
                             .padding(.vertical, DSSpacing.xxs)
                             .background(Capsule().fill(Color.accentColor.opacity(0.15)))
                     } else if isContextual {
                         Text("Contextual")
-                            .font(.caption2.weight(.semibold))
+                            .font(.caption2)
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, DSSpacing.xs)
                             .padding(.vertical, DSSpacing.xxs)
@@ -166,7 +166,7 @@ struct SemanticSearchView: View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             if !results.isEmpty {
                 Text("Results")
-                    .font(.headline)
+                    .font(.title3)
                 LazyVStack(spacing: DSSpacing.md) {
                     ForEach(Array(results.enumerated()), id: \.element.chunk.id) { index, chunk in
                         SemanticResultCard(
@@ -269,14 +269,14 @@ private struct SemanticResultCard: View {
     private var header: some View {
         HStack {
             Text("#\(position)")
-                .font(.caption2.weight(.semibold).monospacedDigit())
+                .font(.caption)
                 .padding(.horizontal, DSSpacing.sm)
                 .padding(.vertical, DSSpacing.xs)
                 .background(Capsule().fill(DSColors.accent.opacity(0.15)))
                 .foregroundStyle(DSColors.accent)
             Spacer()
             Text(similarityText)
-                .font(.caption.weight(.semibold).monospacedDigit())
+                .font(.caption)
                 .foregroundStyle(.primary)
         }
     }
@@ -288,7 +288,7 @@ private struct SemanticResultCard: View {
                 .fontWeight(.semibold)
             if let page = chunk.pageNumber {
                 Text("Page \(page)")
-                    .font(.caption.monospacedDigit())
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Text(chunk.chunk.content.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -301,10 +301,10 @@ private struct SemanticResultCard: View {
     private var metadata: some View {
         HStack(spacing: DSSpacing.md) {
             Label("Chunk \(chunk.chunk.metadata.chunkIndex + 1)", systemImage: "number")
-                .font(.caption.monospacedDigit())
+                .font(.caption)
                 .foregroundStyle(.secondary)
             Label(similarityText, systemImage: "circle.grid.cross")
-                .font(.caption.monospacedDigit())
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }

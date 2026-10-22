@@ -51,7 +51,7 @@ struct ModernDocumentCard: View {
                     .glassCircleEffectHelper()
 
                 Image(systemName: DocumentRow.iconName(for: document.contentType))
-                    .font(.title2.weight(.semibold))
+                    .scaledFont(size: 22, weight: .semibold)
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
             }
@@ -60,7 +60,7 @@ struct ModernDocumentCard: View {
                 // The name and its figures grow with the text size, and the figures in the readable gray go onto
                 // further lines when they do not fit across (5.7): gray on this card measured 3.38 to 1.
                 Text(document.filename)
-                    .font(.body.weight(.bold))
+                    .scaledFont(size: 16, weight: .bold)
                     .foregroundStyle(.primary)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
 
@@ -69,14 +69,14 @@ struct ModernDocumentCard: View {
                         Image(systemName: "cube.box.fill")
                         Text("\(document.totalChunks)")
                     }
-                    .font(.caption.weight(.medium).monospacedDigit())
+                    .scaledFont(size: 11, weight: .medium)
                     .foregroundStyle(DSColors.secondaryText)
 
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "clock")
                         Text(document.addedAt, style: .relative)
                     }
-                    .font(.caption.weight(.medium))
+                    .scaledFont(size: 11, weight: .medium)
                     .foregroundStyle(DSColors.secondaryText)
                     
                     if isSharedICloudDocument {
@@ -84,7 +84,7 @@ struct ModernDocumentCard: View {
                             Image(systemName: "icloud.fill")
                             Text("Synced")
                         }
-                        .font(.caption.weight(.bold))
+                        .scaledFont(size: 11, weight: .bold)
                         .foregroundStyle(DSColors.readable(.accentColor))
                     }
                 }
@@ -100,7 +100,7 @@ struct ModernDocumentCard: View {
 
             // Chevron
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
+                .scaledFont(size: 12, weight: .bold)
                 .foregroundStyle(.tertiary)
         }
         .padding(DSSpacing.md)
@@ -242,7 +242,7 @@ struct ContentTagsRow: View {
         WrappingRowLayout(spacing: DSSpacing.xs, lineSpacing: DSSpacing.xs) {
             ForEach(Array(tags.enumerated()), id: \.offset) { index, tag in
                 Text(tag)
-                    .font(.caption2.weight(.semibold))
+                    .scaledFont(size: 9, weight: .bold)
                     .foregroundStyle(DSColors.primaryText)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
@@ -258,7 +258,7 @@ struct ContentTagsRow: View {
 
             if hasMoreTags {
                 Image(systemName: "ellipsis")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 8, weight: .bold)
                     .foregroundStyle(DSColors.secondaryText)
                     .padding(.leading, DSSpacing.xxs)
                     .accessibilityLabel("More tags")

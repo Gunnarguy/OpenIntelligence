@@ -26,7 +26,7 @@ struct InfoButtonView: View {
                     .font(.headline)
 
                 Text(explanation)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(DSSpacing.lg)

@@ -734,7 +734,7 @@ struct SmartOverlay: View {
             } else {
                 // Simple center reticle for photos
                 Image(systemName: "viewfinder")
-                    .font(.largeTitle.weight(.ultraLight))
+                    .scaledFont(size: 60, weight: .ultraLight)
                     .foregroundStyle(.white)
                     .opacity(0.5)
                     .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -924,7 +924,7 @@ struct SmartCaptureConfirmation: View {
                             CaptureFlowLayout(spacing: DSSpacing.sm) {
                                 ForEach(result.detectedObjects + result.sceneLabels, id: \.self) { label in
                                     Text(label)
-                                        .font(.caption2.weight(.semibold))
+                                        .font(.caption)
                                         .padding(.horizontal, DSSpacing.sm)
                                         .padding(.vertical, DSSpacing.xs)
                                         .background(DSColors.chipBackground(for: .secondary), in: Capsule())

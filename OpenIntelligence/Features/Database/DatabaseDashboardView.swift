@@ -516,7 +516,7 @@ struct DatabaseDashboardView: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
-                    .font(.caption.weight(.medium))
+                    .scaledFont(size: 11, weight: .medium)
                 Text(label)
                     .font(.subheadline)
                     .fontWeight(isSelected ? .semibold : .regular)
@@ -798,13 +798,13 @@ struct DatabaseDashboardView: View {
             if documentStats.isEmpty {
                 VStack(spacing: DSSpacing.md) {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .font(.largeTitle)
+                        .scaledFont(size: 48)
                         .imageScale(.large)
                         .foregroundStyle(.secondary)
                     Text(settings.showTechnicalDetails ? "No Documents Indexed" : "No Documents Yet")
                         .font(.headline)
                     Text(settings.showTechnicalDetails ? "Add documents to populate the FTS5 index" : "Documents you add are listed here with their words and characters.")
-                        .font(.footnote)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(DSSpacing.xxl)
@@ -897,7 +897,7 @@ struct DatabaseDashboardView: View {
                     Image(systemName: "lightbulb.fill")
                         .foregroundStyle(DSColors.accent)
                     Text(settings.showTechnicalDetails ? "How Auto Intelligence Works" : "What the App Adjusts")
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline.weight(.semibold))
                 }
 
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
@@ -1551,14 +1551,14 @@ struct DatabaseDashboardView: View {
                             .font(.caption2)
                             .foregroundStyle(Color.accentColor)
                         Text("\(metrics.documentsScanned) scanned")
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                     }
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "list.bullet")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Text("\(metrics.resultsReturned) returned")
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                     }
                     Spacer()
                 }
@@ -1573,7 +1573,7 @@ struct DatabaseDashboardView: View {
                             .font(.headline)
                         Spacer()
                         Text("\(searchResults.count) matches")
-                            .font(.caption.monospacedDigit())
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
@@ -1588,11 +1588,11 @@ struct DatabaseDashboardView: View {
     private var emptyDatabaseState: some View {
         VStack(spacing: DSSpacing.lg) {
             Image(systemName: "cylinder")
-                .font(.largeTitle)
+                .scaledFont(size: 64)
                 .foregroundStyle(.secondary.opacity(0.4))
 
             Text(settings.showTechnicalDetails ? "Database Empty" : "No Documents Yet")
-                .font(.title2.weight(.semibold))
+                .font(.title2)
 
             Text(settings.showTechnicalDetails ? "Add documents to populate the SQLite FTS5 full-text search index" : "Add documents and their words show up here.")
                 .font(.subheadline)
@@ -1676,7 +1676,7 @@ struct DatabaseDashboardView: View {
                     .font(.caption.weight(.semibold))
                 Spacer()
                 Text("\(rebuildLogs.count) entries")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                 Button {
                     rebuildLogs = []
@@ -1703,7 +1703,7 @@ struct DatabaseDashboardView: View {
                                     .font(.caption.monospaced())
                                     .foregroundStyle(.primary)
                                 Text(entry.timestamp, style: .time)
-                                    .font(.caption2.monospaced())
+                                    .scaledFont(size: 9)
                                     .foregroundStyle(.secondary)
                             }
 
@@ -1825,7 +1825,7 @@ private struct QuickStat: View {
                 .font(.caption)
                 .foregroundStyle(color)
             Text(value)
-                .font(.subheadline.weight(.bold).monospacedDigit())
+                .font(.subheadline)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -1844,7 +1844,7 @@ private struct DatabaseStatusBadge: View {
                 .fill(color)
                 .frame(width: 8, height: 8)
             Text(status)
-                .font(.caption.weight(.medium))
+                .font(.caption)
         }
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.xs)
@@ -1874,11 +1874,11 @@ private struct DatabaseMetricCard: View {
             }
 
             Text(value)
-                .font(.title.weight(.bold).monospacedDigit())
+                .font(.title)
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.caption.weight(.medium))
+                    .font(.caption)
                 Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1896,7 +1896,7 @@ private struct IndexFactRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(title)
-                .font(.subheadline.weight(.medium))
+                .font(.subheadline)
             Text(detail)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -1914,7 +1914,7 @@ private struct DocumentStatRow: View {
         HStack {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(documentName)
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline)
                     .lineLimit(1)
                 HStack(spacing: DSSpacing.sm) {
                     Label("Added \(doc.createdAt, style: .relative) ago", systemImage: "clock")
@@ -1927,9 +1927,9 @@ private struct DocumentStatRow: View {
 
             VStack(alignment: .trailing, spacing: DSSpacing.xxs) {
                 Text("\(doc.characterCount.formatted()) chars")
-                    .font(.caption.weight(.medium).monospacedDigit())
+                    .font(.caption)
                 Text("\(doc.wordCount.formatted()) words")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
@@ -1957,7 +1957,7 @@ private struct IndexStatCard: View {
             }
 
             Text(value)
-                .font(.title2.weight(.bold).monospacedDigit())
+                .font(.title2)
 
             Text(title)
                 .font(.caption)
@@ -1979,7 +1979,7 @@ private struct TokenizerInfoRow: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Text(value)
-                .font(.caption.weight(.medium))
+                .font(.caption)
         }
     }
 }
@@ -2031,10 +2031,10 @@ private struct SearchResultRow: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack {
                 Text(documentName)
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline)
                 Spacer()
                 Text(String(format: "%.2f", -result.bm25Score))
-                    .font(.caption.monospacedDigit())
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xxs)
@@ -2069,7 +2069,7 @@ private struct DiagnosticCard: View {
                 Spacer()
             }
             Text(value)
-                .font(.title3.weight(.bold).monospacedDigit())
+                .font(.title3)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(label)
@@ -2089,7 +2089,7 @@ private struct MiniStatCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text(value)
-                .font(.caption.weight(.semibold).monospacedDigit())
+                .font(.caption)
                 .lineLimit(1)
             Text(label)
                 .font(.caption2)
@@ -2113,7 +2113,7 @@ private struct DatabaseInfoRow: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Text(value)
-                .font(.system(.caption, design: .monospaced).weight(.medium))
+                .font(.system(.caption, design: .monospaced))
         }
     }
 }
@@ -2312,7 +2312,7 @@ struct LibraryIntelligenceCard: View {
                         } label: {
                             HStack(spacing: DSSpacing.xs) {
                                 Image(systemName: "wand.and.stars")
-                                    .font(.caption.weight(.semibold))
+                                    .scaledFont(size: 11, weight: .semibold)
                                 Text("Analyze this library")
                                     .font(.caption.weight(.medium))
                             }
@@ -2416,7 +2416,7 @@ struct IntelligenceMetricRow: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Text(value)
-                .font(.caption.weight(.medium).monospacedDigit())
+                .font(.caption.weight(.medium))
         }
     }
 }
@@ -2431,7 +2431,7 @@ struct CorpusSignalBadge: View {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
-                .font(.caption2.monospacedDigit())
+                .font(.caption2)
         }
         .foregroundStyle(.secondary)
     }
@@ -2712,7 +2712,7 @@ private struct MetadataCard: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(isMonospace ? .system(.caption2, design: .monospaced) : .caption.monospacedDigit())
+                .font(isMonospace ? .system(.caption2, design: .monospaced) : .caption)
                 .fontWeight(.medium)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
@@ -2736,7 +2736,7 @@ private struct AnalysisCard: View {
                 .foregroundStyle(color)
                 .font(.caption)
             Text(value)
-                .font(.headline.weight(.bold).monospacedDigit())
+                .font(.headline)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

@@ -52,11 +52,11 @@ struct IngestionConsoleView: View {
                 // In the label color: gray on this gray bar measured 3.82 to 1 (5.7).
                 HStack {
                     Text("Processing Log")
-                        .font(.caption2.bold())
+                        .scaledFont(size: 10, weight: .bold)
                         .foregroundStyle(DSColors.primaryText)
                     Spacer()
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption2.weight(.semibold))
+                        .scaledFont(size: 8, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
                 }
                 .padding(.horizontal, DSSpacing.sm)
@@ -69,7 +69,8 @@ struct IngestionConsoleView: View {
             if isExpanded {
                 VStack(spacing: 0) {
                     ScrollViewReader { proxy in
-                        ScrollView(.vertical, showsIndicators: true) {
+                        // Scrolls sideways like a terminal, so a long line is neither cut with "…" nor wrapped (5.7).
+                        ScrollView([.vertical, .horizontal], showsIndicators: true) {
                             LazyVStack(alignment: .leading, spacing: 0) {
                                 ForEach(events) { event in
                                     IngestionConsoleLogRow(event: event, isLatest: event == events.last && !isTerminal)
@@ -94,7 +95,7 @@ struct IngestionConsoleView: View {
                             }
                         }) {
                             Text(isFullHeight ? "Compact" : "Full Log (\(events.count))")
-                                .font(.caption2.weight(.medium).monospaced())
+                                .scaledFont(size: 8, weight: .medium, design: .monospaced)
                                 .monospacedDigit()
                                 .foregroundStyle(DSColors.readable(DSColors.accent))
                                 .padding(.vertical, DSSpacing.xs)
@@ -204,16 +205,16 @@ struct IngestionConsoleLogRow: View {
         let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
         let rowLayout = isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.xxs))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: DSSpacing.xs))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: DSSpacing.xs))
         return rowLayout {
             Text(timestamp)
-                .font(.caption2.weight(.medium).monospaced())
+                .scaledFont(size: 8, weight: .medium, design: .monospaced)
                 .monospacedDigit()
                 .foregroundStyle(Color(white: 0.72))
                 .frame(width: timeColumn, alignment: .leading)
                 
             Text(shortStageLabel)
-                .font(.caption2.bold().monospaced())
+                .scaledFont(size: 7, weight: .bold, design: .monospaced)
                 .foregroundStyle(DSColors.readable(stageColor))
                 .frame(width: stageColumn, alignment: .leading)
                 
@@ -221,24 +222,27 @@ struct IngestionConsoleLogRow: View {
             // each wrapped in half the width (5.7).
             let textLayout = isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: DSSpacing.xxs))
-                : AnyLayout(HStackLayout(spacing: DSSpacing.xxs))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: DSSpacing.xxs))
             textLayout {
                 Text(event.title)
-                    .font(.caption2.weight(.medium).monospaced())
+                    .scaledFont(size: 8, weight: .medium, design: .monospaced)
                     .foregroundStyle(isLatest ? Color.white : Color.white.opacity(0.8))
                     .lineLimit(isAccessibilitySize ? nil : 1)
+                    .layoutPriority(1)
                 
                 if let detail = event.detail, !detail.isEmpty {
                     if !isAccessibilitySize {
                         Image(systemName: "arrow.right")
-                            .font(.caption2.weight(.semibold))
+                            .scaledFont(size: 6, weight: .semibold)
                             .foregroundStyle(Color(white: 0.6))
                             .accessibilityHidden(true)
                     }
                     Text(detail)
-                        .font(.caption2.monospaced())
+                        .scaledFont(size: 8, weight: .regular, design: .monospaced)
                         .foregroundStyle(DSColors.readable(stageColor))
                         .lineLimit(isAccessibilitySize ? nil : 1)
+                        // Its full width on one line; the console scrolls sideways to show it (5.7).
+                        .fixedSize(horizontal: !isAccessibilitySize, vertical: false)
                 }
             }
             if !isAccessibilitySize {
@@ -480,7 +484,7 @@ struct IngestionQueueOverlay: View {
 
                             if hiddenCount > 0 {
                                 Text("+\(hiddenCount) more files in queue")
-                                    .font(.caption.weight(.medium))
+                                    .scaledFont(size: 11, weight: .medium)
                                     .monospacedDigit()
                                     .foregroundStyle(DSColors.secondaryText)
                                     .frame(maxWidth: .infinity)
@@ -595,7 +599,7 @@ struct IngestionQueueOverlay: View {
                         .fill(overlayAccentColor.opacity(0.12))
                     Image(systemName: headerIcon)
                         .foregroundStyle(DSColors.readable(overlayAccentColor))
-                        .font(.footnote.bold())
+                        .scaledFont(size: 13, weight: .bold)
                 }
                 .frame(width: 32, height: 32)
                 .frame(minHeight: DSSpacing.tapTarget)
@@ -616,7 +620,7 @@ struct IngestionQueueOverlay: View {
     private var headerLabels: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(headerTitle)
-                .font(.subheadline.bold())
+                .scaledFont(size: 14, weight: .bold)
                 .foregroundStyle(DSColors.primaryText)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .minimumScaleFactor(0.8)
@@ -624,7 +628,7 @@ struct IngestionQueueOverlay: View {
 
             if !isMinimized {
                 Text(statusLine)
-                    .font(.caption.weight(.medium))
+                    .scaledFont(size: 11, weight: .medium)
                     .monospacedDigit()
                     .foregroundStyle(DSColors.secondaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
@@ -654,7 +658,7 @@ struct IngestionQueueOverlay: View {
                     onPause()
                 } label: {
                     Image(systemName: "pause.fill")
-                        .font(.caption2.bold())
+                        .scaledFont(size: 10, weight: .bold)
                         .foregroundStyle(DSColors.readable(.orange))
                         .frame(width: 28, height: 28)
                         .background(Color.orange.opacity(0.14))
@@ -686,7 +690,7 @@ struct IngestionQueueOverlay: View {
                 Image(systemName: processingModeIcon)
                     .foregroundStyle(DSColors.readable(processingModeColor))
                 Text(processingModeLabel)
-                    .font(.caption2.bold())
+                    .scaledFont(size: 10, weight: .bold)
                     .foregroundStyle(DSColors.primaryText)
                     .lineLimit(1)
             }
@@ -711,7 +715,7 @@ struct IngestionQueueOverlay: View {
                 withAnimation(DSAnimations.snappySpring) { isMinimized.toggle() }
             } label: {
                 Image(systemName: isMinimized ? "chevron.up" : "chevron.down")
-                    .font(.caption2.bold())
+                    .scaledFont(size: 10, weight: .bold)
                     .foregroundStyle(DSColors.secondaryText)
                     .frame(width: 28, height: 28)
                     .background(DSColors.secondaryText.opacity(0.08))
@@ -731,7 +735,7 @@ struct IngestionQueueOverlay: View {
                     withAnimation(DSAnimations.snappySpring) { isDismissed = true }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.caption2.weight(.heavy))
+                        .scaledFont(size: 10, weight: .heavy)
                         .foregroundStyle(DSColors.secondaryText)
                         .frame(width: 28, height: 28)
                         .background(DSColors.secondaryText.opacity(0.12))
@@ -750,7 +754,7 @@ struct IngestionQueueOverlay: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack(alignment: .top, spacing: DSSpacing.sm) {
                 Image(systemName: "pause.circle.fill")
-                    .font(.headline)
+                    .scaledFont(size: 18, weight: .semibold)
                     .foregroundStyle(DSColors.readable(.orange))
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .accessibilityHidden(true)
@@ -760,7 +764,7 @@ struct IngestionQueueOverlay: View {
                         pausedByPerson
                             ? (pausedItems.count == 1 ? "Upload paused" : "\(pausedItems.count) uploads paused")
                             : (pausedItems.count == 1 ? "Interrupted upload paused" : "\(pausedItems.count) interrupted uploads paused"))
-                        .font(.footnote.bold())
+                        .scaledFont(size: 13, weight: .bold)
                         .monospacedDigit()
                         .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -769,7 +773,7 @@ struct IngestionQueueOverlay: View {
                         pausedByPerson
                             ? "Continue picks up where it stopped. A file that isn't saved in pieces starts over."
                             : "Continue processing or discard the saved queue.")
-                        .font(.caption.weight(.medium))
+                        .scaledFont(size: 11, weight: .medium)
                         // The label color on the orange tint, where gray measured 4.48 to 1 (5.7).
                         .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -791,7 +795,7 @@ struct IngestionQueueOverlay: View {
                         Image(systemName: "play.fill")
                             .foregroundStyle(DSColors.readable(.green))
                     }
-                    .font(.caption.bold())
+                    .scaledFont(size: 12, weight: .bold)
                     .foregroundStyle(DSColors.primaryText)
                     .padding(.vertical, DSSpacing.sm)
                     .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget)
@@ -810,7 +814,7 @@ struct IngestionQueueOverlay: View {
                         Image(systemName: "trash.fill")
                             .foregroundStyle(DSColors.readable(.red))
                     }
-                    .font(.caption.bold())
+                    .scaledFont(size: 12, weight: .bold)
                     .foregroundStyle(DSColors.primaryText)
                     .padding(.vertical, DSSpacing.sm)
                     .frame(maxWidth: .infinity, minHeight: DSSpacing.tapTarget)
@@ -913,7 +917,7 @@ private struct IngestionQueueRow: View {
                     Circle()
                         .fill(stageColor.opacity(0.12))
                     Image(systemName: stageIcon)
-                        .font(.caption.weight(.bold))
+                        .scaledFont(size: 11, weight: .bold)
                         .foregroundStyle(DSColors.readable(stageColor))
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 }
@@ -922,7 +926,7 @@ private struct IngestionQueueRow: View {
 
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(item.filename)
-                        .font(.footnote.weight(.semibold))
+                        .scaledFont(size: 13, weight: .semibold)
                         .lineLimit(isAccessibilitySize ? 3 : 1)
                         .truncationMode(.middle)
                         .foregroundStyle(DSColors.primaryText)
@@ -930,7 +934,7 @@ private struct IngestionQueueRow: View {
                     stageLineLayout {
                         // The word in the label color, the stage's color in the icon (5.7).
                         Text(item.stage.displayName)
-                            .font(.caption2.weight(.medium))
+                            .scaledFont(size: 10, weight: .medium)
                             .foregroundStyle(DSColors.primaryText)
                             .fixedSize(horizontal: !isAccessibilitySize, vertical: false)
 
@@ -939,7 +943,7 @@ private struct IngestionQueueRow: View {
                                 separatorDot
                             }
                             Text(item.detail)
-                                .font(.caption2)
+                                .scaledFont(size: 10)
                                 .foregroundStyle(DSColors.secondaryText)
                                 .lineLimit(isAccessibilitySize ? nil : 1)
                         }
@@ -949,7 +953,7 @@ private struct IngestionQueueRow: View {
                                 separatorDot
                             }
                             Text(timerInterval: startedAt...Date.distantFuture, countsDown: false)
-                                .font(.caption2.monospaced())
+                                .scaledFont(size: 10, design: .monospaced)
                                 .foregroundStyle(DSColors.secondaryText)
                         }
 
@@ -968,7 +972,7 @@ private struct IngestionQueueRow: View {
                                 // Gray like the running time: green measured under 4.5 to 1 even in Apple's
                                 // high-contrast green (5.7).
                                 Text(String(format: "%.1fs", durationSec))
-                                    .font(.caption2.monospaced())
+                                    .scaledFont(size: 10, design: .monospaced)
                                     .foregroundStyle(DSColors.secondaryText)
                             }
                         }
@@ -983,7 +987,7 @@ private struct IngestionQueueRow: View {
                         onCancel()
                     }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.body)
+                            .scaledFont(size: 16)
                             .foregroundStyle(DSColors.secondaryText)
                             .frame(width: DSSpacing.tapTarget, height: DSSpacing.tapTarget)
                             .contentShape(Rectangle())
@@ -992,7 +996,7 @@ private struct IngestionQueueRow: View {
                     .accessibilityLabel("Cancel this file's import")
                 } else if item.stage == .complete {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.body)
+                        .scaledFont(size: 16)
                         .foregroundStyle(DSColors.readable(.green))
                 }
             }
@@ -1021,7 +1025,7 @@ private struct IngestionQueueRow: View {
                         }
                     } label: {
                         Image(systemName: showDetails ? "info.circle.fill" : "info.circle")
-                            .font(.caption)
+                            .scaledFont(size: 12)
                             .foregroundStyle(showDetails ? DSColors.accent : DSColors.secondaryText)
                             .frame(minWidth: DSSpacing.tapTarget, minHeight: DSSpacing.tapTarget)
                             .contentShape(Rectangle())
@@ -1042,7 +1046,7 @@ private struct IngestionQueueRow: View {
 
             if let errorMessage = item.errorMessage, item.stage == .failed {
                 Text(errorMessage)
-                    .font(.caption2)
+                    .scaledFont(size: 10)
                     .foregroundStyle(DSColors.readable(.red))
                     .padding(DSSpacing.sm)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1077,7 +1081,7 @@ private struct IngestionQueueRow: View {
             }
             if m.usedStructuredParsing {
                 Image(systemName: "eye.fill")
-                    .font(.caption2)
+                    .scaledFont(size: 8)
                     .foregroundStyle(DSColors.readable(.green))
             }
         }
@@ -1087,9 +1091,9 @@ private struct IngestionQueueRow: View {
     private func metricLabel(icon: String, value: String) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .scaledFont(size: 8)
             Text(value)
-                .font(.caption2.weight(.bold).monospaced())
+                .scaledFont(size: 9, weight: .bold, design: .monospaced)
         }
         .foregroundStyle(DSColors.secondaryText)
     }
@@ -1141,7 +1145,7 @@ private struct IngestionQueueRow: View {
                 if m.ocrPagesCount > 0 {
                     HStack(spacing: DSSpacing.xs) {
                         Image(systemName: "eye.trianglebadge.exclamationmark")
-                            .font(.caption2)
+                            .scaledFont(size: 9)
                         Text("OCR: \(m.ocrPagesCount) page\(m.ocrPagesCount > 1 ? "s" : "") scanned")
                     }
                     .font(.caption2)
@@ -1170,14 +1174,14 @@ private struct IngestionQueueRow: View {
     private func visionStatusBadge(_ m: PipelineMetrics) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: m.usedStructuredParsing ? "checkmark.circle.fill" : "xmark.circle")
-                .font(.caption2)
+                .scaledFont(size: 10)
                 .foregroundStyle(DSColors.readable(m.usedStructuredParsing ? .green : .orange))
             Text(m.usedStructuredParsing ? "RecognizeDocumentsRequest" : "PDFKit Fallback")
-                .font(.caption2.weight(.medium).monospaced())
+                .scaledFont(size: 9, weight: .medium, design: .monospaced)
                 .foregroundStyle(DSColors.primaryText)
             if m.structuredParsingQuality > 0 {
                 Text("(\(Int(m.structuredParsingQuality * 100))% quality)")
-                    .font(.caption2)
+                    .scaledFont(size: 8)
                     .foregroundStyle(DSColors.secondaryText)
             }
         }
@@ -1203,11 +1207,11 @@ private struct IngestionQueueRow: View {
     private func visionStatItem(icon: String, count: Int, label: String, color: Color) -> some View {
         VStack(spacing: DSSpacing.xxs) {
             HStack(spacing: DSSpacing.xxs) {
-                Image(systemName: icon).font(.caption2).foregroundStyle(DSColors.readable(color))
-                Text("\(count)").font(.caption.weight(.bold).monospaced())
+                Image(systemName: icon).scaledFont(size: 9).foregroundStyle(DSColors.readable(color))
+                Text("\(count)").scaledFont(size: 11, weight: .bold, design: .monospaced)
                     .foregroundStyle(DSColors.primaryText)
             }
-            Text(label).font(.caption2).foregroundStyle(DSColors.secondaryText)
+            Text(label).scaledFont(size: 8).foregroundStyle(DSColors.secondaryText)
         }
     }
 
@@ -1215,11 +1219,11 @@ private struct IngestionQueueRow: View {
     private func visionTableDetails(_ m: PipelineMetrics) -> some View {
         if m.tablesExtracted > 0 && (m.tableRowsTotal > 0 || m.tableColumnsMax > 0) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text("TABLE STRUCTURE").font(.caption2.weight(.bold).monospaced()).foregroundStyle(DSColors.readable(DSColors.accent))
+                Text("TABLE STRUCTURE").scaledFont(size: 8, weight: .bold, design: .monospaced).foregroundStyle(DSColors.readable(DSColors.accent))
                 HStack(spacing: DSSpacing.sm) {
-                    if m.tableRowsTotal > 0 { HStack(spacing: DSSpacing.xxs) { Text("\(m.tableRowsTotal)").font(.caption2.weight(.semibold)); Text("rows").font(.caption2).foregroundStyle(DSColors.secondaryText) } }
-                    if m.tableColumnsMax > 0 { HStack(spacing: DSSpacing.xxs) { Text("\(m.tableColumnsMax)").font(.caption2.weight(.semibold)); Text("max cols").font(.caption2).foregroundStyle(DSColors.secondaryText) } }
-                    if m.atomicTableChunks > 0 { HStack(spacing: DSSpacing.xxs) { Image(systemName: "lock.fill").font(.caption2); Text("\(m.atomicTableChunks) atomic").font(.caption2) }.foregroundStyle(DSColors.readable(.green)) }
+                    if m.tableRowsTotal > 0 { HStack(spacing: DSSpacing.xxs) { Text("\(m.tableRowsTotal)").scaledFont(size: 10, weight: .semibold); Text("rows").font(.caption2).foregroundStyle(DSColors.secondaryText) } }
+                    if m.tableColumnsMax > 0 { HStack(spacing: DSSpacing.xxs) { Text("\(m.tableColumnsMax)").scaledFont(size: 10, weight: .semibold); Text("max cols").font(.caption2).foregroundStyle(DSColors.secondaryText) } }
+                    if m.atomicTableChunks > 0 { HStack(spacing: DSSpacing.xxs) { Image(systemName: "lock.fill").scaledFont(size: 7); Text("\(m.atomicTableChunks) atomic").font(.caption2) }.foregroundStyle(DSColors.readable(.green)) }
                 }
             }
             .padding(DSSpacing.xs)
@@ -1232,16 +1236,16 @@ private struct IngestionQueueRow: View {
     private func visionExtras(_ m: PipelineMetrics) -> some View {
         if m.visionEntitiesDetected > 0 {
             HStack(spacing: DSSpacing.xs) {
-                Image(systemName: "sparkle.magnifyingglass").font(.caption2)
-                Text("\(m.visionEntitiesDetected) auto-detected").font(.caption2)
-                Text("(emails, phones, dates)").font(.caption2).foregroundStyle(DSColors.secondaryText)
+                Image(systemName: "sparkle.magnifyingglass").scaledFont(size: 9)
+                Text("\(m.visionEntitiesDetected) auto-detected").scaledFont(size: 9)
+                Text("(emails, phones, dates)").scaledFont(size: 8).foregroundStyle(DSColors.secondaryText)
             }
             .foregroundStyle(DSColors.readable(DSColors.accent))
         }
         if m.sectionPathDepth > 1 {
             HStack(spacing: DSSpacing.xs) {
-                Image(systemName: "list.bullet.indent").font(.caption2)
-                Text("\(m.sectionPathDepth)-level hierarchy").font(.caption2)
+                Image(systemName: "list.bullet.indent").scaledFont(size: 9)
+                Text("\(m.sectionPathDepth)-level hierarchy").scaledFont(size: 9)
             }
             .foregroundStyle(DSColors.secondaryText)
         }
@@ -1273,12 +1277,12 @@ private struct IngestionQueueRow: View {
     private func chunkingAtomicInfo(_ m: PipelineMetrics) -> some View {
         if m.atomicTableChunks > 0 || m.atomicListChunks > 0 {
             HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "lock.rectangle.stack").font(.caption2)
+                Image(systemName: "lock.rectangle.stack").scaledFont(size: 9)
                 if m.atomicTableChunks > 0 { Text("\(m.atomicTableChunks) table\(m.atomicTableChunks > 1 ? "s" : "")") }
                 if m.atomicListChunks > 0 { Text("\(m.atomicListChunks) list\(m.atomicListChunks > 1 ? "s" : "")") }
                 Text("kept atomic").foregroundStyle(DSColors.secondaryText)
             }
-            .font(.caption2)
+            .scaledFont(size: 9)
             .foregroundStyle(DSColors.primaryText)
         }
         if !m.chunkingStrategy.isEmpty || m.targetWordWindow > 0 {
@@ -1294,7 +1298,7 @@ private struct IngestionQueueRow: View {
     private func chunkingBoundaries(_ m: PipelineMetrics) -> some View {
         if m.sectionsDetected > 0 || m.topicBoundaries > 0 || m.embeddingBoundaries > 0 {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text("BOUNDARIES").font(.caption2.weight(.bold).monospaced()).foregroundStyle(DSColors.readable(DSColors.accent))
+                Text("BOUNDARIES").scaledFont(size: 8, weight: .bold, design: .monospaced).foregroundStyle(DSColors.readable(DSColors.accent))
                 HStack(spacing: DSSpacing.sm) {
                     if m.sectionsDetected > 0 { boundaryItem(icon: "list.bullet.indent", value: m.sectionsDetected, label: "Sections", desc: "Heading") }
                     if m.topicBoundaries > 0 { boundaryItem(icon: "arrow.triangle.branch", value: m.topicBoundaries, label: "Topics", desc: "TF-IDF") }
@@ -1328,14 +1332,14 @@ private struct IngestionQueueRow: View {
                         domainChip(m.documentDomain)
                         if !m.documentLanguage.isEmpty {
                             Text(m.documentLanguage)
-                                .font(.caption2.monospaced())
+                                .scaledFont(size: 9, design: .monospaced)
                                 .foregroundStyle(DSColors.secondaryText)
                         }
                     }
                 }
                 if !m.contentDescriptor.isEmpty {
                     Text(m.contentDescriptor)
-                        .font(.caption2)
+                        .scaledFont(size: 10)
                         .foregroundStyle(DSColors.primaryText)
                         .lineLimit(2)
                 }
@@ -1351,7 +1355,7 @@ private struct IngestionQueueRow: View {
                 HStack(spacing: DSSpacing.xs) {
                     ForEach(m.contentCategories.prefix(6), id: \.self) { category in
                         Text(category)
-                            .font(.caption2.weight(.medium))
+                            .scaledFont(size: 9, weight: .medium)
                             .padding(.horizontal, DSSpacing.xs)
                             .padding(.vertical, DSSpacing.xxs)
                             .background(DSColors.accent.opacity(0.12))
@@ -1375,10 +1379,10 @@ private struct IngestionQueueRow: View {
         if m.extractionCoverage > 0 {
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 HStack {
-                    Text("EXTRACTION").font(.caption2.weight(.bold).monospaced()).foregroundStyle(DSColors.secondaryText)
+                    Text("EXTRACTION").scaledFont(size: 7, weight: .bold, design: .monospaced).foregroundStyle(DSColors.secondaryText)
                     Spacer()
                     Text(String(format: "%.0f%%", m.extractionCoverage * 100))
-                        .font(.caption2.weight(.bold).monospaced())
+                        .scaledFont(size: 9, weight: .bold, design: .monospaced)
                         .foregroundStyle(DSColors.primaryText)
                 }
                 ZStack(alignment: .leading) {
@@ -1399,10 +1403,10 @@ private struct IngestionQueueRow: View {
         let (icon, color) = domainIconAndColor(domain)
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .scaledFont(size: 8)
                 .foregroundStyle(DSColors.readable(color))
             Text(domain)
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 9, weight: .semibold)
                 .foregroundStyle(DSColors.primaryText)
         }
         .padding(.horizontal, DSSpacing.xs)
@@ -1430,11 +1434,11 @@ private struct IngestionQueueRow: View {
         if m.entitiesExtracted > 0 {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack {
-                    Image(systemName: "tag.fill").font(.caption2).foregroundStyle(DSColors.readable(DSColors.accent))
-                    Text("\(m.entitiesExtracted) ENTITIES").font(.caption2.weight(.bold).monospaced()).foregroundStyle(DSColors.readable(DSColors.accent))
+                    Image(systemName: "tag.fill").scaledFont(size: 9).foregroundStyle(DSColors.readable(DSColors.accent))
+                    Text("\(m.entitiesExtracted) ENTITIES").scaledFont(size: 8, weight: .bold, design: .monospaced).foregroundStyle(DSColors.readable(DSColors.accent))
                 }
                 if !m.topEntities.isEmpty {
-                    Text(m.topEntities.prefix(5).joined(separator: " • ")).font(.caption2).foregroundStyle(DSColors.secondaryText).lineLimit(2)
+                    Text(m.topEntities.prefix(5).joined(separator: " • ")).scaledFont(size: 9).foregroundStyle(DSColors.secondaryText).lineLimit(2)
                 }
             }
             .padding(DSSpacing.xs)
@@ -1452,8 +1456,8 @@ private struct IngestionQueueRow: View {
                     statBox(value: "\(m.embeddingDimension)", unit: "D", label: "Dims")
                     if !m.embeddingProvider.isEmpty {
                         VStack(spacing: DSSpacing.xxs) {
-                            Text(shortProviderDisplay(m.embeddingProvider)).font(.caption.weight(.bold).monospaced()).foregroundStyle(DSColors.accent)
-                            Text("Encoder").font(.caption2).foregroundStyle(DSColors.secondaryText)
+                            Text(shortProviderDisplay(m.embeddingProvider)).scaledFont(size: 11, weight: .bold, design: .monospaced).foregroundStyle(DSColors.accent)
+                            Text("Encoder").scaledFont(size: 8).foregroundStyle(DSColors.secondaryText)
                         }
                     }
                 }
@@ -1476,9 +1480,9 @@ private struct IngestionQueueRow: View {
                     if m.embeddingTimeMs > 0 { timingBar(label: "Embed", ms: m.embeddingTimeMs, total: m.totalTimeMs, color: DSColors.accent) }
                 }
                 HStack {
-                    Text("TOTAL").font(.caption2.weight(.bold).monospaced())
+                    Text("TOTAL").scaledFont(size: 9, weight: .bold, design: .monospaced)
                     Spacer()
-                    Text(formatMs(m.totalTimeMs)).font(.caption.weight(.bold).monospaced()).foregroundStyle(DSColors.accent)
+                    Text(formatMs(m.totalTimeMs)).scaledFont(size: 12, weight: .bold, design: .monospaced).foregroundStyle(DSColors.accent)
                 }
             }
         }
@@ -1488,9 +1492,9 @@ private struct IngestionQueueRow: View {
     private func rebuildSection(_ m: PipelineMetrics) -> some View {
         if m.isRebuild && !m.rebuildReason.isEmpty {
             HStack(spacing: DSSpacing.xs) {
-                Image(systemName: "arrow.triangle.2.circlepath").font(.caption2)
+                Image(systemName: "arrow.triangle.2.circlepath").scaledFont(size: 10)
                     .foregroundStyle(DSColors.readable(.orange))
-                Text("REBUILD: \(m.rebuildReason)").font(.caption2.weight(.medium))
+                Text("REBUILD: \(m.rebuildReason)").scaledFont(size: 9, weight: .medium)
                     .foregroundStyle(DSColors.primaryText)
             }
             .padding(.horizontal, DSSpacing.sm)
@@ -1507,10 +1511,10 @@ private struct IngestionQueueRow: View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
-                    .font(.caption2)
+                    .scaledFont(size: 10)
                     .foregroundStyle(DSColors.accent)
                 Text(title)
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 10, weight: .bold)
                     .foregroundStyle(DSColors.primaryText)
                 
                 Spacer()
@@ -1530,15 +1534,15 @@ private struct IngestionQueueRow: View {
     private func statBox(value: String, unit: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             Text(label)
-                .font(.caption2.weight(.medium))
+                .scaledFont(size: 8, weight: .medium)
                 .foregroundStyle(DSColors.secondaryText)
             HStack(alignment: .firstTextBaseline, spacing: DSSpacing.xxs) {
                 Text(value)
-                    .font(.footnote.weight(.bold).monospaced())
+                    .scaledFont(size: 13, weight: .bold, design: .monospaced)
                     .foregroundStyle(DSColors.primaryText)
                 if !unit.isEmpty {
                     Text(unit)
-                        .font(.caption2.weight(.semibold))
+                        .scaledFont(size: 9, weight: .semibold)
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
@@ -1549,7 +1553,7 @@ private struct IngestionQueueRow: View {
     @ViewBuilder
     private func strategyPill(_ strategy: String) -> some View {
         Text(strategy)
-            .font(.caption2.weight(.semibold).monospaced())
+            .scaledFont(size: 9, weight: .semibold, design: .monospaced)
             .padding(.horizontal, DSSpacing.xs)
             .padding(.vertical, DSSpacing.xxs)
             .background(DSColors.accent.opacity(0.15))
@@ -1565,7 +1569,7 @@ private struct IngestionQueueRow: View {
             Text(value)
                 .fontWeight(.medium)
         }
-        .font(.caption2)
+        .scaledFont(size: 8)
         .padding(.horizontal, DSSpacing.xs)
         .padding(.vertical, DSSpacing.xxs)
         .background(DSColors.surface)
@@ -1577,14 +1581,14 @@ private struct IngestionQueueRow: View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: icon)
-                    .font(.caption2)
+                    .scaledFont(size: 8)
                 Text("\(value)")
-                    .font(.caption2.weight(.bold).monospaced())
+                    .scaledFont(size: 10, weight: .bold, design: .monospaced)
                 Text(label)
-                    .font(.caption2.weight(.medium))
+                    .scaledFont(size: 8, weight: .medium)
             }
             Text(desc)
-                .font(.caption2)
+                .scaledFont(size: 7)
                 .foregroundStyle(DSColors.secondaryText)
         }
     }
@@ -1601,9 +1605,9 @@ private struct IngestionQueueRow: View {
                     .frame(width: 40 * min(1, value), height: 4)
             }
             Text("\(Int(value * 100))%")
-                .font(.caption2.weight(.bold).monospaced())
+                .scaledFont(size: 9, weight: .bold, design: .monospaced)
             Text(label)
-                .font(.caption2)
+                .scaledFont(size: 7)
                 .foregroundStyle(DSColors.secondaryText)
         }
     }
@@ -1612,10 +1616,10 @@ private struct IngestionQueueRow: View {
     private func contentBadge(icon: String, text: String, color: Color) -> some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
-                .font(.caption2)
+                .scaledFont(size: 8)
                 .foregroundStyle(DSColors.readable(color))
             Text(text)
-                .font(.caption2.weight(.semibold))
+                .scaledFont(size: 9, weight: .semibold)
                 .foregroundStyle(DSColors.primaryText)
         }
         .padding(.horizontal, DSSpacing.xs)
@@ -1629,17 +1633,17 @@ private struct IngestionQueueRow: View {
         HStack(spacing: DSSpacing.sm) {
             HStack(spacing: DSSpacing.xxs) {
                 Image(systemName: "clock")
-                    .font(.caption2)
+                    .scaledFont(size: 8)
                 Text(label)
-                    .font(.caption2)
+                    .scaledFont(size: 8)
                 Text(formatMs(ms))
-                    .font(.caption2.weight(.bold).monospaced())
+                    .scaledFont(size: 9, weight: .bold, design: .monospaced)
             }
             .foregroundStyle(DSColors.secondaryText)
 
             if let throughput, let unit, throughput > 0 {
                 Text("⚡ \(formatNumber(Int(throughput))) \(unit)")
-                    .font(.caption2.weight(.medium).monospaced())
+                    .scaledFont(size: 8, weight: .medium, design: .monospaced)
                     .foregroundStyle(DSColors.readable(DSColors.accent))
             }
         }
@@ -1650,7 +1654,7 @@ private struct IngestionQueueRow: View {
         let pct = total > 0 ? Double(ms) / Double(total) : 0
         HStack(spacing: DSSpacing.xs) {
             Text(label)
-                .font(.caption2.weight(.medium))
+                .scaledFont(size: 8, weight: .medium)
                 .frame(width: timingLabelColumn, alignment: .leading)
 
             GeometryReader { geo in
@@ -1665,7 +1669,7 @@ private struct IngestionQueueRow: View {
             .frame(height: 6)
 
             Text(formatMs(ms))
-                .font(.caption2.monospaced())
+                .scaledFont(size: 8, design: .monospaced)
                 .frame(width: timingValueColumn, alignment: .trailing)
         }
     }
@@ -1750,16 +1754,16 @@ private struct TotalsSummaryCard: View {
             // Section header
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "chart.bar.fill")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 10, weight: .bold)
                     .foregroundStyle(DSColors.accent)
                 // In the label color: gray on the card's tint measured 3.99 and 4.52 to 1 (5.7).
                 Text("BATCH TOTALS")
-                    .font(.caption2.weight(.bold))
+                    .scaledFont(size: 9, weight: .bold, design: .rounded)
                     .foregroundStyle(DSColors.primaryText)
                 Spacer()
                 if metrics.totalFileSizeMB > 0 {
                     Text(String(format: "%.1f MB", metrics.totalFileSizeMB))
-                        .font(.caption2.weight(.semibold).monospaced())
+                        .scaledFont(size: 9, weight: .semibold, design: .monospaced)
                         .foregroundStyle(DSColors.primaryText)
                 }
             }
@@ -1802,10 +1806,10 @@ private struct TotalsSummaryCard: View {
         VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: icon)
-                    .font(.caption2)
+                    .scaledFont(size: 8)
                     .foregroundStyle(DSColors.readable(color))
                 Text(value)
-                    .font(.caption.weight(.bold).monospaced())
+                    .scaledFont(size: 12, weight: .bold, design: .monospaced)
                     .foregroundStyle(DSColors.primaryText)
             }
         }
