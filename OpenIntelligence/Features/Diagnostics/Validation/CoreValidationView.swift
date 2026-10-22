@@ -27,116 +27,98 @@ struct CoreValidationView: View {
 
     var body: some View {
         ZStack {
-            // Modern gradient background
-            LinearGradient(
-                colors: [
-                    DSColors.background,
-                    DSColors.surface.opacity(0.3),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            DSColors.background
+                .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: DSSpacing.lg) {
                     // Hero Status Card
                     ModernStatusCard(status: overallStatus, isRunning: isRunning, currentTest: currentTest)
-                        .padding(.horizontal)
-                        .padding(.top)
+                        .padding(.horizontal, DSSpacing.lg)
+                        .padding(.top, DSSpacing.lg)
 
                     if let snapshot = embeddingSnapshot {
                         EmbeddingStatusCard(snapshot: snapshot)
-                            .padding(.horizontal)
+                            .padding(.horizontal, DSSpacing.lg)
                         if !recentEmbeddingEvents.isEmpty {
                             EmbeddingTelemetryList(events: recentEmbeddingEvents)
-                                .padding(.horizontal)
+                                .padding(.horizontal, DSSpacing.lg)
                         }
                     }
 
                     // Run Tests Button
                     Button(action: runAllTests) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: DSSpacing.md) {
                             Image(systemName: isRunning ? "arrow.triangle.2.circlepath" : "play.circle.fill")
                                 .font(.title3)
                                 .rotationEffect(isRunning ? .degrees(360) : .degrees(0))
-                                .animation(isRunning ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRunning)
+                                .animation(isRunning ? .linear(duration: 1).repeatForever(autoreverses: false) : DSAnimations.fastEase, value: isRunning)
 
                             Text(isRunning ? "Running Tests..." : "Run Core Validation")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(
-                            LinearGradient(
-                                colors: isRunning ? [Color.gray, Color.gray.opacity(0.8)] : [Color.accentColor, Color.accentColor.opacity(0.8)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                        .shadow(color: isRunning ? .clear : .accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .padding(DSSpacing.lg)
+                        .background(isRunning ? Color.secondary : DSColors.accent)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                     }
                     .disabled(isRunning)
-                    .padding(.horizontal)
+                    .padding(.horizontal, DSSpacing.lg)
 
                     // Test Results
                     if !testResults.isEmpty {
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: DSSpacing.lg) {
                             HStack {
                                 Text("Test Results")
-                                    .font(.title3)
-                                    .fontWeight(.bold)
+                                    .font(.headline)
 
                                 Spacer()
 
                                 // Pass/Fail count
-                                HStack(spacing: 12) {
-                                    HStack(spacing: 4) {
+                                HStack(spacing: DSSpacing.md) {
+                                    HStack(spacing: DSSpacing.xs) {
                                         Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
+                                            .foregroundStyle(.green)
                                         Text("\(testResults.filter { $0.status == .passed }.count)")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
+                                            .font(.caption.weight(.semibold))
+                                            .monospacedDigit()
                                     }
 
-                                    HStack(spacing: 4) {
+                                    HStack(spacing: DSSpacing.xs) {
                                         Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.red)
+                                            .foregroundStyle(.red)
                                         Text("\(testResults.filter { $0.status == .failed }.count)")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
+                                            .font(.caption.weight(.semibold))
+                                            .monospacedDigit()
                                     }
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, DSSpacing.lg)
 
-                            LazyVStack(spacing: 12) {
+                            LazyVStack(spacing: DSSpacing.md) {
                                 ForEach(testResults) { result in
                                     ModernTestResultCard(result: result)
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, DSSpacing.lg)
                         }
                     }
 
                     // Test Info
                     ModernTestInfoSection()
-                        .padding(.horizontal)
-                        .padding(.bottom, 20)
+                        .padding(.horizontal, DSSpacing.lg)
+                        .padding(.bottom, DSSpacing.lg)
                 }
             }
         }
         .navigationTitle("Core Validation")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
-            .task {
-                if embeddingSnapshot == nil {
-                    embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()
-                }
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if embeddingSnapshot == nil {
+                embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()
             }
+        }
     }
 
     // MARK: - Test Runner
@@ -391,49 +373,48 @@ struct ModernStatusCard: View {
     let currentTest: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
+            HStack(spacing: DSSpacing.md) {
                 ZStack {
                     Circle()
-                        .fill(status.color.opacity(0.2))
-                        .frame(width: 50, height: 50)
+                        .fill(DSColors.chipBackground(for: status.color))
+                        .frame(width: 48, height: 48)
 
                     Image(systemName: status.icon)
                         .font(.title3)
-                        .foregroundColor(status.color)
+                        .foregroundStyle(status.color)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text("Core Pipeline Validation")
                         .font(.headline)
 
                     if status != .notStarted && status != .running {
                         Text(status.message)
                             .font(.caption)
-                            .foregroundColor(status.color)
+                            .foregroundStyle(DSColors.readable(status.color))
                     }
                 }
             }
 
             if isRunning && !currentTest.isEmpty {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     ProgressView()
                         .scaleEffect(0.8)
 
                     Text(currentTest)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                .padding(.top, 4)
+                .padding(.top, DSSpacing.xs)
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
     }
 }
@@ -464,18 +445,19 @@ struct EmbeddingStatusCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Active Embedding Configuration")
                 .font(.headline)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Label {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DSSpacing.xs) {
                         Text(providerDescription)
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         Text("• \(snapshot.dimension)D")
                             .font(.subheadline)
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
                         if isHighAccuracy {
                             Text("🎯")
@@ -484,7 +466,7 @@ struct EmbeddingStatusCard: View {
                     }
                 } icon: {
                     Image(systemName: isHighAccuracy ? "sparkles" : "brain.head.profile")
-                        .foregroundColor(isHighAccuracy ? .purple : .accentColor)
+                        .foregroundStyle(DSColors.accent)
                 }
 
                 Label {
@@ -492,23 +474,24 @@ struct EmbeddingStatusCard: View {
                         .font(.subheadline)
                 } icon: {
                     Image(systemName: "tray.full")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
 
-            HStack(spacing: 16) {
+            HStack(spacing: DSSpacing.lg) {
                 StatusPill(text: snapshot.autoAdaptEnabled ? "Auto-adapt ON" : "Auto-adapt OFF", systemImage: "arrow.2.squarepath")
                 StatusPill(text: snapshot.retrievalConfig.summary, systemImage: "slider.horizontal.3")
             }
 
             Text("Docs: \(snapshot.documentCount) • Chunks: \(snapshot.chunkCount)")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(DSColors.surface.opacity(0.9))
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
         )
     }
 }
@@ -517,39 +500,41 @@ struct EmbeddingTelemetryList: View {
     let events: [TelemetryEvent]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Label("Recent Embedding Events", systemImage: "waveform.path.ecg")
                     .font(.headline)
                 Spacer()
                 Text("Last \(events.count)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
 
             ForEach(events) { event in
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: DSSpacing.sm) {
                     Text(event.formattedTimestamp)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                         .frame(width: 60, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text(event.title)
                             .font(.subheadline)
                             .fontWeight(.semibold)
                         if !event.metadata.isEmpty {
                             Text(event.metadata.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: " • "))
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(DSColors.surface.opacity(0.9))
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
         )
     }
 }
@@ -559,19 +544,19 @@ private struct StatusPill: View {
     let systemImage: String
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.xs) {
             Image(systemName: systemImage)
             Text(text)
-                .font(.caption)
-                .fontWeight(.semibold)
+                .font(.caption2.weight(.semibold))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .font(.caption2.weight(.semibold))
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xs)
         .background(
             Capsule()
-                .fill(Color.accentColor.opacity(0.12))
+                .fill(DSColors.chipBackground(for: DSColors.accent))
         )
-        .foregroundColor(.accentColor)
+        .foregroundStyle(DSColors.accent)
     }
 }
 
@@ -579,94 +564,91 @@ struct ModernTestResultCard: View {
     let result: TestResult
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: DSSpacing.lg) {
             // Status icon
             ZStack {
                 Circle()
-                    .fill(result.status.color.opacity(0.2))
+                    .fill(DSColors.chipBackground(for: result.status.color))
                     .frame(width: 40, height: 40)
 
                 Image(systemName: result.status.icon)
-                    .foregroundColor(result.status.color)
+                    .foregroundStyle(result.status.color)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(result.name)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
 
                 Text(result.message)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             Text(String(format: "%.2fs", result.duration))
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+                .font(.caption.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, DSSpacing.sm)
+                .padding(.vertical, DSSpacing.xs)
                 .background(
                     Capsule()
-                        .fill(DSColors.surface)
+                        .fill(DSColors.surfaceElevated)
                 )
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
-                .shadow(color: .black.opacity(0.03), radius: 4, x: 0, y: 2)
         )
     }
 }
 
 struct ModernTestInfoSection: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "info.circle.fill")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(DSColors.accent)
                 Text("What This Tests")
-                    .font(.title3)
-                    .fontWeight(.bold)
+                    .font(.headline)
             }
 
-            VStack(spacing: 12) {
+            VStack(spacing: DSSpacing.md) {
                 ModernTestInfoItem(
                     icon: "doc.text",
-                    color: .blue,
+                    color: DSColors.accent,
                     text: "Document processing and chunking"
                 )
                 ModernTestInfoItem(
                     icon: "cube.box",
-                    color: .purple,
+                    color: DSColors.accent,
                     text: "Embedding generation (512-dim)"
                 )
                 ModernTestInfoItem(
                     icon: "cylinder",
-                    color: .green,
+                    color: DSColors.accent,
                     text: "Vector database operations"
                 )
                 ModernTestInfoItem(
                     icon: "wand.and.stars",
-                    color: .orange,
+                    color: DSColors.accent,
                     text: "LLM service availability"
                 )
                 ModernTestInfoItem(
                     icon: "exclamationmark.triangle",
-                    color: .red,
+                    color: DSColors.accent,
                     text: "Edge case handling"
                 )
             }
         }
-        .padding()
+        .padding(DSSpacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .fill(DSColors.surface)
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
     }
 }
@@ -677,19 +659,19 @@ struct ModernTestInfoItem: View {
     let text: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(color.opacity(0.2))
+                RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous)
+                    .fill(DSColors.chipBackground(for: color))
                     .frame(width: 36, height: 36)
 
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
             }
 
             Text(text)
                 .font(.subheadline)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
 
             Spacer()
         }
@@ -727,7 +709,7 @@ struct TestInfoItem: View {
     let text: String
 
     var body: some View {
-        ModernTestInfoItem(icon: icon, color: .blue, text: text)
+        ModernTestInfoItem(icon: icon, color: DSColors.accent, text: text)
     }
 }
 
@@ -750,8 +732,8 @@ enum TestStatus {
 
     var color: Color {
         switch self {
-        case .notStarted: return .gray
-        case .running: return .blue
+        case .notStarted: return .secondary
+        case .running: return .accentColor
         case .passed: return .green
         case .failed: return .red
         case .partial: return .orange
