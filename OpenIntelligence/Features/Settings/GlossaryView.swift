@@ -87,6 +87,7 @@ struct GlossaryView: View {
                     }
                 } header: {
                     Text("\(results.count) \(results.count == 1 ? "term" : "terms")")
+                        .monospacedDigit()
                 }
             }
         }
@@ -111,15 +112,15 @@ struct GlossaryView: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             Text("Every word this app puts on screen, explained twice. Plain first, and the mechanism underneath if you want it.")
-                .font(.callout)
+                .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
             Toggle(isOn: $showsTechnical) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Always show the technical version")
                         .font(.subheadline.weight(.medium))
                     Text("Applies to every definition in the app, including the ones you tap from other screens")
-                        .font(.caption2)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -139,22 +140,22 @@ struct GlossaryView: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(DSColors.accent)
                     .frame(width: 22)
-                    .padding(.top, 2)
+                    .padding(.top, DSSpacing.xxs)
                     .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(term.term)
-                        .font(.body.weight(.medium))
+                        .font(.subheadline.weight(.medium))
                     // One line of the plain register, so the list is scannable without
                     // opening anything. The full definition and the technical register
                     // are both one tap away.
                     Text(term.plain)
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, DSSpacing.xxs)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -112,35 +112,35 @@ struct ModelConfigurationSheet: View {
     @ViewBuilder
     private var currentModelSection: some View {
         Section {
-            HStack(spacing: 12) {
+            HStack(spacing: DSSpacing.md) {
                 Image(systemName: settings.selectedModel.iconName)
                     .font(.title2)
-                    .foregroundStyle(.accent)
+                    .foregroundStyle(DSColors.accent)
                     .frame(width: 40, height: 40)
                     .background(Color.accentColor.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(settings.selectedModel.displayName)
                         .font(.headline)
 
                     Text(settings.executionPathDescription)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 // Privacy badge
-                VStack(spacing: 2) {
+                VStack(spacing: DSSpacing.xxs) {
                     Text(settings.privacyBadge.emoji)
                         .font(.title3)
                     Text(settings.mayTransmitData ? "Cloud" : "Local")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         } header: {
             Text("Active Model")
         }
@@ -150,7 +150,7 @@ struct ModelConfigurationSheet: View {
     private var presetsSection: some View {
         Section {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: DSSpacing.md) {
                     ForEach(InferencePreset.allCases) { preset in
                         PresetCard(
                             preset: preset,
@@ -160,9 +160,9 @@ struct ModelConfigurationSheet: View {
                         }
                     }
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DSSpacing.xs)
             }
-            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 0))
+            .listRowInsets(EdgeInsets(top: DSSpacing.md, leading: 0, bottom: DSSpacing.md, trailing: 0))
         } header: {
             Text("Quick Presets")
         } footer: {
@@ -177,15 +177,15 @@ struct ModelConfigurationSheet: View {
                 Label("Adapt to the question", systemImage: "wand.and.stars")
             }
             if adaptiveProfiles {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     profileRow("Looking up a value, or a calculation", "0.10", "400")
                     profileRow("Following a procedure, or reporting findings", "0.30", "900")
                     profileRow("Comparing or investigating", "0.35", "1400")
                     profileRow("Summarizing", "0.40", "1000")
                 }
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
-                .padding(.vertical, 2)
+                .padding(.vertical, DSSpacing.xxs)
             }
         } header: {
             Text("Adaptive Profiles")
@@ -207,7 +207,7 @@ struct ModelConfigurationSheet: View {
                 axis: .vertical
             )
             .lineLimit(3...8)
-            .font(.callout)
+            .font(.body)
 
             if !customReasoningProfile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button("Clear", role: .destructive) {
@@ -252,7 +252,7 @@ struct ModelConfigurationSheet: View {
     private var coreParametersSection: some View {
         Section {
             // Temperature
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Label("Temperature", systemImage: "thermometer")
                     Spacer()
@@ -278,15 +278,15 @@ struct ModelConfigurationSheet: View {
                         ? "No effect on Predictable sampling, which always takes the most likely next word. Choose Balanced or Adaptive below to use this."
                         : "Lower = more focused, higher = more creative"
                 )
-                .font(.caption2)
-                .foregroundStyle(samplingStrategy == .greedy ? .secondary : .tertiary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
             .opacity(samplingStrategy == .greedy ? 0.55 : 1)
-            .animation(.easeInOut(duration: 0.2), value: samplingStrategy)
+            .animation(DSAnimations.fastEase, value: samplingStrategy)
 
             // Max Tokens
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Label("Max Tokens", systemImage: "textformat.123")
                     Spacer()
@@ -305,10 +305,10 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Maximum response length in tokens (~4 chars each)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
 
         } header: {
             Text("Core Parameters")
@@ -329,19 +329,19 @@ struct ModelConfigurationSheet: View {
             }
             .pickerStyle(.segmented)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(samplingStrategy.technicalName)
-                    .font(.caption2.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(samplingStrategy.explanation)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if samplingStrategy == .topK {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack {
                         Label("Top-K", systemImage: "list.number")
                         Spacer()
@@ -353,14 +353,15 @@ struct ModelConfigurationSheet: View {
                         step: 1
                     ) { Text("Top-K") }
                     Text("Choose from the \(topK) most likely next words.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.footnote)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, DSSpacing.xs)
             }
 
             if samplingStrategy == .topP {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
                     HStack {
                         Label("Top-P (Nucleus)", systemImage: "chart.bar")
                         Spacer()
@@ -368,10 +369,10 @@ struct ModelConfigurationSheet: View {
                     }
                     Slider(value: $topP, in: 0.05...0.99, step: 0.05) { Text("Top-P") }
                     Text("Probability mass to sample from. Lower is more focused.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, DSSpacing.xs)
             }
 
             // Apple accepts a seed on both random modes and the app never sent one, so
@@ -395,8 +396,8 @@ struct ModelConfigurationSheet: View {
                         ? "The same question against the same library returns the same answer."
                         : "Answers vary slightly between runs."
                 )
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
         } header: {
             Text("Sampling")
@@ -411,7 +412,7 @@ struct ModelConfigurationSheet: View {
     private var advancedParametersSection: some View {
         Section {
             // Context Length
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Label("Context Length", systemImage: "text.alignleft")
                     Spacer()
@@ -439,13 +440,14 @@ struct ModelConfigurationSheet: View {
                 // 32K on a 4K device builds a prompt the model then rejects. That is the
                 // shape of the "4521 tokens against a 4096 window" report.
                 Text("How much conversation and document context to pack into each request.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 Text(contextGuidance)
-                    .font(.caption2)
-                    .foregroundStyle(contextLength > onDeviceContextWindow ? Color.orange : Color.secondary)
+                    .font(.footnote)
+                    .monospacedDigit()
+                    .foregroundStyle(contextLength > onDeviceContextWindow ? DSColors.readable(.orange) : Color.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
 
         } header: {
             Text("Context")
@@ -470,7 +472,7 @@ struct ModelConfigurationSheet: View {
         // all even there, and is marked as such rather than removed.
         Section {
             // Frequency Penalty
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Label("Frequency Penalty", systemImage: "repeat")
                     Spacer()
@@ -484,13 +486,13 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Penalize frequently used tokens (reduces repetition)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
 
             // Presence Penalty
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Label("Presence Penalty", systemImage: "plus.circle")
                     Spacer()
@@ -504,13 +506,13 @@ struct ModelConfigurationSheet: View {
                 }
 
                 Text("Penalize any token that appeared before (encourages new topics)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
 
             // Repetition Penalty
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 HStack {
                     Label("Repetition Penalty", systemImage: "arrow.2.circlepath")
                     Spacer()
@@ -529,10 +531,10 @@ struct ModelConfigurationSheet: View {
                 Text(
                     "Additional penalty for repeated sequences (1.0 = off). Not sent anywhere, including to the planned local model host."
                 )
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xs)
         } header: {
             Text("Advanced Parameters")
         } footer: {
@@ -557,11 +559,12 @@ struct ModelConfigurationSheet: View {
                 showSystemPromptEditor = true
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
                         Text("System Prompt")
+                            .font(.subheadline)
                             .foregroundStyle(.primary)
                         Text(systemPrompt.isEmpty ? "Default assistant behavior" : systemPrompt.prefix(50) + "...")
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
@@ -648,7 +651,7 @@ struct ModelConfigurationSheet: View {
     private func applyPreset(_ preset: InferencePreset) {
         selectedPreset = preset
 
-        withAnimation(.spring(response: 0.3)) {
+        withAnimation(DSAnimations.snappySpring) {
             switch preset {
             case .balanced:
                 temperature = 0.7
@@ -734,13 +737,7 @@ enum InferencePreset: String, CaseIterable, Identifiable {
     }
 
     var color: Color {
-        switch self {
-        case .balanced: return .blue
-        case .creative: return .purple
-        case .precise: return .green
-        case .concise: return .orange
-        case .verbose: return .cyan
-        }
+        DSColors.accent
     }
 }
 
@@ -753,31 +750,31 @@ private struct PresetCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 Image(systemName: preset.icon)
                     .font(.title2)
-                    .foregroundStyle(isSelected ? .white : preset.color)
+                    .foregroundStyle(isSelected ? preset.color : .secondary)
 
                 Text(preset.rawValue)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .foregroundStyle(.primary)
 
                 Text(preset.description)
                     .font(.caption2)
-                    .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
             }
             .frame(width: 100)
-            .padding(.vertical, 12)
-            .padding(.horizontal, 8)
+            .padding(.vertical, DSSpacing.md)
+            .padding(.horizontal, DSSpacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? preset.color : preset.color.opacity(0.1))
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                    .fill(isSelected ? preset.color.opacity(0.15) : DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? Color.clear : preset.color.opacity(0.3), lineWidth: 1)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                    .stroke(isSelected ? preset.color : DSColors.border, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -797,28 +794,28 @@ private struct SystemPromptEditorSheet: View {
             VStack(spacing: 0) {
                 TextEditor(text: $localPrompt)
                     .font(.body)
-                    .padding()
+                    .padding(DSSpacing.lg)
                     .scrollContentBackground(.hidden)
                     .background(DSColors.surface)
 
                 // Quick templates
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         ForEach(SystemPromptTemplate.allCases) { template in
                             Button {
                                 localPrompt = template.prompt
                             } label: {
                                 Text(template.rawValue)
-                                    .font(.caption)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, DSSpacing.md)
+                                    .padding(.vertical, DSSpacing.xs)
                                     .background(DSColors.surface)
                                     .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding()
+                    .padding(DSSpacing.lg)
                 }
             }
             .navigationTitle("System Prompt")

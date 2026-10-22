@@ -39,7 +39,7 @@ struct HowItWorksView: View {
                 vocabularyCard
                 replayCard
             }
-            .padding()
+            .padding(DSSpacing.lg)
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -61,7 +61,7 @@ struct HowItWorksView: View {
         SurfaceCard {
             SectionHeader(icon: "iphone", title: "There is no server")
             Text("Your documents are read, split up, indexed and searched on this device. The app has no backend and no account. Turn off networking entirely and everything here still works except one optional step, described at the bottom.")
-                .font(.callout)
+                .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -72,7 +72,7 @@ struct HowItWorksView: View {
         SurfaceCard {
             SectionHeader(icon: "square.and.arrow.down", title: "When you import something")
             Text("Four things happen, in order.")
-                .font(.callout)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: DSSpacing.md) {
@@ -119,7 +119,7 @@ struct HowItWorksView: View {
         SurfaceCard {
             SectionHeader(icon: "character.book.closed", title: "If a word here is unfamiliar")
             Text("Every term this app puts on screen has a plain definition and a technical one. Tap the information button beside any stage above, or open the full list.")
-                .font(.callout)
+                .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -128,16 +128,17 @@ struct HowItWorksView: View {
             } label: {
                 HStack {
                     Text("Plain English")
-                        .fontWeight(.semibold)
+                        .font(.subheadline.weight(.semibold))
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                        .font(.caption.bold())
                 }
                 .foregroundStyle(DSColors.accent)
                 .padding(.vertical, DSSpacing.sm)
                 .padding(.horizontal, DSSpacing.md)
+                .frame(minHeight: DSSpacing.tapTarget)
                 .background(
-                    RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .fill(DSColors.accent.opacity(0.12))
                 )
             }
@@ -152,11 +153,11 @@ struct HowItWorksView: View {
         SurfaceCard {
             SectionHeader(icon: "text.magnifyingglass", title: "When you ask something")
             Text("Your question is searched both ways at once, then a second model reads the passages that came back and reorders them by how well they actually answer what you asked. Only after that does anything get written.")
-                .font(.callout)
+                .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("The answer is assembled from those passages and cites them. When the passages do not support an answer, you are told that instead of given a guess.")
-                .font(.callout)
+                .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -185,12 +186,11 @@ struct HowItWorksView: View {
         SurfaceCard {
             SectionHeader(icon: "cloud", title: "When anything leaves this device")
             Text("One step can, and only if you allow it.")
-                .font(.callout)
-                .fontWeight(.medium)
+                .font(.subheadline.weight(.medium))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(leavingExplanation)
-                .font(.callout)
+                .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("The modes are explained in Settings under Intelligence Mode.")
@@ -212,7 +212,7 @@ struct HowItWorksView: View {
         SurfaceCard {
             SectionHeader(icon: "arrow.counterclockwise", title: "Show the introduction again")
             Text("Replays the first-run walkthrough, including the import you can watch happen. Your libraries and documents are not touched.")
-                .font(.callout)
+                .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -223,16 +223,17 @@ struct HowItWorksView: View {
             } label: {
                 HStack {
                     Text("Replay Introduction")
-                        .fontWeight(.semibold)
+                        .font(.subheadline.weight(.semibold))
                     Spacer()
                     Image(systemName: "arrow.counterclockwise")
-                        .font(.caption.weight(.bold))
+                        .font(.caption.bold())
                 }
                 .foregroundStyle(DSColors.accent)
                 .padding(.vertical, DSSpacing.sm)
                 .padding(.horizontal, DSSpacing.md)
+                .frame(minHeight: DSSpacing.tapTarget)
                 .background(
-                    RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                         .fill(DSColors.accent.opacity(0.12))
                 )
             }
@@ -254,13 +255,13 @@ struct HowItWorksView: View {
     private func stage(number: String, title: String, detail: String, term: GlossaryTermID) -> some View {
         HStack(alignment: .top, spacing: DSSpacing.md) {
             Text(number)
-                .font(.caption.weight(.bold).monospacedDigit())
+                .font(.caption.bold().monospacedDigit())
                 .foregroundStyle(DSColors.accent)
                 .frame(width: 22, height: 22)
                 .background(DSColors.accent.opacity(0.12), in: Circle())
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 HStack(spacing: DSSpacing.sm) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
@@ -268,7 +269,7 @@ struct HowItWorksView: View {
                     Spacer(minLength: 0)
                 }
                 Text(detail)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
