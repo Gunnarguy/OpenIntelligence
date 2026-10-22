@@ -299,7 +299,9 @@ nonisolated enum SystemModelTools {
         }
         #endif
 
-        #if canImport(_CoreSpotlight_FoundationModels)
+        // arch(arm64): the macOS SDK's x86_64 interface for this module declares neither type,
+        // and Xcode Cloud archives the Mac app for Intel too (build 486 failed on it).
+        #if canImport(_CoreSpotlight_FoundationModels) && arch(arm64)
         if #available(iOS 27.0, macOS 27.0, *) {
             if spotlightSearchEnabled {
                 // Search ONLY the app's own Core Spotlight index via CoreSpotlightSource
