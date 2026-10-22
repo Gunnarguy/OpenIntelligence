@@ -14,25 +14,24 @@ struct ProcessingSummaryView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: DSSpacing.xl) {
                     // Success header
-                    VStack(spacing: 12) {
+                    VStack(spacing: DSSpacing.md) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.green)
+                            .font(.largeTitle)
+                            .foregroundStyle(.green)
 
                         Text("Document Processed!")
-                            .font(.title2)
-                            .fontWeight(.bold)
+                            .font(.title2.weight(.bold))
 
                         Text(summary.filename)
                             .font(.headline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 20)
+                    .padding(.top, DSSpacing.lg)
 
                     // File Info Section
-                    InfoSection(title: "File Information", icon: "doc.fill", color: .blue) {
+                    InfoSection(title: "File Information", icon: "doc.fill", color: .accentColor) {
                         DetailInfoRow(label: "File Size", value: summary.fileSize)
                         DetailInfoRow(label: "Type", value: summary.documentType.rawValue.capitalized)
                         if let pageCount = summary.pageCount {
@@ -44,68 +43,69 @@ struct ProcessingSummaryView: View {
                     }
 
                     // Content Statistics Section
-                    InfoSection(title: "Content Statistics", icon: "text.alignleft", color: .green) {
+                    InfoSection(title: "Content Statistics", icon: "text.alignleft", color: .accentColor) {
                         DetailInfoRow(label: "Characters", value: String(format: "%,d", summary.totalChars))
                         DetailInfoRow(label: "Words", value: String(format: "%,d", summary.totalWords))
                         DetailInfoRow(label: "Chunks Created", value: "\(summary.chunksCreated)")
                         DetailInfoRow(label: "Avg Chunk Size", value: "\(summary.chunkStats.avgChars) chars")
                         DetailInfoRow(label: "Size Range", value: "\(summary.chunkStats.minChars) - \(summary.chunkStats.maxChars) chars")
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "bolt.horizontal.fill")
                                 .font(.caption)
-                                .foregroundColor(.cyan)
+                                .foregroundStyle(.secondary)
                             Text("Semantic boundary detection")
                                 .font(.caption)
-                                .foregroundColor(.cyan)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
                     // Embedding Model Section
-                    InfoSection(title: "Embedding Model", icon: summary.isHighAccuracyProvider ? "sparkles" : "brain.head.profile", color: summary.isHighAccuracyProvider ? .purple : .indigo) {
+                    InfoSection(title: "Embedding Model", icon: summary.isHighAccuracyProvider ? "sparkles" : "brain.head.profile", color: .accentColor) {
                         DetailInfoRow(label: "Provider", value: summary.embeddingProviderDisplayName)
                         if summary.isHighAccuracyProvider {
                             HStack {
                                 Text("Quality")
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                 Spacer()
                                 Label("High Accuracy", systemImage: "star.fill")
                                     .font(.caption)
-                                    .foregroundColor(.purple)
+                                    .foregroundStyle(Color.accentColor)
                             }
                         }
                         if let dimensions = summary.embeddingDimensions {
                             DetailInfoRow(label: "Dimensions", value: "\(dimensions)")
                         }
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "bolt.horizontal.fill")
                                 .font(.caption)
-                                .foregroundColor(.cyan)
+                                .foregroundStyle(.secondary)
                             Text(summary.embeddingRunsOn)
                                 .font(.caption)
-                                .foregroundColor(.cyan)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
                     // Performance Section
-                    InfoSection(title: "Performance Metrics", icon: "speedometer", color: .orange) {
+                    InfoSection(title: "Performance Metrics", icon: "speedometer", color: .accentColor) {
                         DetailInfoRow(label: "Extraction Time", value: String(format: "%.2f s", summary.extractionTime))
                         DetailInfoRow(label: "Chunking Time", value: String(format: "%.3f s", summary.chunkingTime))
                         DetailInfoRow(label: "Embedding Time", value: String(format: "%.2f s", summary.embeddingTime))
                         DetailInfoRow(label: "Avg per Chunk", value: String(format: "%.0f ms", (summary.embeddingTime / Double(summary.chunksCreated)) * 1000))
                         Divider()
                         DetailInfoRow(label: "Total Time", value: String(format: "%.2f s", summary.totalTime), highlight: true)
-                        HStack(spacing: 4) {
+                        HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "bolt.horizontal.fill")
                                 .font(.caption)
-                                .foregroundColor(.cyan)
+                                .foregroundStyle(.secondary)
                             Text("Accelerate vDSP • Device-optimized batches")
                                 .font(.caption)
-                                .foregroundColor(.cyan)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
-                .padding()
+                .padding(DSSpacing.lg)
             }
+            .background(DSColors.background.ignoresSafeArea())
             .navigationTitle("Processing Complete")
             .iOSNavigationBarInline()
             .toolbar {
@@ -136,22 +136,21 @@ struct InfoSection<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             HStack {
                 Image(systemName: icon)
-                    .foregroundColor(color)
+                    .foregroundStyle(color)
                 Text(title)
                     .font(.headline)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DSSpacing.sm) {
                 content
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(DSColors.surface)
-        .cornerRadius(12)
+        .padding(DSSpacing.lg)
+        .background(DSColors.surface, in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
     }
 }
 
@@ -165,11 +164,12 @@ struct DetailInfoRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
             Spacer()
             Text(value)
                 .fontWeight(highlight ? .bold : .regular)
-                .foregroundColor(highlight ? .primary : .primary)
+                .monospacedDigit()
+                .foregroundStyle(.primary)
         }
         .font(highlight ? .body : .subheadline)
     }
