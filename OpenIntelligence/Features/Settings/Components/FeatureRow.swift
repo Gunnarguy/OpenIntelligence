@@ -14,20 +14,20 @@ struct FeatureRow: View {
     let description: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundColor(.accentColor)
+                .foregroundStyle(DSColors.accent)
                 .frame(width: 32)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.subheadline.weight(.medium))
                 Text(description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DSSpacing.xs)
     }
 }

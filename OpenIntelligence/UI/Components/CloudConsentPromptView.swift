@@ -28,15 +28,15 @@ struct CloudConsentPromptView: View {
             Capsule()
                 .fill(Color.secondary.opacity(0.3))
                 .frame(width: 36, height: 5)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
+                .padding(.top, DSSpacing.sm)
+                .padding(.bottom, DSSpacing.md)
 
             if isCompactHeight {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: DSSpacing.lg) {
                         // Icon and Title
                         headerSection
-                            .padding(.top, 4)
+                            .padding(.top, DSSpacing.xs)
 
                         // Simple explanation
                         explanationSection
@@ -48,7 +48,7 @@ struct CloudConsentPromptView: View {
                         }
 
                         Divider()
-                            .padding(.top, 8)
+                            .padding(.top, DSSpacing.sm)
 
                         // Inline action buttons
                         buttonsSection
@@ -61,7 +61,7 @@ struct CloudConsentPromptView: View {
                     VStack(spacing: DSSpacing.lg) {
                         // Icon and Title
                         headerSection
-                            .padding(.top, 4)  // Extra padding to prevent cloud icon clipping
+                            .padding(.top, DSSpacing.xs)  // Extra padding to prevent cloud icon clipping
 
                         // Simple explanation
                         explanationSection
@@ -76,7 +76,7 @@ struct CloudConsentPromptView: View {
                 }
 
                 Divider()
-                    .padding(.top, 8)
+                    .padding(.top, DSSpacing.sm)
 
                 // Sticky action buttons at the bottom
                 buttonsSection
@@ -86,11 +86,11 @@ struct CloudConsentPromptView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
         )
-        .animation(.spring(response: 0.3), value: showDetails)
+        .animation(DSAnimations.snappySpring, value: showDetails)
     }
 
     private var headerSection: some View {
@@ -98,24 +98,12 @@ struct CloudConsentPromptView: View {
             // Apple-style cloud icon with shield
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue.opacity(0.2), Color.purple.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(DSColors.accent.opacity(0.15))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: "cloud.fill")
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .font(.title.weight(.medium))
+                    .foregroundStyle(DSColors.accent)
             }
 
             Text("Private Cloud Compute")
@@ -145,26 +133,26 @@ struct CloudConsentPromptView: View {
 
             ConsentFeatureRow(
                 icon: "server.rack",
-                iconColor: .blue,
+                iconColor: .accentColor,
                 title: "Apple silicon servers",
                 subtitle: "With the Secure Enclave and Secure Boot from iPhone"
             )
 
             ConsentFeatureRow(
                 icon: "eye.slash.fill",
-                iconColor: .purple,
+                iconColor: .accentColor,
                 title: "Deleted after the answer",
                 subtitle: "Kept in no form, and not available to Apple"
             )
 
             Text("As Apple describes Private Cloud Compute.")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(DSSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.secondary.opacity(0.15))
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
         )
     }
 
@@ -196,8 +184,8 @@ struct CloudConsentPromptView: View {
         .font(.footnote)
         .padding(DSSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.secondary.opacity(0.1))
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
         )
     }
 
@@ -216,10 +204,10 @@ struct CloudConsentPromptView: View {
                         .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, DSSpacing.md)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.blue)
+            .tint(DSColors.accent)
 
             // Secondary actions row
             HStack(spacing: DSSpacing.sm) {
@@ -234,7 +222,7 @@ struct CloudConsentPromptView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
+                            .padding(.vertical, DSSpacing.sm)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -249,7 +237,7 @@ struct CloudConsentPromptView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, DSSpacing.sm)
                 }
                 .buttonStyle(.bordered)
             }
@@ -259,13 +247,14 @@ struct CloudConsentPromptView: View {
                 Button {
                     showDetails.toggle()
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Text(showDetails ? "Hide Details" : "Show Details")
                         Image(systemName: showDetails ? "chevron.up" : "chevron.down")
                             .font(.caption2.weight(.semibold))
                     }
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .frame(minHeight: DSSpacing.tapTarget)
                 }
                 .padding(.top, DSSpacing.xs)
             }
@@ -284,15 +273,15 @@ private struct ConsentFeatureRow: View {
     var body: some View {
         HStack(spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
+                .font(.body.weight(.medium))
                 .foregroundStyle(iconColor)
                 .frame(width: 24)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.subheadline.weight(.medium))
                 Text(subtitle)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
@@ -312,6 +301,7 @@ private struct ConsentDetailRow: View {
             Spacer()
             Text(value)
                 .fontWeight(.medium)
+                .monospacedDigit()
         }
     }
 }

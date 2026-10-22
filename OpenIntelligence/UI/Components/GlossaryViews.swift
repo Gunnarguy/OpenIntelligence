@@ -52,7 +52,7 @@ struct GlossaryTermDetail: View {
                     relatedCard
                 }
             }
-            .padding()
+            .padding(DSSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -65,14 +65,14 @@ struct GlossaryTermDetail: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(DSColors.accent)
                 .frame(width: 34, height: 34)
-                .background(DSColors.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(DSColors.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(term.term)
                     .font(.title3.bold())
                 Text(term.section.title)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -83,7 +83,7 @@ struct GlossaryTermDetail: View {
         SurfaceCard {
             SectionHeader(icon: "text.alignleft", title: "In plain words")
             Text(term.plain)
-                .font(.callout)
+                .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -98,7 +98,7 @@ struct GlossaryTermDetail: View {
         SurfaceCard {
             DisclosureGroup(isExpanded: $showsTechnical) {
                 Text(term.technical)
-                    .font(.callout)
+                    .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, DSSpacing.sm)
@@ -110,12 +110,12 @@ struct GlossaryTermDetail: View {
                         .foregroundStyle(DSColors.accent)
                         .frame(width: 20)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                         Text("THE TECHNICAL VERSION")
-                            .font(.footnote.weight(.semibold))
+                            .font(.subheadline.weight(.medium))
                             .tracking(0.8)
                         Text(showsTechnical ? "Shown for every term" : "Names, models and numbers")
-                            .font(.caption2)
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
@@ -148,13 +148,14 @@ struct GlossaryTermDetail: View {
                                 .foregroundStyle(DSColors.accent)
                                 .frame(width: 20)
                             Text(related.definition.term)
-                                .font(.callout.weight(.medium))
+                                .font(.subheadline.weight(.medium))
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.right")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                         }
                         .padding(.vertical, DSSpacing.sm)
+                        .frame(minHeight: DSSpacing.tapTarget)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

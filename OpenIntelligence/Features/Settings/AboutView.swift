@@ -75,22 +75,24 @@ struct AboutView: View {
             .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: DSSpacing.lg) {
                     // App Info
                     SurfaceCard {
                         SectionHeader(icon: "info.circle", title: "About OpenIntelligence")
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             Text("OpenIntelligence")
-                                .font(.title.bold())
+                                .font(.title2.bold())
                             Text("Privacy-First RAG Application")
-                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                             Text(
                                 "Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0") (Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "19"))"
                             )
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, DSSpacing.xxs)
                     }
 
                     SurfaceCard {
@@ -109,7 +111,7 @@ struct AboutView: View {
                         // full, one screen away. Two surfaces printing the same changelog
                         // at the same length is not two views of it, it is the same wall
                         // twice. About is now the teaser and Version History the record.
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             if let release = WhatsNewStore().releaseForCurrentVersion() {
                                 ForEach(release.items.prefix(3)) { item in
                                     releaseHighlight(
@@ -124,14 +126,15 @@ struct AboutView: View {
                                     NavigationLink {
                                         VersionHistoryView()
                                     } label: {
-                                        HStack(spacing: 6) {
+                                        HStack(spacing: DSSpacing.xs) {
                                             Text("See all \(release.items.count) changes in \(release.version)")
                                                 .font(.footnote.weight(.medium))
+                                                .monospacedDigit()
                                             Image(systemName: "arrow.forward")
-                                                .font(.system(size: 10, weight: .semibold))
+                                                .font(.caption2.weight(.semibold))
                                         }
-                                        .foregroundStyle(Color.accentColor)
-                                        .padding(.top, 2)
+                                        .foregroundStyle(DSColors.accent)
+                                        .padding(.top, DSSpacing.xxs)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -148,7 +151,7 @@ struct AboutView: View {
                     // Your Device
                     SurfaceCard {
                         SectionHeader(icon: "cpu", title: "Your Device")
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             // Read the chip from DeviceCapabilityService, not from
                             // `deviceCapabilities.deviceChip`.
                             //
@@ -168,16 +171,20 @@ struct AboutView: View {
                             // hardware that has not shipped yet.
                             LabeledContent("Device Chip", value: deviceService.chipName)
                             LabeledContent("iOS Version", value: deviceCapabilities.iOSVersion)
+                                .monospacedDigit()
                             LabeledContent("Neural Engine", value: "\(deviceService.npuTops) TOPS")
+                                .monospacedDigit()
                             LabeledContent("Memory", value: String(format: "%.0f GB", deviceService.memoryGB))
+                                .monospacedDigit()
                             LabeledContent("AI Tier", value: deviceService.tier.displayName)
                         }
+                        .font(.subheadline)
                     }
 
                     // AI Capabilities
                     SurfaceCard {
                         SectionHeader(icon: "brain.head.profile", title: "AI Capabilities")
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             capabilityRow(
                                 title: "Apple Intelligence", condition: deviceCapabilities.supportsAppleIntelligence)
                             capabilityRow(
@@ -192,7 +199,7 @@ struct AboutView: View {
                     // Features
                     SurfaceCard {
                         SectionHeader(icon: "star.circle.fill", title: "Features")
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             FeatureRow(
                                 icon: "doc.text.fill", title: "Document Processing",
                                 description: "Import PDFs, text files, and more")
@@ -211,24 +218,27 @@ struct AboutView: View {
                     // Technology
                     SurfaceCard {
                         SectionHeader(icon: "gearshape.2.fill", title: "Technology")
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             LabeledContent("RAG Pipeline", value: "Hybrid (Vector + BM25 → RRF)")
                             LabeledContent("Embeddings", value: embeddingDisplayName)
                             LabeledContent("Vector Store", value: "Persistent JSON (exact k-NN)")
                             LabeledContent("Minimum iOS", value: "18.0")
+                                .monospacedDigit()
                             LabeledContent("Optimized for", value: "iOS 26.0+")
+                                .monospacedDigit()
                         }
+                        .font(.subheadline)
                     }
 
                     SurfaceCard {
                         SectionHeader(
                             icon: "bubble.left.and.exclamationmark.bubble.right.fill", title: "Feature Requests")
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
                             externalLinkRow(
                                 title: "Send a Feature Request",
                                 subtitle: "Email feature ideas and product requests directly from the app",
                                 icon: "sparkles.rectangle.stack.fill",
-                                tint: .orange
+                                tint: .accentColor
                             ) {
                                 openFeatureRequestEmail()
                             }
@@ -238,7 +248,7 @@ struct AboutView: View {
                     // Contact & Support
                     SurfaceCard {
                         SectionHeader(icon: "envelope.fill", title: "Contact & Support")
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: DSSpacing.md) {
                             Text("Need help or have feedback? Get in touch:")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -276,7 +286,7 @@ struct AboutView: View {
                                 title: "Privacy Policy",
                                 subtitle: "What stays on your device, and what can leave it",
                                 icon: "hand.raised.fill",
-                                tint: .teal
+                                tint: .accentColor
                             ) {
                                 showingPrivacyPolicy = true
                             }
@@ -292,7 +302,7 @@ struct AboutView: View {
                                 title: "Notion Roadmap",
                                 subtitle: "Track the features, tasks, and future technical roadmap milestones",
                                 icon: "map.fill",
-                                tint: .primary
+                                tint: .secondary
                             ) {
                                 openURL(OpenIntelligenceLinks.notionRoadmapURL)
                             }
@@ -300,7 +310,7 @@ struct AboutView: View {
                                 title: "Write an App Store Review",
                                 subtitle: "Open the App Store review form directly when you want to leave feedback",
                                 icon: "star.bubble.fill",
-                                tint: .orange
+                                tint: .accentColor
                             ) {
                                 openURL(OpenIntelligenceLinks.writeReviewURL)
                             }
@@ -308,14 +318,14 @@ struct AboutView: View {
                                 title: "App Store Listing",
                                 subtitle: "Browse the public listing, screenshots, and release notes",
                                 icon: "apple.logo",
-                                tint: .blue
+                                tint: .accentColor
                             ) {
                                 openURL(OpenIntelligenceLinks.appStoreURL)
                             }
                         }
                     }
                 }
-                .padding(16)
+                .padding(DSSpacing.lg)
             }
         }
         .navigationTitle("About")
@@ -335,24 +345,25 @@ struct AboutView: View {
     private func capabilityRow(title: String, condition: Bool) -> some View {
         HStack {
             Text(title)
+                .font(.subheadline)
             Spacer()
             Image(systemName: condition ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundColor(condition ? .green : .secondary)
+                .foregroundStyle(condition ? .green : .secondary)
         }
     }
 
     private func releaseHighlight(icon: String, tint: Color, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: DSSpacing.sm) {
             Image(systemName: icon)
-                .font(.caption.weight(.bold))
+                .font(.caption.bold())
                 .foregroundStyle(tint)
                 .frame(width: 18, alignment: .center)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                 Text(detail)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
@@ -373,32 +384,33 @@ struct AboutView: View {
 
     /// The look of every row on this screen, for a button or a share link.
     private func linkRowLabel(title: String, subtitle: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(tint.opacity(0.12))
                     .frame(width: 36, height: 36)
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(tint)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DSColors.primaryText)
                 Text(subtitle)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             Image(systemName: "arrow.up.forward")
-                .font(.caption.weight(.bold))
+                .font(.caption.bold())
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, DSSpacing.xxs)
+        .frame(minHeight: DSSpacing.tapTarget)
     }
 
     private func openEmail() {
