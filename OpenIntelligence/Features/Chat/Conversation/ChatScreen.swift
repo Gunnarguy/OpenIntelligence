@@ -622,7 +622,7 @@ struct ChatScreen: View {
                 onPause: { ragService.pauseIngestionQueue() },
                 pausedByPerson: ragService.ingestionPausedByPerson
             )
-            .padding(.horizontal, 16)
+            .padding(.horizontal, DSSpacing.md)
             .padding(.bottom, 88)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
 
@@ -644,7 +644,7 @@ struct ChatScreen: View {
                         let containerId = ragService.containerService.activeContainerId
                         let loadedMessages = ragService.loadThread(threadId, for: containerId)
                         messages = loadedMessages
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(DSAnimations.snappySpring) {
                             showThreadSidebar = false
                         }
                     }
@@ -839,7 +839,7 @@ struct ChatScreen: View {
                 #if os(iOS)
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(DSAnimations.snappySpring) {
                                 showThreadSidebar.toggle()
                             }
                         } label: {
@@ -898,7 +898,7 @@ struct ChatScreen: View {
                 #else
                     ToolbarItem(placement: .navigation) {
                         Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(DSAnimations.snappySpring) {
                                 showThreadSidebar.toggle()
                             }
                         } label: {
@@ -966,7 +966,7 @@ struct ChatScreen: View {
                         if currentRetrievedChunks.isEmpty {
                             Text("Searching…")
                                 .font(DSTypography.body)
-                                .foregroundColor(DSColors.secondaryText)
+                                .foregroundStyle(DSColors.secondaryText)
                         } else {
                             SourceChipsView(chunks: currentRetrievedChunks) {}
                         }
@@ -1006,7 +1006,7 @@ struct ChatScreen: View {
                 #if os(iOS)
                     .presentationDetents([.height(580), .large])
                     .presentationDragIndicator(.hidden)
-                    .presentationCornerRadius(24)
+                    .presentationCornerRadius(DSCorners.sheet)
                     .presentationBackground(.ultraThinMaterial)
                 #endif
             }
@@ -2579,14 +2579,14 @@ struct ChatScreen: View {
                 EmptyView()
             } else if let metricsData = consolidatedMetricsData {
                 primaryMetricsBar(metricsData: metricsData)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.bottom, DSSpacing.xs)
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.15), value: metricsData.tokens)
             } else if isProcessing || currentRetrievedChunks.count > 0 {
                 minimalMetricsBar()
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.bottom, DSSpacing.xs)
                     .transition(.opacity)
             }
 
@@ -2693,14 +2693,14 @@ struct ChatScreen: View {
     @ViewBuilder private var followUpSuggestionsBar: some View {
         if !followUpSuggestions.isEmpty && !isProcessing {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     ForEach(followUpSuggestions) { suggestion in
                         Button {
                             DSHaptics.selection()
                             followUpSuggestions = []
                             sendMessage(suggestion.text)
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DSSpacing.xxs) {
                                 Image(systemName: suggestion.category.iconName)
                                     .font(.caption2)
                                 Text(suggestion.text)
@@ -2708,10 +2708,10 @@ struct ChatScreen: View {
                                     .lineLimit(3)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, DSSpacing.md)
+                            .padding(.vertical, DSSpacing.sm)
                             .background(DSColors.surface)
-                            .foregroundColor(.accentColor)
+                            .foregroundStyle(DSColors.accent)
                             .clipShape(Capsule())
                             .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
                         }
@@ -2720,7 +2720,7 @@ struct ChatScreen: View {
                 }
                 .padding(.horizontal, DSSpacing.md)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xxs)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .animation(.easeInOut(duration: 0.25), value: followUpSuggestions.isEmpty)
         }
@@ -2738,49 +2738,49 @@ struct ChatScreen: View {
 
     @ViewBuilder private var unansweredQuestionBar: some View {
         if let question = unansweredQuestion {
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 Text("This answer didn't finish.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DSColors.secondaryText)
                 Spacer(minLength: 0)
                 Button {
                     DSHaptics.selection()
                     messages.removeAll { $0.id == question.id }
                     sendMessage(question.content)
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "arrow.clockwise")
                             .font(.caption2)
                         Text("Ask again")
                             .font(.caption)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.vertical, DSSpacing.sm)
                     .background(DSColors.surface)
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(DSColors.accent)
                     .clipShape(Capsule())
                     .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, DSSpacing.md)
-            .padding(.vertical, 4)
+            .padding(.vertical, DSSpacing.xxs)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
     @ViewBuilder private var writingToolsProgressOverlay: some View {
         if writingToolsProcessing {
-            VStack(spacing: 12) {
+            VStack(spacing: DSSpacing.md) {
                 Spacer()
-                HStack(spacing: 10) {
+                HStack(spacing: DSSpacing.sm) {
                     ProgressView().tint(.white)
                     Text("\(writingToolsTitle)…")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.white)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DSSpacing.lg)
+                .padding(.vertical, DSSpacing.md)
                 .background(.ultraThinMaterial.opacity(0.95))
                 .background(DSColors.accent.opacity(0.6))
                 .clipShape(Capsule())
@@ -2790,7 +2790,7 @@ struct ChatScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: writingToolsProcessing)
+            .animation(DSAnimations.snappySpring, value: writingToolsProcessing)
         }
     }
 
@@ -4004,7 +4004,7 @@ struct ChatHeader: View {
     let onClearChat: () -> Void
     var body: some View {
         HStack {
-            HStack(spacing: 8) {
+            HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(
                         LinearGradient(
@@ -4014,8 +4014,7 @@ struct ChatHeader: View {
                         )
                     )
                 Text("Chat")
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                    .font(.title3.weight(.semibold))
             }
 
             Spacer()
@@ -4036,8 +4035,8 @@ struct ChatHeader: View {
                     .imageScale(.large)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
         .background(.ultraThinMaterial)
     }
 }
@@ -4050,31 +4049,34 @@ struct ContextStatusBarView: View {
     let usedK: Int
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             Image(systemName: "doc.text.fill")
                 .font(.caption2)
-                .foregroundColor(.green)
+                .foregroundStyle(.green)
 
             Text("\(docCount) document\(docCount == 1 ? "" : "s")")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .monospacedDigit()
+                .foregroundStyle(DSColors.secondaryText)
 
             Text("•")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(DSColors.secondaryText)
 
             Text("\(chunkCount) chunks")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .monospacedDigit()
+                .foregroundStyle(DSColors.secondaryText)
 
             Spacer()
 
             Text("k used: \(usedK)")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .monospacedDigit()
+                .foregroundStyle(DSColors.secondaryText)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
         .background(Color.green.opacity(0.05))
     }
 }
@@ -4118,7 +4120,7 @@ struct CompactChatHeader: View {
 
     /// Stats for active container
     private var bottomRowCounts: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DSSpacing.sm) {
             StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
             // The passages are the search's units, not the person's: shown with the technical view (5.7).
             if settings.showTechnicalDetails {
@@ -4128,20 +4130,20 @@ struct CompactChatHeader: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: DSSpacing.sm) {
             // Top row: Library picker strip (scrollable)
             libraryPickerStrip
 
             // Bottom row: Quality mode picker + Model status + Stats, on as few lines as fit (see `bottomRowPills`)
-            WrappingRowLayout(spacing: 10, lineSpacing: 8, lastAtTrailingEdge: true) {
+            WrappingRowLayout(spacing: DSSpacing.sm, lineSpacing: DSSpacing.sm, lastAtTrailingEdge: true) {
                 bottomRowPills
                 bottomRowCounts
             }
             // Stacked, the row is only as wide as its widest pill, and the header's stack would center it.
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, DSSpacing.md)
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, DSSpacing.sm)
         .onAppear {
             deviceCapabilities = RAGService.checkDeviceCapabilities()
         }
@@ -4152,17 +4154,17 @@ struct CompactChatHeader: View {
     private var libraryPickerStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
+                GlassEffectContainer(spacing: DSSpacing.sm) {
+                    HStack(spacing: DSSpacing.sm) {
                         libraryPillList
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, DSSpacing.md)
                 }
             } else {
-                HStack(spacing: 8) {
+                HStack(spacing: DSSpacing.sm) {
                     libraryPillList
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DSSpacing.md)
             }
         }
     }
@@ -4178,7 +4180,7 @@ struct CompactChatHeader: View {
                 badgeText: documentCountText(for: container),
                 badgeStyle: .count
             ) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                withAnimation(DSAnimations.snappySpring) {
                     containerService.setActive(container.id)
                 }
                 SiriDonations.libraryUsed(container)
@@ -4208,7 +4210,7 @@ struct QualityModeQuickPicker: View {
                 Button {
                     guard canSelect(mode) else { return }
                     let previousMode = selectedMode
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(DSAnimations.snappySpring) {
                         selectedMode = mode
                     }
                     DSHaptics.selection()
@@ -4239,13 +4241,13 @@ struct QualityModeQuickPicker: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.xs) {
                 ZStack {
                     Circle()
                         .fill(modeColor.opacity(0.14))
                         .frame(width: 20, height: 20)
                     Image(systemName: selectedMode.canonical.icon)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(modeColor)
                 }
 
@@ -4254,6 +4256,7 @@ struct QualityModeQuickPicker: View {
                         .font(.caption.weight(.semibold))
                     Text(modeTagline)
                         .font(.caption2)
+                        .monospacedDigit()
                 }
 
                 Image(systemName: "chevron.down")
@@ -4349,15 +4352,15 @@ struct QualityModeQuickPicker: View {
 /// Reliability-first indicator (shown when advanced tuning is disabled).
 struct AccuracyModeBadge: View {
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2.weight(.semibold))
             Text("Reliability First")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption.weight(.semibold))
         }
         .foregroundStyle(Color.green)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(Color.green.opacity(0.12))
@@ -4372,18 +4375,19 @@ private struct StatChip: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DSSpacing.xxs) {
             Image(systemName: icon)
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(color)
             // The count in the label color, the color in the icon and the tint (5.7): colored digits on the tinted
             // capsule measured 4.1 to 1.
             Text(value)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
                 .foregroundStyle(DSColors.primaryText)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xxs)
         .background(
             Capsule()
                 .fill(color.opacity(0.1))
@@ -4396,8 +4400,8 @@ private struct StatChip: View {
 struct MessageListEmptyContent: View {
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                Spacer(minLength: 24)
+            VStack(spacing: DSSpacing.lg) {
+                Spacer(minLength: DSSpacing.lg)
 
                 ZStack {
                     Circle()
@@ -4411,7 +4415,7 @@ struct MessageListEmptyContent: View {
                         .frame(width: 120, height: 120)
 
                     Image(systemName: "sparkles")
-                        .font(.system(size: 48))
+                        .font(.largeTitle)
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [.purple, .blue],
@@ -4421,21 +4425,20 @@ struct MessageListEmptyContent: View {
                         )
                 }
 
-                VStack(spacing: 8) {
+                VStack(spacing: DSSpacing.sm) {
                     Text("New Chat UI (V2)")
-                        .font(.title3)
-                        .fontWeight(.bold)
+                        .font(.title3.weight(.bold))
 
                     Text(
                         "A modern, modular interface is being enabled behind a feature flag. This is the initial scaffold."
                     )
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(DSColors.secondaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, DSSpacing.xl)
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     ChatV2FeatureRow(
                         icon: "brain.head.profile", title: "Semantic Search",
                         description: "Context-aware retrieval from your documents.")
@@ -4446,13 +4449,13 @@ struct MessageListEmptyContent: View {
                         icon: "lock.shield", title: "Privacy First",
                         description: "On-Device or Private Cloud Compute.")
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 8)
+                .padding(.horizontal, DSSpacing.xl)
+                .padding(.top, DSSpacing.sm)
 
-                Spacer(minLength: 24)
+                Spacer(minLength: DSSpacing.lg)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, DSSpacing.md)
         }
     }
 }
@@ -4531,7 +4534,7 @@ private struct FirstQueryPromptView: View {
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             HStack(alignment: .top, spacing: DSSpacing.md) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.title.weight(.semibold))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [DSColors.accent, DSColors.accent.opacity(0.7)],
@@ -4541,7 +4544,7 @@ private struct FirstQueryPromptView: View {
                     )
                     .shadow(color: DSColors.accent.opacity(0.3), radius: 8)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(headerText)
                         .font(DSTypography.title)
                         .foregroundStyle(DSColors.primaryText)
@@ -4560,9 +4563,9 @@ private struct FirstQueryPromptView: View {
                         onRefresh()
                     } label: {
                         Image(systemName: "arrow.trianglehead.2.clockwise")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.callout.weight(.bold))
                             .foregroundStyle(DSColors.accent)
-                            .padding(8)
+                            .padding(DSSpacing.sm)
                             .background(DSColors.accent.opacity(0.1))
                             .clipShape(Circle())
                             .rotationEffect(.degrees(isRefreshing ? 360 : 0))
@@ -4591,7 +4594,7 @@ private struct FirstQueryPromptView: View {
                 .padding(DSSpacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                 .accessibilityElement(children: .combine)
             }
 
@@ -4604,7 +4607,7 @@ private struct FirstQueryPromptView: View {
                             HStack(spacing: DSSpacing.md) {
                                 if let category = categories[prompt] {
                                     Image(systemName: category.icon)
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(.white)
                                         .frame(width: 32, height: 32)
                                         .background(
@@ -4613,7 +4616,7 @@ private struct FirstQueryPromptView: View {
                                         )
                                 }
 
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                                     Text(prompt)
                                         .font(DSTypography.body.weight(.medium))
                                         .foregroundStyle(DSColors.primaryText)
@@ -4678,19 +4681,18 @@ struct ChatV2FeatureRow: View {
     let description: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DSSpacing.md) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundColor(.accentColor)
+                .foregroundStyle(DSColors.accent)
                 .frame(width: 32)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.subheadline.weight(.semibold))
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(DSColors.secondaryText)
             }
         }
     }
@@ -4702,13 +4704,13 @@ struct ComposerStub: View {
     @State private var text: String = ""
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 12) {
+        HStack(alignment: .bottom, spacing: DSSpacing.md) {
             TextField("Message AI...", text: $text, axis: .vertical)
                 .lineLimit(1...4)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.sm)
                 .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
                         .fill(DSColors.surface)
                 )
 
@@ -4721,14 +4723,14 @@ struct ComposerStub: View {
                         .frame(width: 36, height: 36)
 
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.white)
                 }
             }
             .disabled(true)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.md)
         .background(DSColors.background)
     }
 }
