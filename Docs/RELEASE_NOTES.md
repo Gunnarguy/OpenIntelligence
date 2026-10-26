@@ -28,6 +28,42 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v5.7 - October 22, 2026
+
+Live on iPhone, iPad and Mac since 2026-10-22, build 487, released automatically on Apple's approval
+(macOS at 16:29 PT, iOS at 20:06 PT). 5.7 is about getting things in and out of the app.
+`Docs/USER_CHANGELOG.md` has 175 items in plain words, and `CHANGELOG.md` has one entry per item, each
+with what was read, compiled or tested.
+
+- **Getting documents in.** JSON and JSON Lines files import as records. Text, Markdown and JSON Lines
+  files over 8 MB import a piece at a time with a checkpoint after each, an interrupted import picks up
+  where it was (across an app update too), and PDFs over 500 MB import. Files come in through "Open in",
+  paste, the share sheet and a whole folder, and on the Mac by dropping them on the app's icon. An import
+  iOS stops in the background says it is paused.
+- **Shortcuts and Siri.** Actions hand back what they found. New actions add a file, a link or text, find
+  passages, create and switch libraries, set the answer mode, read the settings, open a library or a
+  document, check a claim and delete documents. Siri asks before using Private Cloud Compute.
+- **Around the system.** Spotlight and Visual Intelligence find documents. Handoff; conversations go with
+  their library, and iCloud sends only what changed; Services and a menu bar item on the Mac; long answers
+  on the Lock Screen; two widgets and Scan into Library from the Lock Screen (iPhone and iPad); keyboard
+  shortcuts.
+- **Sharing.** A shared or copied answer takes its sources with it. An answer can be shared as a picture,
+  and a conversation exported.
+- **Answers.** Every label in an answer opens the passage it came from. Deep Think and Maximum answers are
+  checked. Numbers, amounts, dates and units are checked as values, Fact Check catches a passage that says
+  the opposite, and the best passage the search finds always reaches the answer.
+- **Large libraries.** A very large library no longer holds up launch, Chat or the first question. The
+  Atlas opens on one and names its clusters from the library's own words.
+- **Accessibility and look.** VoiceOver names every switch and slider, gray text and colored labels are
+  easier to read, answers and imports work at the largest text sizes, and the whole app has one look.
+
+What was and was not seen before release: the last full test runs recorded in `Docs/ai/STATE.md` are from
+2026-10-21 (1,338 tests with 0 failures in the morning; 1,356 with 1 failure that afternoon, a glossary
+entry over its length, after which the affected tests passed). Roadmap rows about memory, background
+tasks, iCloud, signing and Private Cloud Compute close only on a phone or Mac.
+
+`[evidence_level: release_state_verified, confidence: exact, evidence_source: App Store Connect read 2026-10-26, iOS 5.7 and macOS 5.7 READY_FOR_SALE with build 487; App Store lookup currentVersionReleaseDate 2026-10-23T03:06:50Z (iOS) and the Mac version history 2026-10-22T23:29:04Z (macOS); Docs/USER_CHANGELOG.md v5.7; Docs/ai/STATE.md Verification, 2026-10-21]`
+
 ## v5.6 - October 8, 2026
 
 Live on iPhone, iPad and Mac since 2026-10-08, build 485. 5.6 is about a person's first few answers:

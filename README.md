@@ -217,7 +217,7 @@ Shipping on the App Store for iPhone, iPad, and Mac. **5.7 is live on both platf
 [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
 synced from the same database the work is planned in.
 
-**5.7 is in preparation and is not on the App Store yet.** It adds JSON and JSON Lines import as records,
+**What 5.7 added.** JSON and JSON Lines import as records,
 imports of very large text files in pieces, Shortcuts actions that return their results, Siri that asks
 before using Private Cloud Compute, Spotlight and Visual Intelligence that find documents, Handoff, a Mac
 menu bar item and Services, dictation, and sharing or exporting an answer with its sources.  It

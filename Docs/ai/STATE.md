@@ -1,10 +1,13 @@
 # Current State
 
-Updated: 2026-10-22 (5.7 code is pushed at `a727698`; the release copy was refreshed the same day, in the commit that
-follows it. No 5.7 build exists yet, because every push since 5.6 carried `[ci skip]`; 5.6 has been live on iPhone, iPad
-and Mac since 2026-10-08)
-Branch/worktree: `main`, primary checkout; the copy commit is local until the owner pushes
-Last verified commit: `a727698` (code); the copy commit changes text only
+Updated: 2026-10-26 (5.7 IS LIVE on iPhone, iPad and Mac since 2026-10-22, build 487 from `8f9621b`, released automatically
+on Apple's approval: macOS 16:29 PT, iOS 20:06 PT. The release-day records (SHIPPED_VERSION, CHANGELOG heading,
+USER_CHANGELOG, README, WHATS_NEW, RELEASE_NOTES, ROADMAP pointer, metadata history) were written 2026-10-26 from the
+Gunnarguy-Portfolio session. The owner, 2026-10-26: "5.7 is where I'm stopping for a while", so no 5.8 is open. The
+5.7 sections below are the record of how it was built.)
+Branch/worktree: `main`, primary checkout
+Last verified commit: `818cd8c` (since `a727698` the only code change is `8f9621b`, the build fix Xcode Cloud #487 built
+and shipped; the rest is text)
 
 Earlier detail is in git: `git show 1e379aa:Docs/ai/STATE.md` (late on 2026-10-20); the long record through 2026-10-10
 is `Docs/Archive/STATE_record_through_2026-10-10.md`.

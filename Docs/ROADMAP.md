@@ -9,25 +9,26 @@
 > When a release or milestone changes where things stand, update the dated section below and nothing
 > else; `AGENTS.md` rule 14 lists this file for that reason.
 
-## Where things stand (2026-10-12)
+## Where things stand (2026-10-26)
 
-- **Live:** 5.6 on iPhone, iPad and Mac since 2026-10-08, build 485. `Docs/SHIPPED_VERSION.json` is the
-  per-platform record.
-- **In preparation:** 5.7, opened 2026-10-09. Its records exist in App Store Connect on both platforms
-  (`PREPARE_FOR_SUBMISSION`); no Xcode Cloud build has run for it. In source so far: JSON and JSON Lines
-  import as records; very large text files imported a piece at a time with checkpoints; Shortcuts actions that
-  return results, with new actions for adding, finding, creating and opening; files accepted through "Open
-  in", paste, Home Screen actions and keyboard commands; sharing an answer with its sources and exporting a
-  conversation; a notification when an import or a long answer is done; fixes to how numbers are checked and
-  how sentences are selected; a very large library no longer slowing launch, Chat and the first question; an
-  Atlas that names its clusters and axes from the library's own words; the Core ML copy of the embedding model
-  for new libraries on iPhone and iPad. `Docs/USER_CHANGELOG.md` has each of these in plain words.
-- **Still open in 5.7:** indexing the vector store's passage file instead of decoding it at launch; device
-  checks of the items above; the roadmap rows on `v5.7` that are `To Do`.
-- **Next candidates** beyond that are the roadmap's Future Backlog rows, including the ones the 2026-09-26
-  retrieval audit filed (`Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/README.md`).
+- **Live:** 5.7 on iPhone, iPad and Mac since 2026-10-22, build 487, released automatically on Apple's
+  approval. `Docs/SHIPPED_VERSION.json` is the per-platform record. 5.7 is about getting things in and out
+  of the app: JSON and JSON Lines import as records; very large text files and PDFs over 500 MB import a
+  piece at a time and resume where they stopped; Shortcuts actions that return their results, with new
+  actions for adding, finding, creating and opening; Siri that asks before using Private Cloud Compute;
+  Spotlight, Visual Intelligence, Handoff, widgets, and the Mac menu bar and Services; files accepted through
+  "Open in", paste and the share sheet; sharing an answer with its sources and exporting a conversation;
+  every label in an answer opening its passage, and Deep Think and Maximum answers checked; a very large
+  library no longer slowing launch, Chat and the first question. `Docs/USER_CHANGELOG.md` has each of these
+  in plain words.
+- **Open:** nothing in source. On 2026-10-26 the owner said 5.7 is where he stops for a while. The next
+  source change needs a `## 5.8` heading in `CHANGELOG.md` first. 131 roadmap rows are still on `v5.7` and not
+  Completed (104 In Progress, 27 To Do, read 2026-10-26); whether they move to Future Backlog is his call. Rows
+  that close only on his phone or Mac stay open until they are seen there.
+- **Next candidates** are the roadmap's Future Backlog rows, including the ones the 2026-09-26 retrieval
+  audit filed (`Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/README.md`).
 
-`[evidence_level: release_state_verified, confidence: exact, evidence_source: Docs/SHIPPED_VERSION.json (app_store 5.6 on both platforms, preparing 5.7); App Store Connect read 2026-10-12 20:25 PT, 5.7 PREPARE_FOR_SUBMISSION on iOS and macOS; and 2026-10-08 13:18 PT, iOS 5.6 and macOS 5.6 READY_FOR_SALE with build 485]`
+`[evidence_level: release_state_verified, confidence: exact, evidence_source: Docs/SHIPPED_VERSION.json (app_store 5.7 on both platforms); App Store Connect read 2026-10-26, iOS 5.7 and macOS 5.7 READY_FOR_SALE with build 487]`
 
 ## The old page
 
