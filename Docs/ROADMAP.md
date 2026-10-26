@@ -22,9 +22,10 @@
   library no longer slowing launch, Chat and the first question. `Docs/USER_CHANGELOG.md` has each of these
   in plain words.
 - **Open:** nothing in source. On 2026-10-26 the owner said 5.7 is where he stops for a while. The next
-  source change needs a `## 5.8` heading in `CHANGELOG.md` first. 131 roadmap rows are still on `v5.7` and not
-  Completed (104 In Progress, 27 To Do, read 2026-10-26); whether they move to Future Backlog is his call. Rows
-  that close only on his phone or Mac stay open until they are seen there.
+  source change needs a `## 5.8` heading in `CHANGELOG.md` first. On 2026-10-26, at his word ("i guess 5.8"),
+  the roadmap was sorted: the 27 `To Do` rows and 6 `In Progress` rows whose work is not in the 5.7 build moved
+  to `v5.8`; the 96 `In Progress` rows whose work shipped in build 487 stay on `v5.7` with `Shipped On` set, open
+  until they are seen on his phone or Mac.
 - **Next candidates** are the roadmap's Future Backlog rows, including the ones the 2026-09-26 retrieval
   audit filed (`Docs/AuditArtifacts/RAGArchitectureAudit_2026-09-26/README.md`).
 
