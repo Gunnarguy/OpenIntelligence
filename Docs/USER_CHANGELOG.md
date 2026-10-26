@@ -7,7 +7,7 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
-## v5.7 - unreleased
+## v5.7 - October 22, 2026
 
 This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.
 

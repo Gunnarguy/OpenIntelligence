@@ -1,5 +1,6 @@
 {
   "_comment": [
+    "2026-10-26: 5.7 IS LIVE ON BOTH PLATFORMS. Both records were set to release automatically on approval (AFTER_APPROVAL, 2026-10-22), and Apple approved them the same day: iOS went live at 20:06:50 PT on 2026-10-22 (App Store lookup currentVersionReleaseDate 2026-10-23T03:06:50Z) and the Mac App Store page dates macOS 5.7 2026-10-22. Nobody moved this file then, so the three sites kept reading 5.6 until 2026-10-26, when App Store Connect was read back: iOS 5.7 and macOS 5.7 both READY_FOR_SALE (READY_FOR_DISTRIBUTION) with build 487. app_store and both per-platform values move to 5.7 together, and in_review is empty. preparing stays 5.7 because no next version is open; the next source change needs a 5.8 heading in CHANGELOG.md first.",
     "2026-10-22 (latest, ~13:30 PT): 5.7 IS IN REVIEW ON BOTH PLATFORMS WITH BUILD 487. At the owner's word (\"submit for review once everything is 100% squared away ... both mac and ios\") it was submitted through the API, one reviewSubmission per platform, with build 487 from 8f9621b (Xcode Cloud #487; #486 failed: Intel slice of the Spotlight model tool, and the unregistered Capture bundle ID, which the owner registered that day). iOS submission 4c1e962d-2e21-43a4-b415-164587809746 and macOS submission ae43affe-15f8-4f03-b58a-65e22d9b5a6b; both records read WAITING_FOR_REVIEW afterwards. Release notes and promotional text were read back from App Store Connect first and matched the repo on both platforms. app_store stays 5.6 until 5.7 is released. Minutes later, at the owner's word (\"i want automatic release, not manual\"), both records were PATCHed to releaseType AFTER_APPROVAL and read back that way, so each platform goes live as soon as Apple approves it; move app_store per platform then.",
     "2026-10-09 (latest, 13:33 PT): THE 5.7 RECORDS EXIST. The owner created them in App Store Connect: iOS at 13:33:11 PT and macOS at 13:33:30 PT, both PREPARE_FOR_SUBMISSION, release MANUAL, read back through the API that afternoon. preparing is 5.7. No Xcode Cloud build has run for 5.7: the work so far was pushed with [ci skip]. app_store stays 5.6 on both platforms and in_review stays empty.",
     "2026-10-09: preparing MOVES TO 5.7. The owner put 81 rows on v5.7 in the roadmap on 2026-10-08 and gave the go-ahead to build it on 2026-10-09, so CHANGELOG.md now carries '## 5.7 <!-- unreleased -->' and the first batches are committed with [ci skip]. No 5.7 record exists in App Store Connect yet (the owner creates it), and no Xcode Cloud build has run. app_store stays 5.6 on both platforms and in_review stays empty.",
@@ -71,16 +72,13 @@
     "at 4.9 on purpose: it is the value that does not overclaim to an iOS visitor, and",
     "understating is the safe direction for the exact failure this file was created to stop."
   ],
-  "app_store": "5.6",
+  "app_store": "5.7",
   "app_store_by_platform": {
-    "ios": "5.6",
-    "macos": "5.6"
+    "ios": "5.7",
+    "macos": "5.7"
   },
   "preparing": "5.7",
-  "in_review": {
-    "ios": "5.7 (build 487)",
-    "macos": "5.7 (build 487)"
-  },
-  "updated": "2026-10-22",
-  "verified_against": "Read from App Store Connect 2026-10-08 13:18 PT via the API: iOS 5.6 and macOS 5.6 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 485, release MANUAL, each released through the API at the owner's word (macOS 13:18:29 PT, iOS 13:18:35 PT)."
+  "in_review": {},
+  "updated": "2026-10-26",
+  "verified_against": "Read from App Store Connect 2026-10-26 via the API: iOS 5.7 and macOS 5.7 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 487, release AFTER_APPROVAL; iOS released 2026-10-23T03:06:50Z per the App Store lookup."
 }

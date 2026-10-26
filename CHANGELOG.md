@@ -2,7 +2,13 @@
 
 <!-- next-version: 5.7 -->
 
-## 5.7 <!-- unreleased -->
+## 5.7 - October 22, 2026
+<!-- Shipped on both platforms with build 487 (Xcode Cloud #487 from 8f9621b), released automatically on Apple's
+     approval (release AFTER_APPROVAL): iOS went live at 20:06:50 PT on 2026-10-22 (the App Store lookup's
+     currentVersionReleaseDate), and the Mac App Store page dates macOS 5.7 the same day. Read back from App Store
+     Connect on 2026-10-26: iOS 5.7 and macOS 5.7 both READY_FOR_SALE (READY_FOR_DISTRIBUTION) with build 487. No
+     next version is open. Open a 5.8 heading, with its unreleased marker, above this one before the next source
+     push, or ci_post_clone.sh stamps the released 5.7 and App Store Connect rejects the build. -->
 
 <!-- Opened 2026-10-09 at the owner's word ("proceed: implement", after the 81 rows he had put on
      v5.7 in the roadmap on 2026-10-08). ci_post_clone.sh stamps MARKETING_VERSION from the FIRST
