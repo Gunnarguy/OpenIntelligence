@@ -25,6 +25,11 @@
 > Each note sits under the passage it corrects, and the original text stays in place above it.
 > `[evidence_level: code_verified+artifact_derived, confidence: exact for code and high for benchmarks, evidence_source: the files and lines cited at each note, read 2026-10-27 at 1e4a718, nothing built or run]`
 
+> **Corrected 2026-10-27, second pass,** against `55fea8e`: section 05's rung 1 and section 04's list of the answers
+> the checks run on, both for Standard's reliability fallback, with a pointer where step 6 and section 11 repeat
+> rung 1. Each note sits under the passage it corrects.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: the files and lines cited at each note, read 2026-10-27 at 55fea8e, nothing built or run]`
+
 > **Corrected 2026-10-20** against the working tree (`b868fc0` plus the 5.7 work in progress), wherever this page
 > disagreed with the code. What changed:
 > - **Section 07 is rewritten from the code.** Deep Think and Maximum first try a shortcut for exact values, then
@@ -576,6 +581,8 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 
 (Corrected 2026-10-27 against `1e4a718`: the temperature sentence in the How line above. Only Standard applies a mode temperature, and it applies it as a ceiling: `min(current, 0.4)`. It caps the temperature at 0.2 instead when it uses the evidence-first prompt for low-confidence retrieval, and at 0.2 for a library whose retrieval style is `.precise` (High Precision in Library Settings). Maximum's 0.3, and Deep Think's 0.4, in `RAGQualityMode.temperature` are never read: the app reads that value once, below the line where Deep Think and Maximum return to `executeAgenticQuery`. Maximum's own loop sets 0.7 for sessions 1 to 3, 0.5 for sessions 4 to 8 and 0.3 after that. `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: RAGService.swift:15733-15735 (evidence-first, 0.2), 15738-15739 (mode cap), 15741-15745 (.precise, 0.2), 11635 (agentic return), 11686 (the only read of qualityMode.temperature by git grep, besides featureToggles at RAGQualityMode.swift:337, which has no caller); RAGQualityMode.swift:95-101; AgenticOrchestrator.swift:6894-6902]`)
 
+(Corrected 2026-10-27 against `55fea8e`: "or a refusal" in the first note above. In Standard the planner's refusal is not what you see when reliability mode is on, its default: the reliability fallback answers from the same passages instead. Section 05's note under the ladder says what happens, and section 04's last note what it shows. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:15966-15985, 17268-17296, 17384-17679; SettingsStore.swift:534-535]`)
+
 #### Step 6.5 / 7. Tidy up and score it
 
 > **In plain words**
@@ -674,6 +681,26 @@ Thresholds rise with mode: 0.50 in Standard, 0.60 in Deep Think, 0.80 in Maximum
 > and the passages, not the answer.
 > `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:159-276, 426-480, 513-536, 887, 979-1050, ConfidencePolicyService.swift:22-58, RAGService.swift:16622-16706, StructuredAnswer.swift:974-976, DomainIsolationService.swift:141-146]`
 
+> **Corrected 2026-10-27** against `55fea8e` (the 5.7 code): the list at the top of this section leaves out Standard's
+> reliability fallback. When Standard's path throws after retrieval has found passages, the planner's abstain included
+> (section 05, rung 1), or when the model returns an empty answer, and reliability mode is on, its default,
+> `buildReliabilityFallbackResponse` writes the answer instead. The refusal rule above does not apply to it. What it
+> shows:
+> - **An extracted value** when one locks (a lookup or precise-value question): no model call and no check, so it
+>   reads Not Checked.
+> - **Otherwise a second on-device answer** over up to 6 of the passages, at most 3,600 characters, with Private Cloud
+>   Compute off. The nine checks run on it once, and only when some passage scores above 0. If A, B, C, E or F fails,
+>   up to 6 excerpts replace it, under "Here are the most relevant excerpts from your documents", and read Not
+>   Checked. Otherwise the model's answer is shown and reads Partially Verified, whether or not D, G, H or I failed,
+>   and also when the checks were skipped.
+> - **If that call fails**, the same excerpts.
+>
+> After a planner abstain the outcome follows from the scores. The planner abstains only when every passage scores
+> under 0.20, the fallback keeps those scores, and Gate A's bar in Standard is 0.40 (0.55 for a sensitive question).
+> So the person gets the extracted value when one locks, the model's answer read Partially Verified when no passage
+> scores above 0, and excerpts read Not Checked otherwise.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:11894, 13015, 15182 (the fallback's passages), 16537-16559 (empty answer), 17268-17296 (the catch and reliabilityModeEnabled), 17384-17434 (extracted value, reliability_extractive_override), 17436-17459 (6 passages, 3,600 characters, device only), 17469-17547 (checks only with a score above 0), 17556-17572 (the five gates that bring excerpts), 17574-17607 (reliability_fallback), 17609-17679 (excerpts, excerpts_only), 20104-20135 (buildExtractiveChunks keeps each score); VerificationOutcome.swift:33-60 (reliability_fallback reads partial, excerpts_only and reliability_extractive_override read notChecked); VerificationGateService.swift:95-97 (0.40 and 0.55), 180 and 294-319 (Gate A); ConfidencePolicyService.swift:28-30, 41 (Standard adds nothing); ModelExecutionPlan.swift:104-106; SettingsStore.swift:534-535; read 2026-10-27, nothing built or run]`
+
 > **Known behaviour worth stating**
 > The checks are currently tuned conservatively enough that they sometimes hedge an answer that is correct and fully supported. In one measured case the verifier lowered its confidence because the answer did not supply a date and a name that the source documents never contained and the question never asked for. That trade is deliberate in direction, if not in degree: the app errs toward under-claiming rather than over-claiming, and tightening it is ongoing work.
 
@@ -754,6 +781,19 @@ Two consequences of that last rule are worth stating because they are easy to as
 > `requiresExactExtraction` also sets `requiresPCC`, so rung 3 wins and the test expects Private Cloud Compute. The
 > 2026-10-20 note above, that it is handled like an on-device plan, describes what would happen and does not happen.
 > `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: ModelExecutionPlanner.swift:45 (rung 3) and 69-72 (rung 4); RAGService.swift:18507-18517 (the only PostRetrievalEvidence built in app code, requiresExactExtraction: false at 18515), 18588 and 18627 (the only makePlan calls, both in that function), 15855 (Standard's call), AgenticOrchestrator.swift:9277 (generateWithProperConsent's call); ModelExecutionPlannerTests.swift:217-229 (testCloudOnlyOverridesAutomaticExactExtractionShortcut); git grep over Swift: requiresExactExtraction otherwise only at ModelExecutionPlan.swift:101 and ModelExecutionPlannerTests.swift:56, 64, and no test names .deterministic]`
+
+> **Corrected 2026-10-27** against `55fea8e` (the 5.7 code): rung 1 is the planner's decision, and what you then see
+> depends on the mode. In Deep Think and Maximum a planned call that abstains returns a fixed refusal ("I couldn't
+> find enough supporting evidence in this library to answer that reliably") without calling the model. In Standard
+> the abstain is thrown as an error. With reliability mode on, its default, the reliability fallback catches it and
+> answers from the same passages instead of refusing: an extracted value when one locks, and otherwise a second
+> on-device call told "Answer using any available excerpts. If evidence is thin, say so", whose answer the nine checks
+> then keep or replace with excerpts (section 04 has the outcomes). With reliability mode off the chat shows "I
+> couldn't work out how to answer that from what your documents returned. Try rephrasing." The cloud half of the rung
+> holds either way: the fallback's call runs on the device with Private Cloud Compute off. In Standard the planner can
+> abstain only when every passage packed for the answer scores under 0.20 and the question has passed the relevance
+> gate before it; how often that happens has not been measured.
+> `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: ModelExecutionPlanner.swift:37-40; ModelExecutionPlan.swift:104-106; RAGService.swift:15343-15346 (relevance gate), 15840-15863 (Standard plans over the packed passages), 18498 (the top score is their maximum), 15966-15985 (abstain thrown as routingAbstained), 11896 and 17268 (the do and catch around Standard's path), 17278-17296 (reliability mode sends it to buildReliabilityFallbackResponse), 17321 (otherwise rethrown), 17451-17459 (device only, PCC off, the prompt); ChatScreen.swift:3939-3942 (the chat's text); SettingsStore.swift:534-535 (reliability on by default); AgenticOrchestrator.swift:9350-9385 (Deep Think's and Maximum's refusal); git grep for routingAbstained over Swift finds only RAGService.swift:15985, 21714, 21733 and ChatScreen.swift:3939; read 2026-10-27, nothing built or run]`
 
 ### The shape of the plan itself
 
@@ -1254,6 +1294,11 @@ A failed critical verification gate produces a grounded abstention rather than a
 > or a state (in Standard after failed checks, in Deep Think and Maximum for any lookup not locked to a value). And
 > with reliability mode off, an answer whose claims Gate B all marked unsupported is shown as a refusal.
 > `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:16660-16706, 16864-16909, 11212-11236, 19494-19631 (sourceOnlyOutcomeIfNeeded), ModelExecutionPlanner.swift:37-40, AgenticOrchestrator.swift:390-453, StructuredAnswer.swift:979-1012]`
+
+> **Corrected 2026-10-27** against `55fea8e`: "when the post-retrieval plan judges the evidence insufficient" refuses
+> in Deep Think and Maximum. In Standard it refuses only with reliability mode off; with it on, the default, the
+> reliability fallback answers from the same passages instead (section 05, under the ladder, and section 04's last
+> note). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:15966-15985, 17268-17296, 17321; ChatScreen.swift:3939-3942; AgenticOrchestrator.swift:9350-9385; SettingsStore.swift:534-535]`
 
 ### Does it work offline?
 
