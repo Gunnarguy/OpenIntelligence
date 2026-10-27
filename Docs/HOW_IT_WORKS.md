@@ -18,6 +18,13 @@
 > is off, but the same extractor answers value questions through five live call sites.
 > `[evidence_level: code_verified, confidence: exact, evidence_source: BNNSVectorDatabase.swift:501-507; DeviceCapabilityService.swift:923-934; StructuredAnswer.swift:65-117,440; RAGService.swift:8705,8734,9199,14383,15192]`
 
+> **Corrected 2026-10-27** against `1e4a718` (the 5.7 code): section 01's layer table (nine feature areas, and the
+> `UI/` layer it left out), step 1's conversation memory, step 5's rank-2 defect (fixed in `fa80e71`, and noted where
+> the page still called it open), step 6's temperatures, section 04's rows for gates A and B, section 05's rung 4,
+> and section 08's table labels and Deep Think figures.
+> Each note sits under the passage it corrects, and the original text stays in place above it.
+> `[evidence_level: code_verified+artifact_derived, confidence: exact for code and high for benchmarks, evidence_source: the files and lines cited at each note, read 2026-10-27 at 1e4a718, nothing built or run]`
+
 > **Corrected 2026-10-20** against the working tree (`b868fc0` plus the 5.7 work in progress), wherever this page
 > disagreed with the code. What changed:
 > - **Section 07 is rewritten from the code.** Deep Think and Maximum first try a shortcut for exact values, then
@@ -117,6 +124,16 @@ The second constraint is that documents stay on the device. So "send the whole c
 | `Features/` | Ten user-facing areas: Chat, Documents, Camera, Settings, Diagnostics, Telemetry, Database, Billing, Onboarding, Debug |
 | `Services/` | Twelve subsystems. All the actual work |
 | `SDK/` | A single engine-facing entry point, the beginning of a reusable boundary rather than a finished one |
+
+> **Corrected 2026-10-27** against `1e4a718`. The `Features/` row said ten areas, the last of them Debug.
+> `Features/Debug/` was removed in the 5.7 work (`2fae850` on 2026-10-20 deleted `EvidenceThreadDebugView.swift`,
+> `a27658f` on 2026-10-21 deleted `EvidenceThreadDebugService.swift`), which leaves nine: Chat, Documents, Camera,
+> Settings, Diagnostics, Telemetry, Database, Billing and Onboarding. The table also left out a sixth code layer,
+> `UI/`, present since the first commit (`170121f`, 2026-04-15): `UI/Components/` (nine shared views and helpers,
+> among them the cloud consent prompt, the glossary, the import queue overlay and the model status indicator) and
+> `UI/DesignSystem/` (`SurfaceCard.swift`, `Theme.swift`). Beside the six, `OpenIntelligence/` holds `Resources/`
+> (assets, Core ML models, the StoreKit configuration) and the vendored `swift-transformers/` package.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: git ls-tree at 1e4a718 of OpenIntelligence/, OpenIntelligence/Features/ and OpenIntelligence/UI/; git show --name-status 2fae850 a27658f; git log --diff-filter=A -- OpenIntelligence/UI/Components OpenIntelligence/UI/DesignSystem (170121f)]`
 
 ### The twelve subsystems
 
@@ -283,6 +300,8 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 > Work out what "it" means. "What about the second one?" isn't searchable until you know what the second one *is*, so the app looks back at the conversation.
 
 **How.** Pronoun resolution, normalisation and entity labelling. Conversation memory retains 5 turns in Standard, 10 in Deep Think and 20 in Maximum.
+
+(Corrected 2026-10-27 against `1e4a718`: no mode keeps 5, 10 or 20 turns. Those are the values of `RAGQualityMode.maxConversationTurns`, which the app reads in one place, Standard's question rewriting, as `min(value, 3)`. Conversation memory runs on its default configuration, the only one the app uses: once it holds more than 8 turns it keeps the 3 it rates most important word for word, in time order, and folds the rest into a summary of at most 1,000 characters. The rewrite, when it runs (Phase A above), reads the questions of the last 3 turns memory holds. Standard's prompt carries at most 3 turns, chosen by relevance to the question once more than 2 are held, each reply cut to 300 characters or less, then as much of the summary as the budget allows and up to 5 key topics; with nothing in memory it falls back to the last 4 messages of the chat. Memory is on by default, and no Settings screen has a switch for it. Deep Think and Maximum read no conversation memory and no chat history: they return to `executeAgenticQuery` above both reads, and `AgenticOrchestrator` refers to neither. The exception is a precise-value question whose Deep Think or Maximum run fails for a model reason (unavailable, rate-limited, busy or a failed generation): Standard answers it again, and that run reads both. `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: RAGQualityMode.swift:298-310, 315-337 (featureToggles also lists the value and has no caller, by git grep); RAGService.swift:11704 (the only other read of maxConversationTurns), 12028-12041 (when the rewrite runs), 12057-12095 (rewriting, min(value, 3)), 15790-15827 (prompt injection and the 4-message fallback), 11635 (agentic return), 10817-11413 (executeAgenticQuery), 11383-11396 and 20511-20525 (the precise-value fallback to Standard); ConversationMemoryService.swift:134-140 (default: 3 turns, 1,000 characters, threshold 5), 226-230 (configure(with:) has no caller), 296, 363-399 (turns by relevance, replies cut to 300, summary), 402-427 (key topics), 508-539 (the 3 kept, in time order, and the summary cap); SettingsStore.swift:567 (default true) and git grep enableConversationMemory (no Settings view reads it); git grep for ConversationMemory, conversation and history in AgenticOrchestrator.swift (no read)]`)
 
 #### Step 1.5. Ask it several ways
 
@@ -474,6 +493,7 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 > Put the best cards at the **very top and the very bottom** of the pile, and the weaker ones in the middle.
 > This sounds like superstition. It isn't. Language models pay much more attention to the start and end of what they're given and genuinely skim the middle, the same way you remember the first and last items on a shopping list. The effect is big enough to lose an answer that was right there. So this runs dead last, after every decision about *what* is on the desk is settled, because it's the only step about *where* things sit.
 > **Corrected 2026-10-20.** That is the design, and the code differs in two ways. For a look-up-a-number question the first desk gets no shuffle: the single best card goes on top, whole, and the rest of the desk is filled with the sentences from other cards that mention what was asked. (If the desk has to be laid out again for the phone, which happens when the first pass was sized for the cloud and the answer stays on the phone, or a cloud request is denied, the cards are shuffled after all.) For other questions the shuffle happens before the app decides which cards fit, so the second-best card can end up at the bottom of a pile that's too tall and fall off the desk. That's a known bug. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:14946-15058, 15834-15902, RAGEngine.swift:500-503]`
+> **Corrected 2026-10-27.** That bug was fixed the next day, in 5.7. The app now picks the cards that fit in order of rank, best first, and only then shuffles the ones it picked, so the second-best card is never the one that falls off. With about three cards on a phone's desk there is no shuffle at all. `[evidence_level: code_verified, confidence: exact, evidence_source: fa80e71 (2026-10-21, in v5.7.0); RAGEngine.swift:496-501 and 683-691 at 1e4a718]`
 
 **How.** The final chunk set is reordered by position so the highest-scoring evidence sits at the beginning and end. A set ranked [1,2,3,4,5,6] is emitted as [1,3,5,6,4,2].
 
@@ -503,6 +523,16 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 >   Read in the code and the loop worked through by hand, not run in the app.
 > - The [1,3,5,6,4,2] pattern above is what happens when exactly six passages are retrieved and all six fit.
 > `[evidence_level: artifact_derived, confidence: high, evidence_source: the 3,190-token figure is a device log line (Context budget: base=4096 ... available=3190, 2026-10-16) quoted in the comment at RAGService.swift:3745-3747, not re-measured here]` `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:14784-14849 (the budget), 14946-15058 (packing), 3779-3803 (the whole first passage), 15834-15902 (the repack), 22121-22134 (Deep Think's reorder), AgenticOrchestrator.swift:2224-2258 (fusion by position), RAGEngine.swift:475-565, 779-799. The rank-2 loss and the Deep Think reorder are read in the code, not run]`
+
+> **Corrected 2026-10-27 against `1e4a718`: the "Every other question" bullet above describes the code before
+> `fa80e71` (2026-10-21, shipped in 5.7).** Whole-passage packing now chooses passages in rank order until the budget
+> is spent, and only then places the ones it chose: best first, second best last, the rest in between, and only when
+> four or more were chosen and the question is not a procedure. With about three passages fitting, the prompt holds
+> ranks 1, 2 and 3 in that order; a passage skipped as a near-duplicate gives its place to the next rank. The rescue pass reads the candidates after the last one packed, so it no longer
+> skips rank 2. The [1,3,5,6,4,2] pattern is what six chosen passages get. The Deep Think and Maximum bullet still
+> holds: their per-search reorder is separate code that this commit did not change, and six results still come out
+> as [2, 4, 6, 1, 3, 5].
+> `[evidence_level: code_verified, confidence: exact, evidence_source: git show fa80e71 (merge-base: in 8f9621b, the 5.7 build, and in tag v5.7.0); RAGEngine.swift:496-501 (no reorder before the budget), 620-622 (a near-duplicate is skipped and the loop goes on), 683-691 (placement when packed.count >= 4), 785-804 (applyLostInMiddleReordering); RAGService.swift:14995 (off for a procedure), 4304-4317 (candidatesPastThePacked) and 15105 (the rescue reads it), 22192-22205 (Deep Think's reorder, loop worked through by hand)]`
 
 #### Step 5.9. Assemble summaries directly for overview questions
 
@@ -543,6 +573,8 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 **How.** The packed prompt goes into an Apple `LanguageModelSession` within the window the device reports (4,096 tokens in Apple's documentation, 8,192 on a Mac with macOS 27). Temperature is 0.4 in the standard modes and 0.3 in the most precise one. Tool schemas are removed once context has already been assembled, since they cost roughly 1,000 of the available tokens.
 
 (Corrected 2026-10-20.) Before this call the post-retrieval planner picks the route: on device, Private Cloud Compute, or a refusal (section 05). The answer streams into the chat as it is written, through structured generation when the estimate fits 3,600 tokens and a plain stream otherwise, so it is on screen before step 7.5 runs. In Deep Think and Maximum no call is ever handed tools, and each step's temperature is its own value when it sets one, else the question's adaptive profile, else 0.5 (Maximum's sessions use 0.7, then 0.5, then 0.3). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:14769-14775, 15779-15934 (route plan), 18752-18794 (structured generation), FoundationModelStructuredGenerator.swift:117-158, ChatScreen.swift:3291, AgenticOrchestrator.swift:9157-9185, 6886-6894]`
+
+(Corrected 2026-10-27 against `1e4a718`: the temperature sentence in the How line above. Only Standard applies a mode temperature, and it applies it as a ceiling: `min(current, 0.4)`. It caps the temperature at 0.2 instead when it uses the evidence-first prompt for low-confidence retrieval, and at 0.2 for a library whose retrieval style is `.precise` (High Precision in Library Settings). Maximum's 0.3, and Deep Think's 0.4, in `RAGQualityMode.temperature` are never read: the app reads that value once, below the line where Deep Think and Maximum return to `executeAgenticQuery`. Maximum's own loop sets 0.7 for sessions 1 to 3, 0.5 for sessions 4 to 8 and 0.3 after that. `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: RAGService.swift:15733-15735 (evidence-first, 0.2), 15738-15739 (mode cap), 15741-15745 (.precise, 0.2), 11635 (agentic return), 11686 (the only read of qualityMode.temperature by git grep, besides featureToggles at RAGQualityMode.swift:337, which has no caller); RAGQualityMode.swift:95-101; AgenticOrchestrator.swift:6894-6902]`)
 
 #### Step 6.5 / 7. Tidy up and score it
 
@@ -614,6 +646,18 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 | `G` | Generation Quality | Structural soundness of the output itself. It reads the answer alone. |
 | `H` | Answer Completeness | Multi-step and comparison answers where each step is individually plausible but the chain is not supported end to end. It needs the question's type, which Standard does not pass it, so in Standard it always passes. Deep Think and Maximum pass the type (5.7). |
 | `I` | Domain Isolation | Rejects evidence drawn from unrelated subject areas before an answer is written. Relaxed when everything came from one document, since that is not mixing. From 5.7 it steps in only for a question that reads as lab science, two or more of its study-domain keywords as whole words; before, keywords matched inside everyday words ("um" in "number") and right answers about travel documents failed it. |
+
+> **Corrected 2026-10-27** against `1e4a718`: rows A and B say more than the gates check. **Gate A** passes when the
+> top retrieval score reaches the threshold, and nothing else. It computes the margin over the runner-up and writes it
+> into the gate's details marked "info only"; the code's note reads "Margin requirement removed - multiple
+> high-scoring chunks is GOOD, not bad". A separate helper that does require the margin, `checkRetrievalConfidence`,
+> has no caller, and it is the only code that applies the margin threshold, so the per-mode margin raised in
+> `ConfidencePolicyService` changes nothing. **Gate B** does not require every claim to map to evidence. It scores a
+> supported claim 1 and a partly supported claim 0.5, and passes when that weighted share of the answer's claims is at
+> least 0.40. With structured claims the bar is 0.55, and at least 80% of the claims must also carry a citation. Only
+> Standard passes structured claims, so Deep Think and Maximum answers are always held to 0.40. Headings and claims
+> worded as questions are left out before counting, and an answer with no claim left to check passes Gate B outright.
+> `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: VerificationGateService.swift:180 (Gate A is runGateA), 294-319 (runGateA; the margin is "info only" at 311), 279-288 (checkRetrievalConfidence; git grep finds no caller, and muMargin is applied only at 285; ConfidencePolicyService.swift:43 reads it only to raise it), 333-359 (headings and question-like claims dropped), 361-371 (no claims: passed), 391 (weighted coverage), 397 (structured: 0.55 and 0.80), 410 (otherwise 0.40); ConfidencePolicyService.swift:43; RAGService.swift:16685-16695 (Standard passes structuredClaims) and 18295-18304 (Deep Think and Maximum do not)]`
 
 Thresholds rise with mode: 0.50 in Standard, 0.60 in Deep Think, 0.80 in Maximum. Failing a critical check produces a grounded abstention rather than a hedged answer.
 
@@ -702,6 +746,14 @@ Two consequences of that last rule are worth stating because they are easy to as
 >   altogether is Deep Think's and Maximum's shortcut (section 07), besides the reliability fallback when generation
 >   fails (step 5.10).
 > `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:11730-11745, 14516-14545, 14784-14849, 15779-15934 (route plan), 18400-18569 (makePostRetrievalModelPlan), 4391-4440 (ensureCloudConsentIfNeeded), QueryRuntimeCoordinator.swift:145-186, ModelExecutionPlanner.swift:24-135, ModelExecutionPlan.swift:146-148, FoundationModelSessionFactory.swift:84-110, AgenticOrchestrator.swift:9123-9152, 9157-9240, and the unpinned calls at 1535, 1607, 2778, 3209, 5857, 5939, 7432, 7482]` `[evidence_level: artifact_derived, confidence: high, evidence_source: the 3,190-token figure, a device log quoted at RAGService.swift:3745-3747]`
+
+> **Corrected 2026-10-27** against `1e4a718`: rung 4 never fires in the app. The planner reaches it only when the
+> evidence it is given says `requiresExactExtraction`, and the one place the app builds that evidence,
+> `makePostRetrievalModelPlan`, always passes `false`. Standard's plan and every planned call in Deep Think and Maximum
+> go through that function, so the "deterministic" result is reached nowhere, tests included: the one test that sets
+> `requiresExactExtraction` also sets `requiresPCC`, so rung 3 wins and the test expects Private Cloud Compute. The
+> 2026-10-20 note above, that it is handled like an on-device plan, describes what would happen and does not happen.
+> `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: ModelExecutionPlanner.swift:45 (rung 3) and 69-72 (rung 4); RAGService.swift:18507-18517 (the only PostRetrievalEvidence built in app code, requiresExactExtraction: false at 18515), 18588 and 18627 (the only makePlan calls, both in that function), 15855 (Standard's call), AgenticOrchestrator.swift:9277 (generateWithProperConsent's call); ModelExecutionPlannerTests.swift:217-229 (testCloudOnlyOverridesAutomaticExactExtractionShortcut); git grep over Swift: requiresExactExtraction otherwise only at ModelExecutionPlan.swift:101 and ModelExecutionPlannerTests.swift:56, 64, and no test names .deterministic]`
 
 ### The shape of the plan itself
 
@@ -970,6 +1022,14 @@ Real external ground truth, from QASPER: **40 research papers, 83 scored cases**
 | Reranking nDCG@5 | 0.431 |
 | Final-context recall@10 | 0.549 |
 
+> **Corrected 2026-10-27.** Three retrieval labels in this table name the wrong measures. In the `qasper-overnight`
+> row of `BenchmarkRuns/PROGRESSION.md`, 0.649 is the lexical arm's MRR, 0.431 is the final context's recall@1 and
+> 0.549 is the final context's MRR. The committed summary of the same run ("Retrieval, per stage", n=72) gives the
+> measures the labels name: the gold document is in the top 10 at 0.54 to 0.82 depending on the stage, reranking
+> nDCG@5 is 0.64, and final-context recall@10 is 0.81 (0.806 in `PROGRESSION.md`). And 0.410 is 34 correct over all
+> 83 cases attempted. Over the 77 that were scored it is 34 of 77, 44%.
+> `[evidence_level: artifact_derived, confidence: high, evidence_source: BenchmarkRuns/PROGRESSION.md header (correct, acc, lexical MRR, fusion MRR, rerank MRR, final r@1, final r@10, final MRR) and its qasper-overnight row; Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md ("34/77 correct (44%) ... 83 attempted" and the per-stage table); Docs/EVALS.md QASPER row ("34 correct over all 83 attempted")]`
+
 That accuracy is a floor rather than a quality score: it is exact-match against expected answer patterns, so a correct answer phrased differently counts as wrong.
 
 ### Where the failures actually are
@@ -984,6 +1044,7 @@ Every prior plan had assumed one of those dominated. Retrieval and synthesis eac
 > **What these numbers do not show**
 > - **±1 case at n=24 is the measured noise floor.** Two runs of the same build, differing only in debug output printed after generation, scored 11/24 and 10/24. Nothing smaller than roughly a four-case swing resolves in the accuracy column. The per-stage columns are far more stable and are what a change should be judged on.
 > - **Deep Think and Maximum have no valid accuracy figure and none is quoted anywhere.** The one Deep Think benchmark attempted scored 1 of 5 with a timeout at 1800 seconds.
+>   **Corrected 2026-10-27,** to agree with `Docs/LIMITATIONS.md` (corrected 2026-09-29): Deep Think has been benchmarked, though not in a way that separates it from Standard, and only Maximum has no valid figure. On the QASPER pack Deep Think scored 2 of 8 against Standard's 4 of 7 in its first paired run (`paired-retry`, `1b700ed`, 2026-08-19) and 9 of 25 against Standard's 10 of 25 in its largest (`overnight-25case-nodeadlock`, `73fff4f`, run overnight from 2026-08-20). Each is a single run in the Mac benchmark harness at a forced temperature of 0.7, which the ledger found does not reproduce the shipping app, and 25 cases cannot resolve less than about a four-case swing, so the ledger does not read either gap as a difference between the modes. The 1-of-5 run (`overnight-smoke`, `0eb5d96`) was the first Deep Think benchmark attempted, not the only one, and its raw data was deleted on 2026-08-19, so that figure cannot be checked. `[evidence_level: artifact_derived, confidence: high, evidence_source: BenchmarkRuns/LEDGER.md rows overnight-smoke ("First Deep Think benchmark ever attempted"), paired-retry and overnight-25case-nodeadlock with its accuracy line "deep-think 9/25 (36%), standard 10/25 (40%)"; Docs/LIMITATIONS.md Product Limits and Technical Limits]`
 > - **Three run directories were deleted before being re-read.** `BenchmarkRuns/*` is gitignored, so the conclusions drawn from them survive and their raw data does not. Those rows are marked unauditable in the ledger rather than quietly dropped.
 > - Document-level recall credits a whole document when any chunk of it appears, which inflated `r@1` on runs where a summary was injected.
 
@@ -1046,7 +1107,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
 | `4.8` | Hunt directly for specification tables | Targeted spec retrieval, bypassing both similarity and the reranker **(undocumented)**. **Corrected 2026-10-20:** lookups only, and in **Deep Think and Maximum** precise-value questions too |
 | `4.7` | Cross out irrelevant sentences | Contextual compression. **Corrected 2026-10-20:** **runs in no mode.** Standard has it off, and Deep Think's own searches have no such step |
 | `4.9` | Add a small map of sections and names | Graph-style context packing under a token budget. **Corrected 2026-10-20:** for investigate, compare and findings questions only |
-| `5` | Put the best material at both ends | Context assembly with Lost-in-the-Middle positional reordering. **Corrected 2026-10-20:** a lookup's first pass puts its best passage first and whole (5.7), then matching sentences, with no reorder, and a procedure keeps document order. Other questions, and a lookup whose context is packed again for the device, are reordered across all candidates before the budget cut, which can drop rank 2 (a known defect). Deep Think's searches use their own reorder, which puts the best passage in the middle. About 3,190 tokens are left for passages in a 4,096 window, a device-log figure from an iPhone 16 Pro Max (artifact_derived) |
+| `5` | Put the best material at both ends | Context assembly with Lost-in-the-Middle positional reordering. **Corrected 2026-10-20:** a lookup's first pass puts its best passage first and whole (5.7), then matching sentences, with no reorder, and a procedure keeps document order. Other questions, and a lookup whose context is packed again for the device, are reordered across all candidates before the budget cut, which can drop rank 2 (a known defect). Deep Think's searches use their own reorder, which puts the best passage in the middle. About 3,190 tokens are left for passages in a 4,096 window, a device-log figure from an iPhone 16 Pro Max (artifact_derived). **Corrected 2026-10-27:** the rank-2 defect was fixed in `fa80e71` (2026-10-21, 5.7): passages are chosen in rank order first and reordered after the budget cut, only when four or more fit `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:496-501, 683-691 at 1e4a718]` |
 | `5.9` | Assemble summaries directly | Extractive summarization for summarize intent. **Corrected 2026-10-20:** **cannot run**, because its condition also needs the question to be extractive-first, which a summarize question never is |
 | `5.10` | Copy exact numbers instead of generating **(switched off)** | Extractive QA override, **disabled at this step**; the same extractor still answers value questions elsewhere (see step 5.10) |
 | `6` | Write the answer from the desk | Generation within one session of the device's window, tool schemas withdrawn once evidence is assembled. **Corrected 2026-10-20:** the route (on device, Private Cloud Compute or a refusal) is planned after retrieval, and the answer streams as it is written |
@@ -1108,7 +1169,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
   Search with small cards, read with big ones.Embed small chunks for retrieval precision, then expand to neighbouring chunks for coherence.
 
 **Lost in the middle**
-  Models skim the middle of what they're given, so the good material goes at both ends.A documented attention bias toward the start and end of a context window, mitigated by positional reordering applied last. (Corrected 2026-10-20: in Standard the reorder applies to whole-passage packing, never to a procedure and to a lookup only when its context is packed again for the device, and it runs before the budget cut, not last. Deep Think's searches use their own reorder, which puts the best passage in the middle. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:14946-15058, 15834-15902, 22121-22134, RAGEngine.swift:500-503]`)
+  Models skim the middle of what they're given, so the good material goes at both ends.A documented attention bias toward the start and end of a context window, mitigated by positional reordering applied last. (Corrected 2026-10-20: in Standard the reorder applies to whole-passage packing, never to a procedure and to a lookup only when its context is packed again for the device, and it runs before the budget cut, not last. Deep Think's searches use their own reorder, which puts the best passage in the middle. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:14946-15058, 15834-15902, 22121-22134, RAGEngine.swift:500-503]`) (Corrected 2026-10-27: from `fa80e71` (2026-10-21, 5.7) Standard's reorder runs after the budget cut, on the passages chosen, and only when four or more were chosen, so "before the budget cut" describes the code before that commit. Deep Think's own reorder is unchanged. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:496-501, 683-691, RAGService.swift:22192-22205 at 1e4a718]`)
 
 **Summary routing**
   Whole-library questions go to summaries, because no ten cards can describe a hundred documents.Hierarchical summary nodes retrieved for global queries instead of leaf chunks. (Corrected 2026-10-20: one summary passage per document, written by Apple's model after import or taken from the document's first 150 words when the model fails, and no hierarchy. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:8291-8360, DocumentSummaryService.swift:232-319, DocumentChunk.swift:89-104]`)

@@ -75,7 +75,7 @@
   "openintelligence-engine-sdk"
  ],
  "unmapped_notes": {
-  "OpenIntelligence/OpenIntelligence.entitlements": "The app's code-signing entitlements, shared by every feature. Tier 1 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md: the PCC entitlement is deliberately absent pending developer-account approval.",
+  "OpenIntelligence/OpenIntelligence.entitlements": "The app's code-signing entitlements, shared by every feature. Tier 1 in Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md. It carries the PCC entitlement (com.apple.developer.private-cloud-compute = true, in the file since c6052df, 2026-07-15). (Corrected 2026-10-27: this said the PCC entitlement is deliberately absent pending developer-account approval, which held from 99ba85d on 2026-07-01 until c6052df put it back on 2026-07-15.) `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/OpenIntelligence.entitlements at 1e4a718 (com.apple.developer.private-cloud-compute = true); git log -S on that file: added b5983f4 and removed 99ba85d on 2026-07-01, re-added c6052df on 2026-07-15 and not removed since; git show v5.1.0 and v5.3.0 to v5.7.0 of that file (each contains the key); git merge-base --is-ancestor c6052df 81b0388 (the 5.2 is live release commit); Docs/SHIPPED_VERSION.json (5.2, the PCC release, live 2026-09-10)]`",
   "OpenIntelligence/Resources/Assets/Assets.xcassets": "App icon, colors and images for the whole app; task router route 14 governs changes to it."
  },
  "derive": {

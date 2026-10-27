@@ -88,6 +88,16 @@ aims for on the device and stops learning.
 > architecture exists to answer — *does more compute buy more correctness?* —
 > is still open. Please don't cite a Deep Think accuracy figure; none has been measured.
 
+> **Corrected 2026-10-27,** to agree with `Docs/LIMITATIONS.md` (corrected 2026-09-29). The
+> first sentence holds: neither mode has a score against `Benchmarks/rag_eval_v1.jsonl`.
+> "None has been measured" does not. Deep Think has been benchmarked on the external QASPER
+> pack, 9 of 25 against Standard's 10 of 25 in its largest paired run
+> (`overnight-25case-nodeadlock`) and 2 of 8 against 4 of 7 in its first (`paired-retry`).
+> Each is a single run in the Mac benchmark harness at a forced temperature of 0.7, and 25
+> cases cannot resolve less than about a four-case swing, so neither run separates Deep Think
+> from Standard. Maximum has no valid figure.
+> `[evidence_level: artifact_derived, confidence: high, evidence_source: BenchmarkRuns/LEDGER.md rows paired-retry (1b700ed) and overnight-25case-nodeadlock (73fff4f) and its accuracy line "deep-think 9/25 (36%), standard 10/25 (40%)"; Docs/LIMITATIONS.md Product Limits and Technical Limits; git grep rag_eval_v1 finds no Deep Think or Maximum score]`
+
 ## How it works
 
 ```
@@ -102,6 +112,16 @@ Reciprocal Rank Fusion, get re-ranked by a cross-encoder, then pass through MMR
 so the context is diverse rather than five phrasings of one paragraph. Answers
 face verification gates that check the response is genuinely grounded in the
 retrieved text before you see it.
+
+> **Corrected 2026-10-27.** The gates do not run "before you see it". The answer streams
+> into the chat as it is written, and the nine checks run once, on the finished answer,
+> and label it Verified or Unverified. In Standard they also keep claims they mark
+> unsupported out of the Fact Check list, and they replace the answer with a refusal only
+> under the rule in [How OpenIntelligence Works, section 04](Docs/HOW_IT_WORKS.md). In
+> Deep Think and Maximum the nine checks only label it (from 5.7); a lookup there that is not
+> locked to an extracted value gets the source-only check instead, which can rewrite the
+> answer or, for a precise-value or state question, refuse it.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen.swift:3757 and 3788 (streamed text reaches the chat), RAGService.swift:16630-16807 (step 7.5, after generation), StructuredAnswer.swift:988 (claims marked unsupported are left out), RAGService.swift:11261-11309 (Deep Think and Maximum: source-only check, else the gates as a label), Docs/HOW_IT_WORKS.md section 04 correction of 2026-10-20; read at 1e4a718]`
 
 Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on
 PCC**, time-to-first-token 2.2–3.2s. The PCC figure was measured from an Xcode 27
@@ -204,6 +224,13 @@ failure.
 500+ page PDFs go through a streamed, batched ingestion pipeline with page-level
 checkpointing, so a long import survives memory pressure and app restarts instead
 of starting over.
+
+> **Corrected 2026-10-27.** The streamed PDF import is chosen by file size, not page count.
+> Every PDF over 10 MB (10 × 1,048,576 bytes) takes it, 15 pages a batch, whatever its
+> length, and a PDF of 10 MB or less takes the ordinary import however many pages it has.
+> The 8 MB rule for text, Markdown and JSON Lines below is the same kind of gate, and a
+> `.json` file over 64 MB is imported in pieces too.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:7267 (fileSizeMB in units of 1,048,576 bytes) and 7301 (documentType == .pdf && fileSizeMB > 10), RAGService+Streaming.swift:70 (batchSize = 15), DocumentProcessor.swift:691-707 (piecewiseTextBytes, importsInPieces), TextPieceReader.swift:22 (pieceBytes), JSONRecordExtractor.swift:35 (maxFileBytes); read at 1e4a718]`
 
 From 5.7 a text, Markdown or JSON Lines file over 8 MB is imported the same way, in pieces of
 about 2 MB with a checkpoint after each. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro

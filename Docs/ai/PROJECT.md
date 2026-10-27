@@ -85,6 +85,12 @@ These are not roadmap gaps. They are the product.
 - Deployment target iOS 26.0 and macOS 26.0. Some capabilities are gated to 27+, notably native
   Private Cloud Compute execution.
 - Swift tools 6.0, SwiftUI.
+  Corrected 2026-10-27: "Swift tools 6.0" is the root `Package.swift`'s tools version, not the language mode.
+  The app targets and the root package compile in Swift 5 language mode: `SWIFT_VERSION = 5.0` in the Debug and
+  Release configurations of all seven targets in `project.pbxproj` (the project-level pair sets none), and
+  `swiftLanguageModes: [.v5]` in `Package.swift`. The vendored `swift-transformers` package declares tools 6.0 and
+  sets no language mode, so the Swift 5 clause here does not cover it.
+  `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: grep -o 'SWIFT_VERSION = [^;]*' OpenIntelligence.xcodeproj/project.pbxproj (14 matches, all 5.0) and a parse of its 16 XCBuildConfiguration blocks against their configuration lists; Package.swift:1 and 97-99; OpenIntelligence/swift-transformers/Package.swift:1; read at 1e4a718]`
 - Built with Xcode 27.0 (`27A266a`, Swift 6.4) at `/Applications/Xcode.app`; the beta application was removed on 2026-09-10 (`CLAUDE.md`).
 - Targets: `OpenIntelligence` (app), `OpenIntelligenceEngine` (SwiftPM library),
   `OpenIntelligenceLiveActivities` (widget extension), `OpenIntelligenceTests`.
@@ -105,6 +111,11 @@ These are not roadmap gaps. They are the product.
 - **Vision**, for OCR.
 - **StoreKit 2**, for billing.
 - **CloudKit / iCloud Drive**, for library sync.
+  Corrected 2026-10-27: iCloud Drive only, no CloudKit. No Swift file imports CloudKit or uses `CKContainer`,
+  `CKDatabase` or `CKRecord`, and the app's `com.apple.developer.icloud-services` entitlement lists only
+  `CloudDocuments` (the Share and Live Activities extensions have no iCloud entitlement). Library sync is
+  `WorkspaceSyncService`, which watches the ubiquitous documents scope with `NSMetadataQuery`.
+  `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: git grep -E 'import CloudKit|CKContainer|CKDatabase|CKRecord' over all Swift (no match); plutil -p of OpenIntelligence.entitlements, OpenIntelligenceShare.entitlements and OpenIntelligenceLiveActivities.entitlements; WorkspaceSyncService.swift:3648-3649 (NSMetadataQuery over NSMetadataQueryUbiquitousDocumentsScope); Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md section 3, "Sync"; read at 1e4a718]`
 
 External services used by the project but not by the app: Notion (roadmap), App Store Connect and
 Xcode Cloud (release; as recorded 2026-09-22 it archives and has no test action, see
