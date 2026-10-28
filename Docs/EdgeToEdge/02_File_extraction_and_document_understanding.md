@@ -182,7 +182,7 @@ Fifty-two concepts. This is the reading room: getting the words, tables and pict
 
 ### StructuredElement (Conditional, verified), TableData (Conditional, verified), Table row record (Conditional, verified), Table schema view (Conditional, verified)
 - **Idiot:** the app keeps tables as tables: headers, rows, and a one-line list of the column names.
-- **Dot-connector:** a row record like "Row 2: Model=1688; Reference=1688-020-122" makes a row independently retrievable; the schema view gives BM25 the column names as high-signal anchors; typed elements let the chunker keep tables atomic and boost headings.
+- **Dot-connector:** a row record like "Row 2: Model=A100; Reference=A100-020-122" makes a row independently retrievable; the schema view gives BM25 the column names as high-signal anchors; typed elements let the chunker keep tables atomic and boost headings.
 - **Expert:** `StructuredDocumentParser` emits them; rows go to `chunk_table_rows`, elements to `chunk_structured`.
 
 ### TextBlock (Conditional, verified)

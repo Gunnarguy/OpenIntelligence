@@ -1773,11 +1773,11 @@ It is emitted by structured parsing and converted into embedding text plus struc
 
 ### Explain it like I am five
 
-Think of this part of the app as a reading room and scanner. **Table row record** means: A labeled representation such as Row 2: Model=1688; Reference=1688-020-122. The reason it exists is: It preserves cross-cell relationships and makes a row independently retrievable.
+Think of this part of the app as a reading room and scanner. **Table row record** means: A labeled representation such as Row 2: Model=A100; Reference=A100-020-122. The reason it exists is: It preserves cross-cell relationships and makes a row independently retrievable.
 
 ### Layman’s explanation
 
-A labeled representation such as Row 2: Model=1688; Reference=1688-020-122. It preserves cross-cell relationships and makes a row independently retrievable.
+A labeled representation such as Row 2: Model=A100; Reference=A100-020-122. It preserves cross-cell relationships and makes a row independently retrievable.
 
 ### Technical explanation
 
@@ -4929,11 +4929,11 @@ It is resolved by QueryRuntimeCoordinator before retrieval.
 
 ### Explain it like I am five
 
-Think of this part of the app as a dispatcher interpreting a request. **Primary entity** means: The strongest identity-bearing token or phrase in a lookup, such as 1688, a device model, or a named product. The reason it exists is: A possible result containing the primary entity can resolve ambiguity among otherwise similar specifications.
+Think of this part of the app as a dispatcher interpreting a request. **Primary entity** means: The strongest identity-bearing token or phrase in a lookup, such as a device model or a named product. The reason it exists is: A possible result containing the primary entity can resolve ambiguity among otherwise similar specifications.
 
 ### Layman’s explanation
 
-The strongest identity-bearing token or phrase in a lookup, such as 1688, a device model, or a named product. A candidate containing the primary entity can resolve ambiguity among otherwise similar specifications.
+The strongest identity-bearing token or phrase in a lookup, such as a device model or a named product. A candidate containing the primary entity can resolve ambiguity among otherwise similar specifications.
 
 ### Technical explanation
 

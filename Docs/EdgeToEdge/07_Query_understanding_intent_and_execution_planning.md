@@ -134,7 +134,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 
 ### Primary entity (Core, verified)
 - **Idiot:** the main thing your question is about.
-- **Dot-connector:** "1688" beats a similar spec for a similar product; used as an override in extraction.
+- **Dot-connector:** "A100" beats a similar spec for a similar product; used as an override in extraction.
 - **Expert:** `SpecificationExtractor`.
 
 ### Procedure intent (Core, verified)
@@ -203,7 +203,7 @@ Forty-five concepts. Understanding the question before searching: what kind of a
 - **Expert:** `SpecificationExtractor` and `EvidenceScoringPolicyService`.
 
 ### Standalone rewrite (Conditional, verified)
-- **Idiot:** "it" becomes "the 1688 camera head."
+- **Idiot:** "it" becomes "the A100 camera head."
 - **Dot-connector:** retrieval can't see the conversation unless it's folded into the query; the original message is kept.
 - **Expert:** `QueryRewriterService` with `ConversationMemoryService`.
 
