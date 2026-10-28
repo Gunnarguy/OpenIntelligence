@@ -684,6 +684,15 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 > question asks for a list. **Gate I** fails the answer; it removes no passage. A thesis review on 2026-10-28 quoted
 > rows D, G, H and I as written above.
 > `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:1878-1932 (detectContradictions, the negation list and the shared-word rule) and 520-534 (confidence 1.0 - 0.2 per flag, fails below 0.5), 891-990 (runGateG: the 25-word minimum at 910, the three sub-checks, passed when the penalty is under 0.20 at 970), 990-1052 (runGateH), 1053-1072 (runGateI: passed is !assessment.shouldAbstain), read 2026-10-28 at a7276983, nothing built or run]`
+>
+> **Narrowed 2026-10-28**, after two refuting reviews of the note above. Gate D compares the retrieved passages
+> with each other and never reads the answer. Only Gate H's multi-section shortfall fails it by itself: it takes 0.55
+> off a start of 1.0 against a bar of 0.55, while a comparison that names one side scores 0.65 and passes, and
+> Standard never hands Gate H the question type, so there it checks nothing. Gate I is not one of the critical gates
+> (A, C and E), so a failure marks the answer as failing verification without withdrawing it by itself: Standard
+> withdraws only through the average-confidence bar, and Deep Think and Maximum only label. The source-only check
+> reuses the same assessment and, for a lab-science question, reads only the passages from the allowed domain.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:513-536 (runGateD reads the passages only), 996-1051 (runGateH, passed at confidence 0.55 or more), 250-253 (criticalGates), 1053-1071 (runGateI); RAGService.swift:16685-16695 (Standard's verify call passes no answerIntent) and 18295-18304 (Deep Think and Maximum pass it); SourceOnlyAnswerService.swift:198-210 (domainFilteredChunks), read 2026-10-28 at a7276983, nothing built or run]`
 
 Thresholds rise with mode: 0.50 in Standard, 0.60 in Deep Think, 0.80 in Maximum. Failing a critical check produces a grounded abstention rather than a hedged answer.
 
@@ -1322,6 +1331,15 @@ A failed critical verification gate produces a grounded abstention rather than a
 > "I couldn't find enough supporting evidence in this library to answer that reliably." with no model call, and only
 > Standard's planner abstain goes to the reliability fallback.
 > `[evidence_level: code_verified, confidence: high (read in code, not seen on a device), evidence_source: SourceOnlyAnswerService.swift:526-527 (finalAnswer when shouldAbstain); RAGService.swift:19642-19663 (the abstention kept for state and precise-value questions); StructuredAnswer.swift:180-184 (setRefuse sets the answer type only); no use of AnswerType.refused under OpenIntelligence/Features or OpenIntelligence/UI; AgenticOrchestrator.swift:9350-9385 (the abstain case), read 2026-10-28 at a7276983]`
+>
+> **Narrowed 2026-10-28**, after two refuting reviews of the note above, with three exceptions. A lab-science
+> question whose passages mix kinds of study gets "DOMAIN ISOLATION BREACH: Cannot answer reliably." and the reason,
+> with no draft. In Standard the check runs only for lookup and table-lookup questions, since it declines any other
+> intent although its caller also admits precise-value questions, and an abstention on a question that asks for
+> neither a precise value nor a state is dropped, so the generated answer stands. And in Deep Think and Maximum the
+> planner's refusal goes back to whichever step of the run asked for the answer, so it is the reply when the step
+> that abstains is the last one, and on a lookup an extracted value can still replace the final answer.
+> `[evidence_level: code_verified, confidence: high (read in code, not seen on a device; that the refusal is the reply only when the last step abstains is inferred), evidence_source: SourceOnlyAnswerService.swift:212-243 and 1095-1097 (the domain abstention); RAGService.swift:16930-16953 (Standard's caller), 19588-19590 (declines intents that are not lookup or table lookup), 19642-19663 (preserveAbstention), 11239-11246 (highPrecisionLookupOverrideAnswer on the Deep Think and Maximum answer); AgenticOrchestrator.swift:9350-9386 (the abstain case returns to its caller), read 2026-10-28 at a7276983]`
 
 > **Corrected 2026-10-27** against `55fea8e`: "when the post-retrieval plan judges the evidence insufficient" refuses
 > in Deep Think and Maximum. In Standard it refuses only with reliability mode off; with it on, the default, the
