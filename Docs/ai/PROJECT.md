@@ -134,7 +134,7 @@ Xcode Cloud (release; as recorded 2026-09-22 it archives and has no test action,
 4. **`RAGAppIntents.swift` uses 10 of 10 Siri shortcut slots since 5.7** (9 through 5.6; "Find Passages" took
    the tenth). An eleventh stops every one registering with no error, and `AppShortcutsProviderTests` fails the
    suite at eleven.
-5. **The suite is 832 tests as of 2026-10-12 (106 Swift files under `OpenIntelligenceTests`; it was 504
+5. **The suite is 832 tests as of 2026-10-12 (1,364 by 2026-10-21, recounted at the end of this item; 106 Swift files under `OpenIntelligenceTests`; it was 504
    tests in 65 files on 2026-09-28), and it tests components, not the seams between them.** The 65 counted
    on 2026-09-28 were 63 test files and two ingestion fixture builders. Some pieces now
    have unit tests: `ModelExecutionPlannerTests` covers the routing decision
@@ -147,6 +147,10 @@ Xcode Cloud (release; as recorded 2026-09-22 it archives and has no test action,
    end to end from retrieval to answer. The seams
    between subsystems are where the real defects have been found.
    `[evidence_level: test_verified_by_prior_session, confidence: high, evidence_source: full iOS suite on the merged tree, 504 tests, 4 skipped, 0 failures (Docs/ai/STATE.md, Verification 2026-09-28); git ls-files OpenIntelligenceTests (65 Swift files, 63 declaring an XCTestCase, 504 func test declarations) and a grep of that folder for each named symbol, 2026-09-29. Superseded figure: 173 tests across 22 files, recorded 2026-08-07]`
+   Recounted 2026-10-28 at the 5.7 code (`a7276983`; `OpenIntelligenceTests` is unchanged at `90d78d6`): the last
+   full run recorded before the 5.7 build is 1,364 tests on 2026-10-21, and the folder holds 189 Swift files with
+   1,369 `func test` declarations. A thesis review on 2026-10-28 quoted the 832 as current.
+   `[evidence_level: test_verified_by_prior_session (the run) and grep_verified (the counts), confidence: high, evidence_source: CHANGELOG.md, the IngestionModeSwitchTests entry's "full suite 1,364 tests" (first in 4e28ed78, 2026-10-21); git ls-tree and git grep 'func test' on OpenIntelligenceTests at a7276983, 2026-10-28]`
 
 ## Source-of-truth locations
 

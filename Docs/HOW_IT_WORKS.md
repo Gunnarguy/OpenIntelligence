@@ -30,6 +30,12 @@
 > rung 1. Each note sits under the passage it corrects.
 > `[evidence_level: code_verified, confidence: exact, evidence_source: the files and lines cited at each note, read 2026-10-27 at 55fea8e, nothing built or run]`
 
+> **Corrected 2026-10-28** against `a7276983`: section 01's structural note marks its line counts as August's and
+> carries the 5.7 counts under them, section 04's rows for gates D, G, H and I, and what the source-only check's
+> refusal shows and what Deep Think and Maximum do on a planner abstain (section 11). Each note sits under the passage
+> it corrects.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: the note in section 01, read 2026-10-28 at a7276983, nothing built or run]`
+
 > **Corrected 2026-10-20** against the working tree (`b868fc0` plus the 5.7 work in progress), wherever this page
 > disagreed with the code. What changed:
 > - **Section 07 is rewritten from the code.** Deep Think and Maximum first try a shortcut for exact values, then
@@ -158,8 +164,9 @@ The second constraint is that documents stay on the device. So "send the whole c
 | `Billing` | 1,405 | 8 | StoreKit, entitlements, quotas |
 
 > **An honest structural note**
-> Three files carry about a third of the service code between them: the retrieval orchestrator at 18,459 lines, the document processor at 9,562, and the agentic orchestrator at 7,932. That is not a shape anyone would choose deliberately. It is what happens when a pipeline grows stage by stage and each new stage lands next to the one before it. Splitting them is real work that has not been done, and a page explaining the architecture should say so rather than draw a tidy diagram that implies otherwise.
+> Three files carry about a third of the service code between them (August 2026 counts, recounted below): the retrieval orchestrator at 18,459 lines, the document processor at 9,562, and the agentic orchestrator at 7,932. That is not a shape anyone would choose deliberately. It is what happens when a pipeline grows stage by stage and each new stage lands next to the one before it. Splitting them is real work that has not been done, and a page explaining the architecture should say so rather than draw a tidy diagram that implies otherwise.
 > Recounted 2026-10-20 in the working tree with `wc -l`: the retrieval orchestrator (`RAGService.swift`) is 22,696 lines (22,746 by 22:11 the same evening, as the 5.7 work goes on), the document processor 10,628 and the agentic orchestrator 9,381. `[evidence_level: code_verified, confidence: exact, evidence_source: wc -l on the three files, 2026-10-20]`
+> Recounted 2026-10-28 at the 5.7 code (`a7276983`; the three files are unchanged at `90d78d6`): 22,817 lines, 10,663 and 9,397, which is 42,877 of the 135,159 lines of Swift under `OpenIntelligence/Services/` (32%), so "about a third" still holds. A thesis review on 2026-10-28 quoted the August figures above as current. `[evidence_level: code_verified, confidence: exact, evidence_source: git show a7276983:<file> | wc -l on RAGService.swift, DocumentProcessor.swift and AgenticOrchestrator.swift, and on every .swift file under OpenIntelligence/Services/, 2026-10-28]`
 
 ### What is actually on disk
 
@@ -665,6 +672,18 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 > Standard passes structured claims, so Deep Think and Maximum answers are always held to 0.40. Headings and claims
 > worded as questions are left out before counting, and an answer with no claim left to check passes Gate B outright.
 > `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: VerificationGateService.swift:180 (Gate A is runGateA), 294-319 (runGateA; the margin is "info only" at 311), 279-288 (checkRetrievalConfidence; git grep finds no caller, and muMargin is applied only at 285; ConfidencePolicyService.swift:43 reads it only to raise it), 333-359 (headings and question-like claims dropped), 361-371 (no claims: passed), 391 (weighted coverage), 397 (structured: 0.55 and 0.80), 410 (otherwise 0.40); ConfidencePolicyService.swift:43; RAGService.swift:16685-16695 (Standard passes structuredClaims) and 18295-18304 (Deep Think and Maximum do not)]`
+
+> **Corrected 2026-10-28** against `a7276983` (the 5.7 code): rows D, G, H and I say more than the gates check.
+> **Gate D** looks only for negation: it flags two passages that share seven or more longer words near "not",
+> "never", "no longer", "unlike", "instead of", "rather than" or "contrary to" in one of them and not the other, and
+> fails at three or more flags. It compares no numbers and no other kind of conflict. **Gate G** is a repetition
+> detector, not a structure check: on an answer of 25 words or more it scores word-pair entropy, the share of
+> distinct words and the most repeated three-word run, and fails when those penalties reach 0.20. **Gate H** is a set
+> of coverage heuristics rather than a check that a chain holds end to end: evidence from at least two sections for a
+> multi-hop question, both sides named in the answer for a comparison, and an answer that is not terse when the
+> question asks for a list. **Gate I** fails the answer; it removes no passage. A thesis review on 2026-10-28 quoted
+> rows D, G, H and I as written above.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:1878-1932 (detectContradictions, the negation list and the shared-word rule) and 520-534 (confidence 1.0 - 0.2 per flag, fails below 0.5), 891-990 (runGateG: the 25-word minimum at 910, the three sub-checks, passed when the penalty is under 0.20 at 970), 990-1052 (runGateH), 1053-1072 (runGateI: passed is !assessment.shouldAbstain), read 2026-10-28 at a7276983, nothing built or run]`
 
 Thresholds rise with mode: 0.50 in Standard, 0.60 in Deep Think, 0.80 in Maximum. Failing a critical check produces a grounded abstention rather than a hedged answer.
 
@@ -1294,6 +1313,15 @@ A failed critical verification gate produces a grounded abstention rather than a
 > or a state (in Standard after failed checks, in Deep Think and Maximum for any lookup not locked to a value). And
 > with reliability mode off, an answer whose claims Gate B all marked unsupported is shown as a refusal.
 > `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:16660-16706, 16864-16909, 11212-11236, 19494-19631 (sourceOnlyOutcomeIfNeeded), ModelExecutionPlanner.swift:37-40, AgenticOrchestrator.swift:390-453, StructuredAnswer.swift:979-1012]`
+>
+> **Corrected 2026-10-28** against `a7276983`: the source-only check's "refusal" does not hide the answer. When it
+> abstains on a precise-value or state question, the answer it puts in place reads "⚠️ **[Needs Verification]** This
+> answer was drafted but could not be strictly verified against the retrieved evidence:", then the draft itself, then
+> the reason. The structured answer is marked refused, and no chat screen treats a refused answer differently, so the
+> person sees the draft under that warning. In Deep Think and Maximum, a planner abstain is a refusal: the reply is
+> "I couldn't find enough supporting evidence in this library to answer that reliably." with no model call, and only
+> Standard's planner abstain goes to the reliability fallback.
+> `[evidence_level: code_verified, confidence: high (read in code, not seen on a device), evidence_source: SourceOnlyAnswerService.swift:526-527 (finalAnswer when shouldAbstain); RAGService.swift:19642-19663 (the abstention kept for state and precise-value questions); StructuredAnswer.swift:180-184 (setRefuse sets the answer type only); no use of AnswerType.refused under OpenIntelligence/Features or OpenIntelligence/UI; AgenticOrchestrator.swift:9350-9385 (the abstain case), read 2026-10-28 at a7276983]`
 
 > **Corrected 2026-10-27** against `55fea8e`: "when the post-retrieval plan judges the evidence insufficient" refuses
 > in Deep Think and Maximum. In Standard it refuses only with reliability mode off; with it on, the default, the

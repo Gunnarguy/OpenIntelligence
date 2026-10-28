@@ -257,6 +257,18 @@ Measured on 2026-10-15 on a Mac (macOS 27, an 8,192-token window, `tokenCount(fo
 
 Four things download from the network, and only starting from an address the person gave them: "Save a Web Page" (`IngestURLIntent`, called "Ingest Webpage" through 5.6), the Link parameter of "Add to Library" (`AddToLibraryIntent`), the Paste control on the Documents screen when what was pasted is a web address (`PastedContentStaging`; added to this section 2026-10-12, the control dates from 2026-10-09), and a web page shared to OpenIntelligence from another app's share sheet, which the app takes the next time it is in front (`SharedInbox`, `SharedInboxImport`, through the Paste control's staging; added 2026-10-17). The share extension itself downloads nothing: it writes the address or the text to the app group's `ShareInbox` folder on the device. All four call `WebPageFetchService.fetch`, which makes a GET to that address on an ephemeral `URLSession` with cookies refused and the cache off, and sends nothing from the library with it. An `http` address is asked for as `https`: the app declares no transport-security exception, so plain `http` is never sent. The session follows the site's redirects, as a browser does, so a `www` variant or a short link can lead to further requests, and to a host other than the one in the address. No request goes to a service of this app. The page's text is stored on the device and indexed there like any imported file. This does not change where a question is answered: retrieval and ranking stay on the device, and Private Cloud Compute is reached only by the route described above. `[evidence_level: code_verified, confidence: exact, evidence_source: WebPageFetchService.swift fetch(_:now:), which builds the session with no delegate; ScreenAwarenessIntents.swift IngestURLIntent.perform; AddToLibraryIntent.swift perform; PastedContentStaging.swift]` Through 5.6 "Ingest Webpage" downloaded nothing, so no build before 5.7 makes this request.
 
+## The plans screen asks the App Store for prices and the app's own rating (added 2026-10-28; in the app since 5.4)
+
+Opening the plans screen (`PlanUpgradeSheet`) makes two kinds of request, neither carrying anything from a library.
+`AppStoreRatingService.refreshIfStale` sends one GET to Apple's public lookup endpoint,
+`https://itunes.apple.com/lookup?id=` with the app's own App Store id, on the shared `URLSession`, at most once a
+day; the rating and count it returns are cached in `UserDefaults` for the one line on that screen that cites them,
+and any failure is silent. The same screen refreshes the StoreKit products and the storefront
+(`billingService.refreshProducts()`, `storefront.refresh()`), which reach the App Store through StoreKit, as buying
+or restoring a plan does. A thesis review on 2026-10-28 listed the app's network paths as Private Cloud Compute,
+iCloud Drive sync and the web page downloads above, which leaves these out.
+`[evidence_level: code_verified, confidence: exact, evidence_source: AppStoreRatingSnapshot.swift:49-78 (AppStoreRatingService; the URL at 66, the once-a-day rule at 63-65), PlanUpgradeSheet.swift:165 (.task refreshIfStale) and 175-185 (refreshProducts, storefront.refresh); added in 0f6c5a0 on 2026-09-22, first released in v5.4.0; read 2026-10-28 at 90d78d6, unchanged since a7276983]`
+
 ## The Atlas may ask the system for a language's word classes (added 2026-10-17, for 5.7)
 
 Before the Atlas names its axes and clusters, and before the library's topic chips are named, `AtlasLabeling.loadWordClasses`
