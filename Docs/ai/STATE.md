@@ -3,7 +3,7 @@
 Updated: 2026-11-03 (5.8 open; `fb225053` pushed and built as Xcode Cloud build 488, VALID on iOS and macOS, not attached to either record. Later 5.8 work is committed locally with `[ci skip]`. 5.7 is live on iPhone, iPad and Mac since 2026-10-22, build 487. The 5.7
 closeout record, with its open device checks, is in git: `git show a27abbe8:Docs/ai/STATE.md`.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 3c42daa9
+Last verified commit: 55366647
 
 ## Objective
 
@@ -19,7 +19,9 @@ watched folders and a clearer plans screen are built and tested in the working t
 | Citations in every file type (`SourceTextView.swift`, `SourceMatchBanner`) | Built, tests pass, committed. Row `40c49a74d54f81c199dccc5e6b911e38`, In Progress. audio not measured (no recognizer in the Simulator) |
 | Library Settings | Two bugs fixed, neither with a test (Save after the library changed; opening it saving a size). The overclaiming copy is unfixed: row `40c49a74d54f81fb8e6ef32ac1549e2b`. Run `oi-claim-audit` first |
 | Plans screen ("What you get", `PlanBenefits.swift`) | Done, tests pass, committed |
-| iCloud bullet on the plan cards | **Held back on purpose.** Waits for the two-device check on row `3ca49a74d54f8103b69be921f0335171`; baseline 519 conflict copies, unchanged on 2026-11-02 |
+| iCloud bullet on the plan cards | **Held back on purpose.** Waits for the two-device check on row `3ca49a74d54f8103b69be921f0335171`. The copies were 497 on 2026-11-03 and 0 after the Mac's first launch of `5c13a375` (see the next row), so the baseline is now 0 |
+| Mac launch freeze and orphaned conflict copies (`WorkspaceSyncService.swift`, named by him 2026-11-03) | Committed `5c13a375`. `waitUntilSyncFilesAreFree` (six lists, off the main thread, 20 s limit) runs before the pass at the existing `await` after `prepareWorkspaceDownloads`; `removeOrphanedConflictCopies` runs last in `synchronizeConfiguredLibraries`. Mac launch 21:34 UTC: `removed 497, failed 0`, waits 3 to 9 ms, no claim wait on the main thread. Freeze row `40d49a74d54f81779bfaea8b13628d5a` In Progress: closes on a launch that logs a `sync.waitForFiles` over 500 ms while `sample` shows the main thread in its run loop. Not done from the review: a follow-up pass when the app writes during the wait (the suppressed `.localWorkspaceDidChange`), and the pass's own coordinated writes still run on the main thread (about 3% of samples during an import) |
+| Sync passes about once a second during an import | Measured 2026-11-03, noted on row `3ca49a74d54f81a6b8c1e4827a6585fa` (the 420-reloads row, v5.8 To Do). It predates `5c13a375` (up to 32 a minute in the earlier build). Not fixed |
 | Per-library Face ID lock | Built, reviewed and **taken out** 2026-11-02 at the owner's word. Copy in `Growth/library-lock-attempt-2026-11-02/`. An app-wide lock is not built: iOS offers Require Face ID free |
 | App Store Connect | 5.8 records exist on iOS and macOS, PREPARE_FOR_SUBMISSION, release AFTER_APPROVAL. Build 488 (`fb225053`) is VALID on both and attached to neither: he wants more in 5.8 before another build, to save Xcode Cloud hours |
 | Rating request (`ReviewPromptService.swift`) | Done 2026-11-03: Apple's sheet only, on the first verified or third finished answer, once per version, 14 days apart; the custom "Enjoying" alert is gone (App Review 5.6.1). Row `40d49a74d54f81b8a754e342bf1d90d0`, In Progress. Closes when a development build on his iPhone shows the sheet |
@@ -29,7 +31,7 @@ watched folders and a clearer plans screen are built and tested in the working t
 | Atlas card axis labels (`AxisLabelInsets.boxes`) | Done 2026-11-03: labels clear the cluster box only where they would cover it |
 | Device event log (`VerificationJournal.swift`, `scripts/phone_evidence.py`) | Done 2026-11-03, Debug builds only. Row `40d49a74d54f81b59f23ce86c142e2a2`. The phone has the build (10:33). First pull: trace and MetricKit copied, no events yet (app not opened since install). `RAGAppIntents.swift`'s 12 intents covered too, at his word (the file named 2026-11-03), 10 App Shortcuts unchanged |
 | 107 open 5.0 to 5.7 rows | Sorted 2026-11-03: 19 checkable headless, 20 Mac by hand, 61 iPhone, 7 his. None already evidenced. 32 iPhone rows have rules in `scripts/phone_evidence_rules.json` |
-| Store copy continuity | `Docs/Release/APP_STORE_METADATA_HISTORY.md` has "The pieces that carry over": opening and closing lines, section names, promo pattern. Use it for 5.8's copy, which is not written yet |
+| 5.8 copy | Committed `55366647`: What's New (12 items), `Docs/USER_CHANGELOG.md` and its byte copy `VersionHistory.md`, `WHATS_NEW.md`, both platforms' `release_notes.txt` (Mac 2,062 characters, iPhone and iPad 2,143) and `promotional_text.txt`, the `### 5.8` entry in `APP_STORE_METADATA_HISTORY.md`. **Not pushed to App Store Connect**: `fastlane push_metadata version:5.8` waits for his word, and the copy must grow with anything else that lands in 5.8 |
 
 ## Active Constraints
 
@@ -64,6 +66,9 @@ watched folders and a clearer plans screen are built and tested in the working t
 
 ## Verification (2026-11-03, output read)
 
+- Tree of `5c13a375`: `SyncFileWaitTests` 4 of 4, `OrphanedConflictCopyTests` 6 of 6, then `xcodebuild test-without-building` -> 1,450 tests, 8 skipped, 0 failures (527 s); Mac `xcodebuild build` -> BUILD SUCCEEDED. The Mac build (`/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app`) was launched from there, not `/Applications`; event log and `sample` results are in the status table.
+- Tree of `55366647`: `VersionHistoryTests` 3 of 3, `WhatsNewCoverageTests` 4 of 4.
+
 - 2026-11-03, final tree `3c42daa9`: `xcodebuild test-without-building` -> 1,428 tests, 8 skipped, 0 failures (481 s; 495 s before the trace kept every category). `python3 scripts/phone_evidence.py` against the phone -> pulled the trace and MetricKit, 0 events.
 - `xcodebuild test-without-building` with the rating and Live Activity changes -> 1,415 tests, 8 skipped, 0 failures. After the Product Guide edit: `SampleQuestionHeadingsTests`, `SampleDocumentCopyCleanupTests`, `ImportLiveActivityRuleTests`, `ReviewPromptServiceTests` -> 25 of 25.
 
@@ -94,4 +99,4 @@ PASS row in Notion with its proof lines quoted, and tell him the FAIL rows. Then
 the 2026-11-03 sort (saved conversation [S13]+, Glossary PCC screenshots, Export, Siri tips, answer-card taps, no-passage
 self-heal, paragraph entities, no-Apple-Intelligence samples, PDF GPU log, Mac SpeechTranscriptionTests, 5.0 blocked
 rebuild, MMR and few-spaces benchmarks). The Mac-by-hand rows and the 420-reloads count wait for him to say the screen is
-free. No push or build without his word.
+free. No push, App Store Connect write or Xcode Cloud build without his word.
