@@ -186,6 +186,103 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 ## Versions, newest first
 
+### 5.8
+
+- **Platforms:** iOS, macOS
+- **Live:** not yet; records in PREPARE_FOR_SUBMISSION (created 2026-11-02, release AFTER_APPROVAL), build 488 (`fb225053`) VALID on both and attached to neither
+- **Final release notes commit:** the 2026-11-03 `[ci skip]` commit that adds this entry
+- **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,062 characters for the Mac and 2,143 for iPhone and iPad, after the launch-freeze line was added the same day; promotional text 159. Not pushed to App Store Connect.
+
+**Release notes (`fastlane/metadata/`, the macOS copy):**
+
+```text
+This one's about making the app easier to start with and easier to trust.  Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.
+
+
+GETTING STARTED
+
+• The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it.  Settings › How This Works › Show Me Around brings them back.
+
+• The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours.  Ask it anything about how the app works.
+
+
+ANSWERS
+
+• Every citation opens its passage in the document, highlighted, with a line saying whether it was found word for word, found in part, or not found.  It used to work only in a PDF.  For Word, Excel and the like you see the text the app read from the file.
+
+• Illustrate now sits with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage.
+
+
+YOUR LIBRARIES
+
+• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks every few minutes while the app is open.
+
+• Importing several files at once is faster: the files go in first, and their overviews and suggested questions come right after.
+
+• Importing a very large file twice no longer makes a second copy, and a library synced with iCloud no longer shows more documents on its button than it holds.
+
+• With libraries synced through iCloud, the app no longer stops responding at launch while iCloud catches up.
+
+
+ALSO
+
+• The plans screen says what each plan adds.
+
+• Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+**Release notes (`fastlane/metadata-ios/`, the same commit):**
+
+```text
+This one's about making the app easier to start with and easier to trust.  Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.
+
+
+GETTING STARTED
+
+• The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it.  Settings › How This Works › Show Me Around brings them back.
+
+• The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours.  Ask it anything about how the app works.
+
+
+ANSWERS
+
+• Every citation opens its passage in the document, highlighted, with a line saying whether it was found word for word, found in part, or not found.  It used to work only in a PDF.  For Word, Excel and the like you see the text the app read from the file.
+
+• Illustrate now sits with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage.
+
+
+YOUR LIBRARIES
+
+• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks when you open the app.
+
+• Importing several files at once is faster: the files go in first, and their overviews and suggested questions come right after.
+
+• Importing a very large file twice no longer makes a second copy, and a library synced with iCloud no longer shows more documents on its button than it holds.
+
+• With libraries synced through iCloud, the app no longer stops responding at launch while iCloud catches up.
+
+• A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.
+
+
+ALSO
+
+• The plans screen says what each plan adds.
+
+• Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
+
+
+Everything still runs on your device, unless you okay Apple's Private Cloud Compute.
+```
+
+**Promotional text** (both platforms):
+
+```text
+New in 5.8: every screen shows you around.  Guides that don't use your plan, citations that open their passage, and watched folders.  Needs Apple Intelligence.
+```
+
 ### 5.7
 
 - **Platforms:** iOS, macOS

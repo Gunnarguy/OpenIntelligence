@@ -9,22 +9,26 @@ This document provides a chronological history of user-facing changes, highlight
 
 ## v5.8 - unreleased
 
-Every citation now shows its passage in the document, a library can keep up with a folder, and the plans screen says plainly what you get.
+This one's about making the app easier to start with and easier to trust. Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.
 
-### Libraries
+### Getting Started
 
+- **Every screen shows you around.** The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it. Settings › How This Works › Show Me Around brings them back.
 - **The guides don't use your plan.** The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works.
-- **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
-- **Importing a very large file twice no longer makes a second copy.** Large PDFs and text files now get the same duplicate check as everything else.
-- **Importing several files at once is faster.** Each file used to wait for its overview and suggested questions before the next one started. Now the files go in first and those come right after, the same as before.
-- **A library's count matches what's in it.** A library synced with iCloud could show more documents on its button than it held.
-- **A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.** It used to be able to stay there for good.
 
 ### Answers
 
 - **Every citation shows its passage in the document.** Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check.
-- **Every screen shows you around.** The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it. Settings › How This Works › Show Me Around brings them back.
 - **Illustrate under an answer, and source chips that open.** Illustrate now appears with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage in its document.
+
+### Libraries
+
+- **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
+- **Importing several files at once is faster.** Each file used to wait for its overview and suggested questions before the next one started. Now the files go in first and those come right after, the same as before.
+- **Importing a very large file twice no longer makes a second copy.** Large PDFs and text files now get the same duplicate check as everything else.
+- **A library's count matches what's in it.** A library synced with iCloud could show more documents on its button than it held.
+- **The app no longer stops responding at launch while iCloud catches up.** With libraries synced through iCloud, the window could freeze for a few seconds at launch while iCloud finished with one of the sync files. The app now waits for iCloud in the background.
+- **A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.** It used to be able to stay there for good.
 
 ### Plans
 

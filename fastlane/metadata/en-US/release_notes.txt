@@ -1,72 +1,36 @@
-This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.
+This one's about making the app easier to start with and easier to trust.  Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.
 
 
-YOUR DOCUMENTS
+GETTING STARTED
 
-• JSON and JSONL files import as records, with their field names and numbers kept as they are.
+• The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it.  Settings › How This Works › Show Me Around brings them back.
 
-• Big imports keep going.  Very large text and JSONL files import a piece at a time, a PDF of any size imports (over 500 MB used to be turned away), and an interrupted import picks up where it was, even after an app update, without redoing the pages and embeddings it had.  The queue has a Pause button, and if iOS stops an import in the background the banner says Paused.
-
-• You can drop a file or a whole folder on the app's icon, and the Documents screen has a Paste button for a copied file, a web address or text.
-
-• Numbers in tables are kept, pages in Greek, Chinese, Arabic and other scripts keep their text, and non-UTF-8 text files come in readable.
-
-• Addresses, phone numbers, dates and amounts are found anywhere in a document, not only in its tables.
-
-• An import stops and says so if the search model comes back empty, and a document missing from search is rebuilt.
-
-
-LARGE LIBRARIES
-
-• A very large library doesn't hold the app up: it's read once at launch, not twice, the app answers taps right after you open it, and starting an import doesn't freeze it.
-
-• The Atlas opens on a very large library, and names its clusters from your own documents.
-
-
-SIRI, SHORTCUTS AND SPOTLIGHT
-
-• Actions hand back what they found, so the next step of a shortcut can use the answer and its sources.  "Ask My Documents" and "Ask a Library" have a Mode menu.
-
-• New actions: Find Passages, Check a Claim, Add to Library, Create Library, Set Answer Mode, Open Library and Open Document.
-
-• If a question from Siri needs Private Cloud Compute and you haven't decided yet, the app comes up and asks first.
-
-• Spotlight keeps your documents until you delete them, and tapping one opens it.  Visual Intelligence lists the documents that mention what the camera sees.
-
-• On the Mac: a menu bar icon, Ask and Add in the Services menu, and keyboard shortcuts, like Shift-Command-N for a new conversation and Command-O to add documents.
-
-
-SHARING
-
-• A shared answer takes its sources with it, Image makes a card of it, and Export Conversation saves a conversation as Markdown, JSON Lines or PDF.  Copy works on the Mac now.
-
-• Copy Link on a document or a library opens it in the app on your other devices.
+• The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours.  Ask it anything about how the app works.
 
 
 ANSWERS
 
-• Every label in an answer, like [S5], opens the passage it came from, and tapping a point in an answer opens the PDF on that page with the passage highlighted.
+• Every citation opens its passage in the document, highlighted, with a line saying whether it was found word for word, found in part, or not found.  It used to work only in a PDF.  For Word, Excel and the like you see the text the app read from the file.
 
-• If a question didn't get its answer because the app was closed, there's an Ask again button.  Searches no longer pick up stray letters.
+• Illustrate now sits with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage.
 
-• The chat is plainer to look at.  Technical Details, under ⋯ or in Settings, brings back the stats and every step.
 
-• Ask out loud: the chat field has a microphone, and dictation runs on your device.
+YOUR LIBRARIES
 
-• Sentences from your documents aren't cut in half, numbers are checked as numbers, and a code like E1 counts as a keyword.
+• On Pro and Lifetime, a library can watch a folder.  New files in it import by themselves, a changed file replaces the version it imported, and your originals are never changed.  It checks every few minutes while the app is open.
 
-• Deep Think and Maximum answers get the same checks a Standard answer does, and Deep Think keeps its full answer instead of one short line that can be wrong.
+• Importing several files at once is faster: the files go in first, and their overviews and suggested questions come right after.
+
+• Importing a very large file twice no longer makes a second copy, and a library synced with iCloud no longer shows more documents on its button than it holds.
+
+• With libraries synced through iCloud, the app no longer stops responding at launch while iCloud catches up.
 
 
 ALSO
 
-• Every screen has the same look now: spacing, corners and colors match.
+• The plans screen says what each plan adds.
 
-• Handoff, and conversations in an iCloud library sync with it.
-
-• A notification when an import or a long answer is done, if you turn it on, and on iOS 27 and macOS 27 an offer to email me a crash report, sent only if you say so.
-
-• Easier to read: darker gray text, clearer colored labels and a deeper blue in light mode.  VoiceOver names every switch and slider.
+• Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
 
 
 Everything still runs on your device, unless you okay Apple's Private Cloud Compute.

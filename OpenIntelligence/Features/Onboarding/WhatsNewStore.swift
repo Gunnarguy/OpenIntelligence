@@ -110,13 +110,32 @@ final class WhatsNewStore: ObservableObject {
         // the newest version in the bundled VersionHistory.md has no entry below.
         "5.8": WhatsNewRelease(
             version: "5.8",
-            headline: "Every citation now shows its passage in the document, a library can keep up with a folder, and the plans screen says plainly what you get.",
+            headline:
+                "This one's about making the app easier to start with and easier to trust. Every screen shows you around, the app's guides no longer use your plan, every citation opens its passage in the document, and a library can keep up with a folder.",
             items: [
+                .init(
+                    symbol: "hand.point.up.left",
+                    title: "Every screen shows you around",
+                    detail:
+                        "The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it. Settings › How This Works › Show Me Around brings them back."
+                ),
+                .init(
+                    symbol: "book.closed",
+                    title: "The guides don't use your plan",
+                    detail:
+                        "The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works."
+                ),
                 .init(
                     symbol: "checkmark.seal",
                     title: "Every citation shows its passage in the document",
                     detail:
                         "Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check."
+                ),
+                .init(
+                    symbol: "photo.on.rectangle.angled",
+                    title: "Illustrate under an answer, and source chips that open",
+                    detail:
+                        "Illustrate now appears with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage in its document."
                 ),
                 .init(
                     symbol: "folder.badge.gearshape",
@@ -125,14 +144,46 @@ final class WhatsNewStore: ObservableObject {
                         "On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app."
                 ),
                 .init(
+                    symbol: "bolt.horizontal",
+                    title: "Importing several files at once is faster",
+                    detail:
+                        "Each file used to wait for its overview and suggested questions before the next one started. Now the files go in first and those come right after, the same as before."
+                ),
+                .init(
                     symbol: "doc.on.doc",
                     title: "Importing a very large file twice no longer makes a second copy",
-                    detail: "Large PDFs and text files now get the same duplicate check as everything else."
+                    detail:
+                        "Large PDFs and text files now get the same duplicate check as everything else."
+                ),
+                .init(
+                    symbol: "number",
+                    title: "A library's count matches what's in it",
+                    detail:
+                        "A library synced with iCloud could show more documents on its button than it held."
+                ),
+                .init(
+                    symbol: "icloud",
+                    title: "The app no longer stops responding at launch while iCloud catches up",
+                    detail:
+                        "With libraries synced through iCloud, the window could freeze for a few seconds at launch while iCloud finished with one of the sync files. The app now waits for iCloud in the background."
+                ),
+                .init(
+                    symbol: "lock.iphone",
+                    title: "A finished or paused import's card leaves the Lock Screen and your Watch when you open the app",
+                    detail:
+                        "It used to be able to stay there for good."
                 ),
                 .init(
                     symbol: "checklist",
                     title: "The plans screen says what each plan adds",
-                    detail: "\"Why upgrade now?\" is \"What you get\" now, with what paying actually changes."
+                    detail:
+                        "\"Why upgrade now?\" is \"What you get\" now, with what paying actually changes."
+                ),
+                .init(
+                    symbol: "star",
+                    title: "Rating the app is one sheet, Apple's own",
+                    detail:
+                        "The \"Enjoying OpenIntelligence?\" alert after a thumbs-up is gone. After a good answer, or your third answer, the app asks with Apple's rating sheet: tap the stars, add a review if you want, and submit without leaving the app. It asks once per update at most, and Apple limits it to three times a year. Write a Review in Settings is still there."
                 ),
             ]
         ),
