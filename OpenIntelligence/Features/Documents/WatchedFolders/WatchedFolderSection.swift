@@ -70,8 +70,11 @@ struct WatchedFolderSection: View {
         } header: {
             Text("Watched Folder")
         } footer: {
+            // Each claim is the service's (5.8): the walk takes subfolders (`FileManager.enumerator`), a Mac checks every
+            // `WatchedFolderService.macCheckInterval` (300 s), iPhone and iPad on opening the app, and `settle` never
+            // removes a document because its file left the folder.
             Text(
-                "New files in this folder import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in this library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app."
+                "Pick a folder in Files, iCloud Drive included, and this library keeps up with it. Every file in it the app can read, subfolders too, is imported, and files you add later import by themselves. Change a file and the library swaps in the new version, so an older answer may not open the old one. Deleting a file from the folder leaves it in this library, and the app never changes or moves your files. A Mac checks every 5 minutes while the app is open; iPhone and iPad check each time you open the app, or when you tap Check Now. Pro and Lifetime."
             )
         }
         .fileImporter(isPresented: $isChoosing, allowedContentTypes: [.folder]) { result in

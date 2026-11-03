@@ -24,7 +24,8 @@ extension RAGService {
         chunkOverride: DocumentProcessor.ChunkingOverride?,
         providerId: String,
         embeddingDim: Int,
-        containerEmbeddingService: EmbeddingService
+        containerEmbeddingService: EmbeddingService,
+        documentId requestedDocumentId: UUID? = nil
     ) async throws {
         Log.info("[RAGService] Streaming large PDF ingestion for \(filename)", category: .ingestion)
         
@@ -35,7 +36,10 @@ extension RAGService {
         let checkpointDir = documentProcessor.checkpointDirectoryURL(for: fingerprint)
         let stateURL = checkpointDir.appendingPathComponent("ingestion_state.json")
         
-        var documentId = UUID()
+        // A rebuild's id (5.8, `addDocument(documentId:)`). A rebuild starts from the first page: its passages were just
+        // cleared, so a saved session for that id would skip pages that are no longer stored (review, 2026-11-03).
+        var documentId = requestedDocumentId ?? UUID()
+        if requestedDocumentId != nil { try? FileManager.default.removeItem(at: stateURL) }
         var lastCompletedPage: Int? = nil
         var totalChunks = 0
         var totalWords = 0
@@ -252,7 +256,7 @@ extension RAGService {
         )
         
         await MainActor.run {
-            self.documents.append(document)
+            self.listImportedDocument(document, adjustingStoredCount: true)
             self.syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
         }
         

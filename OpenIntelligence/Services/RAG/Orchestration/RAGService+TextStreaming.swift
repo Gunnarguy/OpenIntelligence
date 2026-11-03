@@ -182,7 +182,8 @@ extension RAGService {
         documentType: DocumentType,
         chunkOverride: DocumentProcessor.ChunkingOverride?,
         providerId: String,
-        containerEmbeddingService: EmbeddingService
+        containerEmbeddingService: EmbeddingService,
+        documentId requestedDocumentId: UUID? = nil
     ) async throws {
         let startedAt = Date()
         let reader = try TextPieceReader(url: url)
@@ -199,6 +200,9 @@ extension RAGService {
         // A `.json` file this large is read as text already, and a piece of it is not JSON.
         let pieceName = holdsRecords || documentType != .json ? url.lastPathComponent : url.lastPathComponent + ".txt"
         let pieceURL = pieceDir.appendingPathComponent(pieceName)
+        // A rebuild starts from the first piece (5.8): its passages were just cleared, and a saved state for that id
+        // would skip pieces that are no longer stored (review, 2026-11-03).
+        if requestedDocumentId != nil { try? FileManager.default.removeItem(at: stateURL) }
 
         let db = try await dbForContainer(activeContainerId)
 
@@ -265,7 +269,7 @@ extension RAGService {
                 case .startOver:
                     try await removeStreamedTextChunks(documentId: saved.documentId, from: db)
                     saved = try await Self.newTextStreamingState(
-                        reader: reader, holdsRecords: holdsRecords, containerId: activeContainerId)
+                        reader: reader, holdsRecords: holdsRecords, containerId: activeContainerId, documentId: requestedDocumentId)
                 }
                 try saved.write(to: stateURL)
             }
@@ -277,7 +281,7 @@ extension RAGService {
                 category: .ingestion)
         } else {
             state = try await Self.newTextStreamingState(
-                reader: reader, holdsRecords: holdsRecords, containerId: activeContainerId)
+                reader: reader, holdsRecords: holdsRecords, containerId: activeContainerId, documentId: requestedDocumentId)
             try state.write(to: stateURL)
             Log.info(
                 "[RAGService] Importing \(filename) in \(state.totalPieces) parts"
@@ -326,9 +330,7 @@ extension RAGService {
             totalChunks: state.committed.totalChunks,
             containerId: activeContainerId
         )
-        if !documents.contains(where: { $0.id == document.id }) {
-            documents.append(document)
-        }
+        listImportedDocument(document, adjustingStoredCount: true)
         syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
         noteStreamedImportFinished(in: activeContainerId)
         await saveDocumentsToDisk()
@@ -623,14 +625,14 @@ extension RAGService {
     /// records in the file. Both counts are a pass over the mapped file.
     @concurrent
     private static func newTextStreamingState(
-        reader: TextPieceReader, holdsRecords: Bool, containerId: UUID
+        reader: TextPieceReader, holdsRecords: Bool, containerId: UUID, documentId: UUID? = nil
     ) async throws -> TextStreamingIngestionState {
         // A record is one line and is never cut while it is a size the record reader takes:
         // cut in two, its halves would be two lines that are not JSON, and every record after
         // them would be numbered one too high.
         let longestLine = holdsRecords ? JSONRecordExtractor.maxFileBytes : TextPieceReader.longestLineBytes
         return TextStreamingIngestionState(
-            documentId: UUID(),
+            documentId: documentId ?? UUID(),
             containerId: containerId,
             fileBytes: reader.count,
             pieceBytes: TextPieceReader.pieceBytes,

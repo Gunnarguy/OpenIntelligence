@@ -413,8 +413,9 @@ struct ContentView: View {
                 await refreshSharedWorkspaceIfNeeded(forceReload: true)
             }
         }
+        // Throttled (5.8, `ObservedChangeThrottle`): a pass's own writes into iCloud come back as a change.
         .onChange(of: workspaceSyncService.observedWorkspaceChangeCount) { _, _ in
-            Task { @MainActor in
+            ObservedChangeThrottle.run("contentView.workspaceRefresh") {
                 await refreshSharedWorkspaceIfNeeded(forceReload: true)
             }
         }

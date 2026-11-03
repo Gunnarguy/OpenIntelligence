@@ -1091,6 +1091,9 @@ struct ChatScreen: View {
                 seedScreenshotDemoIfNeeded()
                 entitlementStore.refreshTransientState()
                 isAppeared = true
+                // With `chat.disappear` and `library.setActive`, the event log shows whether the chat was on screen
+                // when it went blank (5.8, the owner's iPhone, 2026-11-03).
+                VerificationJournal.record("chat.appear", ["messages": "\(messages.count)"])
                 Task { await TourContext.chatOpened.donate() }
                 if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
                     needsSuggestedQuestionsRefresh = false
@@ -1099,6 +1102,7 @@ struct ChatScreen: View {
             }
             .onDisappear {
                 isAppeared = false
+                VerificationJournal.record("chat.disappear")
             }
             // The Stop button on the answer's Live Activity (5.7, `StopLongAnswerIntent`): stops the
             // answer like the chat's own stop button, only if the Live Activity is the running one's.

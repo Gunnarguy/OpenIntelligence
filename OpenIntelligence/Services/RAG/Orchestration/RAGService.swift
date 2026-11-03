@@ -328,6 +328,15 @@ enum IngestionContext: String, Codable, Sendable {
     }
 }
 
+/// Where a library's rebuild is (5.8, `RAGService.libraryRebuildProgress`): `done` of `total` documents, and the one
+/// being read now.
+struct LibraryRebuildProgress: Equatable, Sendable {
+    let libraryId: UUID
+    let done: Int
+    let total: Int
+    let filename: String
+}
+
 /// Main orchestrator for the RAG (Retrieval-Augmented Generation) pipeline
 /// Coordinates document processing, embedding, retrieval, and generation
 class RAGService: ObservableObject {
@@ -461,7 +470,15 @@ class RAGService: ObservableObject {
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
     @MainActor private var ingestionQueueTombstones: [IngestionQueueTombstone] = []
     @MainActor private var selfHealingRebuildTask: Task<Void, Never>?
-    @MainActor private var pendingSelfHealingContainerIds: [UUID] = []
+    @MainActor private var pendingSelfHealingContainerIds: [UUID] = [] {
+        didSet { librariesWaitingForRebuild = pendingSelfHealingContainerIds }
+    }
+    /// The libraries whose rebuild waits behind another's, in order (5.8). A rebuild runs one library at a time, and the
+    /// library's Rebuild button only queued it: the banner went away and nothing said it was waiting (the owner's
+    /// iPhone, 2026-11-03, behind a 5,164-passage PDF).
+    @MainActor @Published private(set) var librariesWaitingForRebuild: [UUID] = []
+    /// The rebuild running now, document by document (5.8), for the library's own banner.
+    @MainActor @Published private(set) var libraryRebuildProgress: LibraryRebuildProgress?
     /// The documents a pending self-healing rebuild is limited to, by library (5.7). A library with
     /// no entry is rebuilt whole, as before.
     @MainActor private var selfHealingDocumentIds: [UUID: Set<UUID>] = [:]
@@ -6992,7 +7009,8 @@ class RAGService: ObservableObject {
         context: IngestionContext = .userInitiated,
         trackingId: UUID? = nil,
         manageProcessingState: Bool = true,
-        containerId: UUID? = nil
+        containerId: UUID? = nil,
+        documentId reusedDocumentId: UUID? = nil
     ) async throws {
         let managedURL = try prepareManagedDocumentURL(from: url)
         try await WorkspaceSyncService.ensureItemAvailableLocally(at: managedURL)
@@ -7004,13 +7022,14 @@ class RAGService: ObservableObject {
         // rest of this function and the large-file paths take it as the import's library.
         let activeContainerId = await MainActor.run { () -> UUID in
             if let containerId, self.containerService.containers.contains(where: { $0.id == containerId }) {
-                // The guide library takes the app's guides only (5.8): anything else goes to the person's own.
-                if context != .onboarding, let own = self.containerService.libraryForOwnFiles(requested: containerId) {
+                // The guide library takes the app's guides only (5.8): anything else goes to the person's own. A rebuild
+                // puts each document back where it was, the guides included.
+                if context != .onboarding, context != .autoRebuild, let own = self.containerService.libraryForOwnFiles(requested: containerId) {
                     return own
                 }
                 return containerId
             }
-            if context != .onboarding,
+            if context != .onboarding, context != .autoRebuild,
                 let own = self.containerService.libraryForOwnFiles(requested: self.containerService.activeContainerId)
             {
                 return own
@@ -7036,7 +7055,8 @@ class RAGService: ObservableObject {
             )
         }
 
-        if let existingDocument = await MainActor.run(
+        // A rebuild's document is the one being replaced (5.8): a sync pass while it ran can have put its record back.
+        if reusedDocumentId == nil, let existingDocument = await MainActor.run(
             resultType: Document?.self,
             body: {
                 self.existingImportedDocument(
@@ -7116,7 +7136,9 @@ class RAGService: ObservableObject {
 
         // Onboarding sample docs bypass quota — they're educational material
         // that ships with the app, not user-generated content
-        let skipQuota = (context == .onboarding)
+        // A rebuild re-imports a document already counted (5.8): its record stays listed, so at the plan's limit the
+        // check refused it and left it with no passages (review, 2026-11-03).
+        let skipQuota = (context == .onboarding) || reusedDocumentId != nil
 
         let gating = await MainActor.run { () -> (limit: Int, canAdd: Bool, tier: WorkspaceTier, count: Int) in
             let count = self.countedDocumentCount
@@ -7355,7 +7377,8 @@ class RAGService: ObservableObject {
                     chunkOverride: activeChunkOverride,
                     providerId: providerId,
                     embeddingDim: initialDimension,
-                    containerEmbeddingService: containerEmbeddingService
+                    containerEmbeddingService: containerEmbeddingService,
+                    documentId: reusedDocumentId
                 )
                 // The refresh every other import ends with (the rest of what a whole-file
                 // import does at its end is not done here). Without it the analysis and the
@@ -7380,7 +7403,8 @@ class RAGService: ObservableObject {
                     documentType: documentType,
                     chunkOverride: activeChunkOverride,
                     providerId: providerId,
-                    containerEmbeddingService: containerEmbeddingService
+                    containerEmbeddingService: containerEmbeddingService,
+                    documentId: reusedDocumentId
                 )
                 refreshIntelligence(for: activeContainerId, force: true)
                 return  // It handles the whole import, like the streamed PDF above.
@@ -7390,7 +7414,8 @@ class RAGService: ObservableObject {
             let (document, processedChunks) = try await documentProcessor.processDocument(
                 at: managedURL,
                 chunkOverride: activeChunkOverride,
-                containerId: activeContainerId  // FTS5 storage with container isolation
+                containerId: activeContainerId,  // FTS5 storage with container isolation
+                documentId: reusedDocumentId
             )
             try Task.checkCancellation()
             let extractionTime = Date().timeIntervalSince(extractionStartTime)
@@ -8236,8 +8261,8 @@ class RAGService: ObservableObject {
 
             // Step 5: Update state
             await MainActor.run {
-                documents.append(updatedDocument)
-                totalChunksStored += documentChunks.count
+                let replacedChunks = listImportedDocument(updatedDocument)
+                totalChunksStored += documentChunks.count - replacedChunks
                 syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
                 if !suppressProcessingSummary {
                     lastProcessingSummary = summary
@@ -8317,7 +8342,7 @@ class RAGService: ObservableObject {
                 self.kickPendingReembedIfNeeded()
 
                 // Auto-tune retrieval config based on document types in container
-                self.autoTuneRetrievalConfigIfNeeded()
+                self.autoTuneRetrievalConfigIfNeeded(for: activeContainerId)
             }
 
             refreshIntelligence(
@@ -9167,8 +9192,11 @@ class RAGService: ObservableObject {
             }
             return
         }
+        // Any rebuild of the library under way, not only a self-healing one (5.8): a rebuild leaves each document listed
+        // with its passages cleared until it is re-imported, so a sync pass meanwhile finds the store empty and asked
+        // for a second rebuild of the same library (review, 2026-11-03).
         let alreadyQueued = ingestionItems.contains { item in
-            item.containerId == containerId && !item.stage.isTerminal && Self.isAutomaticSelfHealingItem(item)
+            item.containerId == containerId && !item.stage.isTerminal && item.metrics.isRebuild
         }
         guard !alreadyQueued else { return }
 
@@ -9697,9 +9725,53 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// Puts an imported document in the list, in place of a record with its id, and returns that record's passage count
+    /// (5.8). Only a rebuild finds one: it keeps the document's id, and a sync pass while it ran can have put the old
+    /// record back.
+    ///
+    /// The replaced record's date added, place in the list, and its hash, tags and processing details where the
+    /// re-import has none, are kept: a streamed import's record carries no tags or details, and a rebuild must not move
+    /// a document to the end of the list or make it look newly added.
+    /// `adjustingStoredCount` is the streamed imports': they don't add their passages to `totalChunksStored` themselves,
+    /// so a replaced record's count is swapped for the new one here.
+    @MainActor @discardableResult func listImportedDocument(_ document: Document, adjustingStoredCount: Bool = false) -> Int {
+        guard let index = documents.firstIndex(where: { $0.id == document.id }) else {
+            documents.append(document)
+            return 0
+        }
+        let old = documents[index]
+        let replacedChunks = documents.filter { $0.id == document.id }.reduce(0) { $0 + $1.totalChunks }
+        documents.removeAll { $0.id == document.id }
+        documents.insert(
+            Document(
+                id: document.id,
+                filename: document.filename,
+                fileURL: document.fileURL,
+                storageRelativePath: document.storageRelativePath ?? old.storageRelativePath,
+                fileHash: document.fileHash ?? old.fileHash,
+                contentType: document.contentType,
+                addedAt: old.addedAt,
+                totalChunks: document.totalChunks,
+                processingMetadata: document.processingMetadata ?? old.processingMetadata,
+                containerId: document.containerId,
+                contentTags: document.contentTags ?? old.contentTags
+            ),
+            at: min(index, documents.count))
+        if adjustingStoredCount { totalChunksStored += document.totalChunks - replacedChunks }
+        return replacedChunks
+    }
+
     /// Remove a document from the knowledge base
-    func removeDocument(_ document: Document, keepPhysicalFile: Bool = false) async throws {
-        registerDeletedDocuments([document])
+    ///
+    /// `forRebuild` is a rebuild's (5.8): the document's passages and index entries go, and its record, its file and
+    /// its id stay, because it comes straight back under the same id (`addDocument(documentId:)`). Through 5.7 a
+    /// rebuild removed the document like a deletion: its id was recorded as deleted and it came back under a new one, so
+    /// another device wiped its passages, found the library empty, rebuilt it the same way and sent the deletions back
+    /// (the owner's iPhone and Mac, 2026-11-03: 5,165, 1,888 and 403 passages in one pass). And with the record gone a
+    /// sync pass took the kept file for an orphan and deleted it (`Deleted local orphaned document file`, 13:58:49 that
+    /// day), so the document could not come back at all.
+    func removeDocument(_ document: Document, keepPhysicalFile: Bool = false, forRebuild: Bool = false) async throws {
+        if !forRebuild { registerDeletedDocuments([document]) }
         let targetContainerId = await MainActor.run {
             document.containerId ?? self.containerService.containers.first?.id
                 ?? self.containerService.activeContainerId
@@ -9719,7 +9791,7 @@ class RAGService: ObservableObject {
         await EntityIndexService.shared.removeDocument(document.id)
 
         // Delete physical file if it's in our internal storage
-        if !keepPhysicalFile {
+        if !keepPhysicalFile, !forRebuild {
             let fileURL = document.fileURL
             if fileURL.path.contains("ImportedDocuments") {
                 try? FileManager.default.removeItem(at: fileURL)
@@ -9731,6 +9803,11 @@ class RAGService: ObservableObject {
 
         // Remove from suggested questions bank
         await SuggestedQuestionsService.shared.removeQuestions(for: document.id, in: targetContainerId)
+
+        if forRebuild {
+            Log.info(" Cleared the index of \(document.filename) to rebuild it", category: .ingestion)
+            return
+        }
 
         await MainActor.run {
             let listedBefore = documents.count
@@ -9916,19 +9993,17 @@ class RAGService: ObservableObject {
             category: .ingestion
         )
 
-        let originalContainerId = await MainActor.run { self.containerService.activeContainerId }
-        if originalContainerId != targetContainerId {
-            await MainActor.run {
-                self.containerService.setActive(targetContainerId)
-            }
-        }
+        // The library on screen stays as it is (5.8). A rebuild used to open the library it rebuilt and go back at the end,
+        // from before an import could name its library: on the owner's iPhone on 2026-11-03 a self-healing rebuild moved
+        // the Chat tab to another library while he was tapping through them, and the screen went blank until the app was
+        // closed. Each document now goes back to `targetContainerId` by name (`addDocument(containerId:)`).
 
         let rebuildReason: String
         if let reason {
             rebuildReason = reason
         } else {
             rebuildReason = await MainActor.run {
-                containerService.activeContainer?.chunkingDirective.map {
+                containerService.containers.first { $0.id == targetContainerId }?.chunkingDirective.map {
                     "\($0.strategy.capitalized) strategy, \($0.targetWordWindow)w window"
                 } ?? "Configuration changed"
             }
@@ -9974,9 +10049,7 @@ class RAGService: ObservableObject {
                 guard let self else { return }
                 self.processingStatus = ""
                 self.isProcessing = false
-                if originalContainerId != targetContainerId {
-                    self.containerService.setActive(originalContainerId)
-                }
+                if self.libraryRebuildProgress?.libraryId == targetContainerId { self.libraryRebuildProgress = nil }
                 // Prune completed items after a delay
                 self.pruneCompletedIngestionItems(delay: 5.0)
             }
@@ -10084,6 +10157,9 @@ class RAGService: ObservableObject {
                 await MainActor.run {
                     self.processingStatus =
                         "Re-embedding \(document.filename) (optimized) (\(index + 1)/\(documentsToRebuild.count))"
+                    self.libraryRebuildProgress = LibraryRebuildProgress(
+                        libraryId: targetContainerId, done: index, total: documentsToRebuild.count,
+                        filename: document.filename)
                     self.isProcessing = true
                     progressHandler?(
                         ReembedProgress(
@@ -10236,6 +10312,9 @@ class RAGService: ObservableObject {
 
                 await MainActor.run {
                     self.processingStatus = "Rebuilding \(document.filename) (\(index + 1)/\(documentsToRebuild.count))"
+                    self.libraryRebuildProgress = LibraryRebuildProgress(
+                        libraryId: targetContainerId, done: index, total: documentsToRebuild.count,
+                        filename: document.filename)
                     self.isProcessing = true
                     progressHandler?(
                         ReembedProgress(
@@ -10263,10 +10342,10 @@ class RAGService: ObservableObject {
                     break
                 }
 
-                // Once removal begins, the matching re-add is intentionally atomic
-                // from the cancellation policy's perspective so the catalog cannot
-                // be left without the document after a mid-document dismissal.
-                try await removeDocument(document, keepPhysicalFile: true)
+                // Once the index is cleared, the matching re-add is intentionally atomic from the cancellation
+                // policy's perspective. The record stays listed throughout (5.8), so a re-add that fails leaves the
+                // document listed without passages, which the banner offers to rebuild, and the rest go on.
+                try await removeDocument(document, keepPhysicalFile: true, forRebuild: true)
 
                 await MainActor.run {
                     updateIngestionItem(
@@ -10277,8 +10356,26 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                // Re-add with autoRebuild context (prevents recursive self-tuning)
-                try await addDocument(at: document.fileURL, context: .autoRebuild)
+                // Re-add with autoRebuild context (prevents recursive self-tuning), under the document's own id and into
+                // its own library (5.8): see `removeDocument(_:keepPhysicalFile:forRebuild:)`.
+                do {
+                    try await addDocument(
+                        at: document.fileURL, context: .autoRebuild, trackingId: trackingId,
+                        containerId: targetContainerId, documentId: document.id)
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    Log.error(
+                        "[Reembed] Could not rebuild \(document.filename); it stays listed without passages: \(error.localizedDescription)",
+                        category: .ingestion)
+                    await MainActor.run {
+                        updateIngestionItem(
+                            id: trackingId, filename: document.filename, stage: .failed,
+                            detail: "Couldn't be rebuilt", progress: 1.0, errorMessage: error.localizedDescription)
+                        self.librariesNeedingIndexRebuild.insert(targetContainerId)
+                    }
+                    continue
+                }
 
                 await MainActor.run {
                     updateIngestionItem(
@@ -10344,9 +10441,13 @@ class RAGService: ObservableObject {
 
     /// Auto-tunes retrieval configuration based on document types in the active container.
     /// Called after successful document ingestion to optimize search weights.
+    /// The library is the import's (5.8), which a rebuild no longer opens on screen.
     @MainActor
-    private func autoTuneRetrievalConfigIfNeeded() {
-        guard let container = containerService.activeContainer else { return }
+    private func autoTuneRetrievalConfigIfNeeded(for libraryId: UUID? = nil) {
+        guard
+            let container = libraryId.flatMap({ id in containerService.containers.first { $0.id == id } })
+                ?? containerService.activeContainer
+        else { return }
 
         // Collect document types from all documents in this container
         let containerDocs = documents.filter { $0.containerId == container.id }

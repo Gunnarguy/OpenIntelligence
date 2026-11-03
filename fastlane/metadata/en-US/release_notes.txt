@@ -25,6 +25,8 @@ YOUR LIBRARIES
 
 • With libraries synced through iCloud, the app no longer stops responding at launch while iCloud catches up.
 
+• Rebuilding a library keeps every document as it is, so your other devices no longer clear and rebuild it too, and the library shows how far the rebuild has got.
+
 
 ALSO
 

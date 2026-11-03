@@ -51,6 +51,9 @@ final class ContainerService: ObservableObject {
         // Haptic feedback when switching containers
         if wasChanged {
             DSHaptics.selection()
+            // Which library opened, for the event log (5.8): the Chat tab went blank on the owner's iPhone while he
+            // switched libraries and a rebuild switched them too (2026-11-03).
+            VerificationJournal.record("library.setActive", ["library": String(id.uuidString.prefix(8))])
         }
     }
 

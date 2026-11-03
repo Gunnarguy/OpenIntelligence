@@ -117,7 +117,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "hand.point.up.left",
                     title: "Every screen shows you around",
                     detail:
-                        "The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it. Settings › How This Works › Show Me Around brings them back."
+                        "The first time you open a screen, an arrow points at what's there, one at a time, and says what it is, what it does and why you'd use it. Each goes away once you've used it. Settings › How This Works › Show Me Around brings them back."
                 ),
                 .init(
                     symbol: "book.closed",
@@ -166,6 +166,12 @@ final class WhatsNewStore: ObservableObject {
                     title: "The app no longer stops responding at launch while iCloud catches up",
                     detail:
                         "With libraries synced through iCloud, the window could freeze for a few seconds at launch while iCloud finished with one of the sync files. The app now waits for iCloud in the background."
+                ),
+                .init(
+                    symbol: "arrow.triangle.2.circlepath",
+                    title: "Rebuilding a library leaves your other devices alone",
+                    detail:
+                        "A rebuild used to take each document out and put it back as a new copy, so another device signed in to iCloud took the old one as deleted, cleared that library and rebuilt it too, back and forth, and a document's file could be lost along the way. A rebuild now keeps every document as it is, and the library shows how far it has got, or that it's waiting for another library to finish first."
                 ),
                 .init(
                     symbol: "lock.iphone",

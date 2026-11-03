@@ -24,7 +24,8 @@ final class TourTipTests: XCTestCase {
             XCTAssertFalse(step.message.isEmpty, step.rawValue)
             XCTAssertFalse(step.symbol.isEmpty, step.rawValue)
             XCTAssertLessThanOrEqual(step.title.count, 40, step.rawValue)
-            XCTAssertLessThanOrEqual(step.message.count, 120, step.rawValue)
+            // 220 since 5.8: a tip says what the thing is, what it does and why, which 120 left no room for.
+            XCTAssertLessThanOrEqual(step.message.count, 220, step.rawValue)
         }
     }
 

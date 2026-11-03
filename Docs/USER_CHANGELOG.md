@@ -13,7 +13,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 
 ### Getting Started
 
-- **Every screen shows you around.** The first time you open a screen, an arrow points at what's there, one at a time, and each goes away once you've used it. Settings › How This Works › Show Me Around brings them back.
+- **Every screen shows you around.** The first time you open a screen, an arrow points at what's there, one at a time, and says what it is, what it does and why you'd use it. Each goes away once you've used it. Settings › How This Works › Show Me Around brings them back.
 - **The guides don't use your plan.** The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works.
 
 ### Answers
@@ -28,6 +28,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **Importing a very large file twice no longer makes a second copy.** Large PDFs and text files now get the same duplicate check as everything else.
 - **A library's count matches what's in it.** A library synced with iCloud could show more documents on its button than it held.
 - **The app no longer stops responding at launch while iCloud catches up.** With libraries synced through iCloud, the window could freeze for a few seconds at launch while iCloud finished with one of the sync files. The app now waits for iCloud in the background.
+- **Rebuilding a library leaves your other devices alone.** A rebuild used to take each document out and put it back as a new copy, so another device signed in to iCloud took the old one as deleted, cleared that library and rebuilt it too, back and forth, and a document's file could be lost along the way. A rebuild now keeps every document as it is, and the library shows how far it has got, or that it's waiting for another library to finish first.
 - **A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.** It used to be able to stay there for good.
 
 ### Plans

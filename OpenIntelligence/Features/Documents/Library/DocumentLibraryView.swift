@@ -1321,7 +1321,22 @@ struct DocumentLibraryView: View {
     @ViewBuilder
     private var indexRebuildBanner: some View {
         let containerId = containerService.activeContainerId
-        if ragService.librariesNeedingIndexRebuild.contains(containerId) {
+        // A rebuild in this library, or one waiting its turn, says so where the Rebuild button was (5.8). The button
+        // only queued it, behind any other library's rebuild, and took the banner down, so nothing on screen said
+        // anything was happening.
+        if let progress = ragService.libraryRebuildProgress, progress.libraryId == containerId {
+            rebuildStatusRow(
+                title: "Rebuilding this library: \(progress.done + 1) of \(progress.total)",
+                detail: "Now on \(progress.filename). A long document takes a while, and you can keep using the app.",
+                showsProgress: true)
+        } else if let position = ragService.librariesWaitingForRebuild.firstIndex(of: containerId) {
+            rebuildStatusRow(
+                title: "Waiting to rebuild",
+                detail: position == 0 && ragService.libraryRebuildProgress == nil
+                    ? "It starts in a moment."
+                    : "Another library is rebuilding first. Libraries rebuild one at a time.",
+                showsProgress: true)
+        } else if ragService.librariesNeedingIndexRebuild.contains(containerId) {
             HStack(alignment: .top, spacing: DSSpacing.sm) {
                 Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
                     .scaledFont(size: 16, weight: .semibold)
@@ -1333,7 +1348,10 @@ struct DocumentLibraryView: View {
                         .scaledFont(size: 15, weight: .semibold)
                         .foregroundStyle(DSColors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("Your documents are intact. Answers here can miss information until the index is rebuilt, which takes a moment and does not re-import anything.")
+                    // A rebuild re-embeds stored passages where the chunking is unchanged and reads the document again
+                    // from the kept copy otherwise (`reembedDocuments`); through 5.7 this said it "does not re-import
+                    // anything" and "takes a moment", and a large PDF takes minutes.
+                    Text("Your documents are intact. Answers here can miss information until it's rebuilt. A rebuild works through every document, reading it again where it has to, so a large library takes a while.")
                         .font(DSTypography.caption)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1351,6 +1369,30 @@ struct DocumentLibraryView: View {
             .background(Color.orange.opacity(0.12))
             .accessibilityElement(children: .combine)
         }
+    }
+
+    private func rebuildStatusRow(title: String, detail: String, showsProgress: Bool) -> some View {
+        HStack(alignment: .top, spacing: DSSpacing.sm) {
+            if showsProgress {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.top, DSSpacing.xxs)
+            }
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                Text(title)
+                    .scaledFont(size: 15, weight: .semibold)
+                    .foregroundStyle(DSColors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail)
+                    .font(DSTypography.caption)
+                    .foregroundStyle(DSColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(DSSpacing.md)
+        .background(DSColors.accent.opacity(0.08))
+        .accessibilityElement(children: .combine)
     }
 
     /// The last deletion that can still be undone (5.7, `PendingDocumentRemoval`), at the bottom of the
@@ -1734,8 +1776,9 @@ struct DocumentLibraryView: View {
                     )
                 }
             }
+            // Throttled like `ContentView`'s (5.8, `ObservedChangeThrottle`).
             .onChange(of: workspaceSyncService.observedWorkspaceChangeCount) {
-                Task { @MainActor in
+                ObservedChangeThrottle.run("documents.workspaceRefresh") {
                     await handleObservedSharedWorkspaceChange()
                 }
             }
