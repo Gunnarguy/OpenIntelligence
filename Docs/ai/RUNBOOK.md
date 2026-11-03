@@ -1108,8 +1108,7 @@ copies them, MetricKit's reports and the crash list into `~/Library/Developer/Op
 (outside the repository: the trace holds file names and questions), and prints each rule in
 `scripts/phone_evidence_rules.json` as PASS with its proof lines, FAIL with what was seen, or NOT SEEN with what to do.
 `--json` gives the same for closing rows. A rule proves a mechanism ran; a row whose closing condition is a look
-(Atlas names, text sizes, VoiceOver) still needs the owner's eye. **Not covered:** the twelve actions in
-`RAGAppIntents.swift`, a hard-boundary file not edited for this; the widget, Live Activity and Share extensions, which
+(Atlas names, text sizes, VoiceOver) still needs the owner's eye. **Not covered:** the widget, Live Activity and Share extensions, which
 can't write the app's Documents folder (their effect is recorded when the app picks it up).
 `[evidence_level: test_verified (VerificationJournalTests), confidence: high for the format; the pull is not yet run against the phone]`
 

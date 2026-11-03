@@ -27,7 +27,7 @@ watched folders and a clearer plans screen are built and tested in the working t
 | Sample Product Guide | Updated 2026-11-03 for Paste, Share, "Open in", icon drop, Watch a Folder, highlighted citations |
 | Multi-file imports (`RAGService.shouldDeferEnrichment`) | Done 2026-11-03: a file's overview, tags and suggested questions wait while other files are queued. Row `40d49a74d54f81a9bcaec77f3061c10e` |
 | Atlas card axis labels (`AxisLabelInsets.boxes`) | Done 2026-11-03: labels clear the cluster box only where they would cover it |
-| Device event log (`VerificationJournal.swift`, `scripts/phone_evidence.py`) | Done 2026-11-03, Debug builds only. Row `40d49a74d54f81b59f23ce86c142e2a2`. The phone has the build (10:33). First pull: trace and MetricKit copied, no events yet (app not opened since install). `RAGAppIntents.swift`'s 12 intents are not covered (hard boundary) |
+| Device event log (`VerificationJournal.swift`, `scripts/phone_evidence.py`) | Done 2026-11-03, Debug builds only. Row `40d49a74d54f81b59f23ce86c142e2a2`. The phone has the build (10:33). First pull: trace and MetricKit copied, no events yet (app not opened since install). `RAGAppIntents.swift`'s 12 intents covered too, at his word (the file named 2026-11-03), 10 App Shortcuts unchanged |
 | 107 open 5.0 to 5.7 rows | Sorted 2026-11-03: 19 checkable headless, 20 Mac by hand, 61 iPhone, 7 his. None already evidenced. 32 iPhone rows have rules in `scripts/phone_evidence_rules.json` |
 | Store copy continuity | `Docs/Release/APP_STORE_METADATA_HISTORY.md` has "The pieces that carry over": opening and closing lines, section names, promo pattern. Use it for 5.8's copy, which is not written yet |
 

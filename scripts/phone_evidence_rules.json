@@ -494,6 +494,42 @@
           }
         }
       ]
+    },
+    {
+      "row": "Deep Think and large imports from a shortcut past 30 s",
+      "url": "https://app.notion.com/p/3f449a74d54f8139a380e1fa1cde5c53",
+      "needs": "Run an Ask shortcut in Deep Think with the app closed; it should finish.",
+      "all": [
+        {
+          "e": "intent.AskDocumentIntent",
+          "o": "ok"
+        },
+        {
+          "e": "bgtask.answer",
+          "f": {
+            "phase": "running"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Answer cards in Siri have buttons",
+      "url": "https://app.notion.com/p/3f449a74d54f8193a750d1099b83a8c5",
+      "needs": "Ask Siri a question about your library, then tap Ask a Follow-Up and Think Deeper on the card.",
+      "all": [
+        {
+          "e": "intent.AnswerCardSnippetIntent",
+          "o": "ok"
+        },
+        {
+          "e": "intent.AskFollowUpIntent",
+          "o": "ok"
+        },
+        {
+          "e": "intent.ThinkDeeperIntent",
+          "o": "ok"
+        }
+      ]
     }
   ]
 }

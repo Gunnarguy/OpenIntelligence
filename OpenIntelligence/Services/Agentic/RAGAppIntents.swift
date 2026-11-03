@@ -477,17 +477,25 @@ struct QueryDocumentsIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
-        // Avoid logging user content; keep logs metadata-only.
-        Log.info("[Siri] Ask My Documents invoked (questionChars=\(question.count), topK=\(topK))", category: .pipeline)
+        let journal = VerificationJournal.Span("intent.QueryDocumentsIntent")
+        defer { journal.end() }
+        do {
+            // Avoid logging user content; keep logs metadata-only.
+            Log.info("[Siri] Ask My Documents invoked (questionChars=\(question.count), topK=\(topK))", category: .pipeline)
 
-        let outcome = try await AskActionRunner.run(self) { control in
-            try await AskActionRunner.ask(question, mode: mode, topK: topK, libraryId: library?.id, control: control)
+            let outcome = try await AskActionRunner.run(self) { control in
+                try await AskActionRunner.ask(question, mode: mode, topK: topK, libraryId: library?.id, control: control)
+            }
+            return .result(
+                value: outcome.answer,
+                dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+                snippetIntent: await AskActionRunner.card(question: question, outcome: outcome)
+            )
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result(
-            value: outcome.answer,
-            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            snippetIntent: await AskActionRunner.card(question: question, outcome: outcome)
-        )
     }
 }
 
@@ -505,10 +513,18 @@ struct AddDocumentIntent: AppIntent {
     static var openAppWhenRun: Bool = true // Need UI for file picker
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        await MainActor.run { AppNavigationRequest.post(.addDocument) }
-        return .result(
-            dialog: IntentDialog(stringLiteral: "Opening OpenIntelligence to add a document.")
-        )
+        let journal = VerificationJournal.Span("intent.AddDocumentIntent")
+        defer { journal.end() }
+        do {
+            await MainActor.run { AppNavigationRequest.post(.addDocument) }
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Opening OpenIntelligence to add a document.")
+            )
+
+        } catch {
+            journal.fail(error)
+            throw error
+        }
     }
 }
 
@@ -534,30 +550,38 @@ struct ListDocumentsIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<[OIDocumentEntity]> & ProvidesDialog & ShowsSnippetView {
-        Log.info("[Siri] List Documents intent invoked", category: .pipeline)
+        let journal = VerificationJournal.Span("intent.ListDocumentsIntent")
+        defer { journal.end() }
+        do {
+            Log.info("[Siri] List Documents intent invoked", category: .pipeline)
 
-        let all = await MainActor.run { IntentSupport.engine().documents }
-        let documents = library.map { chosen in all.filter { $0.containerId == chosen.id } } ?? all
-        let libraryNames = Dictionary(
-            OILibraryEntityQuery.loadContainers().map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-        let items = documents.map { OIDocumentEntityQuery.entity(for: $0, libraryNames: libraryNames) }
+            let all = await MainActor.run { IntentSupport.engine().documents }
+            let documents = library.map { chosen in all.filter { $0.containerId == chosen.id } } ?? all
+            let libraryNames = Dictionary(
+                OILibraryEntityQuery.loadContainers().map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+            let items = documents.map { OIDocumentEntityQuery.entity(for: $0, libraryNames: libraryNames) }
 
-        guard !documents.isEmpty else {
+            guard !documents.isEmpty else {
+                return .result(
+                    value: items,
+                    dialog: IntentDialog(stringLiteral: "There are no documents there yet."),
+                    view: DocumentListSnippetView(documents: documents)
+                )
+            }
+
+            let documentNames = documents.map { $0.filename }.joined(separator: ", ")
+            let spokenResponse = "You have \(documents.count) document\(documents.count == 1 ? "" : "s"): \(documentNames)"
+
             return .result(
                 value: items,
-                dialog: IntentDialog(stringLiteral: "There are no documents there yet."),
+                dialog: IntentDialog(stringLiteral: spokenResponse),
                 view: DocumentListSnippetView(documents: documents)
             )
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-
-        let documentNames = documents.map { $0.filename }.joined(separator: ", ")
-        let spokenResponse = "You have \(documents.count) document\(documents.count == 1 ? "" : "s"): \(documentNames)"
-
-        return .result(
-            value: items,
-            dialog: IntentDialog(stringLiteral: spokenResponse),
-            view: DocumentListSnippetView(documents: documents)
-        )
     }
 }
 
@@ -577,51 +601,59 @@ struct DocumentImportStatusIntent: AppIntent {
 
     /// Returns the sentence it speaks, so a shortcut can branch on it or show it.
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
-        Log.info("[Siri] Document Import Status intent invoked", category: .ingestion)
+        let journal = VerificationJournal.Span("intent.DocumentImportStatusIntent")
+        defer { journal.end() }
+        do {
+            Log.info("[Siri] Document Import Status intent invoked", category: .ingestion)
 
-        let ragService = await MainActor.run { IntentSupport.engine() }
-        await ragService.restoreIngestionQueueIfNeeded()
+            let ragService = await MainActor.run { IntentSupport.engine() }
+            await ragService.restoreIngestionQueueIfNeeded()
 
-        let snapshot = await MainActor.run { () -> DocumentImportStatusSnapshot? in
-            let items = ragService.currentImportItems
-            let pendingItems = items.filter { !$0.stage.isTerminal }
-            guard let activeItem = ImportProgress.current(in: items) else { return nil }
-            // The same share the background task and the Live Activity show (`ImportProgress`).
-            let done = "\(ImportProgress.percent(of: items))% of the import is done."
-            let spokenResponse: String
-            if pendingItems.count == 1 {
-                spokenResponse = "One document import is \(activeItem.stage.displayName.lowercased()): \(activeItem.filename). \(done)"
-            } else {
-                spokenResponse = "\(pendingItems.count) document imports are pending. Current stage: \(activeItem.stage.displayName.lowercased()) for \(activeItem.filename). \(done)"
+            let snapshot = await MainActor.run { () -> DocumentImportStatusSnapshot? in
+                let items = ragService.currentImportItems
+                let pendingItems = items.filter { !$0.stage.isTerminal }
+                guard let activeItem = ImportProgress.current(in: items) else { return nil }
+                // The same share the background task and the Live Activity show (`ImportProgress`).
+                let done = "\(ImportProgress.percent(of: items))% of the import is done."
+                let spokenResponse: String
+                if pendingItems.count == 1 {
+                    spokenResponse = "One document import is \(activeItem.stage.displayName.lowercased()): \(activeItem.filename). \(done)"
+                } else {
+                    spokenResponse = "\(pendingItems.count) document imports are pending. Current stage: \(activeItem.stage.displayName.lowercased()) for \(activeItem.filename). \(done)"
+                }
+
+                return DocumentImportStatusSnapshot(
+                    activeCount: pendingItems.count,
+                    currentFilename: activeItem.filename,
+                    currentStage: activeItem.stage.displayName,
+                    queuedFilenames: pendingItems.map(\.filename),
+                    spokenResponse: spokenResponse
+                )
             }
 
-            return DocumentImportStatusSnapshot(
-                activeCount: pendingItems.count,
-                currentFilename: activeItem.filename,
-                currentStage: activeItem.stage.displayName,
-                queuedFilenames: pendingItems.map(\.filename),
-                spokenResponse: spokenResponse
-            )
-        }
+            guard let snapshot else {
+                return .result(
+                    value: "No document imports are pending right now.",
+                    dialog: IntentDialog(stringLiteral: "No document imports are pending right now."),
+                    view: ErrorSnippetView(message: "No pending imports")
+                )
+            }
 
-        guard let snapshot else {
             return .result(
-                value: "No document imports are pending right now.",
-                dialog: IntentDialog(stringLiteral: "No document imports are pending right now."),
-                view: ErrorSnippetView(message: "No pending imports")
+                value: snapshot.spokenResponse,
+                dialog: IntentDialog(stringLiteral: snapshot.spokenResponse),
+                view: DocumentImportStatusSnippetView(
+                    activeCount: snapshot.activeCount,
+                    currentFilename: snapshot.currentFilename,
+                    currentStage: snapshot.currentStage,
+                    queuedFilenames: snapshot.queuedFilenames
+                )
             )
-        }
 
-        return .result(
-            value: snapshot.spokenResponse,
-            dialog: IntentDialog(stringLiteral: snapshot.spokenResponse),
-            view: DocumentImportStatusSnippetView(
-                activeCount: snapshot.activeCount,
-                currentFilename: snapshot.currentFilename,
-                currentStage: snapshot.currentStage,
-                queuedFilenames: snapshot.queuedFilenames
-            )
-        )
+        } catch {
+            journal.fail(error)
+            throw error
+        }
     }
 }
 
@@ -757,23 +789,31 @@ struct GetEmbeddingProviderIntent: AppIntent {
     static var openAppWhenRun: Bool = false
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
-        Log.info("[Siri] Get Embedding Model intent invoked", category: .embedding)
+        let journal = VerificationJournal.Span("intent.GetEmbeddingProviderIntent")
+        defer { journal.end() }
+        do {
+            Log.info("[Siri] Get Embedding Model intent invoked", category: .embedding)
 
-        let providerId = await MainActor.run {
-            IntentSupport.libraries().activeContainer?.embeddingProviderId ?? "coreml_sentence_embedding"
-        }
-        let (name, description, isHighAccuracy) = describeProvider(providerId)
+            let providerId = await MainActor.run {
+                IntentSupport.libraries().activeContainer?.embeddingProviderId ?? "coreml_sentence_embedding"
+            }
+            let (name, description, isHighAccuracy) = describeProvider(providerId)
 
-        // No accuracy figure is spoken: none of these models has a measured one in this repository.
-        return .result(
-            value: name,
-            dialog: IntentDialog(stringLiteral: "The active library uses \(name)."),
-            view: EmbeddingProviderSnippetView(
-                providerName: name,
-                description: description,
-                isHighAccuracy: isHighAccuracy
+            // No accuracy figure is spoken: none of these models has a measured one in this repository.
+            return .result(
+                value: name,
+                dialog: IntentDialog(stringLiteral: "The active library uses \(name)."),
+                view: EmbeddingProviderSnippetView(
+                    providerName: name,
+                    description: description,
+                    isHighAccuracy: isHighAccuracy
+                )
             )
-        )
+
+        } catch {
+            journal.fail(error)
+            throw error
+        }
     }
 
     private func describeProvider(_ id: String) -> (name: String, description: String, isHighAccuracy: Bool) {
@@ -887,7 +927,9 @@ struct AnswerCardSnippetIntent: SnippetIntent {
     }
 
     func perform() async throws -> some IntentResult & ShowsSnippetView {
-        .result(
+        let journal = VerificationJournal.Span("intent.AnswerCardSnippetIntent")
+        defer { journal.end() }
+        return .result(
             view: AnswerCardSnippetView(
                 question: question, answer: answer, sources: Array(sources.prefix(3)), library: library,
                 offersFollowUp: offersFollowUp, offersThinkDeeper: offersThinkDeeper))
@@ -1082,15 +1124,23 @@ struct AskDocumentIntent: AppIntent {
     /// the answer could come from any document. The search now runs inside the document, in
     /// Standard, and the runner refuses an answer that rests on any other document's passage.
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
-        let outcome = try await AskActionRunner.run(self) { control in
-            try await AskActionRunner.ask(
-                question, mode: .standard, topK: 6, documentIds: [document.id], control: control)
+        let journal = VerificationJournal.Span("intent.AskDocumentIntent")
+        defer { journal.end() }
+        do {
+            let outcome = try await AskActionRunner.run(self) { control in
+                try await AskActionRunner.ask(
+                    question, mode: .standard, topK: 6, documentIds: [document.id], control: control)
+            }
+            return .result(
+                value: outcome.answer,
+                dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+                snippetIntent: await AskActionRunner.card(question: question, outcome: outcome)
+            )
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result(
-            value: outcome.answer,
-            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            snippetIntent: await AskActionRunner.card(question: question, outcome: outcome)
-        )
     }
 }
 
@@ -1114,19 +1164,27 @@ struct SummarizeDocumentIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
-        let prompt = "Provide a concise summary of the main points and key information in the document '\(document.filename)'."
-        let outcome = try await AskActionRunner.run(self) { control in
-            try await AskActionRunner.ask(
-                prompt, shownAs: "Summarize \(document.filename)", mode: .standard, topK: 8,
-                documentIds: [document.id], control: control)
+        let journal = VerificationJournal.Span("intent.SummarizeDocumentIntent")
+        defer { journal.end() }
+        do {
+            let prompt = "Provide a concise summary of the main points and key information in the document '\(document.filename)'."
+            let outcome = try await AskActionRunner.run(self) { control in
+                try await AskActionRunner.ask(
+                    prompt, shownAs: "Summarize \(document.filename)", mode: .standard, topK: 8,
+                    documentIds: [document.id], control: control)
+            }
+            return .result(
+                value: outcome.answer,
+                dialog: IntentDialog(
+                    stringLiteral: AskActionRunner.spoken(
+                        "Here is a summary of \(document.filename): \(outcome.response.generatedResponse)")),
+                snippetIntent: await AskActionRunner.card(question: "Summarize \(document.filename)", outcome: outcome)
+            )
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result(
-            value: outcome.answer,
-            dialog: IntentDialog(
-                stringLiteral: AskActionRunner.spoken(
-                    "Here is a summary of \(document.filename): \(outcome.response.generatedResponse)")),
-            snippetIntent: await AskActionRunner.card(question: "Summarize \(document.filename)", outcome: outcome)
-        )
     }
 }
 
@@ -1156,21 +1214,29 @@ struct CompareDocumentsIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
-        guard document1.id != document2.id else {
-            throw OIIntentError("Choose two different documents to compare.")
+        let journal = VerificationJournal.Span("intent.CompareDocumentsIntent")
+        defer { journal.end() }
+        do {
+            guard document1.id != document2.id else {
+                throw OIIntentError("Choose two different documents to compare.")
+            }
+            let prompt = "Compare what is stated in '\(document1.filename)' versus what is stated in '\(document2.filename)' on the topic: \(topic)."
+            let shown = "Comparison of \(document1.filename) and \(document2.filename) on \(topic)"
+            let outcome = try await AskActionRunner.run(self) { control in
+                try await AskActionRunner.ask(
+                    prompt, shownAs: shown, mode: .standard, topK: 8, documentIds: [document1.id, document2.id],
+                    control: control)
+            }
+            return .result(
+                value: outcome.answer,
+                dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+                snippetIntent: await AskActionRunner.card(question: shown, outcome: outcome)
+            )
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        let prompt = "Compare what is stated in '\(document1.filename)' versus what is stated in '\(document2.filename)' on the topic: \(topic)."
-        let shown = "Comparison of \(document1.filename) and \(document2.filename) on \(topic)"
-        let outcome = try await AskActionRunner.run(self) { control in
-            try await AskActionRunner.ask(
-                prompt, shownAs: shown, mode: .standard, topK: 8, documentIds: [document1.id, document2.id],
-                control: control)
-        }
-        return .result(
-            value: outcome.answer,
-            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            snippetIntent: await AskActionRunner.card(question: shown, outcome: outcome)
-        )
     }
 }
 
@@ -1202,14 +1268,22 @@ struct SearchLibraryIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerEntity> & ProvidesDialog & ShowsSnippetIntent {
-        let outcome = try await AskActionRunner.run(self) { control in
-            try await AskActionRunner.ask(query, mode: mode, libraryId: library.id, control: control)
+        let journal = VerificationJournal.Span("intent.SearchLibraryIntent")
+        defer { journal.end() }
+        do {
+            let outcome = try await AskActionRunner.run(self) { control in
+                try await AskActionRunner.ask(query, mode: mode, libraryId: library.id, control: control)
+            }
+            return .result(
+                value: outcome.answer,
+                dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
+                snippetIntent: await AskActionRunner.card(question: query, outcome: outcome)
+            )
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result(
-            value: outcome.answer,
-            dialog: IntentDialog(stringLiteral: AskActionRunner.spoken(outcome.response.generatedResponse)),
-            snippetIntent: await AskActionRunner.card(question: query, outcome: outcome)
-        )
     }
 }
 
@@ -1234,36 +1308,44 @@ struct ListEvidenceThreadsIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<[OIThreadEntity]> & ProvidesDialog & ShowsSnippetView {
-        Log.info("[Siri] List Conversations intent invoked", category: .pipeline)
+        let journal = VerificationJournal.Span("intent.ListEvidenceThreadsIntent")
+        defer { journal.end() }
+        do {
+            Log.info("[Siri] List Conversations intent invoked", category: .pipeline)
 
-        let ragService = await MainActor.run { IntentSupport.engine() }
-        let containerId = await MainActor.run {
-            library?.id ?? ragService.containerService.activeContainerId
-        }
-        let libraryName = await MainActor.run {
-            ragService.containerService.containers.first { $0.id == containerId }?.name
-        }
-        let threads = await MainActor.run {
-            ragService.listThreads(for: containerId)
-        }
-        let items = threads.map { OIThreadEntity($0, libraryName: libraryName) }
+            let ragService = await MainActor.run { IntentSupport.engine() }
+            let containerId = await MainActor.run {
+                library?.id ?? ragService.containerService.activeContainerId
+            }
+            let libraryName = await MainActor.run {
+                ragService.containerService.containers.first { $0.id == containerId }?.name
+            }
+            let threads = await MainActor.run {
+                ragService.listThreads(for: containerId)
+            }
+            let items = threads.map { OIThreadEntity($0, libraryName: libraryName) }
 
-        guard !threads.isEmpty else {
+            guard !threads.isEmpty else {
+                return .result(
+                    value: items,
+                    dialog: IntentDialog(stringLiteral: "There are no conversations in this library yet."),
+                    view: ThreadListSnippetView(threads: threads)
+                )
+            }
+
+            let threadTitles = threads.map { $0.title }.joined(separator: ", ")
+            let spokenResponse = "You have \(threads.count) conversation\(threads.count == 1 ? "" : "s"): \(threadTitles)"
+
             return .result(
                 value: items,
-                dialog: IntentDialog(stringLiteral: "There are no conversations in this library yet."),
+                dialog: IntentDialog(stringLiteral: spokenResponse),
                 view: ThreadListSnippetView(threads: threads)
             )
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-
-        let threadTitles = threads.map { $0.title }.joined(separator: ", ")
-        let spokenResponse = "You have \(threads.count) conversation\(threads.count == 1 ? "" : "s"): \(threadTitles)"
-
-        return .result(
-            value: items,
-            dialog: IntentDialog(stringLiteral: spokenResponse),
-            view: ThreadListSnippetView(threads: threads)
-        )
     }
 }
 
@@ -1288,24 +1370,32 @@ struct CreateNewEvidenceThreadIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        Log.info("[Siri] Start a Conversation intent invoked", category: .pipeline)
-
-        let ragService = await MainActor.run { IntentSupport.engine() }
-        let containerId = await MainActor.run {
-            library?.id ?? ragService.containerService.activeContainerId
-        }
-
+        let journal = VerificationJournal.Span("intent.CreateNewEvidenceThreadIntent")
+        defer { journal.end() }
         do {
-            try await MainActor.run {
-                try ragService.createNewThread(for: containerId)
-                AppNavigationRequest.post(.newConversation(libraryId: containerId))
+            Log.info("[Siri] Start a Conversation intent invoked", category: .pipeline)
+
+            let ragService = await MainActor.run { IntentSupport.engine() }
+            let containerId = await MainActor.run {
+                library?.id ?? ragService.containerService.activeContainerId
             }
+
+            do {
+                try await MainActor.run {
+                    try ragService.createNewThread(for: containerId)
+                    AppNavigationRequest.post(.newConversation(libraryId: containerId))
+                }
+            } catch {
+                throw OIIntentError("A new conversation could not be started. \(error.localizedDescription)")
+            }
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Started a new conversation.")
+            )
+
         } catch {
-            throw OIIntentError("A new conversation could not be started. \(error.localizedDescription)")
+            journal.fail(error)
+            throw error
         }
-        return .result(
-            dialog: IntentDialog(stringLiteral: "Started a new conversation.")
-        )
     }
 }
 
