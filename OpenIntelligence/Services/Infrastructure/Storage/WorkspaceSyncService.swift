@@ -508,6 +508,8 @@ final class WorkspaceSyncService: ObservableObject {
         do {
             try ensureDirectory(sharedWorkspaceRoot)
             await prepareWorkspaceDownloads(root: sharedWorkspaceRoot)
+            // Before the folder is read (5.8): see `waitUntilSyncFilesAreFree`.
+            await Self.waitUntilSyncFilesAreFree(in: [sharedWorkspaceRoot])
 
             let sharedInventory = try await workspaceInventory(at: sharedWorkspaceRoot)
             let unsupportedContainers = unsupportedSyncContainerNames(
@@ -594,6 +596,8 @@ final class WorkspaceSyncService: ObservableObject {
             try await createRecoverySnapshot(at: pendingBootstrapPlan.localRoot, label: "local")
             try await createRecoverySnapshot(at: pendingBootstrapPlan.sharedRoot, label: "icloud")
             await prepareWorkspaceDownloads(root: pendingBootstrapPlan.sharedRoot)
+            // Before the folder is read (5.8): see `waitUntilSyncFilesAreFree`.
+            await Self.waitUntilSyncFilesAreFree(in: [pendingBootstrapPlan.sharedRoot])
             try await resolveSharedMetadataConflictsIfNeeded(in: pendingBootstrapPlan.sharedRoot)
 
             let localInventory = try await workspaceInventory(at: pendingBootstrapPlan.localRoot)
@@ -662,6 +666,8 @@ final class WorkspaceSyncService: ObservableObject {
             let sharedWorkspaceRoot = sharedWorkspaceRootURL(for: containerURL)
             try ensureDirectory(sharedWorkspaceRoot)
             await prepareWorkspaceDownloads(root: sharedWorkspaceRoot)
+            // Before the folder is read (5.8): see `waitUntilSyncFilesAreFree`.
+            await Self.waitUntilSyncFilesAreFree(in: [sharedWorkspaceRoot])
             try await resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
 
             let sharedInventory = try await workspaceInventory(at: sharedWorkspaceRoot)
@@ -741,6 +747,8 @@ final class WorkspaceSyncService: ObservableObject {
 
         try ensureDirectory(sharedRoot)
         await prepareWorkspaceDownloads(root: sharedRoot)
+        // Before the folder is read (5.8): see `waitUntilSyncFilesAreFree`.
+        await Self.waitUntilSyncFilesAreFree(in: [sharedRoot])
         try await resolveSharedMetadataConflictsIfNeeded(in: sharedRoot)
 
         let sharedDocumentsURL = sharedRoot.appendingPathComponent("documents_metadata.json")
@@ -806,6 +814,8 @@ final class WorkspaceSyncService: ObservableObject {
 
         try ensureDirectory(sharedRoot)
         await prepareWorkspaceDownloads(root: sharedRoot)
+        // Before the folder is read (5.8): see `waitUntilSyncFilesAreFree`.
+        await Self.waitUntilSyncFilesAreFree(in: [sharedRoot])
         try await resolveSharedMetadataConflictsIfNeeded(in: sharedRoot)
 
         let sharedInventory = try await workspaceInventory(at: sharedRoot)
@@ -1466,6 +1476,14 @@ final class WorkspaceSyncService: ObservableObject {
                 try? Self.coordinatedRemoveItem(at: localAuxURL)
             }
         }
+
+        // iCloud's numbered copies of files from libraries no list holds, which nothing reads (5.8). Last, so this
+        // `await` sits after every read and write above; a library in any list keeps every copy of its files.
+        await Self.removeOrphanedConflictCopies(
+            in: sharedRoot,
+            libraryIds: Set(localInventory.containers.map(\.id))
+                .union(sharedInventory.containers.map(\.id))
+                .union(finalLocalContainers.map(\.id)))
     }
 
     nonisolated private func unsupportedSyncContainerNames(
@@ -3814,6 +3832,130 @@ final class WorkspaceSyncService: ObservableObject {
         let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
         guard filePath.hasPrefix(rootPrefix) else { return nil }
         return String(filePath.dropFirst(rootPrefix.count))
+    }
+
+    /// The small lists a sync pass reads and rewrites on the main actor (5.8, `waitUntilSyncFilesAreFree`), which every
+    /// device rewrites and iCloud holds while it uploads them. Not the vector stores: the pass reads those only when
+    /// their signature changed, and through `ensureItemsAvailableLocally`, which has its own limit; a wait on one could
+    /// last a whole download. Not iCloud's conflict copies ("documents_metadata 3.json"), which the pass never reads.
+    nonisolated static func syncFilesToWaitFor(in root: URL, fileManager: FileManager = .default) -> [URL] {
+        let lists: Set<String> = [
+            "containers.json", "documents_metadata.json", "deleted_documents.json", "deleted_containers.json",
+            "ingestion_queue.json", EvidenceThreadStore.deletedThreadsFileName,
+        ]
+        guard let items = try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return items.filter { lists.contains($0.lastPathComponent) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Waits, off the main thread, until no other process holds the lists a pass is about to read, before the pass
+    /// reads them on the main actor as it always has (5.8). Gives up after `timeout` and lets the pass go on.
+    ///
+    /// Why: on the owner's Mac on 2026-11-03 the window froze at launch while the pass waited in `NSFileCoordinator`
+    /// for iCloud to release `deleted_documents.json` (`sample`: the main thread in `_blockOnAccessClaim` for all 4 s,
+    /// at about 1% CPU). Moving the pass itself off the main thread was tried and taken back the same day: a refuting
+    /// review showed the pass's read-merge-write steps, which run with no `await` on the main actor, would then let the
+    /// app's own writes land between a read and its write, so a deletion could be overwritten and come back on every
+    /// device. So the pass is unchanged and this runs first, at the `await` that already followed
+    /// `prepareWorkspaceDownloads`: one coordinated read of every list, granted once iCloud has finished with all of
+    /// them, so the pass's own reads find them free. iCloud can take a file again in the moment between, which this
+    /// narrows and doesn't close. A list iCloud has evicted is listed as ".name.icloud" and isn't waited for.
+    ///
+    /// The limit: a claim nobody releases would otherwise hold every later pass, since a pass that hasn't finished
+    /// makes the next one wait its turn. After `timeout` the pass reads as it did before 5.8, which can block the main
+    /// thread again but can't hang sync for good.
+    @concurrent nonisolated static func waitUntilSyncFilesAreFree(
+        in roots: [URL], timeout: Duration = .seconds(20)
+    ) async {
+        let files = roots.flatMap { syncFilesToWaitFor(in: $0) }
+        guard !files.isEmpty else { return }
+        let started = Date()
+        let intents = files.map { NSFileAccessIntent.readingIntent(with: $0, options: []) }
+        nonisolated(unsafe) let coordinator = NSFileCoordinator(filePresenter: nil)
+        let timer = Task {
+            try? await Task.sleep(for: timeout)
+            if !Task.isCancelled { coordinator.cancel() }
+        }
+        let error: Error? = await withCheckedContinuation { (continuation: CheckedContinuation<Error?, Never>) in
+            coordinator.coordinate(with: intents, queue: OperationQueue()) { continuation.resume(returning: $0) }
+        }
+        timer.cancel()
+        let waitedMs = Date().timeIntervalSince(started) * 1000
+        if let error {
+            VerificationJournal.record(
+                "sync.waitForFiles", .failed, durationMs: waitedMs,
+                ["files": "\(files.count)", "error": (error as NSError).code == NSUserCancelledError ? "timeout" : "\(error)"])
+            Log.warning(
+                "[WorkspaceSync] iCloud still held \(files.count) list(s) after \(Int(waitedMs)) ms; the pass reads them anyway: \(error.localizedDescription)",
+                category: .vectorDB)
+            return
+        }
+        VerificationJournal.record(
+            "sync.waitForFiles", .ok, durationMs: waitedMs, ["files": "\(files.count)", "roots": "\(roots.count)"])
+        if waitedMs > 500 {
+            Log.info(
+                "[WorkspaceSync] Waited \(Int(waitedMs)) ms off the main thread for iCloud to release \(files.count) file(s) before the pass",
+                category: .vectorDB)
+        }
+    }
+
+    /// iCloud's numbered copies of the app's own files that belong to no library and have no original beside them
+    /// (5.8): `transcript_<library id> 2.json`, `vector_database_<library id>_vectors 3.bin` and the like.
+    ///
+    /// Why: on the owner's iCloud on 2026-11-03 there were 497, every one for a library in neither device's list and
+    /// none with an original, so nothing could read them. Earlier versions wrote these files without coordination, so
+    /// two devices writing at once left a copy (the newest was from 2026-09-10, since that was fixed), and deleting a
+    /// library removed its files but never their copies. A copy whose library still exists, or whose original is still
+    /// there, could hold something the original lacks and is kept.
+    nonisolated static func orphanedConflictCopies(
+        in root: URL, libraryIds: Set<UUID>, fileManager: FileManager = .default
+    ) -> [URL] {
+        // With no library known on either side the lists weren't read, and every library would look deleted.
+        guard !libraryIds.isEmpty,
+            let items = try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+        else {
+            return []
+        }
+        let pattern = #"^(chat_history|transcript|conversation_memory|vector_database)_([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(_meta|_vectors|_norms)? [0-9]+\.(json|bin)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        return items.filter { url in
+            let name = url.lastPathComponent
+            let range = NSRange(name.startIndex..., in: name)
+            guard let match = regex.firstMatch(in: name, range: range),
+                let idRange = Range(match.range(at: 2), in: name), let id = UUID(uuidString: String(name[idRange])),
+                !libraryIds.contains(id)
+            else { return false }
+            // The original is the name without iCloud's number: "transcript_<id>.json".
+            let original = name.replacingOccurrences(of: #" [0-9]+\.(json|bin)$"#, with: ".$1", options: .regularExpression)
+            // An original iCloud has evicted is still there, as its placeholder ".transcript_<id>.json.icloud".
+            return !fileManager.fileExists(atPath: root.appendingPathComponent(original).path)
+                && !fileManager.fileExists(atPath: root.appendingPathComponent(".\(original).icloud").path)
+        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Removes `orphanedConflictCopies` from the iCloud workspace, off the main thread (5.8). Nothing in the app reads
+    /// or writes a file with iCloud's number in its name, so this can't race the app's own writes. Each run's count
+    /// goes to the trace and, in a development build, the event journal.
+    @concurrent nonisolated static func removeOrphanedConflictCopies(in root: URL, libraryIds: Set<UUID>) async {
+        let copies = orphanedConflictCopies(in: root, libraryIds: libraryIds)
+        guard !copies.isEmpty else { return }
+        var removed = 0
+        var failed = 0
+        for url in copies {
+            do {
+                try coordinatedRemoveItem(at: url)
+                removed += 1
+            } catch {
+                failed += 1
+            }
+        }
+        VerificationJournal.record(
+            "sync.orphanedCopiesRemoved", failed == 0 ? .ok : .failed, ["removed": "\(removed)", "failed": "\(failed)"])
+        Log.info(
+            "[WorkspaceSync] Removed \(removed) of iCloud's numbered copies of files from libraries that no longer exist"
+                + (failed > 0 ? "; \(failed) could not be removed and are tried again next pass" : ""),
+            category: .vectorDB)
     }
 
     nonisolated static func coordinatedReadData(from url: URL) throws -> Data {
