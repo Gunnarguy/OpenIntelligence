@@ -49,4 +49,20 @@ final class DeferredEnrichmentTests: XCTestCase {
         defaults.set(["not two ids", "\(UUID().uuidString) \(UUID().uuidString)"], forKey: RAGService.deferredEnrichmentKey)
         XCTAssertEqual(RAGService.deferredEnrichments(defaults: defaults).count, 1)
     }
+
+    /// From 5.8 a file's model work waits while other files are queued, so the queue isn't held up to 20 s a
+    /// document for it, and runs when the queue empties. The last or only file is still enriched as it lands.
+    func testTheModelWorkWaits_inTheBackground_orWhileOtherFilesAreQueued() {
+        XCTAssertTrue(RAGService.shouldDeferEnrichment(appIsInBackground: true, otherFilesQueued: false, isOnboarding: false))
+        XCTAssertTrue(RAGService.shouldDeferEnrichment(appIsInBackground: false, otherFilesQueued: true, isOnboarding: false))
+        XCTAssertTrue(RAGService.shouldDeferEnrichment(appIsInBackground: true, otherFilesQueued: true, isOnboarding: false))
+    }
+
+    func testTheLastOrOnlyFile_inFront_isEnrichedAtOnce() {
+        XCTAssertFalse(RAGService.shouldDeferEnrichment(appIsInBackground: false, otherFilesQueued: false, isOnboarding: false))
+    }
+
+    func testAnOnboardingSample_neverWaits() {
+        XCTAssertFalse(RAGService.shouldDeferEnrichment(appIsInBackground: true, otherFilesQueued: true, isOnboarding: true))
+    }
 }

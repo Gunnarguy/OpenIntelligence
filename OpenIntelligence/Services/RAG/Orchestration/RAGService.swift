@@ -8219,11 +8219,26 @@ class RAGService: ObservableObject {
             // in front: on 2026-10-15 iOS ended a background import 53 s in, during this work, and the Lock
             // Screen said "Task failed"; the overview and the tags then came before the save, so an earlier
             // end would have stopped the import before its document was recorded.
-            let enrichLater = await MainActor.run { Self.appIsInBackground }
-            if enrichLater && context != .onboarding {
+            //
+            // From 5.8 it also waits while more files are queued, so the queue moves to the next file at once and
+            // the work runs when it empties (`runDeferredEnrichmentsIfNeeded`, called at the end of the loop). The
+            // work is the same and so is what it writes; through 5.7 each file held the next one for it, up to 20 s
+            // a document on an A18 Pro (the note in `enrichImportedDocument`). The last file of an import, or a
+            // single file, is still enriched here.
+            let (inBackground, filesWaiting) = await MainActor.run {
+                (
+                    Self.appIsInBackground,
+                    self.ingestionItems.contains { $0.stage == .queued && $0.id != trackingId }
+                )
+            }
+            if Self.shouldDeferEnrichment(
+                appIsInBackground: inBackground, otherFilesQueued: filesWaiting, isOnboarding: context == .onboarding)
+            {
                 Self.deferEnrichment(of: updatedDocument.id, in: activeContainerId)
                 Log.info(
-                    "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the app is in front",
+                    inBackground
+                        ? "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the app is in front"
+                        : "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the queue's other files are in",
                     category: .ingestion)
             } else {
                 await enrichImportedDocument(
@@ -8557,6 +8572,15 @@ class RAGService: ObservableObject {
         }
         let listed = await MainActor.run { self.documents.contains { $0.id == id } || self.isRemovalPending(id) }
         return listed ? .listed : .unlisted
+    }
+
+    /// Whether a saved document's overview, tags and suggested questions wait instead of running before the next
+    /// file (5.7 in the background; 5.8 also while other files are queued). An onboarding sample never waits: its
+    /// overview is skipped altogether.
+    nonisolated static func shouldDeferEnrichment(
+        appIsInBackground: Bool, otherFilesQueued: Bool, isOnboarding: Bool
+    ) -> Bool {
+        !isOnboarding && (appIsInBackground || otherFilesQueued)
     }
 
     /// Whether the app is in the background, where iOS ends an import that stalls (5.7).

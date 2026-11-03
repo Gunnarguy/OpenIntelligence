@@ -3796,6 +3796,11 @@ nonisolated struct AxisLabelInsets: Equatable, Sendable {
     var bottom: Float = 0
     var leading: Float = 0
     var trailing: Float = 0
+    /// Boxes drawn over the scene that don't span its width, in the view's units (-1 to 1 across and up), which a
+    /// label keeps clear of only where it would cover one (5.8). The card's cluster box sits at the lower left; as a
+    /// `bottom` band it held every label above its top across the whole card, so the far end of an upright axis had
+    /// its name partway along the line (the owner, 2026-11-03).
+    var boxes: [AxisLabelPlacement] = []
 
     static let zero = AxisLabelInsets()
 }
@@ -3867,7 +3872,7 @@ nonisolated func keepAxisLabelsInView(
         let drawDepth = min(depth, max(mapCameraDistance - 1, 0.2))
         let scale = pin.label.simdScale.x
         let size = SIMD2<Float>(pin.halfWidth, pin.halfHeight) * scale / (halfAngles * drawDepth)
-        let spot = axisLabelSpot(wanted: wanted, halfSize: size, region: region, placed: placed)
+        let spot = axisLabelSpot(wanted: wanted, halfSize: size, region: region, placed: placed, boxes: insets.boxes)
         placed.append(AxisLabelPlacement(center: spot, halfSize: size))
         pin.label.simdWorldPosition = worldPoint(at: spot, depth: drawDepth, camera: transform, halfAngles: halfAngles)
     }
@@ -3889,7 +3894,7 @@ nonisolated struct AxisLabelRegion: Equatable {
 }
 
 /// A label placed on the view, in its own units: -1 to 1 across and up.
-nonisolated struct AxisLabelPlacement: Equatable {
+nonisolated struct AxisLabelPlacement: Equatable, Sendable {
     let center: SIMD2<Float>
     let halfSize: SIMD2<Float>
 
@@ -3900,10 +3905,12 @@ nonisolated struct AxisLabelPlacement: Equatable {
 }
 
 /// Where a label of `halfSize` goes on the view (-1 to 1 across and up) to name the point at `wanted`: there, moved in
-/// until all of it is inside `region`, then stepped toward the middle of the region by its height while it covers one
-/// in `placed`, at most six times. A label wider or taller than the region is centred across it.
+/// until all of it is inside `region`, then, where it would cover one of `boxes`, moved up or down to clear it on the
+/// side with room, then stepped toward the middle of the region by its height while it covers one in `placed`, at
+/// most six times. A label wider or taller than the region is centred across it.
 nonisolated func axisLabelSpot(
-    wanted: SIMD2<Float>, halfSize: SIMD2<Float>, region: AxisLabelRegion, placed: [AxisLabelPlacement]
+    wanted: SIMD2<Float>, halfSize: SIMD2<Float>, region: AxisLabelRegion, placed: [AxisLabelPlacement],
+    boxes: [AxisLabelPlacement] = []
 ) -> SIMD2<Float> {
     let middle = (region.minimum + region.maximum) / 2
     var low = region.minimum + halfSize
@@ -3913,6 +3920,11 @@ nonisolated func axisLabelSpot(
         high[axis] = middle[axis]
     }
     var spot = simd_clamp(wanted, low, high)
+    for box in boxes where box.overlaps(AxisLabelPlacement(center: spot, halfSize: halfSize)) {
+        let above = box.center.y + box.halfSize.y + halfSize.y
+        let below = box.center.y - box.halfSize.y - halfSize.y
+        spot.y = above <= high.y || below < low.y ? min(above, high.y) : below
+    }
     var steps = 0
     while steps < 6, placed.contains(where: { $0.overlaps(AxisLabelPlacement(center: spot, halfSize: halfSize)) }) {
         spot.y += (spot.y > middle.y ? -2.2 : 2.2) * halfSize.y

@@ -128,6 +128,34 @@ final class AtlasLabelSizeTests: XCTestCase {
         XCTAssertEqual(bottom.y, -0.58 + 0.05, accuracy: 0.0001)
     }
 
+    /// The card's cluster box covers its lower left only (5.8). A label at the bottom of the middle stays at its axis end;
+    /// one that would cover the box moves up to clear it. Through 5.7 the box was a band across the whole bottom, and the
+    /// green axis's lower name sat partway up its line (the owner's screenshot, 2026-11-03).
+    func testALabelClearsTheCardsBox_onlyWhereItWouldCoverIt() {
+        let region = AxisLabelRegion(insets: .zero, margin: 0.04)
+        let box = AxisLabelPlacement(center: SIMD2(-0.65, -0.65), halfSize: SIMD2(0.3, 0.3))
+        let half = SIMD2<Float>(0.2, 0.05)
+        let middle = axisLabelSpot(wanted: SIMD2(0, -0.8), halfSize: half, region: region, placed: [], boxes: [box])
+        XCTAssertEqual(middle, SIMD2(0, -0.8))
+        let corner = axisLabelSpot(wanted: SIMD2(-0.6, -0.8), halfSize: half, region: region, placed: [], boxes: [box])
+        XCTAssertEqual(corner.y, -0.35 + 0.05, accuracy: 0.0001)
+        XCTAssertFalse(box.overlaps(AxisLabelPlacement(center: corner, halfSize: half)))
+    }
+
+    /// The box the card measures, in points, becomes the same box in the scene's units: -1 to 1 across and up.
+    func testTheCardsBox_isMeasuredInTheScenesUnits() {
+        let scene = CGRect(x: 50, y: 500, width: 800, height: 600)
+        let chrome = CGRect(x: 50, y: 950, width: 240, height: 150)
+        let insets = CompactAtlasSceneView.cardLabelInsets(scene: scene, chrome: chrome)
+        XCTAssertEqual(insets.bottom, 0)
+        let box = try! XCTUnwrap(insets.boxes.first)
+        XCTAssertEqual(box.center.x, -0.7, accuracy: 0.0001)
+        XCTAssertEqual(box.halfSize.x, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(box.center.y, -0.75, accuracy: 0.0001)
+        XCTAssertEqual(box.halfSize.y, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(CompactAtlasSceneView.cardLabelInsets(scene: scene, chrome: .zero), .zero)
+    }
+
     /// Two labels pushed to the same place at the edge: the second steps toward the middle by its height and no longer
     /// covers the first.
     func testALabelThatWouldCoverAnotherStepsTowardTheMiddle() {

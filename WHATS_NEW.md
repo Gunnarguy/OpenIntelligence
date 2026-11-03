@@ -10,6 +10,7 @@ Every citation now shows its passage in the document, a library can keep up with
 ### Libraries
 - **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
 - **Importing a very large file twice no longer makes a second copy.** Large PDFs and text files now get the same duplicate check as everything else.
+- **Importing several files at once is faster.** Each file used to wait for its overview and suggested questions before the next one started. Now the files go in first and those come right after, the same as before.
 - **A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.** It used to be able to stay there for good.
 
 ### Answers

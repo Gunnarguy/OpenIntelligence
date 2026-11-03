@@ -2907,7 +2907,7 @@ struct CompactAtlasSceneView: View {
     @State private var legendItems: [TopicColorItem] = []
     // Where the scene is and where the cluster box and hint over it start, for its axis labels (`cardLabelInsets`).
     @State private var cardSceneFrame: CGRect = .zero
-    @State private var cardChromeTop: CGFloat = 0
+    @State private var cardChromeFrame: CGRect = .zero
 
     // A guard only: the passages arrive sampled to `RAGService.visualizationPassageLimit` (6,000) since 5.7.
     private let sampleLimit = 50000
@@ -3018,19 +3018,34 @@ struct CompactAtlasSceneView: View {
                     topicLegendOverlay
                     sceneHintOverlay
                 }
-                .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).minY }) { cardChromeTop = $0 }
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { cardChromeFrame = $0 }
             }
         } else {
             chartContent
         }
     }
 
-    /// What the cluster box and the hint cover of the card's scene, along its bottom, which its axis labels keep clear
-    /// of (5.7).
+    /// The box the cluster names and the hint take at the card's lower left, which its axis labels keep clear of (5.7).
+    /// From 5.8 only where a label would cover it: through 5.7 it was a band across the whole bottom, which held a label
+    /// at the middle of the card, nowhere near the box, above the box's top (the owner, 2026-11-03).
     private var cardLabelInsets: AxisLabelInsets {
-        guard cardSceneFrame.height > 0, cardChromeTop > 0 else { return .zero }
-        let bottom = max(cardSceneFrame.maxY - cardChromeTop, 0) / cardSceneFrame.height
-        return AxisLabelInsets(bottom: Float(min(bottom, 0.45)))
+        Self.cardLabelInsets(scene: cardSceneFrame, chrome: cardChromeFrame)
+    }
+
+    /// `chrome`, in the same coordinates as `scene`, as a box in the scene's view units: -1 to 1 across and up.
+    nonisolated static func cardLabelInsets(scene: CGRect, chrome: CGRect) -> AxisLabelInsets {
+        guard scene.width > 0, scene.height > 0, chrome.width > 0, chrome.height > 0 else { return .zero }
+        let box = scene.intersection(chrome)
+        guard !box.isNull, box.width > 0, box.height > 0 else { return .zero }
+        let left = -1 + 2 * (box.minX - scene.minX) / scene.width
+        let right = -1 + 2 * (box.maxX - scene.minX) / scene.width
+        let top = 1 - 2 * (box.minY - scene.minY) / scene.height
+        let bottom = 1 - 2 * (box.maxY - scene.minY) / scene.height
+        return AxisLabelInsets(boxes: [
+            AxisLabelPlacement(
+                center: SIMD2(Float(left + right) / 2, Float(top + bottom) / 2),
+                halfSize: SIMD2(Float(right - left) / 2, Float(top - bottom) / 2))
+        ])
     }
 
     /// Shows what each color represents (Atlas canvas overlay keeps fixed sizes so it fits inside the compact 3D scene)
