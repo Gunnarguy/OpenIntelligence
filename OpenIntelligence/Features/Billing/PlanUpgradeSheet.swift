@@ -403,12 +403,14 @@ extension PlanUpgradeSheet {
             // Apple's own sheet for an offer code made in App Store Connect. Apple's rule is that a
             // code is redeemed through that sheet and not through a field of the app's own.
             Button {
+                Tour.used(.redeemCode)
                 showingRedeemCode = true
             } label: {
                 Label("Redeem a Code", systemImage: "giftcard")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .tour(.redeemCode, in: Tour.plans)
             .redeemCodeSheet(isPresented: $showingRedeemCode) { outcome in
                 if let message = outcome.message { alertMessage = message }
                 guard outcome.readsEntitlementsAgain else { return }

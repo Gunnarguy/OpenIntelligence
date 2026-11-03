@@ -62,8 +62,10 @@ struct MessageBubbleV2: View {
         onThumbsDown: (() -> Void)? = nil,
         onTranslate: ((String) -> Void)? = nil,
         onIllustrate: ((String) -> Void)? = nil,
-        libraryStateProvider: ((UUID) async -> String)? = nil
+        libraryStateProvider: ((UUID) async -> String)? = nil,
+        isLatestAnswer: Bool = false
     ) {
+        self.isLatestAnswer = isLatestAnswer
         _message = message
         self.showMetadata = showMetadata
         self.onRegenerate = onRegenerate
@@ -74,6 +76,9 @@ struct MessageBubbleV2: View {
         self.onIllustrate = onIllustrate
         self.libraryStateProvider = libraryStateProvider
     }
+
+    /// The newest answer carries the tour's answer tips, so its arrows show on one bubble only (5.8).
+    let isLatestAnswer: Bool
 
     private var isUser: Bool { message.role == .user }
 
@@ -109,6 +114,7 @@ struct MessageBubbleV2: View {
                             retrievedChunks: message.retrievedChunks ?? [],
                             modeName: message.metadata?.qualityModeName
                         )
+                        .environment(\.tourIsLatestAnswer, isLatestAnswer)
                     } else {
                         // Message content
                         // 14 points at the default text size, scaled with Dynamic Type on iPhone and iPad (5.7).
@@ -189,11 +195,13 @@ struct MessageBubbleV2: View {
                 .clipShape(BubbleShape(isUser: isUser))
                 .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
                 .onTapGesture {
+                    Tour.used(.answerBubble)
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                         showActions.toggle()
                         DSHaptics.soft()
                     }
                 }
+                .tour(.answerBubble, in: Tour.chat, when: isLatestAnswer && !isUser)
 
                 if !isUser { Spacer(minLength: bubbleSpacerMinLength) }
             }
@@ -216,7 +224,8 @@ struct MessageBubbleV2: View {
                     onIllustrate: (!isUser && onIllustrate != nil) ? { onIllustrate?(message.content) } : nil,
                     onShareImage: isUser ? nil : { shareMessageAsImage() },
                     onThumbsUp: onThumbsUp,
-                    onThumbsDown: onThumbsDown
+                    onThumbsDown: onThumbsDown,
+                    showsTour: isLatestAnswer && !isUser
                 )
                 // User bubbles only show Copy + Share — shrink bar to fit content
                 // and let the parent VStack's .trailing alignment push it right.
@@ -231,6 +240,7 @@ struct MessageBubbleV2: View {
                 HStack(spacing: 6) {
                     if let descriptor = responseRouteBadge {
                         Button {
+                            Tour.used(.routeBadge)
                             showDetails = true
                         } label: {
                             // 44 points tall to tap, Apple's minimum, with the chip drawn as before (5.7).
@@ -238,6 +248,7 @@ struct MessageBubbleV2: View {
                                 .frame(minHeight: DSSpacing.tapTarget)
                                 .contentShape(Rectangle())
                         }
+                        .tour(.routeBadge, in: Tour.chat, when: isLatestAnswer)
                         .buttonStyle(.plain)
                     }
 

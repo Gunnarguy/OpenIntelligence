@@ -2033,7 +2033,25 @@ class RAGService: ObservableObject {
     /// Forces the next query to use agentic mode regardless of complexity detection.
     @MainActor var forceAgenticOnNextQuery: Bool = false
 
-    @MainActor @Published var documents: [Document] = []
+    /// Documents the plan's document limit counts (5.8): not those in the guide library, nor the app's own guides
+    /// anywhere (`isAppGuide`, which the app sets), so the guides someone imported into General before 5.8 don't use
+    /// three of a free plan's five.
+    @MainActor var countedDocumentCount: Int {
+        documents.filter { !containerService.isGuideLibrary($0.containerId) && !isAppGuide($0) }.count
+    }
+
+    /// Whether a document is one of the app's guides. The app sets it (`SampleDocumentManager`), which the engine
+    /// can't see.
+    @MainActor var isAppGuide: (Document) -> Bool = { _ in false }
+
+    @MainActor @Published var documents: [Document] = [] {
+        // What each library's count shows (5.8, `ContainerService.documentCount`).
+        didSet {
+            containerService.setListedDocumentCounts(
+                ContainerService.documentCounts(
+                    of: documents.map(\.containerId), defaultLibrary: containerService.containers.first?.id))
+        }
+    }
     /// Deletions made in the app that can still be undone (5.7, `PendingDocumentRemoval`): their documents are
     /// out of `documents` and not removed yet.
     @MainActor @Published private(set) var pendingRemovals: [PendingDocumentRemoval] = []
@@ -6159,7 +6177,15 @@ class RAGService: ObservableObject {
         containerId: UUID? = nil
     ) -> [UUID] {
         guard !urls.isEmpty else { return [] }
-        let activeContainerId = containerId ?? containerService.activeContainerId
+        var activeContainerId = containerId ?? containerService.activeContainerId
+        // The guide library takes the app's guides only (5.8). What the person adds while it is open goes to their
+        // own first library, which is opened so they see it arrive.
+        if context != .onboarding, containerService.isGuideLibrary(activeContainerId),
+            let own = containerService.libraryForOwnFiles(requested: activeContainerId)
+        {
+            activeContainerId = own
+            if containerId == nil { containerService.setActive(own) }
+        }
         VerificationJournal.record(
             "import.enqueue",
             ["count": "\(urls.count)", "context": "\(context)", "library": VerificationJournal.anon(activeContainerId),
@@ -6978,7 +7004,16 @@ class RAGService: ObservableObject {
         // rest of this function and the large-file paths take it as the import's library.
         let activeContainerId = await MainActor.run { () -> UUID in
             if let containerId, self.containerService.containers.contains(where: { $0.id == containerId }) {
+                // The guide library takes the app's guides only (5.8): anything else goes to the person's own.
+                if context != .onboarding, let own = self.containerService.libraryForOwnFiles(requested: containerId) {
+                    return own
+                }
                 return containerId
+            }
+            if context != .onboarding,
+                let own = self.containerService.libraryForOwnFiles(requested: self.containerService.activeContainerId)
+            {
+                return own
             }
             return self.containerService.activeContainerId
         }
@@ -7084,7 +7119,7 @@ class RAGService: ObservableObject {
         let skipQuota = (context == .onboarding)
 
         let gating = await MainActor.run { () -> (limit: Int, canAdd: Bool, tier: WorkspaceTier, count: Int) in
-            let count = self.documents.count
+            let count = self.countedDocumentCount
             if let store = self.entitlementStore {
                 return (
                     store.documentLimit, skipQuota || store.canAddDocument(currentCount: count), store.activeTier, count

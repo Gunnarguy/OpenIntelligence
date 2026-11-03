@@ -13,6 +13,7 @@ struct GroundedAnswerView: View {
     @State private var expandedClaimIndex: Int? = nil
     @State private var selectedCitationChunk: RetrievedChunk? = nil
     @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
+    @Environment(\.tourIsLatestAnswer) private var tourIsLatestAnswer
     
     private var modeColor: Color {
         let mode = modeName?.lowercased() ?? ""
@@ -38,8 +39,10 @@ struct GroundedAnswerView: View {
                 font: .body,
                 foregroundColor: DSColors.primaryText
             )
+            .tour(.citation, in: Tour.chat, when: tourIsLatestAnswer && linkedAnswer.contains(CitationLinker.scheme + ":"))
             .environment(\.openURL, OpenURLAction { url in
                 if let chunk = CitationLinker.chunk(for: url, in: retrievedChunks) {
+                    Tour.used(.citation)
                     selectedCitationChunk = chunk
                     return .handled
                 }

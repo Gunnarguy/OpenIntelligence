@@ -23,6 +23,7 @@ import SwiftUI
 struct HowItWorksView: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @State private var didRequestReplay = false
+    @State private var didRequestTour = false
     /// Read so this screen describes the build the user is actually running. Private Cloud
     /// Compute is compiled out of App Store builds, so the escalation copy below described a
     /// step that cannot happen. Gating on the capability means the wording corrects itself
@@ -243,6 +244,38 @@ struct HowItWorksView: View {
 
             if didRequestReplay {
                 Text("The introduction is open behind this screen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Every screen's tips, again (5.8). They come back as each screen is opened, one at a time.
+            Button {
+                DSHaptics.selection()
+                didRequestTour = true
+                Task { await Tour.showAgain() }
+            } label: {
+                HStack {
+                    Text("Show Me Around")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: "hand.point.up.left")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(DSColors.accent)
+                .padding(.vertical, DSSpacing.sm)
+                .padding(.horizontal, DSSpacing.md)
+                .frame(minHeight: DSSpacing.tapTarget)
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                        .fill(DSColors.accent.opacity(0.12))
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(didRequestTour)
+            .accessibilityHint("Shows the tips on each screen again, one at a time, as you open it")
+
+            if didRequestTour {
+                Text("Each screen shows its tips again the next time you open it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -99,9 +99,10 @@ struct DocumentLibraryView: View {
     private var documentLimit: Int { entitlementStore.documentLimit }
     /// How many files a dropped or chosen folder may bring in: the room left on the plan, and never
     /// more than 500 (5.7).
-    private var folderFileRoom: Int { max(0, min(500, documentLimit - ragService.documents.count)) }
+    private var folderFileRoom: Int { max(0, min(500, documentLimit - ragService.countedDocumentCount)) }
+    /// The plan's limit counts the person's own documents, not the app's guides (5.8, `countedDocumentCount`).
     private var isAtDocumentLimit: Bool {
-        ragService.documents.count >= documentLimit
+        ragService.countedDocumentCount >= documentLimit
     }
 
     private var libraryLimit: Int { entitlementStore.libraryLimit }
@@ -254,6 +255,12 @@ struct DocumentLibraryView: View {
     /// accessibility text sizes (5.7).
     @ViewBuilder
     private var documentCards: some View {
+        documentCardList
+            .tour(.dragAndDrop, in: Tour.documents, arrow: .bottom)
+    }
+
+    @ViewBuilder
+    private var documentCardList: some View {
         LazyVStack(spacing: DSSpacing.md) {
             ForEach(filteredDocuments) { document in
                 NavigationLink(destination: DocumentDetailsView(
@@ -267,6 +274,7 @@ struct DocumentLibraryView: View {
                 // documents are on screen (5.7).
                 .appEntityIdentifier(.document(document.id))
                 .modifier(DocumentSwipeToDelete { swipeDelete(document) })
+                .tour(.documentMenu, in: Tour.documents, when: document.id == filteredDocuments.first?.id)
             }
         }
         .padding(DSSpacing.lg)
@@ -450,9 +458,28 @@ struct DocumentLibraryView: View {
         sharedWorkspaceBanner
             .padding(.horizontal, DSSpacing.lg)
 
+        // The guide library (5.8): what it is, and where the person's own files go.
+        if containerService.isGuideLibrary(containerService.activeContainerId) {
+            Label {
+                Text(
+                    "OpenIntelligence's own guides, free and outside your plan's limits. Ask this library how the app works. Files you add go to \(containerService.containers.first { !containerService.isGuideLibrary($0.id) }?.name ?? "your library")."
+                )
+                .font(.footnote)
+                .foregroundStyle(DSColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "book.closed.fill")
+                    .foregroundStyle(DSColors.accent)
+            }
+            .padding(DSSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DSColors.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+            .padding(.horizontal, DSSpacing.lg)
+        }
+
         if shouldShowQuotaBanner {
             DocumentQuotaBanner(
-                currentCount: ragService.documents.count,
+                currentCount: ragService.countedDocumentCount,
                 limit: documentLimit,
                 tierName: entitlementStore.currentPlanDisplayName,
                 addOnPacks: entitlementStore.addOnPacks,
@@ -574,14 +601,17 @@ struct DocumentLibraryView: View {
                 systemImage: "plus",
                 iconOnly: true
             ) {
+                Tour.used(.addDocument)
                 DSHaptics.light()
                 presentDocumentPickerOrUpgrade()
             }
+            .tour(.addDocument, in: Tour.documents)
 
             // A copied file, web address or text. The same chip as its neighbours; what it stores
             // takes the plan check and the import review that a file handed over by another app
             // takes.
             LibraryPasteButton { staged in
+                Tour.used(.paste)
                 DSHaptics.drop()
                 importOpenedFiles(staged)
             } label: { isWorking in
@@ -592,6 +622,7 @@ struct DocumentLibraryView: View {
                     iconOnly: true
                 )
             }
+            .tour(.paste, in: Tour.documents)
 
             DocumentActionChip(
                 title: "Semantic Search",
@@ -599,18 +630,22 @@ struct DocumentLibraryView: View {
                 isEnabled: !ragService.documents.isEmpty,
                 iconOnly: true
             ) {
+                Tour.used(.semanticSearch)
                 DSHaptics.selection()
                 showingSemanticSearch = true
             }
+            .tour(.semanticSearch, in: Tour.documents)
 
             DocumentActionChip(
                 title: "Library Settings",
                 systemImage: "slider.horizontal.3",
                 iconOnly: true
             ) {
+                Tour.used(.librarySettings)
                 DSHaptics.light()
                 showingContainerSettings = true
             }
+            .tour(.librarySettings, in: Tour.documents)
 
             // Shown only when the cache can actually contain something.
             //
@@ -1851,7 +1886,7 @@ struct DocumentLibraryView: View {
     /// start a modal panel at all.
     @MainActor
     private func presentDocumentPickerOrUpgrade() {
-        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
+        guard entitlementStore.canAddDocument(currentCount: ragService.countedDocumentCount) else {
             presentPlanSheet(for: .documentLimit)
             return
         }
@@ -1873,12 +1908,13 @@ struct DocumentLibraryView: View {
     @MainActor
     @discardableResult
     private func handleDroppedFiles(_ urls: [URL]) -> Bool {
+        Tour.used(.dragAndDrop)
         // A folder is not a document: it brings in the files inside it that the app imports, through
         // its subfolders (5.7). Through 5.6 a dropped folder was filtered out here and refused.
         let fileURLs = urls.filter(\.isFileURL)
         guard !fileURLs.isEmpty else { return false }
 
-        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
+        guard entitlementStore.canAddDocument(currentCount: ragService.countedDocumentCount) else {
             presentPlanSheet(for: .documentLimit)
             return false
         }
@@ -1896,7 +1932,7 @@ struct DocumentLibraryView: View {
     @MainActor
     private func importOpenedFiles(_ staged: [URL], into library: UUID? = nil) {
         guard !staged.isEmpty else { return }
-        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
+        guard entitlementStore.canAddDocument(currentCount: ragService.countedDocumentCount) else {
             staged.forEach { try? FileManager.default.removeItem(at: $0) }
             presentPlanSheet(for: .documentLimit)
             return
@@ -1908,7 +1944,7 @@ struct DocumentLibraryView: View {
     /// that come while it is open join it.
     @MainActor
     private func showOpenedFiles(_ staged: [URL]) {
-        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
+        guard entitlementStore.canAddDocument(currentCount: ragService.countedDocumentCount) else {
             ImportedFileStaging.discardViewingCopies(staged)
             presentPlanSheet(for: .documentLimit)
             return
@@ -1998,25 +2034,8 @@ struct DocumentLibraryView: View {
         sampleImportError = nil
         sampleImportStatusMessage = nil
 
-        let currentCount = ragService.documents.count
-        let sampleCount = SampleDocumentManager.shared.sampleCount
-        let remainingSlots = documentLimit - currentCount
-
-        guard remainingSlots > 0 else {
-            sampleImportStatusMessage =
-                "Current workspace supports up to \(documentLimit) documents. Remove a document or upgrade to import the sample workspace."
-            presentPlanSheet(for: .sampleImport)
-            return
-        }
-
-        guard remainingSlots >= sampleCount else {
-            let needed = sampleCount - remainingSlots
-            sampleImportStatusMessage =
-                "Importing the curated workspace requires \(sampleCount) slots, but only \(remainingSlots) remain. Remove \(needed) document\(needed == 1 ? "" : "s") or upgrade to proceed."
-            presentPlanSheet(for: .sampleImport)
-            return
-        }
-
+        // The guides use none of the plan's documents (5.8): they go in their own library, which counts toward neither
+        // limit, so importing them needs no room. Through 5.7 they took three of a free plan's five.
         isImportingSamples = true
 
         Task {
@@ -2033,7 +2052,8 @@ struct DocumentLibraryView: View {
 
     @MainActor
     private func handleNewLibraryTapped() {
-        let currentCount = containerService.containers.count
+        // The guide library isn't one of the plan's libraries (5.8).
+        let currentCount = containerService.countedLibraryCount
         guard entitlementStore.canAddLibrary(currentCount: currentCount) else {
             presentPlanSheet(for: .libraryCreation)
             return

@@ -90,6 +90,7 @@ struct MessageListV2: View {
                                 .id("empty")
                                 .padding(.top, 100)
                         } else {
+                            let latestAnswerId = messages.last(where: { $0.role == .assistant })?.id
                             ForEach($messages) { $message in
                                 let snapshot = $message.wrappedValue
                                 MessageBubbleV2(
@@ -100,7 +101,8 @@ struct MessageListV2: View {
                                     onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil,
                                     onTranslate: snapshot.role == .assistant ? onTranslate : nil,
                                     onIllustrate: snapshot.role == .assistant ? onIllustrate : nil,
-                                    libraryStateProvider: libraryStateProvider
+                                    libraryStateProvider: libraryStateProvider,
+                                    isLatestAnswer: snapshot.id == latestAnswerId
                                 )
                                 .id(snapshot.id)
                                 .transition(

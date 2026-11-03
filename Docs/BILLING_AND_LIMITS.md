@@ -46,6 +46,18 @@ Enforcement logic is defined in [QuotaPolicy.swift](../OpenIntelligence/Services
 
 Every row is read directly from `QuotaPolicy.swift`, and the Maximum-mode row from the snapshot builder in `EntitlementStore.swift`, which grants `.unlimited` to any tier other than `.free` and `.meteredDaily(QuotaPolicy.freeMaximumModeDailyLimit)` to Free. Pro is a **1,000-document, 10-library** tier, not an unlimited one; only Lifetime carries unlimited documents, and its library ceiling is 20. `[evidence_level: code_verified, confidence: exact, evidence_source: QuotaPolicy.swift freeDocumentLimit=5, proDocumentLimit=1_000, lifetimeDocumentLimit=.max, freeLibraryLimit=1, proLibraryLimit=10, lifetimeLibraryLimit=20, freeMaximumModeDailyLimit=3; EntitlementStore.buildSnapshot; read 2026-09-20]`
 
+### What the limits count (5.8)
+
+The document limit counts the person's own documents and the library limit their own libraries
+(`RAGService.countedDocumentCount`, `ContainerService.countedLibraryCount`). Neither counts the **guide library**
+(`ContainerService.ensureGuideLibrary`, "OpenIntelligence Guide", on the device only), where the app's three guides are
+imported from 5.8, nor the guides themselves wherever an earlier version imported them (`SampleDocumentManager.isGuide`).
+Through 5.7 the guides went into General and, though their import skipped the limit check, counted afterwards, so a free
+plan had two documents left. Anything the person adds while the guide library is open goes to their first own library,
+which is opened. A deleted document frees its place, as before: a count that never fell was judged a worse first
+impression than people rotating five documents (the owner, 2026-11-03).
+`[evidence_level: test_verified (GuideLibraryTests), confidence: high]`
+
 ### What each plan advertises, and the rule behind it
 
 Rewritten 2026-09-18, after ninety days of App Store Connect data (`~/ASC`) showed that the buyers

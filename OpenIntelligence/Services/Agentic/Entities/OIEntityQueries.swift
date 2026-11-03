@@ -109,14 +109,23 @@ struct OILibraryEntityQuery: EntityQuery, EntityStringQuery, EnumerableEntityQue
     }
 
     static func loadAllLibraries() -> [OILibraryEntity] {
-        loadContainers().map(entity(for:))
+        let containers = loadContainers()
+        // Counted from the document records, as the app shows it (5.8, `ContainerService.documentCount`): the
+        // library's saved total can be higher than it holds after an iCloud merge.
+        let counts = ContainerService.documentCounts(
+            of: OIDocumentEntityQuery.loadDocumentRecords().map(\.containerId), defaultLibrary: containers.first?.id)
+        return containers.map { entity(for: $0, documentCount: counts[$0.id, default: 0]) }
     }
 
     static func entity(for container: KnowledgeContainer) -> OILibraryEntity {
+        entity(for: container, documentCount: nil)
+    }
+
+    static func entity(for container: KnowledgeContainer, documentCount: Int?) -> OILibraryEntity {
         OILibraryEntity(
             id: container.id,
             name: container.name,
-            totalDocuments: container.totalDocuments,
+            totalDocuments: documentCount ?? container.totalDocuments,
             totalChunks: container.totalChunks,
             createdAt: container.createdAt,
             lastIndexedAt: container.lastIndexedAt

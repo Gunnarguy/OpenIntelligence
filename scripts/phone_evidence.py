@@ -129,8 +129,13 @@ def check(rule, events, trace):
             problems.append({"unwanted_trace": trace[max(0, m.start() - 40): m.end() + 80].replace("\n", " ")})
     if not problems:
         return "PASS", proof, problems
-    seen_any = any(p.get("seen") for p in problems) or any("unwanted_trace" in p for p in problems)
-    return ("FAIL" if seen_any else "NOT SEEN"), proof, problems
+    # FAIL means something went wrong: an event of that name ended failed or cancelled, or the trace holds what must
+    # not be there. An event seen with other fields (a Lock Screen check that found 0 scans, an import that ran with
+    # the app in front) only means the step hasn't been done yet: NOT SEEN.
+    went_wrong = any(
+        e.get("o") in ("failed", "cancelled") for p in problems for e in p.get("seen", [])
+    ) or any("unwanted_trace" in p for p in problems)
+    return ("FAIL" if went_wrong else "NOT SEEN"), proof, problems
 
 
 def main():

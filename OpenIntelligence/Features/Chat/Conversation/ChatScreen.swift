@@ -10,6 +10,7 @@ import Combine
 import Foundation
 import StoreKit
 import SwiftUI
+import TipKit
 import Translation
 
 #if os(iOS)
@@ -241,6 +242,8 @@ struct ChatScreen: View {
     @State private var composerDraft: ComposerDraft? = nil
     /// The library's documents for a cited passage's page; one object, so the environment is stable.
     @State private var documentLookup = LibraryDocumentLookup()
+    /// A source chip's passage, open in its document (5.8).
+    @State private var openedSourceChunk: OpenedRetrievedChunk?
     @State private var streamingBuffer: String = ""
     @State private var streamingPumpTask: Task<Void, Never>? = nil
     @State private var currentQueryTask: Task<Void, Never>? = nil  // Track current query for cancellation
@@ -840,11 +843,13 @@ struct ChatScreen: View {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
                             withAnimation(DSAnimations.snappySpring) {
+                                Tour.used(.sidebar)
                                 showThreadSidebar.toggle()
                             }
                         } label: {
                             Image(systemName: "sidebar.left")
                                 .imageScale(.large)
+                                .tour(.sidebar, in: Tour.chat)
                         }
                     }
 
@@ -891,6 +896,7 @@ struct ChatScreen: View {
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")
+                                .tour(.moreMenu, in: Tour.chat)
                                 .imageScale(.large)
                         }
                         .animation(nil, value: messages.count)
@@ -899,11 +905,13 @@ struct ChatScreen: View {
                     ToolbarItem(placement: .navigation) {
                         Button {
                             withAnimation(DSAnimations.snappySpring) {
+                                Tour.used(.sidebar)
                                 showThreadSidebar.toggle()
                             }
                         } label: {
                             Image(systemName: "sidebar.left")
                                 .imageScale(.large)
+                                .tour(.sidebar, in: Tour.chat)
                         }
                     }
 
@@ -944,6 +952,7 @@ struct ChatScreen: View {
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")
+                                .tour(.moreMenu, in: Tour.chat)
                                 .imageScale(.large)
                         }
                         .animation(nil, value: messages.count)
@@ -968,7 +977,12 @@ struct ChatScreen: View {
                                 .font(DSTypography.body)
                                 .foregroundStyle(DSColors.secondaryText)
                         } else {
-                            SourceChipsView(chunks: currentRetrievedChunks) {}
+                            SourceChipsView(chunks: currentRetrievedChunks, onTap: {}) { chunk in
+                                openedSourceChunk = OpenedRetrievedChunk(chunk: chunk)
+                            }
+                            .sheet(item: $openedSourceChunk) { opened in
+                                RetrievedSourceScreen(chunk: opened.chunk, lookup: documentLookup)
+                            }
                         }
                     }
                     .padding()
@@ -1077,6 +1091,7 @@ struct ChatScreen: View {
                 seedScreenshotDemoIfNeeded()
                 entitlementStore.refreshTransientState()
                 isAppeared = true
+                Task { await TourContext.chatOpened.donate() }
                 if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
                     needsSuggestedQuestionsRefresh = false
                     refreshDynamicQuestions()
@@ -2263,6 +2278,7 @@ struct ChatScreen: View {
     /// no answer is being written.
     @discardableResult
     private func newChat() -> Bool {
+        Tour.used(.moreMenu)
         do {
             try ragService.createNewThread(for: ragService.containerService.activeContainerId)
         } catch let quotaError as EvidenceThreadQuotaError {
@@ -2537,8 +2553,15 @@ struct ChatScreen: View {
 
     /// Present Image Playground with enriched concepts from the last assistant response
     private func illustrateLastResponse() {
+        Tour.used(.aiHub)
         guard let text = lastAssistantMessageText else { return }
+        illustrate(text)
+    }
 
+    /// Opens Image Playground with an answer's text, from the AI Hub (the last answer) or from any answer's Illustrate
+    /// button. That button never showed until 5.8: the chat never handed the message list its action (found
+    /// 2026-11-03).
+    private func illustrate(_ text: String) {
         // Wire Image Playground pipeline events into the thinking stream
         ImagePlaygroundService.shared.onThinkingEvent = { event in
             Task { @MainActor in
@@ -2677,6 +2700,7 @@ struct ChatScreen: View {
                     translationText = text
                     showTranslation = true
                 },
+                onIllustrate: ImagePlaygroundService.shared.isAvailable ? { text in illustrate(text) } : nil,
                 // Supplied here because this is where RAGService actually lives: it arrives through
                 // this screen's init as an @ObservedObject, never through the environment. Reaching
                 // for it with @EnvironmentObject inside the bubble crashed the app on 2026-08-19.
@@ -2835,6 +2859,7 @@ struct ChatScreen: View {
                 .imageScale(.large)
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(hasAssistantMessages ? DSColors.accent : .secondary)
+                .tour(.aiHub, in: Tour.chat)
         }
         .disabled(!hasAssistantMessages || isProcessing || writingToolsProcessing)
     }
@@ -2868,6 +2893,7 @@ struct ChatScreen: View {
     /// Transforms the last AI response using RAG-grounded context (source chunks + response).
     /// Each action receives the retrieved chunks so output is backed by the user's actual documents.
     private func performTransformAction(_ action: TransformAction, on text: String, question: String = "") {
+        Tour.used(.aiHub)
         guard !writingToolsProcessing else { return }
         DSHaptics.selection()
 
@@ -3433,6 +3459,7 @@ struct ChatScreen: View {
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
+                    TourContext.answers += 1
                     // What the device checks close on (5.8): the mode, the badge, how many passages, how long.
                     VerificationJournal.record(
                         "answer.done", .ok,
@@ -4103,9 +4130,11 @@ struct CompactChatHeader: View {
         QualityModeQuickPicker(
             selectedMode: $settings.ragQualityMode, onMaximumModeBlocked: onMaximumModeBlocked
         ) { _, _ in
+            Tour.used(.modePicker)
             // Reset stale Deep Think/Maximum metrics when mode changes
             ragService.resetDeepThinkLiveMetrics()
         }
+        .tour(.modePicker, in: Tour.chat)
 
         // Model indicator (compact)
         ModelStatusIndicator()
@@ -4173,12 +4202,15 @@ struct CompactChatHeader: View {
                 badgeText: documentCountText(for: container),
                 badgeStyle: .count
             ) {
+                Tour.used(.libraryPills)
                 withAnimation(DSAnimations.snappySpring) {
                     containerService.setActive(container.id)
                 }
                 SiriDonations.libraryUsed(container)
             }
             .fixedSize(horizontal: true, vertical: false)
+            .tour(.libraryPills, in: Tour.chat, when: containerService.activeContainerId != container.id
+                && container.id == containerService.pickableContainers.first(where: { $0.id != containerService.activeContainerId })?.id)
         }
     }
 

@@ -48,6 +48,7 @@ struct SourcePageView: View {
                         SourceMatchBanner(
                             match: match,
                             detail: pageIsScan ? "This page is a scan, so the passage can't be highlighted on it." : nil)
+                        .tour(.matchBanner, in: Tour.source, arrow: .top)
                     }
                 }
                 .navigationTitle("Page \(pageNumber)")

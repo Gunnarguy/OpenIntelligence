@@ -255,6 +255,7 @@ extension ContainerSettingsSheet {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 Text("Translation Language")
                     .font(.subheadline.weight(.semibold))
+                    .tour(.translation, in: Tour.librarySettings)
 
                 Picker("Translation Language", selection: $preferredTranslationLanguage) {
                     Text("No override").tag("auto")
@@ -646,6 +647,7 @@ extension ContainerSettingsSheet {
             Text("How this library finds the passages an answer is written from.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .tour(.searchStyle, in: Tour.librarySettings)
 
             VStack(spacing: DSSpacing.sm) {
                 retrievalStyleCard(
@@ -714,6 +716,7 @@ extension ContainerSettingsSheet {
         isSelected: Bool
     ) -> some View {
         Button {
+            Tour.used(.searchStyle)
             withAnimation(DSAnimations.snappySpring) {
                 retrievalConfig = .chosen(style, documentTypes: activeContainerDocuments.map(\.contentType))
             }

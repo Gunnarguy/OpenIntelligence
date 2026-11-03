@@ -358,8 +358,14 @@ OpenIntelligence never sends your documents to a developer-operated backend.
         ),
     ]
 
-    /// Total number of sample documents, used for quota calculations.
+    /// Total number of sample documents.
     var sampleCount: Int { samples.count }
+
+    /// Whether a document of this name is one of the guides, including a numbered copy (5.8): what the plan's
+    /// document limit leaves out.
+    func isGuide(filename: String) -> Bool {
+        samples.contains { $0.matchesStoredCopy(filename) }
+    }
 
     /// Each sample's text by the name it is listed under. A test reads it to check that the
     /// hand-written questions for the samples still name headings these guides have.
@@ -413,12 +419,28 @@ OpenIntelligence never sends your documents to a developer-operated backend.
             return
         }
 
+        // Into the guide library unless a caller named one (5.8): it counts toward neither of the plan's limits, and
+        // it is opened, so the starter questions are about what was just imported.
+        //
+        // Someone who imported the guides before 5.8 has some in General already. A replay then puts any missing one
+        // beside them, so the guides stay together and no near-empty guide library is made (found 2026-11-03).
+        let target = await MainActor.run { () -> UUID in
+            if let containerId { return containerId }
+            let services = ragService.containerService
+            if let existing = ragService.documents.first(where: { self.isGuide(filename: $0.filename) }) {
+                return existing.containerId ?? services.containers.first?.id ?? services.ensureGuideLibrary()
+            }
+            let guide = services.ensureGuideLibrary()
+            ragService.containerService.setActive(guide)
+            return guide
+        }
+
         // Use queue-based ingestion so ragService.ingestionItems gets populated
         // This allows the UI to observe real-time pipeline stage updates
         let result = await ragService.ingestDocuments(
             urls,
             context: .onboarding,
-            containerId: containerId
+            containerId: target
         )
 
         // Stamp what was ingested. Without this a fresh install would immediately report

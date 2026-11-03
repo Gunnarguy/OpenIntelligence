@@ -508,6 +508,7 @@ struct DatabaseDashboardView: View {
         let isSelected = databaseScope == scope
 
         Button {
+            Tour.used(.databaseScope)
             guard databaseScope != scope else { return }
             DSHaptics.light()
             withAnimation(DSAnimations.snappySpring) {
@@ -534,6 +535,7 @@ struct DatabaseDashboardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .tour(.databaseScope, in: Tour.database, when: scope == .allLibraries)
     }
 
     /// The section on screen: Index and Performance only with Technical Details on.
@@ -546,6 +548,7 @@ struct DatabaseDashboardView: View {
             HStack(spacing: DSSpacing.md) {
                 ForEach(DatabaseSection.allCases.filter { settings.showTechnicalDetails || !$0.isTechnical }) { section in
                     Button {
+                        Tour.used(.databaseSections)
                         withAnimation(DSAnimations.snappySpring) {
                             selectedSection = section
                         }
@@ -567,6 +570,7 @@ struct DatabaseDashboardView: View {
                         .foregroundStyle(shownSection == section ? Color.accentColor : .secondary)
                     }
                     .buttonStyle(.plain)
+                    .tour(.databaseSections, in: Tour.database, when: section == DatabaseSection.allCases.dropFirst().first)
                 }
             }
             .padding(.horizontal, DSSpacing.xs)
@@ -1297,12 +1301,14 @@ struct DatabaseDashboardView: View {
                         .font(.headline)
                     Spacer()
                     Button("Run Check") {
+                        Tour.used(.runCheck)
                         Task {
                             integrityResults = await SQLiteFullTextService.shared.runIntegrityCheck()
                         }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .tour(.runCheck, in: Tour.database)
                 }
 
                 if !integrityResults.isEmpty {

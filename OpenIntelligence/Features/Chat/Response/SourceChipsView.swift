@@ -12,6 +12,9 @@ import SwiftUI
 struct SourceChipsView: View {
     let chunks: [RetrievedChunk]
     let onTap: () -> Void
+    /// Opens the chip's passage (5.8). Through 5.7 the one screen showing chips passed an empty `onTap`, so a chip did
+    /// nothing when tapped (found 2026-11-03).
+    var onOpen: ((RetrievedChunk) -> Void)? = nil
     
     /// Stagger animation for chips appearing
     @State private var appearedCount: Int = 0
@@ -34,7 +37,7 @@ struct SourceChipsView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DSSpacing.xs) {
                 ForEach(Array(topChips.enumerated()), id: \.element.id) { index, chip in
-                    SourceChip(chip: chip, onTap: onTap)
+                    SourceChip(chip: chip, onTap: { if let onOpen { onOpen(chunks[index]) } else { onTap() } })
                         .opacity(index < appearedCount ? 1.0 : 0.0)
                         .offset(x: index < appearedCount ? 0 : 20)
                         .animation(

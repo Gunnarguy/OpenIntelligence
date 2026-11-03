@@ -142,6 +142,7 @@ struct ContainerPickerStrip: View {
     private var creationButton: some View {
         if allowsCreation {
             Button {
+                Tour.used(.newLibrary)
                 onCreateLibrary?()
             } label: {
                 HStack(spacing: DSSpacing.xs) {
@@ -161,6 +162,7 @@ struct ContainerPickerStrip: View {
             .buttonStyle(.plain)
             .fixedSize(horizontal: true, vertical: false)
             .glassEffectHelper(isSelected: false, tintColor: .secondary)
+            .tour(.newLibrary, in: Tour.documents)
         }
     }
 

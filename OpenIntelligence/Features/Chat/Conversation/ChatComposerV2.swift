@@ -127,6 +127,8 @@ struct ChatComposerV2: View {
                         .writingToolsBehavior(.complete)
                         .padding(.vertical, DSSpacing.md)
                         .padding(.leading, DSSpacing.lg)
+                        .tour(.composer, in: Tour.chat)
+                        .tour(.keyboard, in: Tour.chat)
 
                     // Dictation: the words go into the field as they are recognised, unsent (5.7).
                     // On the Mac the sandbox and the hardened runtime let the app use the microphone
@@ -145,26 +147,31 @@ struct ChatComposerV2: View {
                         .buttonStyle(.plain)
                         .disabled(dictation.phase == .preparing)
                         .accessibilityLabel(dictation.phase == .listening ? "Stop dictation" : "Dictate a question")
+                        .tour(.dictation, in: Tour.chat)
                     }
 
                     // Attachment button with menu
                     if !isProcessing {
                         AttachmentMenuButton(
                             onSelectDocument: {
+                                Tour.used(.attach)
                                 showDocumentPicker = true
                                 DSHaptics.selection()
                             },
                             onSelectPhoto: {
+                                Tour.used(.attach)
                                 showPhotoPicker = true
                                 DSHaptics.selection()
                             },
                             onTakePhoto: {
+                                Tour.used(.attach)
                                 showCamera = true
                                 DSHaptics.selection()
                             },
                             onVisionCapture: onVisionCapture,
                             isCameraAvailable: isCameraAvailable
                         )
+                        .tour(.attach, in: Tour.chat)
                     }
                 }
                 .background(
@@ -308,6 +315,7 @@ struct ChatComposerV2: View {
 
     private func toggleDictation() {
         if dictation.phase == .idle {
+            Tour.used(.dictation)
             textBeforeDictation = inputText
             dictation.onText = { spoken in
                 inputText = VoiceDictation.joined(textBeforeDictation, spoken)
@@ -332,6 +340,7 @@ struct ChatComposerV2: View {
         // Return in the field reaches here too, and the field is now editable while an answer is
         // being checked, so the button's own rule has to hold for the keyboard as well.
         guard canSend else { return }
+        Tour.used(.composer)
         // Sending ends dictation; the question sent is what the field holds now.
         if dictation.phase != .idle {
             dictation.onText = nil

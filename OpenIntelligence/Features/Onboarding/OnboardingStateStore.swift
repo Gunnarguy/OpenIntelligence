@@ -31,19 +31,23 @@ final class OnboardingStateStore: ObservableObject {
         self.isChecklistVisible = !completed && !defaults.bool(forKey: Keys.hasDismissedPermanently)
     }
 
+    /// Two steps from 5.8: documents in, and a first question. Through 5.7 a third, choosing a model by hand, was
+    /// required too, and the only screen that changed the model (`QuickModelPickerSheet`) was in no view, so setup
+    /// finished only through Start Asking or Skip and the launcher could stay at "2 of 3" for good (found 2026-11-03).
+    /// `hasAcknowledgedModelSelection` is still recorded and no longer counts.
     var hasCompletedOnboarding: Bool {
-        hasImportedSamples && hasAskedFirstQuery && hasAcknowledgedModelSelection
+        hasImportedSamples && hasAskedFirstQuery
     }
 
     /// Number of checklist steps the user already finished.
     var completedStepCount: Int {
-        [hasImportedSamples, hasAcknowledgedModelSelection, hasAskedFirstQuery]
+        [hasImportedSamples, hasAskedFirstQuery]
             .filter { $0 }
             .count
     }
 
     /// Total number of onboarding steps currently tracked.
-    let totalStepCount: Int = 3
+    let totalStepCount: Int = 2
 
     /// Indicates whether any onboarding tasks remain unfinished and user hasn't dismissed permanently.
     var hasOutstandingSteps: Bool { !hasCompletedOnboarding && !hasDismissedPermanently }

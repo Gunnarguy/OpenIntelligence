@@ -660,6 +660,7 @@ struct IngestionQueueOverlay: View {
 
             if let onPause {
                 Button {
+                    Tour.used(.pauseImport)
                     DSHaptics.tick()
                     onPause()
                 } label: {
@@ -675,12 +676,14 @@ struct IngestionQueueOverlay: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Pause importing")
                 .accessibilityHint("Stops the import until you continue it. A large file goes on from where it stopped.")
+                .tour(.pauseImport, in: Tour.importQueue, when: !isMinimized)
             }
         }
     }
 
     private var processingModeButton: some View {
         Button {
+            Tour.used(.processingMode)
             DSHaptics.tick()
             // The next profile up, Maximum back to Efficiency, through the setter Settings uses, which stores the
             // profile and its level; `gpuProfileRaw` follows the stored profile.
@@ -712,6 +715,7 @@ struct IngestionQueueOverlay: View {
         .accessibilityLabel("Processing mode")
         .accessibilityValue(processingModeLabel)
         .accessibilityHint("Switches to the next GPU profile, the same setting as in Settings, Device & Performance.")
+        .tour(.processingMode, in: Tour.importQueue)
     }
 
     private var panelControls: some View {

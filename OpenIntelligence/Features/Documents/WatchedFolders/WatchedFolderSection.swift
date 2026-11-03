@@ -28,6 +28,13 @@ struct WatchedFolderSection: View {
     private var folder: WatchedFolder? { watcher.folder(forLibrary: library?.id) }
 
     var body: some View {
+        // Not for the guide library (5.8): it holds the app's guides only, and files are sent to the person's own.
+        if !ragService.containerService.isGuideLibrary(library?.id) {
+            watchedFolderSection
+        }
+    }
+
+    private var watchedFolderSection: some View {
         Section {
             if let folder {
                 LabeledContent("Folder", value: folder.name)
@@ -50,8 +57,10 @@ struct WatchedFolderSection: View {
                 }
             } else {
                 Button("Watch a Folder") {
+                    Tour.used(.watchFolder)
                     if hasAccess { isChoosing = true } else { showPlans() }
                 }
+                .tour(.watchFolder, in: Tour.librarySettings)
             }
             if let problem {
                 Text(problem)

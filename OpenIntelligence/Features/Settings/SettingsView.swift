@@ -92,6 +92,7 @@ struct SettingsView: View {
             deviceCapabilities = RAGService.checkDeviceCapabilities()
             entitlementStore.refreshTransientState()
             updatePipelineStages()
+            Task { await TourContext.settingsOpened.donate() }
         }
         .task { await refreshPCCCapability() }
         .onChange(of: settings.selectedModel) { _, _ in
@@ -119,6 +120,17 @@ struct SettingsView: View {
             case .account: return "Account"
             case .system: return "System"
             }
+        }
+    }
+
+    /// The Settings row each tour stop points at (5.8).
+    private static func tourStep(for id: SettingsEntryID) -> TourStep? {
+        switch id {
+        case .howItWorks: .howItWorks
+        case .glossary: .glossary
+        case .privateCloudCompute: .privateCloud
+        case .siriShortcuts: .siri
+        default: nil
         }
     }
 
@@ -343,7 +355,12 @@ struct SettingsView: View {
                                         .navigationBarTitleDisplayMode(.inline)
                                 } label: {
                                     settingsRow(entry)
+                                        .tour(
+                                            Self.tourStep(for: entry.id) ?? .howItWorks, in: Tour.settings,
+                                            when: Self.tourStep(for: entry.id) != nil)
                                 }
+                                .simultaneousGesture(
+                                    TapGesture().onEnded { Self.tourStep(for: entry.id).map(Tour.used) })
                             }
                         }
                     } header: {
@@ -1097,6 +1114,7 @@ struct SettingsView: View {
             pccCapability = await LiveFoundationModelCapabilityProvider().snapshot()
         }
         #endif
+        TourContext.privateCloudAvailable = pccCapability?.pccAvailable ?? deviceCapabilities.supportsPrivateCloudCompute
     }
 
     @ViewBuilder
@@ -3282,8 +3300,10 @@ struct SettingsView: View {
                         .labelsHidden()
                         .tint(.accentColor)
                         .onChange(of: settings.showTechnicalDetails) { _, _ in
+                            Tour.used(.technicalDetails)
                             DSHaptics.toggle()
                         }
+                        .tour(.technicalDetails, in: Tour.settings)
                 }
                 .padding(.horizontal, DSSpacing.lg)
                 .padding(.vertical, DSSpacing.md)
@@ -3409,6 +3429,8 @@ struct SettingsView: View {
                         Toggle("Menu Bar", isOn: $showsMenuBarItem)
                             .labelsHidden()
                             .tint(.accentColor)
+                            .tour(.menuBar, in: Tour.settings)
+                            .onChange(of: showsMenuBarItem) { _, _ in Tour.used(.menuBar) }
                     }
                     .padding(.horizontal, DSSpacing.lg)
                     .padding(.vertical, DSSpacing.md)

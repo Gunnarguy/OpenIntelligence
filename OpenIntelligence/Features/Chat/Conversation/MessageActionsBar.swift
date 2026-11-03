@@ -39,6 +39,9 @@ struct MessageActionsBar: View {
     let onThumbsUp: (() -> Void)?
     let onThumbsDown: (() -> Void)?
 
+    /// This bar belongs to the newest answer, so it carries the tour's Go Deeper and Details tips (5.8).
+    var showsTour = false
+
     @State private var copiedFeedback = false
     @State private var feedbackSubmitted: Bool? = nil // nil = no feedback, true = positive, false = negative
 
@@ -65,8 +68,10 @@ struct MessageActionsBar: View {
                         label: "Go Deeper",
                         color: .purple
                     ) {
+                        Tour.used(.goDeeper)
                         onGoDeeper()
                     }
+                    .tour(.goDeeper, in: Tour.chat, when: showsTour)
                 }
 
                 // Thumbs up/down for Apple Intelligence responses (iOS 26+)
@@ -115,8 +120,10 @@ struct MessageActionsBar: View {
                 // Details (assistant only, if has metadata)
                 if !isUser, message.metadata != nil, let onShowDetails {
                     ActionButton(icon: "info.circle", label: "Details", color: .blue) {
+                        Tour.used(.details)
                         onShowDetails()
                     }
+                    .tour(.details, in: Tour.chat, when: showsTour)
                 }
 
                 // Export Trace (assistant only, if has pipeline trace or metadata)

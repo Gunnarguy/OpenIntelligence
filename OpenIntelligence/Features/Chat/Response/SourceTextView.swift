@@ -232,6 +232,7 @@ struct SourceTextView: View {
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
                     SourceMatchBanner(match: result.match)
+                        .tour(.matchBanner, in: Tour.source, arrow: .top)
                 }
                 .onAppear { reader.scrollTo(Self.passageAnchor, anchor: .center) }
             }
@@ -246,8 +247,12 @@ struct SourceTextView: View {
     @ViewBuilder
     private func excerpt(_ part: SourceExcerpt) -> some View {
         if part.hasMoreBefore {
-            Button("Show Earlier Text") { radius += Self.moreRadius }
-                .font(.footnote)
+            Button("Show Earlier Text") {
+                Tour.used(.moreContext)
+                radius += Self.moreRadius
+            }
+            .font(.footnote)
+            .tour(.moreContext, in: Tour.source, when: !part.hasMoreAfter)
         }
         Text(verbatim: part.before)
             .foregroundStyle(DSColors.secondaryText)
@@ -266,8 +271,12 @@ struct SourceTextView: View {
             .foregroundStyle(DSColors.secondaryText)
             .textSelection(.enabled)
         if part.hasMoreAfter {
-            Button("Show Later Text") { radius += Self.moreRadius }
-                .font(.footnote)
+            Button("Show Later Text") {
+                Tour.used(.moreContext)
+                radius += Self.moreRadius
+            }
+            .font(.footnote)
+            .tour(.moreContext, in: Tour.source)
         }
     }
 }

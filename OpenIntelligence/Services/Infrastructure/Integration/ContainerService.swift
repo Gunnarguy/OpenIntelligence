@@ -124,8 +124,8 @@ final class ContainerService: ObservableObject {
     ) throws -> KnowledgeContainer {
         let limit = EntitlementStore.currentLibraryLimit()
         let tier = EntitlementStore.currentEffectiveTier()
-        guard containers.count < limit else {
-            throw LibraryQuotaError(limit: limit, attemptedCount: containers.count + 1, tier: tier)
+        guard countedLibraryCount < limit else {
+            throw LibraryQuotaError(limit: limit, attemptedCount: countedLibraryCount + 1, tier: tier)
         }
 
         let effectiveRetrievalConfig = retrievalConfig ?? .default
@@ -149,8 +149,61 @@ final class ContainerService: ObservableObject {
         return container
     }
 
+    // MARK: - The guide library (5.8)
+
+    /// The library the app's own guides go in, which counts toward neither the library limit nor the document
+    /// limit, so a free plan's one library and five documents are the person's own (the owner, 2026-11-03). It is a
+    /// library on this device only, as each device has its own copy of the guides; its id is kept per device because
+    /// a library's id is never reused once deleted (`deletedContainerIds`).
+    nonisolated static let guideLibraryIdKey = "guideLibraryId"
+    nonisolated static let guideLibraryName = "OpenIntelligence Guide"
+
+    var guideLibraryId: UUID? {
+        guard let raw = UserDefaults.standard.string(forKey: Self.guideLibraryIdKey), let id = UUID(uuidString: raw),
+            containers.contains(where: { $0.id == id })
+        else { return nil }
+        return id
+    }
+
+    func isGuideLibrary(_ id: UUID?) -> Bool {
+        guard let id else { return false }
+        return id == guideLibraryId
+    }
+
+    /// The libraries the plan's library limit counts: all but the guide library.
+    var countedLibraryCount: Int {
+        containers.filter { !isGuideLibrary($0.id) }.count
+    }
+
+    /// The guide library, made the first time the guides are imported and again if it was deleted.
+    func ensureGuideLibrary() -> UUID {
+        if let id = guideLibraryId { return id }
+        let container = KnowledgeContainer(
+            name: Self.guideLibraryName,
+            icon: "book.closed.fill",
+            colorHex: "#0A84FF",
+            description: "How OpenIntelligence works, in its own words. Ask it anything about the app.",
+            embeddingProviderId: EmbeddingProviderDefaults.preferredSentenceProviderId,
+            syncMode: .localOnly
+        )
+        containers.append(container)
+        Self.saveContainers(containers)
+        UserDefaults.standard.set(container.id.uuidString, forKey: Self.guideLibraryIdKey)
+        return container.id
+    }
+
+    /// Where something the person adds goes when `requested` is the guide library: their first own library.
+    func libraryForOwnFiles(requested: UUID?) -> UUID? {
+        guard isGuideLibrary(requested) else { return requested }
+        return containers.first { !isGuideLibrary($0.id) }?.id
+    }
+
     func updateContainer(_ updated: KnowledgeContainer) {
         guard let idx = containers.firstIndex(where: { $0.id == updated.id }) else { return }
+        var updated = updated
+        // The guide library stays on this device (5.8): synced, another device would take it for an ordinary
+        // library, count it toward the plan, and hold its own copy of the guides beside it.
+        if isGuideLibrary(updated.id) { updated.syncMode = .localOnly }
         containers[idx] = updated
         Self.saveContainers(containers)
         if UserDefaults.standard.object(forKey: "enableSpotlightIndexing") as? Bool ?? true {
@@ -159,8 +212,9 @@ final class ContainerService: ObservableObject {
     }
 
     func deleteContainer(id: UUID) {
-        // Prevent deleting the last container; ensure at least one remains
-        guard containers.count > 1 else { return }
+        // Prevent deleting the last container; ensure at least one remains. The guide library doesn't count (5.8):
+        // the person's own last library stays, so what they add always has somewhere to go.
+        guard containers.count > 1, isGuideLibrary(id) || countedLibraryCount > 1 else { return }
         Self.rememberDeleted(id)
         containers.removeAll { $0.id == id }
         if activeContainerId == id, let first = containers.first {
@@ -470,8 +524,35 @@ final class ContainerService: ObservableObject {
     // MARK: - Quick Accessors
 
     /// Get document count for a specific container
+    /// How many documents a library holds, as the app shows it: the documents it lists (5.8), or the library's saved
+    /// total before the list has loaded.
+    ///
+    /// Through 5.7 it was the saved total, and that can be higher than the library holds: iCloud's merge of a
+    /// library's record keeps the larger of each device's total (`WorkspaceSyncService.mergeContainer`), and the
+    /// app recounts only when its document list changes, so a total raised by a merge stayed. On the owner's iPhone
+    /// on 2026-11-03 General read 4 and held 3. Saving the recount doesn't hold either, since the next merge keeps
+    /// the larger again, so what is shown is counted from the documents.
     func documentCount(for containerId: UUID) -> Int {
-        containers.first(where: { $0.id == containerId })?.totalDocuments ?? 0
+        if let listed = listedDocumentCounts { return listed[containerId, default: 0] }
+        return containers.first(where: { $0.id == containerId })?.totalDocuments ?? 0
+    }
+
+    /// Each library's listed documents, set by the engine whenever its list changes. Nil until it has loaded.
+    @Published private(set) var listedDocumentCounts: [UUID: Int]?
+
+    func setListedDocumentCounts(_ counts: [UUID: Int]) {
+        guard counts != listedDocumentCounts else { return }
+        listedDocumentCounts = counts
+    }
+
+    /// Counts by library, a document with no library counting toward the first one, as the Documents screen lists it.
+    nonisolated static func documentCounts(of libraryIds: [UUID?], defaultLibrary: UUID?) -> [UUID: Int] {
+        var counts: [UUID: Int] = [:]
+        for id in libraryIds {
+            guard let library = id ?? defaultLibrary else { continue }
+            counts[library, default: 0] += 1
+        }
+        return counts
     }
 
     /// Get chunk count for a specific container

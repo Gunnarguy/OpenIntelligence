@@ -63,3 +63,26 @@ extension EnvironmentValues {
         set { self[LibraryDocumentLookupKey.self] = newValue }
     }
 }
+
+/// A retrieved passage opened from a source chip (5.8): its PDF page with the passage highlighted, or its document's
+/// text with the passage highlighted, as a citation opens it in `GroundedAnswerView`.
+struct RetrievedSourceScreen: View {
+    let chunk: RetrievedChunk
+    let lookup: LibraryDocumentLookup?
+
+    var body: some View {
+        let document = CitationSourceDocument.resolve(chunk, found: lookup?.document(chunk.chunk.documentId))
+        if let page = CitationSourceDocument.page(of: chunk, in: document) {
+            SourcePageView(
+                document: document, pageNumber: page, passage: chunk.chunk.content, chunk: chunk, lookup: lookup)
+        } else {
+            SourceTextView(document: document, passage: chunk.chunk.content, chunk: chunk, lookup: lookup)
+        }
+    }
+}
+
+/// A retrieved passage that a sheet can be presented for.
+struct OpenedRetrievedChunk: Identifiable {
+    let chunk: RetrievedChunk
+    var id: UUID { chunk.chunk.id }
+}

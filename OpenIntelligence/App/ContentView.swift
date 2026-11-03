@@ -64,6 +64,8 @@ struct ContentView: View {
         // itself here; an engine an action builds for one question registers only when none is set.
         RAGService.activePresentedInstance = ragSvc
         ragSvc.isTheAppsEngine = true
+        // The app's guides don't count toward the plan's documents (5.8), wherever they were imported.
+        ragSvc.isAppGuide = { SampleDocumentManager.shared.isGuide(filename: $0.filename) }
         _workspaceSyncService = StateObject(wrappedValue: workspaceSyncSvc)
         _containerService = StateObject(wrappedValue: containerSvc)
         _ragService = StateObject(wrappedValue: ragSvc)
@@ -167,7 +169,18 @@ struct ContentView: View {
             // Shows each request's tab and library as it is posted, whichever screen takes it.
             AppNavigationRequest.shared.onPost = { destination in show(destination) }
         }
+        // What the tour's rules read (5.8): whether the welcome is closed, and how many documents and libraries
+        // there are. Someone who asked before 5.8 counts as having had an answer, so the composer's tip is for new
+        // people only.
+        .onChange(of: onboardingStore.isChecklistVisible, initial: true) { _, visible in
+            TourContext.welcomeClosed = !visible
+            if onboardingStore.hasAskedFirstQuery, TourContext.answers == 0 { TourContext.answers = 1 }
+        }
+        .onChange(of: containerService.containers.count, initial: true) { _, count in
+            TourContext.libraries = count
+        }
         .onChange(of: ragService.documents.count, initial: true) { _, _ in
+            TourContext.documents = ragService.documents.count
             // Siri's phrases that name a document or a library ("Summarize Lease.pdf in ...") are
             // built from the items that exist. Nothing told the system when they changed.
             RAGAppShortcutsProvider.updateAppShortcutParameters()
@@ -695,7 +708,7 @@ struct ContentView: View {
     /// it can't add, so what's taken from the Lock Screen camera or the share inbox is only what fits (review of
     /// 2026-10-17).
     private func documentRoom(cap: Int = 1_000) -> Int {
-        let count = ragService.documents.count
+        let count = ragService.countedDocumentCount
         var room = 0
         while room < cap, entitlementStore.canAddDocument(currentCount: count + room) { room += 1 }
         return room

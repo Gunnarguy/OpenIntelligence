@@ -150,7 +150,7 @@ final class WatchedFolderService: ObservableObject {
         let inFlight = Set(folder.files.filter { $0.value.queueItemId.map(active.contains) ?? false }.keys)
         let room =
             documentLimit == QuotaPolicy.unlimitedDocumentLimit
-            ? Int.max : documentLimit - engine.documents.count - active.count
+            ? Int.max : documentLimit - engine.countedDocumentCount - active.count
         let changes = WatchedFolderChanges.decide(
             found: found.filter { !inFlight.contains($0.relativePath) }, seen: folder.files, room: room)
         for file in changes.waitingForDownload {

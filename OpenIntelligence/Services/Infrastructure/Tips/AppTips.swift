@@ -10,83 +10,14 @@
 
 import SwiftUI
 import TipKit
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 // MARK: - Tip Definitions
 
-/// Tip shown on the Chat tab for first-time users who haven't asked a question yet.
-struct FirstQueryTip: Tip {
-    static let queryPerformed = Event(id: "queryPerformed")
-
-    var title: Text {
-        Text("Ask Your Documents")
-    }
-
-    var message: Text? {
-        Text("Type a question to search your documents with AI.")
-    }
-
-    var image: Image? {
-        Image(systemName: "bubble.left.and.text.bubble.right")
-    }
-
-    var rules: [Rule] {
-        [
-            #Rule(Self.queryPerformed) { event in
-                event.donations.count == 0
-            }
-        ]
-    }
-}
-
-/// Tip shown on the Documents tab to encourage first document ingestion.
-struct IngestDocumentTip: Tip {
-    static let documentIngested = Event(id: "documentIngested")
-
-    var title: Text {
-        Text("Add Your First Document")
-    }
-
-    var message: Text? {
-        Text("Import PDFs, text, or Office docs to build your knowledge base.")
-    }
-
-    var image: Image? {
-        Image(systemName: "doc.badge.plus")
-    }
-
-    var rules: [Rule] {
-        [
-            #Rule(Self.documentIngested) { event in
-                event.donations.count == 0
-            }
-        ]
-    }
-}
-
-/// Tip shown when a user first views a container/library.
-struct ContainerTip: Tip {
-    static let containerCreated = Event(id: "containerCreated")
-
-    var title: Text {
-        Text("Organize with Libraries")
-    }
-
-    var message: Text? {
-        Text("Create libraries to organize documents by topic.")
-    }
-
-    var image: Image? {
-        Image(systemName: "folder.badge.gearshape")
-    }
-
-    var rules: [Rule] {
-        [
-            #Rule(Self.containerCreated) { event in
-                event.donations.count == 0
-            }
-        ]
-    }
-}
+// `FirstQueryTip`, `IngestDocumentTip` and `ContainerTip` were here until 5.8. Nothing displayed them or donated their
+// events, so none ever showed. The tour's composer, Add Document and New Library stops replace them (`TourTips.swift`).
 
 /// Tip shown in Settings to highlight model configuration.
 struct ModelConfigTip: Tip {
@@ -189,9 +120,23 @@ struct InlineTipView<T: Tip>: View {
 /// Call once at app launch to configure TipKit.
 enum AppTipConfiguration {
     static func configure() {
+        #if DEBUG
+            // Screenshots of the tour: every tip eligible at once (5.8). Development builds only.
+            if ProcessInfo.processInfo.arguments.contains("-tourShowAll") { Tips.showAllTipsForTesting() }
+        #endif
         try? Tips.configure([
             // Show tips immediately for new users; after reset, show tips again
             .displayFrequency(.immediate)
         ])
+        // The tour's facts that don't change while the app runs (5.8).
+        #if os(macOS)
+            TourContext.isMac = true
+            TourContext.isLargeScreen = true
+        #else
+            TourContext.isMac = ProcessInfo.processInfo.isiOSAppOnMac || ProcessInfo.processInfo.isMacCatalystApp
+            TourContext.isLargeScreen = UIDevice.current.userInterfaceIdiom != .phone
+        #endif
+        Task { await TourContext.appLaunched.donate() }
+        Tour.recordStatusChanges()
     }
 }

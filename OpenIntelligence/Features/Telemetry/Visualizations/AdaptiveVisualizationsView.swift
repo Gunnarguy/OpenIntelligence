@@ -421,12 +421,14 @@ struct AdaptiveVisualizationsView: View {
 
             // Settings toggle
             Button {
+                Tour.used(.atlasSettings)
                 withAnimation(DSAnimations.snappySpring) {
                     showAtlasSettings.toggle()
                 }
             } label: {
                 Image(systemName: "slider.horizontal.3")
                     .font(.caption)
+                    .tour(.atlasSettings, in: Tour.atlas)
                     .padding(DSSpacing.xs)
                     .background(
                         Circle().fill(showAtlasSettings ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
@@ -740,8 +742,10 @@ struct AdaptiveVisualizationsView: View {
                 HStack(spacing: DSSpacing.md) {
                     ForEach(engine.insights.prefix(5)) { insight in
                         CompactInsightCard(insight: insight) {
+                            Tour.used(.insights)
                             handleInsightTap(insight)
                         }
+                        .tour(.insights, in: Tour.atlas, when: insight.id == engine.insights.first?.id)
                     }
                 }
                 .padding(.horizontal, DSSpacing.xxs)
@@ -2257,6 +2261,8 @@ struct Fullscreen3DAtlasView: View {
                     Text("All libraries").tag(true)
                 }
                 .pickerStyle(.segmented)
+                .tour(.allLibraries, in: Tour.atlas, when: TourContext.libraries >= 2)
+                .onChange(of: showsAllLibraries) { _, _ in Tour.used(.allLibraries) }
                 .frame(maxWidth: 240)
                 .padding(.top, DSSpacing.xs)
 
