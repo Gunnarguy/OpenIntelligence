@@ -320,6 +320,8 @@ extension RAGService {
             id: state.documentId,
             filename: filename,
             fileURL: url,
+            // As in `importLargePDFStreamed` (5.8).
+            fileHash: ingestionItems.first { $0.id == trackingId }?.documentHash,
             contentType: documentType,
             totalChunks: state.committed.totalChunks,
             containerId: activeContainerId

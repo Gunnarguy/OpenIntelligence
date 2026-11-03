@@ -9,7 +9,11 @@
 > When a release or milestone changes where things stand, update the dated section below and nothing
 > else; `AGENTS.md` rule 14 lists this file for that reason.
 
-## Where things stand (2026-10-26)
+## Where things stand (2026-11-02)
+
+5.8 is in preparation: citations that show their passage in every kind of document, watched folders, and a clearer plans screen.
+
+## Where things stood (2026-10-26)
 
 - **Live:** 5.7 on iPhone, iPad and Mac since 2026-10-22, build 487, released automatically on Apple's
   approval. `Docs/SHIPPED_VERSION.json` is the per-platform record. 5.7 is about getting things in and out

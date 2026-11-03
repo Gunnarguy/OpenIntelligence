@@ -337,6 +337,10 @@ binary cannot describe two builds.
 - **Keychain**: Strictly used for API keys, not entitlements. `[evidence: code_verified, exact]`
 - **Offer codes (5.7)**: the plans sheet presents Apple's redemption sheet (`RedeemCodeEntry.swift`). No billing file changed: a redeemed transaction reaches `EntitlementStore` through the `Transaction.updates` listener in `StoreKitBillingService`, and on iOS 27 and macOS 27 the sheet also calls `reconcileEntitlementsOnLaunch()` two seconds after a redemption Apple handed back. `[evidence_level: build_verified, confidence: high, evidence_source: PlanUpgradeSheet.swift managementControls; RedeemCodeEntry.swift; StoreKitBillingService.listenForTransactions]` No code has been redeemed with it.
 
+Watched folders (5.8): `WatchedFolderService` walks a folder a library watches, reads only files whose date or size changed, and hands new ones to `RAGService.enqueueDocuments`. It removes a document only if a file in that folder imported it and no other file there names it (`SeenFile.ownsDocument`). `importLargePDFStreamed` and `importLargeTextStreamed` now record `fileHash`, which is how a finished import is tied back to its file. Adding a folder needs Pro or Lifetime. `[evidence_level: test_verified, confidence: high, evidence_source: WatchedFolderService.swift, WatchedFolderTests.swift]`
+
+Citations (5.8): `SourceTextView` and `SourcePageView` show a passage in its document, and `SourceLookup` reports whether it is there word for word, read from the full-text store. `[evidence_level: test_verified, confidence: high, evidence_source: SourceTextView.swift, SourceTextViewTests.swift]`
+
 ## 12. App Intents Boundaries
 - **Limit Reached**: 10 out of 10 available shortcut slots are consumed since 5.7 (9 through 5.6; "Find Passages" took the tenth). An eleventh makes the whole set stop registering with no error, and `AppShortcutsProviderTests` fails the suite at eleven. `[evidence_level: test_verified, confidence: exact, evidence_source: AppShortcutsProviderTests, 2026-10-09; RAGAppIntents.swift RAGAppShortcutsProvider]`
 - App Intents bypass normal UI and directly hit `RAGService`.

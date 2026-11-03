@@ -26,6 +26,9 @@ struct SourcePageView: View {
     /// The passage's text as the answer holds it, and then the library's whole copy: a saved conversation keeps each
     /// passage cut to 600 characters (`ChatMessage`), so after a relaunch the saved copy would highlight only its start.
     @State private var passage: String
+    /// Whether the passage is in the document's text, and whether this page can show it (5.8).
+    @State private var match: SourceMatch?
+    @State private var pageIsScan = false
     @Environment(\.dismiss) private var dismiss
 
     init(document: Document, pageNumber: Int, passage: String, chunk: RetrievedChunk?, lookup: LibraryDocumentLookup? = nil) {
@@ -40,6 +43,13 @@ struct SourcePageView: View {
         NavigationStack {
             PassagePDFView(url: document.fileURL, pageIndex: pageNumber - 1, passage: passage)
                 .ignoresSafeArea(edges: .bottom)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let match {
+                        SourceMatchBanner(
+                            match: match,
+                            detail: pageIsScan ? "This page is a scan, so the passage can't be highlighted on it." : nil)
+                    }
+                }
                 .navigationTitle("Page \(pageNumber)")
                 .navigationSubtitle(Text(verbatim: document.filename))
                 #if os(iOS)
@@ -61,6 +71,10 @@ struct SourcePageView: View {
                     if let id = chunk?.chunk.id, let whole = await lookup?.passageText(id, in: document), !whole.isEmpty {
                         passage = whole
                     }
+                    pageIsScan = await SourceLookup.pageHasNoText(url: document.fileURL, pageIndex: pageNumber - 1)
+                    match = await SourceLookup.find(
+                        passage, in: document.id, isOverview: chunk?.chunk.metadata.abstractionLevel.isSummary ?? false
+                    ).match
                 }
         }
         #if os(macOS)
@@ -116,6 +130,64 @@ nonisolated enum PassageLocator {
         return NSRange(location: first.location, length: last.location + last.length - first.location)
     }
 
+    /// Where the passage sits when every one of its words is there, in order, with only whitespace and case
+    /// differing (5.8). `range(of:in:)` finds where a passage is and tolerates a sentence that isn't there, which is
+    /// right for placing a highlight. This is what lets the app say "word for word".
+    static func exactRange(of passage: String, in text: String, separators: String = #"\s+"#) -> NSRange? {
+        var trimmed = passage.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasSuffix("...") {
+            trimmed.removeLast(3)
+        } else if trimmed.hasSuffix("\u{2026}") {
+            trimmed.removeLast()
+        }
+        let words = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !words.isEmpty else { return nil }
+        return match(words, in: text, from: 0, length: (text as NSString).length, separators: separators)
+    }
+
+    /// A passage without the labels the import adds around a table's cells and a split passage's parts, or nil when
+    /// it has none. Those labels aren't in the file, so a passage carrying them can never be found in it word for word.
+    static func withoutImportLabels(_ passage: String) -> String? {
+        let wholeLines = ["HEADERS:", "TABLE:", "SOURCE:", "Section Path:", "[Specifications]"]
+        // Anywhere in a line: a long table's parts are split again by words, which can run rows together.
+        let inline = [#"\[Part \d+\]\s*"#, #"\bROW \d+:\s*"#, #"\s\|\s"#]
+        var changed = false
+        var kept: [String] = []
+        for line in passage.components(separatedBy: .newlines) {
+            if wholeLines.contains(where: line.hasPrefix) {
+                changed = true
+                continue
+            }
+            var cleaned = line
+            for label in inline {
+                cleaned = cleaned.replacingOccurrences(of: label, with: " ", options: .regularExpression)
+            }
+            cleaned = cleaned.trimmingCharacters(in: .whitespaces)
+            if cleaned != line { changed = true }
+            if !cleaned.isEmpty { kept.append(cleaned) }
+        }
+        return changed ? kept.joined(separator: "\n") : nil
+    }
+
+    /// A table's passage written as `name: value` lines, as just its values, or nil when none has a name. The import
+    /// indexes a table that way too, and the file holds the names once, in its header. For a table only: in prose, the
+    /// words before a colon are the document's own.
+    static func cellValues(of passage: String) -> String? {
+        var changed = false
+        var values: [String] = []
+        for line in passage.components(separatedBy: .newlines) {
+            for piece in line.components(separatedBy: ";") {
+                var value = piece.trimmingCharacters(in: .whitespaces)
+                let unnamed = value.replacingOccurrences(of: #"^[^:]{1,40}:\s+"#, with: "", options: .regularExpression)
+                if unnamed != value { changed = true }
+                value = unnamed
+                if value.hasSuffix(".") { value.removeLast() }
+                if !value.isEmpty { values.append(value) }
+            }
+        }
+        return changed ? values.joined(separator: " ") : nil
+    }
+
     /// The pieces matched first: each sentence's first 12 words.
     static func pieces(of passage: String) -> [[String]] {
         sentences(of: passage).map { Array($0.prefix(12)) }
@@ -141,8 +213,10 @@ nonisolated enum PassageLocator {
         return words.count >= 2 ? [words] : []
     }
 
-    private static func match(_ words: [String], in text: String, from start: Int, length: Int) -> NSRange? {
-        let pattern = words.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\s+")
+    private static func match(
+        _ words: [String], in text: String, from start: Int, length: Int, separators: String = #"\s+"#
+    ) -> NSRange? {
+        let pattern = words.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: separators)
         guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
         return expression.firstMatch(in: text, range: NSRange(location: start, length: length - start))?.range
     }

@@ -22,6 +22,42 @@ import Foundation
             Log.info("[UITest] Questions run on a stand-in model", category: .pipeline)
         }
 
+        /// A cited passage to open with no language model, for `SourceScreensUITests` (5.8): with
+        /// `--uitest-show-source`, a note is imported and its first passage is handed to `show`, which opens the
+        /// screen a citation opens. With `--uitest-watch-folder <path>`, that folder is watched and checked.
+        static func runSourceScreens(
+            engine: RAGService, show: @escaping (Document, RetrievedChunk) -> Void,
+            arguments: [String] = CommandLine.arguments
+        ) async {
+            if let index = arguments.firstIndex(of: "--uitest-watch-folder"), index + 1 < arguments.count {
+                let folder = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
+                try? await Task.sleep(for: .seconds(2))
+                let watcher = WatchedFolderService.shared
+                try? watcher.watch(folder, library: engine.containerService.activeContainerId)
+                await watcher.check(engine: engine, documentLimit: .max)
+            }
+            guard arguments.contains("--uitest-show-source") else { return }
+            let name = "ui-test-source.txt"
+            let text = "The first paragraph is here for context.\n\nThe heron note says the boathouse key sits under the third step of the old dock.\n\nThe last paragraph comes after it."
+            var document = engine.documents.first { $0.filename.hasPrefix("ui-test-source") }
+            if document == nil {
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+                try? text.write(to: url, atomically: true, encoding: .utf8)
+                if let staged = try? IntentSupport.copyIntoImports(url) { _ = engine.enqueueDocuments([staged]) }
+                for _ in 0..<600 where document == nil {
+                    document = engine.documents.first { $0.filename.hasPrefix("ui-test-source") }
+                    if document == nil { try? await Task.sleep(for: .milliseconds(100)) }
+                }
+            }
+            guard let document, let library = document.containerId,
+                let database = try? await engine.dbForContainer(library),
+                let chunk = try? await database.allChunks().first(where: {
+                    $0.documentId == document.id && !$0.metadata.abstractionLevel.isSummary
+                })
+            else { return }
+            show(document, RetrievedChunk(chunk: chunk, similarityScore: 1, rank: 1, sourceDocument: document.filename, pageNumber: nil))
+        }
+
         /// Answers with a fixed sentence, so the rest of a question's path runs as it does on a device.
         private final class StandInModel: LLMService {
             var toolHandler: RAGToolHandler?

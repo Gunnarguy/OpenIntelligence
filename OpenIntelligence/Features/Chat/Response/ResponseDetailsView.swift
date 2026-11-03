@@ -860,6 +860,7 @@ private struct SourceCard: View {
 
     @State private var isExpanded = false
     @State private var shownPage: SourcePageTarget?
+    @State private var showsSourceText = false
     @Environment(\.libraryDocumentLookup) private var libraryDocumentLookup
 
     /// The library's document and the page to show, when the source is a PDF on this device (5.7).
@@ -980,6 +981,18 @@ private struct SourceCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Show page \(target.page)")
+                } else {
+                    Button {
+                        showsSourceText = true
+                    } label: {
+                        Label("In Document", systemImage: "doc.text.magnifyingglass")
+                            .scaledFont(size: 12, weight: .semibold)
+                            .foregroundStyle(DSColors.readable(DSColors.accent))
+                            .frame(minHeight: DSSpacing.tapTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Show this passage in its document")
                 }
             }
 
@@ -1009,6 +1022,12 @@ private struct SourceCard: View {
             SourcePageView(
                 document: shown.document, pageNumber: shown.page, passage: chunk.chunk.content, chunk: chunk,
                 lookup: libraryDocumentLookup)
+        }
+        .sheet(isPresented: $showsSourceText) {
+            SourceTextView(
+                document: CitationSourceDocument.resolve(
+                    chunk, found: libraryDocumentLookup?.document(chunk.chunk.documentId)),
+                passage: chunk.chunk.content, chunk: chunk, lookup: libraryDocumentLookup)
         }
     }
 }

@@ -60,6 +60,8 @@ an answer is more trustworthy when you can see what it was built from.
 | **Explains its own vocabulary** | Every figure it shows defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and says that it is a per-chip rating rather than a measurement. |
 | **Answers offline** | Airplane mode included. |
 | **Works with Siri, Shortcuts and Spotlight** | From 5.7, Shortcuts actions ask a library in any answer mode and hand the answer and its sources to the next step, and others find passages, check a claim, add a file, a link or text, and create, open and switch libraries. A question from Siri that needs Private Cloud Compute brings the app forward to ask first. Spotlight opens the document you tap, and Visual Intelligence lists the documents that mention what the camera sees. |
+| **Shows every source** | From 5.8, a citation opens its passage highlighted in the document for every kind of file, and says whether it was found word for word. For Word, Excel and the like that is the text the app read, not the original page. |
+| **Keeps up with a folder** | From 5.8, on Pro and Lifetime, a library can watch a folder: new files import by themselves and a changed file replaces the version it imported. On a Mac it checks every few minutes while the app is open, on iPhone and iPad when you open the app. |
 | **Follows you between devices** | From 5.7, an interrupted import picks up where it was, even after an app update, and keeps the pages and embeddings it already had; Handoff carries what's open, conversations in an iCloud library sync with it, and on the Mac there's a menu bar item, Services menu entries and keyboard shortcuts. |
 
 ### Quality modes

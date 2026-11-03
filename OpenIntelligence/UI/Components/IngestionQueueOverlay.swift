@@ -322,6 +322,9 @@ struct IngestionQueueOverlay: View {
     var onPause: (() -> Void)? = nil
     /// Whether the paused queue was paused by the person rather than stopped by a restart.
     var pausedByPerson: Bool = false
+    /// Nobody asked for these imports just now: a watched folder's files (5.8). The panel stays small, because it
+    /// would otherwise open over whatever the person is reading each time a file lands in the folder.
+    var isAutomatic: Bool = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isMinimized = false
@@ -519,6 +522,9 @@ struct IngestionQueueOverlay: View {
         .glassCardEffectHelper(cornerRadius: DSCorners.sheet, isSelected: false, interactive: false)
         .animation(DSAnimations.bubbleAppear, value: items.count)
         .animation(DSAnimations.snappySpring, value: isMinimized)
+        .onChange(of: isAutomatic, initial: true) { _, automatic in
+            if automatic { isMinimized = true }
+        }
     }
 
     var body: some View {

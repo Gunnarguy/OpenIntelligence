@@ -108,6 +108,34 @@ final class WhatsNewStore: ObservableObject {
         // who updated to it was recorded as seen and shown nothing. The gap is only visible
         // from a later build, which is why `WhatsNewCoverageTests` now fails the build when
         // the newest version in the bundled VersionHistory.md has no entry below.
+        "5.8": WhatsNewRelease(
+            version: "5.8",
+            headline: "Every citation now shows its passage in the document, a library can keep up with a folder, and the plans screen says plainly what you get.",
+            items: [
+                .init(
+                    symbol: "checkmark.seal",
+                    title: "Every citation shows its passage in the document",
+                    detail:
+                        "Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check."
+                ),
+                .init(
+                    symbol: "folder.badge.gearshape",
+                    title: "Watch a folder",
+                    detail:
+                        "On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app."
+                ),
+                .init(
+                    symbol: "doc.on.doc",
+                    title: "Importing a very large file twice no longer makes a second copy",
+                    detail: "Large PDFs and text files now get the same duplicate check as everything else."
+                ),
+                .init(
+                    symbol: "checklist",
+                    title: "The plans screen says what each plan adds",
+                    detail: "\"Why upgrade now?\" is \"What you get\" now, with what paying actually changes."
+                ),
+            ]
+        ),
         "5.7": WhatsNewRelease(
             version: "5.7",
             headline:

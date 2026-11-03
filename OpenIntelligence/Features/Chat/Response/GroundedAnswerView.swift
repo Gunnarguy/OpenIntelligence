@@ -55,15 +55,14 @@ struct GroundedAnswerView: View {
                 let document = CitationSourceDocument.resolve(
                     chunk, found: libraryDocumentLookup?.document(chunk.chunk.documentId))
                 // The page itself when the source is a PDF on this device, with the passage highlighted (5.7);
-                // anything else opens the document's details, as before.
+                // anything else opens the document's text, with the passage highlighted (5.8).
                 if let page = CitationSourceDocument.page(of: chunk, in: document) {
                     SourcePageView(
                         document: document, pageNumber: page, passage: chunk.chunk.content, chunk: chunk,
                         lookup: libraryDocumentLookup)
                 } else {
-                    NavigationStack {
-                        DocumentDetailsView(document: document, embeddingProviderId: nil, highlightedChunk: chunk)
-                    }
+                    SourceTextView(
+                        document: document, passage: chunk.chunk.content, chunk: chunk, lookup: libraryDocumentLookup)
                 }
             }
 
@@ -213,7 +212,7 @@ private struct ClaimCard: View {
     private static func hint(for destination: EvidenceDestination?) -> String {
         switch destination {
         case .page(let page): return "Shows page \(page) of the document, with the passage highlighted."
-        case .details: return "Shows the document's details."
+        case .details: return "Shows the passage in its document."
         case nil: return ""
         }
     }

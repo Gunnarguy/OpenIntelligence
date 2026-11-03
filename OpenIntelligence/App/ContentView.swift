@@ -29,6 +29,9 @@ struct ContentView: View {
     /// an action builds for its question (5.7). The first window to claim it shows it.
     @ObservedObject private var consentRelay = CloudConsentRelay.shared
     @State private var relayedConsent: CloudConsentRelay.Request?
+    #if DEBUG
+        @State private var uiTestSource: UITestSource?
+    #endif
     @State private var windowID = UUID()
     @Environment(\.requestReview) private var requestReview
     @Environment(\.openURL) private var openURL
@@ -126,6 +129,23 @@ struct ContentView: View {
             }
         }
         .tint(appAccentColor)
+        .task {
+            // The first check of a launch, once the library list has had a moment to load. No scene change fires
+            // at launch.
+            try? await Task.sleep(for: .seconds(3))
+            WatchedFolderService.shared.appCameForward(engine: ragService, entitlements: entitlementStore)
+        }
+        #if DEBUG
+            .task {
+                await UITestSupport.runSourceScreens(engine: ragService) { document, chunk in
+                    uiTestSource = UITestSource(document: document, chunk: chunk)
+                }
+            }
+            .sheet(item: $uiTestSource) { source in
+                SourceTextView(
+                    document: source.document, passage: source.chunk.chunk.content, chunk: source.chunk, lookup: nil)
+            }
+        #endif
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             // A Spotlight result: open the library or the document that was tapped. Through 5.6 this
             // read a "containerId" the index never wrote, so it always fell back to the Documents tab
@@ -562,6 +582,8 @@ struct ContentView: View {
             #endif
             // An import that a background limit stopped continues without being asked.
             ragService.resumeIngestionStoppedInBackgroundIfNeeded()
+            // What arrived in a watched folder while the app was away (5.8).
+            WatchedFolderService.shared.appCameForward(engine: ragService, entitlements: entitlementStore)
             // The overview, tags and suggested questions of documents imported in the background (5.7).
             ragService.runDeferredEnrichmentsIfNeeded()
             // Web pages and text shared from another app's share sheet while the app was away (5.7).
@@ -824,6 +846,15 @@ struct ContentView: View {
         _ = AppNavigationRequest.shared.take { $0 == destination }
     }
 }
+
+#if DEBUG
+    /// The passage `UITestSupport.runSourceScreens` opens.
+    private struct UITestSource: Identifiable {
+        let document: Document
+        let chunk: RetrievedChunk
+        var id: UUID { chunk.chunk.id }
+    }
+#endif
 
 private struct ScreenshotMode {
     let isEnabled: Bool

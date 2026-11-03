@@ -7,6 +7,7 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
     case sampleImport
     case libraryCreation
     case iCloudSync
+    case watchedFolder
     case quotaBanner
     case settings
     case localModelGated // Free users attempting GGUF/Core ML
@@ -28,6 +29,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "Create more libraries to segment your knowledge"
         case .iCloudSync:
             return "Unlock iCloud library sync"
+        case .watchedFolder:
+            return "Keep a library up with a folder"
         case .quotaBanner:
             return "Plan ahead before you hit the limit"
         case .settings:
@@ -58,6 +61,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "Pro workspaces support multiple topic-specific libraries."
         case .iCloudSync:
             return "iCloud library sync is available on Pro and Lifetime so full-fidelity multi-device libraries stay on paid workspaces."
+        case .watchedFolder:
+            return "New files in a folder you choose import by themselves. Watched folders are part of Pro and Lifetime."
         case .quotaBanner:
             return "Avoid interruptions by upgrading before the limit hits 100%."
         case .settings:

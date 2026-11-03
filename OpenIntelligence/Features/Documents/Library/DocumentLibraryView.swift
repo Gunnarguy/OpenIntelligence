@@ -1727,7 +1727,8 @@ struct DocumentLibraryView: View {
                 onDiscardPaused: { ragService.discardPausedIngestionQueue() },
                 onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() },
                 onPause: { ragService.pauseIngestionQueue() },
-                pausedByPerson: ragService.ingestionPausedByPerson
+                pausedByPerson: ragService.ingestionPausedByPerson,
+                isAutomatic: WatchedFolderService.shared.isOnlyWatchedWork(ragService.ingestionItems)
             )
         }
         .padding(.horizontal, DSSpacing.lg)

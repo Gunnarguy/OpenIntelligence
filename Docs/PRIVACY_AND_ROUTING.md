@@ -359,6 +359,10 @@ except where it says so below.
   from a device backup. Before this the items were handed out whole and kept nowhere, and Shortcuts could not pass
   them on (`OIAnswerEntity`). `[evidence_level: code_verified, test_verified (HandedOutItemsTests), confidence: high, evidence_source: HandedOutItems.swift; OIAnswerEntity.swift; OIPassageEntity.swift; SearchPassagesIntent.swift; RAGService.swift applyLoadedDocuments]`
 
+## A watched folder is read, never written (added 2026-11-02, for 5.8)
+
+Watching a folder gives the app read access to it through a bookmark kept in the local cache (`watched_folders.json`), which is never copied to iCloud. The Mac bookmark is created read-only. Files are read on the device and copied into the app, like any import, and nothing in the folder is changed or deleted. What the library holds follows the library's own Storage setting, so a watched file in an iCloud Sync library syncs as any document does. `[evidence_level: code_verified, confidence: exact, evidence_source: WatchedFolderService.swift, WatchedFolder.swift]`
+
 ## What the app works out about a library is kept on the device (added 2026-10-13, for 5.7)
 
 Two small files for each library are kept in the app's local cache folder, beside the keyword index, so the app

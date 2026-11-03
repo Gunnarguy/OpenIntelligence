@@ -2048,3 +2048,44 @@ Against full passages it was 8 of 36, mostly sentences from that surrounding tex
 the highlighted passage, or sentences citing two sources. The order is kept because labels and the source list now
 read the way the model read them. `[evidence_level: measured (label_truth.py, two runs), code_verified, confidence:
 high that the numbering is right; the remaining placements are the model's]`
+
+## 2026-11-02 - A library lock is per device, in its own file, and is not encryption (withdrawn the same day)
+
+**Context.** The owner approved a paid library lock. `KnowledgeContainer` looked like the place for a flag.
+
+**Decision.** `LibraryLocks` keeps the list in this device's settings (`UserDefaults`) and is never read against a plan. Surfaces outside the app ask `lockedIds()`, so a locked library stays out whether or not it is open.
+
+**Alternatives.** A field on `KnowledgeContainer` that syncs. A file beside the library list, the first version, which sync
+would copy to iCloud (`WorkspaceSyncService`, `localOnlyEntryNames`) and which unlocks everything if it fails to read.
+Encrypting a library's files.
+
+**Rationale.** `WorkspaceSyncService.mergeContainer` copies named fields only, starting from the shared copy, and a build that
+doesn't know a key strips it, so a synced flag could silently undo itself, and a lock that removes itself is worse than one
+that says it is per device. Encryption would touch the shared stores (`ImportedDocuments`, `fulltext.sqlite`,
+`documents_metadata.json`), which hold every library together. A lapsed plan must not hold anyone's data.
+
+**Consequences.** A library shared through iCloud is locked on each device, and Settings says so. App copy never says
+encrypted. A sync merge that changes a library's id loses that lock until `WorkspaceSyncService.swift` is changed.
+`[evidence_level: code_verified, confidence: exact, evidence_source: WorkspaceSyncService.swift mergeContainer, KnowledgeContainer.swift, LibraryLocks.swift]`
+
+## 2026-11-02 - A watched folder only removes documents it imported
+
+**Context.** A changed file has to replace its old version, or the library goes stale and the promise fails. The first version removed whatever document matched the file's old hash, and a review showed that loses data: the library can hold the same bytes from the person's own import or a second file in the folder.
+
+**Decision.** `SeenFile.ownsDocument` records whether this file's import made the document. A document is removed only if it was, and only when no other file in the folder names it, and only after the new version is in the library. A path no longer in the folder is forgotten rather than kept. Checks are polled, on coming forward and every five minutes on a Mac, not driven by file events.
+
+**Alternatives.** Keeping both versions, which is what the import queue does by itself and leaves `name-2` copies. FSEvents or `NSFilePresenter`, which give speed nobody asked for, and neither wakes an iPhone.
+
+**Rationale.** An automatic process must never delete what it didn't make. Polling needs no watcher lifecycle, and iOS can't run a long import in the background anyway.
+
+**Consequences.** Replacing a document can leave a saved answer's citation without its passage; the footer says so. A failed import isn't retried until the file changes, and the folder's note says so.
+`[evidence_level: test_verified, confidence: high, evidence_source: WatchedFolderTests.swift]`
+
+## 2026-11-02 - The per-library lock was withdrawn before it shipped
+
+**Context.** The lock above was built, and an adversarial review found ten defects in it. It needed about 30 files to hold, because Spotlight, Siri, Shortcuts, the Database tab, the Atlas, widgets, Handoff and Live Activities each reach a library.
+
+**Decision.** The owner called it "kind of stupid and overkill" and asked for a lock on the app in general, or an option for one. It was taken out. Whether an app lock replaces it is his decision: iOS already offers Require Face ID on any app, free (support.apple.com/guide/iphone/lock-or-hide-an-app-iph00f208d05/ios, read 2026-11-02).
+
+**Consequences.** The superseded decision's reasoning stands if a lock returns. The work is kept locally in `Growth/library-lock-attempt-2026-11-02/`, which git ignores.
+`[evidence_level: documented, confidence: exact, evidence_source: Apple Support, owner's message 2026-11-02]`

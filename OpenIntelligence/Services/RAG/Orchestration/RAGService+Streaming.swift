@@ -238,10 +238,14 @@ extension RAGService {
         let extractionTime = Date().timeIntervalSince(extractionStartTime)
         
         // Finalize metadata and cache refresh
+        // The hash `addDocument` put on the queue item. Without it this document had none, so importing the same
+        // file again made a second copy and a watched folder couldn't find it (5.8).
+        let fileHash = await MainActor.run { self.ingestionItems.first { $0.id == trackingId }?.documentHash }
         let document = Document(
             id: documentId,
             filename: filename,
             fileURL: url,
+            fileHash: fileHash,
             contentType: .pdf,
             totalChunks: totalChunks,
             containerId: activeContainerId

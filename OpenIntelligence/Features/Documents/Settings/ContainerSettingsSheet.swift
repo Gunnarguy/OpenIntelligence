@@ -34,6 +34,7 @@ struct ContainerSettingsSheet: View {
     @State var showingDBChangeConfirmation = false
     @State var pendingDBChange: VectorDBKind?
     @State private var showingPlanSheet = false
+    @State private var planEntryPoint: PlanUpgradeEntryPoint = .iCloudSync
     @State var showingDeleteConfirmation = false
     /// Why a delete did not happen, shown in an alert.
     ///
@@ -194,6 +195,15 @@ struct ContainerSettingsSheet: View {
             Form {
                 identitySection
                 storageSection
+                WatchedFolderSection(
+                    library: activeContainer,
+                    ragService: ragService,
+                    hasAccess: hasICloudSyncAccess,
+                    showPlans: {
+                        planEntryPoint = .watchedFolder
+                        showingPlanSheet = true
+                    }
+                )
                 accuracyDefaultsSection
                 intelligenceSection
                 privateCloudComputeSection
@@ -232,19 +242,15 @@ struct ContainerSettingsSheet: View {
                     providerId = c.embeddingProviderId
                     // Validate dimension for provider before setting
                     let validDims = supportedDimensions(for: c.embeddingProviderId)
-                    if validDims.contains(c.embeddingDim) {
-                        dim = c.embeddingDim
-                    } else {
-                        dim = validDims.first ?? 384
-                        Log.warning("[ContainerSettings] Container dimension \(c.embeddingDim) invalid for provider \(c.embeddingProviderId), auto-correcting to \(dim)", category: .embedding)
-
-                        // Auto-save the corrected dimension to prevent repeated mismatches
-                        Task { @MainActor in
-                            var updated = c
-                            updated.embeddingDim = dim
-                            containerService.updateContainer(updated)
-                            Log.info("[ContainerSettings] Auto-saved corrected dimension \(dim) for container '\(c.name)'", category: .embedding)
-                        }
+                    // Shown as stored, even when this device doesn't offer that size: a provider unavailable here lists
+                    // a stand-in size, and through 5.7 opening this sheet saved that over the library's real one, which
+                    // the engine then treats as a mismatch and answers by wiping the library's vectors. Reading a
+                    // setting must never change it.
+                    dim = c.embeddingDim
+                    if !validDims.contains(c.embeddingDim) {
+                        Log.warning(
+                            "[ContainerSettings] Library dimension \(c.embeddingDim) isn't offered for \(c.embeddingProviderId) on this device",
+                            category: .embedding)
                     }
                     dbKind = c.vectorDBKind
                     retrievalConfig = c.retrievalConfig
@@ -285,9 +291,10 @@ struct ContainerSettingsSheet: View {
                 normalizeProviderAndDimension()
             }
             .onChange(of: containerService.activeContainerId) { _, newValue in
+                // The fields below hold the library the sheet opened on, so Save would write them over this one.
+                // A menu command, a Shortcut or a link can change the library while the sheet is open (5.8).
                 ragService.refreshIntelligence(for: newValue)
-                // Re-check availability when container changes
-                refreshProviderAvailability()
+                dismiss()
             }
             .confirmationDialog(
                 "Switch to In-Memory storage?",
@@ -337,7 +344,7 @@ struct ContainerSettingsSheet: View {
                 }
             }
             .sheet(isPresented: $showingPlanSheet) {
-                PlanUpgradeSheet(entryPoint: .iCloudSync)
+                PlanUpgradeSheet(entryPoint: planEntryPoint)
                     .environmentObject(entitlementStore)
             }
             .alert("Library not deleted", isPresented: Binding(
@@ -633,6 +640,7 @@ let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine optio
            !hasICloudSyncAccess
         {
             syncMode = previousSyncMode
+            planEntryPoint = .iCloudSync
             showingPlanSheet = true
             return
         }

@@ -40,12 +40,7 @@ struct PlanUpgradeSheet: View {
             badgeText: "Month to month",
             tint: .accentColor,
             isFeatured: false,
-            features: [
-                "Maximum mode with no daily cap",
-                "Up to 1,000 documents",
-                "10 libraries",
-                "Cancel anytime",
-            ]
+            features: PlanBenefits.pro
         ),
         PlanTierOption(
             tier: .pro,
@@ -55,12 +50,7 @@ struct PlanUpgradeSheet: View {
             badgeText: nil,
             tint: .accentColor,
             isFeatured: true,
-            features: [
-                "Maximum mode with no daily cap",
-                "Up to 1,000 documents",
-                "10 libraries",
-                "Cancel anytime",
-            ]
+            features: PlanBenefits.pro
         ),
         PlanTierOption(
             tier: .lifetime,
@@ -70,12 +60,7 @@ struct PlanUpgradeSheet: View {
             badgeText: "Pay once",
             tint: .orange,
             isFeatured: false,
-            features: [
-                "Maximum mode with no daily cap",
-                "Unlimited documents",
-                "20 libraries",
-                "Never expires",
-            ]
+            features: PlanBenefits.lifetime
         ),
     ]
 
@@ -281,12 +266,12 @@ extension PlanUpgradeSheet {
 
     fileprivate var whyUpgradeNowSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            Text("Why upgrade now?")
+            Text("What you get")
                 .font(.headline)
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                BenefitRow(icon: "doc.badge.plus", text: "Higher document limits", tint: .accentColor)
-                BenefitRow(icon: "square.stack.3d.up.fill", text: "More libraries", tint: .accentColor)
-                BenefitRow(icon: "creditcard", text: "One-time lifetime option", tint: .accentColor)
+                ForEach(PlanBenefits.highlights) { highlight in
+                    BenefitRow(icon: highlight.icon, text: highlight.text, tint: .accentColor)
+                }
             }
         }
         .padding(DSSpacing.lg)

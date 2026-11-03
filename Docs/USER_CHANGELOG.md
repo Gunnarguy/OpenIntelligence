@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified for OpenIntelligence v5.0 on August 25, 2026. Entries added or revised this pass are checked against the code and commit that implements them; the vector-loss and self-heal fixes are additionally confirmed by real device console traces captured the same day, not simulator or code reading alone. Anything device-only that has *not* been traced, including Private Cloud Compute behaviour, is build-verified rather than device-verified and is called out where it matters.
+> **Documentation status (5.8 section added 2026-11-02, the release in preparation):** Source-verified for OpenIntelligence v5.0 on August 25, 2026. Entries added or revised this pass are checked against the code and commit that implements them; the vector-loss and self-heal fixes are additionally confirmed by real device console traces captured the same day, not simulator or code reading alone. Anything device-only that has *not* been traced, including Private Cloud Compute behaviour, is build-verified rather than device-verified and is called out where it matters.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -6,6 +6,23 @@
 This document provides a chronological history of user-facing changes, highlighting how OpenIntelligence continuously improves transparency, speed, and reliability.
 
 ---
+
+## v5.8 - unreleased
+
+Every citation now shows its passage in the document, a library can keep up with a folder, and the plans screen says plainly what you get.
+
+### Libraries
+
+- **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
+- **Importing a very large file twice no longer makes a second copy.** Large PDFs and text files now get the same duplicate check as everything else.
+
+### Answers
+
+- **Every citation shows its passage in the document.** Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check.
+
+### Plans
+
+- **The plans screen says what each plan adds.** "Why upgrade now?" is "What you get" now, with what paying actually changes.
 
 ## v5.7 - October 22, 2026
 

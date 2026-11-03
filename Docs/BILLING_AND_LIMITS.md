@@ -40,6 +40,9 @@ Enforcement logic is defined in [QuotaPolicy.swift](../OpenIntelligence/Services
 | **Standard Mode Runs** | Unlimited | Unlimited | Unlimited |
 | **Deep Think Runs** | Unlimited | Unlimited | Unlimited |
 | **Private Cloud Compute** | Available, consent-gated, on iOS/macOS 27 | Same | Same |
+| **iCloud Sync** | No | Yes | Yes |
+| **Watched folders, adding one (from 5.8)** | No | Yes | Yes |
+| **Watched folders, stopping one** | Yes, whatever the plan | Yes | Yes |
 
 Every row is read directly from `QuotaPolicy.swift`, and the Maximum-mode row from the snapshot builder in `EntitlementStore.swift`, which grants `.unlimited` to any tier other than `.free` and `.meteredDaily(QuotaPolicy.freeMaximumModeDailyLimit)` to Free. Pro is a **1,000-document, 10-library** tier, not an unlimited one; only Lifetime carries unlimited documents, and its library ceiling is 20. `[evidence_level: code_verified, confidence: exact, evidence_source: QuotaPolicy.swift freeDocumentLimit=5, proDocumentLimit=1_000, lifetimeDocumentLimit=.max, freeLibraryLimit=1, proLibraryLimit=10, lifetimeLibraryLimit=20, freeMaximumModeDailyLimit=3; EntitlementStore.buildSnapshot; read 2026-09-20]`
 
@@ -58,6 +61,18 @@ Pro and Lifetime, so that is the first bullet of every paid plan. Capacity follo
 never hardcoded in a tagline, because each storefront has its own and `displayPrice` is the source.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: PlanUpgradeSheet.swift planOptions and storySlides; QuotaPolicy.swift; EntitlementStore.swift maximumModePolicy; ~/ASC store_purchases and sub_state_analytics through 2026-09-14]`
+
+### What the plans screen lists (5.8)
+
+Added 2026-11-02. The bullets and the "What you get" list are in `PlanBenefits.swift`, built from `QuotaPolicy`, and
+`PlanBenefitsTests` holds them to the rule above. Watched folders are gated, so they are listed: a lapsed plan stops the checks and everything imported stays. iCloud Sync is gated
+too (`hasICloudSyncAccess`, `ContainerSettingsSheet.swift`) and is **deliberately not listed yet**: roadmap row
+`3ca49a74d54f8103b69be921f0335171`, which records real data loss from sync, closes only when the iPhone and the Mac
+use one library through a session and the conflict-copy count doesn't grow. The baseline read off the owner's phone
+on 2026-11-02 is 519 conflict copies. Until that passes, the app doesn't advertise sync harder.
+`testICloudSyncWaitsForTheTwoDeviceCheck` fails on the day the bullet is added, as a reminder to confirm it.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: PlanBenefits.swift; phone trace 2026-11-01 11:16]`
 
 ### What each plan says against the others (5.5)
 
