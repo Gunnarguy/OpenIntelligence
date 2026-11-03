@@ -1262,6 +1262,12 @@ final class BackgroundTaskService: Sendable {
             policy: policy ?? continuedIngestionStatus.policy
         )
 
+        if phase != continuedIngestionStatus.phase || errorMessage != nil {
+            // Each change of phase, not each progress step: submitted, running, expired, completed or failed (5.8).
+            VerificationJournal.record(
+                "bgtask.import", ["phase": "\(phase)", "fraction": String(format: "%.2f", snapshot.progressFraction),
+                    "error": errorMessage == nil ? "none" : "yes"])
+        }
         continuedIngestionStatus = snapshot
         persistContinuedIngestionStatus(snapshot)
     }
@@ -1289,6 +1295,11 @@ final class BackgroundTaskService: Sendable {
             policy: policy ?? continuedQueryStatus.policy
         )
 
+        if phase != continuedQueryStatus.phase || errorMessage != nil {
+            VerificationJournal.record(
+                "bgtask.answer", ["phase": "\(phase)", "fraction": String(format: "%.2f", snapshot.progressFraction),
+                    "error": errorMessage == nil ? "none" : "yes"])
+        }
         continuedQueryStatus = snapshot
         persistContinuedQueryStatus(snapshot)
     }
@@ -1376,6 +1387,7 @@ final class BackgroundTaskService: Sendable {
     @MainActor
     func handleIndexMaintenance(task: BGProcessingTask) {
         Log.info("[BackgroundTasks] Starting index maintenance", category: .initialization)
+        VerificationJournal.record("bgtask.maintenance", .started)
         HardwareTelemetryReporter.pulse(.ragOrchestration, intensity: 0.6, duration: 0.5)
 
         // Schedule next occurrence
@@ -1398,12 +1410,14 @@ final class BackgroundTaskService: Sendable {
 
             HardwareTelemetryReporter.reportCPUOperation()
             Log.info("[BackgroundTasks] Index maintenance completed", category: .initialization)
+            VerificationJournal.record("bgtask.maintenance", .ok)
             task.setTaskCompleted(success: true)
         }
 
         // Handle task expiration
         task.expirationHandler = {
             maintenanceTask.cancel()
+            VerificationJournal.record("bgtask.maintenance", .cancelled, ["reason": "expired"])
             Log.warning("[BackgroundTasks] Index maintenance expired", category: .initialization)
         }
     }
@@ -1412,6 +1426,7 @@ final class BackgroundTaskService: Sendable {
     @MainActor
     func handleSpotlightReindex(task: BGProcessingTask) {
         Log.info("[BackgroundTasks] Starting Spotlight reindex", category: .initialization)
+        VerificationJournal.record("bgtask.spotlight", .started)
         HardwareTelemetryReporter.pulse(.dataDecoding, intensity: 0.5, duration: 0.3)
 
         scheduleSpotlightReindex()
@@ -1420,6 +1435,7 @@ final class BackgroundTaskService: Sendable {
         // from the library and document records, which need no screen (5.7).
         let reindexTask = Task {
             await SpotlightIndexService.shared.reindexFromStoredRecords(asUpdate: true)
+            VerificationJournal.record("bgtask.spotlight", Task.isCancelled ? .cancelled : .ok)
             task.setTaskCompleted(success: !Task.isCancelled)
         }
 
@@ -1432,6 +1448,7 @@ final class BackgroundTaskService: Sendable {
     @MainActor
     func handleAppRefresh(task: BGAppRefreshTask) {
         Log.debug("[BackgroundTasks] App refresh triggered", category: .initialization)
+        VerificationJournal.record("bgtask.refresh", .started)
 
         scheduleAppRefresh()
 

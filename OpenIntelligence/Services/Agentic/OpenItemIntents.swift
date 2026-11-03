@@ -40,9 +40,17 @@ struct OpenLibraryIntent: OpenIntent, PredictableIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let id = target.id
-        await MainActor.run { AppNavigationRequest.post(.library(id)) }
-        return .result()
+        let journal = VerificationJournal.Span("intent.OpenLibraryIntent")
+        defer { journal.end() }
+        do {
+            let id = target.id
+            await MainActor.run { AppNavigationRequest.post(.library(id)) }
+            return .result()
+
+        } catch {
+            journal.fail(error)
+            throw error
+        }
     }
 }
 
@@ -77,12 +85,20 @@ struct ThinkDeeperIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let asked = question
-        let libraryId = library?.id
-        await MainActor.run {
-            AppNavigationRequest.post(.ask(asked, sendsAtOnce: true, inDeepThink: true, libraryId: libraryId))
+        let journal = VerificationJournal.Span("intent.ThinkDeeperIntent")
+        defer { journal.end() }
+        do {
+            let asked = question
+            let libraryId = library?.id
+            await MainActor.run {
+                AppNavigationRequest.post(.ask(asked, sendsAtOnce: true, inDeepThink: true, libraryId: libraryId))
+            }
+            return .result()
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result()
     }
 }
 
@@ -119,13 +135,21 @@ struct AskFollowUpIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let asked = question
-        let answered = answer
-        let libraryId = library?.id
-        await MainActor.run {
-            AppNavigationRequest.post(.continueAnswer(question: asked, answer: answered, libraryId: libraryId))
+        let journal = VerificationJournal.Span("intent.AskFollowUpIntent")
+        defer { journal.end() }
+        do {
+            let asked = question
+            let answered = answer
+            let libraryId = library?.id
+            await MainActor.run {
+                AppNavigationRequest.post(.continueAnswer(question: asked, answer: answered, libraryId: libraryId))
+            }
+            return .result()
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result()
     }
 }
 
@@ -152,8 +176,16 @@ struct OpenDocumentIntent: OpenIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let id = target.id
-        await MainActor.run { AppNavigationRequest.post(.document(id)) }
-        return .result()
+        let journal = VerificationJournal.Span("intent.OpenDocumentIntent")
+        defer { journal.end() }
+        do {
+            let id = target.id
+            await MainActor.run { AppNavigationRequest.post(.document(id)) }
+            return .result()
+
+        } catch {
+            journal.fail(error)
+            throw error
+        }
     }
 }

@@ -987,6 +987,7 @@ struct ChatScreen: View {
                     planEntryPoint = .momentOfValue
                     showPlanSheet = true
                     PlanAskService.shared.didAsk()
+                    VerificationJournal.record("plans.askedAfterAnswer")
                 }
             }
             .sheet(isPresented: $showPlanSheet) {
@@ -1087,6 +1088,7 @@ struct ChatScreen: View {
             // The Stop button on the answer's Live Activity (5.7, `StopLongAnswerIntent`): stops the
             // answer like the chat's own stop button, only if the Live Activity is the running one's.
             .onReceive(NotificationCenter.default.publisher(for: .stopLongAnswer)) { notification in
+                VerificationJournal.record("answer.stopRequested", ["source": "liveActivity"])
                 #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
                     guard let sessionID = notification.userInfo?["sessionID"] as? String,
                         QueryLiveActivityService.shared.isRunningActivity(sessionID: sessionID)
@@ -3431,6 +3433,18 @@ struct ChatScreen: View {
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
+                    // What the device checks close on (5.8): the mode, the badge, how many passages, how long.
+                    VerificationJournal.record(
+                        "answer.done", .ok,
+                        durationMs: self.generationStart.map { Date().timeIntervalSince($0) * 1000 },
+                        [
+                            "mode": "\(self.effectiveQualityMode)",
+                            "badge": "\(VerificationOutcome.from(gatingDecision: response.metadata.gatingDecision ?? "", claims: response.structuredAnswer?.claims ?? []))",
+                            "gating": response.metadata.gatingDecision.map { String($0.prefix(40)) } ?? "none",
+                            "sources": "\(response.retrievedChunks.count)",
+                            "library": VerificationJournal.anon(capturedUsedContainerId),
+                            "inFront": "\(self.isAppeared)",
+                        ])
                     // A finished answer is the only moment the app asks for a rating (see
                     // ReviewPromptService for when).
                     ReviewPromptService.shared.noteAnswer(
@@ -3520,6 +3534,9 @@ struct ChatScreen: View {
                 }
             } catch {
                 Log.error("Query failed: \(error.localizedDescription)", category: .llm)
+                VerificationJournal.record(
+                    "answer.done", error is CancellationError || Task.isCancelled ? .cancelled : .failed,
+                    ["error": String(describing: type(of: error))])
                 await MainActor.run {
                     guard self.currentQuerySessionId == querySessionId else { return }
                     self.continuedQueryCoordinator.complete(sessionId: querySessionId, success: false)

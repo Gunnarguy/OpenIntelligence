@@ -33,19 +33,27 @@ struct SetAnswerModeIntent: SetValueIntent, UndoableIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OIAnswerMode> & ProvidesDialog {
-        let wanted = value
-        if wanted == .maximum {
-            try await MainActor.run { try ShortcutsPlanGate.checkMaximumAvailable() }
+        let journal = VerificationJournal.Span("intent.SetAnswerModeIntent")
+        defer { journal.end() }
+        do {
+            let wanted = value
+            if wanted == .maximum {
+                try await MainActor.run { try ShortcutsPlanGate.checkMaximumAvailable() }
+            }
+            let previous = await MainActor.run { () -> RAGQualityMode in
+                let before = AnswerModeSetting.current
+                AnswerModeSetting.set(wanted.qualityMode)
+                return before
+            }
+            if previous.canonical != wanted.qualityMode {
+                await registerUndo(restoring: previous)
+            }
+            return .result(value: wanted, dialog: "Questions in the chat use \(wanted.name) now.")
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        let previous = await MainActor.run { () -> RAGQualityMode in
-            let before = AnswerModeSetting.current
-            AnswerModeSetting.set(wanted.qualityMode)
-            return before
-        }
-        if previous.canonical != wanted.qualityMode {
-            await registerUndo(restoring: previous)
-        }
-        return .result(value: wanted, dialog: "Questions in the chat use \(wanted.name) now.")
     }
 
     @MainActor

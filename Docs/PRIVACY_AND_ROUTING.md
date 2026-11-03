@@ -359,6 +359,10 @@ except where it says so below.
   from a device backup. Before this the items were handed out whole and kept nowhere, and Shortcuts could not pass
   them on (`OIAnswerEntity`). `[evidence_level: code_verified, test_verified (HandedOutItemsTests), confidence: high, evidence_source: HandedOutItems.swift; OIAnswerEntity.swift; OIPassageEntity.swift; SearchPassagesIntent.swift; RAGService.swift applyLoadedDocuments]`
 
+## A development build keeps a record of what it did, on the device (added 2026-11-03, for 5.8)
+
+Debug builds only (`VerificationJournal`, `#if DEBUG`; a Release or App Store build writes nothing): one JSON line per event in the app's own Documents folder, read off the owner's test device with `devicectl` to check roadmap rows. Among the events, `model.generate` records where an answer was written (`actual`: on device or Private Cloud Compute) against where it was planned, and `consent.shown` and `consent.decided` record the consent sheet and the choice. No line holds document text, a question, an answer or a file name, and nothing in it is sent anywhere by the app. The trace beside it (`pipeline_trace.log`, also Debug only) now keeps every log category and does hold file names and questions, as it did for its six before. `[evidence_level: code_verified, confidence: high, evidence_source: VerificationJournal.swift, LLMService.swift, CloudConsentPromptView.swift]`
+
 ## A watched folder is read, never written (added 2026-11-02, for 5.8)
 
 Watching a folder gives the app read access to it through a bookmark kept in the local cache (`watched_folders.json`), which is never copied to iCloud. The Mac bookmark is created read-only. Files are read on the device and copied into the app, like any import, and nothing in the folder is changed or deleted. What the library holds follows the library's own Storage setting, so a watched file in an iCloud Sync library syncs as any document does. `[evidence_level: code_verified, confidence: exact, evidence_source: WatchedFolderService.swift, WatchedFolder.swift]`

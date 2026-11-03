@@ -58,6 +58,12 @@
                     guard let activity = self?.currentActivity else { return }
                     await activity.update(content)
                     guard !Task.isCancelled else { return }
+                    if self?.lastContentState?.currentStage != contentState.currentStage {
+                        VerificationJournal.record(
+                            "liveactivity.import.update",
+                            ["session": VerificationJournal.anon(sessionID), "stage": contentState.currentStage,
+                                "done": "\(contentState.processedCount)/\(contentState.totalCount)"])
+                    }
 
                     if self?.currentActivity?.attributes.sessionID == sessionID {
                         self?.lastContentState = contentState
@@ -92,10 +98,16 @@
                         Log.info(
                             "[IngestionLiveActivity] Started new Live Activity (sessionID: \(activity.attributes.sessionID))",
                             category: .ui)
+                        VerificationJournal.record(
+                            "liveactivity.import.start", .ok,
+                            ["session": VerificationJournal.anon(activity.attributes.sessionID),
+                                "stage": contentState.currentStage, "total": "\(contentState.totalCount)"])
                     } catch {
                         Log.warning(
                             "[IngestionLiveActivity] Failed to start Live Activity: \(error.localizedDescription)",
                             category: .ui)
+                        VerificationJournal.record(
+                            "liveactivity.import.start", .failed, ["error": String(describing: type(of: error))])
                     }
                     self?.activityOperationTask = nil
                 }
@@ -114,6 +126,13 @@
         /// active one), and one for an import that was paused or stopped. An import that resumes starts a new one
         /// through `sync`.
         func dismissFinished(importIsMoving: Bool) {
+            let ending = Activity<IngestionLiveActivityAttributes>.activities.filter {
+                importIsMoving ? $0.id != currentActivity?.id : true
+            }
+            VerificationJournal.record(
+                "liveactivity.import.dismissOnReturn",
+                ["moving": "\(importIsMoving)", "ended": "\(ending.count)",
+                    "kept": importIsMoving && currentActivity != nil ? "1" : "0"])
             if !importIsMoving, currentActivity != nil {
                 activityOperationTask?.cancel()
                 activityOperationTask = nil
@@ -144,6 +163,11 @@
 
             guard targetActivity != nil || !allActivities.isEmpty else { return }
 
+            VerificationJournal.record(
+                "liveactivity.import.end",
+                ["final": finalState?.currentStage ?? "none",
+                    "others": "\(allActivities.filter { $0.id != targetActivity?.id }.count)",
+                    "dismissal": finalState == nil ? "immediate" : "after600s"])
             activityOperationTask = Task { @MainActor [weak self] in
                 if let targetActivity {
                     if let finalState {

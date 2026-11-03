@@ -58,6 +58,10 @@
             // One held without an answer running is a leftover too (5.8).
             if !isRunning { activity = nil }
             let running = activity?.id
+            VerificationJournal.record(
+                "liveactivity.answer.endLeftovers",
+                ["ended": "\(Activity<QueryLiveActivityAttributes>.activities.filter { $0.id != running }.count)",
+                    "running": isRunning ? "1" : "0"])
             for leftover in Activity<QueryLiveActivityAttributes>.activities where leftover.id != running {
                 Task { await leftover.end(nil, dismissalPolicy: .immediate) }
             }
@@ -87,8 +91,14 @@
             isRunning = false
             pendingStart?.cancel()
             pendingStart = nil
-            guard let activity else { return }
+            guard let activity else {
+                VerificationJournal.record("liveactivity.answer.end", ["shown": "0", "success": "\(success)"])
+                return
+            }
             self.activity = nil
+            VerificationJournal.record(
+                "liveactivity.answer.end",
+                ["shown": "1", "success": "\(success)", "session": VerificationJournal.anon(activity.attributes.sessionID)])
             let final = QueryLiveActivityAttributes.ContentState(
                 progress: success ? 1 : latest.progress,
                 title: success ? "Answer ready" : "Stopped",
@@ -104,6 +114,9 @@
         /// (`StopLongAnswerIntent`) stops the chat only then, so a Stop tapped on an ended answer's
         /// Live Activity, which stays up a few minutes, cannot stop a newer answer.
         func isRunningActivity(sessionID: String) -> Bool {
+            VerificationJournal.record(
+                "liveactivity.answer.stopTapped",
+                ["matchesRunning": "\(isRunning && activity?.attributes.sessionID.uuidString == sessionID)"])
             guard isRunning, let activity else { return false }
             return activity.attributes.sessionID.uuidString == sessionID
         }
@@ -128,11 +141,17 @@
                     content: ActivityContent(state: latest, staleDate: Date().addingTimeInterval(120)),
                     pushType: nil)
                 lastUpdateAt = Date()
+                VerificationJournal.record(
+                    "liveactivity.answer.start", .ok,
+                    ["trigger": leaving ? "leavingFront" : "after10s",
+                        "session": VerificationJournal.anon(activity?.attributes.sessionID)])
                 Log.info(
                     "[QueryLiveActivity] Started for an answer still running \(leaving ? "as the app left the front" : "after 10 s")",
                     category: .ui)
             } catch {
                 Log.warning("[QueryLiveActivity] Could not start: \(error.localizedDescription)", category: .ui)
+                VerificationJournal.record(
+                    "liveactivity.answer.start", .failed, ["error": String(describing: type(of: error))])
             }
         }
 

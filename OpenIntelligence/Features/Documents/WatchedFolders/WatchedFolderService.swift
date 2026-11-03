@@ -118,7 +118,12 @@ final class WatchedFolderService: ObservableObject {
         guard var folder = folders.first(where: { $0.id == id }),
             engine.containerService.containers.contains(where: { $0.id == folder.libraryId })
         else { return }
+        let checkStarted = Date()
         defer {
+            VerificationJournal.record(
+                "watchedFolder.check", folder.note == "This folder can't be reached. Stop watching it and choose it again." ? .failed : .ok,
+                durationMs: Date().timeIntervalSince(checkStarted) * 1000,
+                ["folder": VerificationJournal.anon(id), "files": "\(folder.files.count)", "note": folder.note == nil ? "none" : "yes"])
             folder.lastCheckedAt = Date()
             // By id, and only if it is still there: Stop Watching can run during the waits below.
             if let index = folders.firstIndex(where: { $0.id == id }) { folders[index] = folder }
@@ -181,6 +186,10 @@ final class WatchedFolderService: ObservableObject {
         if !staged.isEmpty {
             Log.info("[WatchedFolders] \(staged.count) file(s) from \(folder.name) queued", category: .ingestion)
         }
+        VerificationJournal.record(
+            "watchedFolder.found",
+            ["folder": VerificationJournal.anon(id), "toRead": "\(changes.toRead.count)", "queued": "\(staged.count)",
+                "overLimit": "\(changes.overLimit)", "downloading": "\(changes.waitingForDownload.count)", "failed": "\(failed)"])
     }
 
     /// Ties finished imports to their documents, removes the versions they replaced, and continues an import a

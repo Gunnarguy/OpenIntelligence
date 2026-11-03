@@ -275,8 +275,16 @@ final class AppNavigationRequest {
     var onPost: ((AppDestination) -> Void)?
 
     static func post(_ destination: AppDestination) {
+        // Every way into a screen passes here (a Siri or Shortcuts action, a widget, a control, a link, Spotlight,
+        // Handoff), so the journal names the destination here: its case only, never a search term or a name (5.8).
+        VerificationJournal.record("nav.post", ["to": Self.caseName(destination)])
         shared.onPost?(destination)
         shared.subject.value.append(destination)
+    }
+
+    /// A destination's case, without what it carries.
+    nonisolated static func caseName(_ destination: AppDestination) -> String {
+        Mirror(reflecting: destination).children.first?.label ?? String(describing: destination)
     }
 
     /// Hands over the oldest waiting request the caller shows, and removes it.

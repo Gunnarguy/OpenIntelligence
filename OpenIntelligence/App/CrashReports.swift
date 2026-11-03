@@ -85,6 +85,7 @@ nonisolated enum CrashReports {
         defer { lock.unlock() }
         let report = pending(in: folder, defaults: defaults)
         defaults.removeObject(forKey: pendingKey)
+        if report != nil { VerificationJournal.record("crashReport.offered") }
         return report
     }
 

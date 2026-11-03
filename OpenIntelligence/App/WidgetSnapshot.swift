@@ -81,6 +81,8 @@ nonisolated struct WidgetSnapshot: Codable, Equatable, Sendable {
         snapshot.libraryName = name
         snapshot.documentCount = documentCount
         write(snapshot, to: url)
+        VerificationJournal.record(
+            "widget.snapshot", ["kind": "library", "library": VerificationJournal.anon(id), "documents": "\(documentCount)"])
     }
 
     /// Sets the last question and the opening of its answer, when the answer is from the open library.
@@ -95,6 +97,7 @@ nonisolated struct WidgetSnapshot: Codable, Equatable, Sendable {
         snapshot.threadId = threadId
         snapshot.messageId = messageId
         write(snapshot, to: url)
+        VerificationJournal.record("widget.snapshot", ["kind": "answer", "library": VerificationJournal.anon(libraryId)])
     }
 
     /// Drops the last question and answer when they're from this library, as when its conversation is cleared or

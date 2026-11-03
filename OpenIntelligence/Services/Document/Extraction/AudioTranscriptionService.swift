@@ -155,6 +155,7 @@ final class AudioTranscriptionService: ObservableObject {
 
         // Set up recognizer for the target language
         let locale = Locale(identifier: language.rawValue)
+        VerificationJournal.record("speech.transcribe", .started, ["engine": "SFSpeechRecognizer", "language": language.rawValue])
         if let speechRecognizer = SFSpeechRecognizer(locale: locale),
            speechRecognizer.isAvailable
         {

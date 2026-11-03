@@ -49,73 +49,81 @@ struct AddToLibraryIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<[String]> & ProvidesDialog {
-        let note = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard file != nil || link != nil || !note.isEmpty else {
-            throw $file.needsValueError("What should I add? Give a file, a link or some text.")
-        }
+        let journal = VerificationJournal.Span("intent.AddToLibraryIntent")
+        defer { journal.end() }
+        do {
+            let note = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard file != nil || link != nil || !note.isEmpty else {
+                throw $file.needsValueError("What should I add? Give a file, a link or some text.")
+            }
 
-        var stored: [URL] = []
-        var failures: [String] = []
+            var stored: [URL] = []
+            var failures: [String] = []
 
-        if let file {
-            do {
-                if let source = file.fileURL {
-                    stored.append(try IntentSupport.copyIntoImports(source, preferredFileName: file.filename))
-                } else {
-                    stored.append(try IntentSupport.store(file.data, preferredFileName: file.filename))
+            if let file {
+                do {
+                    if let source = file.fileURL {
+                        stored.append(try IntentSupport.copyIntoImports(source, preferredFileName: file.filename))
+                    } else {
+                        stored.append(try IntentSupport.store(file.data, preferredFileName: file.filename))
+                    }
+                } catch {
+                    failures.append("\(file.filename): \(error.localizedDescription)")
                 }
-            } catch {
-                failures.append("\(file.filename): \(error.localizedDescription)")
             }
-        }
 
-        if let link {
-            do {
-                let fetched = try await WebPageFetchService.fetch(link)
-                stored.append(try IntentSupport.store(fetched.data, preferredFileName: fetched.fileName))
-            } catch {
-                failures.append("\(link.host ?? link.absoluteString): \(error.localizedDescription)")
+            if let link {
+                do {
+                    let fetched = try await WebPageFetchService.fetch(link)
+                    stored.append(try IntentSupport.store(fetched.data, preferredFileName: fetched.fileName))
+                } catch {
+                    failures.append("\(link.host ?? link.absoluteString): \(error.localizedDescription)")
+                }
             }
-        }
 
-        if !note.isEmpty {
-            do {
-                let fileName = IntentSupport.noteFileName(for: note, name: name)
-                stored.append(try IntentSupport.store(Data(note.utf8), preferredFileName: fileName))
-            } catch {
-                failures.append("Text: \(error.localizedDescription)")
+            if !note.isEmpty {
+                do {
+                    let fileName = IntentSupport.noteFileName(for: note, name: name)
+                    stored.append(try IntentSupport.store(Data(note.utf8), preferredFileName: fileName))
+                } catch {
+                    failures.append("Text: \(error.localizedDescription)")
+                }
             }
-        }
 
-        if !failures.isEmpty {
-            Log.warning(
-                "[Shortcuts] Add to Library: \(failures.count) item(s) could not be stored, \(stored.count) stored",
-                category: .ingestion)
-        }
-        guard !stored.isEmpty else {
-            throw OIIntentError("Nothing was added. \(failures.joined(separator: " "))")
-        }
+            if !failures.isEmpty {
+                Log.warning(
+                    "[Shortcuts] Add to Library: \(failures.count) item(s) could not be stored, \(stored.count) stored",
+                    category: .ingestion)
+            }
+            guard !stored.isEmpty else {
+                throw OIIntentError("Nothing was added. \(failures.joined(separator: " "))")
+            }
 
-        let containerId = library?.id
-        let queued = stored
-        await MainActor.run {
-            _ = IntentSupport.engine().enqueueDocuments(queued, containerId: containerId)
-        }
+            let containerId = library?.id
+            let queued = stored
+            await MainActor.run {
+                _ = IntentSupport.engine().enqueueDocuments(queued, containerId: containerId)
+            }
 
-        let names = stored.map(\.lastPathComponent)
-        let target = library?.name ?? "your active library"
-        Log.info(
-            "[Shortcuts] Add to Library queued \(names.count) item(s), \(failures.count) failed", category: .ingestion)
+            let names = stored.map(\.lastPathComponent)
+            let target = library?.name ?? "your active library"
+            Log.info(
+                "[Shortcuts] Add to Library queued \(names.count) item(s), \(failures.count) failed", category: .ingestion)
 
-        // What could be stored is queued either way. When something could not be, the action fails
-        // with both lists, so a shortcut does not run on as if everything went in.
-        guard failures.isEmpty else {
-            throw OIIntentError(
-                "Added \(names.joined(separator: ", ")) to \(target). Not added: \(failures.joined(separator: " "))",
-                kind: .partial)
+            // What could be stored is queued either way. When something could not be, the action fails
+            // with both lists, so a shortcut does not run on as if everything went in.
+            guard failures.isEmpty else {
+                throw OIIntentError(
+                    "Added \(names.joined(separator: ", ")) to \(target). Not added: \(failures.joined(separator: " "))",
+                    kind: .partial)
+            }
+            let message =
+                "Added \(names.count) item\(names.count == 1 ? "" : "s") to \(target). Importing continues in OpenIntelligence."
+            return .result(value: names, dialog: IntentDialog(stringLiteral: message))
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        let message =
-            "Added \(names.count) item\(names.count == 1 ? "" : "s") to \(target). Importing continues in OpenIntelligence."
-        return .result(value: names, dialog: IntentDialog(stringLiteral: message))
     }
 }

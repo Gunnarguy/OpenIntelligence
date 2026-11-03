@@ -30,26 +30,34 @@ struct CheckClaimIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
-        let wanted = claim.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !wanted.isEmpty else {
-            throw $claim.needsValueError("What should I check?")
-        }
-        Log.info("[Shortcuts] Check a Claim invoked (claimChars=\(wanted.count))", category: .pipeline)
-
-        let engine = await MainActor.run { IntentSupport.engine() }
-        let chunks: [RetrievedChunk]
+        let journal = VerificationJournal.Span("intent.CheckClaimIntent")
+        defer { journal.end() }
         do {
-            chunks = Array(try await engine.searchDocumentsRaw(query: wanted, topK: 6).prefix(6))
+            let wanted = claim.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !wanted.isEmpty else {
+                throw $claim.needsValueError("What should I check?")
+            }
+            Log.info("[Shortcuts] Check a Claim invoked (claimChars=\(wanted.count))", category: .pipeline)
+
+            let engine = await MainActor.run { IntentSupport.engine() }
+            let chunks: [RetrievedChunk]
+            do {
+                chunks = Array(try await engine.searchDocumentsRaw(query: wanted, topK: 6).prefix(6))
+            } catch {
+                throw OIIntentError("The search did not finish: \(error.localizedDescription)")
+            }
+            let outcome = await ClaimCheck.check(wanted, against: chunks)
+            Log.info(
+                "[Shortcuts] Check a Claim: \(outcome.verdict.label) from \(chunks.count) passage(s)\(outcome.numberMismatch ? ", a number did not match" : "")\(outcome.negationDiffers ? ", a negation differs" : "")",
+                category: .pipeline)
+            return .result(
+                value: outcome.verdict.label,
+                dialog: IntentDialog(stringLiteral: ClaimCheck.sentence(outcome)))
+
         } catch {
-            throw OIIntentError("The search did not finish: \(error.localizedDescription)")
+            journal.fail(error)
+            throw error
         }
-        let outcome = await ClaimCheck.check(wanted, against: chunks)
-        Log.info(
-            "[Shortcuts] Check a Claim: \(outcome.verdict.label) from \(chunks.count) passage(s)\(outcome.numberMismatch ? ", a number did not match" : "")\(outcome.negationDiffers ? ", a negation differs" : "")",
-            category: .pipeline)
-        return .result(
-            value: outcome.verdict.label,
-            dialog: IntentDialog(stringLiteral: ClaimCheck.sentence(outcome)))
     }
 }
 

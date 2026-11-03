@@ -243,8 +243,13 @@ final class SpeechAnalyzerService: ObservableObject {
             // Nothing was said in the recording. The importer turns an empty result into an error;
             // it is not announced as a success here.
             Log.info("[SpeechAnalyzer] No speech found in \(url.lastPathComponent)", category: .retrieval)
+            VerificationJournal.record("speech.transcribe", ["engine": "SpeechAnalyzer", "words": "0"])
         } else {
             DSHaptics.success()
+            VerificationJournal.record(
+                "speech.transcribe", .ok,
+                ["engine": "SpeechAnalyzer", "words": "\(fullText.split(separator: " ").count)",
+                    "confidence": "\(Int(avgConfidence * 100))"])
             Log.info(
                 "[SpeechAnalyzer] Complete: \(fullText.split(separator: " ").count) words in "
                     + "\(utterances.count) utterance(s), \(Int(avgConfidence * 100))% confidence",

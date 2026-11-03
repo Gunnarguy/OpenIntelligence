@@ -6160,6 +6160,10 @@ class RAGService: ObservableObject {
     ) -> [UUID] {
         guard !urls.isEmpty else { return [] }
         let activeContainerId = containerId ?? containerService.activeContainerId
+        VerificationJournal.record(
+            "import.enqueue",
+            ["count": "\(urls.count)", "context": "\(context)", "library": VerificationJournal.anon(activeContainerId),
+                "types": Set(urls.map { $0.pathExtension.lowercased() }).sorted().joined(separator: ",")])
         if context == .userInitiated {
             clearSelfHealingSuppression(for: activeContainerId)
         }
@@ -6712,6 +6716,14 @@ class RAGService: ObservableObject {
         let oldStage = ingestionItems[index].stage
         if oldStage != stage {
             triggerIngestionHaptic(for: stage)
+            // Each stage a file reaches, with its type and the time since it started (5.8). No file name.
+            VerificationJournal.record(
+                "import.stage",
+                stage == .failed ? .failed : stage == .cancelled ? .cancelled : stage == .complete ? .ok : .info,
+                durationMs: ingestionItems[index].startedAt.map { Date().timeIntervalSince($0) * 1000 },
+                ["item": VerificationJournal.anon(id), "from": oldStage.rawValue, "to": stage.rawValue,
+                    "type": ingestionItems[index].url.pathExtension.lowercased(),
+                    "background": "\(Self.appIsInBackground)"])
         }
 
         var item = ingestionItems[index]
@@ -8655,6 +8667,7 @@ class RAGService: ObservableObject {
                 Log.info(
                     "[RAGService] Adding the overview, tags and suggested questions that waited for '\(document.filename)'",
                     category: .ingestion)
+                VerificationJournal.record("import.deferredEnrichment", ["document": VerificationJournal.anon(document.id)])
                 await enrichImportedDocument(
                     document, chunks: chunks, container: container, embeddingService: service, db: db,
                     context: .userInitiated, trackingId: nil, containerId: item.library)

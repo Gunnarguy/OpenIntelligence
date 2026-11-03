@@ -39,31 +39,39 @@ struct DeleteDocumentsIntent: DeleteIntent, UndoableIntent {
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard !entities.isEmpty else {
-            throw $entities.needsValueError("Which documents should be deleted?")
-        }
-        try await requestConfirmation(
-            actionName: .continue,
-            dialog: IntentDialog(stringLiteral: DocumentDeletion.question(for: entities.map(\.filename))))
-
-        let wanted = Set(entities.map(\.id))
-        let engine = await MainActor.run { IntentSupport.engine() }
-        let documents = try await DocumentDeletion.documents(wanted, in: engine)
-        if await scheduleWithUndo(documents, in: engine) {
-            Log.info("[Shortcuts] Deleted \(documents.count) document(s), undoable for a few seconds", category: .pipeline)
-            return .result(
-                dialog: IntentDialog(stringLiteral: DocumentDeletion.done(count: documents.count, undoable: true)))
-        }
-        for document in documents {
-            do {
-                try await engine.removeDocument(document)
-            } catch {
-                Log.error("[Shortcuts] Delete failed: \(error.localizedDescription)", category: .pipeline)
-                throw OIIntentError("\(document.filename) could not be deleted. \(error.localizedDescription)")
+        let journal = VerificationJournal.Span("intent.DeleteDocumentsIntent")
+        defer { journal.end() }
+        do {
+            guard !entities.isEmpty else {
+                throw $entities.needsValueError("Which documents should be deleted?")
             }
+            try await requestConfirmation(
+                actionName: .continue,
+                dialog: IntentDialog(stringLiteral: DocumentDeletion.question(for: entities.map(\.filename))))
+
+            let wanted = Set(entities.map(\.id))
+            let engine = await MainActor.run { IntentSupport.engine() }
+            let documents = try await DocumentDeletion.documents(wanted, in: engine)
+            if await scheduleWithUndo(documents, in: engine) {
+                Log.info("[Shortcuts] Deleted \(documents.count) document(s), undoable for a few seconds", category: .pipeline)
+                return .result(
+                    dialog: IntentDialog(stringLiteral: DocumentDeletion.done(count: documents.count, undoable: true)))
+            }
+            for document in documents {
+                do {
+                    try await engine.removeDocument(document)
+                } catch {
+                    Log.error("[Shortcuts] Delete failed: \(error.localizedDescription)", category: .pipeline)
+                    throw OIIntentError("\(document.filename) could not be deleted. \(error.localizedDescription)")
+                }
+            }
+            Log.info("[Shortcuts] Deleted \(documents.count) document(s)", category: .pipeline)
+            return .result(dialog: IntentDialog(stringLiteral: DocumentDeletion.done(count: documents.count)))
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        Log.info("[Shortcuts] Deleted \(documents.count) document(s)", category: .pipeline)
-        return .result(dialog: IntentDialog(stringLiteral: DocumentDeletion.done(count: documents.count)))
     }
 
     /// Schedules the removal with undo when the action runs in the open app: the system hands it an undo

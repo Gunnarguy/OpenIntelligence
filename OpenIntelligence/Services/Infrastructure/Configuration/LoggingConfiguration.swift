@@ -213,12 +213,13 @@ nonisolated enum LoggingConfiguration {
     //   2. Run: scripts/pull_trace.sh  (pulls from connected iPhone to Xrays/)
     //   3. Read Xrays/pipeline_trace.log
     //
-    // The file is capped at ~500KB and auto-rotates. Only debug builds log to file.
+    // The file is capped at 10 MB and rotates once, so about 20 MB is kept. Only debug builds log to file.
 
-    /// Categories that get written to the trace file (pipeline-relevant only)
-    private static let fileLogCategories: Set<Category> = [
-        .pipeline, .llm, .retrieval, .ingestion, .embedding, .pipelineTrace
-    ]
+    /// Categories that get written to the trace file. Every one from 5.8, and lines with no category too: through
+    /// 5.7 only the six pipeline categories were written, so what the interface, the vector store, startup and
+    /// purchases logged never reached a phone's trace, and a check on a device had to be told what happened
+    /// (the owner, 2026-11-03). `VerificationJournal` keeps the structured events beside it.
+    private static let fileLogCategories: Set<Category> = Set(Category.allCases)
 
     /// Backing store for file logger state
     private static var _fileLogEnabled: Bool = {
@@ -306,8 +307,9 @@ nonisolated enum LoggingConfiguration {
         _ringBytes = 0
     }
 
-    /// Maximum file size before rotation (~500KB)
-    private static let maxFileSize: UInt64 = 500_000
+    /// Maximum file size before rotation. 10 MB from 5.8, so the live file and its one rotated copy hold about a
+    /// day of use; at 500 KB a long import pushed out everything before it.
+    private static let maxFileSize: UInt64 = 10_000_000
 
     /// File handle for the trace log (lazy-initialized)
     private static var _fileHandle: FileHandle?
@@ -398,11 +400,12 @@ nonisolated enum LoggingConfiguration {
     /// Write a line to the trace log file (non-blocking, fire-and-forget)
     private static func writeToFile(_ message: String, category: Category?) {
         guard _fileLogEnabled else { return }
-        guard let cat = category, fileLogCategories.contains(cat) else { return }
+        if let category, !fileLogCategories.contains(category) { return }
 
         // Format: [HH:mm:ss.SSS] [CATEGORY] message
         let timestamp = fileTimestampFormatter.string(from: Date())
-        let catName = String(describing: cat).uppercased().padding(toLength: 12, withPad: " ", startingAt: 0)
+        let catName = (category.map { String(describing: $0) } ?? "general").uppercased()
+            .padding(toLength: 12, withPad: " ", startingAt: 0)
         let line = "[\(timestamp)] [\(catName)] \(message)\n"
 
         guard let data = line.data(using: .utf8) else { return }
@@ -452,7 +455,8 @@ nonisolated enum LoggingConfiguration {
     /// Timestamp formatter for file log entries
     private static let fileTimestampFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss.SSS"
+        // With the date from 5.8: a 20 MB trace spans days, and the checker on the Mac matches lines to events by time.
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         return f
     }()
 

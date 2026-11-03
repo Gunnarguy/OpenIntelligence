@@ -55,23 +55,31 @@ struct ExportConversationIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> & ProvidesDialog {
-        let id = conversation.id
-        guard let thread = await Self.thread(id: id) else {
-            throw OIIntentError("That conversation is no longer saved.", kind: .itemNotFound)
+        let journal = VerificationJournal.Span("intent.ExportConversationIntent")
+        defer { journal.end() }
+        do {
+            let id = conversation.id
+            guard let thread = await Self.thread(id: id) else {
+                throw OIIntentError("That conversation is no longer saved.", kind: .itemNotFound)
+            }
+            guard !ConversationExporter.exportable(thread.messages).isEmpty else {
+                throw OIIntentError("That conversation has no messages to export.")
+            }
+            let kind = format.format
+            let file = IntentFile(
+                data: ConversationExporter.data(messages: thread.messages, title: thread.title, format: kind),
+                filename: ConversationExporter.fileName(title: thread.title, format: kind),
+                type: kind.contentType)
+            Log.info(
+                "[Shortcuts] Export Conversation (\(kind.rawValue), \(thread.messages.count) messages)", category: .pipeline
+            )
+            return .result(
+                value: file, dialog: IntentDialog(stringLiteral: "Exported “\(thread.title)” as \(kind.menuTitle)."))
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        guard !ConversationExporter.exportable(thread.messages).isEmpty else {
-            throw OIIntentError("That conversation has no messages to export.")
-        }
-        let kind = format.format
-        let file = IntentFile(
-            data: ConversationExporter.data(messages: thread.messages, title: thread.title, format: kind),
-            filename: ConversationExporter.fileName(title: thread.title, format: kind),
-            type: kind.contentType)
-        Log.info(
-            "[Shortcuts] Export Conversation (\(kind.rawValue), \(thread.messages.count) messages)", category: .pipeline
-        )
-        return .result(
-            value: file, dialog: IntentDialog(stringLiteral: "Exported “\(thread.title)” as \(kind.menuTitle)."))
     }
 
     /// The saved conversation with this id, from whichever library holds it.

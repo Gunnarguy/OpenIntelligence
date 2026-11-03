@@ -33,11 +33,19 @@ struct LibraryFocusFilterIntent: SetFocusFilterIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let ids = libraries?.map(\.id)
-        await MainActor.run {
-            IntentSupport.libraries().applyFocusFilter(ids)
+        let journal = VerificationJournal.Span("intent.LibraryFocusFilterIntent")
+        defer { journal.end() }
+        do {
+            let ids = libraries?.map(\.id)
+            await MainActor.run {
+                IntentSupport.libraries().applyFocusFilter(ids)
+            }
+            return .result()
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result()
     }
 
     /// The filter in force now, applied at launch in case a Focus changed while the app was not

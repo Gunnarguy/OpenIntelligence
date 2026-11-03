@@ -23,8 +23,15 @@
     struct VisualDocumentSearchQuery: IntentValueQuery {
         func values(for input: SemanticContentDescriptor) async throws -> [OIDocumentEntity] {
             let terms = await VisualDocumentSearch.terms(for: input)
-            guard !terms.isEmpty else { return [] }
-            return await VisualDocumentSearch.documents(matching: terms)
+            guard !terms.isEmpty else {
+                VerificationJournal.record("visualIntelligence.query", ["terms": "0", "documents": "0"])
+                return []
+            }
+            let found = await VisualDocumentSearch.documents(matching: terms)
+            // Counts only: the terms are words read off what the camera saw (5.8).
+            VerificationJournal.record(
+                "visualIntelligence.query", ["terms": "\(terms.count)", "documents": "\(found.count)"])
+            return found
         }
     }
 
@@ -37,9 +44,17 @@
         var semanticContent: SemanticContentDescriptor
 
         func perform() async throws -> some IntentResult {
-            let terms = await VisualDocumentSearch.terms(for: semanticContent)
-            await MainActor.run { AppNavigationRequest.post(.searchFor(terms.joined(separator: " "))) }
-            return .result()
+            let journal = VerificationJournal.Span("intent.VisualDocumentSearchResultsIntent")
+            defer { journal.end() }
+            do {
+                let terms = await VisualDocumentSearch.terms(for: semanticContent)
+                await MainActor.run { AppNavigationRequest.post(.searchFor(terms.joined(separator: " "))) }
+                return .result()
+
+            } catch {
+                journal.fail(error)
+                throw error
+            }
         }
     }
 

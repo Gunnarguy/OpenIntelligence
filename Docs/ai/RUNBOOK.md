@@ -1086,6 +1086,33 @@ question. `xcrun devicectl device info processes --device <UDID>` has to succeed
 not list `OpenIntelligence.app/OpenIntelligence`. A call that times out also prints nothing, so an empty
 listing proves nothing. Do not launch the app on his phone from the Mac while he may be holding it.
 
+### Reading a device check off the phone instead of asking for it *(added 2026-11-03, 5.8)*
+
+A Debug build records what it did in two files in its Documents folder, and the Mac reads both over Wi-Fi:
+
+- `verification_events.jsonl`: one JSON line per event (`VerificationJournal.swift`): every App Intent's start, end,
+  error type and duration (`intent.<Type>`), every navigation request (`nav.post`, the destination's case only), links,
+  files, Handoff and Spotlight opens, app phase changes, Share Sheet and Lock Screen scan arrivals, Live Activity
+  starts, stage changes, ends and Stop taps, background task phases, system state changes and memory warnings,
+  MetricKit deliveries, where each answer was written (`model.generate`) and its badge (`answer.done`), the consent
+  sheet and its answer, each import stage, the rating request, the plans ask, speech transcription, widget snapshots,
+  watched-folder checks and the crash report offer. No document text, question, answer or file name; ids are their
+  first 8 characters. 10 MB, rotated once.
+- `pipeline_trace.log`: every log line from 5.8 (it had six categories), 10 MB, rotated once, with the date.
+
+```bash
+python3 scripts/phone_evidence.py --since 2026-11-03T09:41
+```
+
+copies them, MetricKit's reports and the crash list into `~/Library/Developer/OpenIntelligence-evidence/<time>`
+(outside the repository: the trace holds file names and questions), and prints each rule in
+`scripts/phone_evidence_rules.json` as PASS with its proof lines, FAIL with what was seen, or NOT SEEN with what to do.
+`--json` gives the same for closing rows. A rule proves a mechanism ran; a row whose closing condition is a look
+(Atlas names, text sizes, VoiceOver) still needs the owner's eye. **Not covered:** the twelve actions in
+`RAGAppIntents.swift`, a hard-boundary file not edited for this; the widget, Live Activity and Share extensions, which
+can't write the app's Documents folder (their effect is recorded when the app picks it up).
+`[evidence_level: test_verified (VerificationJournalTests), confidence: high for the format; the pull is not yet run against the phone]`
+
 ### Timing the embedding model on a device *(added 2026-10-12)*
 
 A Debug build carries `DebugEmbeddingBench` (`OpenIntelligence/App/`). It runs when the app is launched with

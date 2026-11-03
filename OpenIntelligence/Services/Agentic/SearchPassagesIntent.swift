@@ -44,31 +44,39 @@ struct SearchPassagesIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<[OIPassageEntity]> & ProvidesDialog {
-        let wanted = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !wanted.isEmpty else {
-            throw $query.needsValueError("What should I search for?")
-        }
-        let cap = Self.clampedLimit(self.limit)
-        Log.info("[Shortcuts] Find Passages invoked (queryChars=\(wanted.count), limit=\(cap))", category: .pipeline)
-
-        let engine = await MainActor.run { IntentSupport.engine() }
-        let documentCount = await MainActor.run { engine.documents.count }
-        guard documentCount > 0 else {
-            throw OIIntentError("There are no documents in the active library yet.")
-        }
-
-        let chunks: [RetrievedChunk]
+        let journal = VerificationJournal.Span("intent.SearchPassagesIntent")
+        defer { journal.end() }
         do {
-            chunks = try await engine.searchDocumentsRaw(query: wanted, topK: cap)
-        } catch {
-            throw OIIntentError("The search did not finish: \(error.localizedDescription)")
-        }
+            let wanted = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !wanted.isEmpty else {
+                throw $query.needsValueError("What should I search for?")
+            }
+            let cap = Self.clampedLimit(self.limit)
+            Log.info("[Shortcuts] Find Passages invoked (queryChars=\(wanted.count), limit=\(cap))", category: .pipeline)
 
-        let passages = OIPassageEntity.handedOut(Array(chunks.prefix(cap)))
-        let dialog: IntentDialog =
-            passages.isEmpty
-            ? "No passages matched."
-            : "Found \(passages.count) passage\(passages.count == 1 ? "" : "s")."
-        return .result(value: Array(passages), dialog: dialog)
+            let engine = await MainActor.run { IntentSupport.engine() }
+            let documentCount = await MainActor.run { engine.documents.count }
+            guard documentCount > 0 else {
+                throw OIIntentError("There are no documents in the active library yet.")
+            }
+
+            let chunks: [RetrievedChunk]
+            do {
+                chunks = try await engine.searchDocumentsRaw(query: wanted, topK: cap)
+            } catch {
+                throw OIIntentError("The search did not finish: \(error.localizedDescription)")
+            }
+
+            let passages = OIPassageEntity.handedOut(Array(chunks.prefix(cap)))
+            let dialog: IntentDialog =
+                passages.isEmpty
+                ? "No passages matched."
+                : "Found \(passages.count) passage\(passages.count == 1 ? "" : "s")."
+            return .result(value: Array(passages), dialog: dialog)
+
+        } catch {
+            journal.fail(error)
+            throw error
+        }
     }
 }

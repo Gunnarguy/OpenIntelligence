@@ -492,6 +492,8 @@ correct on either, and the language-detection distribution was byte-identical be
 
 ### Audio and video: the failure mode is verified, transcription itself is not
 
+*(5.8, 2026-11-03.)* A development build records which engine transcribed a recording (`speech.transcribe`: `SpeechAnalyzer` with its word count and confidence, or `SFSpeechRecognizer` with its language) and each import stage a file reaches (`import.stage`, with its type and whether the app was in the background) in `VerificationJournal`, so a device's transcription can be read off it. `[evidence_level: code_verified, confidence: high]`
+
 `say` fails from an agent shell (`-241`), so no *speech* fixture can be authored there. A silent WAV was used to check the failure mode instead, and that part is settled: ingesting audio with nothing to transcribe **throws in about 76 ms** rather than yielding an empty document that gets indexed as a success. `[evidence_level: test_verified, confidence: exact, evidence_source: IngestionFormatCoverageTests testSilentAudio, 0.076s]`
 
 One cold-start caveat, recorded because it cost a run. On the **first** attempt of the session `SpeechAnalyzerService` logged `Starting analysis: silence.wav (1s)` and had not returned when that run was terminated for unrelated reasons; the elapsed time was never measured, so "it hung" is an inference and not an observation. Every subsequent attempt threw immediately. The plausible reading is one-time framework or model preparation. The test caps the wait at 60 s and reports a timeout as a distinct outcome so a genuine stall would be visible rather than taking the suite down.

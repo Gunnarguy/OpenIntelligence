@@ -63,6 +63,8 @@ struct GetSettingsIntent: AppIntent {
     static var openAppWhenRun: Bool = false
 
     func perform() async throws -> some IntentResult & ReturnsValue<OISettingsEntity> {
-        .result(value: await OISettingsEntity.current())
+        let journal = VerificationJournal.Span("intent.GetSettingsIntent")
+        defer { journal.end() }
+        return .result(value: await OISettingsEntity.current())
     }
 }

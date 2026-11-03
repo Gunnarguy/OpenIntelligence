@@ -1178,6 +1178,12 @@ struct LLMResponse {
             } else {
                 actualTarget = .onDevice
             }
+            // Where an answer was written, against where it was planned (5.8): what the rows about Private Cloud
+            // Compute close on.
+            VerificationJournal.record(
+                "model.generate", .ok, durationMs: Date().timeIntervalSince(startTime) * 1000,
+                ["actual": "\(actualTarget)", "intended": config.modelExecutionPlan.map { "\($0.intendedTarget)" } ?? "noPlan",
+                    "toolCalls": "\(toolCalls)", "words": "\(finalTokenCount)"])
             let executionReceipt = config.modelExecutionPlan.map { plan in
                 ModelExecutionReceipt(
                     planID: plan.id,

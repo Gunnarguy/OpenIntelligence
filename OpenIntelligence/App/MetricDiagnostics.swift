@@ -64,6 +64,7 @@ nonisolated enum MetricDiagnostics {
     static func recordDiagnosticReport(_ report: MetricKit.DiagnosticReport) {
         let line = diagnosticLogLine(for: report) + statesSuffix(report.environment.states)
         Log.info(line, category: .pipeline)
+        VerificationJournal.record("metrickit.diagnostic", ["result": String(describing: report.result).prefix(40).description])
 
         if let jsonString = compactJSON(report) {
             try? appendAndTrim(line: jsonString, fileURL: reportsFileURL())
@@ -80,6 +81,7 @@ nonisolated enum MetricDiagnostics {
     @available(iOS 27.0, macOS 27.0, macCatalyst 27.0, *)
     static func recordMetricReport(_ report: MetricKit.MetricReport) {
         logMetricReport(report)
+        VerificationJournal.record("metrickit.metric")
 
         if let jsonString = compactJSON(report) {
             try? appendAndTrim(line: jsonString, fileURL: reportsFileURL())

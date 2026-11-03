@@ -557,6 +557,18 @@ final class SystemStateMonitor: ObservableObject {
 
     private func updateState() {
         let newState = Self.captureState()
+        let old = currentState
+        if old.thermalState != newState.thermalState || old.isLowPowerModeEnabled != newState.isLowPowerModeEnabled
+            || old.systemPrefersReducedResourceUsage != newState.systemPrefersReducedResourceUsage
+            || old.memoryPressure != newState.memoryPressure
+        {
+            // A change only, not each sample (5.8).
+            VerificationJournal.record(
+                "system.state",
+                ["thermal": "\(newState.thermalState.rawValue)", "lowPower": "\(newState.isLowPowerModeEnabled)",
+                    "reducedUsage": "\(newState.systemPrefersReducedResourceUsage)",
+                    "memoryPressure": "\(newState.memoryPressure)"])
+        }
         currentState = newState
         SystemResourceAdvice.set(prefersReducedUsage: newState.systemPrefersReducedResourceUsage)
 
@@ -666,6 +678,7 @@ final class SystemStateMonitor: ObservableObject {
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
+                    VerificationJournal.record("system.memoryWarning")
                     self?.updateState()
                     // Distinct warning haptic for memory pressure
                     DSHaptics.warning()

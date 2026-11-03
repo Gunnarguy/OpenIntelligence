@@ -10,8 +10,9 @@
 # Read this before trusting what you pull:
 #
 #   * The trace file is a SUBSET of the Xcode console, not a superset. Both are written by the same
-#     `Log.log()` call, but the file is filtered to six categories (pipeline, llm, retrieval,
-#     ingestion, embedding, pipelineTrace) while the console is filtered to none. The formatted step
+#     `Log.log()` call. Through 5.7 the file kept six categories (pipeline, llm, retrieval, ingestion,
+#     embedding, pipelineTrace); from 5.8 it keeps every category, 10 MB a file, and
+#     `scripts/phone_evidence.py` pulls it with the structured `verification_events.jsonl`. The formatted step
 #     boxes (`pipelineStep`, `pipelineHeader`, `pipelineComplete`, `section`, `box`) are
 #     console-only and never reach this file. If you have the Mac attached, the console is strictly
 #     better; this script is for when you do not.

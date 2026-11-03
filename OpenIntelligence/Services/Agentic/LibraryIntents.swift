@@ -34,27 +34,35 @@ struct CreateLibraryIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OILibraryEntity> & ProvidesDialog {
-        let wanted = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !wanted.isEmpty else {
-            throw $name.needsValueError("What should the library be called?")
-        }
-
-        let activate = makeActive
-        let created: KnowledgeContainer
+        let journal = VerificationJournal.Span("intent.CreateLibraryIntent")
+        defer { journal.end() }
         do {
-            created = try await MainActor.run {
-                let libraries = IntentSupport.libraries()
-                let container = try libraries.createContainer(name: wanted)
-                if activate { libraries.setActive(container.id) }
-                return container
+            let wanted = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !wanted.isEmpty else {
+                throw $name.needsValueError("What should the library be called?")
             }
-        } catch {
-            throw OIIntentError(error.localizedDescription)
-        }
 
-        return .result(
-            value: OILibraryEntityQuery.entity(for: created),
-            dialog: "Created the library \(created.name).")
+            let activate = makeActive
+            let created: KnowledgeContainer
+            do {
+                created = try await MainActor.run {
+                    let libraries = IntentSupport.libraries()
+                    let container = try libraries.createContainer(name: wanted)
+                    if activate { libraries.setActive(container.id) }
+                    return container
+                }
+            } catch {
+                throw OIIntentError(error.localizedDescription)
+            }
+
+            return .result(
+                value: OILibraryEntityQuery.entity(for: created),
+                dialog: "Created the library \(created.name).")
+
+        } catch {
+            journal.fail(error)
+            throw error
+        }
     }
 }
 
@@ -82,26 +90,34 @@ struct SetActiveLibraryIntent: AppIntent, UndoableIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<OILibraryEntity> & ProvidesDialog {
-        let id = library.id
-        let previous = await MainActor.run { () -> UUID? in
-            let libraries = IntentSupport.libraries()
-            // A library created on another device, or by another action, is on disk before this
-            // list has seen it.
-            if !libraries.containers.contains(where: { $0.id == id }) {
-                libraries.reloadFromDisk()
+        let journal = VerificationJournal.Span("intent.SetActiveLibraryIntent")
+        defer { journal.end() }
+        do {
+            let id = library.id
+            let previous = await MainActor.run { () -> UUID? in
+                let libraries = IntentSupport.libraries()
+                // A library created on another device, or by another action, is on disk before this
+                // list has seen it.
+                if !libraries.containers.contains(where: { $0.id == id }) {
+                    libraries.reloadFromDisk()
+                }
+                guard libraries.containers.contains(where: { $0.id == id }) else { return nil }
+                let before = libraries.activeContainerId
+                libraries.setActive(id)
+                return before
             }
-            guard libraries.containers.contains(where: { $0.id == id }) else { return nil }
-            let before = libraries.activeContainerId
-            libraries.setActive(id)
-            return before
+            guard let previous else {
+                throw OIIntentError("That library no longer exists.", kind: .itemNotFound)
+            }
+            if previous != id {
+                await registerUndo(returningTo: previous)
+            }
+            return .result(value: library, dialog: "\(library.name) is now the active library.")
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        guard let previous else {
-            throw OIIntentError("That library no longer exists.", kind: .itemNotFound)
-        }
-        if previous != id {
-            await registerUndo(returningTo: previous)
-        }
-        return .result(value: library, dialog: "\(library.name) is now the active library.")
     }
 
     @MainActor

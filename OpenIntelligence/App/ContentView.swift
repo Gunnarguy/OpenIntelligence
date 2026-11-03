@@ -151,6 +151,7 @@ struct ContentView: View {
             // read a "containerId" the index never wrote, so it always fell back to the Documents tab
             // of whatever library was active.
             guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
+            VerificationJournal.record("spotlight.open", ["kind": identifier.split(separator: "-").first.map(String.init) ?? "?"])
             AppNavigationRequest.post(AppLink.destination(forSpotlightIdentifier: identifier) ?? .documents)
         }
         // Handoff: what another of the person's devices had open (5.7).
@@ -221,6 +222,8 @@ struct ContentView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(2))
                 requestReview()
+                // Apple decides whether the sheet shows; this records only that it was asked (5.8).
+                VerificationJournal.record("review.requested")
                 reviewPrompt.didAsk()
             }
         }
@@ -514,6 +517,7 @@ struct ContentView: View {
     /// - Saves transcript when app backgrounds (preserves conversation state)
     /// - Restores transcript when app returns to foreground (resumes conversation)
     private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
+        VerificationJournal.record("app.phase", ["from": "\(oldPhase)", "to": "\(newPhase)"])
         switch newPhase {
         case .background:
             // Save the current session transcript before backgrounding
@@ -632,6 +636,9 @@ struct ContentView: View {
             // number waiting (review of 2026-10-17).
             let taken = await SharedInboxImport.takeAndStage(from: folder, room: documentRoom())
             let outcome = taken.outcome
+            VerificationJournal.record(
+                "share.inbox",
+                ["staged": "\(outcome.staged.count)", "failed": "\(outcome.failures.count)", "waiting": "\(taken.waiting)"])
             if !outcome.staged.isEmpty { AppNavigationRequest.post(.importFiles(outcome.staged)) }
             var lines = outcome.failures
             if taken.waiting > Self.sharedItemsSaidWaiting {
@@ -660,6 +667,8 @@ struct ContentView: View {
     private func takeLockedCaptures() {
         Task { @MainActor in
             let taken = await LockedCaptureImport.takeFromTheLockScreen(atMost: documentRoom())
+            VerificationJournal.record(
+                "lockscreen.scan", ["staged": "\(taken.staged.count)", "waiting": "\(taken.waiting)"])
             if !taken.staged.isEmpty { AppNavigationRequest.post(.importFiles(taken.staged)) }
             if taken.waiting > Self.lockScreenPagesSaidWaiting {
                 let pages =
@@ -729,9 +738,12 @@ struct ContentView: View {
     @MainActor
     private func handleOpenURL(_ url: URL) {
         if url.isFileURL {
+            VerificationJournal.record("open.file", ["type": url.pathExtension.lowercased()])
             importOpenedFile(url)
             return
         }
+        VerificationJournal.record(
+            "open.url", ["scheme": url.scheme ?? "nil", "host": url.host ?? "nil", "path": url.pathComponents.dropFirst().first ?? ""])
         Log.info("[DeepLink] Received \(url.scheme ?? "nil")://\(url.host ?? "nil")\(url.path)", category: .ui)
         guard let destination = AppLink.destination(for: url) else {
             Log.warning("[DeepLink] Not one of this app's links; ignored", category: .ui)
@@ -750,6 +762,7 @@ struct ContentView: View {
 
     private func continueActivity(_ activity: NSUserActivity) {
         let destinations = AppActivity.destinations(type: activity.activityType, userInfo: activity.userInfo)
+        VerificationJournal.record("handoff.continue", ["type": activity.activityType, "steps": "\(destinations.count)"])
         Log.info("[Handoff] Continuing \(activity.activityType): \(destinations.count) step(s)", category: .ui)
         destinations.forEach(AppNavigationRequest.post)
     }

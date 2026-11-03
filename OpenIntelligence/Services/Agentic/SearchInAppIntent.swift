@@ -20,10 +20,18 @@ struct SearchInAppIntent: ShowInAppSearchResultsIntent {
     var criteria: StringSearchCriteria
 
     func perform() async throws -> some IntentResult {
-        let term = criteria.term.trimmingCharacters(in: .whitespacesAndNewlines)
-        await MainActor.run {
-            AppNavigationRequest.post(term.isEmpty ? .search : .searchFor(term))
+        let journal = VerificationJournal.Span("intent.SearchInAppIntent")
+        defer { journal.end() }
+        do {
+            let term = criteria.term.trimmingCharacters(in: .whitespacesAndNewlines)
+            await MainActor.run {
+                AppNavigationRequest.post(term.isEmpty ? .search : .searchFor(term))
+            }
+            return .result()
+
+        } catch {
+            journal.fail(error)
+            throw error
         }
-        return .result()
     }
 }

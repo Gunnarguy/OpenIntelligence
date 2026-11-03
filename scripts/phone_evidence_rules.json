@@ -1,0 +1,499 @@
+{
+  "_comment": "Rules for scripts/phone_evidence.py (5.8). Each names a roadmap row (its title and URL) and the events in verification_events.jsonl that close it. A rule is written from the row's closing condition; where the condition also needs a judgement (how something looks), `needs` says so and the rule only proves the mechanism ran. Event names and fields are VerificationJournal.record calls in the app.",
+  "rules": [
+    {
+      "row": "Interactive Deep Think Live Activities (Stop keeps the written text)",
+      "url": "https://app.notion.com/p/38149a74d54f81db88cdc310e399df51",
+      "needs": "During a Deep Think answer, lock the phone and tap Stop on the Lock Screen or Dynamic Island.",
+      "all": [
+        {
+          "e": "liveactivity.answer.start",
+          "o": "ok"
+        },
+        {
+          "e": "liveactivity.answer.stopTapped",
+          "f": {
+            "matchesRunning": "true"
+          }
+        },
+        {
+          "e": "answer.stopRequested"
+        }
+      ]
+    },
+    {
+      "row": "Deep Think and Maximum show progress on the Lock Screen",
+      "url": "https://app.notion.com/p/3f449a74d54f8171861cdb4a650b8432",
+      "needs": "Ask a Deep Think question and lock the phone until it finishes.",
+      "all": [
+        {
+          "e": "liveactivity.answer.start",
+          "o": "ok"
+        },
+        {
+          "e": "liveactivity.answer.end",
+          "f": {
+            "shown": "1",
+            "success": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Long answer outlives 30 s background grant",
+      "url": "https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777",
+      "needs": "Ask a Deep Think question, leave the app at once, come back after it would have finished.",
+      "all": [
+        {
+          "e": "bgtask.answer",
+          "f": {
+            "phase": "running"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "inFront": "false"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Question-answering background task had the import's fixed name",
+      "url": "https://app.notion.com/p/3f549a74d54f81d1b0c2c7159e127e07",
+      "needs": "Same as the long-answer check.",
+      "all": [
+        {
+          "e": "bgtask.answer",
+          "f": {
+            "phase": "running"
+          }
+        }
+      ]
+    },
+    {
+      "row": "iOS never started the import's background task",
+      "url": "https://app.notion.com/p/3f549a74d54f81ecb6ecd600e800db07",
+      "needs": "Start an import of a large PDF and leave the app for over a minute.",
+      "all": [
+        {
+          "e": "bgtask.import",
+          "f": {
+            "phase": "running"
+          }
+        },
+        {
+          "e": "import.stage",
+          "f": {
+            "background": "true"
+          },
+          "min": 2
+        }
+      ]
+    },
+    {
+      "row": "iOS ended a background import during overview/tags calls",
+      "url": "https://app.notion.com/p/3fa49a74d54f812a9c6be360f7f97296",
+      "needs": "Import something, leave the app until it finishes, come back.",
+      "all": [
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "background": "true"
+          }
+        },
+        {
+          "e": "import.deferredEnrichment"
+        }
+      ]
+    },
+    {
+      "row": "Library built from all-zero vectors when embedding fails",
+      "url": "https://app.notion.com/p/3f349a74d54f8134833acf73aac40048",
+      "needs": "Start an import and leave the app at once.",
+      "all": [
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "background": "true"
+          }
+        }
+      ],
+      "absent_trace": [
+        "falling back to (a )?zero",
+        "all-zero",
+        "empty vectors?"
+      ]
+    },
+    {
+      "row": "Multi-file imports wait on each file's overview before the next file (5.8)",
+      "url": "https://app.notion.com/p/40d49a74d54f81a9bcaec77f3061c10e",
+      "needs": "Add three or more files at once with the app open.",
+      "all": [
+        {
+          "e": "import.enqueue",
+          "f": {
+            "count": ">=3"
+          }
+        },
+        {
+          "e": "import.deferredEnrichment",
+          "min": 2
+        }
+      ]
+    },
+    {
+      "row": "Import cards stay on the Lock Screen and Watch after the app is opened (5.8)",
+      "url": "https://app.notion.com/p/40d49a74d54f818f92cdfe37eb7164ed",
+      "needs": "Import something, leave the app until it ends, open the app again. Also look at the Watch: the card should be gone.",
+      "all": [
+        {
+          "e": "liveactivity.import.end"
+        },
+        {
+          "e": "liveactivity.import.dismissOnReturn",
+          "f": {
+            "moving": "false"
+          }
+        }
+      ]
+    },
+    {
+      "row": "App Store ratings: Apple's sheet only, asked once per version (5.8)",
+      "url": "https://app.notion.com/p/40d49a74d54f81b8a754e342bf1d90d0",
+      "needs": "Ask a question in a library with your own documents; Apple's sheet should appear about 2 s after a Verified answer.",
+      "all": [
+        {
+          "e": "review.requested"
+        }
+      ]
+    },
+    {
+      "row": "Web Clipper / Share Extension",
+      "url": "https://app.notion.com/p/609082e5e2434f6aabd5caf667e7f841",
+      "needs": "In Safari, share a page to OpenIntelligence, then open the app.",
+      "all": [
+        {
+          "e": "share.inbox",
+          "f": {
+            "staged": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Scan a page into a library from the Lock Screen",
+      "url": "https://app.notion.com/p/3f449a74d54f81c7844bf2a2b379fde0",
+      "needs": "Add the Scan control to the Lock Screen, scan a page while locked, then unlock and open the app.",
+      "all": [
+        {
+          "e": "lockscreen.scan",
+          "f": {
+            "staged": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Handoff: continue on the Mac what is open on the phone",
+      "url": "https://app.notion.com/p/3f449a74d54f81678f35c5a6894ec731",
+      "needs": "Open a document on one device and take it from the Dock or app switcher on the other (log read on the receiving device).",
+      "all": [
+        {
+          "e": "handoff.continue",
+          "f": {
+            "steps": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Siri and Spotlight can search inside OpenIntelligence",
+      "url": "https://app.notion.com/p/3f449a74d54f8146a6d4cfcd7929dff2",
+      "needs": "Say \"Search OpenIntelligence for rent\".",
+      "all": [
+        {
+          "e": "intent.SearchInAppIntent",
+          "o": "ok"
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "searchFor"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Visual Intelligence returns matching documents",
+      "url": "https://app.notion.com/p/3f449a74d54f814a951cfe6025c801b3",
+      "needs": "Point Visual Intelligence at a printed label that one of your documents names.",
+      "all": [
+        {
+          "e": "visualIntelligence.query",
+          "f": {
+            "documents": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A Focus filter chooses which libraries show",
+      "url": "https://app.notion.com/p/3f449a74d54f8142b1acff70cc721eca",
+      "needs": "Add OpenIntelligence's filter to a Focus, pick a library, turn the Focus on and off.",
+      "all": [
+        {
+          "e": "intent.LibraryFocusFilterIntent",
+          "o": "ok",
+          "min": 2
+        }
+      ]
+    },
+    {
+      "row": "Actions that open a specific library, document or answer",
+      "url": "https://app.notion.com/p/3f449a74d54f814ca229d378c2ffcbb7",
+      "needs": "Run Open Library and Open Document from Siri or Shortcuts.",
+      "all": [
+        {
+          "e": "intent.OpenLibraryIntent",
+          "o": "ok"
+        },
+        {
+          "e": "intent.OpenDocumentIntent",
+          "o": "ok"
+        }
+      ]
+    },
+    {
+      "row": "Siri can open a document or library by name",
+      "url": "https://app.notion.com/p/3f449a74d54f8132952ec0d439689844",
+      "needs": "Say \"Open <document name> in OpenIntelligence\".",
+      "all": [
+        {
+          "e": "intent.OpenDocumentIntent",
+          "o": "ok"
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "document"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Web links open the app, or the App Store",
+      "url": "https://app.notion.com/p/3f449a74d54f813899bec982779cbdd7",
+      "needs": "Tap a document's link in Notes or Messages.",
+      "all": [
+        {
+          "e": "open.url"
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "document"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Every document, library and answer has its own link",
+      "url": "https://app.notion.com/p/3f449a74d54f818ab9eae5917fd1829d",
+      "needs": "Copy a document's link, paste it into Notes, tap it.",
+      "all": [
+        {
+          "e": "open.url"
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "document"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Home Screen and Lock Screen Widgets",
+      "url": "https://app.notion.com/p/43c0f921aaf54842a07e1dc2dfb800db",
+      "needs": "Place both widgets and tap each; Your Library should show your library's name and count.",
+      "all": [
+        {
+          "e": "widget.snapshot",
+          "f": {
+            "kind": "library"
+          }
+        },
+        {
+          "e": "open.url"
+        }
+      ]
+    },
+    {
+      "row": "Ask and Add in Control Center, Lock Screen, Action button",
+      "url": "https://app.notion.com/p/3f449a74d54f81ed8f06f7b380a27d1c",
+      "needs": "Add the Ask and Add controls to Control Center and the Lock Screen, set one on the Action button, use each.",
+      "all": [
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "ask"
+          }
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "addDocument"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Newer transcriber never compiled; recordings use older recognizer",
+      "url": "https://app.notion.com/p/3f449a74d54f8176b599f5d8c41da1ab",
+      "needs": "Import a voice memo.",
+      "all": [
+        {
+          "e": "speech.transcribe",
+          "o": "ok",
+          "f": {
+            "engine": "SpeechAnalyzer"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Recording language read from two letters in file name",
+      "url": "https://app.notion.com/p/3f549a74d54f81b0bdf0cddeac841def",
+      "needs": "Import an English voice memo named like \"Plumber visit_friday.m4a\"; the transcript should be English.",
+      "all": [
+        {
+          "e": "speech.transcribe",
+          "o": "ok",
+          "f": {
+            "words": ">=5"
+          }
+        }
+      ]
+    },
+    {
+      "row": "App records hangs, slow launches, terminations (MetricKit)",
+      "url": "https://app.notion.com/p/3f549a74d54f81779eabd92ffc3fc3a9",
+      "needs": "Nothing: use the app for a day; iOS delivers the report.",
+      "all": [
+        {
+          "e": "metrickit.metric"
+        }
+      ]
+    },
+    {
+      "row": "Per-state metrics show what gets killed for memory",
+      "url": "https://app.notion.com/p/3f449a74d54f811a9a66e74faee0dd48",
+      "needs": "Nothing: needs a day of use and a termination iOS reports.",
+      "all": [
+        {
+          "e": "metrickit.diagnostic"
+        }
+      ]
+    },
+    {
+      "row": "A local crash report the person can send",
+      "url": "https://app.notion.com/p/3f449a74d54f81fa83cafeeb9cbf6344",
+      "needs": "Only after a real crash: the next launch offers the report.",
+      "all": [
+        {
+          "e": "crashReport.offered"
+        }
+      ]
+    },
+    {
+      "row": "Deep Think and imports ease off when resources are short",
+      "url": "https://app.notion.com/p/3f449a74d54f818c9c9cff3f31b3270a",
+      "needs": "Use the app in Low Power Mode or while the phone is hot; iOS decides when it asks.",
+      "all": [
+        {
+          "e": "system.state",
+          "f": {
+            "reducedUsage": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "On PCC, Deep Think/Maximum steps went without evidence",
+      "url": "https://app.notion.com/p/40049a74d54f81f3964fc8a7a0792cd5",
+      "needs": "In Deep Think, allow Private Cloud Compute for a long question.",
+      "all": [
+        {
+          "e": "model.generate",
+          "f": {
+            "actual": "privateCloudCompute"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "sources": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "\"Just Once\" PCC consent carries to the next question",
+      "url": "https://app.notion.com/p/3ea49a74d54f81fd814ae82ce9449e41",
+      "needs": "In Deep Think choose Just Once, then ask a second question that needs Private Cloud Compute.",
+      "all": [
+        {
+          "e": "consent.decided",
+          "f": {
+            "decision": "allowOnce"
+          }
+        },
+        {
+          "e": "consent.shown",
+          "min": 2
+        }
+      ]
+    },
+    {
+      "row": "Action needing PCC consent moves to foreground and asks",
+      "url": "https://app.notion.com/p/3f449a74d54f81fdaac9e3f22ba32c84",
+      "needs": "Run a Deep Think shortcut with the app closed that needs Private Cloud Compute.",
+      "all": [
+        {
+          "e": "intent.*",
+          "o": "started"
+        },
+        {
+          "e": "consent.shown"
+        }
+      ]
+    },
+    {
+      "row": "Watched folders (5.8)",
+      "url": "https://app.notion.com/p/40c49a74d54f818a9311cb37fbc4db3a",
+      "needs": "Library Settings, Watch a Folder, add a file to it, reopen the app.",
+      "all": [
+        {
+          "e": "watchedFolder.found",
+          "f": {
+            "queued": ">=1"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete"
+          }
+        }
+      ]
+    }
+  ]
+}

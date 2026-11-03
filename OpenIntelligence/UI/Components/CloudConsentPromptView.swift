@@ -6,6 +6,12 @@ struct CloudConsentPromptView: View {
 
     @State private var showDetails = false
 
+    /// The person's choice, recorded for the device checks (5.8), then handed on.
+    private func decide(_ decision: CloudConsentDecision) {
+        VerificationJournal.record("consent.decided", ["decision": "\(decision)", "prewarm": "\(isPrewarm)"])
+        onDecision(decision)
+    }
+
     private var isPrewarm: Bool {
         record.promptCharacterCount == 0 && record.contextChunkCount == 0
     }
@@ -28,6 +34,12 @@ struct CloudConsentPromptView: View {
             Capsule()
                 .fill(Color.secondary.opacity(0.3))
                 .frame(width: 36, height: 5)
+                .onAppear {
+                    VerificationJournal.record(
+                        "consent.shown",
+                        ["prewarm": "\(isPrewarm)", "chunks": "\(record.contextChunkCount)",
+                            "characters": "\(record.promptCharacterCount)"])
+                }
                 .padding(.top, DSSpacing.sm)
                 .padding(.bottom, DSSpacing.md)
 
@@ -194,7 +206,7 @@ struct CloudConsentPromptView: View {
             // Primary action: Always Allow (permanent)
             Button {
                 DSHaptics.success()
-                onDecision(.allowAndRemember)
+                decide(.allowAndRemember)
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "checkmark.circle.fill")
@@ -215,7 +227,7 @@ struct CloudConsentPromptView: View {
                 if !isPrewarm {
                     Button {
                         DSHaptics.selection()
-                        onDecision(.allowOnce)
+                        decide(.allowOnce)
                     } label: {
                         Text("Just Once")
                             .font(.subheadline.weight(.medium))
@@ -230,7 +242,7 @@ struct CloudConsentPromptView: View {
                 // Deny
                 Button(role: .destructive) {
                     DSHaptics.warning()
-                    onDecision(.deny)
+                    decide(.deny)
                 } label: {
                     Text(isPrewarm ? "Not Now" : "Deny")
                         .font(.subheadline.weight(.medium))
