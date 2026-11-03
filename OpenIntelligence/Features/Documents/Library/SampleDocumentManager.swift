@@ -138,6 +138,10 @@ If a file is messy, scanned, or in a legacy format, exporting it to PDF usually 
 - **The Add Documents button** opens the system file picker. You can select several files at once.
 - **On the Mac, drag files or a folder from Finder** onto the Documents screen, anywhere but the row of libraries. A folder brings in the files inside it that the app can read, from the folders inside it too. Dropped files go through the same size and plan checks as picked ones.
 - **In a chat,** the attachment button adds a file to the current library and to the conversation.
+- **Paste.** The Documents screen has a Paste button for a copied file, a web address or text.
+- **From another app on iPhone and iPad,** share a web page or text to OpenIntelligence, or send it files with "Open in".
+- **On the Mac,** you can also drop a file or a whole folder on the app's icon.
+- **Watch a folder (Pro and Lifetime).** In Library Settings, Watch a Folder keeps a library up with a folder: new files in it import by themselves, and a changed file replaces the version it imported. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open; on iPhone and iPad it checks when you open the app.
 
 ---
 
@@ -187,7 +191,7 @@ It is weakest on questions your library says nothing about. When the evidence is
 
 ## Reading an answer
 
-- **Source cards** under the answer open the passages it was built from.
+- **Source cards and citations** open the passage in its document, highlighted, with a line saying whether it was found word for word, found in part, or not found. A PDF opens at its page; any other file shows the text the app read from it. It shows the words are in your document; whether the answer read them correctly is yours to check.
 - **The metrics bar** expands to show \#(SamplePCCCopy.routeFragment), the token budget it used against the model's window, the execution steps that ran, and the passages that were retrieved.
 - **Response details** list each claim in the answer with its verification verdict.
 - **The Silicon HUD** is a small floating readout of the work on the CPU, GPU and Neural Engine. The CPU figure is measured from the system; the GPU and Neural Engine figures show the work the app has started, because Apple doesn't report their load. It is off on a new install, is switched on in Settings under Appearance, and can be dragged anywhere. It sits over the place on the board where that silicon physically is.
@@ -206,12 +210,14 @@ It is weakest on questions your library says nothing about. When the evidence is
 - Maximum mode with no daily cap
 - Up to 1,000 documents
 - Up to 10 libraries
+- Watched folders that import new files
 - Room for large ongoing research and multi-project work
 
 ### Lifetime
 - Maximum mode with no daily cap
 - Unlimited documents
 - Up to 20 libraries
+- Watched folders that import new files
 - One payment, no renewal
 
 The model is the same in every plan: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. The plans differ in how much you can keep and how often you can run Maximum.

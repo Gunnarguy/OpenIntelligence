@@ -10,12 +10,16 @@ Every citation now shows its passage in the document, a library can keep up with
 ### Libraries
 - **Watch a folder.** On Pro and Lifetime, Library Settings has Watch a Folder. New files in it import by themselves, and a changed file replaces the version it imported, so an old answer may no longer open that version. Files you delete from the folder stay in the library, and your originals are never changed. On a Mac it checks every few minutes while the app is open. On iPhone and iPad it checks when you open the app.
 - **Importing a very large file twice no longer makes a second copy.** Large PDFs and text files now get the same duplicate check as everything else.
+- **A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.** It used to be able to stay there for good.
 
 ### Answers
 - **Every citation shows its passage in the document.** Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check.
 
 ### Plans
 - **The plans screen says what each plan adds.** "Why upgrade now?" is "What you get" now, with what paying actually changes.
+
+### Ratings
+- **Rating the app is one sheet, Apple's own.** The "Enjoying OpenIntelligence?" alert after a thumbs-up is gone. After a good answer, or your third answer, the app asks with Apple's rating sheet: tap the stars, add a review if you want, and submit without leaving the app. It asks once per update at most, and Apple limits it to three times a year. Write a Review in Settings is still there.
 
 ## 5.7
 This one's about getting things in and out of the app.  JSON and JSONL files import as records, Siri and Shortcuts can ask, search and add to your libraries, Spotlight and Visual Intelligence find your documents, and an answer you share takes its sources with it.

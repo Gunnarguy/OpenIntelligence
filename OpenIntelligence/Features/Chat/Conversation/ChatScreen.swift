@@ -8,13 +8,14 @@
 import AppIntents
 import Combine
 import Foundation
+import StoreKit
+import SwiftUI
+import Translation
+
 #if os(iOS)
     import PDFKit
     import VisionKit
 #endif
-import StoreKit
-import SwiftUI
-import Translation
 
 /// Data container for unified metrics bar (shown during streaming AND after completion)
 private struct ConsolidatedMetrics {
@@ -216,7 +217,6 @@ private final class ContinuedQueryCoordinator: ObservableObject {
 @MainActor
 struct ChatScreen: View {
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.requestReview) private var requestReview
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var settings: SettingsStore
@@ -379,7 +379,6 @@ struct ChatScreen: View {
     // Smart Reply follow-up suggestions (shown after AI response)
     @State private var followUpSuggestions: [SmartReply] = []
     @State private var followUpSuggestionsTask: Task<Void, Never>? = nil
-    @State private var showFriendlyReviewPrompt = false
     @State private var showFeedbackEmailPrompt = false
 
     // Speed history for sparkline graph
@@ -1032,25 +1031,6 @@ struct ChatScreen: View {
                 Text(maximumModeLimitDialogMessage)
             }
             .alert(
-                "Enjoying OpenIntelligence?",
-                isPresented: $showFriendlyReviewPrompt
-            ) {
-                Button("I love it! ❤️") {
-                    requestReview()
-                }
-                Button("Write a Review ✍️") {
-                    openURL(OpenIntelligenceLinks.writeReviewURL)
-                }
-                Button("Needs improvement 💬") {
-                    openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "In-App Feedback Prompt"))
-                }
-                Button("Maybe later", role: .cancel) {}
-            } message: {
-                Text(
-                    "Reading, searching and citing stay on your device. A quick rating or a written review helps the app grow and keeps me building it."
-                )
-            }
-            .alert(
                 "Help Me Improve",
                 isPresented: $showFeedbackEmailPrompt
             ) {
@@ -1644,7 +1624,9 @@ struct ChatScreen: View {
             thinkingEvents = []
 
             let docId = UUID()
-            func chunk(_ rank: Int, _ doc: String, _ page: Int, _ section: String, _ text: String, _ score: Float)
+            func chunk(
+                _ rank: Int, _ doc: String, _ page: Int, _ section: String, _ text: String, _ score: Float
+            )
                 -> RetrievedChunk
             {
                 let meta = ChunkMetadata(
@@ -1666,8 +1648,10 @@ struct ChatScreen: View {
                 )
             }
 
-            let s1 = "After the initial twelve-month term, either party may terminate this lease with sixty (60) days' written notice."
-            let s2 = "Tenant may terminate before the end of the initial term by paying an early termination fee equal to two (2) months' rent."
+            let s1 =
+                "After the initial twelve-month term, either party may terminate this lease with sixty (60) days' written notice."
+            let s2 =
+                "Tenant may terminate before the end of the initial term by paying an early termination fee equal to two (2) months' rent."
             let s3 = "All notices under this lease must be delivered in writing to the management office."
             let chunks = [
                 chunk(1, "Apartment Lease.pdf", 7, "Termination", s1, 0.91),
@@ -1680,18 +1664,26 @@ struct ChatScreen: View {
             let answered = StructuredAnswer.Builder()
                 .setAnswerType(.lookup)
                 .setAnswer(answerText)
-                .addEvidence(id: "S1", page: 7, quote: s1, documentName: "Apartment Lease.pdf", sectionPath: ["Termination"])
-                .addEvidence(id: "S2", page: 8, quote: s2, documentName: "Apartment Lease.pdf", sectionPath: ["Early Termination"])
+                .addEvidence(
+                    id: "S1", page: 7, quote: s1, documentName: "Apartment Lease.pdf", sectionPath: ["Termination"]
+                )
+                .addEvidence(
+                    id: "S2", page: 8, quote: s2, documentName: "Apartment Lease.pdf",
+                    sectionPath: ["Early Termination"]
+                )
                 .addEvidence(id: "S3", page: 2, quote: s3, documentName: "House Rules.pdf", sectionPath: ["Notices"])
                 .addClaim(
                     "Either party can end the lease with 60 days' written notice after the first 12 months.",
-                    evidenceIds: ["S1"], confidence: 0.96, verificationVerdict: .supported)
+                    evidenceIds: ["S1"], confidence: 0.96, verificationVerdict: .supported
+                )
                 .addClaim(
                     "Ending it before then costs a fee of two months' rent.",
-                    evidenceIds: ["S2"], confidence: 0.94, verificationVerdict: .supported)
+                    evidenceIds: ["S2"], confidence: 0.94, verificationVerdict: .supported
+                )
                 .addClaim(
                     "Notice has to be in writing, delivered to the management office.",
-                    evidenceIds: ["S3"], confidence: 0.9, verificationVerdict: .supported)
+                    evidenceIds: ["S3"], confidence: 0.9, verificationVerdict: .supported
+                )
                 .setTopScore(0.91)
                 .build()
             let answeredMeta = ResponseMetadata(
@@ -2227,7 +2219,8 @@ struct ChatScreen: View {
                 } catch {
                     Log.error("[Scan] The scan could not be saved: \(error.localizedDescription)", category: .ingestion)
                     toastManager.show(
-                        ToastItem(title: "The scan could not be saved", icon: "exclamationmark.triangle", tint: .orange),
+                        ToastItem(
+                            title: "The scan could not be saved", icon: "exclamationmark.triangle", tint: .orange),
                         duration: 2.5)
                 }
             }
@@ -2666,7 +2659,8 @@ struct ChatScreen: View {
                         }
                     #endif
                     DSHaptics.success()
-                    triggerThumbsUpReviewPrompt()
+                    // No review ask here: Apple says not to request one from a tap, and App Review Guideline
+                    // 5.6.1 disallows custom review prompts (5.8). `ReviewPromptService` asks after an answer.
                 },
                 onThumbsDown: {
                     #if canImport(FoundationModels)
@@ -3132,7 +3126,7 @@ struct ChatScreen: View {
             switch entitlementStore.consumeMaximumModeUseIfNeeded() {
             case .allowedUnlimited, .allowedMetered:
                 break
-            case let .blocked(_, dailyLimit, _):
+            case .blocked(_, let dailyLimit, _):
                 maximumModeLimitDialogMessage =
                     "Free users get \(dailyLimit) Maximum runs per day. Switch to Standard or Deep Think, or upgrade for unlimited Maximum mode."
                 showMaximumModeLimitDialog = true
@@ -3437,19 +3431,22 @@ struct ChatScreen: View {
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
-                    // A finished answer is the only moment the app asks for a rating,
-                    // and only when the verifier let it through.
+                    // A finished answer is the only moment the app asks for a rating (see
+                    // ReviewPromptService for when).
                     ReviewPromptService.shared.noteAnswer(
                         gatingDecision: response.metadata.gatingDecision,
                         retrievedSourceCount: response.retrievedChunks.count,
                         claims: response.structuredAnswer?.claims ?? [])
                     // And the one unprompted look at the plans, after real use, free tier
-                    // only, once per install. See PlanAskService.
-                    PlanAskService.shared.noteAnswer(
-                        gatingDecision: response.metadata.gatingDecision,
-                        retrievedSourceCount: response.retrievedChunks.count,
-                        isFreeTier: !self.entitlementStore.effectiveTier.isAtLeast(.pro),
-                        claims: response.structuredAnswer?.claims ?? [])
+                    // only, once per install. See PlanAskService. Never on the answer that just
+                    // asked for a rating, so the two sheets don't land together; it waits for the next.
+                    if !ReviewPromptService.shared.wantsPrompt {
+                        PlanAskService.shared.noteAnswer(
+                            gatingDecision: response.metadata.gatingDecision,
+                            retrievedSourceCount: response.retrievedChunks.count,
+                            isFreeTier: !self.entitlementStore.effectiveTier.isAtLeast(.pro),
+                            claims: response.structuredAnswer?.claims ?? [])
+                    }
 
                     if let genStart = self.generatingStartTS {
                         self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
@@ -3598,28 +3595,6 @@ struct ChatScreen: View {
     private func sendSuggestedPrompt(_ prompt: String) {
         DSHaptics.selection()
         sendMessage(prompt)
-    }
-
-    private func triggerThumbsUpReviewPrompt() {
-        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
-        guard !currentVersion.isEmpty else { return }
-
-        let lastPrompted = UserDefaults.standard.string(forKey: "appReview.lastPromptedVersion")
-        if lastPrompted == currentVersion { return }
-
-        if let lastPromptAttemptedAt = UserDefaults.standard.object(forKey: "appReview.lastPromptAttemptedAt") as? Date,
-            Date().timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown
-        {
-            return
-        }
-
-        AppReviewPromptTracker.markPromptAttempted()
-        // A thumbs-up is the one moment the person has just said they liked the answer. Apple's
-        // own sheet produces star ratings and never a written review, and a written review is
-        // what a stranger reads on the store page. So this moment offers the store page. The alert
-        // below existed since 4.x and was never shown by anything: `showFriendlyReviewPrompt` had
-        // no writer (2026-09-18). The per-version and cooldown guards above still apply.
-        showFriendlyReviewPrompt = true
     }
 
     private func presentMaximumModePaywall() {
@@ -4733,31 +4708,6 @@ struct ComposerStub: View {
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.md)
         .background(DSColors.background)
-    }
-}
-
-private enum AppReviewPromptPolicy {
-    /// Shared by the thumbs-up review alert and the per-version stamp it leaves.
-    static let minimumPromptCooldown: TimeInterval = 14 * 24 * 60 * 60
-}
-
-/// What remains of the pre-5.4 rating scheduler. It asked Apple after three answers on two
-/// separate days, on top of `ReviewPromptService` asking after three, so the same answer could
-/// request the sheet twice and spend two of Apple's three yearly prompts at once. The scheduler
-/// is gone; the version stamp and cooldown stay because the thumbs-up alert reads them.
-private enum AppReviewPromptTracker {
-    private enum Keys {
-        static let lastPromptedVersion = "appReview.lastPromptedVersion"
-        static let lastPromptAttemptedAt = "appReview.lastPromptAttemptedAt"
-    }
-
-    private static let defaults = UserDefaults.standard
-
-    static func markPromptAttempted(now: Date = Date()) {
-        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
-        guard !currentVersion.isEmpty else { return }
-        defaults.set(currentVersion, forKey: Keys.lastPromptedVersion)
-        defaults.set(now, forKey: Keys.lastPromptAttemptedAt)
     }
 }
 

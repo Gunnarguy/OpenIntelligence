@@ -1,412 +1,450 @@
 #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
-@preconcurrency import ActivityKit
-import Foundation
+    @preconcurrency import ActivityKit
+    import Foundation
 
-@available(iOS 17.0, *)
-@MainActor
-final class IngestionLiveActivityService {
-    static let shared = IngestionLiveActivityService()
+    @available(iOS 17.0, *)
+    @MainActor
+    final class IngestionLiveActivityService {
+        static let shared = IngestionLiveActivityService()
 
-    private var currentActivity: Activity<IngestionLiveActivityAttributes>?
-    private var lastContentState: IngestionLiveActivityAttributes.ContentState?
-    private var lastUpdateAt: Date = .distantPast
-    private var activityOperationTask: Task<Void, Never>?
-    private var activityStateObservationTask: Task<Void, Never>?
+        private var currentActivity: Activity<IngestionLiveActivityAttributes>?
+        private var lastContentState: IngestionLiveActivityAttributes.ContentState?
+        private var lastUpdateAt: Date = .distantPast
+        private var activityOperationTask: Task<Void, Never>?
+        private var activityStateObservationTask: Task<Void, Never>?
 
-    private init() {
-        currentActivity = restorableActivity()
-        observeCurrentActivityIfNeeded()
-    }
-
-    func restoreExistingActivityIfNeeded() {
-        discardInactiveActivityIfNeeded()
-        if currentActivity == nil {
+        private init() {
             currentActivity = restorableActivity()
             observeCurrentActivityIfNeeded()
         }
-    }
 
-    func sync(items: [IngestionItem], containerName: String?) {
-        restoreExistingActivityIfNeeded()
-
-        let relevantItems = items.sorted { lhs, rhs in
-            sortOrder(for: lhs.stage) < sortOrder(for: rhs.stage)
-        }
-
-        guard !relevantItems.isEmpty else {
-            endCurrentActivity(finalState: nil)
-            return
-        }
-
-        guard shouldPresentLiveActivities else { return }
-        guard let contentState = buildContentState(from: relevantItems) else { return }
-
-        let shouldUpdate = lastContentState != contentState
-        let enoughTimeElapsed = Date().timeIntervalSince(lastUpdateAt) >= minimumUpdateInterval
-        guard shouldUpdate || currentActivity == nil else { return }
-        guard currentActivity == nil || enoughTimeElapsed else { return }
-
-        let trimmedContainerName = trimmed(containerName ?? "OpenIntelligence", maxLength: 24)
-        let staleDate = Date().addingTimeInterval(max(60, minimumUpdateInterval * 8))
-        let content = ActivityContent(state: contentState, staleDate: staleDate)
-
-        if let currentActivity {
-            let sessionID = currentActivity.attributes.sessionID
-            activityOperationTask?.cancel()
-            activityOperationTask = Task { @MainActor [weak self] in
-                guard !Task.isCancelled else { return }
-                guard let activity = self?.currentActivity else { return }
-                await activity.update(content)
-                guard !Task.isCancelled else { return }
-
-                if self?.currentActivity?.attributes.sessionID == sessionID {
-                    self?.lastContentState = contentState
-                    self?.lastUpdateAt = Date()
-                }
-                self?.activityOperationTask = nil
+        func restoreExistingActivityIfNeeded() {
+            discardInactiveActivityIfNeeded()
+            if currentActivity == nil {
+                currentActivity = restorableActivity()
+                observeCurrentActivityIfNeeded()
             }
-        } else {
-            guard activityOperationTask == nil else { return }
+        }
+
+        func sync(items: [IngestionItem], containerName: String?) {
+            restoreExistingActivityIfNeeded()
+
+            let relevantItems = items.sorted { lhs, rhs in
+                sortOrder(for: lhs.stage) < sortOrder(for: rhs.stage)
+            }
+
+            guard !relevantItems.isEmpty else {
+                endCurrentActivity(finalState: nil)
+                return
+            }
+
+            guard shouldPresentLiveActivities else { return }
+            guard let contentState = buildContentState(from: relevantItems) else { return }
+
+            let shouldUpdate = lastContentState != contentState
+            let enoughTimeElapsed = Date().timeIntervalSince(lastUpdateAt) >= minimumUpdateInterval
+            guard shouldUpdate || currentActivity == nil else { return }
+            guard currentActivity == nil || enoughTimeElapsed else { return }
+
+            let trimmedContainerName = trimmed(containerName ?? "OpenIntelligence", maxLength: 24)
+            let staleDate = Date().addingTimeInterval(max(60, minimumUpdateInterval * 8))
+            let content = ActivityContent(state: contentState, staleDate: staleDate)
+
+            if let currentActivity {
+                let sessionID = currentActivity.attributes.sessionID
+                activityOperationTask?.cancel()
+                activityOperationTask = Task { @MainActor [weak self] in
+                    guard !Task.isCancelled else { return }
+                    guard let activity = self?.currentActivity else { return }
+                    await activity.update(content)
+                    guard !Task.isCancelled else { return }
+
+                    if self?.currentActivity?.attributes.sessionID == sessionID {
+                        self?.lastContentState = contentState
+                        self?.lastUpdateAt = Date()
+                    }
+                    self?.activityOperationTask = nil
+                }
+            } else {
+                guard activityOperationTask == nil else { return }
+                let allActivities = Activity<IngestionLiveActivityAttributes>.activities
+                activityOperationTask = Task { @MainActor [weak self] in
+                    // Clean up any leaked or orphaned activities in the OS before starting a new one
+                    for activity in allActivities {
+                        await activity.end(nil, dismissalPolicy: .immediate)
+                    }
+
+                    guard !Task.isCancelled else { return }
+
+                    do {
+                        let activity = try Activity.request(
+                            attributes: IngestionLiveActivityAttributes(
+                                sessionID: UUID(),
+                                containerName: trimmedContainerName
+                            ),
+                            content: content,
+                            pushType: nil
+                        )
+                        self?.currentActivity = activity
+                        self?.lastContentState = contentState
+                        self?.lastUpdateAt = Date()
+                        self?.observeCurrentActivityIfNeeded()
+                        Log.info(
+                            "[IngestionLiveActivity] Started new Live Activity (sessionID: \(activity.attributes.sessionID))",
+                            category: .ui)
+                    } catch {
+                        Log.warning(
+                            "[IngestionLiveActivity] Failed to start Live Activity: \(error.localizedDescription)",
+                            category: .ui)
+                    }
+                    self?.activityOperationTask = nil
+                }
+            }
+        }
+
+        /// Ends every import Live Activity but the one running, once the person is back in the app (5.7). A finished
+        /// import's stayed on the Lock Screen for ten minutes (`endCurrentActivity`), and after the app was opened it was a
+        /// leftover (the owner, 2026-10-17). `.immediate` removes an ended Live Activity at once (Apple's
+        /// `ActivityUIDismissalPolicy.immediate`, read 2026-10-17). The Watch's Smart Stack shows the same Live
+        /// Activity (`supplementalActivityFamilies`), so ending it here clears it there too.
+        ///
+        /// From 5.8 the one "running" is kept only when `importIsMoving`. Until then it was whichever Live Activity
+        /// this process held, so two kinds stayed with the app in front and nothing to end them (the owner, 2026-11-03,
+        /// on iPhone and Watch): one a launch picked back up from a process iOS ended mid-import (`init` adopts any
+        /// active one), and one for an import that was paused or stopped. An import that resumes starts a new one
+        /// through `sync`.
+        func dismissFinished(importIsMoving: Bool) {
+            if !importIsMoving, currentActivity != nil {
+                activityOperationTask?.cancel()
+                activityOperationTask = nil
+                activityStateObservationTask?.cancel()
+                activityStateObservationTask = nil
+                currentActivity = nil
+                lastContentState = nil
+                lastUpdateAt = .distantPast
+            }
+            let running = currentActivity?.id
+            for activity in Activity<IngestionLiveActivityAttributes>.activities where activity.id != running {
+                Task { await activity.end(nil, dismissalPolicy: .immediate) }
+            }
+        }
+
+        func endCurrentActivity(finalState: IngestionLiveActivityAttributes.ContentState?) {
             let allActivities = Activity<IngestionLiveActivityAttributes>.activities
-            activityOperationTask = Task { @MainActor [weak self] in
-                // Clean up any leaked or orphaned activities in the OS before starting a new one
-                for activity in allActivities {
-                    await activity.end(nil, dismissalPolicy: .immediate)
-                }
-                
-                guard !Task.isCancelled else { return }
-                
-                do {
-                    let activity = try Activity.request(
-                        attributes: IngestionLiveActivityAttributes(
-                            sessionID: UUID(),
-                            containerName: trimmedContainerName
-                        ),
-                        content: content,
-                        pushType: nil
-                    )
-                    self?.currentActivity = activity
-                    self?.lastContentState = contentState
-                    self?.lastUpdateAt = Date()
-                    self?.observeCurrentActivityIfNeeded()
-                    Log.info("[IngestionLiveActivity] Started new Live Activity (sessionID: \(activity.attributes.sessionID))", category: .ui)
-                } catch {
-                    Log.warning("[IngestionLiveActivity] Failed to start Live Activity: \(error.localizedDescription)", category: .ui)
-                }
-                self?.activityOperationTask = nil
-            }
-        }
-    }
 
-    /// Ends every import Live Activity but the one running, once the person is back in the app (5.7). A finished
-    /// import's stayed on the Lock Screen for ten minutes (`endCurrentActivity`), and after the app was opened it was a
-    /// leftover (the owner, 2026-10-17). `.immediate` removes an ended Live Activity at once (Apple's
-    /// `ActivityUIDismissalPolicy.immediate`, read 2026-10-17).
-    func dismissFinished() {
-        let running = currentActivity?.id
-        for activity in Activity<IngestionLiveActivityAttributes>.activities where activity.id != running {
-            Task { await activity.end(nil, dismissalPolicy: .immediate) }
-        }
-    }
-
-    func endCurrentActivity(finalState: IngestionLiveActivityAttributes.ContentState?) {
-        let allActivities = Activity<IngestionLiveActivityAttributes>.activities
-        
-        activityOperationTask?.cancel()
-        activityOperationTask = nil
-        activityStateObservationTask?.cancel()
-        activityStateObservationTask = nil
-        
-        let targetActivity = currentActivity
-        self.currentActivity = nil
-        lastContentState = nil
-        lastUpdateAt = .distantPast
-
-        guard targetActivity != nil || !allActivities.isEmpty else { return }
-
-        activityOperationTask = Task { @MainActor [weak self] in
-            if let targetActivity {
-                if let finalState {
-                    await targetActivity.end(
-                        ActivityContent(state: finalState, staleDate: nil),
-                        dismissalPolicy: .after(.now + 600)
-                    )
-                } else {
-                    await targetActivity.end(nil, dismissalPolicy: .immediate)
-                }
-            }
-
-            // Clean up any remaining/duplicate activities in the system immediately
-            for activity in allActivities {
-                if activity.id != targetActivity?.id {
-                    await activity.end(nil, dismissalPolicy: .immediate)
-                }
-            }
-
-            self?.activityOperationTask = nil
-        }
-    }
-
-    func finish(items: [IngestionItem], containerName _: String?) {
-        guard !items.isEmpty else {
-            endCurrentActivity(finalState: nil)
-            return
-        }
-
-        let device = DeviceCapabilityService.shared
-        let completedCount = items.filter { $0.stage == .complete }.count
-        let failedCount = items.filter { $0.stage == .failed }.count
-        let totalCount = items.count
-        let progress = totalCount == 0 ? 1.0 : Double(completedCount) / Double(totalCount)
-        let stageLabel = failedCount > 0 ? "Finished with issues" : "Complete"
-        let headline: String
-        if failedCount > 0 {
-            headline = "\(completedCount) imported, \(failedCount) failed"
-        } else {
-            headline = totalCount == 1 ? "Import complete" : "\(completedCount) documents ready"
-        }
-
-        let finalState = IngestionLiveActivityAttributes.ContentState(
-            progress: progress,
-            processedCount: completedCount,
-            totalCount: totalCount,
-            activeCount: 0,
-            currentFilename: headline,
-            currentStage: stageLabel,
-            remainingDocuments: [],
-            deviceSummary: trimmed(deviceSummary(for: device), maxLength: 32),
-            performanceSummary: failedCount > 0 ? "Review failed imports in Documents" : "Knowledge base updated",
-            presentationProfile: presentationProfile(for: device),
-            processingMode: processingMode(for: device),
-            thermalBucket: IngestionLiveActivityThermalBucket(processInfoState: ProcessInfo.processInfo.thermalState)
-        )
-
-        endCurrentActivity(finalState: finalState)
-    }
-
-    private func restorableActivity() -> Activity<IngestionLiveActivityAttributes>? {
-        Activity<IngestionLiveActivityAttributes>.activities.first(where: { $0.activityState == .active })
-    }
-
-    private func discardInactiveActivityIfNeeded() {
-        guard let currentActivity, currentActivity.activityState != .active else { return }
-        activityStateObservationTask?.cancel()
-        activityStateObservationTask = nil
-        self.currentActivity = nil
-        lastContentState = nil
-        lastUpdateAt = .distantPast
-    }
-
-    private func observeCurrentActivityIfNeeded() {
-        guard let currentActivity else {
+            activityOperationTask?.cancel()
+            activityOperationTask = nil
             activityStateObservationTask?.cancel()
             activityStateObservationTask = nil
-            return
+
+            let targetActivity = currentActivity
+            self.currentActivity = nil
+            lastContentState = nil
+            lastUpdateAt = .distantPast
+
+            guard targetActivity != nil || !allActivities.isEmpty else { return }
+
+            activityOperationTask = Task { @MainActor [weak self] in
+                if let targetActivity {
+                    if let finalState {
+                        await targetActivity.end(
+                            ActivityContent(state: finalState, staleDate: nil),
+                            dismissalPolicy: .after(.now + 600)
+                        )
+                    } else {
+                        await targetActivity.end(nil, dismissalPolicy: .immediate)
+                    }
+                }
+
+                // Clean up any remaining/duplicate activities in the system immediately
+                for activity in allActivities {
+                    if activity.id != targetActivity?.id {
+                        await activity.end(nil, dismissalPolicy: .immediate)
+                    }
+                }
+
+                self?.activityOperationTask = nil
+            }
         }
 
-        let sessionID = currentActivity.attributes.sessionID
-        activityStateObservationTask?.cancel()
-        activityStateObservationTask = Task { [weak self] in
-            for await state in currentActivity.activityStateUpdates {
-                guard !Task.isCancelled else { return }
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    guard self.currentActivity?.attributes.sessionID == sessionID else { return }
+        func finish(items: [IngestionItem], containerName _: String?) {
+            guard !items.isEmpty else {
+                endCurrentActivity(finalState: nil)
+                return
+            }
 
-                    if state != .active {
-                        self.currentActivity = nil
-                        self.lastContentState = nil
-                        self.lastUpdateAt = .distantPast
-                        self.activityStateObservationTask?.cancel()
-                        self.activityStateObservationTask = nil
+            let device = DeviceCapabilityService.shared
+            let completedCount = items.filter { $0.stage == .complete }.count
+            let failedCount = items.filter { $0.stage == .failed }.count
+            let totalCount = items.count
+            let progress = totalCount == 0 ? 1.0 : Double(completedCount) / Double(totalCount)
+            let stageLabel = failedCount > 0 ? "Finished with issues" : "Complete"
+            let headline: String
+            if failedCount > 0 {
+                headline = "\(completedCount) imported, \(failedCount) failed"
+            } else {
+                headline = totalCount == 1 ? "Import complete" : "\(completedCount) documents ready"
+            }
+
+            let finalState = IngestionLiveActivityAttributes.ContentState(
+                progress: progress,
+                processedCount: completedCount,
+                totalCount: totalCount,
+                activeCount: 0,
+                currentFilename: headline,
+                currentStage: stageLabel,
+                remainingDocuments: [],
+                deviceSummary: trimmed(deviceSummary(for: device), maxLength: 32),
+                performanceSummary: failedCount > 0 ? "Review failed imports in Documents" : "Knowledge base updated",
+                presentationProfile: presentationProfile(for: device),
+                processingMode: processingMode(for: device),
+                thermalBucket: IngestionLiveActivityThermalBucket(
+                    processInfoState: ProcessInfo.processInfo.thermalState)
+            )
+
+            endCurrentActivity(finalState: finalState)
+        }
+
+        private func restorableActivity() -> Activity<IngestionLiveActivityAttributes>? {
+            Activity<IngestionLiveActivityAttributes>.activities.first(where: { $0.activityState == .active })
+        }
+
+        private func discardInactiveActivityIfNeeded() {
+            guard let currentActivity, currentActivity.activityState != .active else { return }
+            activityStateObservationTask?.cancel()
+            activityStateObservationTask = nil
+            self.currentActivity = nil
+            lastContentState = nil
+            lastUpdateAt = .distantPast
+        }
+
+        private func observeCurrentActivityIfNeeded() {
+            guard let currentActivity else {
+                activityStateObservationTask?.cancel()
+                activityStateObservationTask = nil
+                return
+            }
+
+            let sessionID = currentActivity.attributes.sessionID
+            activityStateObservationTask?.cancel()
+            activityStateObservationTask = Task { [weak self] in
+                for await state in currentActivity.activityStateUpdates {
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run { [weak self] in
+                        guard let self else { return }
+                        guard self.currentActivity?.attributes.sessionID == sessionID else { return }
+
+                        if state != .active {
+                            self.currentActivity = nil
+                            self.lastContentState = nil
+                            self.lastUpdateAt = .distantPast
+                            self.activityStateObservationTask?.cancel()
+                            self.activityStateObservationTask = nil
+                        }
                     }
                 }
             }
         }
-    }
 
-    private var shouldPresentLiveActivities: Bool {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return false }
-        guard !ProcessInfo.processInfo.isiOSAppOnMac else { return false }
-        return true
-    }
-
-    private var minimumUpdateInterval: TimeInterval {
-        let device = DeviceCapabilityService.shared
-        if device.isMac {
-            return 1.0
+        private var shouldPresentLiveActivities: Bool {
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return false }
+            guard !ProcessInfo.processInfo.isiOSAppOnMac else { return false }
+            return true
         }
 
-        switch device.tier {
-        case .unsupported:
-            return 4.0
-        case .baseline:
-            return 2.5
-        case .enhanced:
-            return 1.75
-        case .advanced:
-            return 1.25
-        case .ultraAdvanced:
-            return 1.0
+        private var minimumUpdateInterval: TimeInterval {
+            let device = DeviceCapabilityService.shared
+            if device.isMac {
+                return 1.0
+            }
+
+            switch device.tier {
+            case .unsupported:
+                return 4.0
+            case .baseline:
+                return 2.5
+            case .enhanced:
+                return 1.75
+            case .advanced:
+                return 1.25
+            case .ultraAdvanced:
+                return 1.0
+            }
+        }
+
+        private func buildContentState(from items: [IngestionItem]) -> IngestionLiveActivityAttributes.ContentState? {
+            guard let currentItem = ImportProgress.current(in: items) ?? items.first else {
+                return nil
+            }
+
+            let device = DeviceCapabilityService.shared
+            let activeCount = items.filter { !$0.stage.isTerminal }.count
+            let processedCount = items.filter { $0.stage == .complete }.count
+            let totalCount = items.count
+            let rawProgress = ImportProgress.fraction(of: items)
+            let quantizedProgress = quantize(rawProgress, step: progressQuantum(for: device))
+            let remainingDocuments =
+                items
+                .filter { !$0.stage.isTerminal }
+                .prefix(3)
+                .map { trimmed($0.filename, maxLength: filenameLimit(for: device)) }
+
+            let thermalBucket = IngestionLiveActivityThermalBucket(
+                processInfoState: ProcessInfo.processInfo.thermalState)
+
+            return IngestionLiveActivityAttributes.ContentState(
+                progress: quantizedProgress,
+                processedCount: processedCount,
+                totalCount: totalCount,
+                activeCount: activeCount,
+                currentFilename: trimmed(currentItem.filename, maxLength: filenameLimit(for: device)),
+                currentStage: IngestionLiveActivityStageText.text(for: currentItem),
+                remainingDocuments: remainingDocuments,
+                deviceSummary: trimmed(deviceSummary(for: device), maxLength: 32),
+                performanceSummary: trimmed(
+                    performanceSummary(for: device, thermalBucket: thermalBucket), maxLength: 40),
+                presentationProfile: presentationProfile(for: device),
+                processingMode: processingMode(for: device),
+                thermalBucket: thermalBucket
+            )
+        }
+
+        private func progressQuantum(for device: DeviceCapabilityService) -> Double {
+            if device.isMac {
+                return 0.01
+            }
+
+            switch device.tier {
+            case .unsupported:
+                return 0.10
+            case .baseline:
+                return 0.05
+            case .enhanced:
+                return 0.03
+            case .advanced, .ultraAdvanced:
+                return 0.02
+            }
+        }
+
+        private func filenameLimit(for device: DeviceCapabilityService) -> Int {
+            switch presentationProfile(for: device) {
+            case .compactPhone:
+                return 20
+            case .standardPhone:
+                return 24
+            case .tablet, .desktopCompanion:
+                return 32
+            }
+        }
+
+        private func presentationProfile(
+            for device: DeviceCapabilityService
+        ) -> IngestionLiveActivityPresentationProfile {
+            if device.isMac {
+                return .desktopCompanion
+            }
+
+            switch device.formFactor {
+            case .iPadMini, .iPadAir, .iPadPro:
+                return .tablet
+            case .iPhone:
+                return device.tier == .baseline ? .compactPhone : .standardPhone
+            case .mac:
+                return .desktopCompanion
+            case .unknown:
+                return .compactPhone
+            }
+        }
+
+        /// The Live Activity's tint follows the profile the import runs with (5.7). Until 5.7 it followed GPU-level
+        /// thresholds that put an iPad mini's Performance, capped at 0.7, under Balanced.
+        private func processingMode(for device: DeviceCapabilityService) -> IngestionLiveActivityProcessingMode {
+            if device.isBackgroundCPUSafeIngestionActive {
+                return .eco
+            }
+            switch device.activeGPUExecutionProfile {
+            case .efficiency: return .eco
+            case .balanced: return .balanced
+            case .performance, .maximum: return .turbo
+            }
+        }
+
+        private func deviceSummary(for device: DeviceCapabilityService) -> String {
+            switch presentationProfile(for: device) {
+            case .compactPhone:
+                return device.chipName
+            case .standardPhone:
+                return "\(device.chipName) • \(device.visionParsingConcurrency)x Vision"
+            case .tablet:
+                return "\(device.chipName) • \(device.pdfRenderingConcurrency)x Render"
+            case .desktopCompanion:
+                return "\(device.chipName) • \(device.embeddingConcurrency)x Embed"
+            }
+        }
+
+        private func performanceSummary(
+            for device: DeviceCapabilityService,
+            thermalBucket: IngestionLiveActivityThermalBucket
+        ) -> String {
+            // The profile's own name, so Maximum reads Maximum, and what a background import without the GPU runs on.
+            let mode =
+                device.isBackgroundCPUSafeIngestionActive
+                ? "No GPU (background)" : device.activeGPUExecutionProfile.displayName
+            if thermalBucket == .serious || thermalBucket == .critical {
+                return "\(mode) • thermal management active"
+            }
+            // Until 5.7 this read "Nx GPU" from a value nothing else in the app used; both figures here are applied.
+            return "\(mode) • \(device.pdfRenderingConcurrency)x pages • \(device.ocrExtractionConcurrency)x OCR"
+        }
+
+        private func trimmed(_ text: String, maxLength: Int) -> String {
+            guard text.count > maxLength else { return text }
+            return String(text.prefix(max(1, maxLength - 1))) + "…"
+        }
+
+        private func quantize(_ value: Double, step: Double) -> Double {
+            guard step > 0 else { return value }
+            return min(1, max(0, (value / step).rounded() * step))
+        }
+
+        private func sortOrder(for stage: IngestionStage) -> Int {
+            switch stage {
+            case .paused:
+                return 0
+            case .queued:
+                return 1
+            case .complete, .failed:
+                return 2
+            default:
+                return 0
+            }
         }
     }
-
-    private func buildContentState(from items: [IngestionItem]) -> IngestionLiveActivityAttributes.ContentState? {
-        guard let currentItem = ImportProgress.current(in: items) ?? items.first else {
-            return nil
-        }
-
-        let device = DeviceCapabilityService.shared
-        let activeCount = items.filter { !$0.stage.isTerminal }.count
-        let processedCount = items.filter { $0.stage == .complete }.count
-        let totalCount = items.count
-        let rawProgress = ImportProgress.fraction(of: items)
-        let quantizedProgress = quantize(rawProgress, step: progressQuantum(for: device))
-        let remainingDocuments = items
-            .filter { !$0.stage.isTerminal }
-            .prefix(3)
-            .map { trimmed($0.filename, maxLength: filenameLimit(for: device)) }
-
-        let thermalBucket = IngestionLiveActivityThermalBucket(processInfoState: ProcessInfo.processInfo.thermalState)
-
-        return IngestionLiveActivityAttributes.ContentState(
-            progress: quantizedProgress,
-            processedCount: processedCount,
-            totalCount: totalCount,
-            activeCount: activeCount,
-            currentFilename: trimmed(currentItem.filename, maxLength: filenameLimit(for: device)),
-            currentStage: IngestionLiveActivityStageText.text(for: currentItem),
-            remainingDocuments: remainingDocuments,
-            deviceSummary: trimmed(deviceSummary(for: device), maxLength: 32),
-            performanceSummary: trimmed(performanceSummary(for: device, thermalBucket: thermalBucket), maxLength: 40),
-            presentationProfile: presentationProfile(for: device),
-            processingMode: processingMode(for: device),
-            thermalBucket: thermalBucket
-        )
-    }
-
-    private func progressQuantum(for device: DeviceCapabilityService) -> Double {
-        if device.isMac {
-            return 0.01
-        }
-
-        switch device.tier {
-        case .unsupported:
-            return 0.10
-        case .baseline:
-            return 0.05
-        case .enhanced:
-            return 0.03
-        case .advanced, .ultraAdvanced:
-            return 0.02
-        }
-    }
-
-    private func filenameLimit(for device: DeviceCapabilityService) -> Int {
-        switch presentationProfile(for: device) {
-        case .compactPhone:
-            return 20
-        case .standardPhone:
-            return 24
-        case .tablet, .desktopCompanion:
-            return 32
-        }
-    }
-
-    private func presentationProfile(for device: DeviceCapabilityService) -> IngestionLiveActivityPresentationProfile {
-        if device.isMac {
-            return .desktopCompanion
-        }
-
-        switch device.formFactor {
-        case .iPadMini, .iPadAir, .iPadPro:
-            return .tablet
-        case .iPhone:
-            return device.tier == .baseline ? .compactPhone : .standardPhone
-        case .mac:
-            return .desktopCompanion
-        case .unknown:
-            return .compactPhone
-        }
-    }
-
-    /// The Live Activity's tint follows the profile the import runs with (5.7). Until 5.7 it followed GPU-level
-    /// thresholds that put an iPad mini's Performance, capped at 0.7, under Balanced.
-    private func processingMode(for device: DeviceCapabilityService) -> IngestionLiveActivityProcessingMode {
-        if device.isBackgroundCPUSafeIngestionActive {
-            return .eco
-        }
-        switch device.activeGPUExecutionProfile {
-        case .efficiency: return .eco
-        case .balanced: return .balanced
-        case .performance, .maximum: return .turbo
-        }
-    }
-
-    private func deviceSummary(for device: DeviceCapabilityService) -> String {
-        switch presentationProfile(for: device) {
-        case .compactPhone:
-            return device.chipName
-        case .standardPhone:
-            return "\(device.chipName) • \(device.visionParsingConcurrency)x Vision"
-        case .tablet:
-            return "\(device.chipName) • \(device.pdfRenderingConcurrency)x Render"
-        case .desktopCompanion:
-            return "\(device.chipName) • \(device.embeddingConcurrency)x Embed"
-        }
-    }
-
-    private func performanceSummary(
-        for device: DeviceCapabilityService,
-        thermalBucket: IngestionLiveActivityThermalBucket
-    ) -> String {
-        // The profile's own name, so Maximum reads Maximum, and what a background import without the GPU runs on.
-        let mode = device.isBackgroundCPUSafeIngestionActive ? "No GPU (background)" : device.activeGPUExecutionProfile.displayName
-        if thermalBucket == .serious || thermalBucket == .critical {
-            return "\(mode) • thermal management active"
-        }
-        // Until 5.7 this read "Nx GPU" from a value nothing else in the app used; both figures here are applied.
-        return "\(mode) • \(device.pdfRenderingConcurrency)x pages • \(device.ocrExtractionConcurrency)x OCR"
-    }
-
-    private func trimmed(_ text: String, maxLength: Int) -> String {
-        guard text.count > maxLength else { return text }
-        return String(text.prefix(max(1, maxLength - 1))) + "…"
-    }
-
-    private func quantize(_ value: Double, step: Double) -> Double {
-        guard step > 0 else { return value }
-        return min(1, max(0, (value / step).rounded() * step))
-    }
-
-    private func sortOrder(for stage: IngestionStage) -> Int {
-        switch stage {
-        case .paused:
-            return 0
-        case .queued:
-            return 1
-        case .complete, .failed:
-            return 2
-        default:
-            return 0
-        }
-    }
-}
 #endif
 
-#if !os(iOS) || !canImport(ActivityKit) || targetEnvironment(macCatalyst)
-import Foundation
-
-@MainActor
-final class IngestionLiveActivityService {
-    static let shared = IngestionLiveActivityService()
-
-    private init() {}
-
-    func restoreExistingActivityIfNeeded() {}
-    func dismissFinished() {}
-    func sync(items _: [IngestionItem], containerName _: String?) {}
-    func endCurrentActivity(finalState _: Any? = nil) {}
-    func finish(items _: [IngestionItem], containerName _: String?) {}
+/// Whether an import is actually moving, the only reason an import's Live Activity may stay once the person is back
+/// in the app (5.8). Outside the platform check so a test can pin it.
+nonisolated enum ImportLiveActivityRule {
+    /// Queued and working stages count; paused, finished, failed and cancelled ones don't, and nothing counts while
+    /// the person has paused the queue.
+    static func importIsMoving(stages: [IngestionStage], pausedByPerson: Bool) -> Bool {
+        !pausedByPerson && stages.contains { !$0.isTerminal && $0 != .paused }
+    }
 }
+
+#if !os(iOS) || !canImport(ActivityKit) || targetEnvironment(macCatalyst)
+    import Foundation
+
+    @MainActor
+    final class IngestionLiveActivityService {
+        static let shared = IngestionLiveActivityService()
+
+        private init() {}
+
+        func restoreExistingActivityIfNeeded() {}
+        func dismissFinished(importIsMoving _: Bool) {}
+        func sync(items _: [IngestionItem], containerName _: String?) {}
+        func endCurrentActivity(finalState _: Any? = nil) {}
+        func finish(items _: [IngestionItem], containerName _: String?) {}
+    }
 #endif

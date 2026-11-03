@@ -55,6 +55,8 @@
         /// to the front, where an "Answer ready" stayed on the Lock Screen for its five minutes after the person had
         /// opened the app to read it (the owner, 2026-10-17).
         func endLeftovers() {
+            // One held without an answer running is a leftover too (5.8).
+            if !isRunning { activity = nil }
             let running = activity?.id
             for leftover in Activity<QueryLiveActivityAttributes>.activities where leftover.id != running {
                 Task { await leftover.end(nil, dismissalPolicy: .immediate) }

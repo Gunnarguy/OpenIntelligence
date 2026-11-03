@@ -2,21 +2,23 @@ import Combine
 import Foundation
 import SwiftUI
 
-/// Asks for an App Store rating at the one moment the app has just proved
-/// itself: right after the first answer that came from the person's own files.
+/// Asks for an App Store rating with Apple's own sheet, the only way the app asks: stars and an optional written
+/// review, sent without leaving the app.
 ///
-/// The product page had a single written review on 2026-09-05 and every
-/// visitor sees that number before anything else. Apple shows the rating
-/// sheet at most three times a year and decides itself whether to show it at
-/// all; this decides only when to ask. Never on launch, never after an
-/// answer the verifier flagged or the app abstained from, never twice in
-/// 120 days, never under tests.
+/// When: on the first answer that came from the person's own files and was verified, or on the third finished answer
+/// of any kind, whichever comes first. Once per app version, as Apple's sample does, and never within 14 days of the
+/// last ask (Human Interface Guidelines, Ratings and reviews: "a week or two between requests"). Never on launch,
+/// never from a button, never under tests.
 ///
-/// Until 5.3 the threshold was three answers, and a second, older prompt in
-/// `ChatScreen` needed three answers on two separate days. 37% of device-weeks
-/// in the App Store data show one session, so most people were never asked.
-/// Apple's own budget is three prompts a year; it should be spent on the first
-/// success, not saved for a third that rarely comes.
+/// Apple shows the sheet at most three times in 365 days on a device, and decides itself whether to show it at all;
+/// this decides only when to ask (`RequestReviewAction`, read 2026-11-03).
+///
+/// Until 5.8 it asked only on a verified answer and then waited 120 days, so a person whose answers never earned the
+/// badge was never asked, and one asked in 5.6 was not asked again for four releases. A custom "Enjoying
+/// OpenIntelligence?" alert after a thumbs-up also existed; it was removed in 5.8, because App Review Guideline 5.6.1
+/// disallows custom review prompts and its "I love it" button called the sheet from a tap, which Apple says may show
+/// nothing. On 2026-11-03 the US store had 4 ratings and 2 written reviews, and the other 11 storefronts checked had
+/// none.
 @MainActor
 final class ReviewPromptService: ObservableObject {
     static let shared = ReviewPromptService()
@@ -26,30 +28,55 @@ final class ReviewPromptService: ObservableObject {
 
     private let defaults = UserDefaults.standard
     private let countKey = "reviewPrompt.verifiedAnswers"
+    private let finishedKey = "reviewPrompt.finishedAnswers"
     private let lastAskedKey = "reviewPrompt.lastAskedAt"
+    private let lastAskedVersionKey = "reviewPrompt.lastAskedVersion"
     nonisolated static let minimumVerifiedAnswers = 1
-    private let minimumDaysBetweenAsks = 120.0
+    nonisolated static let minimumFinishedAnswers = 3
+    nonisolated static let minimumDaysBetweenAsks = 14.0
 
     /// Called with the gating decision of every finished answer, how many
     /// sources it cited, and Fact Check's claims.
     func noteAnswer(gatingDecision: String?, retrievedSourceCount: Int, claims: [StructuredAnswer.Claim] = []) {
-        guard Self.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount, claims: claims) else { return }
-        let n = defaults.integer(forKey: countKey) + 1
-        defaults.set(n, forKey: countKey)
-        guard n >= Self.minimumVerifiedAnswers, !askedRecently, !isTesting else { return }
+        let verified = Self.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount, claims: claims)
+        let finished = defaults.integer(forKey: finishedKey) + 1
+        defaults.set(finished, forKey: finishedKey)
+        var verifiedCount = defaults.integer(forKey: countKey)
+        if verified {
+            verifiedCount += 1
+            defaults.set(verifiedCount, forKey: countKey)
+        }
+        let lastAsked = defaults.double(forKey: lastAskedKey)
+        guard
+            Self.shouldAsk(
+                thisAnswerIsVerified: verified, verifiedAnswers: verifiedCount, finishedAnswers: finished,
+                lastAskedVersion: defaults.string(forKey: lastAskedVersionKey), currentVersion: Self.currentVersion,
+                daysSinceLastAsk: lastAsked > 0 ? (Date().timeIntervalSince1970 - lastAsked) / 86_400 : nil,
+                isTesting: isTesting)
+        else { return }
         wantsPrompt = true
     }
 
     /// ContentView calls this once it has handed the request to StoreKit.
     func didAsk() {
         defaults.set(Date().timeIntervalSince1970, forKey: lastAskedKey)
+        defaults.set(Self.currentVersion, forKey: lastAskedVersionKey)
         wantsPrompt = false
     }
 
-    private var askedRecently: Bool {
-        let t = defaults.double(forKey: lastAskedKey)
-        guard t > 0 else { return false }
-        return Date().timeIntervalSince1970 - t < minimumDaysBetweenAsks * 86_400
+    /// Pure, so every rule above is pinned by a test. Counts include the answer that just finished.
+    nonisolated static func shouldAsk(
+        thisAnswerIsVerified: Bool, verifiedAnswers: Int, finishedAnswers: Int, lastAskedVersion: String?,
+        currentVersion: String, daysSinceLastAsk: Double?, isTesting: Bool
+    ) -> Bool {
+        guard !isTesting, !currentVersion.isEmpty, lastAskedVersion != currentVersion else { return false }
+        if let days = daysSinceLastAsk, days < minimumDaysBetweenAsks { return false }
+        return (thisAnswerIsVerified && verifiedAnswers >= minimumVerifiedAnswers)
+            || finishedAnswers >= minimumFinishedAnswers
+    }
+
+    private static var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
     }
 
     private var isTesting: Bool {

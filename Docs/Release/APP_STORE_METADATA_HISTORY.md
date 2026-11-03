@@ -97,6 +97,28 @@ else about the block changes: not the field order, not the headings, not the cod
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: the 5.1 and 5.2 entries below; scripts/enforce_docs_hook.sh metadata block; App Store Connect field limits as enforced by fastlane deliver]`
 
+## The pieces that carry over (continuity)
+
+Added 2026-11-03 at the owner's request, so each release reads like the last one and nothing is
+invented fresh. The template above fixes the shape; this fixes the recurring wording. Each piece is
+taken from copy that shipped. Change one only when the truth changed, and say so in the entry's
+**Notes** line.
+
+| Piece | Use | Shipped in |
+|---|---|---|
+| Opening line | "This one's about <one plain theme>." then one sentence naming the three or four biggest changes | 5.7 |
+| Closing line | "Everything still runs on your device, unless you okay Apple's Private Cloud Compute." | 5.5, 5.6, 5.7 |
+| Section names | Reuse before inventing: `YOUR DOCUMENTS`, `ANSWERS`, `YOUR LIBRARY`, `LARGE LIBRARIES`, `SHARING`, `SIRI, SHORTCUTS AND SPOTLIGHT`, `PLANS`, `PRIVATE CLOUD COMPUTE`, `GETTING STARTED`, and `ALSO` last for the small items | 5.5 to 5.7 |
+| Section order | What a person notices first: their documents, then answers, then everything else, `ALSO` last | 5.6, 5.7 |
+| Promotional text | "New in <X.Y>: <the theme>. <two to four things, plain nouns>. Needs Apple Intelligence." Under 170 characters | 5.7 |
+| Bullets | What the person can now do or will notice, in their words ("You can drop a file..."), not the component's name | every release since 5.1 |
+| Requirement | "Needs Apple Intelligence" in the promo; the device list (iPhone 15 Pro, iPhone 16 or later, M1 iPad or Mac) only where there is room | 5.6, 5.7 |
+
+Never in store copy: em dashes, unmeasured numbers, or a feature the app doesn't have. The voice is
+Gunnar's: plain, accountable, no hype words.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: fastlane/metadata/en-US/release_notes.txt and promotional_text.txt at 3face1fb (5.7); the 5.4 to 5.6 entries below]`
+
 ## Current listing text, as of 2026-09-14 (the description was superseded in the repo on 2026-09-18; see the 5.3 entry below. This was the listing until 5.3 went live on 2026-09-18.)
 
 The description, name and promotional text that `push_metadata` would send today. The description

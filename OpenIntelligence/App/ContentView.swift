@@ -21,7 +21,7 @@ struct ContentView: View {
     @StateObject private var onboardingStore: OnboardingStateStore
     @StateObject private var whatsNewStore: WhatsNewStore
     @StateObject private var entitlementStore: EntitlementStore
-    /// Asks for a rating after the third verified answer; see ReviewPromptService.
+    /// Asks for a rating with Apple's sheet after a good answer; see ReviewPromptService for when.
     @ObservedObject private var reviewPrompt = ReviewPromptService.shared
     /// Answers that finished while another tab was showing; badges the Chat tab.
     @ObservedObject private var chatAnswerNotice = ChatAnswerNotice.shared
@@ -192,7 +192,8 @@ struct ContentView: View {
         #if canImport(UIKit)
             // The hardware legend floats in its own window above everything. It waits for the
             // welcome screen to close before it first shows up.
-            .onChange(of: onboardingStore.isChecklistVisible && !screenshotMode.isEnabled, initial: true) { _, visible in
+            .onChange(of: onboardingStore.isChecklistVisible && !screenshotMode.isEnabled, initial: true) {
+                _, visible in
                 FloatingLegendWindowManager.shared.setWelcomeScreenVisible(visible)
             }
         #endif
@@ -576,7 +577,9 @@ struct ContentView: View {
             // What finished while the app was away is on screen now (5.7): its notifications and the Lock Screen's
             // card for a finished import or answer go, where they stayed for up to ten minutes after the person was back.
             CompletionNotificationService.shared.clearDelivered()
-            IngestionLiveActivityService.shared.dismissFinished()
+            IngestionLiveActivityService.shared.dismissFinished(
+                importIsMoving: ImportLiveActivityRule.importIsMoving(
+                    stages: ragService.ingestionItems.map(\.stage), pausedByPerson: ragService.ingestionPausedByPerson))
             #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
                 QueryLiveActivityService.shared.endLeftovers()
             #endif
