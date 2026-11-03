@@ -3,7 +3,7 @@
 Updated: 2026-11-03 (5.8 open; `fb225053` pushed and built as Xcode Cloud build 488, VALID on iOS and macOS, not attached to either record. Later 5.8 work is committed locally with `[ci skip]`. 5.7 is live on iPhone, iPad and Mac since 2026-10-22, build 487. The 5.7
 closeout record, with its open device checks, is in git: `git show a27abbe8:Docs/ai/STATE.md`.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 55366647
+Last verified commit: 77aeedfa
 
 ## Objective
 
@@ -21,7 +21,10 @@ watched folders and a clearer plans screen are built and tested in the working t
 | Plans screen ("What you get", `PlanBenefits.swift`) | Done, tests pass, committed |
 | iCloud bullet on the plan cards | **Held back on purpose.** Waits for the two-device check on row `3ca49a74d54f8103b69be921f0335171`. The copies were 497 on 2026-11-03 and 0 after the Mac's first launch of `5c13a375` (see the next row), so the baseline is now 0 |
 | Mac launch freeze and orphaned conflict copies (`WorkspaceSyncService.swift`, named by him 2026-11-03) | Committed `5c13a375`. `waitUntilSyncFilesAreFree` (six lists, off the main thread, 20 s limit) runs before the pass at the existing `await` after `prepareWorkspaceDownloads`; `removeOrphanedConflictCopies` runs last in `synchronizeConfiguredLibraries`. Mac launch 21:34 UTC: `removed 497, failed 0`, waits 3 to 9 ms, no claim wait on the main thread. Freeze row `40d49a74d54f81779bfaea8b13628d5a` In Progress: closes on a launch that logs a `sync.waitForFiles` over 500 ms while `sample` shows the main thread in its run loop. Not done from the review: a follow-up pass when the app writes during the wait (the suppressed `.localWorkspaceDidChange`), and the pass's own coordinated writes still run on the main thread (about 3% of samples during an import) |
-| Sync passes about once a second during an import | Measured 2026-11-03, noted on row `3ca49a74d54f81a6b8c1e4827a6585fa` (the 420-reloads row, v5.8 To Do). It predates `5c13a375` (up to 32 a minute in the earlier build). Not fixed |
+| Rebuild loop between devices (row `40d49a74d54f81dbb75bd6daf9309f50`, In Progress) | Committed `77aeedfa`: a rebuild keeps each document's id, record and file (`removeDocument(forRebuild:)`, `addDocument(documentId:)`), skips the plan limit, starts large files over, keeps going past a failure, no longer switches the open library; banner shows "Rebuilding n of m" / "Waiting". RebuildKeepsDocumentIdTests 2 of 2, twice. **The Mac's `/Applications` copy is still the old build and still runs the loop**: the new one is `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app`. Lost on his iPhone: MoreMacintoshToolbox.pdf (Library 3), a Library 2 PDF, AAMI-ST79-2017-COMPLETA-ESPANOL.pdf (library 65557D64, deleted); copies in `~/Downloads/OpenIntelligence recovered 2026-11-03` for him to re-import. Closes on both devices running it with no `Wiping orphaned vector database chunks` on the other device after a rebuild |
+| Sync passes once a second during an import (row `3ca49a74d54f81a6b8c1e4827a6585fa`) | `ObservedChangeThrottle` in `77aeedfa` (5 s per trigger, no overlap). Rate not re-measured. The triggers inside `WorkspaceSyncService.swift` (watcher seeing a pass's own writes, 2 s debounce) are unchanged and need him to name the file |
+| Blank Chat while switching libraries | Cause not established. Removed the rebuild's own library switch, which landed in the same second; the journal now records `chat.appear`, `chat.disappear`, `library.setActive` |
+| Tour tips and Watched Folder copy | Rewritten in `77aeedfa` (41 tips up to 220 characters, `TourTipTests`) |
 | Per-library Face ID lock | Built, reviewed and **taken out** 2026-11-02 at the owner's word. Copy in `Growth/library-lock-attempt-2026-11-02/`. An app-wide lock is not built: iOS offers Require Face ID free |
 | App Store Connect | 5.8 records exist on iOS and macOS, PREPARE_FOR_SUBMISSION, release AFTER_APPROVAL. Build 488 (`fb225053`) is VALID on both and attached to neither: he wants more in 5.8 before another build, to save Xcode Cloud hours |
 | Rating request (`ReviewPromptService.swift`) | Done 2026-11-03: Apple's sheet only, on the first verified or third finished answer, once per version, 14 days apart; the custom "Enjoying" alert is gone (App Review 5.6.1). Row `40d49a74d54f81b8a754e342bf1d90d0`, In Progress. Closes when a development build on his iPhone shows the sheet |
@@ -68,6 +71,7 @@ watched folders and a clearer plans screen are built and tested in the working t
 
 - Tree of `5c13a375`: `SyncFileWaitTests` 4 of 4, `OrphanedConflictCopyTests` 6 of 6, then `xcodebuild test-without-building` -> 1,450 tests, 8 skipped, 0 failures (527 s); Mac `xcodebuild build` -> BUILD SUCCEEDED. The Mac build (`/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app`) was launched from there, not `/Applications`; event log and `sample` results are in the status table.
 - Tree of `55366647`: `VersionHistoryTests` 3 of 3, `WhatsNewCoverageTests` 4 of 4.
+- Tree of `77aeedfa`: `xcodebuild test-without-building` -> 1,455 tests, 8 skipped, 0 failures (517 s); Mac `xcodebuild build` -> BUILD SUCCEEDED; iPhone build installed (5.8 build 150).
 
 - 2026-11-03, final tree `3c42daa9`: `xcodebuild test-without-building` -> 1,428 tests, 8 skipped, 0 failures (481 s; 495 s before the trace kept every category). `python3 scripts/phone_evidence.py` against the phone -> pulled the trace and MetricKit, 0 events.
 - `xcodebuild test-without-building` with the rating and Live Activity changes -> 1,415 tests, 8 skipped, 0 failures. After the Product Guide edit: `SampleQuestionHeadingsTests`, `SampleDocumentCopyCleanupTests`, `ImportLiveActivityRuleTests`, `ReviewPromptServiceTests` -> 25 of 25.
