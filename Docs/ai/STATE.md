@@ -3,7 +3,7 @@
 Updated: 2026-11-03 (5.8 open; `fb225053` pushed and built as Xcode Cloud build 488, VALID on iOS and macOS, not attached to either record. Later 5.8 work is committed locally with `[ci skip]`. 5.7 is live on iPhone, iPad and Mac since 2026-10-22, build 487. The 5.7
 closeout record, with its open device checks, is in git: `git show a27abbe8:Docs/ai/STATE.md`.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: fb225053
+Last verified commit: 3c42daa9
 
 ## Objective
 
@@ -25,6 +25,10 @@ watched folders and a clearer plans screen are built and tested in the working t
 | Rating request (`ReviewPromptService.swift`) | Done 2026-11-03: Apple's sheet only, on the first verified or third finished answer, once per version, 14 days apart; the custom "Enjoying" alert is gone (App Review 5.6.1). Row `40d49a74d54f81b8a754e342bf1d90d0`, In Progress. Closes when a development build on his iPhone shows the sheet |
 | Lock Screen and Watch cards (`IngestionLiveActivityService.dismissFinished(importIsMoving:)`) | Done 2026-11-03: on foreground an import card stays only while an import moves. Row `40d49a74d54f818f92cdfe37eb7164ed`, In Progress. Cause read from code, not seen on a device |
 | Sample Product Guide | Updated 2026-11-03 for Paste, Share, "Open in", icon drop, Watch a Folder, highlighted citations |
+| Multi-file imports (`RAGService.shouldDeferEnrichment`) | Done 2026-11-03: a file's overview, tags and suggested questions wait while other files are queued. Row `40d49a74d54f81a9bcaec77f3061c10e` |
+| Atlas card axis labels (`AxisLabelInsets.boxes`) | Done 2026-11-03: labels clear the cluster box only where they would cover it |
+| Device event log (`VerificationJournal.swift`, `scripts/phone_evidence.py`) | Done 2026-11-03, Debug builds only. Row `40d49a74d54f81b59f23ce86c142e2a2`. The phone has the build (10:33). First pull: trace and MetricKit copied, no events yet (app not opened since install). `RAGAppIntents.swift`'s 12 intents are not covered (hard boundary) |
+| 107 open 5.0 to 5.7 rows | Sorted 2026-11-03: 19 checkable headless, 20 Mac by hand, 61 iPhone, 7 his. None already evidenced. 32 iPhone rows have rules in `scripts/phone_evidence_rules.json` |
 | Store copy continuity | `Docs/Release/APP_STORE_METADATA_HISTORY.md` has "The pieces that carry over": opening and closing lines, section names, promo pattern. Use it for 5.8's copy, which is not written yet |
 
 ## Active Constraints
@@ -60,6 +64,7 @@ watched folders and a clearer plans screen are built and tested in the working t
 
 ## Verification (2026-11-03, output read)
 
+- 2026-11-03, final tree `3c42daa9`: `xcodebuild test-without-building` -> 1,428 tests, 8 skipped, 0 failures (481 s; 495 s before the trace kept every category). `python3 scripts/phone_evidence.py` against the phone -> pulled the trace and MetricKit, 0 events.
 - `xcodebuild test-without-building` with the rating and Live Activity changes -> 1,415 tests, 8 skipped, 0 failures. After the Product Guide edit: `SampleQuestionHeadingsTests`, `SampleDocumentCopyCleanupTests`, `ImportLiveActivityRuleTests`, `ReviewPromptServiceTests` -> 25 of 25.
 
 ## Verification (2026-11-02, output read)
@@ -84,6 +89,9 @@ watched folders and a clearer plans screen are built and tested in the working t
 
 ## Exact Next Action
 
-Install the working tree on his iPhone (memory `building-to-gunnars-iphone.md`) and check three things there: Library Settings,
-Watch a Folder, add a file, reopen, confirm it imports; Apple's rating sheet about 2 s after the first verified answer; no import
-card left on the Lock Screen or Watch after reopening. Then the folder check on the Mac after a relaunch. No push or build without his word.
+After he has used the phone build for a while: `python3 scripts/phone_evidence.py --since 2026-11-03T18:33`, close every
+PASS row in Notion with its proof lines quoted, and tell him the FAIL rows. Then run the 12 ready headless checks from
+the 2026-11-03 sort (saved conversation [S13]+, Glossary PCC screenshots, Export, Siri tips, answer-card taps, no-passage
+self-heal, paragraph entities, no-Apple-Intelligence samples, PDF GPU log, Mac SpeechTranscriptionTests, 5.0 blocked
+rebuild, MMR and few-spaces benchmarks). The Mac-by-hand rows and the 420-reloads count wait for him to say the screen is
+free. No push or build without his word.
