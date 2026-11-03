@@ -5,8 +5,8 @@
 ## 5.8 <!-- unreleased -->
 
 <!-- Opened 2026-11-02 at the owner's word ("Approve all three", on a plan that named this release).
-     ci_post_clone.sh stamps MARKETING_VERSION from the FIRST numbered section of this file. No 5.8
-     record exists in App Store Connect yet; the owner creates it. -->
+     ci_post_clone.sh stamps MARKETING_VERSION from the FIRST numbered section of this file. The owner
+     created the 5.8 records in App Store Connect that day, both release AFTER_APPROVAL. -->
 
 - **[UI]** **The plans screen says what each plan adds.** "Why upgrade now?" listed storage in general terms ("Higher document limits", "One-time lifetime option"). It is now "What you get": Maximum mode with no daily cap, more documents and more libraries, watched folders, and paying once with Lifetime. The text lives in `PlanBenefits`, and `PlanBenefitsTests` holds every limit a bullet states to `QuotaPolicy`. iCloud Sync is paid (`hasICloudSyncAccess`) and is still not listed: it goes on the cards when the two-device check on roadmap row `3ca49a74d54f8103b69be921f0335171` passes. `[evidence_level: code_verified, confidence: exact, evidence_source: PlanBenefits.swift, PlanUpgradeSheet.swift whyUpgradeNowSection]`
 

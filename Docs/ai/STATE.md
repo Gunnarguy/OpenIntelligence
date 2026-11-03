@@ -1,27 +1,27 @@
 # Current State
 
-Updated: 2026-11-02 (5.8 open, nothing committed. 5.7 is live on iPhone, iPad and Mac since 2026-10-22, build 487. The 5.7
+Updated: 2026-11-02 (5.8 open and committed in `56225f8c`, not pushed. 5.7 is live on iPhone, iPad and Mac since 2026-10-22, build 487. The 5.7
 closeout record, with its open device checks, is in git: `git show a27abbe8:Docs/ai/STATE.md`.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: a27abbe8
+Last verified commit: 56225f8c
 
 ## Objective
 
 **5.8: make paying worth more, and make every answer checkable.** A citation that shows its passage in every kind of document,
-watched folders and a clearer plans screen are built and tested in the working tree, and wait on a device check and his word to commit. The App Store numbers and the ranked list behind this are in auto memory
+watched folders and a clearer plans screen are built and tested in the working tree, and wait on a device check. The App Store numbers and the ranked list behind this are in auto memory
 `more-behind-the-paywall-is-next.md`.
 
 ## Status
 
 | What | Where it stands |
 |---|---|
-| Watched folders | Built, tests pass, uncommitted. Row `40c49a74d54f818a9311cb37fbc4db3a`, In Progress. Closes on a real iPhone and Mac |
-| Citations in every file type (`SourceTextView.swift`, `SourceMatchBanner`) | Built, tests pass, uncommitted. Row `40c49a74d54f81c199dccc5e6b911e38`, In Progress. audio not measured (no recognizer in the Simulator) |
+| Watched folders | Built, tests pass, committed. Row `40c49a74d54f818a9311cb37fbc4db3a`, In Progress. Closes on a real iPhone and Mac |
+| Citations in every file type (`SourceTextView.swift`, `SourceMatchBanner`) | Built, tests pass, committed. Row `40c49a74d54f81c199dccc5e6b911e38`, In Progress. audio not measured (no recognizer in the Simulator) |
 | Library Settings | Two bugs fixed, neither with a test (Save after the library changed; opening it saving a size). The overclaiming copy is unfixed: row `40c49a74d54f81fb8e6ef32ac1549e2b`. Run `oi-claim-audit` first |
-| Plans screen ("What you get", `PlanBenefits.swift`) | Done, tests pass, uncommitted |
+| Plans screen ("What you get", `PlanBenefits.swift`) | Done, tests pass, committed |
 | iCloud bullet on the plan cards | **Held back on purpose.** Waits for the two-device check on row `3ca49a74d54f8103b69be921f0335171`; baseline 519 conflict copies, unchanged on 2026-11-02 |
 | Per-library Face ID lock | Built, reviewed and **taken out** 2026-11-02 at the owner's word. Copy in `Growth/library-lock-attempt-2026-11-02/`. An app-wide lock is not built: iOS offers Require Face ID free |
-| App Store Connect | No 5.8 record exists. He creates it |
+| App Store Connect | 5.8 records exist on iOS and macOS, PREPARE_FOR_SUBMISSION, release AFTER_APPROVAL, read back 2026-11-02. Nothing pushed, no 5.8 build |
 
 ## Active Constraints
 
@@ -77,4 +77,4 @@ watched folders and a clearer plans screen are built and tested in the working t
 ## Exact Next Action
 
 On his iPhone: Library Settings, Watch a Folder, choose a folder in iCloud Drive or On My iPhone, add a file, reopen the app, and
-confirm it imports. Then the same on the Mac after a relaunch. Commit when he says.
+confirm it imports. Then the same on the Mac after a relaunch. A push without `[ci skip]` starts the first 5.8 build: ask him first.
