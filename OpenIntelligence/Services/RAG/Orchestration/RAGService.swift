@@ -1634,7 +1634,7 @@ class RAGService: ObservableObject {
             let now = Date()
             let validContainerIds = Set(containerService.containers.map(\.id))
             let defaultContainerId = containerService.containers.first?.id
-            // Rebuilds the app closed during, by library (5.8): they start again below rather than being dropped.
+            // Libraries with a saved rebuild item (5.8): checked below rather than dropped or rebuilt outright.
             var rebuildsToResume: [UUID: Set<UUID>] = [:]
 
             for item in state.items {
@@ -1792,12 +1792,17 @@ class RAGService: ObservableObject {
                 restoredItems.append(resumedItem)
             }
 
+            // A saved rebuild item doesn't say its document still needs one (5.8): the queue file is shared through iCloud,
+            // so it can hold another device's, and the rebuild can have finished before the item was cleared. On the
+            // owner's iPhone on 2026-11-03 at 17:53 a first version of this restarted 34 documents of Library 6 from the
+            // Mac's unfinished rebuild, though the phone had rebuilt them at 16:35. So each library gets the check its
+            // opening gets, which rebuilds only the documents with no passages in the store.
             for (libraryId, documentIds) in rebuildsToResume {
                 Log.info(
-                    "[RAGService] A rebuild of \(documentIds.count) document(s) in \(libraryId) was under way when the app closed; it starts again",
+                    "[RAGService] \(documentIds.count) saved rebuild item(s) for \(libraryId); checking which documents still have no passages",
                     category: .ingestion)
-                VerificationJournal.record("rebuild.resumedAfterRelaunch", ["documents": "\(documentIds.count)"])
-                enqueueSelfHealingRebuild(for: libraryId, onlyDocuments: documentIds)
+                VerificationJournal.record("rebuild.checkedAfterRelaunch", ["documents": "\(documentIds.count)"])
+                await evaluateSemanticIndexHealth(for: libraryId)
             }
 
             guard !restoredItems.isEmpty else {
