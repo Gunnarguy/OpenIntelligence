@@ -25,7 +25,7 @@ YOUR LIBRARIES
 
 • With libraries synced through iCloud, the app no longer stops responding at launch while iCloud catches up.
 
-• Rebuilding a library keeps every document as it is, so your other devices no longer clear and rebuild it too, and the library shows how far the rebuild has got.
+• Rebuilding a library keeps every document as it is, so your other devices no longer clear and rebuild it too. It shows how far it has got, appears on the Lock Screen like an import, and starts again if the app is closed.
 
 • A finished or paused import's card leaves the Lock Screen and your Watch when you open the app.
 

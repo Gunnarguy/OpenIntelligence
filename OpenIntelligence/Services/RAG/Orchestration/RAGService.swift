@@ -1634,6 +1634,8 @@ class RAGService: ObservableObject {
             let now = Date()
             let validContainerIds = Set(containerService.containers.map(\.id))
             let defaultContainerId = containerService.containers.first?.id
+            // Rebuilds the app closed during, by library (5.8): they start again below rather than being dropped.
+            var rebuildsToResume: [UUID: Set<UUID>] = [:]
 
             for item in state.items {
                 guard !tombstonedIds.contains(item.id) else { continue }
@@ -1680,6 +1682,14 @@ class RAGService: ObservableObject {
                     // The ingestion had completed. The store simply had not been opened
                     // for that container when the guard ran, so every relaunch resurrected
                     // a finished import and asked the user to resume it.
+                    // A rebuild keeps the document listed with its count while its passages are cleared (5.8), so a
+                    // listed document says nothing about whether its rebuild finished. Through the first 5.8 builds
+                    // the rebuild was dropped here as "already imported" and its documents stayed without passages
+                    // (the owner's iPhone, 2026-11-03 16:11: a 21-document rebuild ended by a relaunch).
+                    if item.metrics.isRebuild {
+                        rebuildsToResume[resolvedContainerId, default: []].insert(existingDoc.id)
+                        continue
+                    }
                     if existingDoc.totalChunks > 0 {
                         Log.info(
                             "[RAGService] Dropping persisted ingestion item for already imported document: "
@@ -1780,6 +1790,14 @@ class RAGService: ObservableObject {
                 }
 
                 restoredItems.append(resumedItem)
+            }
+
+            for (libraryId, documentIds) in rebuildsToResume {
+                Log.info(
+                    "[RAGService] A rebuild of \(documentIds.count) document(s) in \(libraryId) was under way when the app closed; it starts again",
+                    category: .ingestion)
+                VerificationJournal.record("rebuild.resumedAfterRelaunch", ["documents": "\(documentIds.count)"])
+                enqueueSelfHealingRebuild(for: libraryId, onlyDocuments: documentIds)
             }
 
             guard !restoredItems.isEmpty else {
@@ -6643,7 +6661,7 @@ class RAGService: ObservableObject {
             self.kickPendingReembedIfNeeded()
             self.runDeferredEnrichmentsIfNeeded()
             if isLatestLoop, shouldRestartQueueAfterUserCancellation,
-                self.ingestionItems.contains(where: { $0.stage == .queued })
+                self.ingestionItems.contains(where: { $0.stage == .queued && !$0.metrics.isRebuild })
             {
                 self.startIngestionTaskIfNeeded()
             }
@@ -6710,7 +6728,10 @@ class RAGService: ObservableObject {
         let currentDeviceID = WorkspaceSyncService.currentDeviceID()
         guard
             let index = ingestionItems.firstIndex(where: { item in
-                guard item.stage == .queued else { return false }
+                // A rebuild's items are worked by the rebuild itself (`reembedDocuments`), not by this queue (5.8):
+                // taken here, a rebuild's document was imported as a new file, skipped as already imported, and its
+                // item marked done while the rebuild still waited on it.
+                guard item.stage == .queued, !item.metrics.isRebuild else { return false }
                 return !item.hasActiveLease(at: now) || item.isLeased(to: currentDeviceID, at: now)
             })
         else {
@@ -10042,6 +10063,16 @@ class RAGService: ObservableObject {
                 ingestionContexts[item.id] = .autoRebuild
             }
             savePersistedIngestionQueueState()
+            // On the Lock Screen and with the system's background time, as an import is (5.8). Through the first 5.8
+            // builds a rebuild had neither: leaving the app stopped it within about 30 seconds and nothing showed it
+            // (the owner's iPhone, 2026-11-03 16:03, a 21-document rebuild).
+            if !rebuildItems.isEmpty {
+                liveActivityTrackedIngestionIds.formUnion(rebuildItems.map(\.id))
+                IngestionRuntimeBridge.shared.beginUserInitiatedIngestion(
+                    title: "Rebuilding a library",
+                    subtitle: rebuildItems.count == 1 ? rebuildItems[0].filename : "\(rebuildItems.count) documents")
+                syncIngestionLiveActivity()
+            }
         }
 
         defer {

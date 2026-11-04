@@ -171,7 +171,7 @@ final class WhatsNewStore: ObservableObject {
                     symbol: "arrow.triangle.2.circlepath",
                     title: "Rebuilding a library leaves your other devices alone",
                     detail:
-                        "A rebuild used to take each document out and put it back as a new copy, so another device signed in to iCloud took the old one as deleted, cleared that library and rebuilt it too, back and forth, and a document's file could be lost along the way. A rebuild now keeps every document as it is, and the library shows how far it has got, or that it's waiting for another library to finish first."
+                        "A rebuild used to take each document out and put it back as a new copy, so another device signed in to iCloud took the old one as deleted, cleared that library and rebuilt it too, back and forth, and a document's file could be lost along the way. A rebuild now keeps every document as it is, and the library shows how far it has got, or that it's waiting for another library to finish first. Like an import, it shows on the Lock Screen and asks to keep going when you leave the app, and if the app is closed it starts again next time."
                 ),
                 .init(
                     symbol: "lock.iphone",
