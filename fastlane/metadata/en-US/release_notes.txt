@@ -32,6 +32,8 @@ ALSO
 
 • The plans screen says what each plan adds.
 
+• The Atlas lists each topic once and counts the whole library, and its similarity heatmap, which was never drawn from your documents, is gone.
+
 • Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
 
 

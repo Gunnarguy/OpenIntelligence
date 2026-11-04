@@ -162,6 +162,12 @@ final class WhatsNewStore: ObservableObject {
                         "A library synced with iCloud could show more documents on its button than it held."
                 ),
                 .init(
+                    symbol: "globe.americas",
+                    title: "The Atlas shows each thing once, and only what's real",
+                    detail:
+                        "Its topics were listed four times over, some counts were of the 6,000 passages it samples rather than your library, and its similarity heatmap was drawn from random colors, so it said nothing about your documents. The heatmap and a \"coming soon\" placeholder are gone, the topics are one list with how much of the library each holds, the counts are the library's own, and a topic named after a long title no longer ends mid-phrase."
+                ),
+                .init(
                     symbol: "icloud",
                     title: "The app no longer stops responding at launch while iCloud catches up",
                     detail:

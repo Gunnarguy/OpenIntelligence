@@ -191,7 +191,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Platforms:** iOS, macOS
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION (created 2026-11-02, release AFTER_APPROVAL), build 488 (`fb225053`) VALID on both and attached to neither
 - **Final release notes commit:** the 2026-11-03 `[ci skip]` commit that adds this entry
-- **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,286 characters for the Mac and 2,367 for iPhone and iPad, after the launch-freeze and rebuild lines were added the same day; promotional text 159. Not pushed to App Store Connect.
+- **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,431 characters for the Mac and 2,512 for iPhone and iPad, after the launch-freeze, rebuild and Atlas lines were added the same day; promotional text 159. Not pushed to App Store Connect.
 
 **Release notes (`fastlane/metadata/`, the macOS copy):**
 
@@ -229,6 +229,8 @@ YOUR LIBRARIES
 ALSO
 
 • The plans screen says what each plan adds.
+
+• The Atlas lists each topic once and counts the whole library, and its similarity heatmap, which was never drawn from your documents, is gone.
 
 • Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
 
@@ -274,6 +276,8 @@ YOUR LIBRARIES
 ALSO
 
 • The plans screen says what each plan adds.
+
+• The Atlas lists each topic once and counts the whole library, and its similarity heatmap, which was never drawn from your documents, is gone.
 
 • Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
 

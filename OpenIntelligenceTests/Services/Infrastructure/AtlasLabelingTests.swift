@@ -509,6 +509,10 @@ final class AtlasLabelingTests: XCTestCase {
         XCTAssertEqual(AtlasLabeling.shortDocumentName("Kestrel AF-620 Air Fryer Manual.pdf"), "Kestrel Air Fryer Manual")
         XCTAssertEqual(AtlasLabeling.shortDocumentName("Juniper Flats Lease - Unit 4B.pdf"), "Juniper Flats Lease")
         XCTAssertEqual(AtlasLabeling.shortDocumentName("Home Insurance Declarations 2026.pdf"), "Home Insurance Declarations")
+        // Cut at 28 characters, a name doesn't end on a small word (5.8, the owner's Atlas, 2026-11-03).
+        XCTAssertEqual(
+            AtlasLabeling.shortDocumentName("Sperm freezing damage the role of regulated cell death.pdf"),
+            "Sperm freezing damage")
         XCTAssertEqual(AtlasLabeling.shortDocumentName("2027 Benefits at a Glance.docx"), "Benefits at a Glance")
         XCTAssertEqual(AtlasLabeling.shortDocumentName("Grandma's Banana Bread.txt"), "Grandma's Banana Bread")
         XCTAssertEqual(AtlasLabeling.shortDocumentName("Alder Creek Elementary Family Handbook.pdf"), "Alder Creek Elementary")

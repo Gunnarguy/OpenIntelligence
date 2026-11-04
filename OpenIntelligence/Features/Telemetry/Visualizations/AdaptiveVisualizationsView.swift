@@ -690,7 +690,8 @@ struct AdaptiveVisualizationsView: View {
                         Text("Updated")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Text(lastAnalyzed, style: .relative)
+                        // "7 minutes ago", not a clock that ticks every second (5.8).
+                        Text(lastAnalyzed.formatted(.relative(presentation: .named)))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -894,7 +895,7 @@ struct AdaptiveVisualizationsView: View {
     private func expandedViewContent(type: LibraryVisualizationEngine.RecommendedView.ViewType, profile: LibraryProfile) -> some View {
         switch type {
         case .topicCloud:
-            TopicCloudView(topics: profile.dominantTopics)
+            TopicCloudView(topics: profile.dominantTopics, profile: profile)
         case .contentBreakdown:
             ContentBreakdownView(contentMix: profile.contentMix, chunkCount: profile.chunkCount)
         case .embedding3D:
@@ -904,14 +905,8 @@ struct AdaptiveVisualizationsView: View {
                 // The library's own vector size; a fixed 512 described a model the default libraries don't use (5.7).
                 embeddingDimension: activeContainer?.embeddingDim ?? 384
             )
-        case .clusterView:
-            ClusterOverviewView(topics: profile.dominantTopics, profile: profile)
         case .retrievalFlow:
             RetrievalFlowView(hotChunks: profile.hotChunks, coldZones: profile.coldZones, totalChunks: profile.chunkCount)
-        case .documentGraph:
-            DocumentRelationshipView(documentCount: profile.documentCount)
-        case .heatmap:
-            SimilarityHeatmapPreview(chunkCount: profile.chunkCount)
         case .timelineView:
             LibraryTimelineView(additions: profile.recentAdditions, libraryAge: profile.libraryAge)
         }
@@ -1018,18 +1013,12 @@ struct AdaptiveVisualizationsView: View {
         switch insight.action {
         case .showTopicMap:
             expandedView = .topicCloud
-        case .showClusterView:
-            expandedView = .clusterView
         case .showRetrievalChart:
             expandedView = .retrievalFlow
         case .showEmbedding3D:
             // The Atlas's own 3D map (5.7). The page never shows `.embedding3D` as an expanded view, so this only
             // marked the tile.
             show3DFullscreen = true
-        case .showHeatmap:
-            expandedView = .heatmap
-        case .showDocumentGraph:
-            expandedView = .documentGraph
         case .showTimeline:
             expandedView = .timelineView
         case .expandDetail:
@@ -1147,11 +1136,8 @@ struct RecommendedViewCard: View {
         switch view.type {
         case .topicCloud: return "cloud.fill"
         case .embedding3D: return "cube.fill"
-        case .documentGraph: return "point.3.connected.trianglepath.dotted"
         case .retrievalFlow: return "arrow.triangle.branch"
-        case .clusterView: return "circle.hexagongrid.fill"
         case .timelineView: return "calendar"
-        case .heatmap: return "square.grid.3x3.fill"
         case .contentBreakdown: return "chart.pie.fill"
         }
     }
@@ -1160,11 +1146,8 @@ struct RecommendedViewCard: View {
         switch view.type {
         case .topicCloud: return DSColors.accent
         case .embedding3D: return DSColors.accent
-        case .documentGraph: return DSColors.accent
         case .retrievalFlow: return .orange
-        case .clusterView: return DSColors.accent
         case .timelineView: return .green
-        case .heatmap: return .red
         case .contentBreakdown: return .secondary
         }
     }
@@ -1256,6 +1239,15 @@ struct StatTile: View {
 
 struct TopicCloudView: View {
     let topics: [TopicCluster]
+    let profile: LibraryProfile
+
+    /// A topic's passages in the library (5.8): counted when the analysis read the whole library, estimated from its
+    /// share of the sample otherwise, so the numbers here add up to the header's passages, not the sample's.
+    private func passageText(_ topic: TopicCluster) -> String {
+        guard profile.isSampled else { return "\(topic.chunkCount.formatted()) passages" }
+        let estimate = Int((Double(topic.percentage) * Double(profile.libraryPassageCount)).rounded())
+        return "about \(estimate.formatted()) passages"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
@@ -1273,7 +1265,7 @@ struct TopicCloudView: View {
 
                             Spacer()
 
-                            Text("\(topic.chunkCount) chunks")
+                            Text(passageText(topic))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -1376,70 +1368,6 @@ struct ContentBreakdownView: View {
     }
 }
 
-struct ClusterOverviewView: View {
-    let topics: [TopicCluster]
-    let profile: LibraryProfile
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.lg) {
-            // Cluster bar chart
-            Chart {
-                ForEach(topics) { topic in
-                    BarMark(
-                        x: .value("Chunks", topic.chunkCount),
-                        y: .value("Topic", topic.name)
-                    )
-                    .foregroundStyle(topic.color)
-                    .annotation(position: .trailing) {
-                        Text("\(topic.chunkCount)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .frame(height: CGFloat(topics.count * 44))
-
-            // Cluster quality indicator
-            HStack(spacing: DSSpacing.lg) {
-                VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                    Text("Cluster Quality")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    HStack(spacing: DSSpacing.xs) {
-                        ForEach(0 ..< 5) { i in
-                            Circle()
-                                .fill(i < Int(profile.clusterQuality * 5) ? Color.green : Color.secondary.opacity(0.3))
-                                .frame(width: 8, height: 8)
-                        }
-
-                        Text(profile.clusterQuality > 0.7 ? "Excellent" : profile.clusterQuality > 0.4 ? "Good" : "Fair")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: DSSpacing.xs) {
-                    Text("Diversity Score")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Text(String(format: "%.0f%%", profile.topicDiversity * 100))
-                        .font(.headline)
-                        .foregroundStyle(DSColors.accent)
-                }
-            }
-            .padding(DSSpacing.lg)
-            .background(
-                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
-                    .fill(DSColors.background)
-            )
-        }
-    }
-}
-
 struct RetrievalFlowView: View {
     let hotChunks: [HotChunk]
     let coldZones: Int
@@ -1528,85 +1456,6 @@ struct RetrievalFlowView: View {
                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                     .fill(DSColors.background)
             )
-        }
-    }
-}
-
-struct DocumentRelationshipView: View {
-    let documentCount: Int
-
-    var body: some View {
-        VStack(spacing: DSSpacing.lg) {
-            Image(systemName: "point.3.connected.trianglepath.dotted")
-                .scaledFont(size: 60)
-                .imageScale(.large)
-                .foregroundStyle(.secondary)
-
-            Text("Document Connections")
-                .font(.headline)
-
-            Text("Visualizing relationships between \(documentCount) documents")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            Text("Full graph view coming soon")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.top, DSSpacing.sm)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DSSpacing.xxl)
-    }
-}
-
-struct SimilarityHeatmapPreview: View {
-    let chunkCount: Int
-
-    var body: some View {
-        VStack(spacing: DSSpacing.lg) {
-            // Simulated heatmap grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DSSpacing.xxs), count: 10), spacing: DSSpacing.xxs) {
-                ForEach(0 ..< 100, id: \.self) { _ in
-                    Rectangle()
-                        .fill(heatmapColor(for: Double.random(in: 0 ... 1)))
-                        .aspectRatio(1, contentMode: .fit)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
-
-            Text("Similarity matrix across \(chunkCount) chunks")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            // Legend
-            HStack(spacing: DSSpacing.xs) {
-                ForEach(0 ..< 10, id: \.self) { i in
-                    Rectangle()
-                        .fill(heatmapColor(for: Double(i) / 10.0))
-                        .frame(width: 20, height: 8)
-                }
-            }
-
-            HStack {
-                Text("Low")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("High Similarity")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func heatmapColor(for value: Double) -> Color {
-        if value < 0.3 {
-            return Color.blue.opacity(0.3 + value)
-        } else if value < 0.6 {
-            return Color.yellow.opacity(0.5 + value * 0.5)
-        } else {
-            return Color.red.opacity(0.6 + value * 0.4)
         }
     }
 }

@@ -281,12 +281,9 @@ struct VisualizationInsight: Identifiable, Equatable {
 
     enum InsightAction {
         case showTopicMap
-        case showDocumentGraph
         case showRetrievalChart
-        case showClusterView
         case showEmbedding3D
         case showTimeline
-        case showHeatmap
         case expandDetail
     }
 
@@ -373,14 +370,11 @@ final class LibraryVisualizationEngine: ObservableObject {
         let relevanceScore: Float
 
         enum ViewType: String, CaseIterable {
-            case topicCloud = "Topic Cloud"
+            case topicCloud = "Topics"
             case embedding3D = "3D Embedding Map"
-            case documentGraph = "Document Network"
             case retrievalFlow = "Retrieval Flow"
-            case clusterView = "Cluster Analysis"
             case timelineView = "Growth Timeline"
-            case heatmap = "Similarity Heatmap"
-            case contentBreakdown = "Content Breakdown"
+            case contentBreakdown = "Kinds of writing"
         }
     }
 
@@ -850,29 +844,11 @@ final class LibraryVisualizationEngine: ObservableObject {
                 subtitle: "\(addition.documentName) \(fitDescription) with your library",
                 icon: "sparkles",
                 color: .yellow,
-                action: .showClusterView,
-                metrics: [
-                    .init(label: "Fit Score", value: String(format: "%.0f%%", addition.integrationScore * 100), trend: nil),
-                    .init(label: "Chunks", value: "\(addition.chunkCount)", trend: nil),
-                    .init(label: "Near Topics", value: addition.nearestTopics.first ?? "General", trend: nil),
-                ]
-            ))
-        }
-
-        // Topic distribution - for diverse libraries
-        if profile.isDiverse && profile.dominantTopics.count >= 2, let topTopic = profile.dominantTopics.first {
-            insights.append(VisualizationInsight(
-                type: .topicMap,
-                priority: .medium,
-                title: "Diverse Knowledge Base",
-                subtitle: "\(profile.dominantTopics.count) distinct topic clusters detected",
-                icon: "circle.hexagongrid.fill",
-                color: .purple,
                 action: .showTopicMap,
                 metrics: [
-                    .init(label: "Top Topic", value: topTopic.name, trend: nil),
-                    .init(label: "Coverage", value: String(format: "%.0f%%", topTopic.percentage * 100), trend: nil),
-                    .init(label: "Diversity", value: String(format: "%.0f%%", profile.topicDiversity * 100), trend: nil),
+                    .init(label: "Fit Score", value: String(format: "%.0f%%", addition.integrationScore * 100), trend: nil),
+                    .init(label: "Passages", value: "\(addition.chunkCount)", trend: nil),
+                    .init(label: "Near Topics", value: addition.nearestTopics.first ?? "General", trend: nil),
                 ]
             ))
         }
@@ -928,8 +904,9 @@ final class LibraryVisualizationEngine: ObservableObject {
             ))
         }
 
-        // Coverage gaps
-        if profile.coldZones > profile.chunkCount / 2 {
+        // Coverage gaps, once there have been questions (5.8): before the first, every passage is unused and the
+        // header already says "No queries yet".
+        if profile.retrievalActivity != .none, profile.coldZones > profile.chunkCount / 2 {
             let unusedPct = Float(profile.coldZones) / Float(max(profile.chunkCount, 1)) * 100
             insights.append(VisualizationInsight(
                 type: .coverageGaps,
@@ -938,47 +915,11 @@ final class LibraryVisualizationEngine: ObservableObject {
                 subtitle: "\(Int(unusedPct))% of your library hasn't been retrieved yet",
                 icon: "eye.slash",
                 color: .secondary,
-                action: .showHeatmap,
+                action: .showRetrievalChart,
+                // A share, not a count: the count was of the passages the analysis read, which in a large library is a
+                // sample (6,000 of 8,179 on the owner's iPhone, 2026-11-03) and read as the library's own number.
                 metrics: [
-                    .init(label: "Unused Chunks", value: "\(profile.coldZones)", trend: nil),
-                    .init(label: "Total Chunks", value: "\(profile.chunkCount)", trend: nil),
-                ]
-            ))
-        }
-
-        // Cluster health for medium+ libraries
-        if profile.sizeCategory.rawValue >= LibrarySizeCategory.medium.rawValue {
-            let quality = profile.clusterQuality
-            let qualityLabel = quality > 0.7 ? "Excellent" : quality > 0.4 ? "Good" : "Mixed"
-
-            insights.append(VisualizationInsight(
-                type: .clusterHealth,
-                priority: .low,
-                title: "Semantic Structure",
-                subtitle: "\(qualityLabel) clustering of \(profile.chunkCount) chunks",
-                icon: "circle.hexagonpath.fill",
-                color: quality > 0.6 ? .green : .orange,
-                action: .showClusterView,
-                metrics: [
-                    .init(label: "Quality", value: qualityLabel, trend: nil),
-                    .init(label: "Topics", value: "\(profile.dominantTopics.count)", trend: nil),
-                ]
-            ))
-        }
-
-        // Document network for small libraries
-        if profile.sizeCategory == .tiny || profile.sizeCategory == .small {
-            insights.append(VisualizationInsight(
-                type: .documentNetwork,
-                priority: .medium,
-                title: "Document Relationships",
-                subtitle: "See how your \(profile.documentCount) documents connect",
-                icon: "point.3.connected.trianglepath.dotted",
-                color: .teal,
-                action: .showDocumentGraph,
-                metrics: [
-                    .init(label: "Documents", value: "\(profile.documentCount)", trend: nil),
-                    .init(label: "Chunks", value: "\(profile.chunkCount)", trend: nil),
+                    .init(label: "Not used yet", value: "\(Int(unusedPct))%", trend: nil),
                 ]
             ))
         }
@@ -991,74 +932,45 @@ final class LibraryVisualizationEngine: ObservableObject {
 
     // MARK: - View Recommendations
 
+    /// One view per question a person can ask of the library (5.8). Cluster Analysis and Topic Cloud showed the same
+    /// topics with the same counts, and the header's Topics count and an insight repeated them; the similarity heatmap
+    /// was drawn from random numbers and the document network was a "coming soon" placeholder. All four are gone.
     private func recommendViews(for profile: LibraryProfile) -> [RecommendedView] {
         var views: [RecommendedView] = []
 
-        // Always recommend content breakdown
         views.append(RecommendedView(
             type: .contentBreakdown,
-            title: "Content Overview",
-            reason: "See what's in your library at a glance",
+            title: "Kinds of writing",
+            reason: "How much reads as technical, legal, academic and so on",
             relevanceScore: 0.9
         ))
 
-        // Topic cloud for diverse libraries
-        if profile.isDiverse {
+        if profile.dominantTopics.count >= 2 {
             views.append(RecommendedView(
                 type: .topicCloud,
-                title: "Topic Cloud",
-                reason: "Your library spans multiple themes",
+                title: "Topics",
+                reason: "\(profile.dominantTopics.count) topics, the words that mark each, and how much each holds",
                 relevanceScore: 0.95
             ))
         }
 
-        // 3D embedding for medium+ libraries
         if profile.chunkCount >= 50 {
             views.append(RecommendedView(
                 type: .embedding3D,
                 title: "3D Semantic Map",
-                reason: "Explore \(profile.chunkCount) chunks in 3D space",
+                reason: profile.isSampled
+                    ? "\(profile.chunkCount.formatted()) of its \(profile.libraryPassageCount.formatted()) passages, placed by meaning"
+                    : "Its \(profile.chunkCount.formatted()) passages, placed by meaning",
                 relevanceScore: Float(min(profile.chunkCount, 500)) / 500.0
             ))
         }
 
-        // Document graph for small libraries
-        if profile.documentCount > 1, profile.documentCount <= 15 {
-            views.append(RecommendedView(
-                type: .documentGraph,
-                title: "Document Network",
-                reason: "See how \(profile.documentCount) documents relate",
-                relevanceScore: 0.85
-            ))
-        }
-
-        // Retrieval flow for active libraries
         if profile.isHighlyActive {
             views.append(RecommendedView(
                 type: .retrievalFlow,
                 title: "Retrieval Flow",
-                reason: "Track your query patterns",
+                reason: "Which passages your questions use",
                 relevanceScore: 0.9
-            ))
-        }
-
-        // Cluster view for clustered content
-        if profile.dominantTopics.count >= 2 {
-            views.append(RecommendedView(
-                type: .clusterView,
-                title: "Cluster Analysis",
-                reason: "\(profile.dominantTopics.count) topic clusters detected",
-                relevanceScore: profile.clusterQuality
-            ))
-        }
-
-        // Heatmap for large libraries
-        if profile.chunkCount >= 100 {
-            views.append(RecommendedView(
-                type: .heatmap,
-                title: "Similarity Heatmap",
-                reason: "Find content overlaps and gaps",
-                relevanceScore: 0.7
             ))
         }
 

@@ -744,7 +744,7 @@ public nonisolated enum AtlasLabeling {
     /// A document's file name as a short name for the map: no extension, the part before " - " ("Juniper Flats Lease -
     /// Unit 4B.pdf" is "Juniper Flats Lease"), no word with a digit in it ("Kestrel AF-620 Air Fryer Manual" is "Kestrel
     /// Air Fryer Manual", "Home Insurance Declarations 2026" is "Home Insurance Declarations"), at most 28 characters in
-    /// whole words. A name that would be left empty keeps its words as written.
+    /// whole words, not ending on a small word such as "the". A name that would be left empty keeps its words as written.
     public static func shortDocumentName(_ filename: String) -> String {
         var name = (filename as NSString).deletingPathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
         for separator in [" - ", " – ", " — "] {
@@ -755,11 +755,17 @@ public nonisolated enum AtlasLabeling {
         let words = name.split(whereSeparator: \.isWhitespace).map(String.init)
         let kept = words.filter { !$0.contains(where: \.isNumber) }
         var result = ""
+        var kept28: [String] = []
         for word in (kept.isEmpty ? words : kept) {
-            let next = result.isEmpty ? word : result + " " + word
-            if next.count > 28, !result.isEmpty { break }
-            result = next
+            let next = kept28.isEmpty ? word : (kept28 + [word]).joined(separator: " ")
+            if next.count > 28, !kept28.isEmpty { break }
+            kept28.append(word)
         }
+        // A name cut at 28 characters doesn't end on "the", "of" or "and" (5.8): "Sperm freezing damage the role of
+        // regulated cell death" was "Sperm freezing damage the" on the owner's Atlas.
+        let small: Set<String> = ["a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"]
+        while kept28.count > 1, let last = kept28.last, small.contains(last.lowercased()) { kept28.removeLast() }
+        result = kept28.joined(separator: " ")
         return result
     }
 
