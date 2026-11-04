@@ -1118,6 +1118,9 @@ A Debug build records what it did in two files in its Documents folder, and the 
   first 8 characters. 10 MB, rotated once.
 - `pipeline_trace.log`: every log line from 5.8 (it had six categories), 10 MB, rotated once, with the date.
 
+What the owner does on each device is one short pass, at most five steps on the iPhone and seven on the Mac, kept in
+the `device-pass` skill (`.claude/skills/device-pass/SKILL.md`, 2026-11-04). Hand him that pass, never a list of rows.
+
 ```bash
 python3 scripts/phone_evidence.py --since 2026-11-03T09:41   # this Mac's local time
 ```
