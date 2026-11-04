@@ -825,7 +825,10 @@ private struct SiliconLegend: View {
                 .opacity(0.7 + 0.3 * min(1.0, max(0.0, intensity)))
             Text(chipName)
                 .font(.system(size: 9 * scale, weight: .semibold, design: .monospaced))
-            Spacer(minLength: 4 * scale)
+            // A fixed gap, never a Spacer: the legend's floating window takes the legend's size, so a view
+            // that grows to the width it is offered grows the window, which offers more, without end. On the
+            // owner's iPhone on 2026-11-04 that loop held the main thread until iOS ended the app (0x8BADF00D).
+            Color.clear.frame(width: 4 * scale, height: 1)
             Image(systemName: "memorychip")
                 .font(.system(size: 6 * scale, weight: .semibold))
                 .foregroundStyle(.green)
