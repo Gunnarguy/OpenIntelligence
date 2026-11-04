@@ -4,7 +4,7 @@ Updated: 2026-11-04 about 00:00 PT (5.8 open; all work committed locally with `[
 and Mac since 2026-10-22, build 487. Xcode Cloud build 488 (`fb225053`) is VALID on both platforms and attached to
 neither record.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: b2fe74ca
+Last verified commit: 13bf9400
 
 ## Objective
 
@@ -22,7 +22,7 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 | Atlas | Built `a19e107d`: topics once, library-wide counts, the random-colour heatmap and the "coming soon" document network removed |
 | Sync | Freeze fix and orphaned-copy cleanup `5c13a375`; iCloud-change passes throttled `77aeedfa` (`ObservedChangeThrottle`). The triggers inside `WorkspaceSyncService.swift` (watcher sees a pass's own writes; 2 s debounce) are unchanged and need him to name the file |
 | 5.8 copy | What's New (now 15 items), `Docs/USER_CHANGELOG.md` and its byte copy `VersionHistory.md`, `WHATS_NEW.md`, both `release_notes.txt`, the `### 5.8` entry in `APP_STORE_METADATA_HISTORY.md`. **Not pushed to App Store Connect** |
-| His devices | iPhone has the build of `b2fe74ca` (installed 2026-11-04, 5.8 build 150, telemetry and the save guard included; before that `3d7820d6`, 2026-11-03 about 23:55 PT, 5.8 build 150, telemetry included). The Mac's `/Applications` copy is older and lacks the one-engine fix and the telemetry: he copies `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app` there (the copy is refused to agents). Keep the Mac app to one window until then |
+| His devices | iPhone has the build of `13bf9400` (installed 2026-11-04 about 09:00 PT): the save guard, the in-front answer expiry fix and its Live Activity, the off-main workspace reload, Settings rows on one tap, the plans sheet's tier, the three-line HUD, semibold Database figures. The compact HUD has not been seen on any screen yet (it does not draw in the Simulator). The Mac's `/Applications` copy is older: he copies `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app` there (refused to agents) |
 | Telemetry (`3d7820d6`) | 78 new development-journal events, `os` on every line, a Debug-only `MainThreadWatchdog`, test hosts write nothing; `scripts/phone_evidence.py` has 96 rules plus `--mac`, `<=`, `!=`, `absent` and local-time `--since` (`Docs/ai/RUNBOOK.md`). Events that need a hard-boundary file were left out: `RAGAppIntents.swift` (patch saved in session scratchpad `a4f11230-.../scratchpad/ragappintents_telemetry.patch`; 3 rules wait on it), `WorkspaceSyncService.swift` (`sync.conflictCopies`, `sync.fileFromICloud`, `sync.threads`, `sync.vectorStoreSkipped`, `sync.orphanFileDeleted`), `BNNSVectorDatabase.swift` (`vectorStore.save/load`) |
 | Mac crash, row `40e49a74d54f81099f05c28eb6c091f1` | `BNNSVectorDatabase.writeMetadataFile` trapped (`Data` subscript, line 605 of the crash report `~/Library/Logs/DiagnosticReports/OpenIntelligence-2026-11-03-222028.ips`) when a passage's place ran past the mapped metadata, during a self-healing rebuild with an import into the same library. Guard committed 2026-11-04 at his word ("just proceed implement"): the run join stops at such a slot and the save throws `storeFailed`, leaving the old file in place. Why the records and the file disagree is not established. Closes when the Mac, running a build with the guard, goes through a self-healing rebuild plus import without a crash |
 | Lost files | MoreMacintoshToolbox.pdf (Library 3), a Library 2 PDF and AAMI-ST79-2017-COMPLETA-ESPANOL.pdf (library deleted) are saved in `~/Downloads/OpenIntelligence recovered 2026-11-03` for him to re-import |
@@ -49,6 +49,7 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Verification (output read)
 
+- Tree of `13bf9400`: iOS 27 Simulator full suite -> 1,463 tests, 3 failures, all in `AtlasLabelingTests` on a freshly erased simulator; that class rerun alone -> 26 tests, 0 failures. `SettingsRowsUITests` on the code before the fix -> all 7 rows shut (HUD off and on); after -> 2 tests, 0 failures. Mac Debug build and iPhone build -> BUILD SUCCEEDED; `devicectl device install` -> "App installed".
 - Tree of `3d7820d6` (less one RUNBOOK sentence): iOS 27 Simulator `test-without-building` -> 1,461 tests, 8 skipped,
   0 failures (517 s; the first launch hung before connecting, the second ran); Mac Debug build -> BUILD SUCCEEDED;
   Release iOS Simulator build -> BUILD SUCCEEDED; `python3 scripts/test_phone_evidence.py` -> 16 tests OK; device
