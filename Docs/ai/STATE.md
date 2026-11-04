@@ -1,10 +1,10 @@
 # Current State
 
-Updated: 2026-11-04 (5.8 open; all work committed locally with `[ci skip]`, nothing pushed. 5.7 is live on iPhone, iPad
+Updated: 2026-11-04 about 00:00 PT (5.8 open; all work committed locally with `[ci skip]`, nothing pushed. 5.7 is live on iPhone, iPad
 and Mac since 2026-10-22, build 487. Xcode Cloud build 488 (`fb225053`) is VALID on both platforms and attached to
 neither record.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 97c1cb93
+Last verified commit: 3d7820d6
 
 ## Objective
 
@@ -22,7 +22,9 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 | Atlas | Built `a19e107d`: topics once, library-wide counts, the random-colour heatmap and the "coming soon" document network removed |
 | Sync | Freeze fix and orphaned-copy cleanup `5c13a375`; iCloud-change passes throttled `77aeedfa` (`ObservedChangeThrottle`). The triggers inside `WorkspaceSyncService.swift` (watcher sees a pass's own writes; 2 s debounce) are unchanged and need him to name the file |
 | 5.8 copy | What's New (now 15 items), `Docs/USER_CHANGELOG.md` and its byte copy `VersionHistory.md`, `WHATS_NEW.md`, both `release_notes.txt`, the `### 5.8` entry in `APP_STORE_METADATA_HISTORY.md`. **Not pushed to App Store Connect** |
-| His devices | iPhone has the build of `97c1cb93` (installed 2026-11-03 about 21:35 PT). The Mac's `/Applications` copy is the build of `02158436` and lacks the one-engine fix: he must copy `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app` there (the copy is refused to agents). Keep the Mac app to one window until then |
+| His devices | iPhone has the build of `3d7820d6` (installed 2026-11-03 about 23:55 PT, 5.8 build 150, telemetry included). The Mac's `/Applications` copy is older and lacks the one-engine fix and the telemetry: he copies `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app` there (the copy is refused to agents). Keep the Mac app to one window until then |
+| Telemetry (`3d7820d6`) | 78 new development-journal events, `os` on every line, a Debug-only `MainThreadWatchdog`, test hosts write nothing; `scripts/phone_evidence.py` has 96 rules plus `--mac`, `<=`, `!=`, `absent` and local-time `--since` (`Docs/ai/RUNBOOK.md`). Events that need a hard-boundary file were left out: `RAGAppIntents.swift` (patch saved in session scratchpad `a4f11230-.../scratchpad/ragappintents_telemetry.patch`; 3 rules wait on it), `WorkspaceSyncService.swift` (`sync.conflictCopies`, `sync.fileFromICloud`, `sync.threads`, `sync.vectorStoreSkipped`, `sync.orphanFileDeleted`), `BNNSVectorDatabase.swift` (`vectorStore.save/load`) |
+| Mac crash, new row `40e49a74d54f81099f05c28eb6c091f1` | `BNNSVectorDatabase.writeMetadataFile` traps (`Data` subscript) when a passage's place runs past the mapped metadata, during a self-healing rebuild with an import into the same library (crash report `~/Library/Logs/DiagnosticReports/OpenIntelligence-2026-11-03-222028.ips`). One-line guard proposed in the row; needs him to name `BNNSVectorDatabase.swift`. Why the records and the file disagree is not established |
 | Lost files | MoreMacintoshToolbox.pdf (Library 3), a Library 2 PDF and AAMI-ST79-2017-COMPLETA-ESPANOL.pdf (library deleted) are saved in `~/Downloads/OpenIntelligence recovered 2026-11-03` for him to re-import |
 
 ## Active Constraints
@@ -47,14 +49,17 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Verification (output read)
 
-- Tree of `97c1cb93`: `xcodebuild test-without-building` on the iOS 27 Simulator -> 1,456 tests, 8 skipped, 0 failures
-  (555 s); Mac `xcodebuild build` -> BUILD SUCCEEDED; iPhone build installed (5.8 build 150).
-- `RebuildKeepsDocumentIdTests` 2 of 2 twice (same id, no deletion, passages back; all five documents restored at the
-  Free plan's limit, both through the full re-import path); `AppServicesTests` 1 of 1; `ObservedChangeThrottleTests` 3 of 3.
-- `python3 scripts/phone_evidence.py --since 2026-11-03T18:30` -> 6 PASS, 0 FAIL, 28 NOT SEEN (no questions were asked
-  on either device that day, so every answer, Siri, Shortcuts and PCC row is unseen).
-- The macOS unit-test target does not build ("Unable to resolve module dependency: 'OpenIntelligence'"), so no unit
-  test has run on the Mac.
+- Tree of `3d7820d6` (less one RUNBOOK sentence): iOS 27 Simulator `test-without-building` -> 1,461 tests, 8 skipped,
+  0 failures (517 s; the first launch hung before connecting, the second ran); Mac Debug build -> BUILD SUCCEEDED;
+  Release iOS Simulator build -> BUILD SUCCEEDED; `python3 scripts/test_phone_evidence.py` -> 16 tests OK; device
+  install -> "App installed".
+- `python3 scripts/phone_evidence.py --dir <empty dir>` -> 96 rules, all NOT SEEN (the rules parse).
+- macOS unit tests: build with `SDKROOT=macosx` (RUNBOOK `## Test`). `SpeechTranscriptionTests` passed on the Mac
+  (2 tests, 1 skipped for Speech Recognition permission). **The whole Mac suite must not be run**: on 2026-11-03 it ran
+  hosted in his real Mac container, imported and removed ~40 test notes in Library 6, ran answer-mode, active-library
+  and create-library actions on his settings, and crashed once (above). Nothing of his was deleted (every removed name
+  was a test name; Library 6 holds 7,573 passages with matching vectors and norms). Left behind in Library 6:
+  `enrichment-undo-A7A97B1B.txt` and `Shortcuts test DCB0EB71.txt`, which iCloud will carry to the iPhone.
 
 ## Blockers / Unknowns
 
@@ -68,7 +73,10 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Exact Next Action
 
-When he is back: ask him to copy the Mac build to `/Applications`, then use the iPhone normally for a while (questions in
-Standard, Deep Think and Maximum; one Siri and one Shortcuts request; a share), then run
-`python3 scripts/phone_evidence.py --since <that morning>` and close every PASS row in Notion with its proof lines. After
-that, his stated next work is putting more behind the paywall (auto memory `more-behind-the-paywall-is-next.md`).
+When he is back: tell him the two test notes to delete in Library 6 and ask him to name `BNNSVectorDatabase.swift`
+for the crash guard (row `40e49a74d54f81099f05c28eb6c091f1`) and, if he wants their events, `RAGAppIntents.swift` and
+`WorkspaceSyncService.swift`. After a day of normal iPhone use (questions in Standard, Deep Think and Maximum; one Siri
+and one Shortcuts request; a share), run `python3 scripts/phone_evidence.py --since <the morning, local time>` and close
+every PASS row in Notion with its proof lines; for Mac rows, after he copies the Mac build to `/Applications`, run it
+with `--mac`. After that, his stated next work is putting more behind the paywall (auto memory
+`more-behind-the-paywall-is-next.md`).
