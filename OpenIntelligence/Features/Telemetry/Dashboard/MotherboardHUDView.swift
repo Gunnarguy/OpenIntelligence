@@ -764,8 +764,105 @@ private struct SiliconLegend: View {
             : "\(megabytes)M"
     }
 
+    /// On iPhone the legend is three lines, not six (5.8): the owner found the full one covering the top of
+    /// the screen ("I love it ... just smaller", 2026-11-04). iPad and Mac keep the full legend.
+    private static var usesCompactLayout: Bool {
+        #if canImport(UIKit) && !targetEnvironment(macCatalyst)
+            return UIDevice.current.userInterfaceIdiom == .phone
+        #else
+            return false
+        #endif
+    }
+
+    /// One cell of the compact legend: a component's dot, name and reading.
+    private struct CompactCell: Identifiable {
+        let id: String
+        let name: String
+        let color: String
+        let isActive: Bool
+        let reading: String
+    }
+
+    private var compactCells: [CompactCell] {
+        var cells = activities.filter { $0.percentage >= 0 }.map { activity in
+            CompactCell(
+                id: activity.name, name: activity.name, color: activity.color, isActive: activity.isActive,
+                // Int(Double) traps on a non-finite value; see the full legend's percentage text.
+                reading: "\(Int(activity.percentage.isFinite ? activity.percentage : 0))%")
+        }
+        if let taptic = activities.first(where: { $0.name == "Taptic" }) {
+            cells.removeAll { $0.id == taptic.name }
+            cells.append(
+                CompactCell(
+                    id: "Taptic", name: "Tap", color: taptic.color, isActive: taptic.isActive,
+                    reading: "\u{00D7}\(taptic.opsCount)"))
+        }
+        return cells
+    }
+
+    @ViewBuilder
+    private func compactCell(_ cell: CompactCell) -> some View {
+        HStack(spacing: 2 * scale) {
+            Circle()
+                .fill(componentColor(cell.color).opacity(cell.isActive ? 1 : 0.4))
+                .frame(width: 4 * scale, height: 4 * scale)
+            Text(cell.name)
+                .font(.system(size: 8 * scale, weight: .semibold, design: .monospaced))
+                .foregroundStyle(componentColor(cell.color))
+            Text(cell.reading)
+                .font(.system(size: 8 * scale, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white)
+                .frame(minWidth: 22 * scale, alignment: .trailing)
+        }
+    }
+
+    /// The compact legend: the chip with free memory beside it, then the components two to a line.
+    @ViewBuilder
+    private var compactContent: some View {
+        HStack(spacing: 3 * scale) {
+            Image(systemName: "cpu")
+                .font(.system(size: 9 * scale, weight: .medium))
+                .opacity(0.7 + 0.3 * min(1.0, max(0.0, intensity)))
+            Text(chipName)
+                .font(.system(size: 9 * scale, weight: .semibold, design: .monospaced))
+            Spacer(minLength: 4 * scale)
+            Image(systemName: "memorychip")
+                .font(.system(size: 6 * scale, weight: .semibold))
+                .foregroundStyle(.green)
+            Text(availableRAMText)
+                .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+        }
+        .foregroundStyle(.white)
+
+        if !activities.isEmpty {
+            let cells = compactCells
+            Grid(alignment: .leading, horizontalSpacing: 6 * scale, verticalSpacing: 1 * scale) {
+                ForEach(Array(stride(from: 0, to: cells.count, by: 2)), id: \.self) { index in
+                    GridRow {
+                        compactCell(cells[index])
+                        if index + 1 < cells.count {
+                            compactCell(cells[index + 1])
+                        }
+                    }
+                }
+            }
+        } else if !metricsSummary.isEmpty {
+            Text(metricsSummary)
+                .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+        } else {
+            Text("idle")
+                .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.8))
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 2 * scale) {
+        VStack(alignment: .leading, spacing: (Self.usesCompactLayout ? 1 : 2) * scale) {
+          if Self.usesCompactLayout {
+            compactContent
+          } else {
             // Chip header - compact single line (Silicon HUD keeps capped @ScaledMetric fixed sizes)
             HStack(spacing: 3 * scale) {
                 Image(systemName: "cpu")
@@ -883,6 +980,7 @@ private struct SiliconLegend: View {
                     .font(.system(size: 8 * scale, weight: .regular, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.8))
             }
+          }
         }
         .padding(.horizontal, 6 * scale)
         .padding(.vertical, 4 * scale)

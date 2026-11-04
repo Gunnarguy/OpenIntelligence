@@ -19,6 +19,8 @@ This one's about making the app easier to start with and easier to trust. Every 
 ### Answers
 
 - **A long answer keeps going when you come back to it.** If iOS ended an answer's background time just as you returned to the app, the answer stopped there and was kept as a partial one. Now it keeps running while the app is in front, and the Deep Think icon at the top of the screen goes away as soon as an answer stops. If the app is in the background when iOS stops it, the notification says it didn't finish (with notifications on).
+- **A smaller Silicon HUD on iPhone.** The hardware overlay at the top of the screen is three lines instead of six on iPhone: the chip and free memory, then each part of the chip with its live reading. iPad and Mac keep the full one.
+- **Settings opens on the first tap.** Rows like How This Works and Plain English could take several taps to open. They open on one now.
 - **Taps no longer get lost after iCloud catches up.** Each time iCloud brought changes in, the app re-read your libraries in a way that froze the screen for up to several seconds, so a tap in Settings or Chat could do nothing. That reading now happens in the background.
 - **Every citation shows its passage in the document.** Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check.
 - **Illustrate under an answer, and source chips that open.** Illustrate now appears with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage in its document.
@@ -37,6 +39,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 
 ### Plans
 
+- **The plans screen shows the plan you have.** If your Lifetime came from a purchase before 5.5, the plans screen said Free and offered you plans you already had, while Plan & Usage said Lifetime. It says Lifetime now.
 - **The plans screen says what each plan adds.** "Why upgrade now?" is "What you get" now, with what paying actually changes.
 
 ### Ratings

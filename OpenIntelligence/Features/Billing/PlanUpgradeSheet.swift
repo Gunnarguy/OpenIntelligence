@@ -153,7 +153,7 @@ struct PlanUpgradeSheet: View {
                 "Paywall viewed",
                 metadata: [
                     "entryPoint": entryPoint.analyticsValue,
-                    "currentTier": entitlementStore.activeTier.rawValue,
+                    "currentTier": entitlementStore.effectiveTier.rawValue,
                 ]
             )
         }
@@ -182,7 +182,9 @@ extension PlanUpgradeSheet {
                 .font(.body)
                 .foregroundStyle(DSColors.secondaryText)
             HStack {
-                Label("Current plan: \(entitlementStore.activeTier.displayName)", systemImage: "creditcard")
+                // The tier the person has, with a purchase from before 5.5 counted (5.8): `activeTier` is only what the store
+                // sells now, and the sheet said "Free" to the owner, whose Plan & Usage said Lifetime (2026-11-04).
+                Label("Current plan: \(entitlementStore.effectiveTier.displayName)", systemImage: "creditcard")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, DSSpacing.xs)
@@ -289,7 +291,7 @@ extension PlanUpgradeSheet {
             saleOffer: saleOffer(for: option.product),
             dealBadge: dealBadge(for: option.product),
             comparisons: comparisons(for: option.product),
-            hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
+            hasAccess: entitlementStore.effectiveTier.isAtLeast(option.tier),
             // "canPurchase" here means StoreKit metadata has been loaded.
             // We still allow tapping the CTA while loading; the tap will refresh and retry.
             canPurchase: canPurchase(option.product),

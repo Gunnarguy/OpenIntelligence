@@ -353,14 +353,16 @@ struct SettingsView: View {
                                     destination(for: entry)
                                         .navigationTitle(entry.title)
                                         .navigationBarTitleDisplayMode(.inline)
+                                        // The tour's step is used when its page opens (5.8). It was a tap gesture on
+                                        // the link, and with it the rows opened only now and then on the owner's
+                                        // iPhone however often he tapped (2026-11-04).
+                                        .onAppear { Self.tourStep(for: entry.id).map(Tour.used) }
                                 } label: {
                                     settingsRow(entry)
                                         .tour(
                                             Self.tourStep(for: entry.id) ?? .howItWorks, in: Tour.settings,
                                             when: Self.tourStep(for: entry.id) != nil)
                                 }
-                                .simultaneousGesture(
-                                    TapGesture().onEnded { Self.tourStep(for: entry.id).map(Tour.used) })
                             }
                         }
                     } header: {
