@@ -879,6 +879,33 @@ public nonisolated enum AtlasLabeling {
 
     // MARK: - A Map's Axis Labels
 
+    /// "Lease 2" → "Lease": a name with the number `clusterNames` adds to tell repeats apart taken off.
+    static func withoutTrailingNumber(_ name: String) -> String {
+        guard let space = name.lastIndex(of: " ") else { return name }
+        let tail = name[name.index(after: space)...]
+        return !tail.isEmpty && tail.allSatisfy(\.isNumber) ? String(name[..<space]) : name
+    }
+
+    /// What a drawn Atlas was labelled with, in counts (5.8 journal, `atlas.labels`): whether every cluster has a
+    /// name of its own and how many of the six axis ends carry a real label. Never the names themselves, which come
+    /// from file names and headings. `clusterNames` makes repeats unique with " 2", " 3", so the names are compared
+    /// without a trailing number: two clusters both named from one document read as not distinct.
+    static func recordLabels(
+        view: String, scope: String, library: UUID, passages: Int, clusterNames: [String], axisEnds: [String]
+    ) {
+        guard VerificationJournal.isEnabled else { return }
+        let labelled = axisEnds.filter { end in
+            let trimmed = end.trimmingCharacters(in: .whitespaces)
+            return !trimmed.isEmpty && !trimmed.hasPrefix("Component ")
+        }.count
+        VerificationJournal.record(
+            "atlas.labels",
+            ["view": view, "scope": scope, "library": VerificationJournal.anon(library), "passages": "\(passages)",
+                "clusters": "\(clusterNames.count)",
+                "distinctClusters": "\(Set(clusterNames.map(withoutTrailingNumber)).count == clusterNames.count)",
+                "labelledEnds": "\(labelled)"])
+    }
+
     /// The six axis-end labels of a three-dimensional map, in the order x low, x high, y low, y high, z low and z
     /// high (5.7). An end is named by `sources` where the library's structure sets it apart (`sourceName`): the
     /// document, or library, most of its passages come from, else the section heading most of them share. Otherwise it

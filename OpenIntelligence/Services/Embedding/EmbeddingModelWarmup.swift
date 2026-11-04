@@ -71,6 +71,7 @@ nonisolated enum EmbeddingModelWarmup {
                 try FileManager.default.createSymbolicLink(at: link, withDestinationURL: source)
                 if try AIModelCache.default.model(for: link, options: .default) != nil {
                     Log.debug("[EmbeddingWarmup] The embedding model is already prepared", category: .embedding)
+                    VerificationJournal.record("embedding.warmup", .ok, ["result": "alreadyPrepared"])
                     return
                 }
                 let started = Date()
@@ -79,9 +80,13 @@ nonisolated enum EmbeddingModelWarmup {
                     "[EmbeddingWarmup] Prepared the embedding model for this device in "
                         + "\(String(format: "%.2f", Date().timeIntervalSince(started)))s",
                     category: .embedding)
+                VerificationJournal.record(
+                    "embedding.warmup", .ok, durationMs: Date().timeIntervalSince(started) * 1000,
+                    ["result": "prepared"])
             } catch {
                 // The provider's own load is unaffected and reports its own failure.
                 Log.warning("[EmbeddingWarmup] Not prepared: \(error.localizedDescription)", category: .embedding)
+                VerificationJournal.record("embedding.warmup", .failed, ["error": String(describing: type(of: error))])
             }
         }
 

@@ -290,6 +290,19 @@ enum Tour {
         VerificationJournal.record("tour.showAgain")
     }
 
+    private static var shownThisLaunch: Set<TourStep> = []
+
+    /// A tip was put on its control (5.8 journal): once per tip per launch, with its screen and its place in that
+    /// screen's stops. `tip.status` "available" is TipKit's eligibility, not this.
+    static func noteShown(_ step: TourStep) {
+        guard VerificationJournal.isEnabled, shownThisLaunch.insert(step).inserted else { return }
+        let screen = screens.first { $0.steps.contains(step) }
+        VerificationJournal.record(
+            "tip.shown",
+            ["tip": step.rawValue, "screen": screen?.name ?? "none",
+                "rank": "\(screen?.steps.firstIndex(of: step) ?? -1)"])
+    }
+
     /// Writes each tip's changes to the development build's event log: available, then used or closed (5.8), so a
     /// pull from a device shows where people stop.
     static func recordStatusChanges() {
@@ -342,5 +355,10 @@ private struct TourTipModifier: ViewModifier {
         content
             .popoverTip(showing, arrowEdge: arrow)
             .tipBackgroundInteraction(.enabled)
+        #if DEBUG
+            .onChange(of: showing?.id, initial: true) { _, id in
+                if id != nil { Tour.noteShown(step) }
+            }
+        #endif
     }
 }

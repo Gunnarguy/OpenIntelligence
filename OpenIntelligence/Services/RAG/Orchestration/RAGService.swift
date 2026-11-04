@@ -1564,8 +1564,13 @@ class RAGService: ObservableObject {
 
     nonisolated private static func isAutomaticSelfHealingItem(_ item: IngestionItem) -> Bool {
         guard item.metrics.isRebuild else { return false }
-        let reason = item.metrics.rebuildReason
-        return reason.localizedCaseInsensitiveContains("self-healing")
+        return isAutomaticSelfHealingReason(item.metrics.rebuildReason)
+    }
+
+    /// Whether a rebuild's reason is the app's own repair rather than the person's Rebuild (also the journal's
+    /// `rebuild.start` `selfHealing`, 5.8).
+    nonisolated private static func isAutomaticSelfHealingReason(_ reason: String) -> Bool {
+        reason.localizedCaseInsensitiveContains("self-healing")
             || reason.localizedCaseInsensitiveContains("empty vector store")
     }
 
@@ -2295,6 +2300,17 @@ class RAGService: ObservableObject {
 
     // MARK: - Initialization
 
+    /// Engines alive in this process, for the development journal's `engines` field (5.8): the app's own, plus any an
+    /// action builds for one question. Two windows on the Mac used to make one each (row "Every Mac window runs its
+    /// own engine and sync").
+    nonisolated static var liveEngineCount: Int { engineCountLock.withLock { engineCountValue } }
+    nonisolated private static let engineCountLock = NSLock()
+    nonisolated(unsafe) private static var engineCountValue = 0
+
+    deinit {
+        RAGService.engineCountLock.withLock { RAGService.engineCountValue -= 1 }
+    }
+
     init(
         documentProcessor: DocumentProcessor? = nil,
         embeddingService: EmbeddingService? = nil,
@@ -2304,6 +2320,7 @@ class RAGService: ObservableObject {
         vectorRouter: VectorStoreRouter? = nil,
         entitlementStore: EntitlementStore? = nil
     ) {
+        RAGService.engineCountLock.withLock { RAGService.engineCountValue += 1 }
         self.documentProcessor = documentProcessor ?? DocumentProcessor()
 
         // Initialize document summary service for RAPTOR-lite
@@ -2743,6 +2760,8 @@ class RAGService: ObservableObject {
         pendingConsentContinuation = nil
         pendingCloudConsent = nil
         consentRequestWentUnseen = true
+        VerificationJournal.record(
+            "consent.refused", ["reason": "unseen", "relay": "\(asksThroughRelay)", "background": "\(Self.appIsInBackground)"])
         CloudConsentRelay.shared.withdraw(id)
         continuation?.resume(returning: .deny)
     }
@@ -4537,6 +4556,11 @@ class RAGService: ObservableObject {
                     "model": record.modelName,
                 ]
             )
+            if VerificationJournal.isEnabled {
+                let (relay, background) = await MainActor.run { (self.asksThroughRelay, Self.appIsInBackground) }
+                VerificationJournal.record(
+                    "consent.refused", ["reason": "remembered", "relay": "\(relay)", "background": "\(background)"])
+            }
             throw RAGServiceError.cloudConsentDenied(provider: provider)
         case .notDetermined:
             break
@@ -4558,7 +4582,10 @@ class RAGService: ObservableObject {
                 do {
                     try await bringForward()
                     isForegroundInteractive = true
+                    VerificationJournal.record("consent.broughtForward", .ok)
                 } catch {
+                    VerificationJournal.record(
+                        "consent.broughtForward", .failed, ["error": String(describing: type(of: error))])
                     Log.info(
                         "[Consent] The app could not come forward to ask: \(error.localizedDescription)",
                         category: .pipeline)
@@ -4586,7 +4613,10 @@ class RAGService: ObservableObject {
                 do {
                     try await bringForward()
                     inFront = true
+                    VerificationJournal.record("consent.broughtForward", .ok)
                 } catch {
+                    VerificationJournal.record(
+                        "consent.broughtForward", .failed, ["error": String(describing: type(of: error))])
                     Log.info(
                         "[Consent] The app could not come forward to ask: \(error.localizedDescription)",
                         category: .pipeline)
@@ -4681,6 +4711,10 @@ class RAGService: ObservableObject {
 
     @MainActor
     private func recordTransmission(_ record: CloudTransmissionRecord, grant: String) async {
+        VerificationJournal.record(
+            "consent.authorized",
+            ["grant": grant, "contextChars": "\(record.contextCharacterCount)", "chunks": "\(record.contextChunkCount)",
+                "relay": "\(asksThroughRelay)", "background": "\(Self.appIsInBackground)"])
         pendingCloudConsent = nil
         lastCloudTransmission = record
         TelemetryCenter.emit(
@@ -5965,7 +5999,12 @@ class RAGService: ObservableObject {
                     )
                     await MainActor.run {
                         let hasDocs = !self.documentsForContainer(container.id).isEmpty
-                        if hasDocs { self.librariesNeedingIndexRebuild.insert(container.id) }
+                        if hasDocs {
+                            self.librariesNeedingIndexRebuild.insert(container.id)
+                            VerificationJournal.record(
+                                "index.rebuildRequested",
+                                ["library": VerificationJournal.anon(container.id), "reason": "fingerprintChanged"])
+                        }
                         var updated = container
                         updated.embeddingFingerprint = liveFingerprint
                         self.containerService.updateContainer(updated)
@@ -6008,6 +6047,9 @@ class RAGService: ObservableObject {
                             category: .embedding
                         )
                         self.librariesNeedingIndexRebuild.insert(container.id)
+                        VerificationJournal.record(
+                            "index.rebuildRequested",
+                            ["library": VerificationJournal.anon(container.id), "reason": "noFingerprint"])
                     }
                     var updated = container
                     updated.embeddingFingerprint = liveFingerprint
@@ -6092,6 +6134,9 @@ class RAGService: ObservableObject {
 
         do {
             let result = try await TranslationService.shared.translate(trimmed, to: targetLanguage)
+            VerificationJournal.record(
+                "translation.question", .ok,
+                ["translated": "\(result.isTranslated)", "target": targetLanguage.languageCode?.identifier ?? "?"])
             if result.isTranslated {
                 let targetCode = targetLanguage.languageCode?.identifier ?? "?"
                 Log.info(
@@ -6099,6 +6144,9 @@ class RAGService: ObservableObject {
             }
             return (result.translatedText, result.isTranslated)
         } catch {
+            VerificationJournal.record(
+                "translation.question", .failed,
+                ["error": String(describing: type(of: error)), "target": targetLanguage.languageCode?.identifier ?? "?"])
             Log.warning("[Translation] Query translation failed, using original query: \(error)", category: .retrieval)
             return (trimmed, false)
         }
@@ -6229,7 +6277,10 @@ class RAGService: ObservableObject {
         VerificationJournal.record(
             "import.enqueue",
             ["count": "\(urls.count)", "context": "\(context)", "library": VerificationJournal.anon(activeContainerId),
-                "types": Set(urls.map { $0.pathExtension.lowercased() }).sorted().joined(separator: ",")])
+                "types": Set(urls.map { $0.pathExtension.lowercased() }).sorted().joined(separator: ","),
+                "guide": "\(containerService.isGuideLibrary(activeContainerId))",
+                "counted": "\(countedDocumentCount)", "ownLibraries": "\(containerService.countedLibraryCount)",
+                "voiceOver": "\(VerificationJournal.voiceOverOn)"])
         if context == .userInitiated {
             clearSelfHealingSuppression(for: activeContainerId)
         }
@@ -6790,9 +6841,14 @@ class RAGService: ObservableObject {
                 "import.stage",
                 stage == .failed ? .failed : stage == .cancelled ? .cancelled : stage == .complete ? .ok : .info,
                 durationMs: ingestionItems[index].startedAt.map { Date().timeIntervalSince($0) * 1000 },
-                ["item": VerificationJournal.anon(id), "from": oldStage.rawValue, "to": stage.rawValue,
-                    "type": ingestionItems[index].url.pathExtension.lowercased(),
-                    "background": "\(Self.appIsInBackground)"])
+                Self.importStageFields(
+                    ["item": VerificationJournal.anon(id), "from": oldStage.rawValue, "to": stage.rawValue,
+                        "type": ingestionItems[index].url.pathExtension.lowercased(),
+                        "background": "\(Self.appIsInBackground)",
+                        "rebuild": "\(ingestionItems[index].metrics.isRebuild)"],
+                    url: ingestionItems[index].url,
+                    othersInLibrary: stage == .complete
+                        ? documentsForContainer(ingestionItems[index].containerId ?? containerService.activeContainerId).count : nil))
         }
 
         var item = ingestionItems[index]
@@ -7443,6 +7499,18 @@ class RAGService: ObservableObject {
                 containerId: activeContainerId,  // FTS5 storage with container isolation
                 documentId: reusedDocumentId
             )
+            // How long the main thread went unanswered while the document was read and cut into passages (5.8), from
+            // the development build's watchdog: row "Import still runs whole-document passes on the main thread".
+            if VerificationJournal.isEnabled, MainThreadWatchdog.shared.isRunning {
+                let lagMs = MainThreadWatchdog.shared.longestStall(since: extractionStartTime)
+                VerificationJournal.record(
+                    "import.mainThreadLag", .ok,
+                    durationMs: Date().timeIntervalSince(extractionStartTime) * 1000,
+                    ["type": managedURL.pathExtension.lowercased(),
+                        "bytes": "\(VerificationJournal.fileBytes(managedURL))",
+                        "maxLagMs": "\(Int(lagMs))", "responsive": "\(lagMs < MainThreadWatchdog.stallThresholdMs)",
+                        "chunks": "\(processedChunks.count)"])
+            }
             try Task.checkCancellation()
             let extractionTime = Date().timeIntervalSince(extractionStartTime)
             // The document's own counts, of its text as it was read (5.7). Summing the passages counted
@@ -8333,6 +8401,10 @@ class RAGService: ObservableObject {
                 appIsInBackground: inBackground, otherFilesQueued: filesWaiting, isOnboarding: context == .onboarding)
             {
                 Self.deferEnrichment(of: updatedDocument.id, in: activeContainerId)
+                VerificationJournal.record(
+                    "import.enrichmentDeferred",
+                    ["document": VerificationJournal.anon(updatedDocument.id),
+                        "reason": inBackground ? "background" : "queue", "context": "\(context)"])
                 Log.info(
                     inBackground
                         ? "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the app is in front"
@@ -8753,11 +8825,17 @@ class RAGService: ObservableObject {
                 Log.info(
                     "[RAGService] Adding the overview, tags and suggested questions that waited for '\(document.filename)'",
                     category: .ingestion)
-                VerificationJournal.record("import.deferredEnrichment", ["document": VerificationJournal.anon(document.id)])
+                let enrichmentStarted = Date()
+                VerificationJournal.record(
+                    "import.deferredEnrichment", .started, ["document": VerificationJournal.anon(document.id)])
                 await enrichImportedDocument(
                     document, chunks: chunks, container: container, embeddingService: service, db: db,
                     context: .userInitiated, trackingId: nil, containerId: item.library)
                 Self.finishDeferredEnrichment(of: document.id)
+                VerificationJournal.record(
+                    "import.deferredEnrichment", .ok, durationMs: Date().timeIntervalSince(enrichmentStarted) * 1000,
+                    ["document": VerificationJournal.anon(document.id),
+                        "tags": "\(documents.first { $0.id == document.id }?.contentTags?.count ?? 0)"])
             }
         }
     }
@@ -8941,6 +9019,10 @@ class RAGService: ObservableObject {
         }
 
         if indexedChunkCount == 0 {
+            VerificationJournal.record(
+                "index.health", .failed,
+                ["library": VerificationJournal.anon(containerId), "result": "emptyStore",
+                    "documents": "\(documentCount)", "passages": "0"])
             if !librariesNeedingIndexRebuild.contains(containerId) {
                 Log.warning(
                     "[RAGService] Library \(containerId) holds \(documentCount) document(s) but its vector store has 0 chunks. Semantic retrieval cannot work here; repairing.",
@@ -9000,6 +9082,10 @@ class RAGService: ObservableObject {
                 "[RAGService] Library \(containerId): \(EmbeddingVectorCheck.unusableCount(sample)) of \(sample.count) "
                     + "sampled vectors are empty, so it can't be searched by meaning; re-embedding it.",
                 category: .ingestion)
+            VerificationJournal.record(
+                "index.health", .failed,
+                ["library": VerificationJournal.anon(containerId), "result": "emptyVectors",
+                    "passages": "\(passageCount)"])
             librariesNeedingIndexRebuild.insert(containerId)
             let key = "vectors:\(containerId.uuidString)"
             if !indexRepairsTriedThisLaunch.contains(key) {
@@ -9027,6 +9113,10 @@ class RAGService: ObservableObject {
             blockingURLs: Self.blockingIngestionURLs(in: ingestionItems),
             fallbackContainerId: containerService.containers.first?.id)
         let missing = Self.documentsMissingPassages(eligible, passagesByDocument: passagesByDocument)
+        VerificationJournal.record(
+            "index.health", missing.isEmpty ? .ok : .failed,
+            ["library": VerificationJournal.anon(containerId), "result": missing.isEmpty ? "healthy" : "missingPassages",
+                "documents": "\(eligible.count)", "passages": "\(passageCount)", "missing": "\(missing.count)"])
         guard !missing.isEmpty else {
             librariesNeedingIndexRebuild.remove(containerId)
             return
@@ -9253,6 +9343,9 @@ class RAGService: ObservableObject {
                         "[RAGService] Self-healing rebuild stopped by user for container \(containerId)",
                         category: .ingestion
                     )
+                    VerificationJournal.record(
+                        "rebuild.selfHeal", .cancelled,
+                        ["library": VerificationJournal.anon(containerId), "result": "stoppedByUser"])
                 } else {
                     Log.info(
                         "[RAGService] Self-healing rebuild completed successfully for container \(containerId)",
@@ -9262,6 +9355,9 @@ class RAGService: ObservableObject {
                     await MainActor.run {
                         self.librariesNeedingIndexRebuild.remove(containerId)
                     }
+                    VerificationJournal.record(
+                        "rebuild.selfHeal", .ok,
+                        ["library": VerificationJournal.anon(containerId), "result": "rebuilt"])
                 }
             } catch is CancellationError {
                 Log.info(
@@ -9276,6 +9372,10 @@ class RAGService: ObservableObject {
                     await MainActor.run {
                         self.librariesNeedingIndexRebuild.insert(containerId)
                     }
+                    VerificationJournal.record(
+                        "rebuild.selfHeal", .failed,
+                        ["library": VerificationJournal.anon(containerId), "result": "blockedByQueue",
+                            "blocked": "\(blocked)"])
                     Log.warning(
                         "[RAGService] Self-healing rebuild for container \(containerId) was vetoed by the "
                             + "ingestion queue with \(blocked) document(s) present; surfacing a manual rebuild.",
@@ -9363,6 +9463,9 @@ class RAGService: ObservableObject {
                         Log.info(
                             "[RAGService] Wiping orphaned vector database chunks for document \(docID) in container \(container.id)",
                             category: .ingestion)
+                        VerificationJournal.record(
+                            "sync.orphanWipe",
+                            ["library": VerificationJournal.anon(container.id), "document": VerificationJournal.anon(docID)])
                         try? await database.deleteChunks(forDocument: docID)
                     }
                 }
@@ -9455,6 +9558,29 @@ class RAGService: ObservableObject {
         // Keep prefix concise - embeddings have limited context windows
         // Format: "[Document: Filename]" - simple but effective
         return "[\(baseName)]"
+    }
+
+    /// The fields `import.stage` writes (5.8), with the file's size, the process's memory footprint and, at the end
+    /// of an import, how many documents the library already held. Sizes and counts only.
+    nonisolated static func importStageFields(_ base: [String: String], url: URL, othersInLibrary: Int?) -> [String: String] {
+        var fields = base
+        guard VerificationJournal.isEnabled else { return fields }
+        fields["bytes"] = "\(VerificationJournal.fileBytes(url))"
+        fields["footprintMB"] = "\(VerificationJournal.footprintMB())"
+        if let othersInLibrary { fields["othersInLibrary"] = "\(othersInLibrary)" }
+        return fields
+    }
+
+    /// How many excerpt bullets still carry Markdown after tidying (5.8 journal): `**`, `__`, a backtick or a line that
+    /// starts with `#`, past the bullet's own bold section label.
+    nonisolated static func excerptMarkupCount(_ bullets: [String]) -> Int {
+        bullets.filter { bullet in
+            var body = Substring(bullet)
+            if body.hasPrefix("• ") { body = body.dropFirst(2) }
+            if body.hasPrefix("**"), let end = body.dropFirst(2).range(of: "**: ") { body = body[end.upperBound...] }
+            if body.contains("**") || body.contains("__") || body.contains("`") { return true }
+            return body.split(separator: "\n").contains { $0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
+        }.count
     }
 
     /// Clear deletion tombstones for documents the user is deliberately importing.
@@ -10012,6 +10138,10 @@ class RAGService: ObservableObject {
             }
         }
 
+        VerificationJournal.record(
+            "rebuild.start", .started,
+            ["library": VerificationJournal.anon(targetContainerId), "documents": "\(documentsToRebuild.count)",
+                "selfHealing": "\(Self.isAutomaticSelfHealingReason(reason ?? ""))", "engines": "\(Self.liveEngineCount)"])
         // VISIBLE LOGGING: Make rebuild starts obvious in console
         Log.warning(
             "🔄 [Reembed] STARTING FULL REBUILD of \(documentsToRebuild.count) documents in container \(targetContainerId)\n"
@@ -11839,6 +11969,9 @@ class RAGService: ObservableObject {
             // next Deep Think or Maximum question was sent without the sheet. One question still
             // makes several model calls under one grant: this runs once, before the first of them.
             await MainActor.run {
+                VerificationJournal.record(
+                    "consent.grantCleared",
+                    ["mode": "\(qualityMode.canonical)", "had": "\(!self.transientConsentGrants.isEmpty)"])
                 self.transientConsentGrants.removeAll()
             }
             return try await executeAgenticQuery(
@@ -14873,6 +15006,13 @@ class RAGService: ObservableObject {
                         }
                         contextCandidates = packedCandidates
 
+                        VerificationJournal.record(
+                            "retrieval.graphPack",
+                            ["tokens": "\(packedContext.estimatedTokens)", "budget": "\(graphTokenBudget)",
+                                "window": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))",
+                                "withinBudget": "\(packedContext.estimatedTokens <= graphTokenBudget)",
+                                "truncated": "\(packedContext.wasTruncated)", "core": "\(packedContext.coreChunkCount)",
+                                "context": "\(packedContext.contextChunkCount)"])
                         Log.info(
                             "[GraphPack] \(packedContext.coreChunkCount) core + \(packedContext.contextChunkCount) context chunks (\(packedContext.estimatedTokens) tokens) in \(String(format: "%.0f", graphPackingTime * 1000))ms\(packedContext.wasTruncated ? " [truncated]" : "")",
                             category: .retrieval
@@ -17846,6 +17986,11 @@ class RAGService: ObservableObject {
         } else {
             let closing = AppleIntelligenceCopy.excerptClosing(
                 for: capabilities.foundationModelUnavailability, isAvailable: capabilities.supportsFoundationModels)
+            VerificationJournal.record(
+                "answer.excerpts",
+                ["modelAvailable": "\(capabilities.supportsFoundationModels)",
+                    "reason": capabilities.foundationModelUnavailability.map { "\($0)" } ?? "none",
+                    "bullets": "\(snippetBullets.count)", "markup": "\(Self.excerptMarkupCount(snippetBullets))"])
             responseText = """
                 Here are the most relevant excerpts from your documents:
 
@@ -19261,6 +19406,11 @@ class RAGService: ObservableObject {
             // holding those four letters.
             let primaryFailureKind = ModelErrorClassifier.kind(of: primaryError)
             let isRateLimited = primaryFailureKind == .rateLimited || primaryFailureKind == .transient
+            VerificationJournal.record(
+                "model.failure",
+                ["kind": "\(primaryFailureKind)", "mode": "standard",
+                    "action": primaryFailureKind == .rateLimited
+                        ? "backoffLadder" : primaryFailureKind == .transient ? "retrySamePrompt" : "fallback"])
             if isRateLimited {
                 // Escalating backoff, because a flat one did not work.
                 //

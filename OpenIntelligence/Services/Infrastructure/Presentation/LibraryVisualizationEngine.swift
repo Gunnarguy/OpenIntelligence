@@ -416,6 +416,21 @@ final class LibraryVisualizationEngine: ObservableObject {
 
         analysisTask = Task {
             await MainActor.run { isAnalyzing = true }
+            // The Atlas's analysis, with the library's size and whether the app left the front while it ran (5.8
+            // journal): a crash shows as a start with no end and a new pid.
+            let journalFields: [String: String] =
+                VerificationJournal.isEnabled
+                ? [
+                    "library": VerificationJournal.anon(containerId), "mapped": "\(chunks.count)",
+                    "libraryPassages": "\(libraryPassageCount ?? chunks.count)",
+                ] : [:]
+            let analysisStarted = Date()
+            var entriesAtStart = 0
+            if VerificationJournal.isEnabled {
+                entriesAtStart = await MainActor.run { VerificationJournal.backgroundEntries }
+            }
+            let backgroundEntriesAtStart = entriesAtStart
+            VerificationJournal.record("atlas.analyze", .started, journalFields)
 
             // Build comprehensive profile
             let profile = await buildProfile(
@@ -426,7 +441,10 @@ final class LibraryVisualizationEngine: ObservableObject {
                 libraryPassageCount: libraryPassageCount
             )
 
-            if Task.isCancelled { return }
+            if Task.isCancelled {
+                VerificationJournal.record("atlas.analyze", .cancelled, journalFields)
+                return
+            }
 
             // Generate insights based on profile
             let generatedInsights = generateInsights(from: profile)
@@ -441,6 +459,10 @@ final class LibraryVisualizationEngine: ObservableObject {
                 self.profileCache[containerId] = profile
                 self.lastAnalyzed = Date()
                 self.isAnalyzing = false
+                VerificationJournal.record(
+                    "atlas.analyze", .ok, durationMs: Date().timeIntervalSince(analysisStarted) * 1000,
+                    journalFields.merging(
+                        ["leftFront": "\(VerificationJournal.backgroundEntries != backgroundEntriesAtStart)"]) { $1 })
             }
         }
     }

@@ -145,10 +145,19 @@ enum GlossaryTermID: String, CaseIterable, Identifiable, Sendable {
 // MARK: - Definitions
 
 extension GlossaryTermID {
+    fileprivate static var onDeviceWindowJournalled = false
+
     /// The window Apple's on-device model reports on this device (5.7). Through 5.6 the Glossary said 4,096 tokens
     /// for every device, the figure in Apple's documentation, while a Mac on macOS 27 reports 8,192 (measured
     /// 2026-10-05 on an M3 Pro, `SystemLanguageModel.default.contextSize`, and a longer prompt was refused).
     fileprivate static var onDeviceWindow: String {
+        if !onDeviceWindowJournalled {
+            // The figure the Glossary was given (5.8 journal), once per launch.
+            onDeviceWindowJournalled = true
+            VerificationJournal.record(
+                "glossary.contextWindow",
+                ["tokens": FoundationModelTokenBudget.reportedOnDeviceContextSize.map { "\($0)" } ?? "none"])
+        }
         if let size = FoundationModelTokenBudget.reportedOnDeviceContextSize {
             return "\(size.formatted(.number)) tokens on this device"
         }

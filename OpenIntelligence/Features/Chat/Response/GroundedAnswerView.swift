@@ -9,6 +9,9 @@ struct GroundedAnswerView: View {
     let answer: StructuredAnswer
     let retrievedChunks: [RetrievedChunk]
     let modeName: String?
+    /// When the answer was written, so the development journal can tell a label tapped in a conversation saved by an
+    /// earlier launch (5.8, `citation.tap`).
+    var answeredAt: Date? = nil
     
     @State private var expandedClaimIndex: Int? = nil
     @State private var selectedCitationChunk: RetrievedChunk? = nil
@@ -41,6 +44,17 @@ struct GroundedAnswerView: View {
             )
             .tour(.citation, in: Tour.chat, when: tourIsLatestAnswer && linkedAnswer.contains(CitationLinker.scheme + ":"))
             .environment(\.openURL, OpenURLAction { url in
+                if url.scheme == CitationLinker.scheme, VerificationJournal.isEnabled {
+                    // A label tapped (5.8 journal): its passage's number, or 0 when it opens nothing.
+                    let found = CitationLinker.chunk(for: url, in: retrievedChunks)
+                    let position = found.flatMap { hit in
+                        retrievedChunks.firstIndex { $0.chunk.id == hit.chunk.id }
+                    }.map { $0 + 1 } ?? 0
+                    VerificationJournal.record(
+                        "citation.tap", found == nil ? .failed : .ok,
+                        ["position": "\(position)", "passages": "\(retrievedChunks.count)",
+                            "earlierLaunch": "\(answeredAt.map { $0 < VerificationJournal.launchedAt } ?? false)"])
+                }
                 if let chunk = CitationLinker.chunk(for: url, in: retrievedChunks) {
                     Tour.used(.citation)
                     selectedCitationChunk = chunk

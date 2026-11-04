@@ -192,7 +192,23 @@ struct MessageActionsBar: View {
 
     private func copyToClipboard() {
         // An answer goes with what its labels point at (5.7, `AnswerShareFormatter.copyText`); a question as typed.
-        SystemClipboard.copy(AnswerShareFormatter.copyText(for: message))
+        SystemClipboard.copy(
+            AnswerShareFormatter.copyText(for: message), kind: message.role == .assistant ? "answer" : "question")
+        if message.role == .assistant, VerificationJournal.isEnabled {
+            // Which source labels the copy lists (5.8 journal): the highest number shows whether a saved
+            // conversation still has passages past [S12] after a relaunch.
+            let listed = AnswerShareFormatter.sources(
+                answer: message.content, evidence: message.structuredAnswer?.evidence ?? [],
+                retrievedChunks: message.retrievedChunks ?? [])
+            let highest = listed.compactMap { source in
+                source.label.flatMap { Int($0.filter(\.isNumber)) }
+            }.max() ?? 0
+            VerificationJournal.record(
+                "answer.copied",
+                ["listed": "\(listed.count)", "highestListed": "\(highest)",
+                    "passages": "\(message.retrievedChunks?.count ?? 0)",
+                    "earlierLaunch": "\(message.timestamp < VerificationJournal.launchedAt)"])
+        }
 
         copiedFeedback = true
         DSHaptics.success()

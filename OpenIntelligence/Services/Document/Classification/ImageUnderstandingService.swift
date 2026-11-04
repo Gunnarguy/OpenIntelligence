@@ -787,8 +787,12 @@ class ImageUnderstandingService {
                 Log.info(
                     "[ImageUnderstanding] Described from the image itself: \(description.prefix(100))...",
                     category: .ingestion)
+                VerificationJournal.record("import.figureDescribed", .ok, ["fromImage": "true"])
                 return description
             } catch {
+                VerificationJournal.record(
+                    "import.figureDescribed", .failed,
+                    ["fromImage": "true", "error": String(describing: type(of: error))])
                 Log.warning(
                     "[ImageUnderstanding] Describing from the image failed (\(error.localizedDescription)); "
                         + "using its labels and text",

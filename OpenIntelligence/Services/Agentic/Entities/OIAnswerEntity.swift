@@ -112,7 +112,16 @@ struct OIAnswerEntity: AppEntity {
 @available(iOS 16.0, macOS 13.0, *)
 extension OIAnswerEntity: Transferable {
     static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation(exporting: \.textWithSources)
+        ProxyRepresentation(exporting: { (answer: OIAnswerEntity) -> String in
+            let text = answer.textWithSources
+            // Handed to another app as text (5.8 journal): with its source lines, counts only.
+            VerificationJournal.record(
+                "transfer.export", .ok,
+                ["item": "answer", "form": "text",
+                    "sourceLines": "\(answer.sourceList.split(separator: "\n").count)",
+                    "passages": "\(answer.passages.count)", "bytes": "\(text.utf8.count)"])
+            return text
+        })
     }
 }
 

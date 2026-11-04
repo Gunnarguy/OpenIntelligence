@@ -1216,6 +1216,12 @@ struct LLMResponse {
                     "[FM] usage \(usage.summary) route=\(actualRoute) path=streaming",
                     category: .llm
                 )
+                // With the quality mode, which the log line lacks (5.8): a Deep Think call told from a Standard one.
+                VerificationJournal.record(
+                    "model.usage", .ok,
+                    ["actual": "\(actualTarget)", "mode": "\(config.qualityMode.canonical)", "path": "streaming",
+                        "reasoning": "\(usage.reasoningTokens)", "output": "\(usage.outputTokens)",
+                        "input": "\(usage.inputTokens)"])
             }
             return LLMResponse(
                 text: responseText,
@@ -1349,6 +1355,11 @@ struct LLMResponse {
                     "[FM] usage \(usage.summary) route=\(actualRoute) path=structured",
                     category: .llm
                 )
+                VerificationJournal.record(
+                    "model.usage", .ok,
+                    ["actual": "\(actualTarget)", "mode": "\(config.qualityMode.canonical)", "path": "structured",
+                        "reasoning": "\(usage.reasoningTokens)", "output": "\(usage.outputTokens)",
+                        "input": "\(usage.inputTokens)"])
             }
             return LLMResponse(
                 text: response.text,

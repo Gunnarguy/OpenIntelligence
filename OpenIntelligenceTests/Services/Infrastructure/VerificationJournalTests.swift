@@ -26,6 +26,8 @@ final class VerificationJournalTests: XCTestCase {
     override func tearDown() {
         VerificationJournal.flush()
         VerificationJournal.fileURL = original
+        // Back to the real file: in a test host the journal is off again, so no other test writes into it (5.8).
+        VerificationJournal.fileURLIsReplaced = false
         try? FileManager.default.removeItem(at: folder)
         super.tearDown()
     }
@@ -105,5 +107,74 @@ final class VerificationJournalTests: XCTestCase {
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: url.deletingPathExtension().appendingPathExtension("prev.jsonl").path))
+    }
+
+    /// A unit-test host writes nothing until a test points the journal at its own file (5.8), and a journal that is
+    /// off evaluates no fields.
+    func testATestHostWritesNothingUntilATestPointsTheJournalElsewhere() {
+        VerificationJournal.fileURLIsReplaced = false
+        XCTAssertFalse(VerificationJournal.isEnabled)
+        var evaluated = false
+        VerificationJournal.record("not.written", { evaluated = true; return ["k": "v"] }())
+        XCTAssertFalse(evaluated, "fields are not built while the journal is off")
+        VerificationJournal.fileURLIsReplaced = true
+        XCTAssertTrue(VerificationJournal.isEnabled)
+        XCTAssertFalse(VerificationJournal.readAll().contains { $0["e"] as? String == "not.written" })
+    }
+
+    /// Every line names its platform, so the iPhone's journal and the Mac's are told apart when read together (5.8).
+    func testEveryLineNamesItsPlatform() {
+        VerificationJournal.record("nav.post", ["to": "chat"])
+        let line = VerificationJournal.readAll().last
+        #if os(macOS)
+            XCTAssertEqual(line?["os"] as? String, "macOS")
+        #else
+            XCTAssertEqual(line?["os"] as? String, ProcessInfo.processInfo.isiOSAppOnMac ? "macOS" : "iOS")
+        #endif
+        XCTAssertEqual(line?["os"] as? String, VerificationJournal.platform)
+    }
+
+    func testTheFootprintAndAFileSizeAreReadAsNumbers() throws {
+        XCTAssertGreaterThan(VerificationJournal.footprintMB(), 0)
+        let file = folder.appendingPathComponent("sized.bin")
+        try Data(count: 1234).write(to: file)
+        XCTAssertEqual(VerificationJournal.fileBytes(file), 1234)
+        XCTAssertEqual(VerificationJournal.fileBytes(folder.appendingPathComponent("missing")), 0)
+    }
+
+    func testTheLaunchTimeIsInThePast() {
+        XCTAssertLessThanOrEqual(VerificationJournal.launchedAt, Date())
+    }
+
+    /// The watchdog starts once, stops, and records a main-thread stall of 250 ms or more with its phase.
+    func testTheWatchdogStartsStopsAndRecordsAStall() {
+        let watchdog = MainThreadWatchdog()
+        XCTAssertFalse(watchdog.isRunning)
+        watchdog.phase = "testPhase"
+        watchdog.start(interval: .milliseconds(20))
+        watchdog.start(interval: .milliseconds(20))
+        XCTAssertTrue(watchdog.isRunning)
+        let before = Date()
+
+        // Let a ping go out, then hold the main thread past the threshold, then let it answer.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        Thread.sleep(forTimeInterval: 0.45)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+
+        XCTAssertGreaterThanOrEqual(watchdog.longestStall(since: before), MainThreadWatchdog.stallThresholdMs)
+        XCTAssertFalse(watchdog.stallFree(since: before))
+        XCTAssertTrue(watchdog.stallFree(since: Date().addingTimeInterval(60)))
+        let stall = VerificationJournal.readAll().last { $0["e"] as? String == "mainThread.stall" }
+        XCTAssertEqual((stall?["f"] as? [String: String])?["phase"], "testPhase")
+        XCTAssertNotNil(stall?["ms"] as? Double)
+
+        watchdog.stop()
+        XCTAssertFalse(watchdog.isRunning)
+        // Stalls only: the test host's own app writes other events into the same file meanwhile.
+        func stalls() -> Int { VerificationJournal.readAll().filter { $0["e"] as? String == "mainThread.stall" }.count }
+        let count = stalls()
+        Thread.sleep(forTimeInterval: 0.4)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertEqual(stalls(), count, "a stopped watchdog records nothing")
     }
 }

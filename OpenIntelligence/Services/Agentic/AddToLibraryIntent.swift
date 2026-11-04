@@ -119,6 +119,10 @@ struct AddToLibraryIntent: AppIntent {
             }
             let message =
                 "Added \(names.count) item\(names.count == 1 ? "" : "s") to \(target). Importing continues in OpenIntelligence."
+            // What the action was given and stored (5.8 journal), so a text run is told from a file run.
+            journal.end(
+                ["file": file == nil ? "0" : "1", "link": link == nil ? "0" : "1", "text": note.isEmpty ? "0" : "1",
+                    "stored": "\(stored.count)", "failed": "\(failures.count)"])
             return .result(value: names, dialog: IntentDialog(stringLiteral: message))
 
         } catch {

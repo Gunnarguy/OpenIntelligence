@@ -1,10 +1,10 @@
 {
-  "_comment": "Rules for scripts/phone_evidence.py (5.8). Each names a roadmap row (its title and URL) and the events in verification_events.jsonl that close it. A rule is written from the row's closing condition; where the condition also needs a judgement (how something looks), `needs` says so and the rule only proves the mechanism ran. Event names and fields are VerificationJournal.record calls in the app.",
+  "_comment": "Rules for scripts/phone_evidence.py (5.8). Each names a roadmap row (its title and URL) and the events in verification_events.jsonl that close it. A rule is written from the row's closing condition; where the condition also needs a judgement (how something looks), `needs` says so and the rule only proves the mechanism ran. Event names and fields are VerificationJournal.record calls in the app. Conditions may compare with >=N, <=N or !=X, may name the line's own os and ms, and a rule's `absent` lists events that must not appear (phone_evidence.py's docstring).",
   "rules": [
     {
       "row": "Interactive Deep Think Live Activities (Stop keeps the written text)",
       "url": "https://app.notion.com/p/38149a74d54f81db88cdc310e399df51",
-      "needs": "During a Deep Think answer, lock the phone and tap Stop on the Lock Screen or Dynamic Island.",
+      "needs": "During a Deep Think answer, lock the phone and tap Stop on the Lock Screen or Dynamic Island once some text is written.",
       "all": [
         {
           "e": "liveactivity.answer.start",
@@ -17,24 +17,44 @@
           }
         },
         {
-          "e": "answer.stopRequested"
+          "e": "answer.stopRequested",
+          "f": {
+            "source": "liveActivity"
+          }
+        },
+        {
+          "e": "answer.stopped",
+          "f": {
+            "mode": "deepThink",
+            "kept": "true"
+          }
         }
       ]
     },
     {
       "row": "Deep Think and Maximum show progress on the Lock Screen",
       "url": "https://app.notion.com/p/3f449a74d54f8171861cdb4a650b8432",
-      "needs": "Ask a Deep Think question and lock the phone until it finishes.",
+      "needs": "Ask a Deep Think question and lock the phone until it finishes; glance at the Lock Screen for the step.",
       "all": [
         {
           "e": "liveactivity.answer.start",
-          "o": "ok"
+          "o": "ok",
+          "f": {
+            "trigger": "leavingFront"
+          }
         },
         {
           "e": "liveactivity.answer.end",
           "f": {
             "shown": "1",
             "success": "true"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "mode": "deepThink"
           }
         }
       ]
@@ -51,12 +71,25 @@
           }
         },
         {
+          "e": "bgtask.answer",
+          "f": {
+            "phase": "completed"
+          }
+        },
+        {
           "e": "answer.done",
           "o": "ok",
           "f": {
-            "inFront": "false"
+            "mode": "deepThink",
+            "scene": "background"
           }
         }
+      ],
+      "trace": [
+        "\\[BackgroundTasks\\] Starting continued query task"
+      ],
+      "absent_trace": [
+        "\\[BackgroundTasks\\] Continued query task expired"
       ]
     },
     {
@@ -95,7 +128,7 @@
     {
       "row": "iOS ended a background import during overview/tags calls",
       "url": "https://app.notion.com/p/3fa49a74d54f812a9c6be360f7f97296",
-      "needs": "Import something, leave the app until it finishes, come back.",
+      "needs": "Import a new file (from Files or Open in), leave the app until the import finishes, then come back to the app. The document ids in import.enrichmentDeferred and import.deferredEnrichment should match.",
       "all": [
         {
           "e": "import.stage",
@@ -106,7 +139,25 @@
           }
         },
         {
-          "e": "import.deferredEnrichment"
+          "e": "bgtask.import",
+          "f": {
+            "phase": "completed",
+            "error": "none"
+          }
+        },
+        {
+          "e": "import.enrichmentDeferred",
+          "f": {
+            "reason": "background",
+            "context": "userInitiated"
+          }
+        },
+        {
+          "e": "import.deferredEnrichment",
+          "o": "ok",
+          "f": {
+            "tags": ">=1"
+          }
         }
       ]
     },
@@ -143,7 +194,8 @@
         },
         {
           "e": "import.deferredEnrichment",
-          "min": 2
+          "min": 2,
+          "o": "ok"
         }
       ]
     },
@@ -166,8 +218,15 @@
     {
       "row": "App Store ratings: Apple's sheet only, asked once per version (5.8)",
       "url": "https://app.notion.com/p/40d49a74d54f81b8a754e342bf1d90d0",
-      "needs": "Ask a question in a library with your own documents; Apple's sheet should appear about 2 s after a Verified answer.",
+      "needs": "Ask a question in a library with your own documents; Apple's sheet should appear about 2 s after a Verified answer (look for it).",
       "all": [
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "badge": "supported"
+          }
+        },
         {
           "e": "review.requested"
         }
@@ -176,12 +235,20 @@
     {
       "row": "Web Clipper / Share Extension",
       "url": "https://app.notion.com/p/609082e5e2434f6aabd5caf667e7f841",
-      "needs": "In Safari, share a page to OpenIntelligence, then open the app.",
+      "needs": "In Safari, share a page to OpenIntelligence, then open the app and accept the import review.",
       "all": [
         {
           "e": "share.inbox",
           "f": {
             "staged": ">=1"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "type": "md"
           }
         }
       ]
@@ -189,12 +256,20 @@
     {
       "row": "Scan a page into a library from the Lock Screen",
       "url": "https://app.notion.com/p/3f449a74d54f81c7844bf2a2b379fde0",
-      "needs": "Add the Scan control to the Lock Screen, scan a page while locked, then unlock and open the app.",
+      "needs": "Add the Scan control to the Lock Screen, scan a page while locked, then unlock, open the app and accept the import review.",
       "all": [
         {
           "e": "lockscreen.scan",
           "f": {
             "staged": ">=1"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "type": "jpg"
           }
         }
       ]
@@ -202,12 +277,19 @@
     {
       "row": "Handoff: continue on the Mac what is open on the phone",
       "url": "https://app.notion.com/p/3f449a74d54f81678f35c5a6894ec731",
-      "needs": "Open a document on one device and take it from the Dock or app switcher on the other (log read on the receiving device).",
+      "needs": "Open a document's page on the iPhone and take it from the Mac's Dock; check the Mac's journal (copy Documents/verification_events.jsonl from the Mac app's container and run with --dir).",
       "all": [
         {
           "e": "handoff.continue",
           "f": {
+            "type": "com.openintelligence.activity.viewing-document",
             "steps": ">=1"
+          }
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "document"
           }
         }
       ]
@@ -257,7 +339,7 @@
     {
       "row": "Actions that open a specific library, document or answer",
       "url": "https://app.notion.com/p/3f449a74d54f814ca229d378c2ffcbb7",
-      "needs": "Run Open Library and Open Document from Siri or Shortcuts.",
+      "needs": "Run Open Library and Open Document from Siri and from Shortcuts on the iPhone, and again on the Mac (check the Mac's journal with --dir).",
       "all": [
         {
           "e": "intent.OpenLibraryIntent",
@@ -265,7 +347,20 @@
         },
         {
           "e": "intent.OpenDocumentIntent",
-          "o": "ok"
+          "o": "ok",
+          "min": 2
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "document"
+          }
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "library"
+          }
         }
       ]
     },
@@ -289,10 +384,15 @@
     {
       "row": "Web links open the app, or the App Store",
       "url": "https://app.notion.com/p/3f449a74d54f813899bec982779cbdd7",
-      "needs": "Tap a document's link in Notes or Messages.",
+      "needs": "Tap a document's Copy Link web link (gunzino.me/openintelligence/open?...) in Notes or Messages on the iPhone. The store half needs a device without the app, checked by eye.",
       "all": [
         {
-          "e": "open.url"
+          "e": "open.url",
+          "f": {
+            "scheme": "https",
+            "host": "gunzino.me",
+            "path": "openintelligence"
+          }
         },
         {
           "e": "nav.post",
@@ -337,7 +437,7 @@
     {
       "row": "Ask and Add in Control Center, Lock Screen, Action button",
       "url": "https://app.notion.com/p/3f449a74d54f81ed8f06f7b380a27d1c",
-      "needs": "Add the Ask and Add controls to Control Center and the Lock Screen, set one on the Action button, use each.",
+      "needs": "Add the Ask, Add and Scan controls to Control Center and the Lock Screen, set one on the Action button, use each.",
       "all": [
         {
           "e": "nav.post",
@@ -349,6 +449,12 @@
           "e": "nav.post",
           "f": {
             "to": "addDocument"
+          }
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "scanDocument"
           }
         }
       ]
@@ -370,13 +476,14 @@
     {
       "row": "Recording language read from two letters in file name",
       "url": "https://app.notion.com/p/3f549a74d54f81b0bdf0cddeac841def",
-      "needs": "Import an English voice memo named like \"Plumber visit_friday.m4a\"; the transcript should be English.",
+      "needs": "Import an English voice memo named like \"Plumber visit_friday.m4a\".",
       "all": [
         {
           "e": "speech.transcribe",
           "o": "ok",
           "f": {
-            "words": ">=5"
+            "words": ">=5",
+            "language": "en"
           }
         }
       ]
@@ -421,16 +528,26 @@
           "f": {
             "reducedUsage": "true"
           }
+        },
+        {
+          "e": "system.easeOff"
         }
       ]
     },
     {
       "row": "On PCC, Deep Think/Maximum steps went without evidence",
       "url": "https://app.notion.com/p/40049a74d54f81f3964fc8a7a0792cd5",
-      "needs": "In Deep Think, allow Private Cloud Compute for a long question.",
+      "needs": "In Deep Think, allow Private Cloud Compute for a long question (iPhone or Mac).",
       "all": [
         {
+          "e": "agentic.cloudStep",
+          "f": {
+            "contextChars": ">=1"
+          }
+        },
+        {
           "e": "model.generate",
+          "o": "ok",
           "f": {
             "actual": "privateCloudCompute"
           }
@@ -439,6 +556,7 @@
           "e": "answer.done",
           "o": "ok",
           "f": {
+            "mode": "deepThink",
             "sources": ">=1"
           }
         }
@@ -447,12 +565,19 @@
     {
       "row": "\"Just Once\" PCC consent carries to the next question",
       "url": "https://app.notion.com/p/3ea49a74d54f81fd814ae82ce9449e41",
-      "needs": "In Deep Think choose Just Once, then ask a second question that needs Private Cloud Compute.",
+      "needs": "In Deep Think choose Just Once, then ask a second Deep Think question that needs Private Cloud Compute (iPhone or Mac).",
       "all": [
         {
           "e": "consent.decided",
           "f": {
             "decision": "allowOnce"
+          }
+        },
+        {
+          "e": "consent.grantCleared",
+          "f": {
+            "mode": "deepThink",
+            "had": "true"
           }
         },
         {
@@ -464,14 +589,57 @@
     {
       "row": "Action needing PCC consent moves to foreground and asks",
       "url": "https://app.notion.com/p/3f449a74d54f81fdaac9e3f22ba32c84",
-      "needs": "Run a Deep Think shortcut with the app closed that needs Private Cloud Compute.",
+      "needs": "Needs the owner to name RAGAppIntents.swift (patch: /private/tmp/claude-501/-Users-gunnarhostetler-Documents-GitHub-OpenIntelligence/a4f11230-c8a9-44ed-bfbb-f6f8c450ff0f/scratchpad/ragappintents_telemetry.patch). With consent undecided, run an Ask My Documents shortcut in Deep Think with the app closed; answer the sheet. Then with Always Allow, and again with Don't Allow, run it from the background; once, leave the sheet unanswered with the app unable to show it.",
       "all": [
         {
-          "e": "intent.*",
-          "o": "started"
+          "e": "intent.QueryDocumentsIntent",
+          "o": "started",
+          "f": {
+            "mode": "deepThink"
+          }
+        },
+        {
+          "e": "consent.broughtForward",
+          "o": "ok"
         },
         {
           "e": "consent.shown"
+        },
+        {
+          "e": "consent.authorized",
+          "f": {
+            "relay": "true",
+            "grant": "allow_once"
+          }
+        },
+        {
+          "e": "consent.authorized",
+          "f": {
+            "relay": "true",
+            "grant": "remembered",
+            "background": "true"
+          }
+        },
+        {
+          "e": "consent.refused",
+          "f": {
+            "reason": "remembered",
+            "relay": "true",
+            "background": "true"
+          }
+        },
+        {
+          "e": "consent.refused",
+          "f": {
+            "reason": "unseen"
+          }
+        },
+        {
+          "e": "model.generate",
+          "o": "ok",
+          "f": {
+            "actual": "privateCloudCompute"
+          }
         }
       ]
     },
@@ -498,16 +666,21 @@
     {
       "row": "Deep Think and large imports from a shortcut past 30 s",
       "url": "https://app.notion.com/p/3f449a74d54f8139a380e1fa1cde5c53",
-      "needs": "Run an Ask shortcut in Deep Think with the app closed; it should finish.",
+      "needs": "Needs the owner to name RAGAppIntents.swift (patch: /private/tmp/claude-501/-Users-gunnarhostetler-Documents-GitHub-OpenIntelligence/a4f11230-c8a9-44ed-bfbb-f6f8c450ff0f/scratchpad/ragappintents_telemetry.patch). Run an Ask My Documents shortcut set to Deep Think with the app closed; it should finish, with its progress on the Lock Screen (check by eye).",
       "all": [
         {
-          "e": "intent.AskDocumentIntent",
-          "o": "ok"
+          "e": "intent.QueryDocumentsIntent",
+          "o": "ok",
+          "f": {
+            "mode": "deepThink"
+          }
         },
         {
-          "e": "bgtask.answer",
+          "e": "intent.longRunning",
+          "o": "ok",
           "f": {
-            "phase": "running"
+            "seconds": ">=30",
+            "background": "true"
           }
         }
       ]
@@ -515,10 +688,14 @@
     {
       "row": "Answer cards in Siri have buttons",
       "url": "https://app.notion.com/p/3f449a74d54f8193a750d1099b83a8c5",
-      "needs": "Ask Siri a question about your library, then tap Ask a Follow-Up and Think Deeper on the card.",
+      "needs": "Ask Siri a question about your library, then tap a document, Ask a Follow-Up and Think Deeper on the card (three questions).",
       "all": [
         {
           "e": "intent.AnswerCardSnippetIntent",
+          "o": "ok"
+        },
+        {
+          "e": "intent.OpenDocumentIntent",
           "o": "ok"
         },
         {
@@ -528,6 +705,1528 @@
         {
           "e": "intent.ThinkDeeperIntent",
           "o": "ok"
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "ask"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A library with no vectors cannot repair itself, and the repair reports success",
+      "url": "https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36",
+      "needs": "Headless: a Simulator run that stages a library with documents, an empty store and a .paused queue item, then lets self-healing run (pull with --dir from the Simulator's Documents folder).",
+      "all": [
+        {
+          "e": "rebuild.selfHeal",
+          "o": "failed",
+          "f": {
+            "result": "blockedByQueue"
+          }
+        }
+      ],
+      "trace": [
+        "was vetoed by the ingestion queue with \\d+ document\\(s\\) present",
+        "Rebuild for container .* was blocked: all \\d+ document\\(s\\) are excluded by active ingestion queue items"
+      ]
+    },
+    {
+      "row": "A save that was cut off deleted a library's whole vector index",
+      "url": "https://app.notion.com/p/3f549a74d54f81daaa2be972ed4d2f56",
+      "needs": "Import a large PDF (it imports in pieces), force-quit the app from the app switcher mid-import, reopen, and ask a question in that library. The trace line is the proof of the trim; a vectorStore.load event would need the owner to name BNNSVectorDatabase.swift.",
+      "all": [
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "sources": ">=1"
+          }
+        }
+      ],
+      "trace": [
+        "more vector\\(s\\) than the metadata lists; ignoring them \\(a save was cut off\\)"
+      ],
+      "absent_trace": [
+        "Vector file size mismatch: .* Loading this library's vector store empty"
+      ]
+    },
+    {
+      "row": "Spotlight entries are app items that open the right document and re-index on request",
+      "url": "https://app.notion.com/p/3f449a74d54f81beadd4f8e3dcaf38f5",
+      "needs": "On the iPhone, search Spotlight for a document's name and tap the document result (not a passage). Then delete a different document on the Mac and open the iPhone app.",
+      "all": [
+        {
+          "e": "spotlight.open",
+          "f": {
+            "kind": "document"
+          }
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "document"
+          }
+        },
+        {
+          "e": "spotlight.removedGone",
+          "f": {
+            "count": ">=1"
+          }
+        }
+      ],
+      "trace": [
+        "\\[Spotlight\\] Removed the entries of [1-9]\\d* document\\(s\\) no longer in the libraries"
+      ]
+    },
+    {
+      "row": "Deleting a library races its own background writers, which resurrect it",
+      "url": "https://app.notion.com/p/3c349a74d54f81beaad5c59162e58434",
+      "needs": "Mac: open two windows, delete a library in one, quit the app, reopen it (check the Mac's Documents folder with --dir).",
+      "all": [
+        {
+          "e": "library.delete",
+          "o": "ok"
+        },
+        {
+          "e": "library.listLoad",
+          "f": {
+            "deletedInFile": "0"
+          },
+          "min": 2
+        }
+      ],
+      "absent_trace": [
+        "\\[ContainerService\\] Failed to write containers"
+      ]
+    },
+    {
+      "row": "iCloud sync decoded a library's whole vector store after every piece of an import, and could write it back without the import",
+      "url": "https://app.notion.com/p/3f549a74d54f81e8936ae30d99d63134",
+      "needs": "On the iPhone, add a file to a library that already has documents, let it finish, swipe the app away, reopen it and ask a question about the new file in that library. The skip is read from its Log.debug line (verbose trace level); a sync.vectorStoreSkipped event would need the owner to name WorkspaceSyncService.swift.",
+      "all": [
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "othersInLibrary": ">=1",
+            "rebuild": "false"
+          }
+        },
+        {
+          "e": "index.health",
+          "o": "ok",
+          "f": {
+            "result": "healthy"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "sources": ">=1"
+          }
+        }
+      ],
+      "trace": [
+        "Vector store for \\S+ left alone this pass: an import into it has not finished"
+      ],
+      "absent_trace": [
+        "document\\(s\\) have no passages in the store, so search can't find them"
+      ]
+    },
+    {
+      "row": "One progress source for import, the Live Activity and long actions",
+      "url": "https://app.notion.com/p/3f449a74d54f81b2acdcdefe948a4bb1",
+      "needs": "Needs the owner to name RAGAppIntents.swift (patch: /private/tmp/claude-501/-Users-gunnarhostetler-Documents-GitHub-OpenIntelligence/a4f11230-c8a9-44ed-bfbb-f6f8c450ff0f/scratchpad/ragappintents_telemetry.patch). Add several files at once, then while they import say \"Check import status in OpenIntelligence\" (or run the shortcut) twice.",
+      "all": [
+        {
+          "e": "intent.DocumentImportStatusIntent",
+          "o": "ok",
+          "min": 2
+        },
+        {
+          "e": "import.statusAsked",
+          "f": {
+            "pending": ">=1",
+            "percent": ">=1"
+          },
+          "min": 2
+        },
+        {
+          "e": "liveactivity.import.update",
+          "f": {
+            "percent": ">=1"
+          },
+          "min": 2
+        }
+      ]
+    },
+    {
+      "row": "Six file families sync to iCloud without NSFileCoordinator, which generated 599 conflict copies and destroyed data",
+      "url": "https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171",
+      "needs": "PARTIAL: proves ten or more sync passes ran and none found a conflict copy (the count is logged only when above 0). Edit the same conversation on the Mac and the iPhone in between. That the other device's edit arrived needs sync.fileFromICloud, which lives in WorkspaceSyncService.swift (hard boundary, needs the owner to name it).",
+      "all": [
+        {
+          "e": "sync.waitForFiles",
+          "o": "ok",
+          "min": 10
+        }
+      ],
+      "absent_trace": [
+        "The iCloud folder holds [1-9]\\d* conflict copies of library files"
+      ]
+    },
+    {
+      "row": "A rebuild on one device made the other wipe and rebuild the same library, and could delete a document's file",
+      "url": "https://app.notion.com/p/40d49a74d54f81dbb75bd6daf9309f50",
+      "needs": "With both devices on 5.8, tap Rebuild on an iCloud library on the iPhone and let it finish, then open the Mac app for a few minutes. This rule reads the iPhone. A twin rule against the Mac's --dir pull uses sync.orphanWipe and rebuild.selfHeal absent.",
+      "all": [
+        {
+          "e": "rebuild.start",
+          "f": {
+            "documents": ">=1"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "rebuild": "true"
+          }
+        }
+      ],
+      "absent_trace": [
+        "Deleted local orphaned document file",
+        "Wiping orphaned vector database chunks for document"
+      ]
+    },
+    {
+      "row": "Device checks are read off the phone from a development-build event log, not reported by hand",
+      "url": "https://app.notion.com/p/40d49a74d54f81b59f23ce86c142e2a2",
+      "needs": "Nothing beyond a day of use with the Debug build; then run python3 scripts/phone_evidence.py.",
+      "all": [
+        {
+          "e": "*",
+          "min": 50
+        },
+        {
+          "e": "app.phase",
+          "min": 2
+        }
+      ]
+    },
+    {
+      "row": "Apple Notes Integration (NotebookLM Style)",
+      "url": "https://app.notion.com/p/38049a74d54f8135abc9c44bb6a53371",
+      "needs": "Once, in Shortcuts on the iPhone: Find Notes (or a note from the share sheet) into Add to Library's Text, run it, then open the app until the import finishes.",
+      "all": [
+        {
+          "e": "intent.AddToLibraryIntent",
+          "o": "ok",
+          "f": {
+            "text": "1",
+            "stored": ">=1"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "type": "txt"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Import still runs whole-document passes on the main thread after text cleanup and chunking were moved off it",
+      "url": "https://app.notion.com/p/3f549a74d54f8199aecbf625884285a5",
+      "needs": "Import a multi-megabyte Word, PowerPoint or PDF (under 10 MB, so it is not streamed) on the iPhone with the app in front.",
+      "all": [
+        {
+          "e": "import.mainThreadLag",
+          "o": "ok",
+          "f": {
+            "bytes": ">=2000000",
+            "responsive": "true"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete"
+          }
+        }
+      ],
+      "trace": [
+        "\\[DocumentProcessor\\] Created \\d+ structure-aware chunks"
+      ]
+    },
+    {
+      "row": "Paste text, a link or a file into a library",
+      "url": "https://app.notion.com/p/3f449a74d54f81048c94d4f30ecf3e65",
+      "needs": "On the iPhone, and again on the Mac (check the Mac app's journal with --dir), copy a file, then a web address, then a paragraph, and tap Paste on the Documents screen after each.",
+      "all": [
+        {
+          "e": "library.paste",
+          "o": "ok",
+          "f": {
+            "files": ">=1"
+          }
+        },
+        {
+          "e": "library.paste",
+          "o": "ok",
+          "f": {
+            "links": ">=1"
+          }
+        },
+        {
+          "e": "library.paste",
+          "o": "ok",
+          "f": {
+            "texts": ">=1"
+          }
+        },
+        {
+          "e": "import.enqueue",
+          "f": {
+            "context": "userInitiated"
+          },
+          "min": 3
+        }
+      ]
+    },
+    {
+      "row": "\"Add Document\" and \"Ingest Document from Camera\" in Shortcuts only open the app",
+      "url": "https://app.notion.com/p/3f449a74d54f8147ac8fc70b43976266",
+      "needs": "In Shortcuts on the iPhone, run Add a Document, then run Scan a Document.",
+      "all": [
+        {
+          "e": "intent.AddDocumentIntent",
+          "o": "ok"
+        },
+        {
+          "e": "nav.taken",
+          "f": {
+            "to": "addDocument",
+            "shows": "picker"
+          }
+        },
+        {
+          "e": "picker.shown"
+        },
+        {
+          "e": "intent.IngestFromCameraIntent",
+          "o": "ok"
+        },
+        {
+          "e": "nav.taken",
+          "f": {
+            "to": "scanDocument",
+            "shows": "scanner"
+          }
+        },
+        {
+          "e": "scanner.shown"
+        }
+      ]
+    },
+    {
+      "row": "The Atlas reads every passage on the main thread, and on a very large library iOS ends the app",
+      "url": "https://app.notion.com/p/3f549a74d54f81d5a5e5e38b9631ff74",
+      "needs": "Open the large library (over 60,000 passages), open Visualizations, press Home within a few seconds, come back after a minute.",
+      "all": [
+        {
+          "e": "atlas.analyze",
+          "o": "started",
+          "f": {
+            "libraryPassages": ">=60000"
+          }
+        },
+        {
+          "e": "app.phase",
+          "f": {
+            "to": "background"
+          }
+        },
+        {
+          "e": "atlas.analyze",
+          "o": "ok",
+          "f": {
+            "libraryPassages": ">=60000",
+            "mapped": ">=1",
+            "leftFront": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "The Atlas named three clusters \"API Reference\", changed its names between launches, and labelled its axes with stray words",
+      "url": "https://app.notion.com/p/3f849a74d54f810a86cff5794aaf26b2",
+      "needs": "Open the Atlas on your own library, close the app from the app switcher, reopen and open the Atlas again; then say whether the names make sense.",
+      "all": [
+        {
+          "e": "atlas.labels",
+          "f": {
+            "view": "card",
+            "scope": "library",
+            "distinctClusters": "true",
+            "labelledEnds": "6"
+          },
+          "min": 2
+        }
+      ]
+    },
+    {
+      "row": "Turn on Apple's enhanced security for file parsing",
+      "url": "https://app.notion.com/p/3f449a74d54f818fbb65e8b57600bc24",
+      "needs": "Import a PDF over 10 MB on the iPhone (build with the keys); the memory comparison needs the same import on a build without them, read from the two journals by hand.",
+      "all": [
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "type": "pdf",
+            "bytes": ">=10000000",
+            "footprintMB": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "The app's guides take three of a free plan's five documents",
+      "url": "https://app.notion.com/p/40d49a74d54f81d38da7d01a9f44a6d7",
+      "needs": "Fresh install on a free plan, tap See It in Action, then add your own documents one at a time up to five.",
+      "all": [
+        {
+          "e": "import.enqueue",
+          "f": {
+            "context": "onboarding",
+            "guide": "true",
+            "count": ">=3"
+          }
+        },
+        {
+          "e": "plan.documentCheck",
+          "f": {
+            "unlimited": "false",
+            "counted": ">=4",
+            "allowed": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A saved conversation keeps an answer's first 12 passages, so after a relaunch a label past [S12] opens nothing",
+      "url": "https://app.notion.com/p/40049a74d54f81e0bd99fa0e5f5e4186",
+      "needs": "Ask a question whose answer cites [S13] or later (Standard on a large library), quit the app, open it again, tap that label in the saved answer, then Copy the answer. iPhone or Mac.",
+      "all": [
+        {
+          "e": "citation.tap",
+          "o": "ok",
+          "f": {
+            "position": ">=13",
+            "earlierLaunch": "true"
+          }
+        },
+        {
+          "e": "answer.copied",
+          "f": {
+            "highestListed": ">=13",
+            "earlierLaunch": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Adaptive profiles cannot reach Deep Think or Maximum, which is where they would matter most",
+      "url": "https://app.notion.com/p/3d849a74d54f8195a763f0759e442d32",
+      "needs": "Turn on adaptive profiles once in the model settings (Mac or iPhone), then ask a Deep Think question that compares two things.",
+      "all": [
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "mode": "deepThink"
+          }
+        }
+      ],
+      "trace": [
+        "\\[AdaptiveProfile\\] agentic intent=compare temperature=",
+        "\\[Agentic\\] Step temperature [0-9.]+ from the adaptive profile"
+      ]
+    },
+    {
+      "row": "Deep Think and Maximum advertised highest-effort reasoning and asked Apple for none on 24 of 25 call sites",
+      "url": "https://app.notion.com/p/3d749a74d54f81748f92f55f12a84642",
+      "needs": "On iPhone or Mac, ask one Standard and one Deep Think question that go to Private Cloud Compute (approve the consent sheet, or have Always Allow on). Compare the two events' `reasoning` by eye: the checker does not compare across events.",
+      "all": [
+        {
+          "e": "model.usage",
+          "o": "ok",
+          "f": {
+            "mode": "deepThink",
+            "actual": "privateCloudCompute",
+            "reasoning": ">=1"
+          }
+        },
+        {
+          "e": "model.usage",
+          "o": "ok",
+          "f": {
+            "mode": "standard",
+            "actual": "privateCloudCompute"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Prompt budgets are counted in characters at a worst-case ratio, so Deep Think and Maximum sessions use a fraction of the on-device window, and a larger window turns structured answers off",
+      "url": "https://app.notion.com/p/3f249a74d54f815cbbd3c2e1c492dfd7",
+      "needs": "Ask a Deep Think question on the Mac (8,192 window) and on the iPhone, with Private Cloud Compute not picked in the model picker. Run the check once per device and read `window` (8192 on the Mac, 4096 on the iPhone if that is its window). Whether the answer came from the right passage is the owner's judgement. The structured-answer limit (the third clause) is not built, so a PASS covers the token plan only.",
+      "all": [
+        {
+          "e": "deepthink.session",
+          "f": {
+            "path": "wholeChunks",
+            "window": ">=4096",
+            "tokens": ">=1"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "mode": "deepThink"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Without Apple Intelligence, a question about the sample documents comes back as stitched excerpts marked Partially Verified",
+      "url": "https://app.notion.com/p/3e449a74d54f8170a3cbfb570a41d0a5",
+      "needs": "Stock iOS 27 Simulator Debug build (model off) with the samples imported; ask the four suggested sample questions. The journal is read from the simulator's app container, not with devicectl.",
+      "all": [
+        {
+          "e": "answer.excerpts",
+          "f": {
+            "modelAvailable": "false",
+            "markup": "0"
+          },
+          "min": 4
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "gating": "excerpts_only"
+          },
+          "min": 4
+        }
+      ]
+    },
+    {
+      "row": "Question translation uses the high-fidelity strategy where the device supports it",
+      "url": "https://app.notion.com/p/3f449a74d54f813cb8c4fe67e7122b46",
+      "needs": "On the iPhone, in a library with a translation language set, ask a question in a different language. Records the session's requested strategy only (TranslationSession.preferredStrategy, the preference it was made with), not what the system used.",
+      "all": [
+        {
+          "e": "translation.question",
+          "o": "ok",
+          "f": {
+            "translated": "true"
+          }
+        },
+        {
+          "e": "translation.text",
+          "o": "ok",
+          "f": {
+            "requestedStrategy": "highFidelity"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Nothing said when an answer finished on another tab, and the elapsed clock froze on return",
+      "url": "https://app.notion.com/p/3e449a74d54f8193964bdda0f50d16c3",
+      "needs": "On the iPhone, ask a Deep Think question, open Documents before it finishes, come back to Chat once while it is still running and once after it finished. The expiry part needs an answer that iOS stops in the background, which is rare; the haptic is felt, not logged.",
+      "all": [
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "mode": "deepThink",
+            "inFront": "false"
+          }
+        },
+        {
+          "e": "chat.clockResumed"
+        },
+        {
+          "e": "answer.keptAfterExpiry"
+        }
+      ],
+      "trace": [
+        "\\[ChatAnswerNotice\\] Answer finished off screen; unseen=[1-9]"
+      ]
+    },
+    {
+      "row": "The sample library shows \"What is nothing?\": its curated questions are dead behind a filename match, and the template fallback fails open",
+      "url": "https://app.notion.com/p/3db49a74d54f815b8bcfc5968322d483",
+      "needs": "On the iPhone, open Chat in the General library while it holds only the sample documents and has no messages.",
+      "all": [
+        {
+          "e": "suggestions.shown",
+          "f": {
+            "onlySamples": "true",
+            "defaultLibrary": "true",
+            "curated": ">=1",
+            "template": "0",
+            "chatEmpty": "true",
+            "inFront": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A Pro subscription left permanent Lifetime access behind; from 5.5 only a Lifetime purchase earns it",
+      "url": "https://app.notion.com/p/3ea49a74d54f8163865ff0a7c1ef55e6",
+      "needs": "On a development build with a sandbox account: buy Pro Monthly, wait for it to lapse, open the app again. On an install that had the protection, open the app once.",
+      "all": [
+        {
+          "e": "billing.tier",
+          "f": {
+            "trigger": "change",
+            "tier": "pro",
+            "protection": "none"
+          }
+        },
+        {
+          "e": "billing.tier",
+          "f": {
+            "trigger": "launch",
+            "tier": "free",
+            "protection": "none"
+          }
+        },
+        {
+          "e": "billing.tier",
+          "f": {
+            "trigger": "launch",
+            "tier": "lifetime",
+            "protection": "historicalPaidPurchase"
+          }
+        }
+      ],
+      "trace": [
+        "Reconciled entitlement: \\S*[Pp]ro"
+      ]
+    },
+    {
+      "row": "Answers and documents can be handed to other apps as text, Markdown or PDF",
+      "url": "https://app.notion.com/p/3f449a74d54f81deba56ddc9c7f04f32",
+      "needs": "Run a shortcut that asks OpenIntelligence a question and passes the answer to Notes or Mail, on the iPhone (or the Mac).",
+      "all": [
+        {
+          "e": "transfer.export",
+          "o": "ok",
+          "f": {
+            "item": "answer",
+            "sourceLines": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Documents and libraries carry real properties in Shortcuts, so the Use Model action and Find get more than a title",
+      "url": "https://app.notion.com/p/3f449a74d54f81108c72e3f5fdc4e0b4",
+      "needs": "On the iPhone, run a shortcut with Find Documents filtered by a property (Library or Type) that passes a document to Use Model, then read the transcript.",
+      "all": [
+        {
+          "e": "entity.documents",
+          "f": {
+            "query": "all",
+            "count": ">=1",
+            "withLibrary": ">=1"
+          }
+        },
+        {
+          "e": "entity.documents",
+          "f": {
+            "query": "ids"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A menu bar item with a quick ask box on the Mac",
+      "url": "https://app.notion.com/p/3f449a74d54f810e824af5508d480d64",
+      "needs": "Mac: ask a question from the menu bar item's field (Debug build), then check with phone_evidence.py --dir on the Mac container's Documents.",
+      "all": [
+        {
+          "e": "menuBar.ask"
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "ask"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "sources": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Every screen shows you around: a guided tour of tips, one arrow at a time",
+      "url": "https://app.notion.com/p/40d49a74d54f81218bd0d100b44984e0",
+      "needs": "Settings › How This Works › Show Me Around, then use the app normally: visit Chat, a cited passage, Documents, an import, Library Settings, Atlas, Database, Settings and Plans, and use a control a tip points at.",
+      "all": [
+        {
+          "e": "tour.showAgain"
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "chat"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "source"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "documents"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "importQueue"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "librarySettings"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "atlas"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "database"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "settings"
+          }
+        },
+        {
+          "e": "tip.shown",
+          "f": {
+            "screen": "plans"
+          }
+        },
+        {
+          "e": "tip.status",
+          "f": {
+            "status": "available"
+          }
+        },
+        {
+          "e": "tip.status",
+          "f": {
+            "status": "used"
+          },
+          "min": 1
+        }
+      ]
+    },
+    {
+      "row": "Redeem an offer code inside the app",
+      "url": "https://app.notion.com/p/3f449a74d54f81d590dcc4f5cd7e2760",
+      "needs": "Owner makes an offer code in App Store Connect. On the iPhone, Plans › Redeem a Code, enter it, and stay in the app.",
+      "all": [
+        {
+          "e": "plans.redeemCode",
+          "o": "ok",
+          "f": {
+            "result": "redeemed"
+          }
+        },
+        {
+          "e": "billing.tier",
+          "f": {
+            "trigger": "change",
+            "tier": "pro"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Share an answer as an image card",
+      "url": "https://app.notion.com/p/3f449a74d54f81c6be6dc96277aa0cf1",
+      "needs": "On the iPhone, tap Image under an answer that has sources and send it in Messages; readability is a glance at the sent card.",
+      "all": [
+        {
+          "e": "share.answerCard",
+          "o": "ok",
+          "f": {
+            "sources": ">=1",
+            "qr": "true"
+          }
+        },
+        {
+          "e": "share.sheet",
+          "o": "ok",
+          "f": {
+            "activity": "com.apple.UIKit.activity.Message",
+            "png": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Voice Input for Queries",
+      "url": "https://app.notion.com/p/a60d2bf8ab4f428194d7d373c7c8b347",
+      "needs": "On the iPhone, tap the chat field's microphone, say a question, stop, and send it.",
+      "all": [
+        {
+          "e": "dictation.done",
+          "o": "ok",
+          "f": {
+            "words": ">=2"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok"
+        }
+      ],
+      "trace": [
+        "\\[Dictation\\] Listening \\("
+      ],
+      "absent_trace": [
+        "\\[Dictation\\] Could not start"
+      ]
+    },
+    {
+      "row": "With the X-Ray off, Apple's audit finds contrast, text-size and clipping issues on Chat, Documents and Settings",
+      "url": "https://app.notion.com/p/3fb49a74d54f81a7ac10c05bacb5e3b5",
+      "needs": "Set the iPhone to the largest accessibility text size. In light and then in dark mode, switch to Chat, Documents and Settings and look at each; a judgement only the owner gives.",
+      "all": [
+        {
+          "e": "ui.tab",
+          "f": {
+            "to": "chat",
+            "textSize": "accessibility5",
+            "scheme": "light"
+          }
+        },
+        {
+          "e": "ui.tab",
+          "f": {
+            "to": "documents",
+            "textSize": "accessibility5",
+            "scheme": "light"
+          }
+        },
+        {
+          "e": "ui.tab",
+          "f": {
+            "to": "settings",
+            "textSize": "accessibility5",
+            "scheme": "light"
+          }
+        },
+        {
+          "e": "ui.tab",
+          "f": {
+            "to": "chat",
+            "textSize": "accessibility5",
+            "scheme": "dark"
+          }
+        },
+        {
+          "e": "ui.tab",
+          "f": {
+            "to": "documents",
+            "textSize": "accessibility5",
+            "scheme": "dark"
+          }
+        },
+        {
+          "e": "ui.tab",
+          "f": {
+            "to": "settings",
+            "textSize": "accessibility5",
+            "scheme": "dark"
+          }
+        }
+      ]
+    },
+    {
+      "row": "VoiceOver Full Audit",
+      "url": "https://app.notion.com/p/2ae8bbdc82704dfb9b7cf4c4787fd45b",
+      "needs": "Turn VoiceOver on, ask a question and add a document. Whether VoiceOver reads each screen well (and skips the X-Ray) is still the owner's judgement; the rule proves the flows ran with VoiceOver on.",
+      "all": [
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "voiceOver": "true"
+          }
+        },
+        {
+          "e": "import.enqueue",
+          "f": {
+            "voiceOver": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Batch & Drag-and-Drop Document Import",
+      "url": "https://app.notion.com/p/37560243d9a745f2bfc6ab27478fee3b",
+      "needs": "In the Mac app, drop a folder that has a subfolder onto a library.",
+      "all": [
+        {
+          "e": "import.drop",
+          "f": {
+            "folders": ">=1",
+            "nested": ">=1",
+            "staged": ">=1"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Implement View Entity Annotations (Contextual Screen Awareness)",
+      "url": "https://app.notion.com/p/38049a74d54f81dcae32fce70ba7751b",
+      "needs": "Open a document's page, then ask Siri about what is on screen.",
+      "all": [
+        {
+          "e": "entity.documents",
+          "f": {
+            "query": "ids",
+            "count": ">=1"
+          }
+        },
+        {
+          "e": "siri.onScreen",
+          "f": {
+            "kind": "document"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Page complexity analysis never runs its Vision pass on macOS because the page renderer returns nil there",
+      "url": "https://app.notion.com/p/3cb49a74d54f81fbb47cec6d8ed526d8",
+      "needs": "In the Mac app, import a PDF with a scanned table.",
+      "all": [
+        {
+          "e": "import.pageComplexity",
+          "f": {
+            "tables": ">=1",
+            "visionPages": ">=1",
+            "os": "macOS"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Detected entities come from table cells only, so most documents contribute none",
+      "url": "https://app.notion.com/p/3d849a74d54f81509c9af5e93d69754c",
+      "needs": "Import a PDF (a letter, an invoice) whose body text has a street address.",
+      "all": [
+        {
+          "e": "vocabulary.learnedEntities",
+          "f": {
+            "address": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A library asks for its search index to be rebuilt right after an import, and asks again after the rebuild",
+      "url": "https://app.notion.com/p/3f249a74d54f81069664e9431e2e687e",
+      "needs": "Import a file into an existing library and ask a question; separately, Rebuild an old library and relaunch.",
+      "all": [
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok"
+        }
+      ],
+      "trace": [
+        "STARTING FULL REBUILD",
+        "\\[WorkspaceReload\\]"
+      ],
+      "absent": [
+        {
+          "e": "index.rebuildRequested"
+        },
+        {
+          "e": "index.health",
+          "o": "failed"
+        }
+      ],
+      "absent_trace": [
+        "Embedding pipeline changed for container",
+        "has no embedding fingerprint and"
+      ]
+    },
+    {
+      "row": "Siri phrases are shown inside the app next to the feature they run",
+      "url": "https://app.notion.com/p/3f449a74d54f810f82d3dc58f89e217a",
+      "needs": "Open an empty Chat; then in Settings tap the Shortcuts link.",
+      "all": [
+        {
+          "e": "tip.shown",
+          "f": {
+            "tip": "siriPhrase.ask"
+          }
+        },
+        {
+          "e": "settings.shortcutsLink"
+        },
+        {
+          "e": "app.phase",
+          "f": {
+            "to": "background"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Figures and photos are captioned at import so they can be found",
+      "url": "https://app.notion.com/p/3f449a74d54f812899bac68f8c18f3c8",
+      "needs": "Import a PDF with a chart and ask about a value in it. Whether the answer gives the right value is the owner's look. Whether the answer used the figure's description is read by eye: no field marks a figure passage yet.",
+      "all": [
+        {
+          "e": "import.figureDescribed",
+          "o": "ok",
+          "f": {
+            "fromImage": "true"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok"
+        }
+      ]
+    },
+    {
+      "row": "OpenIntelligence appears under Open in for PDFs and other documents",
+      "url": "https://app.notion.com/p/3f449a74d54f8132a024ffec0182528a",
+      "needs": "Drop a PDF on the app's Dock icon on the Mac.",
+      "all": [
+        {
+          "e": "open.file"
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "openedFiles"
+          }
+        },
+        {
+          "e": "openedFiles.shown",
+          "f": {
+            "files": ">=1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A Services menu entry on the Mac: ask about or add the selected text",
+      "url": "https://app.notion.com/p/3f449a74d54f8137bdccfab9abc9ae4a",
+      "needs": "In TextEdit select text, then Services > Ask OpenIntelligence; then Services > Add to OpenIntelligence.",
+      "all": [
+        {
+          "e": "services.request",
+          "o": "ok",
+          "f": {
+            "service": "ask"
+          }
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "ask"
+          }
+        },
+        {
+          "e": "services.request",
+          "o": "ok",
+          "f": {
+            "service": "addText"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "type": "txt"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Copy on an answer does nothing on the Mac and still shows the tick",
+      "url": "https://app.notion.com/p/3f449a74d54f814aa0dbf4632c3db478",
+      "needs": "In the Mac app, tap Copy on an answer.",
+      "all": [
+        {
+          "e": "clipboard.copy",
+          "f": {
+            "os": "macOS",
+            "readBack": "true",
+            "kind": "answer"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Shared links show a title, icon and summary",
+      "url": "https://app.notion.com/p/3f449a74d54f8170b056c15268abd51b",
+      "needs": "Share an answer, then Settings > Share the App.",
+      "all": [
+        {
+          "e": "share.preview",
+          "f": {
+            "kind": "answer",
+            "title": "true",
+            "icon": "true"
+          }
+        },
+        {
+          "e": "share.preview",
+          "f": {
+            "kind": "app",
+            "title": "true",
+            "icon": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Files opened from outside show in a read-only viewer with Add to Library",
+      "url": "https://app.notion.com/p/3f449a74d54f8184a7f8ff4afb6abeea",
+      "needs": "On the Mac open a PDF with OpenIntelligence, click it in the sheet, then Add to Library.",
+      "all": [
+        {
+          "e": "open.file"
+        },
+        {
+          "e": "openedFiles.shown",
+          "f": {
+            "files": ">=1"
+          }
+        },
+        {
+          "e": "openedFiles.preview"
+        },
+        {
+          "e": "openedFiles.decided",
+          "f": {
+            "decision": "add"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Add to OpenIntelligence from a right-click in Finder",
+      "url": "https://app.notion.com/p/3f449a74d54f818ba5e1cb76191b4e1d",
+      "needs": "In Finder select files, right-click, Quick Actions (or Services) > Add to OpenIntelligence.",
+      "all": [
+        {
+          "e": "services.request",
+          "o": "ok",
+          "f": {
+            "service": "addFiles",
+            "staged": ">=1"
+          }
+        },
+        {
+          "e": "nav.post",
+          "f": {
+            "to": "importFiles"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Quick Look previews of source pages",
+      "url": "https://app.notion.com/p/3f449a74d54f81a49683c8b4e0e1d1cd",
+      "needs": "In the Mac app, tap a citation in an answer from a PDF.",
+      "all": [
+        {
+          "e": "citation.open",
+          "f": {
+            "view": "page",
+            "type": "pdf",
+            "os": "macOS"
+          }
+        },
+        {
+          "e": "citation.highlight",
+          "f": {
+            "found": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Sharing an answer includes its sources and the app's name",
+      "url": "https://app.notion.com/p/3f449a74d54f81af9c68fb000d996a5e",
+      "needs": "Share a cited answer to Notes or Messages.",
+      "all": [
+        {
+          "e": "answer.share",
+          "f": {
+            "sources": ">=1",
+            "appLink": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Imports that continue in the background need Apple's new background inference entitlement on iOS 27",
+      "url": "https://app.notion.com/p/3f449a74d54f81cc9f9dce8a309ac45c",
+      "needs": "Start an import of a large PDF on the iPhone and leave the app at once until it finishes.",
+      "all": [
+        {
+          "e": "bgtask.import",
+          "f": {
+            "phase": "running"
+          }
+        },
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete",
+            "background": "true"
+          }
+        }
+      ],
+      "absent_trace": [
+        "zero-vector fallback",
+        "falling back to (a )?zero",
+        "all-zero"
+      ]
+    },
+    {
+      "row": "Mac menus and keyboard shortcuts for new chat, import, search and switching library",
+      "url": "https://app.notion.com/p/3f449a74d54f81d9a8fbfdc5a92053bb",
+      "needs": "In the Mac app press Shift-Command-N, Command-O, Command-F, Command-] and Command-[.",
+      "all": [
+        {
+          "e": "menu.command",
+          "f": {
+            "command": "newConversation"
+          }
+        },
+        {
+          "e": "menu.command",
+          "f": {
+            "command": "addDocuments"
+          }
+        },
+        {
+          "e": "menu.command",
+          "f": {
+            "command": "findInLibrary"
+          }
+        },
+        {
+          "e": "menu.command",
+          "f": {
+            "command": "nextLibrary"
+          }
+        },
+        {
+          "e": "menu.command",
+          "f": {
+            "command": "previousLibrary"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Move off the Foundation Models error type Apple deprecated in 27",
+      "url": "https://app.notion.com/p/3f449a74d54f81dbaa9dd754a1cb664b",
+      "needs": "Nothing to do: it waits for the model to fail this way in real use.",
+      "all": [
+        {
+          "e": "model.failure",
+          "f": {
+            "kind": "transient",
+            "action": "retrySamePrompt"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Prepare the embedding model at first launch and after each system update",
+      "url": "https://app.notion.com/p/3f449a74d54f81fd9bede90d7a98dd0e",
+      "needs": "Delete the app from the iPhone and install the build again; import something after a minute.",
+      "all": [
+        {
+          "e": "import.stage",
+          "o": "ok",
+          "f": {
+            "to": "complete"
+          }
+        },
+        {
+          "e": "embedding.warmup",
+          "o": "ok"
+        }
+      ],
+      "trace": [
+        "\\[EmbeddingWarmup\\] Prepared the embedding model for this device in"
+      ]
+    },
+    {
+      "row": "A library of 144,247 passages makes the app slow: work that walks every passage at launch, on Chat open and on the first question",
+      "url": "https://app.notion.com/p/3f549a74d54f8195bdcff0b7a8b27d59",
+      "needs": "Open the 144k-passage library on the iPhone, cold-launch, and ask a question.",
+      "all": [
+        {
+          "e": "launch.chatUsable",
+          "f": {
+            "passages": ">=144000",
+            "stallFree": "true",
+            "watchdog": "true"
+          }
+        },
+        {
+          "e": "answer.done",
+          "o": "ok",
+          "f": {
+            "libraryPassages": ">=144000",
+            "first": "true",
+            "stallFree": "true",
+            "watchdog": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "On iPhone the Core AI embedder ran on the GPU at 88 passages a second against 116 to 121 for the Core ML copy; new iPhone and iPad libraries now use Core ML",
+      "url": "https://app.notion.com/p/3f549a74d54f81cb8544ecc0a00225ed",
+      "needs": "Import a large PDF on the iPhone, stay in front a minute, then leave the app until it ends.",
+      "all": [
+        {
+          "e": "embed.batch",
+          "f": {
+            "provider": "coreml_sentence_embedding",
+            "passages": ">=200",
+            "perSecond": ">=36",
+            "background": "false"
+          }
+        },
+        {
+          "e": "embed.batch",
+          "f": {
+            "provider": "coreml_sentence_embedding",
+            "background": "true"
+          }
+        }
+      ]
+    },
+    {
+      "row": "The GPU setting claimed work the code didn't do, its import-panel button changed nothing, and the window and Deep Think's limits weren't the device's own",
+      "url": "https://app.notion.com/p/3fe49a74d54f8164a5fee6f0f53805ec",
+      "needs": "In the Mac app open Settings > Device & Performance and the Glossary's Context window entry.",
+      "all": [
+        {
+          "e": "settings.contextWindow",
+          "f": {
+            "tokens": "8192",
+            "os": "macOS"
+          }
+        },
+        {
+          "e": "glossary.contextWindow",
+          "f": {
+            "tokens": "8192",
+            "os": "macOS"
+          }
+        }
+      ]
+    },
+    {
+      "row": "On a 4,096-token device graph packing gathered 6,000 tokens, so half of each pack was cut by document position",
+      "url": "https://app.notion.com/p/3fe49a74d54f81d494a5f0842cb8f40e",
+      "needs": "Ask a compare question (\"compare A and B\") on the iPhone.",
+      "all": [
+        {
+          "e": "retrieval.graphPack",
+          "f": {
+            "window": "4096",
+            "withinBudget": "true",
+            "truncated": "false"
+          }
+        }
+      ]
+    },
+    {
+      "row": "A citation shows its passage in the document for every kind of file, and says whether it was found",
+      "url": "https://app.notion.com/p/40c49a74d54f81c199dccc5e6b911e38",
+      "needs": "On the iPhone, tap a citation from a PDF, a Word file, a spreadsheet and a recording.",
+      "all": [
+        {
+          "e": "citation.open",
+          "f": {
+            "type": "pdf"
+          }
+        },
+        {
+          "e": "citation.open",
+          "f": {
+            "type": "docx"
+          }
+        },
+        {
+          "e": "citation.open",
+          "f": {
+            "type": "xlsx"
+          }
+        },
+        {
+          "e": "citation.open",
+          "f": {
+            "type": "m4a"
+          }
+        }
+      ]
+    },
+    {
+      "row": "The Mac app freezes at launch while iCloud holds a sync file: the sync reads it on the main thread",
+      "url": "https://app.notion.com/p/40d49a74d54f81779bfaea8b13628d5a",
+      "needs": "Nothing: it needs a Mac launch while iCloud is still holding a sync file (after another device wrote). The wait's length is the line's own ms; responsiveness is no main-thread stall before the chat showed (watchdog phase launch). Run with --mac and --since at the launch.",
+      "all": [
+        {
+          "e": "sync.waitForFiles",
+          "o": "ok",
+          "f": {
+            "ms": ">=500",
+            "os": "macOS"
+          }
+        }
+      ],
+      "absent": [
+        {
+          "e": "mainThread.stall",
+          "f": {
+            "phase": "launch"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Every Mac window runs its own engine and sync, so two windows rebuild and write one library at once",
+      "url": "https://app.notion.com/p/40e49a74d54f819ebd0dd44c102c37fd",
+      "needs": "In the Mac app open a second window (File > New Window) and start a Rebuild.",
+      "all": [
+        {
+          "e": "chat.appear",
+          "f": {
+            "windows": ">=2",
+            "engines": "1"
+          }
+        },
+        {
+          "e": "rebuild.start",
+          "f": {
+            "engines": "1"
+          }
+        }
+      ]
+    },
+    {
+      "row": "Export Results as PDF / Markdown",
+      "url": "https://app.notion.com/p/c22b686c652142419a46dfdae934d0bb",
+      "needs": "From the chat menu, Export Conversation as Markdown, JSON Lines and PDF (on the iPhone, then the Mac).",
+      "all": [
+        {
+          "e": "export.conversation",
+          "o": "ok",
+          "f": {
+            "format": "markdown",
+            "withSources": ">=1"
+          }
+        },
+        {
+          "e": "export.conversation",
+          "o": "ok",
+          "f": {
+            "format": "jsonLines",
+            "withSources": ">=1"
+          }
+        },
+        {
+          "e": "export.conversation",
+          "o": "ok",
+          "f": {
+            "format": "pdf",
+            "withSources": ">=1"
+          }
         }
       ]
     }

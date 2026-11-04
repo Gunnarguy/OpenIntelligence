@@ -28,6 +28,26 @@ nonisolated enum SystemResourceAdvice {
     static func easeOff(for duration: Duration) async -> Bool {
         guard prefersReducedUsage else { return false }
         try? await Task.sleep(for: duration)
+        recordPause(duration)
         return true
+    }
+
+    /// The last time each pause length was written to the development journal (5.8).
+    private static let journalledPauses = OSAllocatedUnfairLock(initialState: [Int: Date]())
+
+    /// Writes `system.easeOff` at most once a minute per pause length, so an import pausing every 16 passages writes
+    /// one line, not hundreds. 120 ms is the embedding loop's pause, 1 s Deep Think's.
+    private static func recordPause(_ duration: Duration) {
+        guard VerificationJournal.isEnabled else { return }
+        let ms = Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+        let now = Date()
+        let due = journalledPauses.withLock { last -> Bool in
+            if let previous = last[ms], now.timeIntervalSince(previous) < 60 { return false }
+            last[ms] = now
+            return true
+        }
+        guard due else { return }
+        VerificationJournal.record(
+            "system.easeOff", ["pauseMs": "\(ms)", "where": ms < 500 ? "embedding" : "deepThink"])
     }
 }

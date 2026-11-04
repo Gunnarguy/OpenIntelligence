@@ -370,3 +370,7 @@ Sample duplicates are removed by `SampleDocumentManager.removeNumberedSampleCopi
 pass and only when the canonical file is also present.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: SuggestedQuestionsService.swift sampleIdentity, curatedSampleQuestions(forFilenames:) (isSampleWorkspace(filenames:) until 2026-10-20), shouldRebuildBank, isAcceptableTemplateTopic, generateQuestionsForDocumentOnly; SampleDocumentManager.swift numberedCopiesToRemove; SuggestedQuestionsSampleWorkspaceTests and SampleDocumentCopyCleanupTests, 2026-09-14; SampleQuestionHeadingsTests and the rewritten SuggestedQuestionsSampleWorkspaceTests, 2026-10-20]`
+
+## Development-build journal (added 2026-11-03)
+
+Debug builds only (`VerificationJournal`). `retrieval.graphPack` records each graph pack's tokens against its budget and the device's window, whether it fit (`withinBudget`) and whether it was cut (`truncated`), with the core and added passage counts. `vocabulary.learnedEntities` records the Vision-detected entities a library learned, as counts by kind (address, phone number, email, date, other), never the values. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift graph-packing block, ContainerVocabularyService.learnFromDetectedEntities]`

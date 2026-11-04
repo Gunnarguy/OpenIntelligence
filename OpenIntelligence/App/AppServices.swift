@@ -29,6 +29,12 @@ final class AppServices {
     private init() {
         #if DEBUG
             DebugRAGValidationHarness.configureStorageIfNeeded()
+            // The development journal's launch time and its main-thread watchdog (5.8): both start with the app. Not
+            // in a test host, where a test's own main-thread work would write stalls into the journal it is checking.
+            _ = VerificationJournal.launchedAt
+            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+                MainThreadWatchdog.shared.start()
+            }
         #endif
         let screenshotMode = ScreenshotMode.current
         self.screenshotMode = screenshotMode

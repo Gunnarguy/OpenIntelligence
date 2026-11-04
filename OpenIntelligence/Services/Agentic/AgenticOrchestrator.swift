@@ -5086,6 +5086,10 @@ extension AgenticOrchestrator {
                 Log.debug(
                     "[ReasoningChain] Session \(sessionContexts.count + 1): \(extractedSentences) sentences from \(extractedSources) sources (\(ctx.count) chars)",
                     category: .retrieval)
+                VerificationJournal.record(
+                    "deepthink.session",
+                    ["session": "\(sessionContexts.count + 1)", "path": "sentences", "chunks": "\(windowChunks.count)",
+                        "tokens": "0", "window": "\(evidenceWindowTokens)", "chars": "\(ctx.count)"])
             }
 
             if let wholeWindowTokens {
@@ -5095,6 +5099,12 @@ extension AgenticOrchestrator {
                         + "\(wholeWindowTokens) of \(evidenceTokenBudget) evidence tokens, window \(evidenceWindowTokens) "
                         + "(\(ctx.count) chars)",
                     category: .retrieval)
+                // The session's token plan (5.8 journal): the Log.debug line above reaches the trace only at verbose.
+                VerificationJournal.record(
+                    "deepthink.session",
+                    ["session": "\(sessionContexts.count + 1)", "path": "wholeChunks", "chunks": "\(windowChunks.count)",
+                        "tokens": "\(wholeWindowTokens)", "budget": "\(evidenceTokenBudget)",
+                        "window": "\(evidenceWindowTokens)", "chars": "\(ctx.count)"])
             }
 
             sessionContexts.append(ctx)
@@ -5360,6 +5370,14 @@ extension AgenticOrchestrator {
                     // message ("Try rephrasing with more context") was treated as an overflow.
                     let failureKind = ModelErrorClassifier.kind(of: error)
                     let isContextOverflow = failureKind == .contextOverflow
+                    let retriesLeft = retryCount < maxRetries
+                    VerificationJournal.record(
+                        "model.failure",
+                        ["kind": "\(failureKind)", "mode": "agentic",
+                            "action": isContextOverflow && retriesLeft
+                                ? "shrinkPrompt"
+                                : (failureKind == .transient || failureKind == .rateLimited) && retriesLeft
+                                    ? "retrySamePrompt" : "endSession"])
 
                     if isContextOverflow && retryCount < maxRetries {
                         Log.warning(
@@ -9317,6 +9335,12 @@ extension RAGService {
                 // In the envelope's order, which its [S1], [S2] ... labels number (5.7).
                 routedSourceChunks = Self.passages(sourceChunks, inTheOrderOf: envelope)
             }
+            // What the step carries to Private Cloud Compute (5.8 journal): sizes only. Through 5.7 a step with rendered
+            // evidence carried none.
+            VerificationJournal.record(
+                "agentic.cloudStep",
+                ["evidence": hasRenderedEvidence ? "rendered" : "envelope", "contextChars": "\(routedContext.count)",
+                    "passages": "\(routedSourceChunks.count)", "budget": "\(maximumCloudCharacters)"])
             do {
                 try await ensureConsentForDeepThink(
                     service: llmService,

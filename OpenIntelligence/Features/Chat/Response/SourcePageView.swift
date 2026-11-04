@@ -76,6 +76,11 @@ struct SourcePageView: View {
                     match = await SourceLookup.find(
                         passage, in: document.id, isOverview: chunk?.chunk.metadata.abstractionLevel.isSummary ?? false
                     ).match
+                    // A cited page opened (5.8 journal): the file's type and how its passage was found.
+                    VerificationJournal.record(
+                        "citation.open",
+                        ["view": "page", "type": document.fileURL.pathExtension.lowercased(),
+                            "match": match.map { "\($0)" } ?? "none", "scan": "\(pageIsScan)"])
                 }
         }
         #if os(macOS)
@@ -263,6 +268,7 @@ final class RevealingPDFView: PDFView {
         shownPassage = passage
         reveal = { [weak self] in
             guard let self else { return }
+            VerificationJournal.record("citation.highlight", ["found": "\(target.selection != nil)"])
             if let selection = target.selection {
                 selection.color = .systemYellow
                 self.highlightedSelections = [selection]

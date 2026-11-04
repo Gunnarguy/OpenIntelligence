@@ -86,12 +86,18 @@ nonisolated enum PastedContentStaging {
     static func stage(_ providers: [NSItemProvider]) async -> Outcome {
         var outcome = Outcome()
         var items: [Item] = []
+        // What was staged, by kind (5.8 journal): counts only.
+        var files = 0
+        var links = 0
+        var texts = 0
 
         for provider in providers {
             // A copied PDF or picture: its data, written straight into the imports folder.
             if let stored = await storeDataFile(from: provider) {
                 switch stored {
-                case .success(let url): outcome.staged.append(url)
+                case .success(let url):
+                    outcome.staged.append(url)
+                    files += 1
                 case .failure(let error): outcome.failures.append(error.localizedDescription)
                 }
                 continue
@@ -112,16 +118,24 @@ nonisolated enum PastedContentStaging {
                 switch item {
                 case .file(let url):
                     outcome.staged.append(try IntentSupport.copyIntoImports(url))
+                    files += 1
                 case .link(let url):
                     let fetched = try await WebPageFetchService.fetch(url)
                     outcome.staged.append(try IntentSupport.store(fetched.data, preferredFileName: fetched.fileName))
+                    links += 1
                 case .text(let text):
                     outcome.staged.append(try storeText(text))
+                    texts += 1
                 }
             } catch {
                 outcome.failures.append("\(label(for: item)): \(error.localizedDescription)")
             }
         }
+        VerificationJournal.record(
+            "library.paste",
+            !outcome.failures.isEmpty ? .failed : outcome.staged.isEmpty ? .info : .ok,
+            ["providers": "\(providers.count)", "files": "\(files)", "links": "\(links)", "texts": "\(texts)",
+                "staged": "\(outcome.staged.count)", "failed": "\(outcome.failures.count)"])
         return outcome
     }
 

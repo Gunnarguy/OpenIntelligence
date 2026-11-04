@@ -364,6 +364,7 @@ struct ContentView: View {
             // Auto-reconcile existing purchases on launch so paid users
             // are recognized immediately after reinstall or device change.
             await entitlementStore.reconcileEntitlementsOnLaunch()
+            recordBillingTier(trigger: "launch", from: nil)
 
             await refreshSharedWorkspaceIfNeeded(forceReload: true)
 
@@ -371,6 +372,11 @@ struct ContentView: View {
                 await importSamplesIfNeeded()
             }
         }
+        #if DEBUG
+            .onChange(of: entitlementStore.effectiveTier) { old, _ in
+                recordBillingTier(trigger: "change", from: old)
+            }
+        #endif
         .onChange(of: ragService.isProcessing) { _, isWorking in
             #if canImport(UIKit) && !os(visionOS)
                 // An import or a rebuild can run for many minutes with nobody touching the screen.
@@ -407,6 +413,9 @@ struct ContentView: View {
             // while the tab still felt slow.
             NavigationTiming.begin(String(describing: newTab))
             Log.warning("[TabBar] Selected tab changed from \(oldTab) to \(newTab)", category: .ui)
+            VerificationJournal.record(
+                "ui.tab",
+                ["to": "\(newTab)", "from": "\(oldTab)", "textSize": Self.journalTextSize(), "scheme": Self.journalScheme()])
             DSHaptics.tabChanged()
         }
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
@@ -507,12 +516,53 @@ struct ContentView: View {
         return WidgetLibrary(id: activeId, name: name, documentCount: count, importing: false)
     }
 
+    /// The text size and appearance the system has now, read when `ui.tab` is written (5.8 journal): the audit row
+    /// asks for the largest text size in light and dark. Read at event time rather than held as environment values
+    /// the view would track in every build.
+    private static func journalTextSize() -> String {
+        #if canImport(UIKit)
+            let category = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?
+                .traitCollection.preferredContentSizeCategory ?? UIApplication.shared.preferredContentSizeCategory
+            return DynamicTypeSize(category).map { "\($0)" } ?? "unknown"
+        #else
+            return "notApplicable"
+        #endif
+    }
+
+    private static func journalScheme() -> String {
+        #if canImport(UIKit)
+            let style = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?
+                .traitCollection.userInterfaceStyle
+            return style == .dark ? "dark" : "light"
+        #elseif canImport(AppKit)
+            return NSApplication.shared.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? "dark" : "light"
+        #else
+            return "unknown"
+        #endif
+    }
+
+    /// The plan the app shows and where it came from (5.8 journal): at launch after the purchases are read, and on
+    /// each change. Tier and protection names only.
+    private func recordBillingTier(trigger: String, from old: WorkspaceTier?) {
+        var fields = [
+            "tier": "\(entitlementStore.effectiveTier)", "storeTier": "\(entitlementStore.activeTier)",
+            "protection": "\(entitlementStore.legacyProtectionState)", "trigger": trigger,
+        ]
+        if let old { fields["from"] = "\(old)" }
+        VerificationJournal.record("billing.tier", fields)
+    }
+
     /// Handle app lifecycle transitions for transcript persistence.
     ///
     /// - Saves transcript when app backgrounds (preserves conversation state)
     /// - Restores transcript when app returns to foreground (resumes conversation)
     private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
         VerificationJournal.record("app.phase", ["from": "\(oldPhase)", "to": "\(newPhase)"])
+        if newPhase == .background { VerificationJournal.backgroundEntries += 1 }
+        if newPhase == .active, oldPhase != .active {
+            VerificationJournal.record("a11y.voiceOver", ["on": "\(VerificationJournal.voiceOverOn)"])
+        }
         switch newPhase {
         case .background:
             // Save the current session transcript before backgrounding

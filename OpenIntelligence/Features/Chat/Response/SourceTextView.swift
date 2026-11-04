@@ -204,6 +204,11 @@ struct SourceTextView: View {
                     shownPassage = whole
                     result = await SourceLookup.find(
                         whole, in: document.id, isOverview: chunk?.chunk.metadata.abstractionLevel.isSummary ?? false)
+                    // A cited passage shown in its document's text (5.8 journal): the file's type and the match.
+                    VerificationJournal.record(
+                        "citation.open",
+                        ["view": "text", "type": document.fileURL.pathExtension.lowercased(),
+                            "match": result.map { "\($0.match)" } ?? "none"])
                 }
         }
         #if os(macOS)

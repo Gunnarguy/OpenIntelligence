@@ -412,6 +412,13 @@ extension PlanUpgradeSheet {
             .buttonStyle(.bordered)
             .tour(.redeemCode, in: Tour.plans)
             .redeemCodeSheet(isPresented: $showingRedeemCode) { outcome in
+                // The case only (5.8 journal), never the failure's text.
+                switch outcome {
+                case .redeemed: VerificationJournal.record("plans.redeemCode", .ok, ["result": "redeemed"])
+                case .closed: VerificationJournal.record("plans.redeemCode", .info, ["result": "closed"])
+                case .cancelled: VerificationJournal.record("plans.redeemCode", .cancelled, ["result": "cancelled"])
+                case .failed: VerificationJournal.record("plans.redeemCode", .failed, ["result": "failed"])
+                }
                 if let message = outcome.message { alertMessage = message }
                 guard outcome.readsEntitlementsAgain else { return }
                 // Reads the App Store's current entitlements again; nothing is asked of the person.

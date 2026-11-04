@@ -22,7 +22,9 @@
 # again later". The entitlements must be extracted from the freshly built bundle and passed back.
 set -euo pipefail
 
-DEV=/Applications/Xcode-beta.app/Contents/Developer
+# The selected Xcode (xcode-select), which is /Applications/Xcode.app on this Mac since Xcode-beta.app was removed
+# on 2026-09-10. DEVELOPER_DIR, when set, wins.
+DEV="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null || echo /Applications/Xcode.app/Contents/Developer)}"
 DD="${DD:-/private/tmp/oi-dev}"
 SRC="${SRC:-/private/tmp/oi-src}"
 ONLY="${ONLY:-}"          # e.g. ONLY=OpenIntelligenceTests/EmbeddingProviderAgreementTests

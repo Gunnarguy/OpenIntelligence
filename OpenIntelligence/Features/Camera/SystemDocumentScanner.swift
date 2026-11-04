@@ -28,6 +28,7 @@
         func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
             let controller = VNDocumentCameraViewController()
             controller.delegate = context.coordinator
+            VerificationJournal.record("scanner.shown")
             return controller
         }
 
@@ -47,14 +48,17 @@
             func documentCameraViewController(
                 _: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan
             ) {
+                VerificationJournal.record("scanner.finished", .ok, ["pages": "\(scan.pageCount)"])
                 onScan(scan)
             }
 
             func documentCameraViewControllerDidCancel(_: VNDocumentCameraViewController) {
+                VerificationJournal.record("scanner.finished", .cancelled)
                 onDismiss(nil)
             }
 
             func documentCameraViewController(_: VNDocumentCameraViewController, didFailWithError error: Error) {
+                VerificationJournal.record("scanner.finished", .failed, ["error": String(describing: type(of: error))])
                 onDismiss(error)
             }
         }

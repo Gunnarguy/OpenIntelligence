@@ -36,8 +36,14 @@ struct SiriPhraseTip: View {
                 switch action {
                 case .ask:
                     SiriTipView(intent: QueryDocumentsIntent(), isVisible: $isVisible)
+                    #if DEBUG
+                        .onAppear { VerificationJournal.record("tip.shown", ["tip": "siriPhrase.ask"]) }
+                    #endif
                 case .findPassages:
                     SiriTipView(intent: SearchPassagesIntent(), isVisible: $isVisible)
+                    #if DEBUG
+                        .onAppear { VerificationJournal.record("tip.shown", ["tip": "siriPhrase.findPassages"]) }
+                    #endif
                 }
             }
         #else

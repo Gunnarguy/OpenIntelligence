@@ -75,12 +75,20 @@ extension OIDocumentEntity: Transferable {
     /// type goes as a plain file, named as it was imported.
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .pdf) { document in
-            SentTransferredFile(try OIDocumentEntityQuery.storedFileURL(for: document.id))
+            let url = try OIDocumentEntityQuery.storedFileURL(for: document.id)
+            VerificationJournal.record(
+                "transfer.export", .ok,
+                ["item": "document", "form": "pdf", "bytes": "\(VerificationJournal.fileBytes(url))"])
+            return SentTransferredFile(url)
         }
         .exportingCondition { $0.kind.lowercased() == "pdf" }
 
         FileRepresentation(exportedContentType: .data) { document in
-            SentTransferredFile(try OIDocumentEntityQuery.storedFileURL(for: document.id))
+            let url = try OIDocumentEntityQuery.storedFileURL(for: document.id)
+            VerificationJournal.record(
+                "transfer.export", .ok,
+                ["item": "document", "form": "data", "bytes": "\(VerificationJournal.fileBytes(url))"])
+            return SentTransferredFile(url)
         }
     }
 }

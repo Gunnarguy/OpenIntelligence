@@ -91,7 +91,7 @@ nonisolated enum ImportedFileStaging {
     /// refused and the Mac's open panel couldn't choose one. Hidden files and packages are skipped,
     /// and at most `limit` files come from folders, so a large folder dropped by mistake doesn't
     /// queue thousands of files.
-    static func copyIntoWorkspaceExpandingFolders(_ urls: [URL], limit: Int = 500) -> [URL] {
+    static func copyIntoWorkspaceExpandingFolders(_ urls: [URL], limit: Int = 500, via: String = "panel") -> [URL] {
         var files: [URL] = []
         var folders: [URL] = []
         for url in urls where url.isFileURL {
@@ -104,13 +104,23 @@ nonisolated enum ImportedFileStaging {
         }
         var copied = copyIntoWorkspace(files)
         var taken = 0
+        var nested = 0
         for folder in folders where taken < limit {
             let scoped = folder.startAccessingSecurityScopedResource()
             let inside = importableFiles(in: folder, limit: limit - taken)
             taken += inside.count
+            if VerificationJournal.isEnabled {
+                let top = folder.standardizedFileURL.path
+                nested += inside.filter { $0.deletingLastPathComponent().standardizedFileURL.path != top }.count
+            }
             copied += copyIntoWorkspace(inside)
             if scoped { folder.stopAccessingSecurityScopedResource() }
         }
+        // What a drop or the open panel brought in (5.8 journal): counts only.
+        VerificationJournal.record(
+            "import.drop",
+            ["via": via, "files": "\(files.count)", "folders": "\(folders.count)", "fromFolders": "\(taken)",
+                "nested": "\(nested)", "staged": "\(copied.count)"])
         if !folders.isEmpty, taken >= limit {
             Log.warning(
                 "[Import] Folders held at least \(limit) importable files; the first \(limit) were taken",
@@ -190,6 +200,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
     let onDocumentsPicked: ([URL]) -> Void
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        VerificationJournal.record("picker.shown")
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [
             // Documents
             .pdf,

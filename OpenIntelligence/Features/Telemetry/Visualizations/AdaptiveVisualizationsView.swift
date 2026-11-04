@@ -2512,6 +2512,9 @@ struct Fullscreen3DAtlasView: View {
                 AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms, sources: sources)
             )
         }.value
+        AtlasLabeling.recordLabels(
+            view: "fullscreen", scope: wantsAll ? "all" : "library", library: activeContainer, passages: texts.count,
+            clusterNames: clusterNames, axisEnds: axisEnds)
 
         let palette: [PlatformColor] = [
             PlatformColor(.blue),
@@ -3061,6 +3064,9 @@ struct CompactAtlasSceneView: View {
                 AtlasLabeling.axisLabels(coords: coords3D, texts: texts, passageTerms: terms, sources: sources)
             )
         }.value
+        AtlasLabeling.recordLabels(
+            view: "card", scope: "library", library: activeId, passages: texts.count,
+            clusterNames: clusterNames, axisEnds: axisEnds)
 
         let palette: [PlatformColor] = [
             PlatformColor(.blue),

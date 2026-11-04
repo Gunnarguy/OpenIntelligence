@@ -55,5 +55,11 @@ private struct ActiveDocumentAnnotationModifier: ViewModifier {
             // The view names the document as well, which holds whichever of the screen's
             // activities the system treats as current.
             .appEntityIdentifier(document.map { EntityIdentifier.document($0.id) })
+        #if DEBUG
+            // A page that names its document to Siri was on screen (5.8 journal).
+            .onAppear {
+                if document != nil { VerificationJournal.record("siri.onScreen", ["kind": "document"]) }
+            }
+        #endif
     }
 }

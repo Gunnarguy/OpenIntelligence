@@ -43,6 +43,9 @@
         private func ask() {
             guard let text = Self.question(from: question) else { return }
             question = ""
+            VerificationJournal.record(
+                "menuBar.ask",
+                ["windowOpen": "\(NSApplication.shared.windows.contains { $0.isVisible && $0.canBecomeMain })"])
             show(.ask(text, sendsAtOnce: true), opening: .chat)
         }
 

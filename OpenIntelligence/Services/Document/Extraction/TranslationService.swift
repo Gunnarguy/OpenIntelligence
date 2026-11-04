@@ -132,6 +132,18 @@ final class TranslationService: ObservableObject {
         let session = TranslationSession(installedSource: sourceLocale, target: targetLanguage)
         let response = try await session.translate(trimmed)
         translatedText = response.targetText
+        // The session's requested strategy (5.8 journal): `preferredStrategy` is the preference the session was made
+        // with, not a report of what the system used. Languages and a count, never the text.
+        if VerificationJournal.isEnabled {
+            var requestedStrategy = "unavailable"
+            if #available(iOS 26.4, macOS 26.4, *) {
+                requestedStrategy = session.preferredStrategy == .highFidelity ? "highFidelity" : "lowLatency"
+            }
+            VerificationJournal.record(
+                "translation.text", .ok,
+                ["source": detected.code.rawValue, "target": targetLanguage.languageCode?.identifier ?? "?",
+                    "requestedStrategy": requestedStrategy, "chars": "\(trimmed.count)"])
+        }
 
         Log.info("[Translation] \(detected.displayName) → \(targetLanguage.languageCode?.identifier ?? "en"): '\(trimmed.prefix(50))...' → '\(translatedText.prefix(50))...'", category: .ingestion)
 

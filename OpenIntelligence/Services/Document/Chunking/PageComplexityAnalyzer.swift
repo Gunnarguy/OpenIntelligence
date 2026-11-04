@@ -140,6 +140,10 @@ struct PageComplexityAnalysis: Sendable {
     // Timing
     let analysisTimeMs: Double
 
+    /// Whether the Vision pass ran on this page (5.8 journal, `import.pageComplexity`): on the Mac it never did
+    /// while the page renderer returned nil there.
+    var visionRan: Bool = false
+
     var summary: String {
         let signals = [
             textCoverage > 0.5 ? "text:\(Int(textCoverage*100))%" : nil,
@@ -298,9 +302,11 @@ nonisolated final class PageComplexityAnalyzer: @unchecked Sendable {
         let needsVisionAnalysis = hasStrongVisualSignal || hasSuspiciousTable || hasNoText || hasLowTextCoverage
 
         var visualTextRegionsCount = 0
+        var visionRan = false
 
         if needsVisionAnalysis, let image = pageImage ?? renderPageForAnalysis(page) {
             let visionResults = await analyzeWithVision(image)
+            visionRan = true
 
             // Merge Vision results with heuristic signals (Vision takes precedence)
             imagePresence = max(imagePresence, visionResults.imageConfidence)
@@ -363,7 +369,8 @@ nonisolated final class PageComplexityAnalyzer: @unchecked Sendable {
             embeddedObjectCount: embeddedObjectCount,
             annotationComplexity: annotationComplexity,
             isMixedModeScanned: isMixedModeScanned,
-            analysisTimeMs: analysisTime
+            analysisTimeMs: analysisTime,
+            visionRan: visionRan
         )
     }
 
@@ -1312,6 +1319,12 @@ extension PageComplexityAnalyzer {
         let groups = groupByStrategy(analyses)
         let totalPages = analyses.count
         let totalAnalysisTime = analyses.map { $0.analysisTimeMs }.reduce(0, +)
+        // Counts only (5.8 journal): with the line's `os`, whether the Mac's pages get their Vision pass.
+        VerificationJournal.record(
+            "import.pageComplexity",
+            ["pages": "\(totalPages)", "scanned": "\(analyses.filter { $0.complexity == .scanned }.count)",
+                "tables": "\(analyses.filter { $0.tablePresence > 0.3 }.count)",
+                "visionPages": "\(analyses.filter(\.visionRan).count)"])
 
         var summary = "[PageComplexityAnalyzer] Batch analysis complete:\n"
         summary += "  Total pages: \(totalPages) | Analysis time: \(String(format: "%.1f", totalAnalysisTime))ms (\(String(format: "%.2f", totalAnalysisTime/Double(totalPages)))ms/page)\n"

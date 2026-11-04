@@ -22,6 +22,18 @@ class EmbeddingService {
     /// The actual provider ID being used (may differ from requested if fallback occurred)
     var actualProviderId: String { providerIdentifier }
 
+    /// One embedding call's speed (5.8 journal, `embed.batch`): which model, how many passages, how many a second, and
+    /// whether the app was in the background. Once per call, never per passage.
+    private func recordBatch(count: Int, seconds: TimeInterval) async {
+        guard VerificationJournal.isEnabled, count > 0 else { return }
+        let background = await MainActor.run { RAGService.appIsInBackground }
+        VerificationJournal.record(
+            "embed.batch", .ok, durationMs: seconds * 1000,
+            ["provider": providerIdentifier, "passages": "\(count)",
+                "perSecond": "\(seconds > 0 ? Int((Double(count) / seconds).rounded()) : 0)",
+                "background": "\(background)"])
+    }
+
     // MARK: - Token Counting (Critical for Chunk Validation)
 
     /// Count ACTUAL tokens that will be used during embedding
@@ -283,6 +295,7 @@ class EmbeddingService {
                 let totalTime = Date().timeIntervalSince(startTime)
                 let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
                 Log.info("Embedded \(texts.count) chunks in \(String(format: "%.2f", totalTime))s (avg: \(String(format: "%.0f", avgTime * 1000))ms)", category: .embedding)
+                await recordBatch(count: texts.count, seconds: totalTime)
                 return embeddings
             }
 
@@ -319,6 +332,7 @@ class EmbeddingService {
             let totalTime = Date().timeIntervalSince(startTime)
             let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
             Log.info("Embedded \(texts.count) chunks in \(String(format: "%.2f", totalTime))s (avg: \(String(format: "%.0f", avgTime * 1000))ms)", category: .embedding)
+            await recordBatch(count: texts.count, seconds: totalTime)
             return allEmbeddings
         } catch is CancellationError {
             // A cancelled task is not a provider that failed. Wrapped as one, a cancellation

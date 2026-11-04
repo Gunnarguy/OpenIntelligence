@@ -155,6 +155,10 @@ final class VoiceDictation: ObservableObject {
         deadline.cancel()
         self.results = nil
         self.analyzer = nil
+        // How many words it heard (5.8 journal), never the words.
+        VerificationJournal.record(
+            "dictation.done", .ok,
+            ["words": "\(Self.joined(finished, inProgress).split(whereSeparator: \.isWhitespace).count)"])
         phase = .idle
     }
 

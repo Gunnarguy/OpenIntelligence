@@ -125,7 +125,13 @@ final class EvidenceThreadStore: Sendable {
         encoder.dateEncodingStrategy = .iso8601
         
         let data = try encoder.encode(thread)
+        let isNew = VerificationJournal.isEnabled && !FileManager.default.fileExists(atPath: fileURL.path)
         try WorkspaceSyncService.coordinatedWriteData(data, to: fileURL)
+        // The conversation's id is the same on every device, so two devices' journals can be matched (5.8).
+        VerificationJournal.record(
+            "thread.saved",
+            ["thread": VerificationJournal.anon(thread.id), "library": VerificationJournal.anon(thread.containerId),
+                "new": "\(isNew)"])
         logger.debug("Successfully saved EvidenceThread \(thread.id) to local store.")
     }
 
@@ -182,6 +188,8 @@ final class EvidenceThreadStore: Sendable {
             logger.debug("Successfully deleted EvidenceThread \(id).")
         }
         recordDeletion(of: id)
+        VerificationJournal.record(
+            "thread.deleted", ["thread": VerificationJournal.anon(id), "library": VerificationJournal.anon(containerId)])
     }
 
     private var deletedThreadsURL: URL {

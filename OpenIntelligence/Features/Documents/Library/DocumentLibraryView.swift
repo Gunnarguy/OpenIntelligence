@@ -1626,6 +1626,16 @@ struct DocumentLibraryView: View {
 
                 // "Add a Document" from Siri, Shortcuts or a link ends here, at the file picker.
                 if AppNavigationRequest.shared.take(where: { $0 == .addDocument }) != nil {
+                    #if os(macOS)
+                        let picker = "macPanel"
+                    #else
+                        let picker = "picker"
+                    #endif
+                    VerificationJournal.record(
+                        "nav.taken",
+                        ["to": "addDocument",
+                            "shows": entitlementStore.canAddDocument(currentCount: ragService.countedDocumentCount)
+                                ? picker : "planSheet"])
                     presentDocumentPickerOrUpgrade()
                 }
 
@@ -1929,7 +1939,14 @@ struct DocumentLibraryView: View {
     /// start a modal panel at all.
     @MainActor
     private func presentDocumentPickerOrUpgrade() {
-        guard entitlementStore.canAddDocument(currentCount: ragService.countedDocumentCount) else {
+        let allowed = entitlementStore.canAddDocument(currentCount: ragService.countedDocumentCount)
+        // What the plan counted when Add was asked for (5.8 journal): row "The app's guides take three of a free
+        // plan's five documents".
+        VerificationJournal.record(
+            "plan.documentCheck",
+            ["counted": "\(ragService.countedDocumentCount)", "limit": "\(entitlementStore.documentLimit)",
+                "unlimited": "\(entitlementStore.hasUnlimitedDocuments)", "allowed": "\(allowed)"])
+        guard allowed else {
             presentPlanSheet(for: .documentLimit)
             return
         }
@@ -1962,7 +1979,7 @@ struct DocumentLibraryView: View {
             return false
         }
 
-        let staged = ImportedFileStaging.copyIntoWorkspaceExpandingFolders(fileURLs, limit: folderFileRoom)
+        let staged = ImportedFileStaging.copyIntoWorkspaceExpandingFolders(fileURLs, limit: folderFileRoom, via: "drop")
         guard !staged.isEmpty else { return false }
 
         reviewAndEnqueueDocuments(staged)

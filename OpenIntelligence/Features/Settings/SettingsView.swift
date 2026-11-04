@@ -603,7 +603,17 @@ struct SettingsView: View {
         case .librariesSync:
             detailScroll { sharedWorkspaceCard }
         case .devicePerformance:
-            detailScroll { contextWindowCard }
+            detailScroll {
+                contextWindowCard
+                #if DEBUG
+                    .onAppear {
+                        // The window the card was given to show (5.8 journal).
+                        VerificationJournal.record(
+                            "settings.contextWindow",
+                            ["tokens": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true))"])
+                    }
+                #endif
+            }
         case .appearance:
             detailScroll { appearanceCard }
         case .notifications:
@@ -3051,6 +3061,10 @@ struct SettingsView: View {
                     #if os(iOS)
                         // Opens the Shortcuts app on this app's actions.
                         ShortcutsLink()
+                        #if DEBUG
+                            .simultaneousGesture(
+                                TapGesture().onEnded { VerificationJournal.record("settings.shortcutsLink") })
+                        #endif
                             .shortcutsLinkStyle(.automaticOutline)
                             .frame(maxWidth: .infinity)
                     #endif

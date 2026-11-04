@@ -447,3 +447,7 @@ Library refused a Pro or Lifetime library of five documents or more. The library
 (SavedEntitlementSnapshotTests), confidence: high]`
 
 > **5.7, 2026-10-22.** The plan screens (`PlanUpgradeSheet`, `LaunchSaleBanner`) took the app-wide visual standard (colour, spacing, corners) with their text sizes unchanged. No price, plan, limit or purchase path changed (`ui_wiring_check.py` OK). `[evidence_level: build_verified, confidence: high]`
+
+## 8. What a development build records about plans (added 2026-11-03)
+
+Debug builds only (`VerificationJournal`), for closing plan rows from a device's journal: `billing.tier` at launch after the purchases are read and on each change (the tier Settings shows, StoreKit's tier, the legacy protection and the tier before), from `ContentView`, since `EntitlementStore.swift` is a hard-boundary file; `plan.documentCheck` when Add is asked for (what the plan counted, its limit, unlimited or not, allowed or not); `plans.redeemCode` with the redemption's case only (redeemed, closed, cancelled, failed), never the failure's text. `[evidence_level: code_verified, confidence: high, evidence_source: ContentView.swift recordBillingTier, DocumentLibraryView.swift presentDocumentPickerOrUpgrade, PlanUpgradeSheet.swift]`

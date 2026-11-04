@@ -51,11 +51,12 @@ enum AnswerCardRenderer {
             evidence: message.structuredAnswer?.evidence ?? [],
             retrievedChunks: message.retrievedChunks ?? []
         )
+        let code = qrCode(for: OpenIntelligenceLinks.sharedAppStoreURL)
         let card = AnswerCardView(
             answer: cardText(message.content),
             sources: Array(sources.prefix(maxSources)),
             moreSources: max(0, sources.count - maxSources),
-            code: qrCode(for: OpenIntelligenceLinks.sharedAppStoreURL)
+            code: code
         )
         guard let data = pngData(of: card) else { return nil }
         // A folder of its own for each card, so a second share cannot overwrite the first while the
@@ -67,8 +68,15 @@ enum AnswerCardRenderer {
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
+            // What the card holds (5.8 journal): counts and sizes only.
+            VerificationJournal.record(
+                "share.answerCard", .ok,
+                ["sources": "\(min(sources.count, maxSources))", "moreSources": "\(max(0, sources.count - maxSources))",
+                    "truncated": "\(message.content.count > maxAnswerCharacters)", "qr": "\(code != nil)",
+                    "bytes": "\(data.count)", "pixelWidth": "\(Int(width * scale))"])
             return url
         } catch {
+            VerificationJournal.record("share.answerCard", .failed, ["error": String(describing: type(of: error))])
             Log.warning("[Share] The answer card could not be written: \(error.localizedDescription)", category: .ui)
             return nil
         }

@@ -7,8 +7,11 @@
 //
 
 import AppIntents
-import UIKit
 import XCTest
+
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 @testable import OpenIntelligence
 
@@ -140,17 +143,19 @@ final class SourceLookupImportTests: XCTestCase {
         files["rtf"] = try attributed.data(
             from: NSRange(location: 0, length: attributed.length),
             documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
-        // A real PDF with a text layer.
-        let format = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
-        files["pdf"] = format.pdfData { context in
-            for page in stride(from: 0, to: prose.count, by: 6) {
-                context.beginPage()
-                let text = prose[page..<min(page + 6, prose.count)].joined(separator: "\n\n")
-                (text as NSString).draw(
-                    in: CGRect(x: 40, y: 40, width: 532, height: 700),
-                    withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
+        // A real PDF with a text layer. UIKit draws it; on a Mac (5.8, the suite builds for macOS) the PDF is left out.
+        #if canImport(UIKit)
+            let format = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
+            files["pdf"] = format.pdfData { context in
+                for page in stride(from: 0, to: prose.count, by: 6) {
+                    context.beginPage()
+                    let text = prose[page..<min(page + 6, prose.count)].joined(separator: "\n\n")
+                    (text as NSString).draw(
+                        in: CGRect(x: 40, y: 40, width: 532, height: 700),
+                        withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
+                }
             }
-        }
+        #endif
         var urls: [String: URL] = [:]
         for (kind, data) in files {
             let url = folder.appendingPathComponent("source-test-\(UUID().uuidString.prefix(6)).\(kind)")

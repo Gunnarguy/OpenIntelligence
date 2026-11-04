@@ -46,6 +46,7 @@ struct OpenedFilesSheet: View {
                     ForEach(files, id: \.self) { file in
                         Button {
                             previewing = file
+                            VerificationJournal.record("openedFiles.preview", ["type": file.pathExtension.lowercased()])
                         } label: {
                             HStack(spacing: DSSpacing.md) {
                                 Image(systemName: Self.symbol(for: file))
@@ -100,15 +101,25 @@ struct OpenedFilesSheet: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Don't Add", role: .cancel, action: onDiscard)
+                    Button("Don't Add", role: .cancel) {
+                        VerificationJournal.record(
+                            "openedFiles.decided", ["decision": "discard", "files": "\(files.count)"])
+                        onDiscard()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add to \(libraryName)") { onAdd(libraryId) }
+                    Button("Add to \(libraryName)") {
+                        VerificationJournal.record("openedFiles.decided", ["decision": "add", "files": "\(files.count)"])
+                        onAdd(libraryId)
+                    }
                         .fontWeight(.semibold)
                 }
             }
         }
         .quickLookPreview($previewing, in: files)
+        #if DEBUG
+            .onAppear { VerificationJournal.record("openedFiles.shown", ["files": "\(files.count)"]) }
+        #endif
     }
 
     /// The file's kind and size, read from the copy: "PDF, 2.4 MB".

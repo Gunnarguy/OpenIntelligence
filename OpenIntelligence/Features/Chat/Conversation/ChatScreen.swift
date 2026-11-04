@@ -377,6 +377,25 @@ struct ChatScreen: View {
     @State private var lastLoadedChatContainerId: UUID? = nil
     @State private var lastProcessedDocuments: [Document]? = nil
     @State private var isAppeared = false
+
+    // The development journal's launch markers (5.8): when the chat first showed in this process and how many answers
+    // it has written, for `launch.chatUsable`, `answer.start` and `answer.done`.
+    private static var chatFirstShownAt: Date?
+    private static var answersThisLaunch = 0
+
+    /// Windows or scenes in front, for `chat.appear` (5.8): with `engines`, whether two windows share one engine.
+    private var visibleWindowCount: Int {
+        #if os(macOS)
+            return NSApplication.shared.windows.filter { $0.isVisible && $0.canBecomeMain }.count
+        #else
+            return UIApplication.shared.connectedScenes.filter { $0.activationState != .background }.count
+        #endif
+    }
+
+    /// The open library's passage count as the library list has it, for the large-library rows (5.8).
+    private var activeLibraryPassages: Int {
+        ragService.containerService.activeContainer?.totalChunks ?? 0
+    }
     @State private var needsSuggestedQuestionsRefresh = false
 
     // Smart Reply follow-up suggestions (shown after AI response)
@@ -1086,6 +1105,7 @@ struct ChatScreen: View {
                 // still running on return, so the timer stood frozen at the moment the tab was left.
                 if isProcessing {
                     startProcessingClock()
+                    VerificationJournal.record("chat.clockResumed", ["mode": "\(effectiveQualityMode)"])
                 }
                 // Seed screenshot demo FIRST before loading persisted history
                 seedScreenshotDemoIfNeeded()
@@ -1093,7 +1113,20 @@ struct ChatScreen: View {
                 isAppeared = true
                 // With `chat.disappear` and `library.setActive`, the event log shows whether the chat was on screen
                 // when it went blank (5.8, the owner's iPhone, 2026-11-03).
-                VerificationJournal.record("chat.appear", ["messages": "\(messages.count)"])
+                VerificationJournal.record(
+                    "chat.appear",
+                    ["messages": "\(messages.count)", "windows": "\(visibleWindowCount)",
+                        "engines": "\(RAGService.liveEngineCount)"])
+                if VerificationJournal.isEnabled, Self.chatFirstShownAt == nil {
+                    Self.chatFirstShownAt = Date()
+                    VerificationJournal.record(
+                        "launch.chatUsable",
+                        ["passages": "\(activeLibraryPassages)",
+                            "ms": "\(Int(Date().timeIntervalSince(VerificationJournal.launchedAt) * 1000))",
+                            "stallFree": "\(MainThreadWatchdog.shared.stallFree(since: VerificationJournal.launchedAt))",
+                            "watchdog": "\(MainThreadWatchdog.shared.isRunning)"])
+                    MainThreadWatchdog.shared.phase = "chatOpen"
+                }
                 Task { await TourContext.chatOpened.donate() }
                 if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
                     needsSuggestedQuestionsRefresh = false
@@ -2112,6 +2145,22 @@ struct ChatScreen: View {
                 dynamicQuestionDetails = Dictionary(
                     uniqueKeysWithValues: questions.map { ($0.text, $0) }
                 )
+                // What the chat's strip was given (5.8 journal): counts by kind, never the questions.
+                if VerificationJournal.isEnabled {
+                    let curated = questions.filter { SuggestedQuestionsService.curatedQuestionTexts.contains($0.text) }
+                    let generated = questions.filter {
+                        $0.isLLMGenerated && !SuggestedQuestionsService.curatedQuestionTexts.contains($0.text)
+                    }
+                    VerificationJournal.record(
+                        "suggestions.shown",
+                        ["library": VerificationJournal.anon(containerId),
+                            "defaultLibrary": "\(containerId == ragService.containerService.containers.first?.id)",
+                            "documents": "\(documents.count)",
+                            "onlySamples": "\(SuggestedQuestionsService.curatedSampleQuestions(forFilenames: documents.map(\.filename)) != nil)",
+                            "curated": "\(curated.count)", "generated": "\(generated.count)",
+                            "template": "\(questions.count - curated.count - generated.count)",
+                            "chatEmpty": "\(messages.isEmpty)", "inFront": "\(isAppeared)"])
+                }
                 Log.debug("[ChatScreen] Generated \(questions.count) dynamic suggested questions (force: \(force))")
             } catch {
                 Log.warning("[ChatScreen] Failed to generate dynamic questions: \(error.localizedDescription)")
@@ -2165,8 +2214,10 @@ struct ChatScreen: View {
         case .scanDocument:
             #if os(iOS)
                 if SystemDocumentScanner.isSupported {
+                    VerificationJournal.record("nav.taken", ["to": "scanDocument", "shows": "scanner"])
                     showDocumentScanner = true
                 } else {
+                    VerificationJournal.record("nav.taken", ["to": "scanDocument", "shows": "unsupported"])
                     toastManager.show(
                         ToastItem(title: "This device can't scan documents", icon: "doc.viewfinder", tint: .orange),
                         duration: 2.5)
@@ -2264,7 +2315,16 @@ struct ChatScreen: View {
                     format: format
                 )
                 conversationExport = ConversationExportFile(url: url)
+                let answers = shown.filter { $0.role == .assistant }
+                VerificationJournal.record(
+                    "export.conversation", .ok,
+                    ["format": "\(format.rawValue)", "answers": "\(answers.count)",
+                        "withSources": "\(answers.filter { !($0.retrievedChunks ?? []).isEmpty }.count)",
+                        "bytes": "\(VerificationJournal.fileBytes(url))", "via": "chatMenu"])
             } catch {
+                VerificationJournal.record(
+                    "export.conversation", .failed,
+                    ["format": "\(format.rawValue)", "error": String(describing: type(of: error))])
                 Log.error("[Chat] Conversation export failed: \(error.localizedDescription)", category: .pipeline)
                 toastManager.show(
                     ToastItem(title: "Export failed", icon: "exclamationmark.triangle", tint: .orange),
@@ -2388,10 +2448,15 @@ struct ChatScreen: View {
 
         // If we have partial text, save it as a message
         let sanitizedPartial = sanitizeFinalResponse(streamingText)
-        if let partialContent = partialResponseMessageContent(
+        let keptContent = partialResponseMessageContent(
             sanitizedPartial: sanitizedPartial,
             userInitiatedStop: true
-        ) {
+        )
+        VerificationJournal.record(
+            "answer.stopped",
+            ["mode": "\(effectiveQualityMode)", "kept": "\(keptContent != nil)",
+                "characters": "\(sanitizedPartial.count)"])
+        if let partialContent = keptContent {
             var partial = ChatMessage(
                 role: .assistant,
                 content: partialContent
@@ -3218,6 +3283,15 @@ struct ChatScreen: View {
         let processingStart = Date()
         queryStart = processingStart
         nowTick = processingStart
+        if VerificationJournal.isEnabled {
+            let first = Self.answersThisLaunch == 0
+            if first { MainThreadWatchdog.shared.phase = "firstQuestion" }
+            VerificationJournal.record(
+                "answer.start", .started,
+                ["mode": "\(effectiveQualityMode)", "passages": "\(activeLibraryPassages)", "first": "\(first)",
+                    "stallFree": "\(MainThreadWatchdog.shared.stallFree(since: Self.chatFirstShownAt ?? VerificationJournal.launchedAt))",
+                    "watchdog": "\(MainThreadWatchdog.shared.isRunning)"])
+        }
         // Initialize execution location based on selected model
         if settings.selectedModel == .appleIntelligence {
             execution = .onDevice
@@ -3475,7 +3549,21 @@ struct ChatScreen: View {
                             "sources": "\(response.retrievedChunks.count)",
                             "library": VerificationJournal.anon(capturedUsedContainerId),
                             "inFront": "\(self.isAppeared)",
+                            // The app's state when the answer finished, which `inFront` isn't: leaving the app
+                            // doesn't make the chat disappear. Read now, from the same source the import's
+                            // `background` uses, not the view's scene phase captured when the question was asked.
+                            "scene": RAGService.appIsInBackground ? "background" : "foreground",
+                            "voiceOver": "\(VerificationJournal.voiceOverOn)",
+                            "first": "\(Self.answersThisLaunch == 0)",
+                            "libraryPassages": "\(self.activeLibraryPassages)",
+                            "stallFree": "\(MainThreadWatchdog.shared.stallFree(since: self.queryStart ?? Date()))",
+                            // Whether `stallFree` means anything: false when the watchdog never started.
+                            "watchdog": "\(MainThreadWatchdog.shared.isRunning)",
                         ])
+                    if VerificationJournal.isEnabled {
+                        Self.answersThisLaunch += 1
+                        MainThreadWatchdog.shared.phase = "other"
+                    }
                     // A finished answer is the only moment the app asks for a rating (see
                     // ReviewPromptService for when).
                     ReviewPromptService.shared.noteAnswer(
@@ -3733,6 +3821,10 @@ struct ChatScreen: View {
         var notice = ChatMessage(role: .assistant, content: content)
         notice.containerId = containerId
         appendAndPersistMessage(notice, for: containerId)
+        VerificationJournal.record(
+            "answer.keptAfterExpiry",
+            ["kept": written.isEmpty ? "empty" : textWasComplete ? "complete" : "partial",
+                "chars": "\(written.count)", "inFront": "\(isAppeared)"])
         if !isAppeared {
             ChatAnswerNotice.shared.answerFinishedOffScreen()
         }

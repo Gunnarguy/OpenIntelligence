@@ -490,6 +490,8 @@ final class SpotlightIndexService {
             Log.info(
                 "[Spotlight] Removed the entries of \(change.gone.count) document(s) no longer in the libraries",
                 category: .initialization)
+            VerificationJournal.record(
+                "spotlight.removedGone", ["count": "\(change.gone.count)", "arrived": "\(change.arrived.count)"])
         }
         if !change.arrived.isEmpty {
             Task { await reindexFromStoredRecords(documentIds: change.arrived) }

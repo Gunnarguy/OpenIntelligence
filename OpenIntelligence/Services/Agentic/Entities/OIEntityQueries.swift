@@ -12,19 +12,32 @@ import Foundation
 struct OIDocumentEntityQuery: EntityQuery, EntityStringQuery, EnumerableEntityQuery {
     func entities(for identifiers: [OIDocumentEntity.ID]) async throws -> [OIDocumentEntity] {
         let docs = Self.loadAllDocuments()
-        return docs.filter { identifiers.contains($0.id) }
+        return Self.recorded("ids", docs.filter { identifiers.contains($0.id) }, asked: identifiers.count)
     }
 
     func suggestedEntities() async throws -> [OIDocumentEntity] {
-        Self.loadAllDocuments()
+        Self.recorded("suggested", Self.loadAllDocuments())
     }
 
     func entities(matching displayName: String) async throws -> [OIDocumentEntity] {
-        Self.loadAllDocuments().filter { $0.filename.localizedCaseInsensitiveContains(displayName) }
+        Self.recorded("name", Self.loadAllDocuments().filter { $0.filename.localizedCaseInsensitiveContains(displayName) })
     }
 
     func allEntities() async throws -> [OIDocumentEntity] {
-        Self.loadAllDocuments()
+        Self.recorded("all", Self.loadAllDocuments())
+    }
+
+    /// Which query the system asked and what came back with which properties (5.8 journal): counts only.
+    private static func recorded(_ query: String, _ documents: [OIDocumentEntity], asked: Int? = nil) -> [OIDocumentEntity] {
+        guard VerificationJournal.isEnabled else { return documents }
+        var fields = [
+            "query": query, "count": "\(documents.count)",
+            "withLibrary": "\(documents.filter { $0.libraryName != nil }.count)",
+            "withPages": "\(documents.filter { $0.pageCount != nil }.count)",
+        ]
+        if let asked { fields["asked"] = "\(asked)" }
+        VerificationJournal.record("entity.documents", fields)
+        return documents
     }
 
     /// An enumerable query is what gives Shortcuts a "Find Documents" action: the system lists
@@ -86,7 +99,10 @@ struct OIDocumentEntityQuery: EntityQuery, EntityStringQuery, EnumerableEntityQu
 @available(iOS 16.0, macOS 13.0, *)
 struct OILibraryEntityQuery: EntityQuery, EntityStringQuery, EnumerableEntityQuery {
     func entities(for identifiers: [OILibraryEntity.ID]) async throws -> [OILibraryEntity] {
-        Self.loadAllLibraries().filter { identifiers.contains($0.id) }
+        let found = Self.loadAllLibraries().filter { identifiers.contains($0.id) }
+        VerificationJournal.record(
+            "entity.libraries", ["query": "ids", "asked": "\(identifiers.count)", "count": "\(found.count)"])
+        return found
     }
 
     func suggestedEntities() async throws -> [OILibraryEntity] {

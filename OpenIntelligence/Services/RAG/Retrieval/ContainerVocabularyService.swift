@@ -168,6 +168,14 @@ actor ContainerVocabularyService {
         vocabularies[containerId] = vocab
 
         Log.debug("[ContainerVocabularyService] Learned \(entities.count) Vision-detected entities", category: .ingestion)
+        // Counts by kind only (5.8 journal); the values never enter the journal.
+        if VerificationJournal.isEnabled {
+            let counted = ["address", "phoneNumber", "email", "date"]
+            var fields = ["library": VerificationJournal.anon(containerId), "count": "\(entities.count)"]
+            for kind in counted { fields[kind] = "\(entities.filter { $0.type == kind }.count)" }
+            fields["other"] = "\(entities.filter { !counted.contains($0.type) }.count)"
+            VerificationJournal.record("vocabulary.learnedEntities", fields)
+        }
     }
 
     /// Mark document ingestion complete (for IDF calculation)

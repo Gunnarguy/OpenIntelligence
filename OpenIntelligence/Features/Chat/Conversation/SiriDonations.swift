@@ -20,5 +20,7 @@ enum SiriDonations {
         let intent = OpenLibraryIntent()
         intent.target = OILibraryEntityQuery.entity(for: container)
         _ = IntentDonationManager.shared.donate(intent: intent)
+        VerificationJournal.record(
+            "siri.donated", ["intent": "OpenLibraryIntent", "library": VerificationJournal.anon(container.id)])
     }
 }

@@ -15,9 +15,23 @@ import SwiftUI
         var preview: ShareSheetPreview? = nil
 
         func makeUIViewController(context _: Context) -> UIActivityViewController {
-            UIActivityViewController(
+            let controller = UIActivityViewController(
                 activityItems: PreviewedShareItem.items(activityItems, preview: preview),
                 applicationActivities: applicationActivities)
+            // Where the share went (5.8 journal): Apple's activity id, or "thirdParty" for another app's (its id names
+            // an app the person has), and whether a picture was in it.
+            if VerificationJournal.isEnabled {
+                let items = activityItems.count
+                let png = activityItems.contains { ($0 as? URL)?.pathExtension.lowercased() == "png" }
+                controller.completionWithItemsHandler = { activity, completed, _, error in
+                    let id = activity?.rawValue
+                    VerificationJournal.record(
+                        "share.sheet", error != nil ? .failed : completed ? .ok : .cancelled,
+                        ["activity": id.map { $0.hasPrefix("com.apple.") ? $0 : "thirdParty" } ?? "none",
+                            "items": "\(items)", "png": "\(png)"])
+                }
+            }
+            return controller
         }
 
         func updateUIViewController(_: UIActivityViewController, context _: Context) {

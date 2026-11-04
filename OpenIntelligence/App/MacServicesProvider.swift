@@ -21,10 +21,12 @@
             _ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>
         ) {
             guard let text = Self.selectedText(on: pasteboard) else {
+                VerificationJournal.record("services.request", .failed, ["service": "ask", "error": "noText"])
                 error.pointee = "OpenIntelligence received no text." as NSString
                 return
             }
             Log.info("[Services] Ask: \(text.count) characters", category: .ui)
+            VerificationJournal.record("services.request", .ok, ["service": "ask"])
             NSApplication.shared.activate()
             Self.showWindowIfNoneIsOpen(link: AppLink.url(for: .chat))
             AppNavigationRequest.post(.ask(text))
@@ -35,18 +37,22 @@
             _ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>
         ) {
             guard let text = Self.selectedText(on: pasteboard) else {
+                VerificationJournal.record("services.request", .failed, ["service": "addText", "error": "noText"])
                 error.pointee = "OpenIntelligence received no text." as NSString
                 return
             }
             do {
                 let note = try PastedContentStaging.storeText(text)
                 Log.info("[Services] Add text: \(text.count) characters", category: .ingestion)
+                VerificationJournal.record(
+                    "services.request", .ok, ["service": "addText", "type": note.pathExtension.lowercased()])
                 NSApplication.shared.activate()
                 Self.showWindowIfNoneIsOpen(link: AppLink.url(for: .documents))
                 AppNavigationRequest.post(.importFiles([note]))
             } catch let failure {
                 Log.error(
                     "[Services] The text could not be saved: \(failure.localizedDescription)", category: .ingestion)
+                VerificationJournal.record("services.request", .failed, ["service": "addText", "error": "saveFailed"])
                 error.pointee = "OpenIntelligence couldn't save the text." as NSString
             }
         }
@@ -58,6 +64,7 @@
         ) {
             let files = Self.fileURLs(on: pasteboard)
             guard !files.isEmpty else {
+                VerificationJournal.record("services.request", .failed, ["service": "addFiles", "error": "noFiles"])
                 error.pointee = "OpenIntelligence received no files." as NSString
                 return
             }
@@ -65,6 +72,9 @@
             Task {
                 let staged = await ImportedFileStaging.copyIntoWorkspaceOffMainActor(files)
                 Log.info("[Services] Add files: \(staged.count) of \(files.count) copied", category: .ingestion)
+                VerificationJournal.record(
+                    "services.request", staged.isEmpty ? .failed : .ok,
+                    ["service": "addFiles", "files": "\(files.count)", "staged": "\(staged.count)"])
                 guard !staged.isEmpty else { return }
                 Self.showWindowIfNoneIsOpen(link: AppLink.url(for: .documents))
                 AppNavigationRequest.post(.importFiles(staged))

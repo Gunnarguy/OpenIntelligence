@@ -220,6 +220,8 @@ final class ContainerService: ObservableObject {
         guard containers.count > 1, isGuideLibrary(id) || countedLibraryCount > 1 else { return }
         Self.rememberDeleted(id)
         containers.removeAll { $0.id == id }
+        VerificationJournal.record(
+            "library.delete", .ok, ["library": VerificationJournal.anon(id), "remaining": "\(containers.count)"])
         if activeContainerId == id, let first = containers.first {
             activeContainerId = first.id
             UserDefaults.standard.set(first.id.uuidString, forKey: "activeContainerId")
@@ -377,6 +379,9 @@ final class ContainerService: ObservableObject {
             let countBefore = decoded.count
             if !deleted.isEmpty { decoded.removeAll { deleted.contains($0.id) } }
             let leftOutDeleted = decoded.count != countBefore
+            // Libraries deleted here that a write had put back in the file (5.8 journal): 0 is what the row wants.
+            VerificationJournal.record(
+                "library.listLoad", ["listed": "\(decoded.count)", "deletedInFile": "\(countBefore - decoded.count)"])
 
             // MIGRATION: Fix containers with incorrect embedding dimensions or unsupported providers
             // nl_contextual_embedding is not a supported provider - it falls back to CoreML at runtime
@@ -506,7 +511,13 @@ final class ContainerService: ObservableObject {
     private static func saveContainers(_ containers: [KnowledgeContainer]) {
         let url = AppSupportPaths.containersListURL()
         let deleted = deletedContainerIds()
+        let droppedDeleted = containers.count
         let containers = deleted.isEmpty ? containers : containers.filter { !deleted.contains($0.id) }
+        if droppedDeleted != containers.count {
+            // A write that would have put a deleted library back (5.8 journal).
+            VerificationJournal.record(
+                "library.listSave", ["saved": "\(containers.count)", "droppedDeleted": "\(droppedDeleted - containers.count)"])
+        }
         recordLocalFingerprints(of: containers)
         do {
             let enc = JSONEncoder()

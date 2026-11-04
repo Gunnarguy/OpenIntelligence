@@ -200,6 +200,24 @@ Single suites:
 xcodebuild test -scheme OpenIntelligence -only-testing:OpenIntelligenceTests/HybridSearchServiceTests -derivedDataPath /private/tmp/oi-build -destination "platform=iOS Simulator,id=<UDID>"
 ```
 
+**Unit tests on the Mac: single library-free classes only (2026-11-03).** The test target builds for macOS only
+with `SDKROOT=macosx` on the command line (without it the target compiles for iOS and fails with "Unable to resolve
+module dependency: 'OpenIntelligence'"), and `SourceTextViewTests.swift` guards its UIKit code with
+`#if canImport(UIKit)`:
+
+```bash
+xcodebuild test -project OpenIntelligence.xcodeproj -scheme OpenIntelligence -destination 'platform=macOS' -derivedDataPath /private/tmp/oi58-mactest-dd SDKROOT=macosx -only-testing:OpenIntelligenceTests/SpeechTranscriptionTests MARKETING_VERSION=5.8
+```
+
+**Never run the whole suite there.** The Mac test host is the real app with the real bundle id, so it runs in
+`~/Library/Containers/Gunndamental.OpenIntelligence`, the owner's own libraries, and iCloud syncs what it does. On
+2026-11-03 the whole suite imported and removed about 40 test notes in his Library 6, ran the Set Answer Mode, Set
+Active Library and Create Library actions against his settings, self-healed his documents in the middle of the tests,
+and crashed once in `BNNSVectorDatabase.writeMetadataFile`; two test notes were left behind. It ran 1,415 cases with 6
+failures across two launches, none of which can be read as the code's fault in that state. Until the tests point
+storage at a temporary folder, run on the Mac only classes that touch no library (the speech tests passed that way,
+2 tests, 1 skipped for Speech Recognition permission). *Recorded.* `[evidence_level: measured, confidence: high]`
+
 **The smoke build on this Mac (2026-10-14).** `scripts/build_simulator_smoke.sh` defaults to a simulator named
 "iPhone 17 Pro", which no longer exists here, and to DerivedData inside the repository. Run it from the tested copy
 in `/private/tmp/oi-src`, with the test simulator and the shared DerivedData, so it builds incrementally:
@@ -1101,7 +1119,7 @@ A Debug build records what it did in two files in its Documents folder, and the 
 - `pipeline_trace.log`: every log line from 5.8 (it had six categories), 10 MB, rotated once, with the date.
 
 ```bash
-python3 scripts/phone_evidence.py --since 2026-11-03T09:41
+python3 scripts/phone_evidence.py --since 2026-11-03T09:41   # this Mac's local time
 ```
 
 copies them, MetricKit's reports and the crash list into `~/Library/Developer/OpenIntelligence-evidence/<time>`
@@ -1111,6 +1129,41 @@ copies them, MetricKit's reports and the crash list into `~/Library/Developer/Op
 (Atlas names, text sizes, VoiceOver) still needs the owner's eye. **Not covered:** the widget, Live Activity and Share extensions, which
 can't write the app's Documents folder (their effect is recorded when the app picks it up).
 `[evidence_level: test_verified (VerificationJournalTests), confidence: high for the format; the pull is not yet run against the phone]`
+
+**The Mac's journal** *(added 2026-11-03)*. The Mac app is sandboxed, so its Documents folder is
+`~/Library/Containers/Gunndamental.OpenIntelligence/Data/Documents` (it held `verification_events.jsonl`,
+`pipeline_trace.log` and `pipeline_trace.prev.log` on 2026-11-03, measured with `ls`), and MetricKit's file is under
+that folder's `Library/Application Support/OpenIntelligence/LocalCache/`.
+
+```bash
+python3 scripts/phone_evidence.py --mac --since 2026-11-04T08:00   # local time; or 2026-11-04T16:00Z
+```
+
+copies those files into `~/Library/Developer/OpenIntelligence-evidence/<time>-mac` and lists the Mac's
+`OpenIntelligence*` reports in `~/Library/Logs/DiagnosticReports`, then checks the same rules. Every line names its
+platform as `os` (`iOS` or `macOS`; an iPad reads `iOS`), so a rule can ask for one: `"f": {"os": "macOS"}`.
+
+**Rule conditions** (`scripts/phone_evidence.py`'s docstring is the reference). A field value is matched as text,
+or compared: `">=N"`, `"<=N"` (numbers), `"!=X"` (any other value). A field the line's `f` lacks is read from the
+line itself, so `"os"` and `"ms"` (the measured duration) work as fields. `"absent": [ {condition}, ... ]` on a rule
+lists events that must not appear: one that does FAILs the rule, like `absent_trace` for the trace. The checker
+still can't order events or tie two events to one library, so read the proof lines' times, and use `--since` at the
+build's install so an older line can't pass or fail a rule. `--since` without a zone is this Mac's local time and is
+converted to UTC, which the journal writes (`2026-11-04T16:00:00.000Z`); a value with `Z` or an offset is taken as
+given. Lines with a `host` field (a UI-test or screenshot launch, `"host": "uitest"`) are dropped, and a unit-test
+host writes nothing unless a test points `VerificationJournal.fileURL` at its own file. `python3
+scripts/test_phone_evidence.py` tests the operators, `absent`, `--since`, the `host` filter, the `--mac` copy, that
+every rule parses and that every rule's event is recorded somewhere in the app (rules whose `needs` says the owner has
+to name a file are exempt). `[evidence_level: test_verified (scripts/test_phone_evidence.py, 16 tests), confidence:
+high]`
+
+**The main-thread watchdog** *(added 2026-11-03)*. A Debug build starts `MainThreadWatchdog` when `AppServices` is built (its private `init`, `OpenIntelligence/App/AppServices.swift`)
+(not in a test host): a background timer sends the main queue a ping every 100 ms and records each ping that comes
+back 250 ms or more late as `mainThread.stall` with its `phase` (`launch` until the chat first shows, then `chatOpen`,
+`firstQuestion`, `other`). `launch.chatUsable`, `answer.done` (`stallFree`) and `import.mainThreadLag`
+(`responsive`) read it for their window; `answer.done` and `launch.chatUsable` also say whether it was running
+(`watchdog`), and the rules that read `stallFree` require it. It stands in for Time Profiler and `sample` on rows that close on "stayed
+responsive"; the owner accepts or rejects that per row.
 
 ### Timing the embedding model on a device *(added 2026-10-12)*
 

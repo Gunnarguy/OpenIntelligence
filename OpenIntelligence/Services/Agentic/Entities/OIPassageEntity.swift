@@ -111,7 +111,12 @@ struct OIPassageEntity: AppEntity {
 @available(iOS 16.0, macOS 13.0, *)
 extension OIPassageEntity: Transferable {
     static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation(exporting: \.textWithSource)
+        ProxyRepresentation(exporting: { (passage: OIPassageEntity) -> String in
+            let text = passage.textWithSource
+            VerificationJournal.record(
+                "transfer.export", .ok, ["item": "passage", "form": "text", "bytes": "\(text.utf8.count)"])
+            return text
+        })
     }
 }
 

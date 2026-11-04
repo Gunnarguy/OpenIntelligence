@@ -81,7 +81,13 @@ struct ShareSheetPreview: Equatable {
         }
 
         func activityViewControllerLinkMetadata(_: UIActivityViewController) -> LPLinkMetadata? {
-            preview.linkMetadata()
+            let metadata = preview.linkMetadata()
+            // The sheet asked for its header (5.8 journal): which preview, and whether it had a title and an icon.
+            VerificationJournal.record(
+                "share.preview",
+                ["kind": preview == .app ? "app" : preview == .answer ? "answer" : "other",
+                    "title": "\(!(metadata.title ?? "").isEmpty)", "icon": "\(metadata.iconProvider != nil)"])
+            return metadata
         }
 
         /// The items a share sheet is given: the first carries the header, the rest go as they are.

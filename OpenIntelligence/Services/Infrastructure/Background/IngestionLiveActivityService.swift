@@ -62,7 +62,8 @@
                         VerificationJournal.record(
                             "liveactivity.import.update",
                             ["session": VerificationJournal.anon(sessionID), "stage": contentState.currentStage,
-                                "done": "\(contentState.processedCount)/\(contentState.totalCount)"])
+                                "done": "\(contentState.processedCount)/\(contentState.totalCount)",
+                                "percent": "\(ImportProgress.percent(of: relevantItems))"])
                     }
 
                     if self?.currentActivity?.attributes.sessionID == sessionID {

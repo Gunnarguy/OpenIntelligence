@@ -112,7 +112,8 @@ struct MessageBubbleV2: View {
                         GroundedAnswerView(
                             answer: structuredAnswer,
                             retrievedChunks: message.retrievedChunks ?? [],
-                            modeName: message.metadata?.qualityModeName
+                            modeName: message.metadata?.qualityModeName,
+                            answeredAt: message.timestamp
                         )
                         .environment(\.tourIsLatestAnswer, isLatestAnswer)
                     } else {
@@ -369,14 +370,29 @@ struct MessageBubbleV2: View {
     }
 
     private func shareMessage() {
+        let text = AnswerShareFormatter.shareText(for: message)
+        recordShare(format: "text", appLink: text.contains(OpenIntelligenceLinks.sharedAppStoreURL.absoluteString))
         sharePayload = SharePayload(
-            items: [AnswerShareFormatter.shareText(for: message)],
+            items: [text],
             preview: message.role == .assistant ? .answer : nil)
+    }
+
+    /// What Share was given (5.8 journal): the format, how many sources it lists and whether the app's link is in it.
+    private func recordShare(format: String, appLink: @autoclosure () -> Bool) {
+        guard VerificationJournal.isEnabled, message.role == .assistant else { return }
+        let sources = AnswerShareFormatter.sources(
+            answer: message.content, evidence: message.structuredAnswer?.evidence ?? [],
+            retrievedChunks: message.retrievedChunks ?? [])
+        VerificationJournal.record(
+            "answer.share", ["format": format, "sources": "\(sources.count)", "appLink": "\(appLink())"])
     }
 
     /// The answer as a picture with its sources (`AnswerCardRenderer`). Falls back to the text.
     private func shareMessageAsImage() {
         if let card = AnswerCardRenderer.renderFile(for: message) {
+            // The card carries the App Store link as its QR code, when the code could be made.
+            recordShare(
+                format: "image", appLink: AnswerCardRenderer.qrCode(for: OpenIntelligenceLinks.sharedAppStoreURL) != nil)
             sharePayload = SharePayload(items: [card])
         } else {
             shareMessage()
