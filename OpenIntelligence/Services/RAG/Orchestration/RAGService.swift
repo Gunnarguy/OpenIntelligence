@@ -5647,6 +5647,18 @@ class RAGService: ObservableObject {
         let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
 
         guard !allChunks.isEmpty else { return [] }
+        // Scored off the main thread (5.8): on the owner's iPhone on 2026-11-04 this scoring ran over Library 6's
+        // passages on the main thread when he came back to the app, and iOS ended the app (SIGKILL, the stack in
+        // `suggestedQuestionSampleContainsFrontMatterSignal`). The selection is the same pure function as before.
+        return await Task.detached(priority: .userInitiated) {
+            Self.selectSuggestedQuestionSample(
+                detailChunks: detailChunks, summaryChunks: summaryChunks, allChunks: allChunks, limit: limit)
+        }.value
+    }
+
+    nonisolated private static func selectSuggestedQuestionSample(
+        detailChunks: [DocumentChunk], summaryChunks: [DocumentChunk], allChunks: [DocumentChunk], limit: Int
+    ) -> [DocumentChunk] {
 
         if detailChunks.isEmpty {
             let sampleSource = summaryChunks.isEmpty ? allChunks : summaryChunks
@@ -5684,7 +5696,7 @@ class RAGService: ObservableObject {
         )
     }
 
-    private func interleaveSuggestedQuestionSamples(
+    nonisolated private static func interleaveSuggestedQuestionSamples(
         primary: [DocumentChunk],
         secondary: [DocumentChunk],
         limit: Int
@@ -5716,7 +5728,7 @@ class RAGService: ObservableObject {
         return result
     }
 
-    private func prioritizedSuggestedQuestionSample(
+    nonisolated private static func prioritizedSuggestedQuestionSample(
         from chunks: [DocumentChunk],
         limit: Int
     ) -> [DocumentChunk] {
@@ -5799,7 +5811,7 @@ class RAGService: ObservableObject {
         return selected
     }
 
-    private func suggestedQuestionDocumentScore(_ chunks: [DocumentChunk], scoreCache: [UUID: Double]) -> Double {
+    nonisolated private static func suggestedQuestionDocumentScore(_ chunks: [DocumentChunk], scoreCache: [UUID: Double]) -> Double {
         guard !chunks.isEmpty else { return 0 }
 
         let topChunkScore =
@@ -5819,7 +5831,7 @@ class RAGService: ObservableObject {
             + Double(min(structuredChunks, 4)) * 0.75
     }
 
-    private func suggestedQuestionSampleScore(_ chunk: DocumentChunk) -> Double {
+    nonisolated private static func suggestedQuestionSampleScore(_ chunk: DocumentChunk) -> Double {
         var score = 0.0
         let wordCount = chunk.metadata.wordCount
 
@@ -5868,7 +5880,7 @@ class RAGService: ObservableObject {
         return score
     }
 
-    private func suggestedQuestionSampleFrontMatterAdjustment(for chunk: DocumentChunk) -> Double {
+    nonisolated private static func suggestedQuestionSampleFrontMatterAdjustment(for chunk: DocumentChunk) -> Double {
         if let section = suggestedQuestionSampleSection(for: chunk),
             suggestedQuestionSampleUsesGenericSection(section)
         {
@@ -5883,7 +5895,7 @@ class RAGService: ObservableObject {
         return 0
     }
 
-    private func suggestedQuestionSampleSection(for chunk: DocumentChunk) -> String? {
+    nonisolated private static func suggestedQuestionSampleSection(for chunk: DocumentChunk) -> String? {
         if let section = chunk.metadata.sectionTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
             !section.isEmpty
         {
@@ -5905,7 +5917,7 @@ class RAGService: ObservableObject {
         return nil
     }
 
-    private func suggestedQuestionSampleContent(for chunk: DocumentChunk) -> String {
+    nonisolated private static func suggestedQuestionSampleContent(for chunk: DocumentChunk) -> String {
         let combined = [chunk.contextualPrefix, chunk.contextText]
             .compactMap { value -> String? in
                 let cleaned = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -5916,7 +5928,7 @@ class RAGService: ObservableObject {
         return combined.isEmpty ? chunk.content : combined
     }
 
-    private func suggestedQuestionSampleUsesGenericSection(_ title: String) -> Bool {
+    nonisolated private static func suggestedQuestionSampleUsesGenericSection(_ title: String) -> Bool {
         let normalized = title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let genericSections: Set<String> = [
             "abstract", "acknowledgements", "about", "appendix", "author manuscript",
@@ -5929,7 +5941,7 @@ class RAGService: ObservableObject {
         return genericSections.contains(normalized) || suggestedQuestionSampleContainsFrontMatterSignal(normalized)
     }
 
-    private func suggestedQuestionSampleContainsFrontMatterSignal(_ text: String) -> Bool {
+    nonisolated private static func suggestedQuestionSampleContainsFrontMatterSignal(_ text: String) -> Bool {
         let signals: [String] = [
             "accepted for publication", "all rights reserved", "author contributions",
             "author manuscript", "competing interests", "conflict of interest",

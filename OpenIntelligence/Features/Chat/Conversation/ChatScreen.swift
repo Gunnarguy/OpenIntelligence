@@ -183,6 +183,11 @@ private final class ContinuedQueryCoordinator: ObservableObject {
             )
         case .active:
             QueryRuntimeBridge.shared.endForegroundFallbackQueryExtension()
+            // Back in front: an answer paused when its background time ran out goes on (5.8).
+            if isPaused {
+                NotificationCenter.default.post(
+                    name: RAGService.answerPausedNotification, object: nil, userInfo: ["paused": false])
+            }
         @unknown default:
             break
         }

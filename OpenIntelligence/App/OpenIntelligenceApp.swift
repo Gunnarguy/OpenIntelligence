@@ -166,10 +166,23 @@ struct OpenIntelligenceApp: App {
         }
         QueryRuntimeBridge.shared.beginUserInitiatedQueryHandler = { title, subtitle in
             AppStateReporting.answerBegan()
-            BackgroundTaskService.shared.beginUserInitiatedQuery(
-                title: title,
-                subtitle: subtitle
-            )
+            // An answer kept on the device asks iOS for no background time (5.8): iOS rate-limits the on-device
+            // model for an app in the background, so that time bought one more model call on the owner's iPhone
+            // (2026-11-04), and iOS's own card for it doubled the app's Live Activity on the Lock Screen. The
+            // answer keeps the usual 30 seconds after the app leaves and then pauses until it is opened. An answer
+            // that may go to Private Cloud Compute still asks, since a network call goes on in the background.
+            let onDeviceOnly: Bool
+            switch AppServices.shared.settingsStore.fmPreference.canonical {
+            case .core3B, .advanced20B: onDeviceOnly = true
+            case .automatic, .privateCloudCompute: onDeviceOnly = false
+            }
+            VerificationJournal.record("bgtask.answer.request", ["asked": "\(!onDeviceOnly)"])
+            if !onDeviceOnly {
+                BackgroundTaskService.shared.beginUserInitiatedQuery(
+                    title: title,
+                    subtitle: subtitle
+                )
+            }
             CompletionNotificationService.shared.answerBegan()
             #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
                 QueryLiveActivityService.shared.begin(title: title, subtitle: subtitle)

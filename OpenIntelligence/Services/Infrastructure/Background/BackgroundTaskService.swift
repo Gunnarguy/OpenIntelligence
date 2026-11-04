@@ -594,7 +594,9 @@ final class BackgroundTaskService: Sendable {
                 guard let self else { return }
                 let context = self.activeContinuedQueryRequestContext
                 // The answer is not stopped here either (5.8): the app is suspended with it, and it goes on when
-                // the app is opened. See the continued task's expiration handler.
+                // the app is opened. See the continued task's expiration handler. Its Live Activity says so.
+                NotificationCenter.default.post(
+                    name: RAGService.answerPausedNotification, object: nil, userInfo: ["paused": true])
                 self.recordContinuedQueryStatus(
                     phase: .expired,
                     title: context?.title,

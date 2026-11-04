@@ -374,50 +374,52 @@ struct QueryLiveActivityWidget: Widget {
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(Self.chatURL)
         } dynamicIsland: { context in
-            DynamicIsland {
+            let paused = QueryLiveActivityStyle.isPaused(context.state)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label("Answering", systemImage: "brain.head.profile")
+                    Label(context.state.title, systemImage: QueryLiveActivityStyle.symbol(context.state))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.purple)
+                        .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(Int((context.state.progress * 100).rounded()))%")
-                        .font(.headline.monospacedDigit())
+                    Text("\(QueryLiveActivityStyle.percent(context.state))%")
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(context.state.title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
                         Text(context.state.subtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(2)
+                            .lineLimit(1)
                         HStack(spacing: 10) {
                             ProgressView(value: context.state.progress, total: 1.0)
-                                .tint(.purple)
+                                .tint(paused ? Color.secondary : Color.purple)
                             if context.state.finished != true {
                                 // Stops the answer and keeps what is written (5.7).
                                 Button(intent: StopLongAnswerIntent(sessionID: context.attributes.sessionID)) {
-                                    Label("Stop", systemImage: "stop.fill")
-                                        .labelStyle(.iconOnly)
+                                    Image(systemName: "stop.fill")
+                                        .font(.caption2.weight(.bold))
                                 }
+                                .buttonBorderShape(.circle)
                                 .tint(.purple)
+                                .accessibilityLabel("Stop")
                             }
                         }
                     }
                 }
             } compactLeading: {
-                Image(systemName: "brain.head.profile")
-                    .foregroundStyle(.purple)
+                Image(systemName: QueryLiveActivityStyle.symbol(context.state))
+                    .foregroundStyle(paused ? Color.secondary : Color.purple)
             } compactTrailing: {
-                Text("\(Int((context.state.progress * 100).rounded()))%")
+                Text(paused ? "Paused" : "\(QueryLiveActivityStyle.percent(context.state))%")
                     .font(.caption2.monospacedDigit())
                     .contentTransition(.numericText())
             } minimal: {
-                Image(systemName: "brain.head.profile")
-                    .foregroundStyle(.purple)
+                Image(systemName: QueryLiveActivityStyle.symbol(context.state))
+                    .foregroundStyle(paused ? Color.secondary : Color.purple)
             }
             .keylineTint(.purple)
             .widgetURL(Self.chatURL)
@@ -426,6 +428,26 @@ struct QueryLiveActivityWidget: Widget {
     }
 }
 
+/// How the answer's Live Activity reads its state (5.8): "Paused" is the title the app sets while the answer waits
+/// for it to come back (`QueryLiveActivityService.setPaused`).
+@available(iOSApplicationExtension 17.0, *)
+private enum QueryLiveActivityStyle {
+    static func isPaused(_ state: QueryLiveActivityAttributes.ContentState) -> Bool {
+        state.finished != true && state.title == "Paused"
+    }
+
+    static func symbol(_ state: QueryLiveActivityAttributes.ContentState) -> String {
+        if state.finished == true { return "checkmark.circle.fill" }
+        return isPaused(state) ? "pause.circle.fill" : "brain.head.profile"
+    }
+
+    static func percent(_ state: QueryLiveActivityAttributes.ContentState) -> Int {
+        Int((state.progress * 100).rounded())
+    }
+}
+
+/// One header line (what it is, how far, Stop), the step under it and a thin bar (5.8). It said "OpenIntelligence"
+/// and the title on two lines with a large Stop button, which the owner found heavy next to the system's own card.
 @available(iOSApplicationExtension 17.0, *)
 private struct QueryLiveActivityLockScreenView: View {
     let state: QueryLiveActivityAttributes.ContentState
@@ -434,38 +456,39 @@ private struct QueryLiveActivityLockScreenView: View {
     @Environment(\.activityFamily) private var activityFamily
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("OpenIntelligence", systemImage: "brain.head.profile")
-                    .font(.caption.weight(.semibold))
+        let paused = QueryLiveActivityStyle.isPaused(state)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: QueryLiveActivityStyle.symbol(state))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(paused ? Color.secondary : Color.purple)
+                Text(state.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text("\(QueryLiveActivityStyle.percent(state))%")
+                    .font(.caption.weight(.medium).monospacedDigit())
                     .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(Int((state.progress * 100).rounded()))%")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            Text(state.title)
-                .font(.headline)
-                .lineLimit(1)
-            Text(state.subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            HStack(spacing: 12) {
-                ProgressView(value: state.progress, total: 1.0)
-                    .tint(.purple)
-                // Stops the answer and keeps what is written (5.7). Not in the watch's small
-                // layout, which has no room for it.
+                // Stops the answer and keeps what is written (5.7). Not in the watch's small layout.
                 if state.finished != true, activityFamily != .small {
                     Button(intent: StopLongAnswerIntent(sessionID: sessionID)) {
-                        Label("Stop", systemImage: "stop.fill")
-                            .font(.caption.weight(.semibold))
+                        Image(systemName: "stop.fill")
+                            .font(.caption2.weight(.bold))
                     }
+                    .buttonBorderShape(.circle)
                     .tint(.purple)
+                    .accessibilityLabel("Stop")
                 }
             }
+            Text(state.subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            ProgressView(value: state.progress, total: 1.0)
+                .tint(paused ? Color.secondary : Color.purple)
         }
-        .padding()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 }
 
