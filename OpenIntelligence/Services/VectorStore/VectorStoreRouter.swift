@@ -180,7 +180,7 @@ final class VectorStoreRouter {
         // Without this the first `clearAll()` after launch found no recorded signature for the
         // store and read it again: a second full decode on every launch, 3 s for a library of
         // 144,247 passages.
-        lastSeenDiskSignature[container.id] = diskSignature(for: container.id)
+        lastSeenDiskSignature[container.id] = Self.diskSignature(for: container.id)
         return created
     }
 
@@ -239,7 +239,7 @@ final class VectorStoreRouter {
     private var consecutiveNoOpSweeps: Int = 0
 
     /// Current on-disk signature for a container's vector files, or `nil` if none exist yet.
-    private func diskSignature(for containerId: UUID) -> [String: String] {
+    nonisolated static func diskSignature(for containerId: UUID) -> [String: String] {
         let legacyURL = AppSupportPaths.vectorsFileURL(containerId: containerId)
         var signature: [String: String] = [:]
         for fileURL in BNNSVectorDatabase.binaryFileURLs(from: legacyURL) {
@@ -268,9 +268,28 @@ final class VectorStoreRouter {
     /// This bounds the damage; it does not fix the cause. The 1.68s trigger lives in
     /// `WorkspaceSyncService`.
     func clearAll() {
+        clearAll(signatures: nil)
+    }
+
+    /// The libraries whose stores are open, for a caller that reads their files' signatures off the main
+    /// thread and hands them to `clearAll(signatures:)` (5.8).
+    var openContainerIds: [UUID] { Array(stores.keys) }
+
+    /// `clearAll()` with the files' signatures already read. A store with none given opened after the read,
+    /// and is skipped: it recorded its signature when it opened. The
+    /// reads are a file-attribute call per file, and on the owner's iPhone on 2026-11-04 the sweep took
+    /// 1,211 ms on the main thread while iCloud and the model were busy.
+    func clearAll(signatures precomputed: [UUID: [String: String]]?) {
         var reloaded = 0
         for (containerId, db) in stores {
-            let signature = diskSignature(for: containerId)
+            let signature: [String: String]
+            if let precomputed {
+                // A store opened after the read recorded its signature when it opened.
+                guard let read = precomputed[containerId] else { continue }
+                signature = read
+            } else {
+                signature = Self.diskSignature(for: containerId)
+            }
             guard lastSeenDiskSignature[containerId] != signature else { continue }
             lastSeenDiskSignature[containerId] = signature
             reloaded += 1

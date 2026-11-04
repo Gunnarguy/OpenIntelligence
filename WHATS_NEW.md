@@ -12,6 +12,8 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **The guides don't use your plan.** The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works.
 
 ### Answers
+- **A long answer keeps going when you come back to it.** If iOS ended an answer's background time just as you returned to the app, the answer stopped there and was kept as a partial one. Now it keeps running while the app is in front, and the Deep Think icon at the top of the screen goes away as soon as an answer stops. If the app is in the background when iOS stops it, the notification says it didn't finish (with notifications on).
+- **Taps no longer get lost after iCloud catches up.** Each time iCloud brought changes in, the app re-read your libraries in a way that froze the screen for up to several seconds, so a tap in Settings or Chat could do nothing. That reading now happens in the background.
 - **Every citation shows its passage in the document.** Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check.
 - **Illustrate under an answer, and source chips that open.** Illustrate now appears with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage in its document.
 

@@ -2092,11 +2092,18 @@ class RAGService: ObservableObject {
     @MainActor @Published var documents: [Document] = [] {
         // What each library's count shows (5.8, `ContainerService.documentCount`).
         didSet {
+            documentsChangeCount &+= 1
             containerService.setListedDocumentCounts(
                 ContainerService.documentCounts(
                     of: documents.map(\.containerId), defaultLibrary: containerService.containers.first?.id))
         }
     }
+    /// Counts every change to `documents`. A workspace reload reads the list off the main thread and applies
+    /// it only if this has not moved since it started, so an edit, a deletion or an import made during the
+    /// read is never replaced by the older copy it read (5.8).
+    @MainActor private var documentsChangeCount = 0
+    /// The newest workspace reload asked of this engine; an older one still reading is dropped (5.8).
+    @MainActor private var latestWorkspaceReload = 0
     /// Deletions made in the app that can still be undone (5.7, `PendingDocumentRemoval`): their documents are
     /// out of `documents` and not removed yet.
     @MainActor @Published private(set) var pendingRemovals: [PendingDocumentRemoval] = []
@@ -4837,6 +4844,22 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// `loadDocumentsSnapshotFromDisk` for bytes already read off the main thread: none when there was no
+    /// file, nil when it could not be read or decoded, so a failed read changes nothing.
+    private func decodeDocumentsSnapshot(_ read: Result<Data?, Error>) -> [Document]? {
+        do {
+            guard let data = try read.get() else {
+                Log.info("  [RAGService] No existing documents metadata found")
+                return []
+            }
+            return try JSONDecoder().decode([Document].self, from: data)
+        } catch {
+            Log.error(
+                " [RAGService] Failed to load documents metadata: \(error.localizedDescription); the documents in memory are kept")
+            return nil
+        }
+    }
+
     /// What `LibraryIntelligenceCache.sweep` keeps for these documents: for each library that
     /// has any, the signature of its documents. A document with no library belongs to the first.
     @MainActor
@@ -4898,7 +4921,8 @@ class RAGService: ObservableObject {
     /// a handful of cheap operations into a visible stall.
     @MainActor private static var reloadWorkspaceDataCallCount = 0
 
-    /// Instrumentation only — no behaviour change.
+    /// Re-reads the document list and the vector stores' file signatures, off the main thread since 5.8, and
+    /// applies them on it. The timing lines below were added 2026-08-26 as instrumentation.
     ///
     /// A device capture on 2026-08-26 cleared the two things previously suspected of
     /// making the Documents tab slow: the tab-appear task runs in 21 to 62ms and each
@@ -4911,18 +4935,78 @@ class RAGService: ObservableObject {
     /// not a measurement, and the last four attempts at this bug were confident
     /// inferences. Its three parts are timed separately so the next capture names the
     /// one that costs, rather than a change being made to vector code on a hunch.
+    /// Returns the reload's task, true when it applied what it read, for a caller (a test) that needs the
+    /// documents applied before it goes on.
     @MainActor
-    func reloadWorkspaceData() {
+    @discardableResult
+    func reloadWorkspaceData() -> Task<Bool, Never> {
         let reloadStarted = Date()
         Self.reloadWorkspaceDataCallCount += 1
         let callNumber = Self.reloadWorkspaceDataCallCount
+        latestWorkspaceReload += 1
+        let reloadNumber = latestWorkspaceReload
+        let changesAtStart = documentsChangeCount
+        let openStores = vectorRouter.openContainerIds
+        let documentsURL = documentsStorageURL
+
+        // The file reads go off the main thread (5.8). On the owner's iPhone on 2026-11-04 this reload ran
+        // after each iCloud pass and held the main thread for seconds at a time (watchdog stalls of 5.4 and
+        // 8.5 s; clearAll 1,211 ms and docsSnapshot 1,867 ms in one call), and taps in Settings were lost.
+        // The coordinated read of the document list waits for iCloud, and the stores' sweep reads each
+        // file's attributes. Only the decoding and what follows run on the main thread, as before.
+        return Task { @MainActor [weak self] in
+            let read = await Task.detached(priority: .userInitiated) {
+                () -> (signatures: [UUID: [String: String]], documents: Result<Data?, Error>) in
+                var signatures: [UUID: [String: String]] = [:]
+                for containerId in openStores {
+                    signatures[containerId] = VectorStoreRouter.diskSignature(for: containerId)
+                }
+                let documents: Result<Data?, Error>
+                if FileManager.default.fileExists(atPath: documentsURL.path) {
+                    documents = Result { try WorkspaceSyncService.coordinatedReadData(from: documentsURL) }
+                } else {
+                    documents = .success(nil)
+                }
+                return (signatures, documents)
+            }.value
+            guard let self else { return false }
+            // A reload asked of this engine while this one read reads the files again, newer, and is the
+            // one applied.
+            guard reloadNumber == self.latestWorkspaceReload else {
+                Log.debug("[WorkspaceReload] #\(callNumber) dropped: a newer reload is reading", category: .pipeline)
+                return false
+            }
+            // The list changed in memory while this read: what it read may be older than what is shown, and
+            // applying it would undo that change (and the next save would write the older copy back). The
+            // stores' signatures still apply; the list waits for the next reload.
+            let listIsCurrent = changesAtStart == self.documentsChangeCount
+            if !listIsCurrent {
+                Log.info(
+                    "[WorkspaceReload] #\(callNumber) kept the documents in memory: they changed during the read",
+                    category: .pipeline)
+                VerificationJournal.record("workspace.reloadListSkipped", ["call": "\(callNumber)"])
+            }
+            self.applyWorkspaceReload(
+                callNumber: callNumber, started: reloadStarted, signatures: read.signatures,
+                documentsData: listIsCurrent ? read.documents : nil)
+            return true
+        }
+    }
+
+    /// The main-thread half of `reloadWorkspaceData`, given what it read from disk.
+    @MainActor
+    private func applyWorkspaceReload(
+        callNumber: Int, started reloadStarted: Date, signatures: [UUID: [String: String]],
+        documentsData: Result<Data?, Error>?
+    ) {
+        let readMs = Date().timeIntervalSince(reloadStarted) * 1000
 
         let clearStarted = Date()
-        vectorRouter.clearAll()
+        vectorRouter.clearAll(signatures: signatures)
         let clearMs = Date().timeIntervalSince(clearStarted) * 1000
 
         let snapshotStarted = Date()
-        let readDocuments = loadDocumentsSnapshotFromDisk()
+        let readDocuments = documentsData.flatMap { decodeDocumentsSnapshot($0) }
         let loadedDocuments = readDocuments ?? documents
         if readDocuments != nil {
             applyLoadedDocuments(loadedDocuments)
@@ -4947,13 +5031,19 @@ class RAGService: ObservableObject {
             await removeTextOfUnfinishedImports()
         }
 
+        let mainMs = Date().timeIntervalSince(clearStarted) * 1000
         Log.info(
-            "[WorkspaceReload] #\(callNumber) clearAll \(String(format: "%.0f", clearMs))ms, "
+            "[WorkspaceReload] #\(callNumber) read off the main thread \(String(format: "%.0f", readMs))ms, "
+                + "clearAll \(String(format: "%.0f", clearMs))ms, "
                 + "docsSnapshot \(String(format: "%.0f", snapshotMs))ms, "
-                + "syncSection \(String(format: "%.0f", Date().timeIntervalSince(reloadStarted) * 1000))ms so far, "
+                + "main thread \(String(format: "%.0f", mainMs))ms, "
                 + "documents=\(loadedDocuments.count)",
             category: .pipeline
         )
+        VerificationJournal.record(
+            "workspace.reload", .ok,
+            ["call": "\(callNumber)", "readMs": String(format: "%.0f", readMs),
+                "mainMs": String(format: "%.0f", mainMs), "documents": "\(loadedDocuments.count)"])
 
         let fingerprint = localIndexSyncFingerprint(for: loadedDocuments)
         guard fingerprint != lastLocalIndexSyncFingerprint else {

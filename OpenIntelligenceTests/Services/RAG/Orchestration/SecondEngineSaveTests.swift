@@ -62,8 +62,8 @@ final class SecondEngineSaveTests: XCTestCase {
         XCTAssertFalse(onDisk.contains { $0.id == deleted.id }, "the deleted document is not written back")
         XCTAssertTrue(onDisk.contains { $0.id == imported.id }, "the other engine's import is saved")
 
-        first.reloadWorkspaceData()
-        try await Task.sleep(for: .milliseconds(300))
+        let applied = await first.reloadWorkspaceData().value
+        XCTAssertTrue(applied, "the reload ran")
         XCTAssertFalse(first.documents.contains { $0.id == deleted.id }, "a reload does not bring it back")
     }
 }

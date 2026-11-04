@@ -154,7 +154,8 @@ final class PendingDocumentRemovalTests: XCTestCase {
         addTeardownBlock { @MainActor in try? await engine.removeDocument(added[0]) }
         let id = try XCTUnwrap(engine.scheduleRemoval(of: added, window: .seconds(60)))
 
-        engine.reloadWorkspaceData()
+        let applied = await engine.reloadWorkspaceData().value
+        XCTAssertTrue(applied, "the reload ran")
 
         XCTAssertFalse(engine.documents.contains { $0.id == added[0].id }, "a reload does not show it again")
         XCTAssertTrue(engine.undoRemoval(id))

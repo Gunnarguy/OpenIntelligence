@@ -1090,6 +1090,11 @@ struct ChatScreen: View {
                     ragService?.cancelActiveGeneration(resetSession: true)
                     Task { @MainActor in
                         self.keepAnswerStoppedByBackgroundExpiry()
+                        // Ends the answer for everything that follows it: the Deep Think Live Activity
+                        // read "running" after an expiry and stayed in the Dynamic Island until the next
+                        // answer (the owner's iPhone, 2026-11-04), because the session id is cleared here
+                        // and the query's own end no longer matches it.
+                        self.continuedQueryCoordinator.cancelCurrentQuery()
                         self.currentQueryTask?.cancel()
                         self.currentQueryTask = nil
                         self.currentQuerySessionId = nil

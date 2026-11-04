@@ -1831,7 +1831,7 @@ private struct QuickStat: View {
                 .font(.caption)
                 .foregroundStyle(color)
             Text(value)
-                .font(.subheadline)
+                .font(.subheadline.weight(.semibold))
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -1880,7 +1880,7 @@ private struct DatabaseMetricCard: View {
             }
 
             Text(value)
-                .font(.title)
+                .font(.title.weight(.semibold))
 
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(title)

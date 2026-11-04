@@ -782,6 +782,13 @@ final class BackgroundTaskService: Sendable {
         #endif
     }
 
+    /// Whether an answer goes on when the system expires its continued processing task (5.8). Only an
+    /// app in the background has to stop: in front, or on its way back, nothing limits how long the
+    /// answer runs.
+    nonisolated static func answerKeepsRunningAfterTaskExpiry(appIsInBackground: Bool) -> Bool {
+        !appIsInBackground
+    }
+
     #if !targetEnvironment(macCatalyst)
     @MainActor
     @available(iOS 26.0, *)
@@ -818,6 +825,35 @@ final class BackgroundTaskService: Sendable {
         task.expirationHandler = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                #if canImport(UIKit)
+                    let inBackground = UIApplication.shared.applicationState == .background
+                #else
+                    let inBackground = false
+                #endif
+                if Self.answerKeepsRunningAfterTaskExpiry(appIsInBackground: inBackground) {
+                    // The system took the task back with the app in front or coming back to it. On the owner's
+                    // iPhone on 2026-11-04 it did so a second after he returned to the app, and the answer, five
+                    // minutes into a Deep Think, was cut to "Partial answer" although nothing stopped it running.
+                    // The answer goes on in front. If the app leaves again, the 30 seconds of background time
+                    // held here stand in, and their own expiry stops the answer and keeps what it wrote.
+                    let fraction = self.continuedQueryStatus.progressFraction
+                    // Said before the task ends, so the system's own banner does not read as a failure.
+                    task.updateTitle(task.title, subtitle: "Finishing in the app.")
+                    self.finishContinuedQuery(
+                        success: false,
+                        phase: .expired,
+                        errorMessage: "The system expired the continued query task with the app in front; the answer kept running."
+                    )
+                    self.beginForegroundFallbackQueryExtensionIfNeeded(
+                        reason: "The system ended the answer's background task with the app in front."
+                    )
+                    VerificationJournal.record(
+                        "bgtask.answer.keptRunning", ["fraction": String(format: "%.2f", fraction)])
+                    Log.warning(
+                        "[BackgroundTasks] Continued query task expired with the app in front; the answer keeps running",
+                        category: .pipeline)
+                    return
+                }
                 self.activeContinuedQueryWorker?.cancel()
                 self.continuedQueryExpirationHandler?()
                 self.finishContinuedQuery(
@@ -954,6 +990,12 @@ final class BackgroundTaskService: Sendable {
             let context = activeContinuedQueryRequestContext
             if let requestIdentifier = context?.requestIdentifier {
                 BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: requestIdentifier)
+            }
+            // An answer whose task the system expired ends here too (5.8, the chat ends it so its Live Activity
+            // closes); the record says it expired, not that it ran without background support.
+            if !success, continuedQueryStatus.phase == .expired {
+                activeContinuedQueryRequestContext = nil
+                return
             }
             recordContinuedQueryStatus(
                 phase: success ? .completed : .failed,
