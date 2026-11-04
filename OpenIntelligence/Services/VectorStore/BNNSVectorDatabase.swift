@@ -602,7 +602,11 @@ actor BNNSVectorDatabase: VectorDatabase {
                 var last = index
                 while last + 1 < inFile {
                     let end = slots[last].offset + slots[last].length
-                    guard slots[last + 1].offset == end + 1, meta[meta.startIndex + end] == comma else { break }
+                    // A slot that ends past the mapped file ends the run here, and the range check
+                    // below turns it into a failed save instead of a crash (2026-11-03, Mac).
+                    guard end >= 0, end < meta.count, slots[last + 1].offset == end + 1,
+                        meta[meta.startIndex + end] == comma
+                    else { break }
                     last += 1
                 }
                 let runEnd = slots[last].offset + slots[last].length
