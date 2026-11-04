@@ -154,8 +154,10 @@ struct DeveloperDiagnosticsHubView: View {
                 }
                 #if DEBUG
                     NavigationLink {
-                        ValidationDashboardView(
-                            ragService: ragService, settingsStore: SettingsStore(ragService: ragService))
+                        // The app's own settings (5.8). This built a new `SettingsStore` on every redraw of the hub; each
+                        // registered itself with the engine and saved every setting, which rebuilt the model service and
+                        // redrew the hub again: a loop on the owner's iPhone on 2026-11-04 that stopped answers for 17 min.
+                        ValidationDashboardView(ragService: ragService, settingsStore: settings)
                     } label: {
                         Label("Validation Benchmark", systemImage: "gauge.with.dots.needle.bottom.100percent")
                     }

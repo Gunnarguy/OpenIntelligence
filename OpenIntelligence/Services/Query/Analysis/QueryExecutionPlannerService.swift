@@ -64,11 +64,48 @@ final class QueryExecutionPlannerService {
         "tell", "show", "give", "me", "mean", "means", "meaning",
     ]
 
+    /// Plans made in the last two minutes, by question, mode and tool calling (5.8). One Deep Think question asked for
+    /// the same plan three times (choosing the mode, `decideIfRetrievalNeeded`, `generateSearchQueries`), each a model
+    /// call: 8.6, 6.4 and 7.1 s on the owner's iPhone on 2026-11-04. The planner samples with the default options, so
+    /// the three were three draws of the same answer; one draw now serves all three, which also keeps them in step.
+    private var recentPlans: [String: (plan: QueryExecutionPlan, madeAt: Date)] = [:]
+    private var plansInFlight: [String: Task<QueryExecutionPlan, Never>] = [:]
+    private static let planReuseSeconds: TimeInterval = 120
+
     func buildPlan(
         for query: String,
         profile: QueryProfile? = nil,
         requestedQualityMode: RAGQualityMode = .standard,
         allowToolCalling: Bool = true
+    ) async -> QueryExecutionPlan {
+        let key = "\(requestedQualityMode.rawValue)|\(allowToolCalling)|\(query)"
+        if let recent = recentPlans[key], Date().timeIntervalSince(recent.madeAt) < Self.planReuseSeconds {
+            VerificationJournal.record("planner.reused", ["mode": requestedQualityMode.rawValue])
+            return recent.plan
+        }
+        if let running = plansInFlight[key] {
+            VerificationJournal.record("planner.reused", ["mode": requestedQualityMode.rawValue, "waited": "true"])
+            return await running.value
+        }
+        // `shared` lives for the whole launch, so the task holds it strongly.
+        let task = Task { () -> QueryExecutionPlan in
+            await self.makePlan(
+                for: query, profile: profile, requestedQualityMode: requestedQualityMode,
+                allowToolCalling: allowToolCalling)
+        }
+        plansInFlight[key] = task
+        let plan = await task.value
+        plansInFlight[key] = nil
+        recentPlans = recentPlans.filter { Date().timeIntervalSince($0.value.madeAt) < Self.planReuseSeconds }
+        recentPlans[key] = (plan, Date())
+        return plan
+    }
+
+    private func makePlan(
+        for query: String,
+        profile: QueryProfile?,
+        requestedQualityMode: RAGQualityMode,
+        allowToolCalling: Bool
     ) async -> QueryExecutionPlan {
         let resolvedProfile: QueryProfile
         if let profile {

@@ -378,3 +378,7 @@ Debug builds only (`VerificationJournal`). `retrieval.graphPack` records each gr
 ## Suggested questions wait for an answer (added 2026-11-04, for 5.8)
 
 `SuggestedQuestionsService` calls `AnswerModelPriority.waitWhileAnswering` before each model call, outside its 10 and 12 s timeouts, so suggestions are written after an answer, not during it. On the owner's iPhone on 2026-11-04 six suggestion requests ran during one Deep Think answer and its calls waited 3.7 to 13.3 s for their first word. Which questions are suggested does not change. `[evidence_level: code_verified, confidence: high, evidence_source: SuggestedQuestionsService.swift; his iPhone trace 2026-11-04]`
+
+## A question is planned once (added 2026-11-04, for 5.8)
+
+`QueryExecutionPlannerService.buildPlan` asks Apple's model for a guided `QueryExecutionPlan`. Deep Think asked for it three times per question (mode choice, the retrieval decision, the search phrases), each a separate model call; it now reuses a plan for the same question, quality mode and tool setting for 120 seconds, and a call made while one is being planned waits for that one. The plan's content is unchanged: the three calls were independent samples of the same prompt. `[evidence_level: code_verified, confidence: high, evidence_source: QueryExecutionPlannerService.swift]`

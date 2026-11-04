@@ -658,65 +658,65 @@ final class SettingsStore: ObservableObject {
             .store(in: &cancellables)
 
         // Persist each setting change; coalesce downstream apply
-        let publishers: [AnyPublisher<Void, Never>] = [
-            $selectedModel.map { _ in () }.eraseToAnyPublisher(),
-            $executionContext.map { _ in () }.eraseToAnyPublisher(),
-            $temperature.map { _ in () }.eraseToAnyPublisher(),
-            $maxTokens.map { _ in () }.eraseToAnyPublisher(),
-            $contextLength.map { _ in () }.eraseToAnyPublisher(),
-            $topP.map { _ in () }.eraseToAnyPublisher(),
-            $frequencyPenalty.map { _ in () }.eraseToAnyPublisher(),
-            $presencePenalty.map { _ in () }.eraseToAnyPublisher(),
-            $repetitionPenalty.map { _ in () }.eraseToAnyPublisher(),
-            $systemPrompt.map { _ in () }.eraseToAnyPublisher(),
-            $lenientRetrievalMode.map { _ in () }.eraseToAnyPublisher(),
-            $enableFirstFallback.map { _ in () }.eraseToAnyPublisher(),
-            $enableSecondFallback.map { _ in () }.eraseToAnyPublisher(),
-            $firstFallback.map { _ in () }.eraseToAnyPublisher(),
-            $secondFallback.map { _ in () }.eraseToAnyPublisher(),
-            $reviewerModeEnabled.map { _ in () }.eraseToAnyPublisher(),
-            $applePCCConsent.map { _ in () }.eraseToAnyPublisher(),
-            $pccSetting.map { _ in () }.eraseToAnyPublisher(),
-            $reliabilityModeEnabled.map { _ in () }.eraseToAnyPublisher(),
-            $defaultEmbeddingProvider.map { _ in () }.eraseToAnyPublisher(),
-            $useHighAccuracyEmbeddings.map { _ in () }.eraseToAnyPublisher(),
-            $enableQueryRewriting.map { _ in () }.eraseToAnyPublisher(),
-            $enableIterativeRetrieval.map { _ in () }.eraseToAnyPublisher(),
-            $enableHyDE.map { _ in () }.eraseToAnyPublisher(),
-            $enableContextualCompression.map { _ in () }.eraseToAnyPublisher(),
-            $enableParentDocumentRetrieval.map { _ in () }.eraseToAnyPublisher(),
-            $enableConversationMemory.map { _ in () }.eraseToAnyPublisher(),
-            $appAccentColorHex.map { _ in () }.eraseToAnyPublisher(),
-            $showSiliconHUD.map { _ in () }.eraseToAnyPublisher(),
-            $showTechnicalDetails.map { _ in () }.eraseToAnyPublisher(),
-            $hudGlowIntensity.map { _ in () }.eraseToAnyPublisher(),
-            $hudShowMetrics.map { _ in () }.eraseToAnyPublisher(),
-            $hudShowTaptic.map { _ in () }.eraseToAnyPublisher(),
-            $enableSmartReplies.map { _ in () }.eraseToAnyPublisher(),
-            $enableContentTagging.map { _ in () }.eraseToAnyPublisher(),
-            $enableSpotlightIndexing.map { _ in () }.eraseToAnyPublisher(),
-            $enableBackgroundMaintenance.map { _ in () }.eraseToAnyPublisher(),
-            $enableWritingTools.map { _ in () }.eraseToAnyPublisher(),
-            $enableTranslation.map { _ in () }.eraseToAnyPublisher(),
-            $enableSpeechAnalysis.map { _ in () }.eraseToAnyPublisher(),
-            $enableScreenAwareness.map { _ in () }.eraseToAnyPublisher(),
-            $enableADM3Visuals.map { _ in () }.eraseToAnyPublisher(),
-            $enableRAGEvaluations.map { _ in () }.eraseToAnyPublisher(),
-            $smartReplyCount.map { _ in () }.eraseToAnyPublisher(),
-            $enableSharedWorkspaceSync.map { _ in () }.eraseToAnyPublisher(),
-            $fmPreference.map { _ in () }.eraseToAnyPublisher(),
+        let publishers: [AnyPublisher<String, Never>] = [
+            $selectedModel.map { _ in "selectedModel" }.eraseToAnyPublisher(),
+            $executionContext.map { _ in "executionContext" }.eraseToAnyPublisher(),
+            $temperature.map { _ in "temperature" }.eraseToAnyPublisher(),
+            $maxTokens.map { _ in "maxTokens" }.eraseToAnyPublisher(),
+            $contextLength.map { _ in "contextLength" }.eraseToAnyPublisher(),
+            $topP.map { _ in "topP" }.eraseToAnyPublisher(),
+            $frequencyPenalty.map { _ in "frequencyPenalty" }.eraseToAnyPublisher(),
+            $presencePenalty.map { _ in "presencePenalty" }.eraseToAnyPublisher(),
+            $repetitionPenalty.map { _ in "repetitionPenalty" }.eraseToAnyPublisher(),
+            $systemPrompt.map { _ in "systemPrompt" }.eraseToAnyPublisher(),
+            $lenientRetrievalMode.map { _ in "lenientRetrievalMode" }.eraseToAnyPublisher(),
+            $enableFirstFallback.map { _ in "enableFirstFallback" }.eraseToAnyPublisher(),
+            $enableSecondFallback.map { _ in "enableSecondFallback" }.eraseToAnyPublisher(),
+            $firstFallback.map { _ in "firstFallback" }.eraseToAnyPublisher(),
+            $secondFallback.map { _ in "secondFallback" }.eraseToAnyPublisher(),
+            $reviewerModeEnabled.map { _ in "reviewerModeEnabled" }.eraseToAnyPublisher(),
+            $applePCCConsent.map { _ in "applePCCConsent" }.eraseToAnyPublisher(),
+            $pccSetting.map { _ in "pccSetting" }.eraseToAnyPublisher(),
+            $reliabilityModeEnabled.map { _ in "reliabilityModeEnabled" }.eraseToAnyPublisher(),
+            $defaultEmbeddingProvider.map { _ in "defaultEmbeddingProvider" }.eraseToAnyPublisher(),
+            $useHighAccuracyEmbeddings.map { _ in "useHighAccuracyEmbeddings" }.eraseToAnyPublisher(),
+            $enableQueryRewriting.map { _ in "enableQueryRewriting" }.eraseToAnyPublisher(),
+            $enableIterativeRetrieval.map { _ in "enableIterativeRetrieval" }.eraseToAnyPublisher(),
+            $enableHyDE.map { _ in "enableHyDE" }.eraseToAnyPublisher(),
+            $enableContextualCompression.map { _ in "enableContextualCompression" }.eraseToAnyPublisher(),
+            $enableParentDocumentRetrieval.map { _ in "enableParentDocumentRetrieval" }.eraseToAnyPublisher(),
+            $enableConversationMemory.map { _ in "enableConversationMemory" }.eraseToAnyPublisher(),
+            $appAccentColorHex.map { _ in "appAccentColorHex" }.eraseToAnyPublisher(),
+            $showSiliconHUD.map { _ in "showSiliconHUD" }.eraseToAnyPublisher(),
+            $showTechnicalDetails.map { _ in "showTechnicalDetails" }.eraseToAnyPublisher(),
+            $hudGlowIntensity.map { _ in "hudGlowIntensity" }.eraseToAnyPublisher(),
+            $hudShowMetrics.map { _ in "hudShowMetrics" }.eraseToAnyPublisher(),
+            $hudShowTaptic.map { _ in "hudShowTaptic" }.eraseToAnyPublisher(),
+            $enableSmartReplies.map { _ in "enableSmartReplies" }.eraseToAnyPublisher(),
+            $enableContentTagging.map { _ in "enableContentTagging" }.eraseToAnyPublisher(),
+            $enableSpotlightIndexing.map { _ in "enableSpotlightIndexing" }.eraseToAnyPublisher(),
+            $enableBackgroundMaintenance.map { _ in "enableBackgroundMaintenance" }.eraseToAnyPublisher(),
+            $enableWritingTools.map { _ in "enableWritingTools" }.eraseToAnyPublisher(),
+            $enableTranslation.map { _ in "enableTranslation" }.eraseToAnyPublisher(),
+            $enableSpeechAnalysis.map { _ in "enableSpeechAnalysis" }.eraseToAnyPublisher(),
+            $enableScreenAwareness.map { _ in "enableScreenAwareness" }.eraseToAnyPublisher(),
+            $enableADM3Visuals.map { _ in "enableADM3Visuals" }.eraseToAnyPublisher(),
+            $enableRAGEvaluations.map { _ in "enableRAGEvaluations" }.eraseToAnyPublisher(),
+            $smartReplyCount.map { _ in "smartReplyCount" }.eraseToAnyPublisher(),
+            $enableSharedWorkspaceSync.map { _ in "enableSharedWorkspaceSync" }.eraseToAnyPublisher(),
+            $fmPreference.map { _ in "fmPreference" }.eraseToAnyPublisher(),
             // Saved by `persistAll` but missing from this list until 5.7 (found by a triage read, 2026-10-18). For a
             // person, Developer & Diagnostics' Pipeline Trace and Force Reasoning Chain reverted on relaunch, since
             // their switches change nothing else. Advanced's sampling strategy, top-K and seed were saved anyway,
             // because its Apply also sets settings that were on the list, and document summaries and query routing
             // have no control. The quality mode saves through its own sink, and RAG tuning is forced off by its own.
-            $samplingStrategy.map { _ in () }.eraseToAnyPublisher(),
-            $topK.map { _ in () }.eraseToAnyPublisher(),
-            $seed.map { _ in () }.eraseToAnyPublisher(),
-            $forceReasoningChain.map { _ in () }.eraseToAnyPublisher(),
-            $enableDocumentSummaries.map { _ in () }.eraseToAnyPublisher(),
-            $enableQueryRouting.map { _ in () }.eraseToAnyPublisher(),
-            $enablePipelineTrace.map { _ in () }.eraseToAnyPublisher(),
+            $samplingStrategy.map { _ in "samplingStrategy" }.eraseToAnyPublisher(),
+            $topK.map { _ in "topK" }.eraseToAnyPublisher(),
+            $seed.map { _ in "seed" }.eraseToAnyPublisher(),
+            $forceReasoningChain.map { _ in "forceReasoningChain" }.eraseToAnyPublisher(),
+            $enableDocumentSummaries.map { _ in "enableDocumentSummaries" }.eraseToAnyPublisher(),
+            $enableQueryRouting.map { _ in "enableQueryRouting" }.eraseToAnyPublisher(),
+            $enablePipelineTrace.map { _ in "enablePipelineTrace" }.eraseToAnyPublisher(),
         ]
         // A `@Published` property publishes from its `willSet`, so a sink that runs straight away
         // reads the value the property had before. Through 5.6 that is what `persistAll` saved:
@@ -724,8 +724,11 @@ final class SettingsStore: ObservableObject {
         // a relaunch brought the old value back. The save now runs once the value is set (5.7).
         Publishers.MergeMany(publishers)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
+            .sink { [weak self] key in
                 guard let self else { return }
+                // Which setting was set (5.8, development builds): on the owner's iPhone on 2026-11-04 one was set
+                // again and again for 17 minutes, each time rebuilding the model service, and nothing said which.
+                VerificationJournal.record("settings.set", ["key": key])
                 self.persistAll()
                 self.applySubject.send()
             }
@@ -953,6 +956,13 @@ final class SettingsStore: ObservableObject {
     // MARK: - Side Effects (Debounced)
 
     /// Emits telemetry once a batch of setting changes has settled.
+    /// What `RAGService.rebuildLLMServicesFromSettings` reads. Nil until the first apply, so that one always runs.
+    private var lastAppliedRoutingSignature: String?
+    private var routingSignature: String {
+        [selectedModel.rawValue, executionContext.rawString, "\(enableFirstFallback)", firstFallback.rawValue,
+            "\(enableSecondFallback)", secondFallback.rawValue].joined(separator: "|")
+    }
+
     private func applySettingsDebounced() {
         TelemetryCenter.emit(
             .system, title: "Settings changed",
@@ -966,6 +976,12 @@ final class SettingsStore: ObservableObject {
 
         // Apply model/fallback routing changes to the active RAG pipeline.
         // This keeps the UI picker in sync with the runtime service.
+        // Only when one of the settings the services are built from changed (5.8). Rebuilding from the same settings
+        // builds the same services, and each rebuild republishes the engine's model name, which redraws screens that
+        // set settings: on the owner's iPhone on 2026-11-04 that ran as a loop, about 1,500 rebuilds in 17 minutes,
+        // and a Deep Think question asked during it never reached the model.
+        let routing = routingSignature
+        guard routing != lastAppliedRoutingSignature else { return }
         // GUARD: Don't swap LLM services mid-query - can cause freezes or undefined behavior
         Task { @MainActor [weak ragService] in
             guard let ragService = ragService else { return }
@@ -973,6 +989,8 @@ final class SettingsStore: ObservableObject {
                 Log.debug("[SettingsStore] Skipping LLM rebuild - query in progress", category: .initialization)
                 return
             }
+            // Recorded once the rebuild runs, so one skipped above runs at the next apply.
+            self.lastAppliedRoutingSignature = routing
 
             await ragService.rebuildLLMServicesFromSettings()
         }

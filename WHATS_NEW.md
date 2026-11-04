@@ -12,6 +12,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **The guides don't use your plan.** The app's three guides now sit in their own OpenIntelligence Guide library, which counts toward neither your documents nor your libraries, so a free plan's five documents and one library are all yours. Ask the guide library anything about how the app works.
 
 ### Answers
+- **The model is rebuilt only when a setting it uses changes.** Saving a setting again with the value it already had no longer starts the model over.
 - **One cleaner card while an answer runs.** An answer kept on your device shows a single card on the Lock Screen and in the Dynamic Island, with its step, its progress and a small Stop. It says Paused when it is waiting for you.
 - **No more crash on coming back to the app.** Picking the suggested questions for a large library could freeze the app long enough for iOS to close it. That work now runs in the background.
 - **A long answer pauses when you leave and finishes when you come back.** iOS limits how much an app in the background can use Apple's on-device model, so a Deep Think answer used to stall there and then be thrown away. Now it pauses at the step it reached and picks up from there when you open the app. If iOS closes the app while it waits, the answer is lost and you ask again. The Deep Think icon at the top of the screen goes away as soon as an answer stops.
