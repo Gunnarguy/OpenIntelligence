@@ -78,9 +78,29 @@
             }
         }
 
+        /// While the answer waits for the app to come back (5.8): the Live Activity reads "Paused" and
+        /// "Tap to resume." instead of the step, and tapping it opens the app, where the answer goes on.
+        private var isPaused = false
+
+        func setPaused(_ paused: Bool) {
+            guard isRunning, paused != isPaused else { return }
+            isPaused = paused
+            guard let activity else { return }
+            let state =
+                paused
+                ? QueryLiveActivityAttributes.ContentState(
+                    progress: latest.progress, title: "Paused", subtitle: "Tap to resume.")
+                : latest
+            lastUpdateAt = Date()
+            VerificationJournal.record("liveactivity.answer.paused", ["paused": "\(paused)"])
+            // A stale date, so a paused card left by an app iOS has since closed reads as out of date.
+            Task { await activity.update(ActivityContent(state: state, staleDate: Date().addingTimeInterval(15 * 60))) }
+        }
+
         func update(title: String, subtitle: String, fraction: Double) {
             guard isRunning else { return }
             latest = Self.state(title: title, subtitle: subtitle, fraction: fraction)
+            guard !isPaused else { return }
             guard let activity, Date().timeIntervalSince(lastUpdateAt) >= Self.minimumUpdateInterval else { return }
             lastUpdateAt = Date()
             let content = ActivityContent(state: latest, staleDate: Date().addingTimeInterval(120))
@@ -89,6 +109,7 @@
 
         func complete(success: Bool) {
             isRunning = false
+            isPaused = false
             pendingStart?.cancel()
             pendingStart = nil
             guard let activity else {

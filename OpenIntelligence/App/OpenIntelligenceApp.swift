@@ -193,6 +193,18 @@ struct OpenIntelligenceApp: App {
                 QueryLiveActivityService.shared.complete(success: success)
             #endif
         }
+        // An answer waiting for the app to come back says so on the Lock Screen and in the system's card (5.8).
+        NotificationCenter.default.addObserver(
+            forName: RAGService.answerPausedNotification, object: nil, queue: .main
+        ) { note in
+            let paused = (note.userInfo?["paused"] as? Bool) ?? false
+            MainActor.assumeIsolated {
+                BackgroundTaskService.shared.setContinuedQueryPaused(paused)
+                #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+                    QueryLiveActivityService.shared.setPaused(paused)
+                #endif
+            }
+        }
         QueryRuntimeBridge.shared.beginForegroundFallbackQueryHandler = { reason in
             BackgroundTaskService.shared.beginForegroundFallbackQueryExtensionIfNeeded(reason: reason)
         }

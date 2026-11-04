@@ -1261,6 +1261,8 @@ actor SuggestedQuestionsService {
         """
 
         do {
+            // Outside the timeout, so waiting for an answer to finish does not use it up (5.8).
+            await AnswerModelPriority.waitWhileAnswering(job: "suggestedQuestions")
             let responseContent = try await withTimeout(seconds: 10.0) {
                 // Built with an explicit model and instructions, not the bare `LanguageModelSession()`.
                 // Every service that used the bare initialiser failed deterministically with
@@ -1423,6 +1425,8 @@ actor SuggestedQuestionsService {
             """
 
             do {
+                // Outside the timeout, so waiting for an answer to finish does not use it up (5.8).
+                await AnswerModelPriority.waitWhileAnswering(job: "suggestedQuestions")
                 let responseContent = try await withTimeout(seconds: 12.0) {
                     // Built with an explicit model and instructions, not the bare `LanguageModelSession()`.
                     // Every service that used the bare initialiser failed deterministically with

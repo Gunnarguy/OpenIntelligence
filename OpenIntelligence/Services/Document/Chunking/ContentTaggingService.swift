@@ -267,6 +267,8 @@ import NaturalLanguage
             text: String
         ) async throws -> ContentTags {
             try Task.checkCancellation()
+            // Before the timeout starts, so waiting for an answer to finish does not use it up (5.8).
+            await AnswerModelPriority.waitWhileAnswering(job: "contentTags")
 
             return try await withThrowingTaskGroup(of: ContentTags.self) { group in
                 group.addTask {

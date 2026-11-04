@@ -18,7 +18,7 @@ This one's about making the app easier to start with and easier to trust. Every 
 
 ### Answers
 
-- **A long answer keeps going when you come back to it.** If iOS ended an answer's background time just as you returned to the app, the answer stopped there and was kept as a partial one. Now it keeps running while the app is in front, and the Deep Think icon at the top of the screen goes away as soon as an answer stops. If the app is in the background when iOS stops it, the notification says it didn't finish (with notifications on).
+- **A long answer pauses when you leave and finishes when you come back.** iOS limits how much an app in the background can use Apple's on-device model, so a Deep Think answer used to stall there and then be thrown away. Now it pauses at the step it reached and picks up from there when you open the app. If iOS closes the app while it waits, the answer is lost and you ask again. The Deep Think icon at the top of the screen goes away as soon as an answer stops.
 - **A smaller Silicon HUD on iPhone.** The hardware overlay at the top of the screen is three lines instead of six on iPhone: the chip and free memory, then each part of the chip with its live reading. iPad and Mac keep the full one.
 - **Settings opens on the first tap.** Rows like How This Works and Plain English could take several taps to open. They open on one now.
 - **Taps no longer get lost after iCloud catches up.** Each time iCloud brought changes in, the app re-read your libraries in a way that froze the screen for up to several seconds, so a tap in Settings or Chat could do nothing. That reading now happens in the background.

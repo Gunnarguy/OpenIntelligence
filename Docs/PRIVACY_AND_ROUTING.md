@@ -467,3 +467,7 @@ named levels are a dial; this is a sentence. `AppleFoundationModelRoute.reasonin
   Model Parameters footer says where it applies; this is the privacy statement behind it.
 
 `[evidence_level: test_verified, confidence: high, evidence_source: FoundationModelRoute.swift reasoningLevel; CustomReasoningProfileTests, 6 cases; ReasoningLevel.custom read from iPhoneOS27.0.sdk FoundationModels.swiftinterface]`
+
+## An answer in the background waits, and nothing leaves the device for it (added 2026-11-04, for 5.8)
+
+iOS rate-limits the on-device model for an app in the background (Apple, `LanguageModelSession.GenerationError.rateLimited`). A rate-limited call there now waits for the app to come back (`RAGService.waitWhileAppIsInBackground`) and the answer goes on from the same step. It is not sent to Private Cloud Compute instead: the route is decided as before, and the wait applies to on-device calls, including the on-device fallback after a Private Cloud Compute failure. While an answer runs, side jobs wait for it (`AnswerModelPriority`); they make the same on-device calls as before, later. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift; AgenticOrchestrator.swift generateWithFreshSession; AnswerModelPriority.swift]`

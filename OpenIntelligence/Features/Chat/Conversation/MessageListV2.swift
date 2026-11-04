@@ -502,8 +502,10 @@ private struct TypingBubbleV2: View {
 private struct LivePipelinePreview: View {
     let events: [ThinkingEvent]
     let tint: Color
-    /// The step names' column, as wide as the longest at every text size (5.7).
-    @ScaledMetric(relativeTo: .body) private var kindColumn: CGFloat = 58
+    /// The step names' column, wide enough for the longest single word at every text size, so a name breaks
+    /// between words and never inside one. 58 split "VERIFICATIO/N GATES" on the owner's iPhone (2026-11-04):
+    /// at 8 pt monospaced bold the twelve letters of VERIFICATION take about 58 pt.
+    @ScaledMetric(relativeTo: .body) private var kindColumn: CGFloat = 66
 
     private var recentEvents: [ThinkingEvent] {
         Array(events.suffix(5))

@@ -190,6 +190,7 @@ actor ClusterLabelService {
                 instructions: Instructions("You label groups of documents. Be concise.")
             )
 
+            await AnswerModelPriority.waitWhileAnswering(job: "atlasLabels")
             let response = try await session.respond(to: prompt)
             let label = cleanGeneratedLabel(response.content)
 

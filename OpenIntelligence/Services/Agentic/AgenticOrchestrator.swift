@@ -9168,11 +9168,26 @@ extension RAGService {
             config.allowPrivateCloudCompute = false
             config.skipContinuation = skipContinuation
 
-            return try await tempService.generate(
-                prompt: prompt,
-                context: nil,
-                config: config
-            )
+            // A rate limit is waited out here too (5.8): these calls (planning, search phrases, intent checks,
+            // reformulation) did not reach the retry ladder in `RAGService`, so with the app in the background,
+            // where iOS rate-limits the on-device model, one refusal failed the whole answer. In the background
+            // the call waits for the app to come back; in front it backs off 2, 5 and 12 seconds.
+            let backoffSeconds = [2, 5, 12]
+            var attempt = 0
+            while true {
+                do {
+                    return try await tempService.generate(prompt: prompt, context: nil, config: config)
+                } catch {
+                    guard ModelErrorClassifier.kind(of: error) == .rateLimited, attempt < backoffSeconds.count
+                    else { throw error }
+                    let waited = await RAGService.waitWhileAppIsInBackground()
+                    if waited < 1 {
+                        try? await Task.sleep(for: .seconds(backoffSeconds[attempt]))
+                    }
+                    try Task.checkCancellation()
+                    attempt += 1
+                }
+            }
         #else
             throw LLMError.modelUnavailable
         #endif

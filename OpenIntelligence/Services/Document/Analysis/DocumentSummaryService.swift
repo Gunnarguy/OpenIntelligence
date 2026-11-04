@@ -332,6 +332,8 @@ actor DocumentSummaryService {
             // were missed by a grep for the no-argument form.
             let session = LanguageModelSession(model: SystemLanguageModel.default, instructions: Instructions(Self.summaryInstructions))
 
+            // Outside the timeout, so waiting for an answer to finish does not use it up (5.8).
+            await AnswerModelPriority.waitWhileAnswering(job: "documentSummary")
             return try await withThrowingTaskGroup(of: String.self) { group in
                 group.addTask {
                     let response = try await session.respond(to: prompt)

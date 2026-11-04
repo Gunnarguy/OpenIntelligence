@@ -8843,6 +8843,32 @@ class RAGService: ObservableObject {
         !isOnboarding && (appIsInBackground || otherFilesQueued)
     }
 
+    /// Waits while the app is in the background, and returns how long it waited (5.8). A model call that
+    /// iOS refuses there goes on when the app is opened; a suspended app's wait simply pauses. Waiters are
+    /// counted, so the answer reads as paused until the last of them goes on.
+    @MainActor static func waitWhileAppIsInBackground() async -> TimeInterval {
+        let started = Date()
+        guard appIsInBackground else { return 0 }
+        backgroundWaiters += 1
+        if backgroundWaiters == 1 {
+            // The answer's Live Activity and the system's task card say "Paused, tap to resume" while it waits.
+            NotificationCenter.default.post(name: answerPausedNotification, object: nil, userInfo: ["paused": true])
+        }
+        while appIsInBackground, !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(1))
+        }
+        backgroundWaiters -= 1
+        if backgroundWaiters == 0 {
+            NotificationCenter.default.post(name: answerPausedNotification, object: nil, userInfo: ["paused": false])
+        }
+        return Date().timeIntervalSince(started)
+    }
+
+    @MainActor private static var backgroundWaiters = 0
+
+    /// Posted with `["paused": Bool]` when an answer starts and stops waiting for the app to come back (5.8).
+    nonisolated static let answerPausedNotification = Notification.Name("OpenIntelligence.answerPausedForBackground")
+
     /// Whether the app is in the background, where iOS ends an import that stalls (5.7).
     @MainActor static var appIsInBackground: Bool {
         #if canImport(UIKit)
@@ -11873,9 +11899,13 @@ class RAGService: ObservableObject {
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
         finishAnswerNowRequested = false
+        // While this answer runs, the app's side jobs leave the on-device model to it (5.8, `AnswerModelPriority`).
+        AnswerModelPriority.answerStarted()
+        defer { AnswerModelPriority.answerEnded() }
         // Apple's usage for every model call this answer makes is added up (`AnswerUsageTally`, 5.7) and put in
         // its metadata by `finalizeResponse`.
-        return try await AnswerUsageTally.$current.withValue(AnswerUsageTally()) {
+        return try await AnswerModelPriority.$isAnswerPath.withValue(true) {
+          try await AnswerUsageTally.$current.withValue(AnswerUsageTally()) {
             try await LLMStreamingContext.$handler.withValue(streamHandler) {
                 try await self.queryInternal(
                     question,
@@ -11887,6 +11917,7 @@ class RAGService: ObservableObject {
                     trace: trace
                 )
             }
+          }
         }
     }
 
@@ -19424,12 +19455,30 @@ class RAGService: ObservableObject {
                 let localContext = context.map { String($0.prefix(8_500)) }
                 let localChunks = Array(sourceChunks.prefix(8))
                 do {
-                    let localResponse = try await attempt(
-                        service: _llmService,
-                        overrideConfig: localConfig,
-                        overrideContext: localContext,
-                        overrideSourceChunks: localChunks
-                    )
+                    // A rate-limited fallback waits as the main ladder does (5.8): in the background for the app
+                    // to come back, in front 2, 5 and 12 seconds; before, one refusal threw the PCC error.
+                    var localAttempt = 0
+                    let localResponse: LLMResponse
+                    while true {
+                        do {
+                            localResponse = try await attempt(
+                                service: _llmService,
+                                overrideConfig: localConfig,
+                                overrideContext: localContext,
+                                overrideSourceChunks: localChunks
+                            )
+                            break
+                        } catch {
+                            let delays = [2, 5, 12]
+                            guard ModelErrorClassifier.kind(of: error) == .rateLimited, localAttempt < delays.count
+                            else { throw error }
+                            if await Self.waitWhileAppIsInBackground() < 1 {
+                                try? await Task.sleep(for: .seconds(delays[localAttempt]))
+                            }
+                            if Task.isCancelled { throw CancellationError() }
+                            localAttempt += 1
+                        }
+                    }
                     let failedCode =
                         errorDesc.lowercased().contains("quota")
                         ? "pcc_quota"
@@ -19533,6 +19582,18 @@ class RAGService: ObservableObject {
                     // Explicit, because `try?` above swallows cancellation. At 2 seconds that was
                     // survivable; across a 19 second ladder a cancelled query would otherwise keep
                     // issuing generations after the user moved on.
+                    if Task.isCancelled { throw CancellationError() }
+                    // In the background a retry only spends the ladder: iOS rate-limits the on-device model
+                    // for an app there (5.8, Apple's `GenerationError.rateLimited`). The answer waits for the
+                    // app to come back and goes on from this step.
+                    let waited = await Self.waitWhileAppIsInBackground()
+                    if waited >= 1 {
+                        Log.info(
+                            "[RAG] Waited \(String(format: "%.0f", waited))s for the app to come back before retry \(index + 1)",
+                            category: .llm)
+                        VerificationJournal.record(
+                            "model.waitedForFront", ["seconds": String(format: "%.0f", waited), "retry": "\(index + 1)"])
+                    }
                     if Task.isCancelled { throw CancellationError() }
                     do {
                         let retryResponse = try await attempt(service: _llmService)

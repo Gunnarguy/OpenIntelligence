@@ -1302,14 +1302,29 @@ struct SettingsView: View {
 
             if let rootDescription = workspaceSyncService.workspaceRootDescription,
                workspaceSyncService.isUsingSharedWorkspace {
-                DisclosureGroup("Storage location") {
-                    Text(rootDescription)
-                        .font(.caption2.monospaced())
+                // Plain words first, the path after (5.8): the owner read the bare path as a folder he could open
+                // in Files (2026-11-04). The container is not published to iCloud Drive (`Info.plist` has no
+                // `NSUbiquitousContainers`), so Files does not show it.
+                DisclosureGroup("Where your libraries are kept") {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        Text(
+                            "In OpenIntelligence's own iCloud folder, which iCloud keeps the same on your devices that have the app. The Files app doesn't show it, so its files can't be moved or deleted there by accident. Your original files stay wherever you imported them from."
+                        )
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, DSSpacing.xs)
+                        Text("Technical details")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, DSSpacing.xxs)
+                        Text(rootDescription)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, DSSpacing.xs)
                 }
                 .font(.caption.weight(.medium))
                 .tint(.secondary)

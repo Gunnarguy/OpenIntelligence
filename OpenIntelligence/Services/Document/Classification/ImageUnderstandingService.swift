@@ -714,6 +714,7 @@ class ImageUnderstandingService {
             #endif
 
             // Text only: the labels, the caption and the text around the image.
+            await AnswerModelPriority.waitWhileAnswering(job: "imageUnderstanding")
             let response = try await session.respond(to: prompt)
 
             let description = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -775,6 +776,7 @@ class ImageUnderstandingService {
                 instructions: Instructions("You describe images found in documents. Be concise and factual.")
             )
             do {
+                await AnswerModelPriority.waitWhileAnswering(job: "imageUnderstanding")
                 let response = try await session.respond(
                     options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 256)
                 ) {

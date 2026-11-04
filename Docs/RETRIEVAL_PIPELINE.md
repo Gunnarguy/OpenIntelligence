@@ -374,3 +374,7 @@ pass and only when the canonical file is also present.
 ## Development-build journal (added 2026-11-03)
 
 Debug builds only (`VerificationJournal`). `retrieval.graphPack` records each graph pack's tokens against its budget and the device's window, whether it fit (`withinBudget`) and whether it was cut (`truncated`), with the core and added passage counts. `vocabulary.learnedEntities` records the Vision-detected entities a library learned, as counts by kind (address, phone number, email, date, other), never the values. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift graph-packing block, ContainerVocabularyService.learnFromDetectedEntities]`
+
+## Suggested questions wait for an answer (added 2026-11-04, for 5.8)
+
+`SuggestedQuestionsService` calls `AnswerModelPriority.waitWhileAnswering` before each model call, outside its 10 and 12 s timeouts, so suggestions are written after an answer, not during it. On the owner's iPhone on 2026-11-04 six suggestion requests ran during one Deep Think answer and its calls waited 3.7 to 13.3 s for their first word. Which questions are suggested does not change. `[evidence_level: code_verified, confidence: high, evidence_source: SuggestedQuestionsService.swift; his iPhone trace 2026-11-04]`

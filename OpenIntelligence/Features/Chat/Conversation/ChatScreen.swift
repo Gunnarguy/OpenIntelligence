@@ -65,8 +65,29 @@ private final class ContinuedQueryCoordinator: ObservableObject {
     private var firstTokenObserved = false
     private var stepsSinceGenerating = 0
     private var lastReportedFraction = 0.0
+    private var lastSubtitle = "Preparing answer"
+    /// Moves the bar a step every few seconds while the answer runs (5.8). A Deep Think answer reported
+    /// progress only when a step ended, each model call ran 13 to 53 s with none, and the bar sat at 80%
+    /// for minutes; on the owner's iPhone on 2026-11-04 iOS ended the task about 5 s after he left the app,
+    /// twice, both times at 0.80. Apple: the system ends tasks that show minimal progress first.
+    private var heartbeat: Task<Void, Never>?
+    /// True while the answer waits for the app to come back (`RAGService.answerPausedNotification`): the beat
+    /// stops, so the bar never shows progress the answer is not making.
+    private var isPaused = false
+    private var pauseObserver: NSObjectProtocol?
+    /// Seconds between beats, and how far each moves the bar (one unit of the task's 1,000).
+    private static let heartbeatInterval: Duration = .seconds(2)
+    private static let heartbeatStep = 0.001
+    /// The beat never passes the mark for checking the answer against its sources.
+    private static let heartbeatCeiling = 0.915
 
     init() {
+        pauseObserver = NotificationCenter.default.addObserver(
+            forName: RAGService.answerPausedNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let paused = (note.userInfo?["paused"] as? Bool) ?? false
+            MainActor.assumeIsolated { self?.isPaused = paused }
+        }
         QueryRuntimeBridge.shared.configureContinuedQuery(
             run: { [weak self] in
                 guard let self else { return false }
@@ -93,6 +114,21 @@ private final class ContinuedQueryCoordinator: ObservableObject {
             subtitle: queryPreview
         )
         reportProgress(subtitle: "Preparing answer", fraction: 0.02)
+        startHeartbeat()
+    }
+
+    private func startHeartbeat() {
+        heartbeat?.cancel()
+        heartbeat = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.heartbeatInterval)
+                guard let self, !Task.isCancelled, self.trackedSessionId != nil else { return }
+                guard !self.isPaused, self.lastReportedFraction < Self.heartbeatCeiling else { continue }
+                self.reportProgress(
+                    subtitle: self.lastSubtitle,
+                    fraction: min(Self.heartbeatCeiling, self.lastReportedFraction + Self.heartbeatStep))
+            }
+        }
     }
 
     func markEmbedding() {
@@ -157,6 +193,8 @@ private final class ContinuedQueryCoordinator: ObservableObject {
 
         lastFinishedSessionId = sessionId
         lastFinishedSuccess = success
+        heartbeat?.cancel()
+        heartbeat = nil
         QueryRuntimeBridge.shared.completeUserInitiatedQuery(success: success)
         trackedSessionId = nil
         firstTokenObserved = false
@@ -176,6 +214,7 @@ private final class ContinuedQueryCoordinator: ObservableObject {
         // A progress bar that moves backwards reads as lost work.
         let fraction = max(fraction, lastReportedFraction)
         lastReportedFraction = fraction
+        lastSubtitle = subtitle
 
         QueryRuntimeBridge.shared.updateContinuedQueryProgress(
             title: title,

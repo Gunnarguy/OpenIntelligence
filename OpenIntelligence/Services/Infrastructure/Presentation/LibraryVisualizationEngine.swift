@@ -1210,6 +1210,7 @@ final class LibraryVisualizationEngine: ObservableObject {
                     Name this document cluster in 2-4 words. Keywords: \(cluster.keywords.prefix(8).joined(separator: ", ")). \
                     Snippet: \(cluster.representativeSnippet.prefix(100)). Reply with ONLY the name.
                     """
+                    await AnswerModelPriority.waitWhileAnswering(job: "atlasAnalysis")
                     let response = try await session.respond(to: prompt)
                     let name = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !name.isEmpty && name.count < 40 {
