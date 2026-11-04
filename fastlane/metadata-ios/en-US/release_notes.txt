@@ -36,6 +36,8 @@ ALSO
 
 • The Atlas lists each topic once and counts the whole library, and its similarity heatmap, which was never drawn from your documents, is gone.
 
+• Two windows share one engine, so they no longer rebuild or sync the same library at the same moment.
+
 • Rating the app is one sheet, Apple's own: tap the stars, add a review if you want, and submit without leaving the app.  The old "Enjoying OpenIntelligence?" alert is gone.
 
 

@@ -13,14 +13,15 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var workspaceSyncService: WorkspaceSyncService
-    @StateObject private var containerService: ContainerService
-    @StateObject private var ragService: RAGService
-    @StateObject private var settingsStore: SettingsStore
-    @StateObject private var modelResolutionService: ModelResolutionService
+    // The app's own, shared by every window (5.8, `AppServices`).
+    @ObservedObject private var workspaceSyncService: WorkspaceSyncService
+    @ObservedObject private var containerService: ContainerService
+    @ObservedObject private var ragService: RAGService
+    @ObservedObject private var settingsStore: SettingsStore
+    @ObservedObject private var modelResolutionService: ModelResolutionService
     @StateObject private var onboardingStore: OnboardingStateStore
     @StateObject private var whatsNewStore: WhatsNewStore
-    @StateObject private var entitlementStore: EntitlementStore
+    @ObservedObject private var entitlementStore: EntitlementStore
     /// Asks for a rating with Apple's sheet after a good answer; see ReviewPromptService for when.
     @ObservedObject private var reviewPrompt = ReviewPromptService.shared
     /// Answers that finished while another tab was showing; badges the Chat tab.
@@ -46,33 +47,15 @@ struct ContentView: View {
     private let screenshotMode: ScreenshotMode
 
     init() {
-        #if DEBUG
-            DebugRAGValidationHarness.configureStorageIfNeeded()
-        #endif
-        self.screenshotMode = ScreenshotMode.current
-        #if DEBUG
-            if !screenshotMode.isEnabled {
-                StoreKitTestHarness.startIfNeeded()
-            }
-        #endif
-        let workspaceSyncSvc = WorkspaceSyncService()
-        let containerSvc = ContainerService()
-        let billingSvc = StoreKitBillingService()
-        let entitlementStore = EntitlementStore(billingService: billingSvc)
-        let ragSvc = RAGService(containerService: containerSvc, entitlementStore: entitlementStore)
-        // The app's engine is the one actions reach for imports, lists and conversations. It sets
-        // itself here; an engine an action builds for one question registers only when none is set.
-        RAGService.activePresentedInstance = ragSvc
-        ragSvc.isTheAppsEngine = true
-        // The app's guides don't count toward the plan's documents (5.8), wherever they were imported.
-        ragSvc.isAppGuide = { SampleDocumentManager.shared.isGuide(filename: $0.filename) }
-        _workspaceSyncService = StateObject(wrappedValue: workspaceSyncSvc)
-        _containerService = StateObject(wrappedValue: containerSvc)
-        _ragService = StateObject(wrappedValue: ragSvc)
-        let settingsStoreObj = SettingsStore(ragService: ragSvc)
-        _settingsStore = StateObject(wrappedValue: settingsStoreObj)
-        _modelResolutionService = StateObject(
-            wrappedValue: ModelResolutionService(ragService: ragSvc, settingsStore: settingsStoreObj))
+        // One engine and one sync for the app, whatever the number of windows (5.8, `AppServices`).
+        let services = AppServices.shared
+        self.screenshotMode = services.screenshotMode
+        workspaceSyncService = services.workspaceSyncService
+        containerService = services.containerService
+        ragService = services.ragService
+        settingsStore = services.settingsStore
+        modelResolutionService = services.modelResolutionService
+        entitlementStore = services.entitlementStore
         if screenshotMode.isEnabled {
             let suite = "OpenIntelligence.Screenshots"
             let defaults = UserDefaults(suiteName: suite) ?? .standard
@@ -83,8 +66,6 @@ struct ContentView: View {
             _onboardingStore = StateObject(wrappedValue: OnboardingStateStore())
             _whatsNewStore = StateObject(wrappedValue: WhatsNewStore())
         }
-        _entitlementStore = StateObject(wrappedValue: entitlementStore)
-
         if let initialTab = screenshotMode.initialTab {
             _selectedTab = State(initialValue: initialTab)
         }
@@ -886,7 +867,8 @@ struct ContentView: View {
     }
 #endif
 
-private struct ScreenshotMode {
+/// Internal since 5.8: `AppServices` reads it once per launch.
+struct ScreenshotMode {
     let isEnabled: Bool
     let initialTab: ContentView.Tab?
     let shouldImportSamples: Bool

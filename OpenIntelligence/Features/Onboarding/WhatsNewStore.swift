@@ -162,6 +162,12 @@ final class WhatsNewStore: ObservableObject {
                         "A library synced with iCloud could show more documents on its button than it held."
                 ),
                 .init(
+                    symbol: "macwindow.on.rectangle",
+                    title: "Two windows share one engine",
+                    detail:
+                        "On a Mac or an iPad, each window ran its own copy of the app's engine and iCloud sync, so two windows could rebuild or sync the same library at the same moment. They now share one, so switching libraries in one window switches it in the other."
+                ),
+                .init(
                     symbol: "globe.americas",
                     title: "The Atlas shows each thing once, and only what's real",
                     detail:

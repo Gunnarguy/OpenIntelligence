@@ -810,6 +810,12 @@ Two things about it matter:
   cost per page, which is the measurement that did not exist when a 210-page PDF took five hours on
   a Mac and nothing in the log said which stage owned the time.
 
+- **5.8, 2026-11-04:** the hardware HUD hears of the post-process on a Mac as on iPhone. Both branches of
+  `renderPDFPageAsImage` now call `HardwareTelemetryState.reportGPUCompute(operation: .imageProcessing)` when a page
+  gets the OCR post-process; through 5.7 only the UIKit branch did, so the Mac's HUD showed nothing for it. It marks
+  work handed to the Metal-backed context, which runs when the page image is read, not a measurement of the GPU.
+  `[evidence_level: code_verified, build_verified, confidence: medium]`
+
   Measured since on a live trace: rendering costs 12 to 16 ms a page at 360 DPI, so a multi-hour
   ingest is Vision recognition. Look for OCR speed in recognition, not in rasterisation.
   `[evidence_level: doc_claim_only, confidence: medium, evidence_source: Docs/EdgeToEdge/02_File_extraction_and_document_understanding.md:15 and HANDOFF.md at d5cc916; not re-run]`

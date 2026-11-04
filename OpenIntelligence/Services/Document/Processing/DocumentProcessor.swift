@@ -7415,6 +7415,12 @@ class DocumentProcessor {
 
         let ciImage = CIImage(cgImage: cgImage)
         if attachesOCRPostProcess {
+            // The same report as the UIKit branch (5.8): the Mac's hardware HUD showed nothing for the post-process,
+            // which runs through the Metal-backed CIContext as it does on iPhone (row "PDF page renders are logged as
+            // GPU-accelerated on a macOS path").
+            Task { @MainActor in
+                HardwareTelemetryState.shared.reportGPUCompute(operation: .imageProcessing)
+            }
             return preprocessImageForOCR(ciImage)
         } else {
             return ciImage
