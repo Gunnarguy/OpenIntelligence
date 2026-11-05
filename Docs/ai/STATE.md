@@ -1,10 +1,10 @@
 # Current State
 
-Updated: 2026-11-04 about 00:00 PT (5.8 open; all work committed locally with `[ci skip]`, nothing pushed. 5.7 is live on iPhone, iPad
+Updated: 2026-11-04 about 16:30 PT (5.8 open; all work committed locally with `[ci skip]`, nothing pushed. 5.7 is live on iPhone, iPad
 and Mac since 2026-10-22, build 487. Xcode Cloud build 488 (`fb225053`) is VALID on both platforms and attached to
 neither record.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 13bf9400
+Last verified commit: 3f2d40b9
 
 ## Objective
 
@@ -22,7 +22,10 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 | Atlas | Built `a19e107d`: topics once, library-wide counts, the random-colour heatmap and the "coming soon" document network removed |
 | Sync | Freeze fix and orphaned-copy cleanup `5c13a375`; iCloud-change passes throttled `77aeedfa` (`ObservedChangeThrottle`). The triggers inside `WorkspaceSyncService.swift` (watcher sees a pass's own writes; 2 s debounce) are unchanged and need him to name the file |
 | 5.8 copy | What's New (now 15 items), `Docs/USER_CHANGELOG.md` and its byte copy `VersionHistory.md`, `WHATS_NEW.md`, both `release_notes.txt`, the `### 5.8` entry in `APP_STORE_METADATA_HISTORY.md`. **Not pushed to App Store Connect** |
-| His devices | iPhone has the build of `13bf9400` (installed 2026-11-04 about 09:00 PT): the save guard, the in-front answer expiry fix and its Live Activity, the off-main workspace reload, Settings rows on one tap, the plans sheet's tier, the three-line HUD, semibold Database figures. The compact HUD has not been seen on any screen yet (it does not draw in the Simulator). The Mac's `/Applications` copy is older: he copies `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app` there (refused to agents) |
+| His devices | iPhone runs the build of `e83502fb` (pause and resume in the background, one answer card, off-main suggestion sampling). The build of `9917b9d4` + `3f2d40b9` is built (`/private/tmp/oi58-dd/Build/Products/Debug-iphoneos/OpenIntelligence.app`) and waits to install: scratchpad `install_when_idle.sh` was polling for the phone, which read "unavailable" (needs it unlocked and in reach). The Mac's `/Applications` copy is older: he copies `/private/tmp/oi58-mac-dd/Build/Products/Debug/OpenIntelligence.app` there (refused to agents) |
+| Fixed 2026-11-04, committed | HUD Spacer loop (`2ba01e81`); answers pause in the background and resume (`a3046281`); crash on return from suggestion sampling, one answer card, cleaner Live Activity (`e83502fb`); **Developer & Diagnostics rebuild loop** (`9917b9d4`: `DeveloperDiagnosticsHubView` built a new `SettingsStore` on every redraw, which saved every setting and rebuilt the model service without end, 17 min on his iPhone, answers stalled; it takes the app's store now), plus a routing-signature guard in `SettingsStore.applySettingsDebounced` and plan reuse in `QueryExecutionPlannerService.buildPlan` (one Deep Think question plans once instead of three times; not yet measured on the device) |
+| Tip X needing several taps | Not reproduced. `TourTipCloseUITests` (`3f2d40b9`) closes the first two Settings tips and "Want to see the work?" in Appearance with one tap each, HUD off and on, all pass. His journal (pull `2026-11-04_145216`, pid 7358) shows the tip up at 17:10:34 UTC with the main thread free afterwards; taps are not journaled. The HUD window hides while anything is presented, so it can't cover a tip |
+| Deep Think speed, still open | Side jobs now yield to the answer (decode 8-9 to 18-19 tok/s; Deep Think 4:31 then 3:56). Left: plan reuse measured on the device; one embedding service per answer (about 3 s, check the searches are sequential); session reuse and `prewarm` as a measured experiment; the unlogged gaps between steps |
 | Telemetry (`3d7820d6`) | 78 new development-journal events, `os` on every line, a Debug-only `MainThreadWatchdog`, test hosts write nothing; `scripts/phone_evidence.py` has 96 rules plus `--mac`, `<=`, `!=`, `absent` and local-time `--since` (`Docs/ai/RUNBOOK.md`). Events that need a hard-boundary file were left out: `RAGAppIntents.swift` (patch saved in session scratchpad `a4f11230-.../scratchpad/ragappintents_telemetry.patch`; 3 rules wait on it), `WorkspaceSyncService.swift` (`sync.conflictCopies`, `sync.fileFromICloud`, `sync.threads`, `sync.vectorStoreSkipped`, `sync.orphanFileDeleted`), `BNNSVectorDatabase.swift` (`vectorStore.save/load`) |
 | Mac crash, row `40e49a74d54f81099f05c28eb6c091f1` | `BNNSVectorDatabase.writeMetadataFile` trapped (`Data` subscript, line 605 of the crash report `~/Library/Logs/DiagnosticReports/OpenIntelligence-2026-11-03-222028.ips`) when a passage's place ran past the mapped metadata, during a self-healing rebuild with an import into the same library. Guard committed 2026-11-04 at his word ("just proceed implement"): the run join stops at such a slot and the save throws `storeFailed`, leaving the old file in place. Why the records and the file disagree is not established. Closes when the Mac, running a build with the guard, goes through a self-healing rebuild plus import without a crash |
 | Lost files | MoreMacintoshToolbox.pdf (Library 3), a Library 2 PDF and AAMI-ST79-2017-COMPLETA-ESPANOL.pdf (library deleted) are saved in `~/Downloads/OpenIntelligence recovered 2026-11-03` for him to re-import |
@@ -49,6 +52,8 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Verification (output read)
 
+- Tree of `9917b9d4`: `DiagnosticsSettingsLoopUITests` on a wiped iOS 27 Simulator -> before the fix 182 `settings.set` per key and 92 "Updated model:" in about 35 s; after -> 1 and 1, test passed. Generic iOS device build -> BUILD SUCCEEDED.
+- Tree of `3f2d40b9`: `TourTipCloseUITests` -> 3 tests passed (list tips, Appearance tip HUD off, HUD on). The full suite was not rerun after `13bf9400`.
 - Tree of `13bf9400`: iOS 27 Simulator full suite -> 1,463 tests, 3 failures, all in `AtlasLabelingTests` on a freshly erased simulator; that class rerun alone -> 26 tests, 0 failures. `SettingsRowsUITests` on the code before the fix -> all 7 rows shut (HUD off and on); after -> 2 tests, 0 failures. Mac Debug build and iPhone build -> BUILD SUCCEEDED; `devicectl device install` -> "App installed".
 - Tree of `3d7820d6` (less one RUNBOOK sentence): iOS 27 Simulator `test-without-building` -> 1,461 tests, 8 skipped,
   0 failures (517 s; the first launch hung before connecting, the second ran); Mac Debug build -> BUILD SUCCEEDED;
@@ -75,9 +80,4 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Exact Next Action
 
-When he is back: tell him the two test notes to delete in Library 6 and, if he wants their events, ask him to name `RAGAppIntents.swift` and
-`WorkspaceSyncService.swift`. After a day of normal iPhone use (questions in Standard, Deep Think and Maximum; one Siri
-and one Shortcuts request; a share), run `python3 scripts/phone_evidence.py --since <the morning, local time>` and close
-every PASS row in Notion with its proof lines; for Mac rows, after he copies the Mac build to `/Applications`, run it
-with `--mac`. After that, his stated next work is putting more behind the paywall (auto memory
-`more-behind-the-paywall-is-next.md`).
+Install the built app on his iPhone: run `bash <session scratchpad>/install_when_idle.sh /private/tmp/oi58-dd/Build/Products/Debug-iphoneos/OpenIntelligence.app 240`, or the two `devicectl` steps in auto memory `building-to-gunnars-iphone.md` (device `00008140-001130DA1863C01C`); if `/private/tmp/oi58-dd` is gone, rebuild with the command in the RUNBOOK. After he asks a Deep Think question on it, pull with `python3 scripts/phone_evidence.py --since <time>` and read `planner.reused` and the gaps between steps to measure the plan reuse. Then the next speed item above. His stated work after 5.8 is putting more behind the paywall (auto memory `more-behind-the-paywall-is-next.md`).
