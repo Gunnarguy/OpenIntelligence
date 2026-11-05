@@ -58,7 +58,7 @@ private actor MLArrayBufferPool {
     }
 }
 
-final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
+nonisolated final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider, @unchecked Sendable {
     // MARK: - Properties
 
     /// Native output dimension of the bundled MiniLM-L6-v2 model.
@@ -89,10 +89,10 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
 
         /// Guards `model` against N concurrent first-callers each loading their own 43 MiB copy.
         ///
-        /// This class is a non-`Sendable` `final class`, `embed` runs at
-        /// `DeviceCapabilityService.embeddingConcurrency` > 1, and Swift 5 language mode will not
-        /// diagnose the race. The lock is held across the load, so the second caller waits for the
-        /// first rather than duplicating it.
+        /// `embed` runs at `DeviceCapabilityService.embeddingConcurrency` > 1 on background threads (the class is
+        /// `nonisolated` and `@unchecked Sendable` since 2026-11-04), and Swift 5 language mode will not diagnose a
+        /// race. The lock is held across the load, so the second caller waits for the first rather than duplicating
+        /// it. A waiter blocks its thread for the load, so `embedBatch` loads once before it fans out.
         private let modelLock = NSLock()
 
         /// Set once a load has been attempted, successfully or not, so a missing or corrupt model
@@ -109,7 +109,18 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         private var wantedComputeUnits: MLComputeUnits?
     #endif
 
-    private var tokenizer: Tokenizer?
+    /// Written once by the load task in `loadTokenizer()` and read by `embed` and `countTokens`.
+    ///
+    /// The class is `nonisolated` and `embed` is `@concurrent` since 2026-11-04 (tokenizing and pooling held the
+    /// main thread before), so the load task and up to `embeddingConcurrency` embeds touch this from different
+    /// threads. The tokenizer itself is `Sendable` (swift-tokenizers' `Tokenizer` protocol); only this reference
+    /// needs the lock.
+    private var _tokenizer: Tokenizer?
+    private let tokenizerLock = NSLock()
+    private var tokenizer: Tokenizer? {
+        get { tokenizerLock.lock(); defer { tokenizerLock.unlock() }; return _tokenizer }
+        set { tokenizerLock.lock(); _tokenizer = newValue; tokenizerLock.unlock() }
+    }
     private let clsId: Int
     private let sepId: Int
     private let padId: Int
@@ -138,29 +149,31 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
     // to run on GPU, creating TRUE parallelism: ANE → Vision OCR, GPU → Embeddings.
     //
     // This is NOT the dual-model approach that caused MTLDebugBlitCommandEncoder crashes.
-    // We reload the SINGLE model with different compute units — no two models competing
-    // for Metal command buffers simultaneously.
+    // We reload the SINGLE model with different compute units. An embed that already holds the old
+    // model can still finish its prediction while the new one loads, so for the length of a reload two
+    // copies can briefly be in use; that was true before embedding left the main thread (an `await`
+    // let predictions overlap a reload) and is a wider window now.
 
     private var isIngestionMode = false
 
     func enableIngestionMode() {
-        guard !isIngestionMode else { return }
-        isIngestionMode = true
         #if canImport(CoreML)
             // Same lock as the lazy load, so a mode switch cannot race a first embed. Nothing loads here.
             modelLock.lock()
             defer { modelLock.unlock() }
+            guard !isIngestionMode else { return }
+            isIngestionMode = true
             wantedComputeUnits = DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion
             Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (the model switches on the next embed)", category: .embedding)
         #endif
     }
 
     func disableIngestionMode() {
-        guard isIngestionMode else { return }
-        isIngestionMode = false
         #if canImport(CoreML)
             modelLock.lock()
             defer { modelLock.unlock() }
+            guard isIngestionMode else { return }
+            isIngestionMode = false
             // Only restore a model that was actually loaded. If nothing has embedded yet there is
             // nothing to restore, and loading 43 MiB here would reintroduce the cost this change
             // exists to remove, on a path the user cannot see.
@@ -275,8 +288,9 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
             // that produces a library embedded by two different models.
             //
             // Resource presence is the honest test and costs a bundle lookup, not 43 MiB.
-            let available = model != nil
-                || OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlmodelc") != nil
+            // `model` is not read here: since 2026-11-04 it is written off the main thread under `modelLock`, and
+            // taking that lock could wait out a 43 MiB load. A loaded model implies its resource is present.
+            let available = OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlmodelc") != nil
                 || OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlpackage") != nil
             if !available {
                 Log.warning("[CoreMLSentenceEmbeddingProvider] Provider unavailable: EmbeddingModel not present in bundle", category: .embedding)
@@ -311,7 +325,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
 
     // MARK: - Embedding
 
-    func embed(text: String) async throws -> [Float] {
+    @concurrent func embed(text: String) async throws -> [Float] {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw EmbeddingError.emptyInput
         }
@@ -453,7 +467,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         #endif
     }
 
-    func embedBatch(texts: [String]) async throws -> [[Float]] {
+    @concurrent func embedBatch(texts: [String]) async throws -> [[Float]] {
         // Use parallel embedding for better hardware utilization
         // Neural Engine can handle concurrent requests efficiently
         let batchSize = texts.count
@@ -471,6 +485,13 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         // Parallel batching with device-specific concurrency
         // CoreML embedding runs on ANE; higher-tier devices can sustain more concurrent requests
         let maxConcurrency = DeviceCapabilityService.shared.embeddingConcurrency
+
+        #if canImport(CoreML)
+            // Load (or switch compute units) once, before fanning out. `loadedModel()` holds `modelLock` across a
+            // synchronous load of up to about 2.4 s; if every task of the group reached it first, up to
+            // `maxConcurrency` threads of the shared concurrency pool would sit blocked on the lock for that time.
+            guard loadedModel() != nil else { throw EmbeddingError.modelUnavailable }
+        #endif
 
         return try await withThrowingTaskGroup(of: (Int, [Float]).self) { group in
             var results = Array(repeating: [Float](), count: batchSize)
