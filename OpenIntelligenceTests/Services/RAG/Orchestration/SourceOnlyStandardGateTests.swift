@@ -8,8 +8,9 @@
 //  an answer's last word, and until 2026-09-23 Standard ran it on every extractive answer. Measured
 //  that day on the macOS Debug build, four Standard lookup questions whose verification gates had
 //  passed finished 19.4, 37.6, 58.3 and 163.8 seconds after their last streamed word, and the check
-//  replaced none of the four answers. Standard now skips it for an answer the gates passed. The
-//  skip must not reach Deep Think or Maximum, and must not reach a Standard answer the gates failed
+//  replaced none of the four answers. Standard now skips it for an answer the gates passed. This
+//  skip must not reach Deep Think or Maximum (since 5.8 every mode also skips a check that could only keep
+//  the answer, `SourceOnlyVerdictTests`), and must not reach a Standard answer the gates failed
 //  or never judged, because for those the check is the only second look at the claims.
 //
 

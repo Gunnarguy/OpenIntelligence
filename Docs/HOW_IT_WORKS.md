@@ -644,6 +644,13 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 > - In Standard, a lookup that is shown after its checks failed then gets the source-only check: two more on-device
 >   sessions that draft and rate claims from the passages, and the result can replace the answer, or refuse it when
 >   the question asks for a precise value or a state. A lookup whose checks passed skips it.
+> - **Since 5.8, in every mode,** the source-only check is skipped before its two sessions when it could only keep the
+>   answer: how much of the answer it would be shown is fixed by token budgets before any model call
+>   (`SourceOnlyAnswerService.candidateCoverageBeforeModel`), and below the 85% floor, for a question that is not a
+>   precise-value or state question, every outcome keeps the answer (`RAGService.sourceOnlyVerdict`,
+>   `SourceOnlyVerdictTests`). On his iPhone on 2026-11-04 one such check ran 46.6 s at 17% coverage and declined;
+>   it was 1 of the 3 checks his traces hold, the other two ended in under half a second.
+>   `[evidence_level: code_verified + measured, confidence: exact, evidence_source: ~/Library/Developer/OpenIntelligence-evidence/2026-11-04_141602]`
 > `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:16568-16734 (step 7.5), 16864-16909, 11212-11262, 18200-18253 (verifyAgenticAnswer), 19494-19631 (sourceOnlyOutcomeIfNeeded), 20072-20089 (resolvedDisplayResponse), StructuredAnswer.swift:979-1047 (sanitizeForVerification), GroundedAnswerView.swift:71-99, ConfidencePolicyService.swift:48-54, SettingsStore.swift:534-535, SourceOnlyAnswerService.swift:360-440, VerificationOutcome.swift:33-60, MessageBubbleV2.swift:715-745]`
 
 > **In plain words**

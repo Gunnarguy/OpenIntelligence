@@ -195,19 +195,10 @@ final class SourceOnlyAnswerService {
     ) async -> SourceOnlyAnswerOutcome? {
         guard isAvailable, !retrievedChunks.isEmpty else { return nil }
 
-        let domainAssessment = DomainIsolationService.assess(
-            query: query,
-            chunks: retrievedChunks,
-            answerIntent: answerIntent
-        )
-        let verificationMode: SourceOnlyVerificationMode = domainAssessment.strictModeEnabled
-            ? .strictScientificDomain
-            : .generalEvidenceGrounded
-        let domainFilteredChunks = verificationMode == .strictScientificDomain
-            ? domainAssessment.classifiedChunks
-                .filter { $0.classification.domain.family == domainAssessment.allowedDomain }
-                .map(\.chunk)
-            : retrievedChunks
+        let scope = extractionScope(query: query, retrievedChunks: retrievedChunks, answerIntent: answerIntent)
+        let domainAssessment = scope.domainAssessment
+        let verificationMode = scope.verificationMode
+        let domainFilteredChunks = scope.domainFilteredChunks
 
         if verificationMode == .strictScientificDomain && domainAssessment.shouldAbstain {
             let reason = domainAssessment.reason ?? "Domain isolation blocked mixed-domain evidence."
@@ -246,94 +237,15 @@ final class SourceOnlyAnswerService {
         let queryDomain = verificationMode == .strictScientificDomain
             ? domainAssessment.allowedDomain.rawValue
             : "GENERAL / NOT_APPLICABLE"
-        // Budget the prompt before building it, because this session has no other protection.
-        //
-        // A device capture on 2026-08-18 recorded `Draft generation failed: The session's
-        // transcript exceeded the model's context size` after a 5-session reasoning chain, 11
-        // steps and 132.5 seconds. The stage that was meant to produce the answer failed at the
-        // last moment, and the run continued, so it read from outside as a slow success.
-        //
-        // Every other input here is already bounded, and the instructions are a constant.
-        // `candidateAnswer` is the one unbounded input — whatever the chain produced, 455 words in
-        // that capture and able to be much longer.
-        //
-        // 2026-08-19, first device execution of this path: the original bound was a hardcoded
-        // 6 records x 420 characters. At `onDeviceCharsPerToken` 1.4 that is 1,800 tokens against a
-        // measured budget of 1,430, so the evidence could not fit *by construction* and the drop
-        // loop fired on every full-evidence run rather than as an exception. The observed capture
-        // dropped 4 of 6 records and cut the candidate from 4,051 to 268 characters, leaving about
-        // 6% of the retrieved evidence, and the answer was 8 words after 145 seconds.
-        //
-        // The records are now sized against the budget rather than against a constant, so all of
-        // them survive with a shorter snippet each instead of two surviving at full length. On the
-        // observed numbers that is 6 x 233 characters rather than 2 x 420 — more total evidence and
-        // every source still represented. Dropping from the tail remains only as a backstop.
-        //
-        // Guided generation reserves context for the `SourceOnlyAnswerDraft` schema on top of the
-        // prompt, hence the schema allowance below. The on-device ratio is used regardless of
-        // where this is allowed to run, so the budget is not loosest exactly when the device is
-        // the destination.
-        let instructionsText = buildExtractionInstructions(for: verificationMode)
-        let contextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
-        let reserved = FoundationModelTokenBudget.estimateTokens(for: instructionsText, isAppleFMOnDevice: true)
-            + FoundationModelTokenBudget.estimateTokens(for: query, isAppleFMOnDevice: true)
-            + Self.draftOutputReserve
-            + Self.draftSchemaReserve
-            + Self.draftSafetyReserve
-        let promptBudget = max(512, contextSize - reserved)
-
-        // Size each snippet so the whole evidence set fits its share of the budget. Bounded below
-        // so a record still carries a usable quotation, and above by the original 420 so this can
-        // only ever shorten a snippet relative to the previous behaviour, never lengthen it.
-        let recordCount = min(Self.maxEvidenceRecords, domainFilteredChunks.count)
-        let evidenceCharBudget = Double(promptBudget) * Self.evidenceBudgetShare
-            * FoundationModelTokenBudget.onDeviceCharsPerToken
-
-        // `renderEvidencePrompt` wraps every snippet in XML and adds the source
-        // name, the page and a 36-character chunk UUID, plus three more domain
-        // elements in strict mode. Sizing the snippet against the budget alone
-        // therefore overshoots by the entire wrapper, which is what kept the drop
-        // loop firing on every full-evidence run instead of as an exception — the
-        // same class of miscalculation the 2026-08-19 note above records once
-        // already. Measure the wrapper rather than guessing it, so it stays correct
-        // if the rendering changes.
-        let probeRecords = buildEvidenceRecords(from: domainFilteredChunks, snippetLimit: Self.maxSnippetChars)
-        let probeText = renderEvidencePrompt(probeRecords, verificationMode: verificationMode)
-        let wrapperChars = max(0, probeText.count - probeRecords.reduce(0) { $0 + $1.snippet.count })
-        let snippetCharBudget = max(0, Int(evidenceCharBudget) - wrapperChars)
-
-        let snippetLimit = recordCount > 0
-            ? max(Self.minSnippetChars, min(Self.maxSnippetChars, snippetCharBudget / recordCount))
-            : Self.maxSnippetChars
-
-        let evidenceRecords = buildEvidenceRecords(from: domainFilteredChunks, snippetLimit: snippetLimit)
-        guard !evidenceRecords.isEmpty else { return nil }
-
-        // Enforce the share the constant already declares. This loop previously
-        // stopped at `promptBudget`, the *whole* budget, so evidence was free to
-        // consume all of it and `candidateBudget` below collapsed to whatever was
-        // left — on the 2026-08-24 capture, 50 characters of a 3,415-character
-        // answer. `evidenceBudgetShare` was applied to `snippetLimit` above and
-        // nowhere else, so the intent was documented and then not implemented.
-        // Bounding here guarantees the candidate keeps its 30%.
-        let evidenceTokenCeiling = max(1, Int(Double(promptBudget) * Self.evidenceBudgetShare))
-        var budgetedRecords = evidenceRecords
-        var evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
-        var droppedRecords = 0
-        while budgetedRecords.count > 1,
-              FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true) > evidenceTokenCeiling {
-            budgetedRecords.removeLast()
-            droppedRecords += 1
-            evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
+        guard let budget = extractionBudget(query: query, candidateAnswer: candidateAnswer, scope: scope) else {
+            return nil
         }
-
-        let evidenceTokens = FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true)
-        let candidateBudget = max(0, promptBudget - evidenceTokens)
-        let candidateCharBudget = Int(Double(candidateBudget) * FoundationModelTokenBudget.onDeviceCharsPerToken)
-        let budgetedCandidate = Self.trimmedAtSentenceBoundary(candidateAnswer, limit: candidateCharBudget)
-        let candidateCoverage = candidateAnswer.isEmpty
-            ? 1.0
-            : Double(budgetedCandidate.count) / Double(candidateAnswer.count)
+        let evidenceRecords = budget.evidenceRecords
+        let evidencePromptText = budget.evidencePromptText
+        let droppedRecords = budget.droppedRecords
+        let promptBudget = budget.promptBudget
+        let budgetedCandidate = budget.budgetedCandidate
+        let candidateCoverage = budget.candidateCoverage
 
         if droppedRecords > 0 || budgetedCandidate.count < candidateAnswer.count {
             Log.warning(
@@ -567,6 +479,160 @@ final class SourceOnlyAnswerService {
             warnings: warnings,
             candidateCoverage: candidateCoverage
         )
+    }
+
+    private struct ExtractionScope {
+        let domainAssessment: DomainIsolationService.Assessment
+        let verificationMode: SourceOnlyVerificationMode
+        let domainFilteredChunks: [RetrievedChunk]
+    }
+
+    private struct ExtractionBudget {
+        let evidenceRecords: [EvidenceRecord]
+        let evidencePromptText: String
+        let droppedRecords: Int
+        let promptBudget: Int
+        let budgetedCandidate: String
+        let candidateCoverage: Double
+    }
+
+    /// The domain check and the evidence it leaves, as `verifyAndRender` starts. No model call.
+    private func extractionScope(
+        query: String, retrievedChunks: [RetrievedChunk], answerIntent: AnswerIntent
+    ) -> ExtractionScope {
+        let domainAssessment = DomainIsolationService.assess(
+            query: query,
+            chunks: retrievedChunks,
+            answerIntent: answerIntent
+        )
+        let verificationMode: SourceOnlyVerificationMode = domainAssessment.strictModeEnabled
+            ? .strictScientificDomain
+            : .generalEvidenceGrounded
+        let domainFilteredChunks = verificationMode == .strictScientificDomain
+            ? domainAssessment.classifiedChunks
+                .filter { $0.classification.domain.family == domainAssessment.allowedDomain }
+                .map(\.chunk)
+            : retrievedChunks
+        return ExtractionScope(
+            domainAssessment: domainAssessment, verificationMode: verificationMode,
+            domainFilteredChunks: domainFilteredChunks)
+    }
+
+    /// The token budget, the evidence that fits it and how much of the candidate answer fits beside it, as
+    /// `verifyAndRender` sizes its extraction prompt. No model call. Nil where there is no evidence to show.
+    private func extractionBudget(
+        query: String, candidateAnswer: String, scope: ExtractionScope
+    ) -> ExtractionBudget? {
+        let verificationMode = scope.verificationMode
+        let domainFilteredChunks = scope.domainFilteredChunks
+        // Budget the prompt before building it, because this session has no other protection.
+        //
+        // A device capture on 2026-08-18 recorded `Draft generation failed: The session's
+        // transcript exceeded the model's context size` after a 5-session reasoning chain, 11
+        // steps and 132.5 seconds. The stage that was meant to produce the answer failed at the
+        // last moment, and the run continued, so it read from outside as a slow success.
+        //
+        // Every other input here is already bounded, and the instructions are a constant.
+        // `candidateAnswer` is the one unbounded input — whatever the chain produced, 455 words in
+        // that capture and able to be much longer.
+        //
+        // 2026-08-19, first device execution of this path: the original bound was a hardcoded
+        // 6 records x 420 characters. At `onDeviceCharsPerToken` 1.4 that is 1,800 tokens against a
+        // measured budget of 1,430, so the evidence could not fit *by construction* and the drop
+        // loop fired on every full-evidence run rather than as an exception. The observed capture
+        // dropped 4 of 6 records and cut the candidate from 4,051 to 268 characters, leaving about
+        // 6% of the retrieved evidence, and the answer was 8 words after 145 seconds.
+        //
+        // The records are now sized against the budget rather than against a constant, so all of
+        // them survive with a shorter snippet each instead of two surviving at full length. On the
+        // observed numbers that is 6 x 233 characters rather than 2 x 420 — more total evidence and
+        // every source still represented. Dropping from the tail remains only as a backstop.
+        //
+        // Guided generation reserves context for the `SourceOnlyAnswerDraft` schema on top of the
+        // prompt, hence the schema allowance below. The on-device ratio is used regardless of
+        // where this is allowed to run, so the budget is not loosest exactly when the device is
+        // the destination.
+        let instructionsText = buildExtractionInstructions(for: verificationMode)
+        let contextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let reserved = FoundationModelTokenBudget.estimateTokens(for: instructionsText, isAppleFMOnDevice: true)
+            + FoundationModelTokenBudget.estimateTokens(for: query, isAppleFMOnDevice: true)
+            + Self.draftOutputReserve
+            + Self.draftSchemaReserve
+            + Self.draftSafetyReserve
+        let promptBudget = max(512, contextSize - reserved)
+
+        // Size each snippet so the whole evidence set fits its share of the budget. Bounded below
+        // so a record still carries a usable quotation, and above by the original 420 so this can
+        // only ever shorten a snippet relative to the previous behaviour, never lengthen it.
+        let recordCount = min(Self.maxEvidenceRecords, domainFilteredChunks.count)
+        let evidenceCharBudget = Double(promptBudget) * Self.evidenceBudgetShare
+            * FoundationModelTokenBudget.onDeviceCharsPerToken
+
+        // `renderEvidencePrompt` wraps every snippet in XML and adds the source
+        // name, the page and a 36-character chunk UUID, plus three more domain
+        // elements in strict mode. Sizing the snippet against the budget alone
+        // therefore overshoots by the entire wrapper, which is what kept the drop
+        // loop firing on every full-evidence run instead of as an exception — the
+        // same class of miscalculation the 2026-08-19 note above records once
+        // already. Measure the wrapper rather than guessing it, so it stays correct
+        // if the rendering changes.
+        let probeRecords = buildEvidenceRecords(from: domainFilteredChunks, snippetLimit: Self.maxSnippetChars)
+        let probeText = renderEvidencePrompt(probeRecords, verificationMode: verificationMode)
+        let wrapperChars = max(0, probeText.count - probeRecords.reduce(0) { $0 + $1.snippet.count })
+        let snippetCharBudget = max(0, Int(evidenceCharBudget) - wrapperChars)
+
+        let snippetLimit = recordCount > 0
+            ? max(Self.minSnippetChars, min(Self.maxSnippetChars, snippetCharBudget / recordCount))
+            : Self.maxSnippetChars
+
+        let evidenceRecords = buildEvidenceRecords(from: domainFilteredChunks, snippetLimit: snippetLimit)
+        guard !evidenceRecords.isEmpty else { return nil }
+
+        // Enforce the share the constant already declares. This loop previously
+        // stopped at `promptBudget`, the *whole* budget, so evidence was free to
+        // consume all of it and `candidateBudget` below collapsed to whatever was
+        // left — on the 2026-08-24 capture, 50 characters of a 3,415-character
+        // answer. `evidenceBudgetShare` was applied to `snippetLimit` above and
+        // nowhere else, so the intent was documented and then not implemented.
+        // Bounding here guarantees the candidate keeps its 30%.
+        let evidenceTokenCeiling = max(1, Int(Double(promptBudget) * Self.evidenceBudgetShare))
+        var budgetedRecords = evidenceRecords
+        var evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
+        var droppedRecords = 0
+        while budgetedRecords.count > 1,
+              FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true) > evidenceTokenCeiling {
+            budgetedRecords.removeLast()
+            droppedRecords += 1
+            evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
+        }
+
+        let evidenceTokens = FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true)
+        let candidateBudget = max(0, promptBudget - evidenceTokens)
+        let candidateCharBudget = Int(Double(candidateBudget) * FoundationModelTokenBudget.onDeviceCharsPerToken)
+        let budgetedCandidate = Self.trimmedAtSentenceBoundary(candidateAnswer, limit: candidateCharBudget)
+        let candidateCoverage = candidateAnswer.isEmpty
+            ? 1.0
+            : Double(budgetedCandidate.count) / Double(candidateAnswer.count)
+        return ExtractionBudget(
+            evidenceRecords: evidenceRecords, evidencePromptText: evidencePromptText, droppedRecords: droppedRecords,
+            promptBudget: promptBudget, budgetedCandidate: budgetedCandidate, candidateCoverage: candidateCoverage)
+    }
+
+    /// The share of `candidateAnswer` that `verifyAndRender` would show the model, worked out by the same two helpers
+    /// and with no model call (5.8). `RAGService.sourceOnlyOutcomeIfNeeded` uses it to skip a check whose every
+    /// outcome would keep the generated answer; on his iPhone on 2026-11-04 such a check ran 46.6 s at 17% coverage
+    /// and then declined (`~/Library/Developer/OpenIntelligence-evidence/2026-11-04_141602`)
+    /// `[evidence_level: measured, confidence: exact]`. 1 where domain isolation abstains before any budget is drawn, as
+    /// `verifyAndRender` reports it; nil where the check would return nothing.
+    func candidateCoverageBeforeModel(
+        query: String, candidateAnswer: String, retrievedChunks: [RetrievedChunk], answerIntent: AnswerIntent
+    ) -> Double? {
+        // The same first guard as `verifyAndRender`: with the model unavailable the window reads 0 and the budget
+        // would describe a check that never runs.
+        guard isAvailable, !retrievedChunks.isEmpty else { return nil }
+        let scope = extractionScope(query: query, retrievedChunks: retrievedChunks, answerIntent: answerIntent)
+        if scope.verificationMode == .strictScientificDomain && scope.domainAssessment.shouldAbstain { return 1 }
+        return extractionBudget(query: query, candidateAnswer: candidateAnswer, scope: scope)?.candidateCoverage
     }
 
     private func buildExtractionInstructions(for mode: SourceOnlyVerificationMode) -> String {

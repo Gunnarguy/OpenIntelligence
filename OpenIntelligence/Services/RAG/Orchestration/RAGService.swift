@@ -17443,7 +17443,8 @@ class RAGService: ObservableObject {
                         // in "exceeded the model's context size"), with a blinking cursor and a
                         // locked composer throughout, and the check replaced none of the four
                         // answers. A passing answer has already been through the nine verification
-                        // gates. Deep Think and Maximum keep the check unconditionally.
+                        // gates. Deep Think and Maximum are not skipped here; since 5.8 they, like every mode, skip
+                        // only where `sourceOnlyOutcomeIfNeeded` shows the check could not replace the answer.
                         let sourceOnlyApplies = answerIntentIsExtractive || isPrecisionValueQuery(question)
                         let standardGatesPassed = Self.standardSkipsSourceOnlyCheck(
                             qualityMode: qualityMode,
@@ -20148,6 +20149,25 @@ class RAGService: ObservableObject {
             guard !isSourceLocked else { return decline("query is source-locked") }
             guard !finishAnswerNowRequested else { return decline("the person finished the answer early") }
 
+            let preserveAbstention = (Self.isStateLookupQuery(query) || isPrecisionValueQuery(query)) && !isSourceLocked
+
+            // An exact early exit (5.8). How much of the answer the check would be shown is fixed by token budgets
+            // before any model call (`candidateCoverageBeforeModel`, the same code the check runs). Below the floor,
+            // and with no abstention to preserve, `sourceOnlyVerdict` keeps the generated answer for every outcome
+            // the model could return (`SourceOnlyVerdictTests` walks them all), so the draft and its review would be
+            // spent for nothing: 46.6 s at 17% coverage on his iPhone on 2026-11-04 before "Declining to replace"
+            // (`~/Library/Developer/OpenIntelligence-evidence/2026-11-04_141602`) `[evidence_level: measured]`.
+            if !preserveAbstention,
+                let coverage = SourceOnlyAnswerService.shared.candidateCoverageBeforeModel(
+                    query: query, candidateAnswer: trimmedAnswer, retrievedChunks: retrievedChunks,
+                    answerIntent: answerIntent),
+                coverage < Self.sourceOnlyMinCandidateCoverage
+            {
+                return decline(
+                    "the check would see \(Int((coverage * 100).rounded()))% of the answer, under the "
+                        + "\(Int((Self.sourceOnlyMinCandidateCoverage * 100).rounded()))% floor, so it could only keep it")
+            }
+
             Log.info(
                 "[SourceOnly] Running for intent \(answerIntent) over \(retrievedChunks.count) chunk(s), "
                     + "candidate \(trimmedAnswer.count) chars",
@@ -20196,8 +20216,6 @@ class RAGService: ObservableObject {
                 category: .llm
             )
 
-            let preserveAbstention = (Self.isStateLookupQuery(query) || isPrecisionValueQuery(query)) && !isSourceLocked
-
             func applied(_ outcome: SourceOnlyAnswerOutcome) -> SourceOnlyAnswerOutcome {
                 Log.info(
                     "[SourceOnly] Applied: the \(outcome.shouldAbstain ? "abstention" : "source-only answer") "
@@ -20211,14 +20229,50 @@ class RAGService: ObservableObject {
             // Use source-only when it strengthens a grounded lookup answer, not when it
             // downgrades a plausible answer into a brittle abstention or ultra-thin rewrite.
             // Direct source-locked extractions are already pinned to retrieved evidence.
-            if outcome.shouldAbstain {
-                return preserveAbstention ? applied(outcome) : nil
+            switch Self.sourceOnlyVerdict(
+                shouldAbstain: outcome.shouldAbstain, supportedClaimCount: outcome.supportedClaims.count,
+                fidelity: outcome.fidelityScore, coverage: outcome.candidateCoverage,
+                preserveAbstention: preserveAbstention)
+            {
+            case .replace:
+                return applied(outcome)
+            case .keep:
+                return nil
+            case .keepForCoverage:
+                Log.warning(
+                    "[SourceOnly] Declining to replace the answer: the extraction stage saw only "
+                        + "\(Int((outcome.candidateCoverage * 100).rounded()))% of it "
+                        + "(floor \(Int((Self.sourceOnlyMinCandidateCoverage * 100).rounded()))%). "
+                        + "Keeping the generated answer.",
+                    category: .llm
+                )
+                return nil
             }
+        }
 
-            guard outcome.supportedClaims.count > 0 else {
-                return preserveAbstention ? applied(outcome) : nil
+        enum SourceOnlyVerdict: Equatable {
+            case replace
+            case keep
+            /// Kept because the check saw too little of the answer to be allowed to replace it.
+            case keepForCoverage
+        }
+
+        /// Whether the source-only outcome replaces the generated answer. The rules were inline in
+        /// `sourceOnlyOutcomeIfNeeded` until 5.8 and are unchanged; they are a function now so the early exit there
+        /// can be proven against them (`SourceOnlyVerdictTests`).
+        ///
+        /// Keep this conservative for user-facing quality. Use source-only when it strengthens a grounded lookup
+        /// answer, not when it downgrades a plausible answer into a brittle abstention or ultra-thin rewrite.
+        static func sourceOnlyVerdict(
+            shouldAbstain: Bool, supportedClaimCount: Int, fidelity: Float, coverage: Double, preserveAbstention: Bool
+        ) -> SourceOnlyVerdict {
+            if shouldAbstain {
+                return preserveAbstention ? .replace : .keep
             }
-            guard outcome.fidelityScore >= 0.72 else { return nil }
+            guard supportedClaimCount > 0 else {
+                return preserveAbstention ? .replace : .keep
+            }
+            guard fidelity >= 0.72 else { return .keep }
 
             // A verification stage that could not read its own input must decline
             // rather than overwrite. Neither guard above can see this: both
@@ -20240,18 +20294,8 @@ class RAGService: ObservableObject {
             // weaker, and the generated answer it would replace has already passed
             // verification. Declining costs grounding polish; accepting costs the
             // answer.
-            guard outcome.candidateCoverage >= Self.sourceOnlyMinCandidateCoverage else {
-                Log.warning(
-                    "[SourceOnly] Declining to replace the answer: the extraction stage saw only "
-                        + "\(Int((outcome.candidateCoverage * 100).rounded()))% of it "
-                        + "(floor \(Int((Self.sourceOnlyMinCandidateCoverage * 100).rounded()))%). "
-                        + "Keeping the generated answer.",
-                    category: .llm
-                )
-                return nil
-            }
-
-            return applied(outcome)
+            guard coverage >= sourceOnlyMinCandidateCoverage else { return .keepForCoverage }
+            return .replace
         }
 
         /// Whether a Standard answer skips the source-only check because the verification gates
@@ -20263,7 +20307,7 @@ class RAGService: ObservableObject {
 
         /// How much of the candidate answer the source-only stage must have been shown
         /// before it is allowed to replace that answer. See the guard in
-        /// `sourceOnlyOutcomeIfNeeded` for why this is strict.
+        /// `sourceOnlyVerdict` for why this is strict.
         private static let sourceOnlyMinCandidateCoverage = 0.85
     #endif
 
