@@ -362,6 +362,17 @@ final class LibraryVisualizationEngine: ObservableObject {
     private var analysisTask: Task<Void, Never>?
     private var profileCache: [UUID: LibraryProfile] = [:]
 
+    /// What the profile on screen was built from (5.8). The Atlas view starts an analysis each time it appears, and the
+    /// view's own record of what it loaded resets with the view, so every visit rebuilt the profile: on his iPhone on
+    /// 2026-11-05 three visits in two minutes started three analyses of 6,000 passages, the first 61.5 s, during a Deep
+    /// Think answer. The same inputs give the same profile, so a visit with the same inputs keeps it.
+    private var analyzedInputs: AnyHashable?
+
+    /// Whether the profile on screen was built from these inputs and no analysis is running.
+    func hasProfile(builtFrom inputs: AnyHashable) -> Bool {
+        analyzedInputs == inputs && currentProfile != nil && !isAnalyzing
+    }
+
     struct RecommendedView: Identifiable, Equatable {
         let id = UUID()
         let type: ViewType
@@ -385,6 +396,7 @@ final class LibraryVisualizationEngine: ObservableObject {
     /// Invalidate cached profile to force rebuild with latest settings
     func invalidateCache() {
         currentProfile = nil
+        analyzedInputs = nil
         profileCache.removeAll()
         insights = []
         recommendedViews = []
@@ -394,6 +406,7 @@ final class LibraryVisualizationEngine: ObservableObject {
 
     /// Invalidate cache for specific container
     func invalidateCache(for containerId: UUID) {
+        analyzedInputs = nil
         profileCache.removeValue(forKey: containerId)
         if currentProfile?.containerId == containerId {
             currentProfile = nil
@@ -410,12 +423,18 @@ final class LibraryVisualizationEngine: ObservableObject {
         documents: [Document],
         chunks: [DocumentChunk],
         retrievalHistory: [RetrievalLogEntry],
-        libraryPassageCount: Int? = nil
+        libraryPassageCount: Int? = nil,
+        inputs: AnyHashable? = nil
     ) async {
         analysisTask?.cancel()
 
         analysisTask = Task {
             await MainActor.run { isAnalyzing = true }
+            // An answer comes first (5.8), as for the other side jobs (`AnswerModelPriority`): this walks every passage
+            // and competed with a Deep Think answer for 61.5 s on his iPhone on 2026-11-05. The Atlas keeps the last
+            // profile on screen meanwhile.
+            await AnswerModelPriority.waitWhileAnswering(job: "atlasProfile")
+            if Task.isCancelled { return }
             // The Atlas's analysis, with the library's size and whether the app left the front while it ran (5.8
             // journal): a crash shows as a start with no end and a new pid.
             let journalFields: [String: String] =
@@ -457,6 +476,7 @@ final class LibraryVisualizationEngine: ObservableObject {
                 self.insights = generatedInsights
                 self.recommendedViews = recommended
                 self.profileCache[containerId] = profile
+                self.analyzedInputs = inputs
                 self.lastAnalyzed = Date()
                 self.isAnalyzing = false
                 VerificationJournal.record(

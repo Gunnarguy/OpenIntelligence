@@ -2102,3 +2102,25 @@ encrypted. A sync merge that changes a library's id loses that lock until `Works
 
 **Consequences.** The superseded decision's reasoning stands if a lock returns. The work is kept locally in `Growth/library-lock-attempt-2026-11-02/`, which git ignores.
 `[evidence_level: documented, confidence: exact, evidence_source: Apple Support, owner's message 2026-11-02]`
+
+## 2026-11-05 - Retrieval changes are proven against a recorded run, and the merge breaks ties
+
+**Context.** The owner asked that speed work change nothing about answers. A retrieval change could not be shown to
+change nothing, because retrieval had been recorded as nondeterministic since 2026-08-16 (auto memory
+`retrieval-is-nondeterministic.md`) with the cause unknown.
+
+**Decision.** A change to Deep Think's or Maximum's retrieval ships only when `DeepThinkRetrievalGoldenTests` before and
+after compare equal with `scripts/golden_retrieval.py compare` (RUNBOOK). The merge in
+`AgenticOrchestrator.executeMultiQuerySearch` breaks ties by first appearance across the searches.
+
+**Evidence.** On an unchanged library in the iOS 27 Simulator, 703 of 703 single searches matched across two passes
+and two launches; 28 and 24 of 57 merged searches did not, all from the merge's untied sort (every merged list had tied
+scores). After the tie-break 57 of 57 matched. `[evidence_level: measured, confidence: exact]`
+
+**Alternatives.** Comparing answers instead of passages: the model's wording varies, so it cannot show equality.
+Comparing on the device: Core ML on the Neural Engine and GPU may differ from the Simulator's CPU in the last bit, so
+equality there is not yet shown.
+
+**Consequences.** Every later retrieval speed change has a pass or fail answer. The tie-break changes which tied passage
+is kept in 28 of 57 merged searches against any one earlier run, where earlier runs disagreed with each other too.
+

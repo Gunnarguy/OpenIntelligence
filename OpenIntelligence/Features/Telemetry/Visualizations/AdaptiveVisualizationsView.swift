@@ -990,6 +990,12 @@ struct AdaptiveVisualizationsView: View {
 
     private func refreshAnalysis() async {
         let containerId = containerService.activeContainerId
+        let history = ragService.retrievalHistory.filter { $0.containerId == containerId }
+        // The library, its documents and its question history are everything the profile is built from (5.8,
+        // `LibraryVisualizationEngine.analyzedInputs`), so a visit with all three unchanged keeps the profile.
+        // The history is capped (`retrievalHistoryLimit`), so its newest entry, not its count, says it changed.
+        let inputs = AnyHashable([AnyHashable(atlasContentKey), AnyHashable(history.count), AnyHashable(history.last?.id)])
+        guard !engine.hasProfile(builtFrom: inputs) else { return }
         let documents = ragService.documents.filter { doc in
             if let cid = doc.containerId {
                 return cid == containerId
@@ -998,14 +1004,14 @@ struct AdaptiveVisualizationsView: View {
         }
         let chunks = await ragService.allChunksForActiveContainer()
         let libraryPassageCount = await ragService.passageCountForActiveContainer()
-        let history = ragService.retrievalHistory.filter { $0.containerId == containerId }
 
         await engine.analyze(
             containerId: containerId,
             documents: documents,
             chunks: chunks,
             retrievalHistory: history,
-            libraryPassageCount: libraryPassageCount
+            libraryPassageCount: libraryPassageCount,
+            inputs: inputs
         )
     }
 

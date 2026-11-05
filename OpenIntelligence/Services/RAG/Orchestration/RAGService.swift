@@ -22732,6 +22732,14 @@ extension RAGService: RAGToolHandler {
                 )
             }
 
+            // Each document's passages once, in the order `allChunks` holds them (5.8). The sibling search below
+            // filtered every passage in the library for every result: 8,202 passages for each of about 30 results,
+            // in each of Deep Think's five searches, on his iPhone on 2026-11-04. `Dictionary(grouping:by:)` keeps
+            // each group in sequence order, so filtering a document's group gives the same passages in the same order
+            // as filtering the library, and the sort after it gives the same result
+            // (`DeepThinkRetrievalGoldenTests` compares the two).
+            let passagesByDocument = Dictionary(grouping: allChunks, by: \.documentId)
+
             for chunk in retrievedChunks {
                 // Add the original chunk. Primary matches are never gated — the budget governs how
                 // much *extra* context expansion may buy, not whether retrieval's own results survive.
@@ -22741,7 +22749,7 @@ extension RAGService: RAGToolHandler {
                 }
 
                 // Find sibling chunks from the same document
-                let siblings = allChunks.filter { candidate in
+                let siblings = (passagesByDocument[chunk.chunk.documentId] ?? []).filter { candidate in
                     candidate.documentId == chunk.chunk.documentId && candidate.id != chunk.chunk.id
                         && abs(candidate.metadata.chunkIndex - chunk.chunk.metadata.chunkIndex) <= maxSiblings
                 }.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }

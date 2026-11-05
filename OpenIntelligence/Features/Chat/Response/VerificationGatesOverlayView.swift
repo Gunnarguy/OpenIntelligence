@@ -38,7 +38,10 @@ struct VerificationGatesOverlayView: View {
         case .deepThink:
             return [
                 VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
-                VerificationGate(id: 2, title: "HyDE Generation", kind: .hyde, secondaryKind: .queryRewrite),
+                // Named for what lights it (5.8): Deep Think's search emits `.queryRewrite` ("Synonym expansion") and
+                // runs no HyDE (`performFullRetrievalPipeline`: "HyDE disabled in Deep Think"); `.hyde` fires only on
+                // Standard's path. It read "HyDE Generation" with a green tick on his iPhone on 2026-11-05.
+                VerificationGate(id: 2, title: "Query Expansion", kind: .queryRewrite, secondaryKind: .hyde),
                 VerificationGate(id: 3, title: "Vector & BM25", kind: .vectorSearch, secondaryKind: .bm25),
                 VerificationGate(id: 4, title: "RRF Fusion", kind: .rrf, secondaryKind: nil),
                 VerificationGate(id: 5, title: "MMR Diversity", kind: .mmr, secondaryKind: nil),
@@ -49,7 +52,7 @@ struct VerificationGatesOverlayView: View {
         case .maximum:
             return [
                 VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
-                VerificationGate(id: 2, title: "HyDE & Expansion", kind: .hyde, secondaryKind: .queryRewrite),
+                VerificationGate(id: 2, title: "Query Expansion", kind: .queryRewrite, secondaryKind: .hyde),
                 VerificationGate(id: 3, title: "Broad Retrieval", kind: .vectorSearch, secondaryKind: .bm25),
                 VerificationGate(id: 4, title: "RRF Fusion", kind: .rrf, secondaryKind: nil),
                 VerificationGate(id: 5, title: "MMR & Re-rank", kind: .mmr, secondaryKind: .rerank),

@@ -562,7 +562,7 @@ extension GlossaryTermID {
                 icon: "checkmark.seal.fill",
                 section: .trust,
                 plain: "A live checklist Deep Think and Maximum run before handing you an answer: whether retrieval actually covered the question, whether numbers in the draft match the source, whether the wording matches what was actually retrieved. You can watch it happen while an answer is being written.",
-                technical: "Named checks vary by mode; Deep Think runs eight (Intent Formulation, HyDE Generation, Vector & BM25, RRF Fusion, MMR Diversity, Compression, Semantic Grounding, Agentic Loop), Maximum runs a different eight built around broader retrieval and a higher confidence target. A red \"ABSTAINED\" badge means at least one gate in the current pass reported a failure.",
+                technical: "Named checks vary by mode; Deep Think runs eight (Intent Formulation, Query Expansion, Vector & BM25, RRF Fusion, MMR Diversity, Compression, Semantic Grounding, Agentic Loop), Maximum runs a different eight built around broader retrieval and a higher confidence target. A red \"ABSTAINED\" badge means at least one gate in the current pass reported a failure.",
                 seeAlso: [.selfRAG, .abstained, .qualityMode],
                 synonyms: ["verification", "gates", "gate", "anti-hallucination"]
             )

@@ -24,8 +24,19 @@ public struct FoundationModelTokenBudget: Sendable {
     /// Default context length window for standard model session
     public nonisolated static let baseContextLength = 4096
     
+    #if DEBUG
+    /// Debug builds only: the on-device window `contextSize(isAppleFMOnDevice: true)` reports instead of the
+    /// model's own. `DeepThinkRetrievalGoldenTests` records retrieval under 4,096 and 8,192 tokens (Apple's
+    /// documented window and the one a Mac on macOS 27 reported) because the window sets how many neighbouring
+    /// passages parent expansion admits. Nil, the default, reads the model.
+    nonisolated(unsafe) public static var onDeviceContextSizeOverrideForTesting: Int?
+    #endif
+
     /// Returns the context window size (tokens) based on execution mode/location.
     public nonisolated static func contextSize(isAppleFMOnDevice: Bool) -> Int {
+        #if DEBUG
+        if isAppleFMOnDevice, let forced = onDeviceContextSizeOverrideForTesting { return forced }
+        #endif
         if isAppleFMOnDevice {
             #if canImport(FoundationModels)
             if #available(iOS 26.0, macOS 26.0, *) {

@@ -4,12 +4,12 @@
   "name": "Glossary",
   "aliases": ["Glossary", "defined terms", "term definitions", "plain and technical register"],
   "purpose": "One definition per term in a plain and a technical register, attached in place with .definedTerm(_:) and listed in Settings.",
-  "revision": "099c12af",
-  "verified_on": "2026-11-04",
+  "revision": "fb5f0107",
+  "verified_on": "2026-11-05",
   "entry_points": ["Glossary", "GlossaryTermID", "GlossarySection", "GlossaryTermDetail", "GlossaryView"],
   "files": [
     {"path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "role": "primary", "blob": "b2e3cce85b5d1190389908471b775e5f4523b79b"},
-    {"path": "OpenIntelligence/UI/Components/Glossary.swift", "role": "primary", "blob": "154b8e72b39a35f621852a1f19cfbd46a4cf9dbb"},
+    {"path": "OpenIntelligence/UI/Components/Glossary.swift", "role": "primary", "blob": "348d0de7d15e1ffa4705ad0b1816de98da23d49f"},
     {"path": "OpenIntelligence/UI/Components/GlossaryViews.swift", "role": "primary", "blob": "c22e9d45869713d468d485c0705014228ac9abc8"},
     {"path": "OpenIntelligenceTests/Features/Settings/GlossaryTests.swift", "role": "test", "blob": "345fe3bcc7bba960ce2c2a9fd5e508d152c1160e"}
   ],

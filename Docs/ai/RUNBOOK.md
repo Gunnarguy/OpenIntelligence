@@ -560,6 +560,36 @@ Every report in `BenchmarkRuns/` dated before 2026-08-12 carries the constant; r
 statements as `6/n` instead. At n=83 the current figure is about 7 points.
 `[evidence_level: computed_verified, confidence: exact, evidence_source: exact binomial sign test; scripts/run_quality_matrix.py minimum_detectable_effect]`
 
+## Proving a retrieval change changes nothing (golden harness, added 2026-11-05)
+
+`DeepThinkRetrievalGoldenTests` records what Deep Think's and Maximum's retrieval returns (`executeFullRetrievalPipeline`
+and `executeMultiQuerySearch`) for 99 committed questions over 71 committed fixtures, under the Simulator's window and
+4,096 and 8,192 tokens (the Debug-only `FoundationModelTokenBudget.onDeviceContextSizeOverrideForTesting`): 760 searches,
+every passage in order with its score's bit pattern. It searches everything twice and fails if the passes differ, and
+fails if the library's passage count changed during the run. It skips unless `TEST_RUNNER_OI_GOLDEN_DIR` is set.
+
+```bash
+python3 scripts/golden_retrieval.py prepare /private/tmp/oi-golden
+```
+
+Then, from a build copy (`build-for-testing` as in `## Test`), once per label:
+
+```bash
+TEST_RUNNER_OI_GOLDEN_DIR=/private/tmp/oi-golden TEST_RUNNER_OI_GOLDEN_LABEL=before xcodebuild test-without-building -project OpenIntelligence.xcodeproj -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath <dd> -only-testing:OpenIntelligenceTests/DeepThinkRetrievalGoldenTests -test-timeouts-enabled YES -default-test-execution-time-allowance 7200 -maximum-test-execution-time-allowance 7200
+```
+
+```bash
+python3 scripts/golden_retrieval.py compare /private/tmp/oi-golden/results-before.json /private/tmp/oi-golden/results-after.json
+```
+
+Exit 0 means every search matched. *Recorded 2026-11-05:* the first run imports the fixtures into a library named
+"Golden retrieval" in the test simulator and waits for their overviews (about 20 minutes); a run is then about 25
+minutes (two passes of about 690 s each in a Debug build). Three traps found that day: use the app's own engine
+(`IntentSupport.engine()`), not a second `RAGService`, or the two share one import queue; set the Pro plan on the app's
+store (`setDebugTier`) after the launch's StoreKit check, which writes the free plan back; and wait for
+`RAGService.deferredEnrichments()` to empty, because the overviews are stored as passages and 69 of them landed during
+the searches the first time.
+
 ## Measuring the wait after an answer's last word
 
 *Verified 2026-09-23.* `--rag-validation-stream-probe` gives the harness a stream handler and logs

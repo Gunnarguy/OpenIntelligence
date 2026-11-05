@@ -1391,7 +1391,12 @@ struct ChatScreen: View {
         let isRecursive = audit?.isRecursiveRAG ?? (effectiveQualityMode == .deepThink)
         // Use live counters during processing, final count after completion
         let liveSteps = ragService.deepThinkLiveSteps
-        let callCount = audit?.llmCallCount ?? (isRecursive ? liveSteps : 1)
+        // While an answer runs, `lastAuditSnapshot` is still the previous answer's, so its count would win: on his
+        // iPhone on 2026-11-05 the panel read "1 reasoning sessions" during Session 4 (5.8).
+        let callCount =
+            isProcessing && isRecursive
+            ? max(1, liveSteps)
+            : (audit?.llmCallCount ?? (isRecursive ? liveSteps : 1))
 
         // Extract actual search weights from RetrievalConfig (dynamic per query intent)
         let retrievalConfig = audit?.retrievalConfig

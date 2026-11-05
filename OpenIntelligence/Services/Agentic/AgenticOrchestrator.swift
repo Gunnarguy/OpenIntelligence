@@ -2185,7 +2185,8 @@ final class AgenticOrchestrator: Sendable {
     /// Execute multi-query search: search with multiple query variations and fuse results.
     /// Uses Reciprocal Rank Fusion (RRF) to combine rankings from different queries.
     /// - Parameter onDetailedEvent: Optional callback to emit verbose thinking events (for ThinkingView)
-    private func executeMultiQuerySearch(
+    /// Internal, not private, so `DeepThinkRetrievalGoldenTests` can record what it returns.
+    func executeMultiQuerySearch(
         queries: [String],
         ragService: RAGService,
         onDetailedEvent: (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? = nil
@@ -2223,11 +2224,19 @@ final class AgenticOrchestrator: Sendable {
         // Reciprocal Rank Fusion across all query results
         // Track both RRF score (for multi-query consensus) AND original reranker score (for relevance)
         var chunkScores: [UUID: (chunk: RetrievedChunk, rrfScore: Float, maxRerankerScore: Float)] = [:]
+        // Where each passage first appeared across the searches, in order (5.8). The sort below breaks a tie in the
+        // blended score by it. It sorted the dictionary's values with no tie-break, and a dictionary's order differs
+        // between two dictionaries in one process, so tied passages came back in a different order, and a different
+        // twenty survived the cut, each time the same question was asked: 28 of 57 fused searches differed between two
+        // passes over an unchanged library while all 703 single searches matched (`DeepThinkRetrievalGoldenTests`,
+        // 2026-11-05). Earlier query and higher rank first is the order the searches themselves gave.
+        var firstSeen: [UUID: Int] = [:]
         let k: Float = 60.0  // RRF constant
 
         for results in allResults {
             for (rank, chunk) in results.enumerated() {
                 let rrfScore = 1.0 / (k + Float(rank + 1))
+                if firstSeen[chunk.chunk.id] == nil { firstSeen[chunk.chunk.id] = firstSeen.count }
 
                 if let existing = chunkScores[chunk.chunk.id] {
                     // Chunk seen in multiple queries - boost RRF score, keep max reranker score
@@ -2256,7 +2265,8 @@ final class AgenticOrchestrator: Sendable {
                 let normRRF1 = $1.rrfScore / max(maxRRF, 0.001)
                 let blended0 = $0.maxRerankerScore * 0.6 + normRRF0 * 0.4
                 let blended1 = $1.maxRerankerScore * 0.6 + normRRF1 * 0.4
-                return blended0 > blended1
+                if blended0 != blended1 { return blended0 > blended1 }
+                return firstSeen[$0.chunk.chunk.id, default: .max] < firstSeen[$1.chunk.chunk.id, default: .max]
             }
             .prefix(20)
             .enumerated()

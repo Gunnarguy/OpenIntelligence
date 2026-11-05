@@ -9,6 +9,7 @@
   "entry_points": ["HybridSearchService", "RAGEngine.reciprocalRankFusion", "RAGEngine.rerank", "RAGEngine.rerankWithCrossEncoder", "ContextPackingService", "IterativeRetrievalService", "RetrievalTraceCollector.Stage"],
   "files": [
     {"path": "OpenIntelligence/Services/RAG/Retrieval/ContainerVocabularyService.swift", "role": "primary", "blob": "24b50a383a36d4f63c6bf4533003ab806103b8eb"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/DeepThinkRetrievalGoldenTests.swift", "role": "test", "blob": "7a333246350ff3656c1143ba8a37e12b56daeb50"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift", "role": "primary", "blob": "be522a7e9e6d9d37e3828646b8ecce32e3cf2ce5"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/GraphIndexService.swift", "role": "primary", "blob": "63dd3b953f67fec5c374bbdc3238694e4c7da04a"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift", "role": "primary", "blob": "cd301ac9682446cfcd835331a556f3ef7768b810"},
