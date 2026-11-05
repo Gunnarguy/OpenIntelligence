@@ -1020,6 +1020,19 @@ warm-up in `LLMService.warmUpModel` still calls `prewarm` with a prefix; whether
 answer after a cold start was not measured, because the model was already loaded for every run. Re-run the
 probe on an iPhone and after a system update before trying this again.
 
+**Contradicted in part, 2026-11-04 (not yet re-decided).** A probe on the same Mac and OS build (`26A428`) that night
+found a bare `prewarm()` with the passages in the session's instructions, followed by a 3 to 4 s wait, cut the time
+to the first word in 7 of 7 paired runs: 2,689 tokens 2.60 s to 1.08 s, 5,870 tokens 7.71 s to 3.53 s and 8.30 s to
+3.74 s, 7,303 tokens 10.63 s to 6.77 s, with `cachedTokenCount` equal to the instruction tokens each time. It also
+found that `cachedTokenCount` is not proof of a saving: `prewarm(promptPrefix:)` with the passages as the prefix
+reported 2,692 cached tokens and the first word came no sooner (2.34 s against 2.41 s). Why 10-09 saw nothing is
+not established; Apple's prewarm page says the system may not load "if your app is running in the background or
+the system is under load". Apple also says not to put untrusted content in instructions, and document text is
+untrusted, so this route has a prompt-injection cost the decision above did not weigh. The decision stands until
+the probe is run on the iPhone. `[evidence_level: measured, confidence: medium (one Mac, one or two runs per size,
+model already loaded), evidence_source: BenchmarkRuns/2026-11-04-speed-research/fm-probes/pwsize*.swift and .out,
+apple_foundationmodels.md]`
+
 `[evidence_level: measured, confidence: medium (one machine, one run per case, differences under about 1 s are not differences), evidence_source: BenchmarkRuns/2026-10-09-session-cache-probe/results.txt and cacheprobe.swift, run 2026-10-09 (local: BenchmarkRuns is not committed); developer.apple.com/documentation/foundationmodels/optimizing-key-value-caching-in-language-model-sessions, read 2026-10-08]`
 
 The same probe read `transcriptErrorHandlingPolicy`: left at its default (`nil`), a prompt too large for the
