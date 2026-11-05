@@ -4,11 +4,11 @@
   "name": "Apple Writing Tools",
   "aliases": ["Apple Writing Tools", "writing tools result sheet", "rewrite tone", "summary style"],
   "purpose": "Rewrites, changes the tone of, or summarizes an answer with Apple Writing Tools.",
-  "revision": "0e9728e",
-  "verified_on": "2026-09-28",
+  "revision": "099c12af",
+  "verified_on": "2026-11-04",
   "entry_points": ["WritingToolsService", "RewriteTone", "SummaryStyle", "WritingToolsResultSheet"],
   "files": [
-    {"path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "role": "primary", "blob": "8fdab7ca34f87e5a91ea8563929a070f92aa5ffc"},
+    {"path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "role": "primary", "blob": "3d458218fbcda16bee790ced33660b2d2311e951"},
     {"path": "OpenIntelligence/Services/Agentic/WritingToolsService.swift", "role": "primary", "blob": "df0e78d3637bc9321eecd5347c1a752c89e924bc"}
   ],
   "nodes": [
@@ -17,13 +17,13 @@
     {"id": "SummaryStyle", "kind": "model", "path": "OpenIntelligence/Services/Agentic/WritingToolsService.swift", "line": 337, "match": "enum SummaryStyle: String, CaseIterable {", "status": "VERIFIED", "by": "build"},
     {"id": "WritingToolsResultSheet", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 11, "match": "struct WritingToolsResultSheet: View {", "status": "VERIFIED", "by": "build"},
     {"id": "MarkdownText", "kind": "view", "path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "line": 680, "match": "public struct MarkdownText: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 307, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 988, "match": "var body: some View {", "status": "VERIFIED", "by": "build"}
+    {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 430, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1126, "match": "var body: some View {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
-    {"from": "WritingToolsResultSheet", "type": "renders", "to": "MarkdownText", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 50, "match": "MarkdownText(result)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChatScreen.body", "type": "renders", "to": "WritingToolsResultSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1054, "match": "WritingToolsResultSheet("}], "by": "build", "note": "constructs it"},
-    {"from": "WritingToolsResultSheet", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 128, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"}
+    {"from": "WritingToolsResultSheet", "type": "renders", "to": "MarkdownText", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 51, "match": "MarkdownText(result)"}], "by": "build", "note": "constructs it"},
+    {"from": "ChatScreen.body", "type": "renders", "to": "WritingToolsResultSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1233, "match": "WritingToolsResultSheet("}], "by": "build", "note": "constructs it"},
+    {"from": "WritingToolsResultSheet", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 130, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"}
   ],
   "docs": [],
   "unknowns": [],
@@ -31,5 +31,14 @@
   "entries": ["OpenIntelligence/Services/Agentic/WritingToolsService.swift::WritingToolsService", "OpenIntelligence/Services/Agentic/WritingToolsService.swift::RewriteTone", "OpenIntelligence/Services/Agentic/WritingToolsService.swift::SummaryStyle", "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift::WritingToolsResultSheet"],
   "owns": ["OpenIntelligence/Services/Agentic/WritingToolsService.swift", "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift"],
   "decisions": [],
-  "traps": []
+  "traps": [],
+  "derived": {
+    "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
+    "nodes": [],
+    "edges": [
+      {"from": "WritingToolsResultSheet", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift", "line": 27, "match": "VStack(alignment: .leading, spacing: DSSpacing.lg) {"}], "note": "via DSSpacing, DSColors, MarkdownText, DSCorners"},
+      {"from": "WritingToolsService", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/WritingToolsService.swift", "line": 202, "match": "func summarizeContext(_ chunks: [RetrievedChunk]) async throws -> String {"}], "note": "via RetrievedChunk"}
+    ],
+    "edges_omitted": 0
+  }
 }

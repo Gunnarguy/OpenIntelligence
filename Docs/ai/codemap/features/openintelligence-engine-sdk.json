@@ -4,26 +4,26 @@
   "name": "OpenIntelligence Engine SDK",
   "aliases": ["OpenIntelligence Engine SDK", "OIEngine", "engine SDK", "library SDK API"],
   "purpose": "A Swift API that lets another app embed the library, ingestion and query engine.",
-  "revision": "0e9728e",
-  "verified_on": "2026-09-28",
+  "revision": "099c12af",
+  "verified_on": "2026-11-04",
   "entry_points": ["OIEngine", "OIEngine.ingest", "OIEngineConfiguration", "OIQueryResult", "OIAvailabilityState"],
   "files": [
-    {"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "role": "primary", "blob": "cdc5167644e79a41ecbd120eba80e4001fc001f2"},
+    {"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "role": "primary", "blob": "d829ee4bfbd90ba6120c2c6f46cd044c2a1cb7d1"},
     {"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "role": "test", "blob": "3e1f11cd4b9489c9bcfe4b4a36a8e3ba4e6209a6"}
   ],
   "nodes": [
     {"id": "OIEngine", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 350, "match": "public final class OIEngine {", "status": "VERIFIED", "by": "build"},
     {"id": "OIEngine.ingest", "kind": "function", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 472, "match": "public func ingest(_ request: OIIngestRequest) async throws -> OIIngestResult {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentCaptureView.body", "kind": "model", "path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 28, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.ingest", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1929, "match": "func ingest(_ chunks: [DocumentChunk]) {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentCaptureView.body", "kind": "model", "path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 30, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.ingest", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1988, "match": "func ingest(_ chunks: [DocumentChunk]) {", "status": "VERIFIED", "by": "build"},
     {"id": "OIEngineConfiguration", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 64, "match": "public struct OIEngineConfiguration: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "OIQueryResult", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 288, "match": "public struct OIQueryResult: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "OIAvailabilityState", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 7, "match": "public enum OIAvailabilityState: Equatable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "test:OpenIntelligenceEngineTests.swift", "kind": "test", "path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
-    {"from": "DocumentCaptureView.body", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 84, "match": "onConfirm: { ingest(result) },"}], "by": "build", "note": "named there"},
-    {"from": "WorkspaceSyncService.ingest", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1929, "match": "func ingest(_ chunks: [DocumentChunk]) {"}], "by": "build", "note": "named there"},
+    {"from": "DocumentCaptureView.body", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 86, "match": "onConfirm: { ingest(result) },"}], "by": "build", "note": "named there"},
+    {"from": "WorkspaceSyncService.ingest", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1988, "match": "func ingest(_ chunks: [DocumentChunk]) {"}], "by": "build", "note": "named there"},
     {"from": "OIEngine", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 6, "match": "var engine: OIEngine!"}], "by": "build", "note": "the test names it"},
     {"from": "OIEngineConfiguration", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 15, "match": "let config = OIEngineConfiguration(storageURL: tempURL)"}], "by": "build", "note": "the test names it"}
   ],
@@ -33,5 +33,25 @@
   "entries": ["OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIEngine", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIEngine.ingest", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIEngineConfiguration", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIQueryResult", "OpenIntelligence/SDK/OpenIntelligenceEngine.swift::OIAvailabilityState"],
   "owns": ["OpenIntelligence/SDK/**"],
   "decisions": [],
-  "traps": []
+  "traps": [],
+  "derived": {
+    "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
+    "nodes": [
+      {"id": "OpenIntelligenceEngineError", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 322, "match": "public enum OpenIntelligenceEngineError: LocalizedError, Sendable {", "status": "VERIFIED"},
+      {"id": "test:OpenIntelligenceEngineTests", "kind": "test", "path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 4, "match": "final class OpenIntelligenceEngineTests: XCTestCase {", "status": "VERIFIED"}
+    ],
+    "edges": [
+      {"from": "OIEngine", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 6, "match": "var engine: OIEngine!"}]},
+      {"from": "OIEngineConfiguration", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 15, "match": "let config = OIEngineConfiguration(storageURL: tempURL)"}]},
+      {"from": "OpenIntelligenceEngineError", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 30, "match": "if case OpenIntelligenceEngineError.invalidRequest(let message) = error {"}]},
+      {"from": "OIEngine", "type": "depends_on", "to": "feature:document-library-and-containers", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 352, "match": "private let containerService: ContainerService"}], "note": "via ContainerService, AppSupportPaths, KnowledgeContainer"},
+      {"from": "OIEngine", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 353, "match": "private var ragService: RAGService?"}], "note": "via RAGService, RAGResponse"},
+      {"from": "OIEngine", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 359, "match": "guard DeviceCapabilityService.shared.supportsAppleIntelligence else {"}], "note": "via DeviceCapabilityService"},
+      {"from": "OIEngine", "type": "depends_on", "to": "feature:billing-and-quotas", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 411, "match": "} catch let error as LibraryQuotaError {"}], "note": "via LibraryQuotaError"},
+      {"from": "OIEngine", "type": "depends_on", "to": "feature:model-selector", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 558, "match": "var config = InferenceConfig.ragOptimized"}], "note": "via InferenceConfig, ExecutionContext"},
+      {"from": "OIEngine", "type": "depends_on", "to": "feature:quality-modes-and-agentic-orchestrator", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 669, "match": "private static func mapQualityMode(_ qualityMode: OIQueryQualityMode) -> RAGQualityMode {"}], "note": "via RAGQualityMode"},
+      {"from": "OIEngine", "type": "depends_on", "to": "feature:semantic-chunking", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 702, "match": "private static func makeDocument(from document: Document) -> OIDocument {"}], "note": "via Document"}
+    ],
+    "edges_omitted": 0
+  }
 }

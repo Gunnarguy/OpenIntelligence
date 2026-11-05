@@ -4,24 +4,25 @@
   "name": "Extractive Answering",
   "aliases": ["extractive QA service", "extractive summarization", "extractive-first answers", "sentence extraction"],
   "purpose": "Pulls answer sentences and short summaries straight from the retrieved chunks instead of generating them.",
-  "revision": "0e9728e",
-  "verified_on": "2026-09-28",
+  "revision": "099c12af",
+  "verified_on": "2026-11-04",
   "entry_points": ["ExtractiveSummarizationService"],
   "files": [
-    {"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "role": "primary", "blob": "c69a74ff04a9b3fddcc2955c28e2e2c6c8f989ba"}
+    {"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "role": "primary", "blob": "c69a74ff04a9b3fddcc2955c28e2e2c6c8f989ba"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueOverrideTests.swift", "role": "test", "blob": "4d1d12a677acbda3573f9005df9a2a758da51508"}
   ],
   "nodes": [
     {"id": "ExtractiveSummarizationService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 65, "match": "actor ExtractiveSummarizationService {", "status": "VERIFIED", "by": "build"},
     {"id": "ExtractiveSummary", "kind": "model", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 26, "match": "struct ExtractiveSummary: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "SelectedSentence", "kind": "model", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 44, "match": "struct SelectedSentence: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "EmbeddingService.generateEmbedding", "kind": "function", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 239, "match": "func generateEmbedding(for text: String) async throws -> [Float] {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.extractiveSummarizationService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 352, "match": "private let extractiveSummarizationService: ExtractiveSummarizationService", "status": "VERIFIED", "by": "build"}
+    {"id": "EmbeddingService.generateEmbedding", "kind": "function", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 252, "match": "func generateEmbedding(for text: String) async throws -> [Float] {", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.extractiveSummarizationService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 361, "match": "private let extractiveSummarizationService: ExtractiveSummarizationService", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "ExtractiveSummarizationService", "type": "depends_on", "to": "ExtractiveSummary", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 122, "match": "return ExtractiveSummary("}], "by": "build", "note": "constructs it"},
     {"from": "ExtractiveSummarizationService", "type": "depends_on", "to": "SelectedSentence", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 247, "match": "selected.append(SelectedSentence("}], "by": "build", "note": "constructs it"},
     {"from": "ExtractiveSummarizationService", "type": "calls", "to": "EmbeddingService.generateEmbedding", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 132, "match": "let queryEmbedding = try await embeddingService.generateEmbedding(for: query)"}], "by": "build", "note": "named in the body"},
-    {"from": "RAGService.extractiveSummarizationService", "type": "depends_on", "to": "ExtractiveSummarizationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 352, "match": "private let extractiveSummarizationService: ExtractiveSummarizationService"}], "by": "build", "note": "named there"}
+    {"from": "RAGService.extractiveSummarizationService", "type": "depends_on", "to": "ExtractiveSummarizationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 361, "match": "private let extractiveSummarizationService: ExtractiveSummarizationService"}], "by": "build", "note": "named there"}
   ],
   "docs": [],
   "unknowns": [],
@@ -29,5 +30,14 @@
   "entries": ["OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift::ExtractiveSummarizationService"],
   "owns": ["OpenIntelligence/Services/RAG/Extraction/**"],
   "decisions": [],
-  "traps": ["ExtractiveQAService.swift (the ExtractiveQAService protocol, PlaceholderExtractiveQAService, HeuristicExtractiveQAService and a commented-out CoreMLExtractiveQAService) was removed in 5.7 on 2026-10-20: nothing referenced it."]
+  "traps": ["ExtractiveQAService.swift (the ExtractiveQAService protocol, PlaceholderExtractiveQAService, HeuristicExtractiveQAService and a commented-out CoreMLExtractiveQAService) was removed in 5.7 on 2026-10-20: nothing referenced it."],
+  "derived": {
+    "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
+    "nodes": [],
+    "edges": [
+      {"from": "ExtractiveSummarizationService", "type": "depends_on", "to": "feature:vector-embeddings", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 68, "match": "private let embeddingService: EmbeddingService"}], "note": "via EmbeddingService"},
+      {"from": "ExtractiveSummarizationService", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 97, "match": "chunks: [RetrievedChunk],"}], "note": "via RetrievedChunk"}
+    ],
+    "edges_omitted": 0
+  }
 }

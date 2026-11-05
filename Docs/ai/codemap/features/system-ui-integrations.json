@@ -4,32 +4,61 @@
   "name": "System UI Integrations",
   "aliases": ["Image Playground", "TipKit tips", "first query tip", "ingest document tip"],
   "purpose": "Opens Image Playground and shows the app's TipKit tips.",
-  "revision": "54f0f84",
-  "verified_on": "2026-10-16",
-  "entry_points": ["ImagePlaygroundService", "FirstQueryTip", "IngestDocumentTip"],
+  "revision": "099c12af",
+  "verified_on": "2026-11-04",
+  "entry_points": ["ImagePlaygroundService"],
   "files": [
     {"path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "role": "primary", "blob": "9138cf4b3e46a720f98052cb699b74cc84a2643e"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "role": "primary", "blob": "66d9e64f48c875ac039cf7c942db3269b362dbb4"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "role": "primary", "blob": "ce544da53d77016e20865bdcb2acc36a40903619"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "role": "primary", "blob": "1e0cbb936a6d48a2945df11bfba521e681bfd0f5"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "role": "primary", "blob": "418ec543dda11ab69204f599c6e4b9fb973f0806"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/CompletionNotificationPolicyTests.swift", "role": "test", "blob": "58a84c5e638254a015563fb788295291f835a3ec"},
-    {"path": "OpenIntelligence/App/MacServicesProvider.swift", "role": "primary", "blob": "d74dd831ce600c053c302d6ff3a578c86ba5c658"},
+    {"path": "OpenIntelligence/App/MacServicesProvider.swift", "role": "primary", "blob": "cb70ddad6e9256903f1fd40c4234b77de658d664"},
     {"path": "OpenIntelligenceTests/App/MacServicesTests.swift", "role": "test", "blob": "db830d51bb7d92604368e53f20209216ebe47c3e"},
-    {"path": "OpenIntelligence/App/MenuBarAsk.swift", "role": "primary", "blob": "979230a46e7b86dd6c407e45db883056230e1cf8"}
+    {"path": "OpenIntelligence/App/MenuBarAsk.swift", "role": "primary", "blob": "aaaecd49391e5b17e165d91e8cdd5c5be0548125"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Tips/TourTips.swift", "role": "primary", "blob": "d47db482bb533d9628fbd70cc4f4e482c9013710"},
+    {"path": "OpenIntelligenceTests/Features/Onboarding/TourTipTests.swift", "role": "test", "blob": "3fe026bb6cc3cf38d85e486ebf8fc8b0c6a9fe98"}
   ],
   "nodes": [
     {"id": "ImagePlaygroundService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "line": 62, "match": "final class ImagePlaygroundService: ObservableObject {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.illustrateLastResponse", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2527, "match": "private func illustrateLastResponse() {", "status": "VERIFIED", "by": "build"},
-    {"id": "FirstQueryTip", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 17, "match": "struct FirstQueryTip: Tip {", "status": "VERIFIED", "by": "build"},
-    {"id": "IngestDocumentTip", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 42, "match": "struct IngestDocumentTip: Tip {", "status": "VERIFIED", "by": "build"}
+    {"id": "ChatScreen.illustrateLastResponse", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2673, "match": "private func illustrateLastResponse() {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
-    {"from": "ChatScreen.illustrateLastResponse", "type": "depends_on", "to": "ImagePlaygroundService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2531, "match": "ImagePlaygroundService.shared.onThinkingEvent = { event in"}], "by": "build", "note": "named there"}
+    {"from": "ChatScreen.illustrateLastResponse", "type": "depends_on", "to": "ImagePlaygroundService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2684, "match": "ImagePlaygroundService.shared.onThinkingEvent = { event in"}], "by": "build", "note": "named there"}
   ],
   "docs": [],
-  "unknowns": [],
+  "unknowns": ["FirstQueryTip and IngestDocumentTip are no longer declared anywhere in OpenIntelligence/ (grep 2026-11-04); AppTips.swift now declares ModelConfigTip and AtlasTip, and TourTips.swift declares TourTip."],
   "related": ["chat-conversation-view"],
-  "entries": ["OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift::ImagePlaygroundService", "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift::FirstQueryTip", "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift::IngestDocumentTip"],
+  "entries": ["OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift::ImagePlaygroundService"],
   "owns": ["OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "OpenIntelligence/Services/Infrastructure/Tips/**"],
   "decisions": [],
-  "traps": []
+  "traps": [],
+  "derived": {
+    "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
+    "nodes": [
+      {"id": "CompactTipViewStyle", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 75, "match": "struct CompactTipViewStyle: TipViewStyle {", "status": "VERIFIED"},
+      {"id": "CompletionNotificationPolicy", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "line": 20, "match": "nonisolated enum CompletionNotificationPolicy {", "status": "VERIFIED"},
+      {"id": "CompletionNotificationService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "line": 69, "match": "final class CompletionNotificationService: NSObject, UNUserNotificationCenterDelegate {", "status": "VERIFIED"},
+      {"id": "CompletionNotificationSettingsCard", "kind": "view", "path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "line": 178, "match": "struct CompletionNotificationSettingsCard: View {", "status": "VERIFIED"},
+      {"id": "MacServicesProvider", "kind": "service", "path": "OpenIntelligence/App/MacServicesProvider.swift", "line": 15, "match": "final class MacServicesProvider: NSObject {", "status": "VERIFIED"},
+      {"id": "MenuBarAsk", "kind": "view", "path": "OpenIntelligence/App/MenuBarAsk.swift", "line": 14, "match": "struct MenuBarAsk: View {", "status": "VERIFIED"},
+      {"id": "test:MacServicesTests", "kind": "test", "path": "OpenIntelligenceTests/App/MacServicesTests.swift", "line": 15, "match": "final class MacServicesTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:CompletionNotificationPolicyTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Infrastructure/CompletionNotificationPolicyTests.swift", "line": 16, "match": "final class CompletionNotificationPolicyTests: XCTestCase {", "status": "VERIFIED"}
+    ],
+    "edges": [
+      {"from": "MenuBarAsk", "type": "depends_on", "to": "MacServicesProvider", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/MenuBarAsk.swift", "line": 55, "match": "MacServicesProvider.showWindowIfNoneIsOpen(link: AppLink.url(for: screen))"}]},
+      {"from": "MacServicesProvider", "type": "tested_by", "to": "test:MacServicesTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/App/MacServicesTests.swift", "line": 68, "match": "MacServicesProvider.instancesRespond(to: NSSelectorFromString(\"\\(message):userData:error:\")),"}]},
+      {"from": "CompletionNotificationPolicy", "type": "tested_by", "to": "test:CompletionNotificationPolicyTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Infrastructure/CompletionNotificationPolicyTests.swift", "line": 17, "match": "private typealias Policy = CompletionNotificationPolicy"}]},
+      {"from": "CompletionNotificationService", "type": "tested_by", "to": "test:CompletionNotificationPolicyTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Infrastructure/CompletionNotificationPolicyTests.swift", "line": 82, "match": "XCTAssertTrue(CompletionNotificationService.shared.responds(to: tapped))"}]},
+      {"from": "ImagePlaygroundService", "type": "depends_on", "to": "feature:chat-citations-and-evidence", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "line": 78, "match": "var onThinkingEvent: ((ThinkingEvent) -> Void)?"}], "note": "via ThinkingEvent"},
+      {"from": "ImagePlaygroundService", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift", "line": 809, "match": "HardwareTelemetryState.shared.pulse(.imageProcessing, intensity: 0.8, duration: 0.3)"}], "note": "via HardwareTelemetryState"},
+      {"from": "CompactTipViewStyle", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift", "line": 90, "match": ".foregroundStyle(DSColors.secondaryText)"}], "note": "via DSColors"},
+      {"from": "CompletionNotificationPolicy", "type": "depends_on", "to": "feature:app-intents-and-siri", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "line": 34, "match": "let destination: AppDestination"}], "note": "via AppDestination"},
+      {"from": "CompletionNotificationService", "type": "depends_on", "to": "feature:app-intents-and-siri", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "line": 121, "match": "notification.userInfo = [Self.linkKey: AppLink.url(for: content.destination).absoluteString]"}], "note": "via AppLink, AppNavigationRequest"},
+      {"from": "CompletionNotificationSettingsCard", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/CompletionNotificationService.swift", "line": 264, "match": ".background(DSColors.surface)"}], "note": "via DSColors"},
+      {"from": "MacServicesProvider", "type": "depends_on", "to": "feature:app-intents-and-siri", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/MacServicesProvider.swift", "line": 31, "match": "Self.showWindowIfNoneIsOpen(link: AppLink.url(for: .chat))"}], "note": "via AppLink, AppNavigationRequest"},
+      {"from": "MacServicesProvider", "type": "depends_on", "to": "feature:document-library-and-containers", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/MacServicesProvider.swift", "line": 45, "match": "let note = try PastedContentStaging.storeText(text)"}], "note": "via PastedContentStaging, ImportedFileStaging"},
+      {"from": "MenuBarAsk", "type": "depends_on", "to": "feature:app-intents-and-siri", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/MenuBarAsk.swift", "line": 53, "match": "private func show(_ destination: AppDestination, opening screen: AppDestination) {"}], "note": "via AppDestination, AppLink, AppNavigationRequest"}
+    ],
+    "edges_omitted": 0
+  }
 }
