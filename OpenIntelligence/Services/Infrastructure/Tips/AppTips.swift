@@ -128,6 +128,20 @@ enum AppTipConfiguration {
             // Show tips immediately for new users; after reset, show tips again
             .displayFrequency(.immediate)
         ])
+        #if DEBUG
+            // One tour stop alone, by its step name (`-tourShowOnly technicalDetails`), so a UI test reaches a tip
+            // that comes late in its screen's order (5.8, TourTipCloseUITests). Every stop is one `TourTip` type, so
+            // `showTipsForTesting` can't pick one out, and `showAllTipsForTesting` ignores closed tips: with the
+            // normal rules, the others are closed and the chosen one is shown again.
+            let arguments = ProcessInfo.processInfo.arguments
+            if let i = arguments.firstIndex(of: "-tourShowOnly"), i + 1 < arguments.count,
+                let only = TourStep(rawValue: arguments[i + 1])
+            {
+                TourContext.welcomeClosed = true
+                for step in TourStep.allCases where step != only { TourTip(step).invalidate(reason: .tipClosed) }
+                Task { await TourTip(only).resetEligibility() }
+            }
+        #endif
         // The tour's facts that don't change while the app runs (5.8).
         #if os(macOS)
             TourContext.isMac = true
