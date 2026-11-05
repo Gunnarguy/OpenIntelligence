@@ -81,6 +81,17 @@ class EmbeddingService {
 
     /// Factory method to create an EmbeddingService based on provider ID
     /// Used for per-container embedding provider selection
+    /// The one Core ML provider every library's service uses (5.8), as Core AI's `.shared` already was.
+    ///
+    /// `forProvider` built a new `CoreMLSentenceEmbeddingProvider` on every call, and each new one loaded the
+    /// tokenizer and the 43 MiB model again before its first vector. A search calls `forProvider`, so a Deep
+    /// Think answer did it once per sub-query: on his iPhone on 2026-11-04 (14:18:32 to 14:18:45) four
+    /// sub-queries each spent about 0.6 s on "Loaded Rust-backed tokenizer" and "Loaded EmbeddingModel.mlmodelc on
+    /// first use" before searching. The vectors are the same; the model is loaded once and stays loaded. An
+    /// import's ingestion mode switches this provider's compute units for the length of the import, so a
+    /// question asked during one embeds on those units.
+    static let sharedCoreMLProvider = CoreMLSentenceEmbeddingProvider()
+
     static func forProvider(
         id: String,
         targetDimension: Int? = nil,
@@ -147,7 +158,7 @@ class EmbeddingService {
             } else {
                 Log.warning("CoreAI requested but not supported on this OS version, falling back to CoreML", category: .embedding)
                 resolved = EmbeddingService(
-                    provider: CoreMLSentenceEmbeddingProvider(),
+                    provider: sharedCoreMLProvider,
                     providerId: "coreml_sentence_embedding",
                     targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
                 )
@@ -155,14 +166,14 @@ class EmbeddingService {
             #else
             Log.warning("CoreAI requested but CoreAI framework is not available at compile time, falling back to CoreML", category: .embedding)
             resolved = EmbeddingService(
-                provider: CoreMLSentenceEmbeddingProvider(),
+                provider: sharedCoreMLProvider,
                 providerId: "coreml_sentence_embedding",
                 targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
             )
             #endif
         case "coreml_sentence_embedding":
             resolved = EmbeddingService(
-                provider: CoreMLSentenceEmbeddingProvider(),
+                provider: sharedCoreMLProvider,
                 providerId: "coreml_sentence_embedding",
                 targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
             )
@@ -185,7 +196,7 @@ class EmbeddingService {
                 category: .embedding
             )
             resolved = EmbeddingService(
-                provider: CoreMLSentenceEmbeddingProvider(),
+                provider: sharedCoreMLProvider,
                 providerId: "coreml_sentence_embedding",
                 targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
             )
@@ -207,7 +218,7 @@ class EmbeddingService {
         // 1. Try CoreML Sentence Embedding (Preferred CoreML)
         if id != "coreml_sentence_embedding" {
             let coreMLService = EmbeddingService(
-                provider: CoreMLSentenceEmbeddingProvider(),
+                provider: sharedCoreMLProvider,
                 providerId: "coreml_sentence_embedding",
                 targetDimension: nil
             )

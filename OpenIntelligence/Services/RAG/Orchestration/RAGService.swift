@@ -526,28 +526,56 @@ class RAGService: ObservableObject {
     }
 
     /// Recompute the intelligence snapshot for a container on demand.
+    ///
+    /// One library has one refresh running at a time (5.8). Every request used to start its own task, and an
+    /// import asks for one after each document, so two analyses of the same library ran at once (on his iPhone on
+    /// 2026-11-03 and 04: 16:35:40 and :44, 06:39:49 and :51, 06:40:40 and :44), and five runs of 10 to 45 s
+    /// were thrown away as "the library changed meanwhile". Requests made while a refresh runs are merged into
+    /// one more run after it, with the strongest `force` and `allowSelfTuningScheduling` asked for, so the last
+    /// run always sees the library as it is after the last request. The task returned finishes only once every
+    /// request made up to that point has been analysed. The library is the one active when the request is made.
     @discardableResult
     func refreshIntelligence(
         for containerId: UUID? = nil,
         force: Bool = false,
         allowSelfTuningScheduling: Bool = false
     ) -> Task<Void, Never> {
-        Task(priority: .utility) { [weak self] in
-            guard let self else { return }
-            // Invalidate vocabulary cache when refreshing intelligence (documents may have changed)
-            await MainActor.run {
-                let targetId = containerId ?? self.containerService.activeContainerId
-                self.corpusVocabularyCache.removeValue(forKey: targetId)
+        let key = containerId ?? containerService.activeContainerId
+        // At every request, not only when a pass starts, so a deleted document's vocabulary and kept analysis do
+        // not wait for the pass already running to finish.
+        corpusVocabularyCache.removeValue(forKey: key)
+        removeStaleKeptAnalysis(for: key)
+        let pending = intelligenceRefreshPending[key] ?? (force: false, selfTuning: false)
+        intelligenceRefreshPending[key] = (pending.force || force, pending.selfTuning || allowSelfTuningScheduling)
+        if let running = intelligenceRefreshWorkers[key] { return running }
+        let worker = Task(priority: .utility) { @MainActor [weak self] in
+            // Everything here runs on the main actor between awaits, so a request cannot land between the
+            // last `removeValue` and the worker being cleared below.
+            while let self, let flags = self.intelligenceRefreshPending.removeValue(forKey: key) {
+                // Invalidate vocabulary cache when refreshing intelligence (documents may have changed)
+                self.corpusVocabularyCache.removeValue(forKey: key)
                 // A refresh a screen asked for, with the library unchanged, removes nothing.
-                self.removeStaleKeptAnalysis(for: targetId)
+                self.removeStaleKeptAnalysis(for: key)
+                await self.generateIntelligenceSnapshot(
+                    for: key,
+                    force: flags.force,
+                    allowSelfTuningScheduling: flags.selfTuning
+                )
             }
-            await self.generateIntelligenceSnapshot(
-                for: containerId,
-                force: force,
-                allowSelfTuningScheduling: allowSelfTuningScheduling
-            )
+            self?.intelligenceRefreshWorkers[key] = nil
         }
+        intelligenceRefreshWorkers[key] = worker
+        return worker
     }
+
+    /// The refresh running for each library, and the merged flags of the requests it has still to analyse
+    /// (`refreshIntelligence`).
+    @MainActor private var intelligenceRefreshWorkers: [UUID: Task<Void, Never>] = [:]
+    @MainActor private var intelligenceRefreshPending: [UUID: (force: Bool, selfTuning: Bool)] = [:]
+
+    /// The imports running per embedding provider id (`addDocument`), so ingestion mode is switched back only when
+    /// the last one ends.
+    @MainActor private var ingestionModeHolders: [String: Int] = [:]
 
     /// Removes what is kept on disk for a library (its analysis, with a preview of each document,
     /// and its vocabulary, with snippets of its text) and was made from other documents than the
@@ -7425,9 +7453,16 @@ class RAGService: ObservableObject {
 
         let pipelineStartTime = Date()
 
+        // Imports can overlap (a file attached in Chat while the queue imports), and the Core ML and Core AI
+        // providers are each one object shared by every service (5.8), so the first import to finish used to
+        // switch the other's provider back mid-import. Only the last import using a provider switches it back.
+        let ingestionModeKey = containerEmbeddingService.actualProviderId
+        ingestionModeHolders[ingestionModeKey, default: 0] += 1
         containerEmbeddingService.enableIngestionMode()
         defer {
-            containerEmbeddingService.disableIngestionMode()
+            let remaining = (ingestionModeHolders[ingestionModeKey] ?? 1) - 1
+            ingestionModeHolders[ingestionModeKey] = remaining > 0 ? remaining : nil
+            if remaining <= 0 { containerEmbeddingService.disableIngestionMode() }
         }
 
         TelemetryCenter.emit(
