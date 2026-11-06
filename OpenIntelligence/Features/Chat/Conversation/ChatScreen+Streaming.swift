@@ -2,7 +2,7 @@
 //  ChatScreen+Streaming.swift
 //  OpenIntelligence
 //
-//  Part of ChatScreen, moved unchanged from ChatScreen.swift on 2026-11-05 (5.8 split).
+//  Part of ChatScreen, moved from ChatScreen.swift on 2026-11-05 (5.8 split); only access keywords changed.
 //
 
 import AppIntents
@@ -17,7 +17,6 @@ import Translation
     import PDFKit
     import VisionKit
 #endif
-
 
 extension ChatScreen {
     // MARK: - Streaming Cadence Helpers

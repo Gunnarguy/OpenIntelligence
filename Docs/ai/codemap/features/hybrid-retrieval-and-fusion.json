@@ -4,7 +4,7 @@
   "name": "Hybrid Retrieval and Fusion",
   "aliases": ["hybrid retrieval", "hybrid search", "BM25 scoring", "reciprocal rank fusion", "reranking", "cross-encoder reranker", "context packing", "iterative retrieval", "retrieval trace", "reranker", "rerank"],
   "purpose": "Finds the chunks for a question by running vector and keyword search together, fusing them with reciprocal rank fusion, reranking, and packing the context.",
-  "revision": "6fa0f462",
+  "revision": "fe3df217",
   "verified_on": "2026-11-05",
   "entry_points": ["HybridSearchService", "RAGEngine.reciprocalRankFusion", "RAGEngine.rerank", "RAGEngine.rerankWithCrossEncoder", "ContextPackingService", "IterativeRetrievalService", "RetrievalTraceCollector.Stage"],
   "files": [
@@ -24,7 +24,7 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/HybridSearchServiceTests.swift", "role": "test", "blob": "6a7f6fd8976768170687a4a3a580a077338bb112"},
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/ParentDocumentServiceTests.swift", "role": "test", "blob": "06a358abbe1ffc67c59858a4b8bb004caf2e9b39"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/MMRStoredVectorsTests.swift", "role": "test", "blob": "480c62ec7158d4b35bd840e508198ddfd96f75d2"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "effb8c64e93b252f6a1fe34261710c19c4376773"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
   ],
   "nodes": [
     {"id": "HybridSearchService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift", "line": 161, "match": "class HybridSearchService {", "status": "VERIFIED", "by": "build"},
@@ -39,7 +39,7 @@
     {"id": "HardwareTelemetryState.incrementANECounter", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 669, "match": "func incrementANECounter() {", "status": "VERIFIED", "by": "build"},
     {"id": "DebugRAGValidationHarness.stageMetricsLines", "kind": "function", "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 493, "match": "private static func stageMetricsLines(", "status": "VERIFIED", "by": "build"},
     {"id": "ThinkingEvent.Kind", "kind": "model", "path": "OpenIntelligence/Core/Models/ThinkingEvent.swift", "line": 7, "match": "enum Kind: String, CaseIterable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.seedScreenshotDemoIfNeeded", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 1063, "match": "private func seedScreenshotDemoIfNeeded() {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.seedScreenshotDemoIfNeeded", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 1062, "match": "private func seedScreenshotDemoIfNeeded() {", "status": "VERIFIED", "by": "build"},
     {"id": "TypingBubbleV2.progress", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift", "line": 377, "match": "private var progress: Double {", "status": "VERIFIED", "by": "build"},
     {"id": "ConsoleLogRow.shortKindLabel", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift", "line": 316, "match": "private var shortKindLabel: String {", "status": "VERIFIED", "by": "build"},
     {"id": "VerificationGatesOverlayView.initialGates", "kind": "function", "path": "OpenIntelligence/Features/Chat/Response/VerificationGatesOverlayView.swift", "line": 28, "match": "private func initialGates() -> [VerificationGate] {", "status": "VERIFIED", "by": "build"},
@@ -88,7 +88,7 @@
     {"from": "RAGEngine.rerank", "type": "calls", "to": "HardwareTelemetryState.incrementANECounter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift", "line": 314, "match": "HardwareTelemetryState.shared.incrementANECounter()"}], "by": "build", "note": "named in the body"},
     {"from": "DebugRAGValidationHarness.stageMetricsLines", "type": "depends_on", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 597, "match": "if let rerankTrace = traces.first(where: { $0.stage == RetrievalTraceCollector.Stage.rerank.rawValue }) {"}], "by": "build", "note": "named there"},
     {"from": "ThinkingEvent.Kind", "type": "depends_on", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/ThinkingEvent.swift", "line": 12, "match": "case rerank"}], "by": "build", "note": "named there"},
-    {"from": "ChatScreen.seedScreenshotDemoIfNeeded", "type": "depends_on", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 1413, "match": "ThinkingEvent(kind: .rerank, title: \"Re-ranking\", detail: \"Cross-encoder • top 5 → 3\"),"}], "by": "build", "note": "named there"},
+    {"from": "ChatScreen.seedScreenshotDemoIfNeeded", "type": "depends_on", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 1412, "match": "ThinkingEvent(kind: .rerank, title: \"Re-ranking\", detail: \"Cross-encoder • top 5 → 3\"),"}], "by": "build", "note": "named there"},
     {"from": "TypingBubbleV2.progress", "type": "depends_on", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift", "line": 384, "match": "case .rerank, .rrf, .mmr: return 0.7"}], "by": "build", "note": "named there"},
     {"from": "ConsoleLogRow.shortKindLabel", "type": "depends_on", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift", "line": 321, "match": "case .rerank: return \"RERANK\""}], "by": "build", "note": "named there"},
     {"from": "VerificationGatesOverlayView.initialGates", "type": "depends_on", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/VerificationGatesOverlayView.swift", "line": 58, "match": "VerificationGate(id: 5, title: \"MMR & Re-rank\", kind: .mmr, secondaryKind: .rerank),"}], "by": "build", "note": "named there"},

@@ -4,7 +4,7 @@
   "name": "Glossary",
   "aliases": ["Glossary", "defined terms", "term definitions", "plain and technical register"],
   "purpose": "One definition per term in a plain and a technical register, attached in place with .definedTerm(_:) and listed in Settings.",
-  "revision": "53bc153c",
+  "revision": "fe3df217",
   "verified_on": "2026-11-05",
   "entry_points": ["Glossary", "GlossaryTermID", "GlossarySection", "GlossaryTermDetail", "GlossaryView"],
   "files": [
@@ -12,8 +12,8 @@
     {"path": "OpenIntelligence/UI/Components/Glossary.swift", "role": "primary", "blob": "348d0de7d15e1ffa4705ad0b1816de98da23d49f"},
     {"path": "OpenIntelligence/UI/Components/GlossaryViews.swift", "role": "primary", "blob": "c22e9d45869713d468d485c0705014228ac9abc8"},
     {"path": "OpenIntelligenceTests/Features/Settings/GlossaryTests.swift", "role": "test", "blob": "345fe3bcc7bba960ce2c2a9fd5e508d152c1160e"},
-    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "1e9573f9d1d5e04d183cba8e0ae26c1e8852ce19"},
-    {"path": "OpenIntelligence/Features/Settings/SettingsView+Device.swift", "role": "shared", "blob": "1e01dd5d8f40bf98c9d047a0f4305f0d97e1fe1c"}
+    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "c74582170c1e99628bc851caa842957903913336"},
+    {"path": "OpenIntelligence/Features/Settings/SettingsView+Device.swift", "role": "shared", "blob": "448f315b56899b93532b3814388092085c5e1a05"}
   ],
   "nodes": [
     {"id": "Glossary", "kind": "model", "path": "OpenIntelligence/UI/Components/Glossary.swift", "line": 587, "match": "enum Glossary {", "status": "VERIFIED", "by": "build"},
@@ -22,7 +22,7 @@
     {"id": "OnboardingChecklistView.dashCounter", "kind": "function", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 451, "match": "private func dashCounter(value: String, label: String, icon: String, color: Color, term: GlossaryTermID) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "GlossaryView.presentedTerm", "kind": "model", "path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 44, "match": "@State private var presentedTerm: GlossaryTermID?", "status": "VERIFIED", "by": "build"},
     {"id": "HowItWorksView.stage", "kind": "function", "path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "line": 288, "match": "private func stage(number: String, title: String, detail: String, term: GlossaryTermID) -> some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "SettingsView.hardwareLimitRow", "kind": "function", "path": "OpenIntelligence/Features/Settings/SettingsView+Device.swift", "line": 298, "match": "private func hardwareLimitRow(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "SettingsView.hardwareLimitRow", "kind": "function", "path": "OpenIntelligence/Features/Settings/SettingsView+Device.swift", "line": 297, "match": "private func hardwareLimitRow(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "GlossaryTermDetail.termID", "kind": "model", "path": "OpenIntelligence/UI/Components/GlossaryViews.swift", "line": 39, "match": "let termID: GlossaryTermID", "status": "VERIFIED", "by": "build"},
     {"id": "GlossarySection", "kind": "model", "path": "OpenIntelligence/UI/Components/Glossary.swift", "line": 37, "match": "enum GlossarySection: String, CaseIterable, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "GlossaryView.body", "kind": "model", "path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 64, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
@@ -36,7 +36,7 @@
     {"id": "DSHaptics.light", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 562, "match": "public static func light() {", "status": "VERIFIED", "by": "build"},
     {"id": "OnboardingChecklistView.body", "kind": "model", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 72, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "HowItWorksView.vocabularyCard", "kind": "model", "path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "line": 119, "match": "private var vocabularyCard: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "SettingsView.destination", "kind": "function", "path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 509, "match": "private func destination(for entry: SettingsEntry) -> some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "SettingsView.destination", "kind": "function", "path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 508, "match": "private func destination(for entry: SettingsEntry) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "test:GlossaryTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Features/Settings/GlossaryTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
@@ -46,12 +46,12 @@
     {"from": "GlossaryView", "type": "renders", "to": "GlossaryTermSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 103, "match": "GlossaryTermSheet(startingTerm: id)"}], "by": "build", "note": "constructs it"},
     {"from": "OnboardingChecklistView.body", "type": "renders", "to": "GlossaryView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 127, "match": "GlossaryView()"}], "by": "build", "note": "constructs it"},
     {"from": "HowItWorksView.vocabularyCard", "type": "renders", "to": "GlossaryView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "line": 128, "match": "GlossaryView()"}], "by": "build", "note": "constructs it"},
-    {"from": "SettingsView.destination", "type": "renders", "to": "GlossaryView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 514, "match": "GlossaryView()"}], "by": "build", "note": "constructs it"},
+    {"from": "SettingsView.destination", "type": "renders", "to": "GlossaryView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 513, "match": "GlossaryView()"}], "by": "build", "note": "constructs it"},
     {"from": "GlossaryView.results", "type": "depends_on", "to": "Glossary", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 51, "match": "Glossary.search(trimmed)"}], "by": "build", "note": "named there"},
     {"from": "OnboardingChecklistView.dashCounter", "type": "depends_on", "to": "GlossaryTermID", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 451, "match": "private func dashCounter(value: String, label: String, icon: String, color: Color, term: GlossaryTermID) -> some View {"}], "by": "build", "note": "named there"},
     {"from": "GlossaryView.presentedTerm", "type": "depends_on", "to": "GlossaryTermID", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 44, "match": "@State private var presentedTerm: GlossaryTermID?"}], "by": "build", "note": "named there"},
     {"from": "HowItWorksView.stage", "type": "depends_on", "to": "GlossaryTermID", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/HowItWorksView.swift", "line": 288, "match": "private func stage(number: String, title: String, detail: String, term: GlossaryTermID) -> some View {"}], "by": "build", "note": "named there"},
-    {"from": "SettingsView.hardwareLimitRow", "type": "depends_on", "to": "GlossaryTermID", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView+Device.swift", "line": 298, "match": "private func hardwareLimitRow(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {"}], "by": "build", "note": "named there"},
+    {"from": "SettingsView.hardwareLimitRow", "type": "depends_on", "to": "GlossaryTermID", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView+Device.swift", "line": 297, "match": "private func hardwareLimitRow(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {"}], "by": "build", "note": "named there"},
     {"from": "GlossaryTermDetail.termID", "type": "depends_on", "to": "GlossaryTermID", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/UI/Components/GlossaryViews.swift", "line": 39, "match": "let termID: GlossaryTermID"}], "by": "build", "note": "named there"},
     {"from": "GlossaryView.body", "type": "depends_on", "to": "GlossarySection", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 74, "match": "ForEach(GlossarySection.allCases) { section in"}], "by": "build", "note": "named there"},
     {"from": "GlossaryView", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/GlossaryView.swift", "line": 96, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},

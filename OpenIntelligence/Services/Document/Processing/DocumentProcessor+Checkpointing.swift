@@ -2,7 +2,7 @@
 //  DocumentProcessor+Checkpointing.swift
 //  OpenIntelligence
 //
-//  Moved unchanged from DocumentProcessor.swift on 2026-11-05 (5.8 split).
+//  Moved from DocumentProcessor.swift on 2026-11-05 (5.8 split); only access keywords changed.
 //
 
 import Foundation

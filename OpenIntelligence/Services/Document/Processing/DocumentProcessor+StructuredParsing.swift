@@ -2,7 +2,7 @@
 //  DocumentProcessor+StructuredParsing.swift
 //  OpenIntelligence
 //
-//  Part of DocumentProcessor, moved unchanged from DocumentProcessor.swift on 2026-11-05 (5.8 split).
+//  Part of DocumentProcessor, moved from DocumentProcessor.swift on 2026-11-05 (5.8 split); only access keywords changed.
 //
 
 import Foundation
@@ -22,7 +22,6 @@ import UIKit
 #if canImport(AppKit)
 import AppKit
 #endif
-
 
 extension DocumentProcessor {
     // MARK: - Structured Document Parsing (iOS 26+)

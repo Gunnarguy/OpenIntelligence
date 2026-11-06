@@ -2,7 +2,7 @@
 //  ContinuedQueryCoordinator.swift
 //  OpenIntelligence
 //
-//  Moved unchanged from ChatScreen.swift on 2026-11-05 (5.8 split).
+//  Moved from ChatScreen.swift on 2026-11-05 (5.8 split); only access keywords changed.
 //
 
 import AppIntents

@@ -33,7 +33,7 @@ developers, and product copy is read by people who will not check the source.
   Corrected 2026-10-20: "Office files" means `.docx`, `.xlsx` and `.pptx`, read from their zipped XML. A
   legacy `.doc`, `.xls` or `.ppt` does not open as a ZIP, and its import fails with "Office document
   detected. For best results, export as PDF before importing." `[evidence_level: code_verified,
-  confidence: high, evidence_source: DocumentProcessor+MediaAndOffice.swift:118-216, 10015-10020, 10118-10119]`
+  confidence: high, evidence_source: DocumentProcessor+MediaAndOffice.swift:117-215, 10015-10020, 10118-10119]`
 - On-device indexing: dense vectors plus a SQLite FTS5 keyword index.
   Corrected 2026-10-20: the vectors are 384 numbers a passage from MiniLM-L6-v2 (512 from `NLEmbedding`
   when it stands in), kept in one flat file per library in arrival order, rewritten whole at each save, and
@@ -52,7 +52,7 @@ developers, and product copy is read by people who will not check the source.
   Just Once, Deny), and after Always Allow later sends are not asked about. PCC needs iOS or macOS 27, a
   build made with Swift 6.4 or later, the app's entitlement, and quota left. `[evidence_level:
   code_verified, confidence: high, evidence_source: SettingsStore.swift:44-50, 450-462, LLMModel.swift:218,
-  264-268, ChatScreen+Sending.swift:118-136, RAGService+SentenceExtraction.swift:624-673, FoundationModelSessionFactory.swift:86-110]`
+  264-268, ChatScreen+Sending.swift:317-335, RAGService+SentenceExtraction.swift:624-673, FoundationModelSessionFactory.swift:86-110]`
 - Three answer modes (added 2026-10-20): Standard, the default for a new install, gathers its evidence in
   one pipeline and writes the answer in one generation, with at most a citation retry and an integrity repair
   on the same route. The nine verification gates then run once and never send the answer back to the model:

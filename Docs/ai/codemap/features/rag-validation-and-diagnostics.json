@@ -4,7 +4,7 @@
   "name": "RAG Validation and Diagnostics",
   "aliases": ["developer diagnostics hub", "database dashboard", "chunk inspector", "RAG pipeline audit", "container scoping tests", "validation harness"],
   "purpose": "Developer screens for inspecting chunks, the database and accuracy, and the headless validation harness run from launch arguments.",
-  "revision": "53bc153c",
+  "revision": "fe3df217",
   "verified_on": "2026-11-05",
   "entry_points": ["DeveloperDiagnosticsHubView", "ChunkInspectorView", "CoreValidationView", "RAGAccuracyView", "DatabaseDashboardView", "DebugRAGValidationHarness"],
   "files": [
@@ -23,7 +23,7 @@
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/VerificationJournal.swift", "role": "primary", "blob": "7059ac3a4b5cbe2445a41097a58a2c2c7d3786a5"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/VerificationJournalTests.swift", "role": "test", "blob": "c8689a8ec542fe616540d9141d4fde1283b3da84"},
     {"path": "OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift", "role": "test", "blob": "2f551656f513564c4b89238a71a50f5dea1751c7"},
-    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "1e9573f9d1d5e04d183cba8e0ae26c1e8852ce19"}
+    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "c74582170c1e99628bc851caa842957903913336"}
   ],
   "nodes": [
     {"id": "DeveloperDiagnosticsHubView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 10, "match": "struct DeveloperDiagnosticsHubView: View {", "status": "VERIFIED", "by": "build"},
@@ -43,7 +43,7 @@
     {"id": "RAGService.checkDeviceCapabilities", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Device.swift", "line": 36, "match": "static func checkDeviceCapabilities() -> DeviceCapabilities {", "status": "VERIFIED", "by": "build"},
     {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 430, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "LoggingConfiguration.Level", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift", "line": 24, "match": "enum Level: Int, Comparable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SettingsView.destination", "kind": "function", "path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 509, "match": "private func destination(for entry: SettingsEntry) -> some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "SettingsView.destination", "kind": "function", "path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 508, "match": "private func destination(for entry: SettingsEntry) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ChunkDetailSheet", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 464, "match": "struct ChunkDetailSheet: View {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentRow.iconName", "kind": "function", "path": "OpenIntelligence/Features/Documents/Components/DocumentRow.swift", "line": 37, "match": "private func iconName(for type: DocumentType) -> String {", "status": "VERIFIED", "by": "build"},
     {"id": "ChunkRowView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 388, "match": "struct ChunkRowView: View {", "status": "VERIFIED", "by": "build"},
@@ -100,7 +100,7 @@
     {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "AdaptiveVisualizationsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 208, "match": "AdaptiveVisualizationsView()"}], "by": "build", "note": "constructs it"},
     {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "LiveFoundationModelCapabilityProvider", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 229, "match": "pccCapability = await LiveFoundationModelCapabilityProvider().snapshot()"}], "by": "build", "note": "constructs it"},
     {"from": "DeveloperDiagnosticsHubView", "type": "calls", "to": "RAGService.checkDeviceCapabilities", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 238, "match": "let caps = RAGService.checkDeviceCapabilities()"}], "by": "build", "note": "the call names the type"},
-    {"from": "SettingsView.destination", "type": "renders", "to": "DeveloperDiagnosticsHubView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 559, "match": "DeveloperDiagnosticsHubView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
+    {"from": "SettingsView.destination", "type": "renders", "to": "DeveloperDiagnosticsHubView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 558, "match": "DeveloperDiagnosticsHubView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
     {"from": "ChunkInspectorView", "type": "renders", "to": "ChunkDetailSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 76, "match": "ChunkDetailSheet(chunk: chunk)"}], "by": "build", "note": "constructs it"},
     {"from": "ChunkInspectorView", "type": "calls", "to": "DocumentRow.iconName", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 200, "match": "Image(systemName: DocumentRow.iconName(for: doc.contentType)).font(.caption)"}], "by": "build", "note": "the call names the type"},
     {"from": "ChunkInspectorView", "type": "renders", "to": "ChunkRowView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 268, "match": "ChunkRowView(chunk: chunk)"}], "by": "build", "note": "constructs it"},

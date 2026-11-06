@@ -2,7 +2,7 @@
 //  CompactAtlasSceneView.swift
 //  OpenIntelligence
 //
-//  Moved unchanged from AdaptiveVisualizationsView.swift on 2026-11-05 (5.8 split).
+//  Moved from AdaptiveVisualizationsView.swift on 2026-11-05 (5.8 split); only access keywords changed.
 //
 
 import Charts

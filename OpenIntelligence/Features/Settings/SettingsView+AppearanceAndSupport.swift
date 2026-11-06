@@ -2,7 +2,7 @@
 //  SettingsView+AppearanceAndSupport.swift
 //  OpenIntelligence
 //
-//  Part of SettingsView, moved unchanged from SettingsView.swift on 2026-11-05 (5.8 split).
+//  Part of SettingsView, moved from SettingsView.swift on 2026-11-05 (5.8 split); only access keywords changed.
 //
 
 import AppIntents
@@ -16,7 +16,6 @@ import FoundationModels
 #if canImport(AppKit)
 import AppKit
 #endif
-
 
 extension SettingsView {
     // MARK: - Appearance Card

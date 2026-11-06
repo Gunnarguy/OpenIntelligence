@@ -4,7 +4,7 @@
   "name": "Chat Citations and Evidence",
   "aliases": ["grounded answer view", "source chips", "citations tray", "verification gates overlay", "response details view", "thinking stream view", "citations", "citation"],
   "purpose": "Shows an answer's claims, source citations, thinking steps and gate results under the message.",
-  "revision": "6fa0f462",
+  "revision": "fe3df217",
   "verified_on": "2026-11-05",
   "entry_points": ["GroundedAnswerView", "SourceChipsView", "ChatResponseDetailsView", "VerificationGatesOverlayView", "ThinkingStreamView", "UnifiedMetricsBar"],
   "files": [
@@ -38,7 +38,7 @@
     {"path": "OpenIntelligenceTests/Features/Chat/SourcePageViewTests.swift", "role": "test", "blob": "fe95d865275782557a687f52658181390347ee4e"},
     {"path": "OpenIntelligenceTests/Features/Chat/SourceTextViewTests.swift", "role": "test", "blob": "6334537443852311e317b0e718155ca79273bed2"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/CitationLabelNumberingTests.swift", "role": "test", "blob": "e21a09215311ca413c4ab7f015ffe3c8573f23b9"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "effb8c64e93b252f6a1fe34261710c19c4376773"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
   ],
   "nodes": [
     {"id": "GroundedAnswerView", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 8, "match": "struct GroundedAnswerView: View {", "status": "VERIFIED", "by": "build"},
@@ -52,7 +52,7 @@
     {"id": "ChipData", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/SourceChipsView.swift", "line": 190, "match": "private struct ChipData: Identifiable {", "status": "VERIFIED", "by": "build"},
     {"id": "SourceChip", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/SourceChipsView.swift", "line": 89, "match": "private struct SourceChip: View {", "status": "VERIFIED", "by": "build"},
     {"id": "MoreChip", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/SourceChipsView.swift", "line": 159, "match": "private struct MoreChip: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.chatPresentationLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 426, "match": "private var chatPresentationLayer: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.chatPresentationLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 425, "match": "private var chatPresentationLayer: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ChatResponseDetailsView", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift", "line": 10, "match": "struct ChatResponseDetailsView: View {", "status": "VERIFIED", "by": "build"},
     {"id": "SourceFidelityStatus", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/SourceFidelityStatus.swift", "line": 10, "match": "struct SourceFidelityStatus: View {", "status": "VERIFIED", "by": "build"},
     {"id": "MatchQualityPill", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift", "line": 820, "match": "private struct MatchQualityPill: View {", "status": "VERIFIED", "by": "build"},
@@ -67,7 +67,7 @@
     {"id": "UnifiedMetricsBar.standardModeReasoningSection", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 2316, "match": "private var standardModeReasoningSection: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "UnifiedMetricsBar", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 42, "match": "struct UnifiedMetricsBar: View {", "status": "VERIFIED", "by": "build"},
     {"id": "MiniSparkline", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 4669, "match": "private struct MiniSparkline: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.primaryMetricsBar", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 27, "match": "func primaryMetricsBar(metricsData: ConsolidatedMetrics) -> some View {", "status": "VERIFIED", "by": "build"}
+    {"id": "ChatScreen.primaryMetricsBar", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 26, "match": "func primaryMetricsBar(metricsData: ConsolidatedMetrics) -> some View {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "GroundedAnswerView", "type": "renders", "to": "MarkdownText", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 40, "match": "MarkdownText("}], "by": "build", "note": "constructs it"},
@@ -78,12 +78,12 @@
     {"from": "SourceChipsView", "type": "depends_on", "to": "ChipData", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/SourceChipsView.swift", "line": 26, "match": "return ChipData("}], "by": "build", "note": "constructs it"},
     {"from": "SourceChipsView", "type": "renders", "to": "SourceChip", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/SourceChipsView.swift", "line": 40, "match": "SourceChip(chip: chip, onTap:"}], "by": "build", "note": "constructs it"},
     {"from": "SourceChipsView", "type": "renders", "to": "MoreChip", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/SourceChipsView.swift", "line": 51, "match": "MoreChip(remaining: chunks.count - 6, onTap: onTap)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChatScreen.chatPresentationLayer", "type": "renders", "to": "SourceChipsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 567, "match": "SourceChipsView(chunks: currentRetrievedChunks, onTap: {}) { chunk in"}], "by": "build", "note": "constructs it"},
+    {"from": "ChatScreen.chatPresentationLayer", "type": "renders", "to": "SourceChipsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 566, "match": "SourceChipsView(chunks: currentRetrievedChunks, onTap: {}) { chunk in"}], "by": "build", "note": "constructs it"},
     {"from": "ChatResponseDetailsView", "type": "renders", "to": "SourceFidelityStatus", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift", "line": 36, "match": "SourceFidelityStatus("}], "by": "build", "note": "constructs it"},
     {"from": "ChatResponseDetailsView", "type": "renders", "to": "MatchQualityPill", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift", "line": 528, "match": "MatchQualityPill(score: avg)"}], "by": "build", "note": "constructs it"},
     {"from": "ChatResponseDetailsView", "type": "renders", "to": "SourceCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift", "line": 537, "match": "SourceCard(chunk: chunk, rank: index + 1)"}], "by": "build", "note": "constructs it"},
     {"from": "ChatResponseDetailsView", "type": "renders", "to": "PerfMetricRow", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift", "line": 676, "match": "PerfMetricRow(label: \"Model\", value: metadata.modelUsed.isEmpty ? \"Unknown\" : metadata.modelUsed)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChatScreen.chatPresentationLayer", "type": "renders", "to": "ChatResponseDetailsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 551, "match": "ChatResponseDetailsView("}], "by": "build", "note": "constructs it"},
+    {"from": "ChatScreen.chatPresentationLayer", "type": "renders", "to": "ChatResponseDetailsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 550, "match": "ChatResponseDetailsView("}], "by": "build", "note": "constructs it"},
     {"from": "MessageBubbleV2.body", "type": "renders", "to": "ChatResponseDetailsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/MessageBubbleV2.swift", "line": 313, "match": "ChatResponseDetailsView("}], "by": "build", "note": "constructs it"},
     {"from": "VerificationGatesOverlayView", "type": "renders", "to": "GateRowView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/VerificationGatesOverlayView.swift", "line": 99, "match": "GateRowView(gate: gate)"}], "by": "build", "note": "constructs it"},
     {"from": "ThinkingStreamView.body", "type": "renders", "to": "VerificationGatesOverlayView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift", "line": 51, "match": "VerificationGatesOverlayView(events: events, qualityMode: qualityMode)"}], "by": "build", "note": "constructs it"},
@@ -93,7 +93,7 @@
     {"from": "UnifiedMetricsBar.standardModeReasoningSection", "type": "renders", "to": "ThinkingStreamView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 2373, "match": "ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)"}], "by": "build", "note": "constructs it"},
     {"from": "UnifiedMetricsBar", "type": "renders", "to": "MiniSparkline", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 443, "match": "MiniSparkline(values: speedHistory, color: speedColor)"}], "by": "build", "note": "constructs it"},
     {"from": "UnifiedMetricsBar", "type": "renders", "to": "ThinkingStreamView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 2373, "match": "ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChatScreen.primaryMetricsBar", "type": "renders", "to": "UnifiedMetricsBar", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 117, "match": "UnifiedMetricsBar("}], "by": "build", "note": "constructs it"},
+    {"from": "ChatScreen.primaryMetricsBar", "type": "renders", "to": "UnifiedMetricsBar", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 116, "match": "UnifiedMetricsBar("}], "by": "build", "note": "constructs it"},
     {"from": "SourcePageView", "type": "renders", "to": "DocumentDetailsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/SourcePageView.swift", "line": 65, "match": "DocumentDetailsView(document: document, embeddingProviderId: nil, highlightedChunk: chunk)"}], "by": "build", "note": "the Document Details toolbar link; GroundedAnswerView no longer constructs DocumentDetailsView itself, it shows SourcePageView or SourceTextView"}
   ],
   "docs": [],

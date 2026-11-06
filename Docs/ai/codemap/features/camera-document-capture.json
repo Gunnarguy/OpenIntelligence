@@ -4,7 +4,7 @@
   "name": "Camera Document Capture",
   "aliases": ["camera scanner", "document capture view", "vision overlay", "smart capture manager", "scan a page"],
   "purpose": "Captures paper documents with the camera and reads their text on device with Vision.",
-  "revision": "6fa0f462",
+  "revision": "fe3df217",
   "verified_on": "2026-11-05",
   "entry_points": ["CameraManager", "DocumentCaptureView", "CameraVisionOverlayView", "CaptureToRAGBridge"],
   "files": [
@@ -19,7 +19,7 @@
     {"path": "OpenIntelligence/App/ScanIntoLibraryIntent.swift", "role": "primary", "blob": "87d5e8d16be2d4e71043eedd68211f8433682632"},
     {"path": "OpenIntelligence/Features/Camera/LockedCaptureImport.swift", "role": "primary", "blob": "3564c5e4e3d0f71119c17eaabdc8d442687111d6"},
     {"path": "OpenIntelligenceTests/Features/Camera/LockedCaptureImportTests.swift", "role": "test", "blob": "a3fc9ec71710aaee9558281817df13e8c81260a4"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "effb8c64e93b252f6a1fe34261710c19c4376773"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
   ],
   "nodes": [
     {"id": "CameraManager", "kind": "model", "path": "OpenIntelligence/Features/Camera/CameraManager.swift", "line": 25, "match": "class CameraManager: NSObject, ObservableObject {", "status": "VERIFIED", "by": "build"},
@@ -40,7 +40,7 @@
     {"id": "PoseWireframeOverlay", "kind": "view", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 1253, "match": "struct PoseWireframeOverlay: View {", "status": "VERIFIED", "by": "build"},
     {"id": "CaptureConfirmationSheet", "kind": "view", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 1587, "match": "struct CaptureConfirmationSheet: View {", "status": "VERIFIED", "by": "build"},
     {"id": "MetricPill", "kind": "view", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 1714, "match": "struct MetricPill: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.chatLifecycleLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 196, "match": "private var chatLifecycleLayer: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.chatLifecycleLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 195, "match": "private var chatLifecycleLayer: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "CaptureToRAGBridge", "kind": "model", "path": "OpenIntelligence/Features/Camera/CaptureToRAGBridge.swift", "line": 20, "match": "actor CaptureToRAGBridge {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.enqueueDocuments", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 35, "match": "func enqueueDocuments(", "status": "VERIFIED", "by": "build"},
     {"id": "CameraVisionOverlayView.handleCapture", "kind": "function", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 736, "match": "private func handleCapture(_ result: CaptureResult) {", "status": "VERIFIED", "by": "build"}
@@ -57,7 +57,7 @@
     {"from": "CameraVisionOverlayView", "type": "renders", "to": "DetectionOverlayView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 80, "match": "DetectionOverlayView("}], "by": "build", "note": "constructs it"},
     {"from": "CameraVisionOverlayView", "type": "renders", "to": "PoseWireframeOverlay", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 88, "match": "PoseWireframeOverlay("}], "by": "build", "note": "constructs it"},
     {"from": "CameraVisionOverlayView", "type": "renders", "to": "CaptureConfirmationSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 146, "match": "CaptureConfirmationSheet("}], "by": "build", "note": "constructs it"},
-    {"from": "ChatScreen.chatLifecycleLayer", "type": "renders", "to": "CameraVisionOverlayView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 261, "match": "CameraVisionOverlayView("}], "by": "build", "note": "constructs it"},
+    {"from": "ChatScreen.chatLifecycleLayer", "type": "renders", "to": "CameraVisionOverlayView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 260, "match": "CameraVisionOverlayView("}], "by": "build", "note": "constructs it"},
     {"from": "DocumentCaptureView", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 69, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},
     {"from": "DocumentCaptureView", "type": "calls", "to": "SmartCaptureManager.stop", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 79, "match": "captureManager.stop()"}], "by": "build", "note": "named in the body"},
     {"from": "DocumentCaptureView", "type": "calls", "to": "RAGService.ingestDocuments", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 176, "match": "_ = await ragService.ingestDocuments("}], "by": "build", "note": "named in the body"},
