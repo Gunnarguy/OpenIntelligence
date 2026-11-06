@@ -123,7 +123,7 @@ retrieved text before you see it.
 > Deep Think and Maximum the nine checks only label it (from 5.7); a lookup there that is not
 > locked to an extracted value gets the source-only check instead, which can rewrite the
 > answer or, for a precise-value or state question, refuse it.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen.swift:3757 and 3788 (streamed text reaches the chat), RAGService.swift@1e4a718:16630-16807 (step 7.5, after generation), StructuredAnswer.swift:988 (claims marked unsupported are left out), RAGService.swift@1e4a718:11261-11309 (Deep Think and Maximum: source-only check, else the gates as a label), Docs/HOW_IT_WORKS.md section 04 correction of 2026-10-20; read at 1e4a718]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen.swift@1e4a718:3757 and 3788 (streamed text reaches the chat), RAGService.swift@1e4a718:16630-16807 (step 7.5, after generation), StructuredAnswer.swift:988 (claims marked unsupported are left out), RAGService.swift@1e4a718:11261-11309 (Deep Think and Maximum: source-only check, else the gates as a label), Docs/HOW_IT_WORKS.md section 04 correction of 2026-10-20; read at 1e4a718]`
 
 Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on
 PCC**, time-to-first-token 2.2–3.2s. The PCC figure was measured from an Xcode 27

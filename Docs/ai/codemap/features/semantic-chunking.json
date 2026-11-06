@@ -4,8 +4,8 @@
   "name": "Semantic Chunking",
   "aliases": ["semantic chunker", "chunk size", "page complexity analyzer", "content tagging service", "chunk metadata", "chunking", "smaller chunks", "larger chunks"],
   "purpose": "Splits extracted text into chunks sized to the kind of file and tags each chunk with its section and metadata.",
-  "revision": "099c12af",
-  "verified_on": "2026-11-04",
+  "revision": "6fa0f462",
+  "verified_on": "2026-11-05",
   "entry_points": ["SemanticChunker", "PageComplexityAnalyzer", "ContentTaggingService", "DocumentChunk", "SemanticChunker.chunkText"],
   "files": [
     {"path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "role": "primary", "blob": "084fcae11e0472197a6fa17ea4b2f98da33abcb3"},
@@ -18,7 +18,8 @@
     {"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "role": "test", "blob": "794c22b606fd9349b7e137fb9e63ab0684613e4b"},
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/ContextPackingServiceTests.swift", "role": "test", "blob": "dc6b78ab955a5f7136aa746974e926e6edb998a0"},
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/HybridSearchServiceTests.swift", "role": "test", "blob": "6a7f6fd8976768170687a4a3a580a077338bb112"},
-    {"path": "OpenIntelligenceTests/Services/Document/Chunking/SemanticChunkerLargeTextTests.swift", "role": "test", "blob": "a2f2d3b396b961e7e98a83f7a4dcb9e8733b3082"}
+    {"path": "OpenIntelligenceTests/Services/Document/Chunking/SemanticChunkerLargeTextTests.swift", "role": "test", "blob": "a2f2d3b396b961e7e98a83f7a4dcb9e8733b3082"},
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "effb8c64e93b252f6a1fe34261710c19c4376773"}
   ],
   "nodes": [
     {"id": "SemanticChunker", "kind": "model", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 52, "match": "class SemanticChunker {", "status": "VERIFIED", "by": "build"},
@@ -37,7 +38,7 @@
     {"id": "ChatMessage.sanitizedRetrievedChunks", "kind": "function", "path": "OpenIntelligence/Core/Models/ChatMessage.swift", "line": 134, "match": "nonisolated private func sanitizedRetrievedChunks() -> [RetrievedChunk]? {", "status": "VERIFIED", "by": "build"},
     {"id": "RetrievedChunk.chunk", "kind": "model", "path": "OpenIntelligence/Core/Models/RAGQuery.swift", "line": 58, "match": "let chunk: DocumentChunk", "status": "VERIFIED", "by": "build"},
     {"id": "SpotlightIndexService.indexDocumentChunks", "kind": "function", "path": "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift", "line": 69, "match": "func indexDocumentChunks(", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.makeChunk", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1618, "match": "func makeChunk(rank: Int, title: String, page: Int, snippet: String, score: Float) -> RetrievedChunk {", "status": "VERIFIED", "by": "build"},
+    {"id": "ChatScreen.makeChunk", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 1463, "match": "func makeChunk(rank: Int, title: String, page: Int, snippet: String, score: Float) -> RetrievedChunk {", "status": "VERIFIED", "by": "build"},
     {"id": "SemanticChunker.chunkText", "kind": "function", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 433, "match": "func chunkText(", "status": "VERIFIED", "by": "build"},
     {"id": "SemanticChunker.ChunkingConfig", "kind": "model", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 246, "match": "struct ChunkingConfig: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "SemanticChunker.ChunkingDiagnostics", "kind": "model", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 56, "match": "struct ChunkingDiagnostics: Sendable {", "status": "VERIFIED", "by": "build"},
@@ -56,7 +57,7 @@
     {"from": "ContentTaggingService", "type": "calls", "to": "FoundationModelErrorMapper.recoveryHint", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 236, "match": "if FoundationModelErrorMapper.recoveryHint(for: error) == .contextOverflow,"}], "by": "build", "note": "the call names the type"},
     {"from": "ContentTaggingService", "type": "calls", "to": "ReferenceListDetector.analyse", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 321, "match": "let proseChunks = chunks.filter { !ReferenceListDetector.analyse($0).looksLikeReferenceList }"}], "by": "build", "note": "the call names the type"},
     {"from": "ChatMessage.sanitizedRetrievedChunks", "type": "depends_on", "to": "DocumentChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Core/Models/ChatMessage.swift", "line": 139, "match": "let sanitizedChunk = DocumentChunk("}], "by": "build", "note": "constructs it"},
-    {"from": "ChatScreen.makeChunk", "type": "depends_on", "to": "DocumentChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1629, "match": "let chunk = DocumentChunk("}], "by": "build", "note": "constructs it"},
+    {"from": "ChatScreen.makeChunk", "type": "depends_on", "to": "DocumentChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 1474, "match": "let chunk = DocumentChunk("}], "by": "build", "note": "constructs it"},
     {"from": "SemanticChunker.chunkText", "type": "depends_on", "to": "SemanticChunker.ChunkingConfig", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 436, "match": "config: ChunkingConfig = ChunkingConfig(),"}], "by": "build", "note": "constructs it"},
     {"from": "SemanticChunker.chunkText", "type": "depends_on", "to": "SemanticChunker.ChunkingDiagnostics", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 459, "match": "self.lastDiagnostics = ChunkingDiagnostics("}], "by": "build", "note": "constructs it"},
     {"from": "SemanticChunker.chunkText", "type": "depends_on", "to": "SemanticChunker.EnhancedChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 564, "match": "chunks.append(EnhancedChunk("}], "by": "build", "note": "constructs it"},

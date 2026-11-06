@@ -52,7 +52,7 @@ developers, and product copy is read by people who will not check the source.
   Just Once, Deny), and after Always Allow later sends are not asked about. PCC needs iOS or macOS 27, a
   build made with Swift 6.4 or later, the app's entitlement, and quota left. `[evidence_level:
   code_verified, confidence: high, evidence_source: SettingsStore.swift:44-50, 450-462, LLMModel.swift:218,
-  264-268, ChatScreen.swift:3172-3190, RAGService+SentenceExtraction.swift:624-673, FoundationModelSessionFactory.swift:86-110]`
+  264-268, ChatScreen+Sending.swift:118-136, RAGService+SentenceExtraction.swift:624-673, FoundationModelSessionFactory.swift:86-110]`
 - Three answer modes (added 2026-10-20): Standard, the default for a new install, gathers its evidence in
   one pipeline and writes the answer in one generation, with at most a citation retry and an integrity repair
   on the same route. The nine verification gates then run once and never send the answer back to the model:
