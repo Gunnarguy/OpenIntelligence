@@ -4,8 +4,8 @@
   "name": "Document Analysis",
   "aliases": ["spatial document analyzer", "audio transcription", "language detection", "document summary service", "entity index"],
   "purpose": "Transcribes audio, detects a document's language, and builds its summary, entity index and spatial layout.",
-  "revision": "099c12af",
-  "verified_on": "2026-11-04",
+  "revision": "6516ec30",
+  "verified_on": "2026-11-05",
   "entry_points": ["SpatialDocumentAnalyzer", "DocumentSummaryService", "EntityIndexService", "AudioTranscriptionService", "LanguageDetectionService"],
   "files": [
     {"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "role": "primary", "blob": "9f324f1792470b02f5e71a163339fa5d7ab518a1"},
@@ -20,17 +20,19 @@
     {"path": "OpenIntelligence/Services/Document/Extraction/TranslationService.swift", "role": "primary", "blob": "4f6a402f80f7d10180661aeec9f8779efc616058"},
     {"path": "OpenIntelligenceTests/Services/Document/Analysis/ReferenceListDetectorTests.swift", "role": "test", "blob": "38037db3c93d9875634854d47fc0bfdfcdee27e7"},
     {"path": "OpenIntelligenceTests/Services/Document/Extraction/GazetteerMatchingTests.swift", "role": "test", "blob": "f06eb146582c2a2f07dd8c47096ad8e46a457fa5"},
-    {"path": "OpenIntelligenceTests/Services/Document/Processing/SpeechTranscriptionTests.swift", "role": "test", "blob": "1ece204afd77c8681da05a0f3cc01b19d1868557"}
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/SpeechTranscriptionTests.swift", "role": "test", "blob": "1ece204afd77c8681da05a0f3cc01b19d1868557"},
+    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "role": "shared", "blob": "60608e22de1645d9e34713e3c5d0ab7a00830f44"},
+    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "role": "shared", "blob": "3e4446ddb8b54caa7bd3d290869a87faddcf63dc"}
   ],
   "nodes": [
     {"id": "SpatialDocumentAnalyzer", "kind": "model", "path": "OpenIntelligence/Services/Document/Analysis/SpatialDocumentAnalyzer.swift", "line": 152, "match": "actor SpatialDocumentAnalyzer {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentProcessor.performEnhancedSpatialOCR", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 8095, "match": "private func performEnhancedSpatialOCR(on image: CIImage, pageNumber: Int) async throws -> (text: String, analysis: SpatialPageAnalysis?) {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentProcessor.performEnhancedSpatialOCR", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "line": 690, "match": "func performEnhancedSpatialOCR(on image: CIImage, pageNumber: Int) async throws -> (text: String, analysis: SpatialPageAnalysis?) {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentSummaryService", "kind": "service", "path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 38, "match": "actor DocumentSummaryService {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentSummaryService.SummaryConfig", "kind": "service", "path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 48, "match": "struct SummaryConfig: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "TranslationService.translate", "kind": "function", "path": "OpenIntelligence/Services/Document/Extraction/TranslationService.swift", "line": 80, "match": "func translate(", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentChunk", "kind": "model", "path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "line": 12, "match": "struct DocumentChunk: Identifiable, Codable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "InferenceConfig", "kind": "model", "path": "OpenIntelligence/Core/Models/LLMModel.swift", "line": 121, "match": "struct InferenceConfig {", "status": "VERIFIED", "by": "build"},
-    {"id": "EmbeddingService.generateEmbedding", "kind": "function", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 252, "match": "func generateEmbedding(for text: String) async throws -> [Float] {", "status": "VERIFIED", "by": "build"},
+    {"id": "EmbeddingService.generateEmbedding", "kind": "function", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 263, "match": "func generateEmbedding(for text: String) async throws -> [Float] {", "status": "VERIFIED", "by": "build"},
     {"id": "ChunkMetadata", "kind": "model", "path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "line": 146, "match": "struct ChunkMetadata: Codable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.documentSummaryService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 46, "match": "let documentSummaryService: DocumentSummaryService", "status": "VERIFIED", "by": "build"},
     {"id": "EntityIndexService", "kind": "service", "path": "OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift", "line": 44, "match": "actor EntityIndexService {", "status": "VERIFIED", "by": "build"},
@@ -47,7 +49,7 @@
     {"id": "SpeechAnalyzerService.legacyTranscription", "kind": "function", "path": "OpenIntelligence/Services/Document/Analysis/SpeechAnalyzerService.swift", "line": 373, "match": "private func legacyTranscription(", "status": "VERIFIED", "by": "build"},
     {"id": "LanguageDetectionService", "kind": "service", "path": "OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift", "line": 54, "match": "final class LanguageDetectionService {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentLanguageProfile", "kind": "model", "path": "OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift", "line": 38, "match": "struct DocumentLanguageProfile: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentProcessor.detectDocumentRecognitionLanguagesIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 3455, "match": "private func detectDocumentRecognitionLanguagesIfNeeded(pdfDocument: PDFDocument, pageCount: Int) async {", "status": "VERIFIED", "by": "build"}
+    {"id": "DocumentProcessor.detectDocumentRecognitionLanguagesIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "line": 385, "match": "func detectDocumentRecognitionLanguagesIfNeeded(pdfDocument: PDFDocument, pageCount: Int) async {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "DocumentSummaryService", "type": "depends_on", "to": "DocumentSummaryService.SummaryConfig", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 62, "match": "static let `default` = SummaryConfig("}], "by": "build", "note": "constructs it"},
@@ -61,7 +63,7 @@
     {"from": "AudioTranscriptionService", "type": "depends_on", "to": "DetectedLanguage", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Extraction/AudioTranscriptionService.swift", "line": 261, "match": "language: DetectedLanguage("}], "by": "build", "note": "constructs it"},
     {"from": "LanguageDetectionService", "type": "depends_on", "to": "DetectedLanguage", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift", "line": 95, "match": "let result = DetectedLanguage("}], "by": "build", "note": "constructs it"},
     {"from": "LanguageDetectionService", "type": "depends_on", "to": "DocumentLanguageProfile", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift", "line": 120, "match": "return DocumentLanguageProfile("}], "by": "build", "note": "constructs it"},
-    {"from": "DocumentProcessor.performEnhancedSpatialOCR", "type": "depends_on", "to": "SpatialDocumentAnalyzer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 8103, "match": "let analyzer = SpatialDocumentAnalyzer.shared"}], "by": "build", "note": "named there"},
+    {"from": "DocumentProcessor.performEnhancedSpatialOCR", "type": "depends_on", "to": "SpatialDocumentAnalyzer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "line": 698, "match": "let analyzer = SpatialDocumentAnalyzer.shared"}], "by": "build", "note": "named there"},
     {"from": "DocumentSummaryService", "type": "calls", "to": "EmbeddingService.generateEmbedding", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 134, "match": "let summaryEmbedding = try await embeddingService.generateEmbedding("}], "by": "build", "note": "named in the body"},
     {"from": "DocumentSummaryService", "type": "calls", "to": "ChunkMetadata", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 146, "match": "let metadata = ChunkMetadata("}], "by": "build", "note": "named in the body"},
     {"from": "RAGService.documentSummaryService", "type": "depends_on", "to": "DocumentSummaryService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 46, "match": "let documentSummaryService: DocumentSummaryService"}], "by": "build", "note": "named there"},
@@ -71,7 +73,7 @@
     {"from": "RAGService.removeDocument", "type": "depends_on", "to": "EntityIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "line": 280, "match": "await EntityIndexService.shared.removeDocument(document.id)"}], "by": "build", "note": "named there"},
     {"from": "SpeechAnalyzerService.legacyTranscription", "type": "depends_on", "to": "AudioTranscriptionService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/SpeechAnalyzerService.swift", "line": 379, "match": "let legacyResult = try await AudioTranscriptionService.shared.transcribe("}], "by": "build", "note": "named there"},
     {"from": "TranslationService.translate", "type": "depends_on", "to": "LanguageDetectionService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Extraction/TranslationService.swift", "line": 96, "match": "let detected = LanguageDetectionService.shared.detectQueryLanguage(trimmed)"}], "by": "build", "note": "named there"},
-    {"from": "DocumentProcessor.detectDocumentRecognitionLanguagesIfNeeded", "type": "depends_on", "to": "LanguageDetectionService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 3465, "match": "let profile = await MainActor.run { LanguageDetectionService.shared.analyzeDocument(roughText) }"}], "by": "build", "note": "named there"}
+    {"from": "DocumentProcessor.detectDocumentRecognitionLanguagesIfNeeded", "type": "depends_on", "to": "LanguageDetectionService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "line": 395, "match": "let profile = await MainActor.run { LanguageDetectionService.shared.analyzeDocument(roughText) }"}], "by": "build", "note": "named there"}
   ],
   "docs": [],
   "unknowns": [],

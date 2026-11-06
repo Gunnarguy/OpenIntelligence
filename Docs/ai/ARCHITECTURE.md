@@ -130,7 +130,7 @@ after extraction and before the text is cut, with one row per page for a multi-p
 one, and one row per passage goes in after the vectors are stored. A single-page PDF and every other file get
 no page rows, and a file imported in pieces stores its whole text once at the end. `RAGService.addDocument`
 drives both, and `Docs/INGESTION_PIPELINE.md` §1, "The order the code runs", has the steps.
-`[evidence_level: code_verified, confidence: high, evidence_source: DocumentProcessor.swift:987-1015, 1046,
+`[evidence_level: code_verified, confidence: high, evidence_source: DocumentProcessor+Import.swift:334-362, 1046,
 RAGService+Import.swift:1537, 7981, RAGService+TextStreaming.swift:316-317]`
 
 Query → `Services/Query` rewrites and classifies intent → `HybridSearchService` runs dense vector

@@ -232,7 +232,7 @@ of starting over.
 > length, and a PDF of 10 MB or less takes the ordinary import however many pages it has.
 > The 8 MB rule for text, Markdown and JSON Lines below is the same kind of gate, and a
 > `.json` file over 64 MB is imported in pieces too.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift@1e4a718:7267 (fileSizeMB in units of 1,048,576 bytes) and 7301 (documentType == .pdf && fileSizeMB > 10), RAGService+Streaming.swift:70 (batchSize = 15), DocumentProcessor.swift:691-707 (piecewiseTextBytes, importsInPieces), TextPieceReader.swift:22 (pieceBytes), JSONRecordExtractor.swift:35 (maxFileBytes); read at 1e4a718]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift@1e4a718:7267 (fileSizeMB in units of 1,048,576 bytes) and 7301 (documentType == .pdf && fileSizeMB > 10), RAGService+Streaming.swift:70 (batchSize = 15), DocumentProcessor.swift@1e4a718:691-707 (piecewiseTextBytes, importsInPieces), TextPieceReader.swift:22 (pieceBytes), JSONRecordExtractor.swift:35 (maxFileBytes); read at 1e4a718]`
 
 From 5.7 a text, Markdown or JSON Lines file over 8 MB is imported the same way, in pieces of
 about 2 MB with a checkpoint after each. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro

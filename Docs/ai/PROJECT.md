@@ -33,7 +33,7 @@ developers, and product copy is read by people who will not check the source.
   Corrected 2026-10-20: "Office files" means `.docx`, `.xlsx` and `.pptx`, read from their zipped XML. A
   legacy `.doc`, `.xls` or `.ppt` does not open as a ZIP, and its import fails with "Office document
   detected. For best results, export as PDF before importing." `[evidence_level: code_verified,
-  confidence: high, evidence_source: DocumentProcessor.swift:9389-9487, 10015-10020, 10118-10119]`
+  confidence: high, evidence_source: DocumentProcessor+MediaAndOffice.swift:118-216, 10015-10020, 10118-10119]`
 - On-device indexing: dense vectors plus a SQLite FTS5 keyword index.
   Corrected 2026-10-20: the vectors are 384 numbers a passage from MiniLM-L6-v2 (512 from `NLEmbedding`
   when it stands in), kept in one flat file per library in arrival order, rewritten whole at each save, and
