@@ -1243,56 +1243,6 @@ private func gradientImage(for style: EmbeddingSceneBackgroundStyle) -> Platform
     #endif
 }
 
-private enum AxisDirection { case x, y, z }
-
-#if canImport(UIKit)
-private func axisNode(length: CGFloat, color: UIColor, axis: AxisDirection) -> SCNNode {
-    // CHUNKY visible axis rods - 0.15 radius
-    let cyl = SCNCylinder(radius: 0.15, height: length)
-    let mat = SCNMaterial()
-    mat.diffuse.contents = color
-    mat.emission.contents = color
-    mat.emission.intensity = 1.0
-    mat.lightingModel = .constant
-    cyl.materials = [mat]
-    let node = SCNNode(geometry: cyl)
-    switch axis {
-    case .x:
-        node.eulerAngles = SCNVector3(0, 0, Float.pi/2)
-        node.position = SCNVector3(0, 0, 0)
-    case .y:
-        node.position = SCNVector3(0, 0, 0)
-    case .z:
-        node.eulerAngles = SCNVector3(Float.pi/2, 0, 0)
-        node.position = SCNVector3(0, 0, 0)
-    }
-    return node
-}
-#else
-private func axisNode(length: CGFloat, color: NSColor, axis: AxisDirection) -> SCNNode {
-    // CHUNKY visible axis rods - 0.15 radius
-    let cyl = SCNCylinder(radius: 0.15, height: length)
-    let mat = SCNMaterial()
-    mat.diffuse.contents = color
-    mat.emission.contents = color
-    mat.emission.intensity = 1.0
-    mat.lightingModel = .constant
-    cyl.materials = [mat]
-    let node = SCNNode(geometry: cyl)
-    switch axis {
-    case .x:
-        node.eulerAngles = SCNVector3(0, 0, Float.pi/2)
-        node.position = SCNVector3(0, 0, 0)
-    case .y:
-        node.position = SCNVector3(0, 0, 0)
-    case .z:
-        node.eulerAngles = SCNVector3(Float.pi/2, 0, 0)
-        node.position = SCNVector3(0, 0, 0)
-    }
-    return node
-}
-#endif
-
 // MARK: - Coordinate Normalization (Apple Embedding Atlas style)
 
 /// Scales coordinates to fit viewing space while preserving natural clustering

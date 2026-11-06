@@ -229,6 +229,21 @@ if [ -f "$REPO_ROOT/scripts/verify_doc_claims.py" ] \
 fi
 
 # ---------------------------------------------------------------------------
+# Docs/EdgeToEdge/EDGE_TO_EDGE_FULL.md is its preamble plus the 17 chapter files,
+# byte for byte (2026-11-06). Edits made to one copy and not the other had left
+# the two disagreeing on 13 identifiers. Runs only when that folder is staged.
+# ---------------------------------------------------------------------------
+if [ -f "$REPO_ROOT/scripts/build_edge_to_edge_full.py" ] \
+   && git diff --cached --name-only | grep -q '^Docs/EdgeToEdge/'; then
+  if ! E2E_OUT="$(python3 "$REPO_ROOT/scripts/build_edge_to_edge_full.py" --check 2>&1)"; then
+    echo "======================================================================"
+    echo "$E2E_OUT"
+    echo "======================================================================"
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Advisories. These never block.
 # ---------------------------------------------------------------------------
 ADVICE=()

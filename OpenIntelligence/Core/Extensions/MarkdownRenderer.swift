@@ -741,52 +741,6 @@ public struct MarkdownText: View {
     }
 }
 
-/// Simple code block view (monospace, copy button)
-public struct CodeBlockView: View {
-    public let code: String
-    @State private var copied = false
-
-    public init(code: String) {
-        self.code = code
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: true) {
-                Text(code)
-                    .font(.system(.footnote, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(.vertical, 4)
-            }
-
-            HStack(spacing: 8) {
-                Spacer()
-                Button {
-                    #if canImport(UIKit)
-                    UIPasteboard.general.string = code
-                    DSHaptics.copy()
-                    #elseif canImport(AppKit)
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(code, forType: .string)
-                    #endif
-                    copied = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                        copied = false
-                    }
-                } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark.circle.fill" : "doc.on.doc")
-                        .font(.caption2)
-                }
-                .buttonStyle(.borderless)
-            }
-        }
-        .padding(10)
-        .background(DSColors.surface)
-        .cornerRadius(8)
-    }
-}
-
 // MARK: - Preview
 
 #Preview {

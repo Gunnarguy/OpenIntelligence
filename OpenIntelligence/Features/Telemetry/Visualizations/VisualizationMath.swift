@@ -600,13 +600,3 @@ private struct StatusBadge: View {
         .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
     }
 }
-
-// MARK: - Preview
-
-#Preview {
-    NavigationView {
-        VisualizationsView()
-            .environmentObject(RAGService())
-            .environmentObject(ContainerService())
-    }
-}

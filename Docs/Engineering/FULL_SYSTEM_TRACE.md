@@ -552,7 +552,7 @@ Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path i
    on 8,000 or more, read whole within at most 3,200 evidence tokens where the OS can count tokens
    (iOS and macOS 26.4) and at least 4 fit, else extracted to 3,500 characters (3,000 when Maximum
    runs the chain), of which the prompt keeps 4,000 while no findings are carried and 2,200 after
-   (`AgenticOrchestrator+ReasoningChain.swift:231-287`, `:303-436`, `AgenticOrchestrator+MultiChain.swift:767-772`,
+   (`AgenticOrchestrator+ReasoningChain.swift:231-287`, `:303-436`, `AgenticOrchestrator+MultiChain.swift:248-253`,
    `SessionEvidencePlan.swift:30-76`, `:134-158`). So a session is not "a fresh 4,096-token window"
    but a window sized from the device's own, and Deep Think's session count is the number of
    distinct windows, at most min(8, sessions + 4), which is 8 on every device (`AgenticOrchestrator+ReasoningChain.swift:460`,
@@ -570,8 +570,8 @@ Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path i
    `:954-966`). Its expansion branch (`AgenticOrchestrator+Maximum.swift:724-825`) cannot run, because the saturation streak it
    needs first exists at the start of session 6, where "converged" already stops the loop (insights
    are appended at `AgenticOrchestrator+Maximum.swift:1042`, before confidence at `:1066`, and saturation needs 3 insights,
-   `AgenticPolicyService.swift:397`). `executeMultiChainReasoning` (`AgenticOrchestrator+MultiChain.swift:24`) has no caller, so the
-   cluster task group of §6.4 never runs. The FactBank's claim text reaches a prompt only here, in
+   `AgenticPolicyService.swift:397`). `executeMultiChainReasoning` (`AgenticOrchestrator+MultiChain.swift@b914298b:24`) had no caller, so the
+   cluster task group of §6.4 never ran. (Removed 2026-11-06 with its cluster chains; Maximum runs `executeTrueUnlimitedReasoning`, `AgenticOrchestrator+Maximum.swift`.) `[evidence_level: code_verified, confidence: exact, evidence_source: grep -rw executeMultiChainReasoning OpenIntelligence: no hits after removal]` The FactBank's claim text reaches a prompt only here, in
    the running answer and the final synthesis (`AgenticOrchestrator+Maximum.swift:1310`, `:1370`).
 8. **Where calls run.** Sessions, research decisions and the running answer pass `forceOnDevice: true`,
    and helpers run in an on-device-only fresh session (`RAGService+Agentic.swift:87-132`). The planning calls run on the
@@ -657,8 +657,8 @@ was fixed 2026-08-26 after a new Mac was tiered as M3-era.
 **Since then (note of 2026-10-20, working tree).** Two rows of this ladder change nothing at run time.
 `maxConcurrentAgenticSteps` is only printed in a diagnostic summary, and `agenticStepCooldownMs` has
 no caller (`DeviceCapabilityService.swift:605-639`, `:1714-1715`). In §6.4 below, the "agentic cluster
-insights" task group belongs to `executeMultiChainReasoning`, which nothing calls
-(`AgenticOrchestrator+MultiChain.swift:24`, the task group at `:80`). `[evidence_level: code_verified, confidence: exact]`
+insights" task group belonged to `executeMultiChainReasoning`, which nothing called
+(`AgenticOrchestrator+MultiChain.swift@b914298b:24`, the task group at `@b914298b:80`). (Removed 2026-11-06 with the function; no cluster task group exists now.) `[evidence_level: code_verified, confidence: exact, evidence_source: grep -rw executeMultiChainReasoning OpenIntelligence: no hits after removal]`
 
 ### 6.4 Concurrency topology
 
@@ -667,7 +667,7 @@ insights" task group belongs to `executeMultiChainReasoning`, which nothing call
 | `MainActor` | UI, `RAGService` published state, `DeviceCapabilityService.shared` | UI |
 | Actors | `BNNSVectorDatabase`, `VecturaVectorDatabase`, `SQLiteFullTextService`, `VerificationGateService`, `AsyncVisionSemaphore` | Retrieval, storage, gates, OCR throttle |
 | Serial ingestion loop | `RAGService.runIngestionLoop` (`:4969`) | Ingestion |
-| `withTaskGroup` | Page extraction (`DocumentProcessor+PDFText.swift:755`), embeddings (`CoreMLSentenceEmbeddingProvider.swift:461`), rerank (`RAGEngine.swift:1516`), agentic cluster insights (`AgenticOrchestrator+MultiChain.swift:80`), suggested questions (`SuggestedQuestionsService+Bank.swift:433`) | Ingestion, retrieval, agentic |
+| `withTaskGroup` | Page extraction (`DocumentProcessor+PDFText.swift:755`), embeddings (`CoreMLSentenceEmbeddingProvider.swift:461`), rerank (`RAGEngine.swift:1516`), agentic cluster insights (removed 2026-11-06, `AgenticOrchestrator+MultiChain.swift@b914298b:80`), suggested questions (`SuggestedQuestionsService+Bank.swift:433`) | Ingestion, retrieval, agentic |
 | `async let` | Vector and FTS5 searches in parallel (`HybridSearchService.swift:1032-1037`) | Retrieval |
 | `Task.detached` | Workspace sync and artifact persistence (`WorkspaceSyncService+Bootstrap.swift:607, WorkspaceSyncService+FileCoordination.swift:209`) | Sync |
 | `DispatchQueue` | `com.openintelligence.vectordb` concurrent (`VectorDatabase.swift:98`), camera analysis and capture queues (`CameraManager.swift:30-31`) | Legacy store, camera |

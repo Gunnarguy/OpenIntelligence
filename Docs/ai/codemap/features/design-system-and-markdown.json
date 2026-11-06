@@ -4,11 +4,11 @@
   "name": "Design System and Markdown",
   "aliases": ["design system", "DSColors", "surface card", "markdown renderer", "info button"],
   "purpose": "The shared colors, cards and haptics, and the Markdown renderer for answers and pages.",
-  "revision": "099c12af",
-  "verified_on": "2026-11-04",
+  "revision": "b914298b",
+  "verified_on": "2026-11-06",
   "entry_points": ["DSColors", "SurfaceCard", "MarkdownParser", "MarkdownText"],
   "files": [
-    {"path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "role": "primary", "blob": "918b46dc4606400364ee13470c61785e1bd02646"},
+    {"path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "role": "primary", "blob": "64ef30293678182fedd718f7ebe51899325f49bf"},
     {"path": "OpenIntelligence/UI/Components/InfoButtonView.swift", "role": "primary", "blob": "3fb328fa06f02b27f9e02c15a5cd50fdad36de37"},
     {"path": "OpenIntelligence/UI/DesignSystem/SurfaceCard.swift", "role": "primary", "blob": "5ba0b358d9cb806e7aed71fc7dcab1ad91069691"},
     {"path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "role": "primary", "blob": "673e1583f91b5a88d77d370b03cab6c7570c20d0"},
@@ -59,7 +59,6 @@
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [
       {"id": "MarkdownParserTesting", "kind": "model", "path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "line": 56, "match": "enum MarkdownParserTesting {", "status": "VERIFIED"},
-      {"id": "CodeBlockView", "kind": "view", "path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "line": 745, "match": "public struct CodeBlockView: View {", "status": "VERIFIED"},
       {"id": "InfoButtonView", "kind": "view", "path": "OpenIntelligence/UI/Components/InfoButtonView.swift", "line": 9, "match": "struct InfoButtonView: View {", "status": "VERIFIED"},
       {"id": "SectionHeader", "kind": "view", "path": "OpenIntelligence/UI/DesignSystem/SurfaceCard.swift", "line": 45, "match": "public struct SectionHeader: View {", "status": "VERIFIED"},
       {"id": "DSSpacing", "kind": "model", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 274, "match": "public enum DSSpacing {", "status": "VERIFIED"},
@@ -69,7 +68,6 @@
     ],
     "edges": [
       {"from": "MarkdownBlockView", "type": "depends_on", "to": "DSColors", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "line": 512, "match": ".fill(DSColors.accent.opacity(0.3))"}]},
-      {"from": "CodeBlockView", "type": "depends_on", "to": "DSColors", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Extensions/MarkdownRenderer.swift", "line": 785, "match": ".background(DSColors.surface)"}]},
       {"from": "InfoButtonView", "type": "depends_on", "to": "DSColors", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/UI/Components/InfoButtonView.swift", "line": 21, "match": ".foregroundStyle(DSColors.accent)"}]},
       {"from": "InfoButtonView", "type": "depends_on", "to": "DSSpacing", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/UI/Components/InfoButtonView.swift", "line": 24, "match": "VStack(alignment: .leading, spacing: DSSpacing.md) {"}]},
       {"from": "SurfaceCard", "type": "depends_on", "to": "DSSpacing", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/UI/DesignSystem/SurfaceCard.swift", "line": 15, "match": "padding: CGFloat = DSSpacing.lg,"}]},

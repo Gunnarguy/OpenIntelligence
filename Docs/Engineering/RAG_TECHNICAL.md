@@ -182,7 +182,7 @@ and the website all carry it and must move together.
   writing the answer, so a bad extraction becomes a bad *candidate* the verification gates can catch
   rather than an answer that skipped them. Both `exact_value` failures in the current benchmark
   (`exact_service_interval`, `exact_temperature_limit`) sit in this area.
-  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4156-4174 commented block, GroundedAnswerPolicy.swift:38-66, ModelExecutionPlanner.swift:69-72, RAGService+QueryPipeline.swift:4563 and FoundationModelRoutePolicy.swift:36 both grouping .deterministic with .onDevice]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4156-4174 commented block, GroundedAnswerPolicy.swift@2fae8509^:38-66 (removed in 2fae8509), ModelExecutionPlanner.swift:69-72, RAGService+QueryPipeline.swift:4563 and FoundationModelRoutePolicy.swift:36 both grouping .deterministic with .onDevice]`
 - `VerificationGateService.swift` now defines gates A-I, not only A-G.
 - The vector store is not only HNSW. The current BNNS/Accelerate implementation persists memory-mapped vectors and uses Metal for larger searches when available; Vectura/HNSW is a selectable backend path.
 - Full GraphRAG is not a shipped claim. The app has graph-style context packing, deterministic entities, and RAPTOR-lite summaries, but not evaluated LLM-derived entity graph/community summaries.

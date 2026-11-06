@@ -317,6 +317,8 @@ struct ReasonedAnswer {
 }
 ```
 
+(This is a generic sketch. The app's own `ReasonedAnswer` type in `RAGStructuredResponse.swift` followed this pattern but had no caller and was removed 2026-11-06; the live guided-generation types in that file are `RAGAnswer` and `DirectRAGAnswer`. `[evidence_level: code_verified, confidence: exact, evidence_source: grep -rn "ReasonedAnswer" OpenIntelligence (no hits), RAGStructuredResponse.swift:39 and :61]`)
+
 Prompt pattern:
 
 ```swift

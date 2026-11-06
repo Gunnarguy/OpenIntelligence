@@ -64,7 +64,7 @@ developers, and product copy is read by people who will not check the source.
   (in 5.6 those answers read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop and its stop rules.
   `[evidence_level: code_verified, confidence: high, evidence_source: SettingsStore.swift:617-624,
   RAGService+QueryPipeline.swift:252, RAGService+AgenticQuery.swift:802-826, RAGService+QueryPipeline.swift:4960-5078, RAGService+QueryPipeline.swift:5257-5520, RAGService+QueryPipeline.swift:5557-5581, RAGService+AnswerFinishing.swift:428-453,
-  AgenticOrchestrator.swift:180, 385-984, AgenticOrchestrator+ReasoningChain.swift:623, RAGService+Agentic.swift:208-220]`
+  AgenticOrchestrator.swift:180, 386-985, AgenticOrchestrator+ReasoningChain.swift:623, RAGService+Agentic.swift:208-220]`
 - iCloud sync of the document library across a user's own devices.
 - Siri Shortcuts and App Intents.
 - Paid tiers with quotas.

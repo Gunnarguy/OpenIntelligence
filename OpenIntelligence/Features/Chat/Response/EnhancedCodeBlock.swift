@@ -259,49 +259,6 @@ private struct SyntaxHighlightedLine: View {
     }
 }
 
-// MARK: - Compact Code Block
-
-/// Minimal code block for inline use
-struct CompactCodeBlock: View {
-    let code: String
-    let language: String?
-
-    @State private var copied = false
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text(code)
-                .scaledFont(size: 12, design: .monospaced)
-                .foregroundStyle(DSColors.primaryText)
-                .padding(DSSpacing.sm)
-
-            Spacer(minLength: 0)
-
-            Button {
-                #if canImport(UIKit)
-                UIPasteboard.general.string = code
-                #elseif canImport(AppKit)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(code, forType: .string)
-                #endif
-                withAnimation(DSAnimations.fastEase) { copied = true }
-                DSHaptics.selection()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation(DSAnimations.fastEase) { copied = false }
-                }
-            } label: {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .scaledFont(size: 11)
-                    .foregroundStyle(copied ? .green : DSColors.secondaryText)
-                    .padding(DSSpacing.sm)
-            }
-            .buttonStyle(.plain)
-        }
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.chip, style: .continuous))
-    }
-}
-
 #Preview("Enhanced Code Block") {
     VStack(spacing: 16) {
         EnhancedCodeBlock(

@@ -746,8 +746,8 @@ supposed to be agentic.
   verdict stops the loop, since research takes only the question; through 5.7 at most two calls, the third strike
   stopping it). Maximum reaches neither. (Corrected 2026-10-20: this said
   exactly one call site, which the 2026-10-18 note below already contradicts.)
-  `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:386-472, AgenticOrchestrator.swift:526-575, AgenticOrchestrator.swift:639, AgenticOrchestrator.swift:745, AgenticOrchestrator+SelfRAG.swift:485-559]`
-  `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "executeRecursiveResearch(" OpenIntelligence OpenIntelligenceTests finds only AgenticOrchestrator.swift:572 and AgenticOrchestrator+SelfRAG.swift:547]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:387-473, AgenticOrchestrator.swift:527-576, AgenticOrchestrator.swift:640, AgenticOrchestrator.swift:746, AgenticOrchestrator+SelfRAG.swift:485-559]`
+  `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "executeRecursiveResearch(" OpenIntelligence OpenIntelligenceTests finds only AgenticOrchestrator.swift:573 and AgenticOrchestrator+SelfRAG.swift:547]`
   **Changed 2026-08-14:** that call was gated solely on
   `answerIndicatesRetrievalMiss(chainResult.finalAnswer)`, a string heuristic scanning the answer
   for hedging. It fails in both directions: a confidently wrong answer contains no hedging so the
@@ -809,7 +809,7 @@ Deep Think: research when the chain ends below its own sub-question coverage tar
 reads like a miss (excellent searches only), and the research call in the Self-RAG loop. (Corrected
 2026-10-20: this said eight sessions, and that research runs only if a regex over the final answer
 decides the sessions failed, which the 2026-08-14 coverage gate above had already changed.)
-`[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:180, AgenticOrchestrator.swift:385-984, AgenticOrchestrator.swift:526-532, AgenticOrchestrator+Retrieval.swift:1055-1137, AgenticOrchestrator+SelfRAG.swift:547, AgenticOrchestrator+ReasoningChain.swift:429-440, AgenticOrchestrator+ReasoningChain.swift:623, AgenticOrchestrator+Maximum.swift:590-593, AgenticOrchestrator+Maximum.swift:919-937, AgenticOrchestrator+MultiChain.swift:536-576, AgenticPolicyService.swift:99-126]`
+`[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:180, AgenticOrchestrator.swift:386-985, AgenticOrchestrator.swift:527-533, AgenticOrchestrator+Retrieval.swift:1055-1137, AgenticOrchestrator+SelfRAG.swift:547, AgenticOrchestrator+ReasoningChain.swift:429-440, AgenticOrchestrator+ReasoningChain.swift:623, AgenticOrchestrator+Maximum.swift:590-593, AgenticOrchestrator+Maximum.swift:919-937, AgenticOrchestrator+MultiChain.swift:17-57, AgenticPolicyService.swift:99-126]`
 
 **A separate concern, not to be confused with the above.** Standard's context packing has its own
 defects, and they are packing defects rather than agency defects: the budget drops chunks past its

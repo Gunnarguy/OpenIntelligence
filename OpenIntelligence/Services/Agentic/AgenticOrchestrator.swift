@@ -379,7 +379,8 @@ final class AgenticOrchestrator: Sendable {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // DECISION POINT: Based on retrieval quality
         // Use REASONING CHAIN for excellent/good to multiply effective context
-        // MAXIMUM MODE: Use MULTI-CHAIN for parallel processing across document clusters
+        // MAXIMUM MODE: gather the library's relevant passages, then the True Unlimited loop with its Fact Bank
+        // (executeTrueUnlimitedReasoning). The parallel per-cluster multi-chain path it replaced was removed 2026-11-06.
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         switch retrievalQuality {

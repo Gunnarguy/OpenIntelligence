@@ -45,11 +45,11 @@ TipKit has no API tagged iOS 27 in this SDK. Apple's own change list stops at 20
   and nothing displays them or donates their events. They become the composer, Add Document and New Library tips below.
 - **The setup step that may never finish.** The welcome's third step completes only when the model is changed by hand
   (`OnboardingStateStore`, `ContentView.swift:419`), and the only screen that changes it, `QuickModelPickerSheet`, isn't
-  used anywhere. So the launcher at the bottom right may stay until skipped. Not seen on a device; checked first.
+  used anywhere (removed 2026-11-06: only a `#Preview` created it; `ModelStatusIndicator`'s menu is the live picker `[evidence_level: code_verified, confidence: exact, evidence_source: grep -rw QuickModelPickerSheet OpenIntelligence: no hits after removal; ModelStatusIndicator.swift:11]`). So the launcher at the bottom right may stay until skipped. Not seen on a device; checked first.
 - **An answer's buttons are hidden behind a tap on the bubble** (`MessageBubbleV2.swift:191`) and nothing says so. Tip 2.4.
 - **Not tipped, because they don't work:** Illustrate under an answer is never shown (ChatScreen never passes
   `onIllustrate`); the source chips under an answer do nothing (an empty closure, ChatScreen :971); the old 3D view's
-  controls are unreachable (`VisualizationsView` is used by nothing). Each gets a Future Backlog row rather than a tip.
+  controls are unreachable (`VisualizationsView` was used by nothing; removed 2026-11-06 with `PipelineTimelineView` and `SemanticClusteringView`, and the Atlas tab shows `AdaptiveVisualizationsView` `[evidence_level: code_verified, confidence: exact, evidence_source: grep -rw VisualizationsView OpenIntelligence: only provenance comments in moved files, no declaration or use after removal; AdaptiveVisualizationsView.swift exists]`). Each gets a Future Backlog row rather than a tip.
 
 ## The tips, screen by screen
 

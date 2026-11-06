@@ -42,7 +42,7 @@ RAGService.swift:N` (map in `Docs/ai/split-2026-11-05-linemap.json`, lines as of
 | `AgenticOrchestrator+SelfRAG.swift` | 1,210 | Self-RAG, Self-RAG 2.0 verification and citations, speculative RAG |
 | `AgenticOrchestrator+ReasoningChain.swift` | 1,317 | `executeReasoningChain` (Deep Think's sessions) |
 | `AgenticOrchestrator+Maximum.swift` | 1,539 | `executeTrueUnlimitedReasoning` (Maximum) |
-| `AgenticOrchestrator+MultiChain.swift` | 1,536 | multi-chain execution |
+| `AgenticOrchestrator+MultiChain.swift` | 1,017 | the shared chain helpers: `gatherAllRelevantChunks` (Maximum's larger pool), chain and session prompts, insight extraction, answer cleanup. The multi-chain path itself (1,536 lines before) had no caller and was removed 2026-11-06. |
 | `RAGService+Agentic.swift` | 374 | the `RAGService` extension the orchestrator uses |
 
 `[evidence_level: measured, confidence: exact, evidence_source: wc -l after the split; the move check that every original line is in the new files once, access keywords aside]`
@@ -64,7 +64,7 @@ Fifteen more files, 60,585 lines in all, were split the same way that night: who
 | `SuggestedQuestionsService.swift` (`Services/Query/UX/`) | 4,463 | 6 files, largest 1,717 lines | One file per step: `+Bank` (bank and API), `+ChunkSelection`, `+LLMGeneration`, `+ContentFallback` (steps 3 and 4), `+Grounding`. |
 | `SQLiteFullTextService.swift` (`Services/Storage/`) | 3,684 | 6 files, largest 1,068 lines | `+Documents`, `+Chunks`, `+Search`, `+Statistics`, `+ContentReader`. The schema (initialization, migrations, column helpers) stays in the main file, unchanged. Hard boundary: the owner names it before an edit. |
 | `WorkspaceSyncService.swift` (`Services/Infrastructure/Storage/`) | 4,275 | 7 files, largest 769 lines | `+Bootstrap`, `+LibrarySync`, `+Merging`, `+Artifacts`, `+Reconciliation`, `+FileCoordination`, cut at member boundaries (no section markers). Hard boundary across all of them. |
-| `VisualizationsView.swift` (`Features/Telemetry/Visualizations/`) | 3,661 | 10 files, largest 612 lines | 35 views; groups moved whole into files named for the view they serve, plus `VisualizationMath`. |
+| `VisualizationsView.swift` (`Features/Telemetry/Visualizations/`) | 3,661 | 10 files, largest 612 lines; 7 since 2026-11-06 | 35 views; groups moved whole into files named for the view they serve, plus `VisualizationMath`. No screen presented `VisualizationsView`, so on 2026-11-06 it was removed with `PipelineTimelineView.swift` and `SemanticClusteringView.swift`; `SimilarityHeatmapView`, `CorpusStatsViews`, `QueryAnalyticsView` and `VisualizationMath` stay, parked for a rewire (roadmap, Future Backlog). |
 | `DatabaseDashboardView.swift` (`Features/Database/`) | 2,806 | 8 files, largest 539 lines | `+Header`, `+Overview`, `+Index`, `+MaintenanceAndSearch`; `DatabaseSupportingViews`, `LibraryIntelligenceCard`, `DocumentPreviewSheet` moved whole. |
 | `ContainerSettingsSheet+Sections.swift` (`Features/Documents/Settings/`) | 2,001 | 6 files, largest 648 lines | `ContainerSettingsSheet+Chunking`, `+Intelligence`, `+Search`, `+NerdStats`; `ChunkingPreview` moved whole. |
 | `DocumentLibraryView.swift` (`Features/Documents/Library/`) | 2,597 | 5 files, largest 709 lines | `+DocumentList`, `+SharedWorkspace`, `+Body`, `+Actions`, cut at member boundaries (no section markers). Stays: the view's state and derived values. |
