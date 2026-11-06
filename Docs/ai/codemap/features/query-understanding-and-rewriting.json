@@ -2,1333 +2,145 @@
   "schema": "codemap/1",
   "id": "query-understanding-and-rewriting",
   "name": "Query Understanding and Rewriting",
-  "aliases": [
-    "query rewriter",
-    "HyDE service",
-    "query complexity analyzer",
-    "query router service",
-    "contextual compression"
-  ],
+  "aliases": ["query rewriter", "HyDE service", "query complexity analyzer", "query router service", "contextual compression"],
   "purpose": "Rewrites and classifies a question before retrieval, including HyDE hypothetical answers and entity extraction.",
   "revision": "099c12af",
   "verified_on": "2026-11-04",
-  "entry_points": [
-    "QueryRewriterService",
-    "HyDEService",
-    "QueryComplexityAnalyzer",
-    "QueryExecutionPlannerService",
-    "QueryRouterService",
-    "QueryEnhancementService"
-  ],
+  "entry_points": ["QueryRewriterService", "HyDEService", "QueryComplexityAnalyzer", "QueryExecutionPlannerService", "QueryRouterService", "QueryEnhancementService"],
   "files": [
-    {
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift",
-      "role": "primary",
-      "blob": "7424e5795011c9924f68e909ea872bffffaf9e94"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-      "role": "primary",
-      "blob": "cb1ac72e19b45bac0a7d0ee794b779841c0d20c1"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-      "role": "primary",
-      "blob": "64185644c8896c2f39d88b08239d21fb7fca7fdc"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-      "role": "primary",
-      "blob": "9dc450ca33bb23c93029fdd2c8537703359d57e0"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift",
-      "role": "primary",
-      "blob": "f94c467d44dc0290c8a337e1d5302cf94bffc5a4"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift",
-      "role": "primary",
-      "blob": "e223030c72778b0987acba0ded97ad5f94ba8c98"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift",
-      "role": "primary",
-      "blob": "2fa314ee3c1a8aa8b8989ce35019be1a406a8c9b"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift",
-      "role": "primary",
-      "blob": "a485a2edb7c2059fc79dee29e9aa2b7046d30245"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift",
-      "role": "primary",
-      "blob": "7d9e46cab3791cbbc77f4daa0af659ae544a480c"
-    },
-    {
-      "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift",
-      "role": "test",
-      "blob": "d4637aa4e1bc4f095d9b097484a43acb7d63fe97"
-    },
-    {
-      "path": "OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift",
-      "role": "test",
-      "blob": "d4e2ff8b1663847f56a1cdd5c5dc7fdb9f5f7d2d"
-    },
-    {
-      "path": "OpenIntelligence/Services/Query/Enhancement/DayOrdinals.swift",
-      "role": "primary",
-      "blob": "dc1ed5d9d88407c50b91a8cc50b9f6592ce83451"
-    },
-    {
-      "path": "OpenIntelligenceTests/Services/Query/DayOrdinalsTests.swift",
-      "role": "test",
-      "blob": "c422c310f236ebcf95cd7d7b555b6dda148e8df1"
-    }
+    {"path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "role": "primary", "blob": "7424e5795011c9924f68e909ea872bffffaf9e94"},
+    {"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "role": "primary", "blob": "cb1ac72e19b45bac0a7d0ee794b779841c0d20c1"},
+    {"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "role": "primary", "blob": "64185644c8896c2f39d88b08239d21fb7fca7fdc"},
+    {"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "role": "primary", "blob": "9dc450ca33bb23c93029fdd2c8537703359d57e0"},
+    {"path": "OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift", "role": "primary", "blob": "f94c467d44dc0290c8a337e1d5302cf94bffc5a4"},
+    {"path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "role": "primary", "blob": "e223030c72778b0987acba0ded97ad5f94ba8c98"},
+    {"path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift", "role": "primary", "blob": "2fa314ee3c1a8aa8b8989ce35019be1a406a8c9b"},
+    {"path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "role": "primary", "blob": "a485a2edb7c2059fc79dee29e9aa2b7046d30245"},
+    {"path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "role": "primary", "blob": "7d9e46cab3791cbbc77f4daa0af659ae544a480c"},
+    {"path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "role": "test", "blob": "d4637aa4e1bc4f095d9b097484a43acb7d63fe97"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift", "role": "test", "blob": "d4e2ff8b1663847f56a1cdd5c5dc7fdb9f5f7d2d"},
+    {"path": "OpenIntelligence/Services/Query/Enhancement/DayOrdinals.swift", "role": "primary", "blob": "dc1ed5d9d88407c50b91a8cc50b9f6592ce83451"},
+    {"path": "OpenIntelligenceTests/Services/Query/DayOrdinalsTests.swift", "role": "test", "blob": "c422c310f236ebcf95cd7d7b555b6dda148e8df1"}
   ],
   "nodes": [
-    {
-      "id": "QueryRewriterService",
-      "kind": "service",
-      "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift",
-      "line": 57,
-      "match": "final class QueryRewriterService: @unchecked Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "RewrittenQuery",
-      "kind": "model",
-      "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift",
-      "line": 26,
-      "match": "struct RewrittenQuery: Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "RAGService.queryInternal",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
-      "line": 126,
-      "match": "func queryInternal(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "HyDEService",
-      "kind": "service",
-      "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift",
-      "line": 22,
-      "match": "final class HyDEService: @unchecked Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "SQLiteFullTextService.checkVocabularyPresence",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift",
-      "line": 3533,
-      "match": "func checkVocabularyPresence(words: [String], containerId: UUID? = nil) async -> [String: Bool] {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "HyDEResult",
-      "kind": "model",
-      "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift",
-      "line": 237,
-      "match": "struct HyDEResult: Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryComplexityAnalyzer",
-      "kind": "model",
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift",
-      "line": 32,
-      "match": "final class QueryComplexityAnalyzer: Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryComplexityResult",
-      "kind": "model",
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift",
-      "line": 13,
-      "match": "struct QueryComplexityResult: Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "RAGService.executeStandardReasoningChain",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
-      "line": 27,
-      "match": "func executeStandardReasoningChain(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryProfileService.buildProfile",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-      "line": 60,
-      "match": "func buildProfile(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryExecutionPlannerService",
-      "kind": "service",
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-      "line": 46,
-      "match": "final class QueryExecutionPlannerService {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryExecutionPlan",
-      "kind": "model",
-      "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-      "line": 25,
-      "match": "struct QueryExecutionPlan: Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "AgenticOrchestrator.generateSearchQueries",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift",
-      "line": 785,
-      "match": "func generateSearchQueries(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryRuntimeCoordinator.resolveContext",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift",
-      "line": 130,
-      "match": "func resolveContext(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryRouterService",
-      "kind": "service",
-      "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift",
-      "line": 84,
-      "match": "actor QueryRouterService {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryClassification",
-      "kind": "model",
-      "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift",
-      "line": 64,
-      "match": "struct QueryClassification: Sendable {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "RAGService.queryRouter",
-      "kind": "service",
-      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
-      "line": 47,
-      "match": "let queryRouter = QueryRouterService()",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "QueryEnhancementService",
-      "kind": "service",
-      "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift",
-      "line": 172,
-      "match": "final class QueryEnhancementService {",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "AgenticOrchestrator.executeReasoningChain",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift",
-      "line": 180,
-      "match": "func executeReasoningChain(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "SuggestedQuestionsService.isAnswerableSuggestedQuestion",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift",
-      "line": 3385,
-      "match": "private func isAnswerableSuggestedQuestion(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "RAGService.executeAgenticPrecisionLookupIfAvailable",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift",
-      "line": 124,
-      "match": "private func executeAgenticPrecisionLookupIfAvailable(",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "test:AnswerIntentClassificationTests.swift",
-      "kind": "test",
-      "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift",
-      "line": 1,
-      "match": "import XCTest",
-      "status": "VERIFIED",
-      "by": "build"
-    },
-    {
-      "id": "DayOrdinals",
-      "kind": "function",
-      "path": "OpenIntelligence/Services/Query/Enhancement/DayOrdinals.swift",
-      "match": "static func cardinal(_ text: String) -> String {",
-      "status": "VERIFIED",
-      "by": "test"
-    }
+    {"id": "QueryRewriterService", "kind": "service", "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "line": 57, "match": "final class QueryRewriterService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "RewrittenQuery", "kind": "model", "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "line": 26, "match": "struct RewrittenQuery: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.queryInternal", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 126, "match": "func queryInternal(", "status": "VERIFIED", "by": "build"},
+    {"id": "HyDEService", "kind": "service", "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift", "line": 22, "match": "final class HyDEService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.checkVocabularyPresence", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 3533, "match": "func checkVocabularyPresence(words: [String], containerId: UUID? = nil) async -> [String: Bool] {", "status": "VERIFIED", "by": "build"},
+    {"id": "HyDEResult", "kind": "model", "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift", "line": 237, "match": "struct HyDEResult: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryComplexityAnalyzer", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "line": 32, "match": "final class QueryComplexityAnalyzer: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryComplexityResult", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "line": 13, "match": "struct QueryComplexityResult: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.executeStandardReasoningChain", "kind": "function", "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "line": 27, "match": "func executeStandardReasoningChain(", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryProfileService.buildProfile", "kind": "function", "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 60, "match": "func buildProfile(", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryExecutionPlannerService", "kind": "service", "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 46, "match": "final class QueryExecutionPlannerService {", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryExecutionPlan", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 25, "match": "struct QueryExecutionPlan: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "AgenticOrchestrator.generateSearchQueries", "kind": "function", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift", "line": 785, "match": "func generateSearchQueries(", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryRuntimeCoordinator.resolveContext", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift", "line": 130, "match": "func resolveContext(", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryRouterService", "kind": "service", "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "line": 84, "match": "actor QueryRouterService {", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryClassification", "kind": "model", "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "line": 64, "match": "struct QueryClassification: Sendable {", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.queryRouter", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 47, "match": "let queryRouter = QueryRouterService()", "status": "VERIFIED", "by": "build"},
+    {"id": "QueryEnhancementService", "kind": "service", "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 172, "match": "final class QueryEnhancementService {", "status": "VERIFIED", "by": "build"},
+    {"id": "AgenticOrchestrator.executeReasoningChain", "kind": "function", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift", "line": 180, "match": "func executeReasoningChain(", "status": "VERIFIED", "by": "build"},
+    {"id": "SuggestedQuestionsService.isAnswerableSuggestedQuestion", "kind": "function", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 3385, "match": "private func isAnswerableSuggestedQuestion(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.executeAgenticPrecisionLookupIfAvailable", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 124, "match": "private func executeAgenticPrecisionLookupIfAvailable(", "status": "VERIFIED", "by": "build"},
+    {"id": "test:AnswerIntentClassificationTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
+    {"id": "DayOrdinals", "kind": "function", "path": "OpenIntelligence/Services/Query/Enhancement/DayOrdinals.swift", "match": "static func cardinal(_ text: String) -> String {", "status": "VERIFIED", "by": "test"}
   ],
   "edges": [
-    {
-      "from": "QueryRewriterService",
-      "type": "depends_on",
-      "to": "RewrittenQuery",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift",
-          "line": 105,
-          "match": "return RewrittenQuery("
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "RAGService.queryInternal",
-      "type": "calls",
-      "to": "QueryRewriterService",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
-          "line": 670,
-          "match": "let queryRewriter = QueryRewriterService("
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "HyDEService",
-      "type": "calls",
-      "to": "SQLiteFullTextService.checkVocabularyPresence",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift",
-          "line": 128,
-          "match": "let presence = await SQLiteFullTextService.shared.checkVocabularyPresence("
-        }
-      ],
-      "by": "build",
-      "note": "the call names the type"
-    },
-    {
-      "from": "HyDEService",
-      "type": "depends_on",
-      "to": "HyDEResult",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift",
-          "line": 184,
-          "match": "return HyDEResult("
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "QueryComplexityAnalyzer",
-      "type": "depends_on",
-      "to": "QueryComplexityResult",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift",
-          "line": 222,
-          "match": "return QueryComplexityResult("
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "QueryExecutionPlannerService",
-      "type": "calls",
-      "to": "QueryProfileService.buildProfile",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-          "line": 114,
-          "match": "resolvedProfile = await QueryProfileService.shared.buildProfile(for: query, routingEnabled: false)"
-        }
-      ],
-      "by": "build",
-      "note": "the call names the type"
-    },
-    {
-      "from": "QueryExecutionPlannerService",
-      "type": "depends_on",
-      "to": "QueryExecutionPlan",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-          "line": 148,
-          "match": "return QueryExecutionPlan("
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "QueryRouterService",
-      "type": "depends_on",
-      "to": "QueryClassification",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift",
-          "line": 208,
-          "match": "return QueryClassification("
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "RAGService.queryRouter",
-      "type": "depends_on",
-      "to": "QueryRouterService",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
-          "line": 47,
-          "match": "let queryRouter = QueryRouterService()"
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "AgenticOrchestrator.executeReasoningChain",
-      "type": "calls",
-      "to": "QueryEnhancementService",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift",
-          "line": 202,
-          "match": "let queryEnhancer = QueryEnhancementService()"
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "SuggestedQuestionsService.isAnswerableSuggestedQuestion",
-      "type": "calls",
-      "to": "QueryEnhancementService",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift",
-          "line": 3389,
-          "match": "let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)"
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "RAGService.executeAgenticPrecisionLookupIfAvailable",
-      "type": "calls",
-      "to": "QueryEnhancementService",
-      "status": "VERIFIED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift",
-          "line": 130,
-          "match": "let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)"
-        }
-      ],
-      "by": "build",
-      "note": "constructs it"
-    },
-    {
-      "from": "RAGService.queryInternal",
-      "type": "depends_on",
-      "to": "HyDEService",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
-          "line": 945,
-          "match": "let hydeIsAvailable = HyDEService.isAvailable"
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "RAGService.executeStandardReasoningChain",
-      "type": "depends_on",
-      "to": "QueryComplexityAnalyzer",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
-          "line": 33,
-          "match": "let complexity = QueryComplexityAnalyzer.shared.analyze(query).complexity"
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "QueryProfileService.buildProfile",
-      "type": "depends_on",
-      "to": "QueryComplexityAnalyzer",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-          "line": 69,
-          "match": "let reasoningComplexity = QueryComplexityAnalyzer.shared.analyze(query)"
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "AgenticOrchestrator.generateSearchQueries",
-      "type": "depends_on",
-      "to": "QueryExecutionPlannerService",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift",
-          "line": 793,
-          "match": "let executionPlan = await QueryExecutionPlannerService.shared.buildPlan("
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "QueryRuntimeCoordinator.resolveContext",
-      "type": "depends_on",
-      "to": "QueryExecutionPlannerService",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift",
-          "line": 202,
-          "match": "let queryPlan = await QueryExecutionPlannerService.shared.buildPlan("
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "RAGService.queryInternal",
-      "type": "depends_on",
-      "to": "QueryExecutionPlannerService",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
-          "line": 790,
-          "match": "let effectiveQueryPlan = await QueryExecutionPlannerService.shared.buildPlan("
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "QueryProfileService.buildProfile",
-      "type": "depends_on",
-      "to": "QueryRouterService",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-          "line": 63,
-          "match": "queryRouter: QueryRouterService? = nil,"
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "QueryProfileService.buildProfile",
-      "type": "depends_on",
-      "to": "QueryEnhancementService",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-          "line": 62,
-          "match": "queryEnhancer: QueryEnhancementService? = nil,"
-        }
-      ],
-      "by": "build",
-      "note": "named there"
-    },
-    {
-      "from": "QueryEnhancementService",
-      "type": "tested_by",
-      "to": "test:AnswerIntentClassificationTests.swift",
-      "status": "INFERRED",
-      "evidence": [
-        {
-          "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift",
-          "line": 14,
-          "match": "private let service = QueryEnhancementService()"
-        }
-      ],
-      "by": "build",
-      "note": "the test names it"
-    }
+    {"from": "QueryRewriterService", "type": "depends_on", "to": "RewrittenQuery", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "line": 105, "match": "return RewrittenQuery("}], "by": "build", "note": "constructs it"},
+    {"from": "RAGService.queryInternal", "type": "calls", "to": "QueryRewriterService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 670, "match": "let queryRewriter = QueryRewriterService("}], "by": "build", "note": "constructs it"},
+    {"from": "HyDEService", "type": "calls", "to": "SQLiteFullTextService.checkVocabularyPresence", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift", "line": 128, "match": "let presence = await SQLiteFullTextService.shared.checkVocabularyPresence("}], "by": "build", "note": "the call names the type"},
+    {"from": "HyDEService", "type": "depends_on", "to": "HyDEResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift", "line": 184, "match": "return HyDEResult("}], "by": "build", "note": "constructs it"},
+    {"from": "QueryComplexityAnalyzer", "type": "depends_on", "to": "QueryComplexityResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "line": 222, "match": "return QueryComplexityResult("}], "by": "build", "note": "constructs it"},
+    {"from": "QueryExecutionPlannerService", "type": "calls", "to": "QueryProfileService.buildProfile", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 114, "match": "resolvedProfile = await QueryProfileService.shared.buildProfile(for: query, routingEnabled: false)"}], "by": "build", "note": "the call names the type"},
+    {"from": "QueryExecutionPlannerService", "type": "depends_on", "to": "QueryExecutionPlan", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 148, "match": "return QueryExecutionPlan("}], "by": "build", "note": "constructs it"},
+    {"from": "QueryRouterService", "type": "depends_on", "to": "QueryClassification", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "line": 208, "match": "return QueryClassification("}], "by": "build", "note": "constructs it"},
+    {"from": "RAGService.queryRouter", "type": "depends_on", "to": "QueryRouterService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 47, "match": "let queryRouter = QueryRouterService()"}], "by": "build", "note": "constructs it"},
+    {"from": "AgenticOrchestrator.executeReasoningChain", "type": "calls", "to": "QueryEnhancementService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift", "line": 202, "match": "let queryEnhancer = QueryEnhancementService()"}], "by": "build", "note": "constructs it"},
+    {"from": "SuggestedQuestionsService.isAnswerableSuggestedQuestion", "type": "calls", "to": "QueryEnhancementService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 3389, "match": "let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)"}], "by": "build", "note": "constructs it"},
+    {"from": "RAGService.executeAgenticPrecisionLookupIfAvailable", "type": "calls", "to": "QueryEnhancementService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 130, "match": "let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)"}], "by": "build", "note": "constructs it"},
+    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "HyDEService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 945, "match": "let hydeIsAvailable = HyDEService.isAvailable"}], "by": "build", "note": "named there"},
+    {"from": "RAGService.executeStandardReasoningChain", "type": "depends_on", "to": "QueryComplexityAnalyzer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "line": 33, "match": "let complexity = QueryComplexityAnalyzer.shared.analyze(query).complexity"}], "by": "build", "note": "named there"},
+    {"from": "QueryProfileService.buildProfile", "type": "depends_on", "to": "QueryComplexityAnalyzer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 69, "match": "let reasoningComplexity = QueryComplexityAnalyzer.shared.analyze(query)"}], "by": "build", "note": "named there"},
+    {"from": "AgenticOrchestrator.generateSearchQueries", "type": "depends_on", "to": "QueryExecutionPlannerService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift", "line": 793, "match": "let executionPlan = await QueryExecutionPlannerService.shared.buildPlan("}], "by": "build", "note": "named there"},
+    {"from": "QueryRuntimeCoordinator.resolveContext", "type": "depends_on", "to": "QueryExecutionPlannerService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift", "line": 202, "match": "let queryPlan = await QueryExecutionPlannerService.shared.buildPlan("}], "by": "build", "note": "named there"},
+    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "QueryExecutionPlannerService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 790, "match": "let effectiveQueryPlan = await QueryExecutionPlannerService.shared.buildPlan("}], "by": "build", "note": "named there"},
+    {"from": "QueryProfileService.buildProfile", "type": "depends_on", "to": "QueryRouterService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 63, "match": "queryRouter: QueryRouterService? = nil,"}], "by": "build", "note": "named there"},
+    {"from": "QueryProfileService.buildProfile", "type": "depends_on", "to": "QueryEnhancementService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 62, "match": "queryEnhancer: QueryEnhancementService? = nil,"}], "by": "build", "note": "named there"},
+    {"from": "QueryEnhancementService", "type": "tested_by", "to": "test:AnswerIntentClassificationTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "line": 14, "match": "private let service = QueryEnhancementService()"}], "by": "build", "note": "the test names it"}
   ],
   "docs": [],
   "unknowns": [],
-  "related": [
-    "full-text-search-storage",
-    "quality-modes-and-agentic-orchestrator",
-    "rag-orchestration-core",
-    "smart-replies-and-suggestions"
-  ],
-  "entries": [
-    "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift::QueryRewriterService",
-    "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift::HyDEService",
-    "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift::QueryComplexityAnalyzer",
-    "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift::QueryExecutionPlannerService",
-    "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift::QueryRouterService",
-    "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift::QueryEnhancementService"
-  ],
-  "owns": [
-    "OpenIntelligence/Services/Query/Analysis/**",
-    "OpenIntelligence/Services/Query/Enhancement/**",
-    "OpenIntelligence/Services/Query/Rewriting/**",
-    "OpenIntelligence/Services/Query/Routing/**"
-  ],
+  "related": ["full-text-search-storage", "quality-modes-and-agentic-orchestrator", "rag-orchestration-core", "smart-replies-and-suggestions"],
+  "entries": ["OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift::QueryRewriterService", "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift::HyDEService", "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift::QueryComplexityAnalyzer", "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift::QueryExecutionPlannerService", "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift::QueryRouterService", "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift::QueryEnhancementService"],
+  "owns": ["OpenIntelligence/Services/Query/Analysis/**", "OpenIntelligence/Services/Query/Enhancement/**", "OpenIntelligence/Services/Query/Rewriting/**", "OpenIntelligence/Services/Query/Routing/**"],
   "decisions": [],
   "traps": [],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [
-      {
-        "id": "QueryProfile",
-        "kind": "model",
-        "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-        "line": 12,
-        "match": "struct QueryProfile: Sendable {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "QueryProfileService",
-        "kind": "service",
-        "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-        "line": 57,
-        "match": "final class QueryProfileService {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "SpecificationExtractionResult",
-        "kind": "model",
-        "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-        "line": 38,
-        "match": "struct SpecificationExtractionResult: Sendable {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "SpecificationExtractor",
-        "kind": "model",
-        "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-        "line": 101,
-        "match": "actor SpecificationExtractor {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "CorpusVocabulary",
-        "kind": "model",
-        "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift",
-        "line": 15,
-        "match": "nonisolated struct CorpusVocabulary: Sendable, Codable {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "QueryIntent",
-        "kind": "model",
-        "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift",
-        "line": 31,
-        "match": "enum QueryIntent: String, Sendable {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "AnswerIntent",
-        "kind": "model",
-        "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift",
-        "line": 64,
-        "match": "enum AnswerIntent: String, Sendable, CaseIterable {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "QueryType",
-        "kind": "model",
-        "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift",
-        "line": 22,
-        "match": "enum QueryType: String, Sendable {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:StructuredAnswerTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Core/Models/StructuredAnswerTests.swift",
-        "line": 5,
-        "match": "final class StructuredAnswerTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:AdaptiveInferenceProfileTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/AIPlatform/AdaptiveInferenceProfileTests.swift",
-        "line": 22,
-        "match": "final class AdaptiveInferenceProfileTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:PlanlessRouteTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/AIPlatform/PlanlessRouteTests.swift",
-        "line": 20,
-        "match": "final class PlanlessRouteTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:LibraryAnalysisSampleTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/Embedding/LibraryAnalysisSampleTests.swift",
-        "line": 19,
-        "match": "final class LibraryAnalysisSampleTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:AnswerIntentClassificationTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift",
-        "line": 12,
-        "match": "final class AnswerIntentClassificationTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:DayOrdinalsTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/Query/DayOrdinalsTests.swift",
-        "line": 13,
-        "match": "final class DayOrdinalsTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:ExtractedValueRelevanceTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueRelevanceTests.swift",
-        "line": 20,
-        "match": "final class ExtractedValueRelevanceTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:PrecisionLockAnswerTypeTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift",
-        "line": 22,
-        "match": "final class PrecisionLockAnswerTypeTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:RetrievalStyleTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift",
-        "line": 17,
-        "match": "final class RetrievalStyleTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:LargeLibraryCostTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/Storage/LargeLibraryCostTests.swift",
-        "line": 18,
-        "match": "final class LargeLibraryCostTests: XCTestCase {",
-        "status": "VERIFIED"
-      },
-      {
-        "id": "test:LibraryAnalysisScaleBenchmarkTests",
-        "kind": "test",
-        "path": "OpenIntelligenceTests/Services/Storage/LibraryAnalysisScaleBenchmarkTests.swift",
-        "line": 61,
-        "match": "final class LibraryAnalysisScaleBenchmarkTests: XCTestCase {",
-        "status": "VERIFIED"
-      }
+      {"id": "QueryProfile", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 12, "match": "struct QueryProfile: Sendable {", "status": "VERIFIED"},
+      {"id": "QueryProfileService", "kind": "service", "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 57, "match": "final class QueryProfileService {", "status": "VERIFIED"},
+      {"id": "SpecificationExtractionResult", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 38, "match": "struct SpecificationExtractionResult: Sendable {", "status": "VERIFIED"},
+      {"id": "SpecificationExtractor", "kind": "model", "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 101, "match": "actor SpecificationExtractor {", "status": "VERIFIED"},
+      {"id": "CorpusVocabulary", "kind": "model", "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 15, "match": "nonisolated struct CorpusVocabulary: Sendable, Codable {", "status": "VERIFIED"},
+      {"id": "QueryIntent", "kind": "model", "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 31, "match": "enum QueryIntent: String, Sendable {", "status": "VERIFIED"},
+      {"id": "AnswerIntent", "kind": "model", "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 64, "match": "enum AnswerIntent: String, Sendable, CaseIterable {", "status": "VERIFIED"},
+      {"id": "QueryType", "kind": "model", "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "line": 22, "match": "enum QueryType: String, Sendable {", "status": "VERIFIED"},
+      {"id": "test:StructuredAnswerTests", "kind": "test", "path": "OpenIntelligenceTests/Core/Models/StructuredAnswerTests.swift", "line": 5, "match": "final class StructuredAnswerTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:AdaptiveInferenceProfileTests", "kind": "test", "path": "OpenIntelligenceTests/Services/AIPlatform/AdaptiveInferenceProfileTests.swift", "line": 22, "match": "final class AdaptiveInferenceProfileTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:PlanlessRouteTests", "kind": "test", "path": "OpenIntelligenceTests/Services/AIPlatform/PlanlessRouteTests.swift", "line": 20, "match": "final class PlanlessRouteTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:LibraryAnalysisSampleTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Embedding/LibraryAnalysisSampleTests.swift", "line": 19, "match": "final class LibraryAnalysisSampleTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:AnswerIntentClassificationTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "line": 12, "match": "final class AnswerIntentClassificationTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:DayOrdinalsTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Query/DayOrdinalsTests.swift", "line": 13, "match": "final class DayOrdinalsTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:ExtractedValueRelevanceTests", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueRelevanceTests.swift", "line": 20, "match": "final class ExtractedValueRelevanceTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:PrecisionLockAnswerTypeTests", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift", "line": 22, "match": "final class PrecisionLockAnswerTypeTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:RetrievalStyleTests", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift", "line": 17, "match": "final class RetrievalStyleTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:LargeLibraryCostTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Storage/LargeLibraryCostTests.swift", "line": 18, "match": "final class LargeLibraryCostTests: XCTestCase {", "status": "VERIFIED"},
+      {"id": "test:LibraryAnalysisScaleBenchmarkTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Storage/LibraryAnalysisScaleBenchmarkTests.swift", "line": 61, "match": "final class LibraryAnalysisScaleBenchmarkTests: XCTestCase {", "status": "VERIFIED"}
     ],
     "edges": [
-      {
-        "from": "QueryExecutionPlan",
-        "type": "depends_on",
-        "to": "QueryProfile",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-            "line": 27,
-            "match": "let profile: QueryProfile"
-          }
-        ]
-      },
-      {
-        "from": "QueryExecutionPlannerService",
-        "type": "depends_on",
-        "to": "QueryProfile",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-            "line": 77,
-            "match": "profile: QueryProfile? = nil,"
-          }
-        ]
-      },
-      {
-        "from": "QueryExecutionPlannerService",
-        "type": "depends_on",
-        "to": "QueryProfileService",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-            "line": 114,
-            "match": "resolvedProfile = await QueryProfileService.shared.buildProfile(for: query, routingEnabled: false)"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfile",
-        "type": "depends_on",
-        "to": "QueryComplexityResult",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 17,
-            "match": "let reasoningComplexity: QueryComplexityResult"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfile",
-        "type": "depends_on",
-        "to": "AnswerIntent",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 18,
-            "match": "let answerIntent: AnswerIntent"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfile",
-        "type": "depends_on",
-        "to": "QueryIntent",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 19,
-            "match": "let searchIntent: QueryIntent"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfile",
-        "type": "depends_on",
-        "to": "QueryClassification",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 20,
-            "match": "let routingClassification: QueryClassification"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfileService",
-        "type": "depends_on",
-        "to": "QueryEnhancementService",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 62,
-            "match": "queryEnhancer: QueryEnhancementService? = nil,"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfileService",
-        "type": "depends_on",
-        "to": "QueryRouterService",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 63,
-            "match": "queryRouter: QueryRouterService? = nil,"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfileService",
-        "type": "depends_on",
-        "to": "QueryComplexityAnalyzer",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 69,
-            "match": "let reasoningComplexity = QueryComplexityAnalyzer.shared.analyze(query)"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfileService",
-        "type": "depends_on",
-        "to": "QueryClassification",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 74,
-            "match": "let routingClassification: QueryClassification"
-          }
-        ]
-      },
-      {
-        "from": "SpecificationExtractor",
-        "type": "depends_on",
-        "to": "AnswerIntent",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-            "line": 131,
-            "match": "answerIntent: AnswerIntent"
-          }
-        ]
-      },
-      {
-        "from": "QueryRewriterService",
-        "type": "depends_on",
-        "to": "CorpusVocabulary",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift",
-            "line": 58,
-            "match": "private let corpusVocabulary: CorpusVocabulary?"
-          }
-        ]
-      },
-      {
-        "from": "AnswerIntent",
-        "type": "tested_by",
-        "to": "test:StructuredAnswerTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Core/Models/StructuredAnswerTests.swift",
-            "line": 40,
-            "match": "let extractiveFirst: [AnswerIntent] = [.lookup, .tableLookup]"
-          }
-        ]
-      },
-      {
-        "from": "AnswerIntent",
-        "type": "tested_by",
-        "to": "test:AdaptiveInferenceProfileTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/AIPlatform/AdaptiveInferenceProfileTests.swift",
-            "line": 29,
-            "match": "for intent in [AnswerIntent.lookup, .tableLookup, .compute] {"
-          }
-        ]
-      },
-      {
-        "from": "QueryType",
-        "type": "tested_by",
-        "to": "test:PlanlessRouteTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/AIPlatform/PlanlessRouteTests.swift",
-            "line": 22,
-            "match": "private let queryTypes: [FoundationModelRoutePolicy.QueryType] = ["
-          }
-        ]
-      },
-      {
-        "from": "CorpusVocabulary",
-        "type": "tested_by",
-        "to": "test:LibraryAnalysisSampleTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/Embedding/LibraryAnalysisSampleTests.swift",
-            "line": 341,
-            "match": "let built = CorpusVocabulary.build(from: chunks)"
-          }
-        ]
-      },
-      {
-        "from": "QueryEnhancementService",
-        "type": "tested_by",
-        "to": "test:AnswerIntentClassificationTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift",
-            "line": 14,
-            "match": "private let service = QueryEnhancementService()"
-          }
-        ]
-      },
-      {
-        "from": "DayOrdinals",
-        "type": "tested_by",
-        "to": "test:DayOrdinalsTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/Query/DayOrdinalsTests.swift",
-            "line": 15,
-            "match": "XCTAssertEqual(DayOrdinals.cardinal(\"What happened on September 30th\"), \"What happened on September 30\")"
-          }
-        ]
-      },
-      {
-        "from": "SpecificationExtractor",
-        "type": "tested_by",
-        "to": "test:ExtractedValueRelevanceTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueRelevanceTests.swift",
-            "line": 49,
-            "match": "let result = await SpecificationExtractor().extract(query: question, chunks: chunks, answerIntent: .lookup)"
-          }
-        ]
-      },
-      {
-        "from": "SpecificationExtractor",
-        "type": "tested_by",
-        "to": "test:PrecisionLockAnswerTypeTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift",
-            "line": 93,
-            "match": "let result = await SpecificationExtractor().extract(query: question, chunks: chunks, answerIntent: .lookup)"
-          }
-        ]
-      },
-      {
-        "from": "QueryProfileService",
-        "type": "tested_by",
-        "to": "test:RetrievalStyleTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift",
-            "line": 153,
-            "match": "let profile = await QueryProfileService.shared.buildProfile("
-          }
-        ]
-      },
-      {
-        "from": "CorpusVocabulary",
-        "type": "tested_by",
-        "to": "test:LargeLibraryCostTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/Storage/LargeLibraryCostTests.swift",
-            "line": 31,
-            "match": "XCTAssertEqual(CorpusVocabulary.sampledForVocabulary(small).map(\\.metadata.chunkIndex), Array(0..<300))"
-          }
-        ]
-      },
-      {
-        "from": "CorpusVocabulary",
-        "type": "tested_by",
-        "to": "test:LibraryAnalysisScaleBenchmarkTests",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligenceTests/Services/Storage/LibraryAnalysisScaleBenchmarkTests.swift",
-            "line": 92,
-            "match": "let vocabulary = clock.measure { vocabularyTerms = CorpusVocabulary.build(from: chunks).keywords.count }"
-          }
-        ]
-      },
-      {
-        "from": "QueryComplexityResult",
-        "type": "depends_on",
-        "to": "feature:hardware-compute-acceleration",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift",
-            "line": 14,
-            "match": "let complexity: QueryComplexity"
-          }
-        ],
-        "note": "via QueryComplexity"
-      },
-      {
-        "from": "QueryComplexityAnalyzer",
-        "type": "depends_on",
-        "to": "feature:hardware-compute-acceleration",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift",
-            "line": 193,
-            "match": "let complexity: QueryComplexityResult.QueryComplexity"
-          }
-        ],
-        "note": "via QueryComplexity"
-      },
-      {
-        "from": "QueryExecutionPlannerService",
-        "type": "depends_on",
-        "to": "feature:quality-modes-and-agentic-orchestrator",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift",
-            "line": 78,
-            "match": "requestedQualityMode: RAGQualityMode = .standard,"
-          }
-        ],
-        "note": "via RAGQualityMode"
-      },
-      {
-        "from": "QueryProfile",
-        "type": "depends_on",
-        "to": "feature:hardware-compute-acceleration",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 16,
-            "match": "let adaptiveComplexity: QueryComplexity"
-          }
-        ],
-        "note": "via QueryComplexity"
-      },
-      {
-        "from": "QueryProfile",
-        "type": "depends_on",
-        "to": "feature:semantic-chunking",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 21,
-            "match": "let abstractionLevelsToSearch: [ChunkAbstractionLevel]"
-          }
-        ],
-        "note": "via ChunkAbstractionLevel"
-      },
-      {
-        "from": "QueryProfile",
-        "type": "depends_on",
-        "to": "feature:document-library-and-containers",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 39,
-            "match": "func adjustedHybridWeights(from retrievalConfig: RetrievalConfig) -> (vectorWeight: Float, keywordWeight: Float) {"
-          }
-        ],
-        "note": "via RetrievalConfig"
-      },
-      {
-        "from": "QueryProfileService",
-        "type": "depends_on",
-        "to": "feature:hardware-compute-acceleration",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 70,
-            "match": "let adaptiveComplexity = QueryComplexity.estimate(from: query)"
-          }
-        ],
-        "note": "via QueryComplexity"
-      },
-      {
-        "from": "QueryProfileService",
-        "type": "depends_on",
-        "to": "feature:semantic-chunking",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift",
-            "line": 75,
-            "match": "let abstractionLevelsToSearch: [ChunkAbstractionLevel]"
-          }
-        ],
-        "note": "via ChunkAbstractionLevel"
-      },
-      {
-        "from": "SpecificationExtractionResult",
-        "type": "depends_on",
-        "to": "feature:rag-orchestration-core",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-            "line": 49,
-            "match": "let sourceChunk: RetrievedChunk"
-          }
-        ],
-        "note": "via RetrievedChunk"
-      },
-      {
-        "from": "SpecificationExtractor",
-        "type": "depends_on",
-        "to": "feature:rag-orchestration-core",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-            "line": 130,
-            "match": "chunks: [RetrievedChunk],"
-          }
-        ],
-        "note": "via RetrievedChunk"
-      },
-      {
-        "from": "SpecificationExtractor",
-        "type": "depends_on",
-        "to": "feature:document-analysis",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-            "line": 409,
-            "match": "let specs = SpecificationDetector.detectSpecifications(in: content)"
-          }
-        ],
-        "note": "via SpecificationDetector"
-      },
-      {
-        "from": "SpecificationExtractor",
-        "type": "depends_on",
-        "to": "feature:retrieval-policy-and-tuning",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift",
-            "line": 686,
-            "match": "let anchors = EvidenceScoringPolicyService.stateLookupAnchors(from: query)"
-          }
-        ],
-        "note": "via EvidenceScoringPolicyService"
-      },
-      {
-        "from": "CorpusVocabulary",
-        "type": "depends_on",
-        "to": "feature:semantic-chunking",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift",
-            "line": 1148,
-            "match": "nonisolated static func sampledForVocabulary(_ chunks: [DocumentChunk]) -> [DocumentChunk] {"
-          }
-        ],
-        "note": "via DocumentChunk"
-      },
-      {
-        "from": "CorpusVocabulary",
-        "type": "depends_on",
-        "to": "feature:rag-orchestration-core",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift",
-            "line": 1150,
-            "match": "return RAGService.evenSampleIndices(count: chunks.count, limit: vocabularySampleLimit).map { chunks[$0] }"
-          }
-        ],
-        "note": "via RAGService"
-      },
-      {
-        "from": "HyDEService",
-        "type": "depends_on",
-        "to": "feature:full-text-search-storage",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift",
-            "line": 128,
-            "match": "let presence = await SQLiteFullTextService.shared.checkVocabularyPresence("
-          }
-        ],
-        "note": "via SQLiteFullTextService"
-      },
-      {
-        "from": "QueryType",
-        "type": "depends_on",
-        "to": "feature:semantic-chunking",
-        "status": "INFERRED",
-        "evidence": [
-          {
-            "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift",
-            "line": 36,
-            "match": "var primaryLevel: ChunkAbstractionLevel {"
-          }
-        ],
-        "note": "via ChunkAbstractionLevel"
-      }
+      {"from": "QueryExecutionPlan", "type": "depends_on", "to": "QueryProfile", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 27, "match": "let profile: QueryProfile"}]},
+      {"from": "QueryExecutionPlannerService", "type": "depends_on", "to": "QueryProfile", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 77, "match": "profile: QueryProfile? = nil,"}]},
+      {"from": "QueryExecutionPlannerService", "type": "depends_on", "to": "QueryProfileService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 114, "match": "resolvedProfile = await QueryProfileService.shared.buildProfile(for: query, routingEnabled: false)"}]},
+      {"from": "QueryProfile", "type": "depends_on", "to": "QueryComplexityResult", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 17, "match": "let reasoningComplexity: QueryComplexityResult"}]},
+      {"from": "QueryProfile", "type": "depends_on", "to": "AnswerIntent", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 18, "match": "let answerIntent: AnswerIntent"}]},
+      {"from": "QueryProfile", "type": "depends_on", "to": "QueryIntent", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 19, "match": "let searchIntent: QueryIntent"}]},
+      {"from": "QueryProfile", "type": "depends_on", "to": "QueryClassification", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 20, "match": "let routingClassification: QueryClassification"}]},
+      {"from": "QueryProfileService", "type": "depends_on", "to": "QueryEnhancementService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 62, "match": "queryEnhancer: QueryEnhancementService? = nil,"}]},
+      {"from": "QueryProfileService", "type": "depends_on", "to": "QueryRouterService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 63, "match": "queryRouter: QueryRouterService? = nil,"}]},
+      {"from": "QueryProfileService", "type": "depends_on", "to": "QueryComplexityAnalyzer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 69, "match": "let reasoningComplexity = QueryComplexityAnalyzer.shared.analyze(query)"}]},
+      {"from": "QueryProfileService", "type": "depends_on", "to": "QueryClassification", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 74, "match": "let routingClassification: QueryClassification"}]},
+      {"from": "SpecificationExtractor", "type": "depends_on", "to": "AnswerIntent", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 131, "match": "answerIntent: AnswerIntent"}]},
+      {"from": "QueryRewriterService", "type": "depends_on", "to": "CorpusVocabulary", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "line": 58, "match": "private let corpusVocabulary: CorpusVocabulary?"}]},
+      {"from": "AnswerIntent", "type": "tested_by", "to": "test:StructuredAnswerTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Core/Models/StructuredAnswerTests.swift", "line": 40, "match": "let extractiveFirst: [AnswerIntent] = [.lookup, .tableLookup]"}]},
+      {"from": "AnswerIntent", "type": "tested_by", "to": "test:AdaptiveInferenceProfileTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/AIPlatform/AdaptiveInferenceProfileTests.swift", "line": 29, "match": "for intent in [AnswerIntent.lookup, .tableLookup, .compute] {"}]},
+      {"from": "QueryType", "type": "tested_by", "to": "test:PlanlessRouteTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/AIPlatform/PlanlessRouteTests.swift", "line": 22, "match": "private let queryTypes: [FoundationModelRoutePolicy.QueryType] = ["}]},
+      {"from": "CorpusVocabulary", "type": "tested_by", "to": "test:LibraryAnalysisSampleTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Embedding/LibraryAnalysisSampleTests.swift", "line": 341, "match": "let built = CorpusVocabulary.build(from: chunks)"}]},
+      {"from": "QueryEnhancementService", "type": "tested_by", "to": "test:AnswerIntentClassificationTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "line": 14, "match": "private let service = QueryEnhancementService()"}]},
+      {"from": "DayOrdinals", "type": "tested_by", "to": "test:DayOrdinalsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Query/DayOrdinalsTests.swift", "line": 15, "match": "XCTAssertEqual(DayOrdinals.cardinal(\"What happened on September 30th\"), \"What happened on September 30\")"}]},
+      {"from": "SpecificationExtractor", "type": "tested_by", "to": "test:ExtractedValueRelevanceTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ExtractedValueRelevanceTests.swift", "line": 49, "match": "let result = await SpecificationExtractor().extract(query: question, chunks: chunks, answerIntent: .lookup)"}]},
+      {"from": "SpecificationExtractor", "type": "tested_by", "to": "test:PrecisionLockAnswerTypeTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Tuning/PrecisionLockAnswerTypeTests.swift", "line": 93, "match": "let result = await SpecificationExtractor().extract(query: question, chunks: chunks, answerIntent: .lookup)"}]},
+      {"from": "QueryProfileService", "type": "tested_by", "to": "test:RetrievalStyleTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift", "line": 153, "match": "let profile = await QueryProfileService.shared.buildProfile("}]},
+      {"from": "CorpusVocabulary", "type": "tested_by", "to": "test:LargeLibraryCostTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/LargeLibraryCostTests.swift", "line": 31, "match": "XCTAssertEqual(CorpusVocabulary.sampledForVocabulary(small).map(\\.metadata.chunkIndex), Array(0..<300))"}]},
+      {"from": "CorpusVocabulary", "type": "tested_by", "to": "test:LibraryAnalysisScaleBenchmarkTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/LibraryAnalysisScaleBenchmarkTests.swift", "line": 92, "match": "let vocabulary = clock.measure { vocabularyTerms = CorpusVocabulary.build(from: chunks).keywords.count }"}]},
+      {"from": "QueryComplexityResult", "type": "depends_on", "to": "feature:hardware-compute-acceleration", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "line": 14, "match": "let complexity: QueryComplexity"}], "note": "via QueryComplexity"},
+      {"from": "QueryComplexityAnalyzer", "type": "depends_on", "to": "feature:hardware-compute-acceleration", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift", "line": 193, "match": "let complexity: QueryComplexityResult.QueryComplexity"}], "note": "via QueryComplexity"},
+      {"from": "QueryExecutionPlannerService", "type": "depends_on", "to": "feature:quality-modes-and-agentic-orchestrator", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 78, "match": "requestedQualityMode: RAGQualityMode = .standard,"}], "note": "via RAGQualityMode"},
+      {"from": "QueryProfile", "type": "depends_on", "to": "feature:hardware-compute-acceleration", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 16, "match": "let adaptiveComplexity: QueryComplexity"}], "note": "via QueryComplexity"},
+      {"from": "QueryProfile", "type": "depends_on", "to": "feature:semantic-chunking", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 21, "match": "let abstractionLevelsToSearch: [ChunkAbstractionLevel]"}], "note": "via ChunkAbstractionLevel"},
+      {"from": "QueryProfile", "type": "depends_on", "to": "feature:document-library-and-containers", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 39, "match": "func adjustedHybridWeights(from retrievalConfig: RetrievalConfig) -> (vectorWeight: Float, keywordWeight: Float) {"}], "note": "via RetrievalConfig"},
+      {"from": "QueryProfileService", "type": "depends_on", "to": "feature:hardware-compute-acceleration", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 70, "match": "let adaptiveComplexity = QueryComplexity.estimate(from: query)"}], "note": "via QueryComplexity"},
+      {"from": "QueryProfileService", "type": "depends_on", "to": "feature:semantic-chunking", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift", "line": 75, "match": "let abstractionLevelsToSearch: [ChunkAbstractionLevel]"}], "note": "via ChunkAbstractionLevel"},
+      {"from": "SpecificationExtractionResult", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 49, "match": "let sourceChunk: RetrievedChunk"}], "note": "via RetrievedChunk"},
+      {"from": "SpecificationExtractor", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 130, "match": "chunks: [RetrievedChunk],"}], "note": "via RetrievedChunk"},
+      {"from": "SpecificationExtractor", "type": "depends_on", "to": "feature:document-analysis", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 409, "match": "let specs = SpecificationDetector.detectSpecifications(in: content)"}], "note": "via SpecificationDetector"},
+      {"from": "SpecificationExtractor", "type": "depends_on", "to": "feature:retrieval-policy-and-tuning", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift", "line": 686, "match": "let anchors = EvidenceScoringPolicyService.stateLookupAnchors(from: query)"}], "note": "via EvidenceScoringPolicyService"},
+      {"from": "CorpusVocabulary", "type": "depends_on", "to": "feature:semantic-chunking", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 1148, "match": "nonisolated static func sampledForVocabulary(_ chunks: [DocumentChunk]) -> [DocumentChunk] {"}], "note": "via DocumentChunk"},
+      {"from": "CorpusVocabulary", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 1150, "match": "return RAGService.evenSampleIndices(count: chunks.count, limit: vocabularySampleLimit).map { chunks[$0] }"}], "note": "via RAGService"},
+      {"from": "HyDEService", "type": "depends_on", "to": "feature:full-text-search-storage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Rewriting/HyDEService.swift", "line": 128, "match": "let presence = await SQLiteFullTextService.shared.checkVocabularyPresence("}], "note": "via SQLiteFullTextService"},
+      {"from": "QueryType", "type": "depends_on", "to": "feature:semantic-chunking", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "line": 36, "match": "var primaryLevel: ChunkAbstractionLevel {"}], "note": "via ChunkAbstractionLevel"}
     ],
     "edges_omitted": 3
   }
