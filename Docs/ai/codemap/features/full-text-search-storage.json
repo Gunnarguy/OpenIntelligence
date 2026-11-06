@@ -4,7 +4,7 @@
   "name": "Full Text Search Storage",
   "aliases": ["SQLite FTS5 search", "keyword index", "full text storage", "documentation cache", "keyword search", "FTS5", "BM25", "exact phrase"],
   "purpose": "Keeps each library's text in one shared SQLite file with an FTS5 index for keyword search and BM25 scoring.",
-  "revision": "7c5ccaaf",
+  "revision": "bbeb9ca6",
   "verified_on": "2026-11-05",
   "entry_points": ["SQLiteFullTextService", "SQLiteFullTextService.storeChunks", "SQLiteFullTextService.storePages", "SQLiteFullTextService.store", "SQLiteFullTextService.searchChunks", "SQLiteFullTextService.search", "FullTextStorageService", "DocumentationCacheService"],
   "files": [
@@ -18,7 +18,8 @@
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+ContentReader.swift", "role": "primary", "blob": "802d7a888366e8a2a9065df6a3eb724f864a6a89"},
     {"path": "OpenIntelligenceTests/Services/Storage/PageRowsAcrossBatchesTests.swift", "role": "test", "blob": "d8b5c1e694bbc2fa646cbc3658575149d89afd31"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "role": "shared", "blob": "cd0c6e706789c1c49b317d0fbdfca841a73cc3df"},
-    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "role": "shared", "blob": "a5b8b5890e0587e0b7a01f6c5aea45325059db8d"}
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "role": "shared", "blob": "a5b8b5890e0587e0b7a01f6c5aea45325059db8d"},
+    {"path": "OpenIntelligence/Features/Telemetry/Visualizations/EmbeddingSpaceRenderer+Data.swift", "role": "shared", "blob": "8869211ca2d32db1a22f510703f9222d4c1582ec"}
   ],
   "nodes": [
     {"id": "SQLiteFullTextService", "kind": "service", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 45, "match": "actor SQLiteFullTextService {", "status": "VERIFIED", "by": "build"},
@@ -26,7 +27,7 @@
     {"id": "DatabaseDashboardView.stats", "kind": "model", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 41, "match": "@State var stats: SQLiteFullTextService.FTS5Statistics?", "status": "VERIFIED", "by": "build"},
     {"id": "ChunkInspectorView.performExactSearch", "kind": "function", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 322, "match": "private func performExactSearch() async {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerSettingsSheet.containerFTSStats", "kind": "model", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 60, "match": "@State var containerFTSStats: [SQLiteFullTextService.DocumentStat] = []", "status": "VERIFIED", "by": "build"},
-    {"id": "EmbeddingSpaceRenderer.loadAndProject", "kind": "function", "path": "OpenIntelligence/Features/Telemetry/Visualizations/Embedding3DView.swift", "line": 2803, "match": "private func loadAndProject() async {", "status": "VERIFIED", "by": "build"},
+    {"id": "EmbeddingSpaceRenderer.loadAndProject", "kind": "function", "path": "OpenIntelligence/Features/Telemetry/Visualizations/EmbeddingSpaceRenderer+Data.swift", "line": 18, "match": "func loadAndProject() async {", "status": "VERIFIED", "by": "build"},
     {"id": "SQLiteFullTextService.storeChunks", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "line": 108, "match": "func storeChunks(", "status": "VERIFIED", "by": "build"},
     {"id": "SQLiteFullTextService.StructuredChunkMetadata", "kind": "service", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 47, "match": "struct StructuredChunkMetadata: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.importLargePDFStreamed", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 19, "match": "func importLargePDFStreamed(", "status": "VERIFIED", "by": "build"},
@@ -71,7 +72,7 @@
     {"from": "DatabaseDashboardView.stats", "type": "depends_on", "to": "SQLiteFullTextService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 41, "match": "@State var stats: SQLiteFullTextService.FTS5Statistics?"}], "by": "build", "note": "named there"},
     {"from": "ChunkInspectorView.performExactSearch", "type": "depends_on", "to": "SQLiteFullTextService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 324, "match": "let counts = await SQLiteFullTextService.shared.countPatternInCorpus(pattern: searchQuery, containerId: cid)"}], "by": "build", "note": "named there"},
     {"from": "ContainerSettingsSheet.containerFTSStats", "type": "depends_on", "to": "SQLiteFullTextService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 60, "match": "@State var containerFTSStats: [SQLiteFullTextService.DocumentStat] = []"}], "by": "build", "note": "named there"},
-    {"from": "EmbeddingSpaceRenderer.loadAndProject", "type": "depends_on", "to": "SQLiteFullTextService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Visualizations/Embedding3DView.swift", "line": 2818, "match": "async let topTermsTask = SQLiteFullTextService.shared.getTopTermsForContainer(containerId: activeId, limit: 100)"}], "by": "build", "note": "named there"},
+    {"from": "EmbeddingSpaceRenderer.loadAndProject", "type": "depends_on", "to": "SQLiteFullTextService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Visualizations/EmbeddingSpaceRenderer+Data.swift", "line": 33, "match": "async let topTermsTask = SQLiteFullTextService.shared.getTopTermsForContainer(containerId: activeId, limit: 100)"}], "by": "build", "note": "named there"},
     {"from": "DocumentProcessor.processDocument", "type": "depends_on", "to": "FullTextStorageService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "line": 142, "match": "await FullTextStorageService.shared.store(text: storedText, for: documentId)"}], "by": "build", "note": "named there"},
     {"from": "RAGService.removeDocument", "type": "depends_on", "to": "FullTextStorageService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "line": 274, "match": "await FullTextStorageService.shared.delete(for: document.id)"}], "by": "build", "note": "named there"},
     {"from": "SQLiteFullTextService.migrateFromFileStorage", "type": "depends_on", "to": "FullTextStorageService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 361, "match": "let fileService = FullTextStorageService.shared"}], "by": "build", "note": "named there"},
