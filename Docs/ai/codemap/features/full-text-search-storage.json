@@ -4,7 +4,7 @@
   "name": "Full Text Search Storage",
   "aliases": ["SQLite FTS5 search", "keyword index", "full text storage", "documentation cache", "keyword search", "FTS5", "BM25", "exact phrase"],
   "purpose": "Keeps each library's text in one shared SQLite file with an FTS5 index for keyword search and BM25 scoring.",
-  "revision": "6e9871df",
+  "revision": "7c5ccaaf",
   "verified_on": "2026-11-05",
   "entry_points": ["SQLiteFullTextService", "SQLiteFullTextService.storeChunks", "SQLiteFullTextService.storePages", "SQLiteFullTextService.store", "SQLiteFullTextService.searchChunks", "SQLiteFullTextService.search", "FullTextStorageService", "DocumentationCacheService"],
   "files": [
@@ -17,7 +17,8 @@
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Statistics.swift", "role": "primary", "blob": "6f78d5078ea6ffd393c3f7ba8d91293c301fe69c"},
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+ContentReader.swift", "role": "primary", "blob": "802d7a888366e8a2a9065df6a3eb724f864a6a89"},
     {"path": "OpenIntelligenceTests/Services/Storage/PageRowsAcrossBatchesTests.swift", "role": "test", "blob": "d8b5c1e694bbc2fa646cbc3658575149d89afd31"},
-    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "role": "shared", "blob": "cd0c6e706789c1c49b317d0fbdfca841a73cc3df"}
+    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "role": "shared", "blob": "cd0c6e706789c1c49b317d0fbdfca841a73cc3df"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "role": "shared", "blob": "a5b8b5890e0587e0b7a01f6c5aea45325059db8d"}
   ],
   "nodes": [
     {"id": "SQLiteFullTextService", "kind": "service", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 45, "match": "actor SQLiteFullTextService {", "status": "VERIFIED", "by": "build"},
@@ -50,7 +51,7 @@
     {"id": "CachedDocMetadata", "kind": "model", "path": "OpenIntelligence/Services/Storage/DocumentationCacheService.swift", "line": 53, "match": "nonisolated struct CachedDocMetadata: Codable, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "makeCacheFilename", "kind": "function", "path": "OpenIntelligence/Services/Storage/DocumentationCacheService.swift", "line": 44, "match": "nonisolated private func makeCacheFilename(url: URL, id: UUID) -> String {", "status": "VERIFIED", "by": "build"},
     {"id": "CachedDocsView.loadCachedDocs", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/CachedDocsView.swift", "line": 169, "match": "private func loadCachedDocs() async {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentLibraryView.refreshCachedDocumentCount", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2288, "match": "private func refreshCachedDocumentCount() async {", "status": "VERIFIED", "by": "build"}
+    {"id": "DocumentLibraryView.refreshCachedDocumentCount", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 368, "match": "func refreshCachedDocumentCount() async {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "SQLiteFullTextService.storeChunks", "type": "depends_on", "to": "SQLiteFullTextService.StructuredChunkMetadata", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "line": 166, "match": "structuredMetadata: StructuredChunkMetadata("}], "by": "build", "note": "constructs it"},
@@ -76,7 +77,7 @@
     {"from": "SQLiteFullTextService.migrateFromFileStorage", "type": "depends_on", "to": "FullTextStorageService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 361, "match": "let fileService = FullTextStorageService.shared"}], "by": "build", "note": "named there"},
     {"from": "DocumentationCacheService", "type": "calls", "to": "makeCacheFilename", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/DocumentationCacheService.swift", "line": 184, "match": "let generatedFilename = makeCacheFilename(url: url, id: document.id)"}], "by": "build", "note": "named in the body"},
     {"from": "CachedDocsView.loadCachedDocs", "type": "depends_on", "to": "DocumentationCacheService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/CachedDocsView.swift", "line": 173, "match": "cachedDocs = await DocumentationCacheService.shared.listCached()"}], "by": "build", "note": "named there"},
-    {"from": "DocumentLibraryView.refreshCachedDocumentCount", "type": "depends_on", "to": "DocumentationCacheService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2289, "match": "cachedDocumentCount = await DocumentationCacheService.shared.statistics().count"}], "by": "build", "note": "named there"}
+    {"from": "DocumentLibraryView.refreshCachedDocumentCount", "type": "depends_on", "to": "DocumentationCacheService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 369, "match": "cachedDocumentCount = await DocumentationCacheService.shared.statistics().count"}], "by": "build", "note": "named there"}
   ],
   "docs": [],
   "unknowns": [],

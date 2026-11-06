@@ -4,7 +4,7 @@
   "name": "Silicon HUD and Telemetry",
   "aliases": ["The HUD", "Silicon HUD", "X-ray overlay", "hardware telemetry", "motherboard HUD", "floating legend"],
   "purpose": "Shows live Neural Engine, CPU, GPU and memory activity in an overlay while the app works.",
-  "revision": "a64feedd",
+  "revision": "7c5ccaaf",
   "verified_on": "2026-11-05",
   "entry_points": ["HardwareXRayOverlay", "SiliconLegend", "FloatingLegendWindowManager", "SettingsStore.showSiliconHUD", "HardwareTelemetryState", "DeviceCapabilityService", "SystemStateMonitor"],
   "files": [
@@ -25,7 +25,8 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
     {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "c74582170c1e99628bc851caa842957903913336"},
     {"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar+Badges.swift", "role": "shared", "blob": "84aced295af6099306bbea2ac9d5dfe3d95daf1d"},
-    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Intelligence.swift", "role": "shared", "blob": "282462976f4cfbcebacdbd91a8895e8906a28d1e"}
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Intelligence.swift", "role": "shared", "blob": "282462976f4cfbcebacdbd91a8895e8906a28d1e"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "role": "shared", "blob": "746450eb80cc1706f5aba2864767d0f042b5ffcc"}
   ],
   "nodes": [
     {"id": "HardwareXRayOverlay", "kind": "view", "path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 296, "match": "struct HardwareXRayOverlay: View {", "status": "VERIFIED", "by": "build"},
@@ -36,7 +37,7 @@
     {"id": "KeyboardHeightObserver", "kind": "model", "path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 244, "match": "final class KeyboardHeightObserver: ObservableObject {", "status": "VERIFIED", "by": "build"},
     {"id": "ChatScreen.chatLifecycleLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 195, "match": "private var chatLifecycleLayer: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "DatabaseDashboardView.body", "kind": "model", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 141, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentLibraryView.libraryContentView", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1835, "match": "private var libraryContentView: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.libraryContentView", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "line": 610, "match": "private var libraryContentView: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "SettingsView.body", "kind": "model", "path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 73, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "FloatingLegendWindowManager", "kind": "model", "path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 1090, "match": "final class FloatingLegendWindowManager: NSObject {", "status": "VERIFIED", "by": "build"},
     {"id": "FloatingLegendRoot", "kind": "view", "path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 1292, "match": "struct FloatingLegendRoot: View {", "status": "VERIFIED", "by": "build"},
@@ -80,7 +81,7 @@
     {"from": "HardwareXRayOverlay", "type": "calls", "to": "FloatingLegendWindowManager.ensureVisible", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 511, "match": ".onAppear { FloatingLegendWindowManager.shared.ensureVisible(settings: settings) }"}], "by": "build", "note": "the call names the type"},
     {"from": "ChatScreen.chatLifecycleLayer", "type": "renders", "to": "HardwareXRayOverlay", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 220, "match": "HardwareXRayOverlay()"}], "by": "build", "note": "constructs it"},
     {"from": "DatabaseDashboardView.body", "type": "renders", "to": "HardwareXRayOverlay", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 179, "match": "HardwareXRayOverlay()"}], "by": "build", "note": "constructs it"},
-    {"from": "DocumentLibraryView.libraryContentView", "type": "renders", "to": "HardwareXRayOverlay", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1900, "match": "HardwareXRayOverlay()"}], "by": "build", "note": "constructs it"},
+    {"from": "DocumentLibraryView.libraryContentView", "type": "renders", "to": "HardwareXRayOverlay", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "line": 675, "match": "HardwareXRayOverlay()"}], "by": "build", "note": "constructs it"},
     {"from": "SettingsView.body", "type": "renders", "to": "HardwareXRayOverlay", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 81, "match": "HardwareXRayOverlay()"}], "by": "build", "note": "constructs it"},
     {"from": "FloatingLegendWindowManager", "type": "depends_on", "to": "FloatingLegendRoot", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 1143, "match": "let host = UIHostingController(rootView: FloatingLegendRoot().environmentObject(settings))"}], "by": "build", "note": "constructs it"},
     {"from": "SystemStateMonitor", "type": "calls", "to": "MachCPUMonitor.getSystemCPUUsage", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift", "line": 503, "match": "let systemCpuUsage = MachCPUMonitor.getSystemCPUUsage()"}], "by": "build", "note": "the call names the type"},
@@ -89,7 +90,7 @@
     {"from": "HardwareXRayOverlay", "type": "calls", "to": "KeyboardHeightObserver", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 298, "match": "@StateObject private var keyboardObserver = KeyboardHeightObserver()"}], "by": "build", "note": "named in the body"},
     {"from": "ChatScreen.chatLifecycleLayer", "type": "depends_on", "to": "SettingsStore.showSiliconHUD", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 219, "match": "if settings.showSiliconHUD {"}], "by": "build", "note": "named there"},
     {"from": "DatabaseDashboardView.body", "type": "depends_on", "to": "SettingsStore.showSiliconHUD", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 178, "match": "if settings.showSiliconHUD {"}], "by": "build", "note": "named there"},
-    {"from": "DocumentLibraryView.libraryContentView", "type": "depends_on", "to": "SettingsStore.showSiliconHUD", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1899, "match": "if settings.showSiliconHUD {"}], "by": "build", "note": "named there"},
+    {"from": "DocumentLibraryView.libraryContentView", "type": "depends_on", "to": "SettingsStore.showSiliconHUD", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "line": 674, "match": "if settings.showSiliconHUD {"}], "by": "build", "note": "named there"},
     {"from": "SettingsView.body", "type": "depends_on", "to": "SettingsStore.showSiliconHUD", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 80, "match": "if settings.showSiliconHUD {"}], "by": "build", "note": "named there"},
     {"from": "FloatingLegendWindowManager.ensureVisible", "type": "depends_on", "to": "SettingsStore.showSiliconHUD", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 1158, "match": "hudEnabled = settings.showSiliconHUD"}], "by": "build", "note": "named there"},
     {"from": "ChatComposerV2.body", "type": "depends_on", "to": "HardwareTelemetryState", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift", "line": 262, "match": "HardwareTelemetryState.shared.reportKeyboardTap()"}], "by": "build", "note": "named there"},

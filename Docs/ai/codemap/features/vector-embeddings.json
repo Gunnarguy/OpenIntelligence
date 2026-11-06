@@ -4,7 +4,7 @@
   "name": "Vector Embeddings",
   "aliases": ["embedding service", "embedding provider", "Core ML sentence embeddings", "contextual embeddings", "adaptive embedding optimizer", "embedding model", "embeddings"],
   "purpose": "Turns chunks and queries into vectors with the library's embedding provider (Core ML, Apple Foundation Models or NaturalLanguage).",
-  "revision": "a64feedd",
+  "revision": "7c5ccaaf",
   "verified_on": "2026-11-05",
   "entry_points": ["EmbeddingService", "LibraryIntelligenceCenter", "CoreAISentenceEmbeddingProvider", "CoreMLSentenceEmbeddingProvider", "NLContextualEmbeddingProvider", "EmbeddingService.generateEmbeddings"],
   "files": [
@@ -30,11 +30,12 @@
     {"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker+Boundaries.swift", "role": "shared", "blob": "4b0a62d92bf3cbb04ec014931c7134f2e544c3ed"},
     {"path": "OpenIntelligence/Features/Database/LibraryIntelligenceCard.swift", "role": "shared", "blob": "5a8a60e996861c1f0d8c968b400c497c6b356768"},
     {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Intelligence.swift", "role": "shared", "blob": "282462976f4cfbcebacdbd91a8895e8906a28d1e"},
-    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+NerdStats.swift", "role": "shared", "blob": "38703f02a01b496680b07aca0f93ae3d6ca17036"}
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+NerdStats.swift", "role": "shared", "blob": "38703f02a01b496680b07aca0f93ae3d6ca17036"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "role": "shared", "blob": "a5b8b5890e0587e0b7a01f6c5aea45325059db8d"}
   ],
   "nodes": [
     {"id": "EmbeddingService", "kind": "service", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 14, "match": "class EmbeddingService {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentLibraryView.createNewLibrary", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2131, "match": "private func createNewLibrary(syncMode: LibrarySyncMode) {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.createNewLibrary", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 211, "match": "func createNewLibrary(syncMode: LibrarySyncMode) {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerSettingsSheet.refreshProviderAvailability", "kind": "function", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 606, "match": "private func refreshProviderAvailability() {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentSummaryService.generateDocumentSummary", "kind": "function", "path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 97, "match": "func generateDocumentSummary(", "status": "VERIFIED", "by": "build"},
     {"id": "SemanticChunker.embeddingService", "kind": "service", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 74, "match": "var embeddingService: EmbeddingService?", "status": "VERIFIED", "by": "build"},
@@ -72,7 +73,7 @@
     {"from": "EmbeddingService.init", "type": "calls", "to": "CoreMLSentenceEmbeddingProvider", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 70, "match": "provider: EmbeddingProvider = CoreMLSentenceEmbeddingProvider(),"}], "by": "build", "note": "constructs it"},
     {"from": "NLContextualEmbeddingProvider", "type": "calls", "to": "EmbeddingError.modelError", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Embedding/Providers/NLContextualEmbeddingProvider.swift", "line": 124, "match": "throw EmbeddingError.modelError(error.localizedDescription)"}], "by": "build", "note": "the call names the type"},
     {"from": "EmbeddingService.generateEmbeddings", "type": "calls", "to": "EmbeddingError.wrap", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 353, "match": "throw EmbeddingError.wrap(error, provider: providerIdentifier)"}], "by": "build", "note": "the call names the type"},
-    {"from": "DocumentLibraryView.createNewLibrary", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2143, "match": "let embeddingService = EmbeddingService.forProvider("}], "by": "build", "note": "named there"},
+    {"from": "DocumentLibraryView.createNewLibrary", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 223, "match": "let embeddingService = EmbeddingService.forProvider("}], "by": "build", "note": "named there"},
     {"from": "ContainerSettingsSheet.refreshProviderAvailability", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 618, "match": "let service = EmbeddingService.forProvider(id: option.id, targetDimension: option.supportedDimensions.first, allowFallback: false)"}], "by": "build", "note": "named there"},
     {"from": "DocumentSummaryService.generateDocumentSummary", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 101, "match": "embeddingService: EmbeddingService,"}], "by": "build", "note": "named there"},
     {"from": "SemanticChunker.embeddingService", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 74, "match": "var embeddingService: EmbeddingService?"}], "by": "build", "note": "named there"},

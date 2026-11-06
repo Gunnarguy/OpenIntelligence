@@ -4,7 +4,7 @@
   "name": "Billing and Quotas",
   "aliases": ["plans screen", "plan upgrade sheet", "subscription paywall", "StoreKit entitlements", "launch sale banner", "lifetime sale", "Maximum mode quota", "document limit", "imports left", "paywall", "pricing"],
   "purpose": "Sells the plans through StoreKit 2, records entitlements, and enforces each tier's document and Maximum mode limits.",
-  "revision": "fe3df217",
+  "revision": "7c5ccaaf",
   "verified_on": "2026-11-05",
   "entry_points": ["PlanUpgradeSheet", "StoreKitBillingService", "EntitlementStore", "QuotaPolicy", "MaximumModeQuotaStore", "LaunchSaleBanner", "PlanAskService"],
   "files": [
@@ -39,7 +39,8 @@
     {"path": "OpenIntelligenceTests/Services/Billing/SavedEntitlementSnapshotTests.swift", "role": "test", "blob": "caa79520da470e26a2f93bed10256129ec9a515d"},
     {"path": "OpenIntelligence/Features/Billing/PlanBenefits.swift", "role": "primary", "blob": "bd29aabab6184d62435f4131b2846da8023bd5a2"},
     {"path": "OpenIntelligenceTests/Features/Billing/PlanBenefitsTests.swift", "role": "test", "blob": "0e1a19f815ccc6683e1ed226765d6dffbee31d86"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "role": "shared", "blob": "746450eb80cc1706f5aba2864767d0f042b5ffcc"}
   ],
   "nodes": [
     {"id": "PlanUpgradeSheet", "kind": "view", "path": "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "line": 9, "match": "struct PlanUpgradeSheet: View {", "status": "VERIFIED", "by": "build"},
@@ -52,7 +53,7 @@
     {"id": "ContentView.body", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 95, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "LaunchSaleBanner.body", "kind": "model", "path": "OpenIntelligence/Features/Billing/LaunchSaleBanner.swift", "line": 22, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ChatScreen.chatPresentationLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 425, "match": "private var chatPresentationLayer: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentLibraryView.librarySheetView", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1602, "match": "private var librarySheetView: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.librarySheetView", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "line": 377, "match": "private var librarySheetView: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerSettingsSheet.body", "kind": "model", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 193, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "SettingsView.body", "kind": "model", "path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 73, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "StoreKitBillingService", "kind": "service", "path": "OpenIntelligence/Services/Billing/StoreKitBillingService.swift", "line": 9, "match": "final class StoreKitBillingService: BillingService {", "status": "VERIFIED", "by": "build"},
@@ -95,7 +96,7 @@
     {"from": "ContentView.body", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 240, "match": "PlanUpgradeSheet(entryPoint: .onboarding)"}], "by": "build", "note": "constructs it"},
     {"from": "LaunchSaleBanner.body", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Billing/LaunchSaleBanner.swift", "line": 54, "match": "PlanUpgradeSheet(entryPoint: .launchSale)"}], "by": "build", "note": "constructs it"},
     {"from": "ChatScreen.chatPresentationLayer", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 594, "match": "PlanUpgradeSheet(entryPoint: planEntryPoint)"}], "by": "build", "note": "constructs it"},
-    {"from": "DocumentLibraryView.librarySheetView", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1687, "match": "PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)"}], "by": "build", "note": "constructs it"},
+    {"from": "DocumentLibraryView.librarySheetView", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "line": 462, "match": "PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)"}], "by": "build", "note": "constructs it"},
     {"from": "ContainerSettingsSheet.body", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 347, "match": "PlanUpgradeSheet(entryPoint: planEntryPoint)"}], "by": "build", "note": "constructs it"},
     {"from": "SettingsView.body", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 89, "match": "PlanUpgradeSheet(entryPoint: planEntryPoint)"}], "by": "build", "note": "constructs it"},
     {"from": "AppServices.init", "type": "calls", "to": "StoreKitBillingService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/AppServices.swift", "line": 48, "match": "let billingService = StoreKitBillingService()"}], "by": "build", "note": "constructs it"},

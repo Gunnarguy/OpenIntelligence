@@ -4,7 +4,7 @@
   "name": "Document Analysis",
   "aliases": ["spatial document analyzer", "audio transcription", "language detection", "document summary service", "entity index"],
   "purpose": "Transcribes audio, detects a document's language, and builds its summary, entity index and spatial layout.",
-  "revision": "fe3df217",
+  "revision": "7c5ccaaf",
   "verified_on": "2026-11-05",
   "entry_points": ["SpatialDocumentAnalyzer", "DocumentSummaryService", "EntityIndexService", "AudioTranscriptionService", "LanguageDetectionService"],
   "files": [
@@ -22,7 +22,8 @@
     {"path": "OpenIntelligenceTests/Services/Document/Extraction/GazetteerMatchingTests.swift", "role": "test", "blob": "f06eb146582c2a2f07dd8c47096ad8e46a457fa5"},
     {"path": "OpenIntelligenceTests/Services/Document/Processing/SpeechTranscriptionTests.swift", "role": "test", "blob": "1ece204afd77c8681da05a0f3cc01b19d1868557"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "role": "shared", "blob": "b13fa29684025950c2e527646e3f7eddd30b248f"},
-    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "role": "shared", "blob": "097505a20eb76107851e5695dacd8308c569f779"}
+    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "role": "shared", "blob": "097505a20eb76107851e5695dacd8308c569f779"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "role": "shared", "blob": "a5b8b5890e0587e0b7a01f6c5aea45325059db8d"}
   ],
   "nodes": [
     {"id": "SpatialDocumentAnalyzer", "kind": "model", "path": "OpenIntelligence/Services/Document/Analysis/SpatialDocumentAnalyzer.swift", "line": 152, "match": "actor SpatialDocumentAnalyzer {", "status": "VERIFIED", "by": "build"},
@@ -38,7 +39,7 @@
     {"id": "EntityIndexService", "kind": "service", "path": "OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift", "line": 44, "match": "actor EntityIndexService {", "status": "VERIFIED", "by": "build"},
     {"id": "EntityIndexSnapshotData", "kind": "model", "path": "OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift", "line": 412, "match": "struct EntityIndexSnapshotData: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "EntityIndexStatistics", "kind": "model", "path": "OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift", "line": 442, "match": "struct EntityIndexStatistics {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentLibraryView.deleteConflictedLocalLibraries", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2236, "match": "private func deleteConflictedLocalLibraries(_ conflict: WorkspaceSyncService.PendingBootstrapConflict) {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.deleteConflictedLocalLibraries", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 316, "match": "func deleteConflictedLocalLibraries(_ conflict: WorkspaceSyncService.PendingBootstrapConflict) {", "status": "VERIFIED", "by": "build"},
     {"id": "LibraryDeletion.delete", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/LibraryDeletion.swift", "line": 68, "match": "static func delete(", "status": "VERIFIED", "by": "build"},
     {"id": "BackgroundTaskService.handleIndexMaintenance", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift", "line": 1447, "match": "func handleIndexMaintenance(task: BGProcessingTask) {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.removeDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "line": 262, "match": "func removeDocument(_ document: Document, keepPhysicalFile: Bool = false, forRebuild: Bool = false) async throws {", "status": "VERIFIED", "by": "build"},
@@ -67,7 +68,7 @@
     {"from": "DocumentSummaryService", "type": "calls", "to": "EmbeddingService.generateEmbedding", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 134, "match": "let summaryEmbedding = try await embeddingService.generateEmbedding("}], "by": "build", "note": "named in the body"},
     {"from": "DocumentSummaryService", "type": "calls", "to": "ChunkMetadata", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift", "line": 146, "match": "let metadata = ChunkMetadata("}], "by": "build", "note": "named in the body"},
     {"from": "RAGService.documentSummaryService", "type": "depends_on", "to": "DocumentSummaryService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 46, "match": "let documentSummaryService: DocumentSummaryService"}], "by": "build", "note": "named there"},
-    {"from": "DocumentLibraryView.deleteConflictedLocalLibraries", "type": "depends_on", "to": "EntityIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2268, "match": "await EntityIndexService.shared.removeContainer(containerId)"}], "by": "build", "note": "named there"},
+    {"from": "DocumentLibraryView.deleteConflictedLocalLibraries", "type": "depends_on", "to": "EntityIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 348, "match": "await EntityIndexService.shared.removeContainer(containerId)"}], "by": "build", "note": "named there"},
     {"from": "LibraryDeletion.delete", "type": "depends_on", "to": "EntityIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/LibraryDeletion.swift", "line": 117, "match": "await EntityIndexService.shared.removeContainer(containerId)"}], "by": "build", "note": "named there"},
     {"from": "BackgroundTaskService.handleIndexMaintenance", "type": "depends_on", "to": "EntityIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift", "line": 1457, "match": "let entityService = EntityIndexService.shared"}], "by": "build", "note": "named there"},
     {"from": "RAGService.removeDocument", "type": "depends_on", "to": "EntityIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "line": 280, "match": "await EntityIndexService.shared.removeDocument(document.id)"}], "by": "build", "note": "named there"},

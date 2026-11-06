@@ -4,7 +4,7 @@
   "name": "Container Settings and Customization",
   "aliases": ["container settings sheet", "Library Settings", "library color palette", "SF symbol picker", "chunking preview"],
   "purpose": "Sets a library's symbol, color and chunking in its settings sheet.",
-  "revision": "a64feedd",
+  "revision": "7c5ccaaf",
   "verified_on": "2026-11-05",
   "entry_points": ["ContainerSettingsSheet", "LibraryColorPicker", "SFSymbolPicker"],
   "files": [
@@ -20,12 +20,13 @@
     {"path": "OpenIntelligence/Features/Documents/WatchedFolders/WatchedFolderService.swift", "role": "primary", "blob": "14dae8c2113b23fc6ba3e55aae03d6293f67dfda"},
     {"path": "OpenIntelligence/Features/Documents/WatchedFolders/WatchedFolderSection.swift", "role": "primary", "blob": "b907fa05b7f2a89bd4a46a0736be46218780ea0a"},
     {"path": "OpenIntelligence/Features/Documents/WatchedFolders/WatchedFolder.swift", "role": "primary", "blob": "019eebfe3a6897444048cc8f821f52f3efa6b7a3"},
-    {"path": "OpenIntelligenceTests/Features/Documents/WatchedFolderTests.swift", "role": "test", "blob": "4d4a383a3c62e973eb967f736903057f481f8460"}
+    {"path": "OpenIntelligenceTests/Features/Documents/WatchedFolderTests.swift", "role": "test", "blob": "4d4a383a3c62e973eb967f736903057f481f8460"},
+    {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "role": "shared", "blob": "746450eb80cc1706f5aba2864767d0f042b5ffcc"}
   ],
   "nodes": [
     {"id": "ContainerSettingsSheet", "kind": "view", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 12, "match": "struct ContainerSettingsSheet: View {", "status": "VERIFIED", "by": "build"},
     {"id": "PlanUpgradeSheet", "kind": "view", "path": "OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift", "line": 9, "match": "struct PlanUpgradeSheet: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentLibraryView.librarySheetView", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1602, "match": "private var librarySheetView: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "DocumentLibraryView.librarySheetView", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "line": 377, "match": "private var librarySheetView: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "LibraryColorPicker", "kind": "view", "path": "OpenIntelligence/Features/Documents/Settings/ColorPicker.swift", "line": 82, "match": "struct LibraryColorPicker: View {", "status": "VERIFIED", "by": "build"},
     {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 430, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "SFSymbolPicker", "kind": "view", "path": "OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift", "line": 10, "match": "struct SFSymbolPicker: View {", "status": "VERIFIED", "by": "build"},
@@ -34,7 +35,7 @@
   ],
   "edges": [
     {"from": "ContainerSettingsSheet", "type": "renders", "to": "PlanUpgradeSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 347, "match": "PlanUpgradeSheet(entryPoint: planEntryPoint)"}], "by": "build", "note": "constructs it"},
-    {"from": "DocumentLibraryView.librarySheetView", "type": "renders", "to": "ContainerSettingsSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 1677, "match": "ContainerSettingsSheet(containerService: containerService, ragService: ragService)"}], "by": "build", "note": "constructs it"},
+    {"from": "DocumentLibraryView.librarySheetView", "type": "renders", "to": "ContainerSettingsSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Body.swift", "line": 452, "match": "ContainerSettingsSheet(containerService: containerService, ragService: ragService)"}], "by": "build", "note": "constructs it"},
     {"from": "LibraryColorPicker", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ColorPicker.swift", "line": 183, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},
     {"from": "SFSymbolPicker", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift", "line": 255, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"}
   ],
