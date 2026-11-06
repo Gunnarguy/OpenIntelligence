@@ -1,10 +1,10 @@
 # Current State
 
-Updated: 2026-11-05 about 17:45 PT (5.8 open; all work committed with `[ci skip]` and pushed to origin/main on 2026-11-05 evening (through 2f443996, then the citation fix after it). 5.7 is live on iPhone, iPad
-and Mac since 2026-10-22, build 487. Xcode Cloud build 488 (`fb225053`) is VALID on both platforms and attached to
-neither record.)
+Updated: 2026-11-06 about 09:15 PT (5.8 open. The night of 2026-11-05: the 15 other large Swift files split by job, a pure move,
+the commits from `6516ec30`, all `[ci skip]`, pushed with this STATE. 5.7 is live on iPhone, iPad and Mac
+since 2026-10-22, build 487; Xcode Cloud build 488 (`fb225053`) is VALID and attached to neither record.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 2f443996
+Last verified commit: e3b9e49e
 
 ## Objective
 
@@ -16,6 +16,7 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 | What | Where it stands |
 |---|---|
+| File split, 2026-11-05 night (his "go", and "use whatever you need") | Done. 17 files of 93,459 lines are now 131 files (`Docs/ai/FILE_MAP.md`); tonight's 15 (60,585 lines) one commit each. Every split: `prove_move.py` 0 lines added, 0 lost, blank lines exact, original order; iOS and macOS builds clean; overload, overload-set and widen checks; its own tests (386, 0 failures). Golden harness, the code before the splits (`6fa0f462`) and HEAD back to back in `OI 5.8 tests`: 760 searches, 15,540 passages, 0 differ. Reviews: a refuting agent on ChatScreen (move exact; 5 doubled blank lines and 7 stale citations, fixed in `b8f2eb23`), Antigravity Claude Sonnet 5.5 on all 15 (pure moves; 9 of 15 sampled doc citations wrong, all stale before the split; fixed). Traps the build did not catch, now tools in `BenchmarkRuns/2026-11-05-file-split/` and memory `file-split-traps-green-build-is-not-proof`: calls rebinding once a `private` member moves, partial overload sets, a `nonisolated` class's members turning main-actor in a plain extension (SemanticChunker uses `nonisolated extension`). Hard boundary now names `WorkspaceSyncService+*.swift` and `SQLiteFullTextService+*.swift`. Docs: 878 citations in 31 live docs rewritten to the new files, then every citation of a split file in 33 live docs audited by agents (Fable 5.1, Sonnet 5.5): about 1,260 fixed, each traced to the commit that wrote it and its code text found in today's files (the night's remap had used line maps from `e68facb2` on citations pinned at `1e379aa`, 2026-10-20, or earlier). Left for him: chapter 10's sentence that Standard's no-documents chat "keeps" its tools is false since 2026-10-21 (that call sets `disableTools`; the claim-audit skill applies) |
 | Roadmap | 2026-11-04 night: every In Progress row of 5.0 to 5.7 was read. 5 closed with device proof (document without passages repaired after a library switch; MetricKit reports read back; per-state metrics; import background task ran; Library 6's `_norms.bin` off the iPhone, 8,182 vectors, 0 zero). The other 101 moved to 5.8, each with a dated note "Moved to 5.8 … Closes when … Needs …". Now: 5.8 In Progress 119, 5.8 To Do 30, Future Backlog 9, nothing open in older releases |
 | Rebuild loop between devices (row `40d49a74d54f81dbb75bd6daf9309f50`) | Built `77aeedfa`, `50ebc713`, `02158436`: a rebuild keeps each document's id, record and file and records no deletion; it joins the Live Activity and asks for continued processing; a saved rebuild item gets `evaluateSemanticIndexHealth` at relaunch instead of a restart (the queue file is shared, so it can hold another device's). Closes on both devices running 5.8 with no `Wiping orphaned vector database chunks` on one after the other rebuilds |
 | One engine per launch (row `40e49a74d54f819ebd0dd44c102c37fd`) | Built `97c1cb93`: `AppServices.shared` (`OpenIntelligence/App/AppServices.swift`) builds the engine, sync, libraries, billing, plan, settings and model resolution once; `ContentView` observes them. Two Mac windows had started the same rebuild twice 29 ms apart. Closes on two Mac windows logging each event once |
@@ -55,6 +56,8 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Verification (output read)
 
+- Night of 2026-11-05, per split (logs `/private/tmp/oi58-split-logs/`): `split_type.py` 0 added 0 missing; access loop CLEAN on iOS and macOS; `prove_move.py --plan` 0 added, 0 lost, 0 blank lines beyond the headers, 0 out of order (all 15); tests: batch 2 187 executed 1 skipped 0 failures, batch 3 180 executed 0 failures, MaximumModeQuotaStoreTests 3, AnswerReplacementGuardTests 14 and DeepThinkSelfRAGTests 2 (the self-check fix `6fa0f462`). Golden: `night-base` vs `night-head` -> 760 searches, 15,540 passages compared, 0 differ (the base's first launch failed to prepare the simulator and was rerun after HEAD). `verify_doc_claims.py` 1,974 claims 0 failures; `test_verify_doc_claims.sh` 8/8; codemap check 0 errors 0 warnings; `secret_scan.py` clean. `test_repoos_router.py`: 30 of 31, `test_every_task_loads_only_the_small_universal_set` fails at 56 KB against its 40 KB cap; it already failed at `e68facb2` (51,818 bytes), and the file maps moved to `FILE_MAP.md` so ARCHITECTURE.md did not grow by them.
+- HEAD after the splits (`ce61af92` code): full iOS 27 Simulator suite on `OI 5.8 checks` -> 1,470 tests, 9 skipped, 3 failures, all `AtlasLabelingTests` (the known word-class asset pattern); that class alone -> 26 tests, 0 failures. macOS Debug build -> BUILD SUCCEEDED; iOS Release build -> BUILD SUCCEEDED; generic iOS device build -> BUILD SUCCEEDED, waiting to install (the phone read "unavailable" at 09:00; `device_split.sh` polls up to 4 hours). Antigravity (Claude Sonnet 5.5) review of all 15 splits: pure moves.
 - Working tree after `a0602f1c` (off-main embedder + review fixes): iOS 27 Simulator build-for-testing -> TEST BUILD SUCCEEDED, 0 warnings on the provider; `EmbeddingConcurrencyIdentityTests` 4 passed (180 passages concurrent vs one at a time, max abs diff 0; 16 cold first callers; 16 callers on a warm provider; ingestion mode toggled mid-batch, cosine > 0.99), `IngestionModeSwitchTests` 2 passed; the same 6 under `-enableThreadSanitizer YES` -> passed, 0 ThreadSanitizer warnings. Generic iOS device build (signed with the App Store Connect API key, no new certificate) -> BUILD SUCCEEDED. `verify_doc_claims.py` 1,568 claims match; codemap check 0 errors 0 warnings; `secret_scan.py` clean.
 
 - Tree of `1f1d9cb3` (shared Core ML provider, analysis worker, ingestion-mode count): iOS 27 Simulator build-for-testing -> TEST BUILD SUCCEEDED, no warnings on the changed lines; `LibraryAnalysisSampleTests` 14 passed (the first run hung before connecting, passed after a simulator reboot), `EvidenceThreadStoreTests` 12, `IngestionModeSwitchTests` 2, `ShortcutsActionTests` 13, 0 failures. Two adversarial reviews of the diff; the first found a data-loss race in a chat-history change, which was reverted before commit.
@@ -88,31 +91,6 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Exact Next Action
 
-**The RAGService/AgenticOrchestrator split is committed** as `d355dda5` ("Split RAGService and AgenticOrchestrator
-into files by job, a pure move"; pushed 2026-11-05). Its first citation pass skipped 18 follow-ons written ":N" after "and" or "or" (13 in CANONICAL, 2 RETRIEVAL_PIPELINE, 2 PRIVACY_AND_ROUTING, 1 Atlas); fixed in the commit after 2f443996 by the same line map, and `BenchmarkRuns/2026-11-05-file-split/translate_citations.py` now accepts them. verify_doc_claims 0 failures at that commit (citations pinned to older commits now read `File.swift@sha:N`). A Debug device build of it (182 s, built 17:50) was installed on his iPhone 2026-11-05 at 21:31; `devicectl device info apps` reads 5.8 build 150. He ran one Deep Think question on it and said it worked; that is his report, no timings were read off the phone. Proven and read before committing: the move check (0 lines added or lost; original order
-except the 5 stored properties moved into the class by design; 236 access keywords removed across 204 names, no call can
-bind differently); iOS Simulator build-for-testing, macOS Debug build and iOS Release build all succeeded; golden harness
-760 of 760 identical to the code before the split in the same simulator state; full suite 1,199 passed, the 16 failures
-all simulator state (free-plan limit filled by the golden library, a language asset after an erase, a duplicate note
-left by a run the owner's closing the simulators cut off) and each passing on a clean `OI 5.8 checks`; a Fable 5.1
-review found no behaviour change; codemap 0 errors, 0 warnings.
+**The file split is done and checked** (see Status and Verification). If the iPhone install did not happen (check `xcrun devicectl device info apps --device 00008140-001130DA1863C01C` against a build after 07:55 on 2026-11-06), run `bash BenchmarkRuns/2026-11-05-file-split/device_split.sh` with the phone unlocked and the app closed.
 
-**Waiting for the owner's "go"** to run `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md` on the other 15 large
-files. The scripts there take any file as of 2026-11-05 evening: `access_loop.sh <label> <globs>`, `fix_access.py`
-(setter search limited to the globs), `prove_move.py --plan` (move, order and access-keyword counts; on the committed
-split against `e68facb2` it still reads 0 added, 0 lost, 236 removed) and `translate_citations.py --old/--merge/--base`
-(one run per file; it refuses a second). A dry run of `split_type.py` plus `prove_move.py --plan` on the SemanticChunker
-and SuggestedQuestionsService drafts read 0 added and 0 lost. Still for the night itself: name each `plans/*.json` by
-job (the drafts are cut by size: SQLiteFullTextService's first group takes the singleton, properties and init out of
-the main file) and write plans for the four files without one (DocumentLibraryView, LLMService, VisualizationsView,
-ContainerSettingsSheet+Sections). A stray
-`.git.nosync/.DS_Store` is reported by `scripts/check_icloud_conflicts.sh`; harmless (not in `refs/`), and the
-permission check refused deleting it, so the owner removes it if he wants.
-
-**Overnight: the other 15 large files** (owner, 2026-11-05 evening: "I'm gonna name those files those excluded ones so like whatever needs to be done to literally square all this off"; that names the hard-boundary `WorkspaceSyncService.swift` and `SQLiteFullTextService.swift` for a pure move only: no change to the FTS5 schema or to sync behaviour, proven by the move check). Runbook: `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md`.
-
-After the split: a separate, reviewed commit for the main-actor warnings in `CoreMLSentenceEmbeddingProvider.swift`
-(lines with `DeviceCapabilityService.shared`, `MLArrayBufferSet`; from `b70da2d3`, no race found by the 2026-11-05
-review); the 5.8 user copy (What's New, `Docs/USER_CHANGELOG.md`, release notes) for the week's user-visible changes;
-then the speed list in `BenchmarkRuns/2026-11-04-speed-research/` (one evidence session, prewarm, planner schema,
-parallel sub-searches) and the three 2026-11-05 rows from his stress test.
+Then the 5.8 work that waited for the split: confirm on his iPhone that Deep Think's self-check runs research once (row `41049a74d54f8175a849d1f6c19f3d37`: ask "What regulates mitochondrial quality?" in Deep Think, read the trace for one `Starting recursive research loop` then `research already ran for this answer`); a separate, reviewed commit for the main-actor warnings in `CoreMLSentenceEmbeddingProvider.swift`; the 5.8 user copy; the speed list in `BenchmarkRuns/2026-11-04-speed-research/`; the three 2026-11-05 stress-test rows.
