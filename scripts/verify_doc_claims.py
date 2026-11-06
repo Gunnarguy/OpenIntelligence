@@ -64,6 +64,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # noise, and a noisy gate gets bypassed within a week.
 DOCS = [
     "Docs/ai/ARCHITECTURE.md",
+    "Docs/ai/FILE_MAP.md",
     "Docs/ai/PROJECT.md",
     "Docs/ai/RUNBOOK.md",
     "Docs/ai/STATE.md",

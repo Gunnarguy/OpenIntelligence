@@ -16,7 +16,7 @@ You are inside the OpenIntelligence repository. It has a governance layer called
 5. If no row matches, use `Docs/RepoOS/01_TASK_ROUTER.md` route 13 rules (treat as config-risk: stop and ask).
 
 ## Hard boundaries (from Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md)
-Never edit without the user naming the file in their approval: `project.pbxproj`, `*.storekit`, `*.entitlements`, `Info.plist` capabilities, `Package.swift` dependency pins, `ChatMessage.swift`, `WorkspaceSyncService.swift`, `SQLiteFullTextService.swift` schema, `BNNSVectorDatabase.swift` format, `EntitlementStore.swift`, `QuotaPolicy.swift` tier limits, `RAGAppIntents.swift` shortcut count (9/10 slots used), `FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift`, `EngineSDKCompatibility.swift`.
+Never edit without the user naming the file in their approval: `project.pbxproj`, `*.storekit`, `*.entitlements`, `Info.plist` capabilities, `Package.swift` dependency pins, `ChatMessage.swift`, `WorkspaceSyncService.swift` and its `WorkspaceSyncService+*.swift` files, `SQLiteFullTextService.swift` schema, `BNNSVectorDatabase.swift` format, `EntitlementStore.swift`, `QuotaPolicy.swift` tier limits, `RAGAppIntents.swift` shortcut count (9/10 slots used), `FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift`, `EngineSDKCompatibility.swift`.
 
 ## Stop conditions
 - Present an implementation plan and WAIT for `PROCEED: IMPLEMENT` before the first source edit.

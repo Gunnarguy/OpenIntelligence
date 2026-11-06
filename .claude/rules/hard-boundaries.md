@@ -9,8 +9,10 @@ paths:
   - "OpenIntelligence/Core/Models/ChatMessage.swift"
   - "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift"
   - "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift"
+  - "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+*.swift"
   - "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift"
   - "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift"
+  - "OpenIntelligence/Services/Storage/SQLiteFullTextService+*.swift"
   - "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift"
   - "OpenIntelligence/Services/Billing/EntitlementStore.swift"
   - "OpenIntelligence/Services/Agentic/RAGAppIntents.swift"
@@ -36,8 +38,8 @@ Each of these files guards something a compile-clean change can still break sile
 | `*.entitlements`, `Info.plist` | Capability gating, including Private Cloud Compute access |
 | `Package.swift`, `Package.resolved` | Pinned dependency versions |
 | `ChatMessage.swift` | Persisted message shape, so conversation history |
-| `WorkspaceSyncService.swift` | Cross-device iCloud library reconciliation |
-| `SQLiteFullTextService.swift` schema | The FTS5 index, which requires a full reindex to change |
+| `WorkspaceSyncService.swift` and its `WorkspaceSyncService+*.swift` files (split by job 2026-11-05) | Cross-device iCloud library reconciliation |
+| `SQLiteFullTextService.swift` schema (still in that file after the 2026-11-05 split; the `+` files hold its queries) | The FTS5 index, which requires a full reindex to change |
 | `BNNSVectorDatabase.swift` format | On-disk vector format, same problem |
 | `QuotaPolicy.swift` tier limits | What each paid tier is allowed to do |
 | `RAGAppIntents.swift` shortcut count | 10 of 10 Siri shortcut slots are used since 5.7 (9 through 5.6); an eleventh stops every one registering, with no error |

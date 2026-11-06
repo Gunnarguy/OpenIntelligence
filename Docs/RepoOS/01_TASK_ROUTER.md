@@ -46,7 +46,7 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 - **Subsystem:** chat persistence / Evidence Threads (integrated per canonical §11–12)
 - **Read first:** canonical §11, Atlas §15, `Docs/AgentPlaybooks/05_EVIDENCE_THREADS_IMPLEMENTATION_GUARDRAILS.md`, `Docs/AuditArtifacts/ArchitectureAtlas/evidence_threads_design_decision.md`
 - **Allowed:** `OpenIntelligence/Core/Models/EvidenceThread.swift`, `OpenIntelligence/Services/Storage/EvidenceThreadStore.swift`, `OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift`, `OpenIntelligence/Features/Debug/EvidenceThread*`
-- **Forbidden:** `ChatMessage.swift` (must remain untouched — canonical §11), `WorkspaceSyncService.swift`, `QuotaPolicy.swift` tier limits
+- **Forbidden:** `ChatMessage.swift` (must remain untouched — canonical §11), `WorkspaceSyncService.swift` and its `+*.swift` files, `QuotaPolicy.swift` tier limits
 - **Verify:** build smoke; serialize/deserialize round-trip check; confirm thread saves respect quota gating
 - **Approval:** REQUIRED (was governance-gated; storage layout is sync-coupled)
 
@@ -54,7 +54,7 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 - **Subsystem:** iCloud/workspace sync (HIGH risk)
 - **Read first:** canonical §7, Atlas §9, `Docs/AuditArtifacts/ArchitectureAtlas/sync_touchpoints.csv`
 - **Allowed:** nothing without explicit approval
-- **Forbidden:** `WorkspaceSyncService.swift` deletion-sweep and mtime-guard logic (data-loss protection, canonical §3); introducing CloudKit (canonical §4 false claim)
+- **Forbidden:** `WorkspaceSyncService.swift` (and its `+*.swift` files since the 2026-11-05 split) deletion-sweep and mtime-guard logic (data-loss protection, canonical §3); introducing CloudKit (canonical §4 false claim)
 - **Verify:** `grep -rn "CKDatabase\|CKContainer" OpenIntelligence/ --include=*.swift` must stay empty; build smoke; full tests
 - **Approval:** ALWAYS
 

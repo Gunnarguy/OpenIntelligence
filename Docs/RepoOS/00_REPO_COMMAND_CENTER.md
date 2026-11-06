@@ -44,7 +44,7 @@ Per `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md` §14 and `Docs/AuditArtifacts/
 |---|---|
 | PCC routing/consent | `OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift`, `OpenIntelligence/UI/Components/CloudConsentPromptView.swift` |
 | Apple Foundation Models | `OpenIntelligence/Services/AIPlatform/AppleFoundationModels/*` |
-| iCloud/workspace sync | `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` |
+| iCloud/workspace sync | `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` and its `WorkspaceSyncService+*.swift` files (split by job 2026-11-05) |
 | StoreKit / billing | `OpenIntelligence/Services/Billing/StoreKitBillingService.swift`, `EntitlementStore.swift`, `OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit` |
 | App Intents/Siri/Shortcuts | `OpenIntelligence/Services/Agentic/RAGAppIntents.swift` (10 of 10 shortcut slots used since 5.7; 9 through 5.6) |
 

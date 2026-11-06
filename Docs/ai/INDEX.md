@@ -11,6 +11,7 @@ is the always-loaded control plane and points here. Read on demand, not by defau
 | [STATE.md](STATE.md) | Always, before substantive work. Current objective, what is verified, one exact next action. |
 | [PROJECT.md](PROJECT.md) | You need scope, constraints, or what this app deliberately does not do. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | You need the component map, or you do not know which doc owns an area. |
+| [FILE_MAP.md](FILE_MAP.md) | A type split by job on 2026-11-05 (RAGService, ChatScreen, DocumentProcessor and 14 more): which file holds what. |
 | [DECISIONS.md](DECISIONS.md) | Something looks wrong and you are about to "fix" it. Check whether it was decided. Read by section. |
 | [RUNBOOK.md](RUNBOOK.md) | You need to build, test, release, or recover, and want to know which commands are actually verified. Read by section: `grep -n '^## '`. |
 | [codemap/INDEX.md](codemap/INDEX.md) | You need the code behind a feature: its entry points, the files it owns, and what it calls or renders. Open one slice, then confirm the cited lines. |

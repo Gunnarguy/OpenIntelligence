@@ -33,7 +33,7 @@ developers, and product copy is read by people who will not check the source.
   Corrected 2026-10-20: "Office files" means `.docx`, `.xlsx` and `.pptx`, read from their zipped XML. A
   legacy `.doc`, `.xls` or `.ppt` does not open as a ZIP, and its import fails with "Office document
   detected. For best results, export as PDF before importing." `[evidence_level: code_verified,
-  confidence: high, evidence_source: DocumentProcessor+MediaAndOffice.swift:117-215, 10015-10020, 10118-10119]`
+  confidence: high, evidence_source: DocumentProcessor+MediaAndOffice.swift:117-215, DocumentProcessor.swift:780-785, DocumentProcessor.swift:883-884]`
 - On-device indexing: dense vectors plus a SQLite FTS5 keyword index.
   Corrected 2026-10-20: the vectors are 384 numbers a passage from MiniLM-L6-v2 (512 from `NLEmbedding`
   when it stands in), kept in one flat file per library in arrival order, rewritten whole at each save, and
@@ -63,8 +63,8 @@ developers, and product copy is read by people who will not check the source.
   picker, before a final synthesis, with no tools in any session. They run the gates from 5.7, as a label only
   (in 5.6 those answers read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop and its stop rules.
   `[evidence_level: code_verified, confidence: high, evidence_source: SettingsStore.swift:617-624,
-  RAGService+AgenticQuery.swift:602, 11239-11263, 16274-16392, 16571-16834, 16870-16894, 19500-19525,
-  AgenticOrchestrator.swift:180, 544-1143, 5313, 9228-9240]`
+  RAGService+AgenticQuery.swift:602, 253-277, RAGService+QueryPipeline.swift:4381-4499, RAGService+QueryPipeline.swift:4678-4941, RAGService+QueryPipeline.swift:4977-5001, RAGService+Generation.swift:1648-1673,
+  AgenticOrchestrator.swift:180, 385-984, AgenticOrchestrator+ReasoningChain.swift:600, RAGService+Agentic.swift:156-168]`
 - iCloud sync of the document library across a user's own devices.
 - Siri Shortcuts and App Intents.
 - Paid tiers with quotas.

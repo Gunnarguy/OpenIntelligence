@@ -30,7 +30,8 @@ or documentation pass.
    first source edit. "It is only a log line" is not an exemption.
 4. **Hard-boundary files.** Never edit unless the user names the file in their approval:
    `project.pbxproj`, `*.storekit`, `*.entitlements`, `Info.plist` capabilities, `Package.swift`
-   pins, `ChatMessage.swift`, `WorkspaceSyncService.swift`, `SQLiteFullTextService.swift` schema,
+   pins, `ChatMessage.swift`, `WorkspaceSyncService.swift` and its `WorkspaceSyncService+*.swift` files,
+   `SQLiteFullTextService.swift` schema (in that file; the `+` files hold its queries),
    `BNNSVectorDatabase.swift` format, `EntitlementStore.swift`, `QuotaPolicy.swift` tier limits,
    `RAGAppIntents.swift` shortcut count, `FoundationModelRoutePolicy.swift`,
    `FoundationModelSessionFactory.swift`, `EngineSDKCompatibility.swift`. Reasons in
@@ -120,6 +121,7 @@ Scheme `OpenIntelligence`, test target
 | Current objective, blockers, exact next action | `Docs/ai/STATE.md` |
 | What the project is, scope, constraints | `Docs/ai/PROJECT.md` |
 | Component map and which doc owns which area | `Docs/ai/ARCHITECTURE.md` |
+| Which file of a split type holds what (RAGService, ChatScreen, DocumentProcessor and 14 more) | `Docs/ai/FILE_MAP.md` |
 | Why something is the way it is | `Docs/ai/DECISIONS.md` |
 | How to build, test, release, recover | `Docs/ai/RUNBOOK.md` |
 | Full agent directives | `AGENTS.md` |
@@ -140,6 +142,10 @@ files (`RAGService+Import.swift`, `AgenticOrchestrator+ReasoningChain.swift`, ..
 `Docs/ai/ARCHITECTURE.md`), most of them small enough to read whole. Two are not: `RAGService+QueryPipeline.swift` (about 6,000 lines, nearly
 all `queryInternal`) and `RAGService+Import.swift` (about 3,300, with `addDocument`): find the symbol with `grep -n`
 and read that range. An old `RAGService.swift:N` citation resolves with `python3 scripts/split_linemap.py`.
+Fifteen more large files (ChatScreen, DocumentProcessor, SettingsView, WorkspaceSyncService and the rest) were split the
+same way that night; the list and what went where is `Docs/ai/FILE_MAP.md`. Moving code
+between files here can change which declaration a call reaches, or a member's actor isolation, with the build still
+green: read the procedure at the end of `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md` before doing it again.
 
 ## Context governance
 
