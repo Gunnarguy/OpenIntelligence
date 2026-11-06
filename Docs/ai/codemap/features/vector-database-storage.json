@@ -4,8 +4,8 @@
   "name": "Vector Database Storage",
   "aliases": ["BNNS vector database", "vector store router", "memory-mapped vectors", "Vectura database", "vector store", "vector database", "vectors stored", "vector index"],
   "purpose": "Stores each library's vectors in a memory-mapped file and searches them with BNNS.",
-  "revision": "099c12af",
-  "verified_on": "2026-11-04",
+  "revision": "5c032ca8",
+  "verified_on": "2026-11-05",
   "entry_points": ["BNNSVectorDatabase", "VectorStoreRouter", "VecturaVectorDatabase", "InMemoryVectorDatabase", "BNNSVectorDatabase.storeBatch", "VectorStoreRouter.db"],
   "files": [
     {"path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "role": "primary", "blob": "7fba2f801badcc7867ecb4f05bb2c049f2ae7375"},
@@ -19,11 +19,13 @@
     {"path": "OpenIntelligence/Services/VectorStore/PassageFileIndex.swift", "role": "primary", "blob": "941f22949af4704d2aa00e39dba05b0ecb4673b6"},
     {"path": "OpenIntelligenceTests/Services/Storage/VectorStorePassageIndexTests.swift", "role": "test", "blob": "9594cab88c6043f61081db656a3469f0aaf9633e"},
     {"path": "OpenIntelligenceTests/Services/Storage/VectorStoreScaleBenchmarkTests.swift", "role": "test", "blob": "4516b56c19718c2b27051158fccd135e71e43354"},
-    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/LibraryVectorHealthTests.swift", "role": "test", "blob": "25d33d09355648571fdd06dc82ecb17b8a5c0131"}
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/LibraryVectorHealthTests.swift", "role": "test", "blob": "25d33d09355648571fdd06dc82ecb17b8a5c0131"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Merging.swift", "role": "shared", "blob": "2b7cee9bd423bceab9c01b93a1d42fc4b9638c5e"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Artifacts.swift", "role": "shared", "blob": "d61232d548b2ac620b271c8d242c0bd4d7675d7e"}
   ],
   "nodes": [
     {"id": "BNNSVectorDatabase", "kind": "model", "path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 63, "match": "actor BNNSVectorDatabase: VectorDatabase {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.mergeVectorStoresIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1884, "match": "nonisolated private func mergeVectorStoresIfNeeded(", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.mergeVectorStoresIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Merging.swift", "line": 251, "match": "nonisolated private func mergeVectorStoresIfNeeded(", "status": "VERIFIED", "by": "build"},
     {"id": "VectorStoreRouter.db", "kind": "function", "path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 124, "match": "func db(for container: KnowledgeContainer) -> VectorDatabase {", "status": "VERIFIED", "by": "build"},
     {"id": "VectorStoreRouter", "kind": "model", "path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 26, "match": "final class VectorStoreRouter {", "status": "VERIFIED", "by": "build"},
     {"id": "AppSupportPaths.vectorsFileURL", "kind": "function", "path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 483, "match": "nonisolated static func vectorsFileURL(containerId: UUID) -> URL {", "status": "VERIFIED", "by": "build"},
@@ -48,7 +50,7 @@
     {"id": "PassageFileIndex", "kind": "service", "path": "OpenIntelligence/Services/VectorStore/PassageFileIndex.swift", "line": 100, "match": "nonisolated enum PassageFileIndex {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
-    {"from": "WorkspaceSyncService.mergeVectorStoresIfNeeded", "type": "calls", "to": "BNNSVectorDatabase", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1948, "match": "try await persistVectorChunksIntoICloud(mergedChunks, dimension: container.embeddingDim, to: sharedVectorURL)"}], "by": "build", "note": "through persistVectorChunksIntoICloud, which writes the store in a replacement folder and puts its files in iCloud in one coordinated step (5.7)"},
+    {"from": "WorkspaceSyncService.mergeVectorStoresIfNeeded", "type": "calls", "to": "BNNSVectorDatabase", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Merging.swift", "line": 315, "match": "try await persistVectorChunksIntoICloud(mergedChunks, dimension: container.embeddingDim, to: sharedVectorURL)"}], "by": "build", "note": "through persistVectorChunksIntoICloud, which writes the store in a replacement folder and puts its files in iCloud in one coordinated step (5.7)"},
     {"from": "VectorStoreRouter.db", "type": "calls", "to": "BNNSVectorDatabase", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 161, "match": "created = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: url)"}], "by": "build", "note": "constructs it"},
     {"from": "VectorStoreRouter", "type": "calls", "to": "AppSupportPaths.vectorsFileURL", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 160, "match": "let url = AppSupportPaths.vectorsFileURL(containerId: container.id)"}], "by": "build", "note": "the call names the type"},
     {"from": "VectorStoreRouter", "type": "calls", "to": "BNNSVectorDatabase", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 161, "match": "created = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: url)"}], "by": "build", "note": "constructs it"},
@@ -67,7 +69,7 @@
     {"from": "VectorStoreRouter.db", "type": "calls", "to": "VecturaVectorDatabase", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 170, "match": "created = VecturaVectorDatabase(dimension: container.embeddingDim)"}], "by": "build", "note": "named there"},
     {"from": "InMemoryVectorDatabase", "type": "calls", "to": "RAGEngine.computeVectorSearch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorDatabase.swift", "line": 313, "match": "let results = await engine.computeVectorSearch("}], "by": "build", "note": "named in the body"},
     {"from": "VectorStoreRouter.describeKind", "type": "depends_on", "to": "InMemoryVectorDatabase", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 191, "match": "} else if db is InMemoryVectorDatabase {"}], "by": "build", "note": "named there"},
-    {"from": "WorkspaceSyncService.mergeVectorStoresIfNeeded", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 2810, "match": "try await database.storeBatch(chunks: chunks)"}], "by": "build", "note": "through persistVectorChunks (5.7)"},
+    {"from": "WorkspaceSyncService.mergeVectorStoresIfNeeded", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Artifacts.swift", "line": 453, "match": "try await database.storeBatch(chunks: chunks)"}], "by": "build", "note": "through persistVectorChunks (5.7)"},
     {"from": "RAGService.importLargePDFStreamed", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 181, "match": "try await db.storeBatch(chunks: dbChunks)"}], "by": "build", "note": "named there"},
     {"from": "RAGService.addDocument", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 1887, "match": "try await db.storeBatch(chunks: documentChunks)"}], "by": "build", "note": "named there"},
     {"from": "VectorDatabase.storeBatch", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorDatabase.swift", "line": 21, "match": "func storeBatch(chunks: [DocumentChunk]) async throws"}], "by": "build", "note": "named there"},

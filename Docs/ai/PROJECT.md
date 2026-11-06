@@ -115,7 +115,7 @@ These are not roadmap gaps. They are the product.
   `CKDatabase` or `CKRecord`, and the app's `com.apple.developer.icloud-services` entitlement lists only
   `CloudDocuments` (the Share and Live Activities extensions have no iCloud entitlement). Library sync is
   `WorkspaceSyncService`, which watches the ubiquitous documents scope with `NSMetadataQuery`.
-  `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: git grep -E 'import CloudKit|CKContainer|CKDatabase|CKRecord' over all Swift (no match); plutil -p of OpenIntelligence.entitlements, OpenIntelligenceShare.entitlements and OpenIntelligenceLiveActivities.entitlements; WorkspaceSyncService.swift:3648-3649 (NSMetadataQuery over NSMetadataQueryUbiquitousDocumentsScope); Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md section 3, "Sync"; read at 1e4a718]`
+  `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: git grep -E 'import CloudKit|CKContainer|CKDatabase|CKRecord' over all Swift (no match); plutil -p of OpenIntelligence.entitlements, OpenIntelligenceShare.entitlements and OpenIntelligenceLiveActivities.entitlements; WorkspaceSyncService.swift@1e4a718:3648-3649 (NSMetadataQuery over NSMetadataQueryUbiquitousDocumentsScope); Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md section 3, "Sync"; read at 1e4a718]`
 
 External services used by the project but not by the app: Notion (roadmap), App Store Connect and
 Xcode Cloud (release; as recorded 2026-09-22 it archives and has no test action, see

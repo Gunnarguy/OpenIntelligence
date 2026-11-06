@@ -4,18 +4,19 @@
   "name": "OpenIntelligence Engine SDK",
   "aliases": ["OpenIntelligence Engine SDK", "OIEngine", "engine SDK", "library SDK API"],
   "purpose": "A Swift API that lets another app embed the library, ingestion and query engine.",
-  "revision": "099c12af",
-  "verified_on": "2026-11-04",
+  "revision": "5c032ca8",
+  "verified_on": "2026-11-05",
   "entry_points": ["OIEngine", "OIEngine.ingest", "OIEngineConfiguration", "OIQueryResult", "OIAvailabilityState"],
   "files": [
     {"path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "role": "primary", "blob": "d829ee4bfbd90ba6120c2c6f46cd044c2a1cb7d1"},
-    {"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "role": "test", "blob": "3e1f11cd4b9489c9bcfe4b4a36a8e3ba4e6209a6"}
+    {"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "role": "test", "blob": "3e1f11cd4b9489c9bcfe4b4a36a8e3ba4e6209a6"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Merging.swift", "role": "shared", "blob": "2b7cee9bd423bceab9c01b93a1d42fc4b9638c5e"}
   ],
   "nodes": [
     {"id": "OIEngine", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 350, "match": "public final class OIEngine {", "status": "VERIFIED", "by": "build"},
     {"id": "OIEngine.ingest", "kind": "function", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 472, "match": "public func ingest(_ request: OIIngestRequest) async throws -> OIIngestResult {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentCaptureView.body", "kind": "model", "path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 30, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.ingest", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1988, "match": "func ingest(_ chunks: [DocumentChunk]) {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.ingest", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Merging.swift", "line": 355, "match": "func ingest(_ chunks: [DocumentChunk]) {", "status": "VERIFIED", "by": "build"},
     {"id": "OIEngineConfiguration", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 64, "match": "public struct OIEngineConfiguration: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "OIQueryResult", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 288, "match": "public struct OIQueryResult: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "OIAvailabilityState", "kind": "model", "path": "OpenIntelligence/SDK/OpenIntelligenceEngine.swift", "line": 7, "match": "public enum OIAvailabilityState: Equatable, Sendable {", "status": "VERIFIED", "by": "build"},
@@ -23,7 +24,7 @@
   ],
   "edges": [
     {"from": "DocumentCaptureView.body", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Camera/DocumentCaptureView.swift", "line": 86, "match": "onConfirm: { ingest(result) },"}], "by": "build", "note": "named there"},
-    {"from": "WorkspaceSyncService.ingest", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 1988, "match": "func ingest(_ chunks: [DocumentChunk]) {"}], "by": "build", "note": "named there"},
+    {"from": "WorkspaceSyncService.ingest", "type": "calls", "to": "OIEngine.ingest", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Merging.swift", "line": 355, "match": "func ingest(_ chunks: [DocumentChunk]) {"}], "by": "build", "note": "named there"},
     {"from": "OIEngine", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 6, "match": "var engine: OIEngine!"}], "by": "build", "note": "the test names it"},
     {"from": "OIEngineConfiguration", "type": "tested_by", "to": "test:OpenIntelligenceEngineTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/OpenIntelligenceEngineTests.swift", "line": 15, "match": "let config = OIEngineConfiguration(storageURL: tempURL)"}], "by": "build", "note": "the test names it"}
   ],

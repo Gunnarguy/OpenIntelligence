@@ -4,7 +4,7 @@
   "name": "Settings and Configuration",
   "aliases": ["settings screen", "settings store", "how it works", "about screen", "runtime paths", "logging configuration", "route log"],
   "purpose": "The Settings screen and the stored preferences behind it, with the How It Works and About pages and logging.",
-  "revision": "fe3df217",
+  "revision": "5c032ca8",
   "verified_on": "2026-11-05",
   "entry_points": ["SettingsView", "SettingsStore", "HowItWorksView", "AboutView", "OpenIntelligenceRuntimePaths"],
   "files": [
@@ -28,7 +28,8 @@
     {"path": "OpenIntelligenceTests/Services/Infrastructure/Configuration/PCCConsentPreferenceMigrationTests.swift", "role": "test", "blob": "18b74f8451492071604e46319b468685dbcafcc2"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/Configuration/RouteLogLineTests.swift", "role": "test", "blob": "6db56ad7be8bc74f1188d1696b1bdea9022836a3"},
     {"path": "OpenIntelligenceTests/Features/Settings/OpenIntelligenceLinksTests.swift", "role": "test", "blob": "46174a69c7ef439a73a5795e385b2842d9992f4d"},
-    {"path": "OpenIntelligenceTests/Services/Infrastructure/SettingsPersistenceTests.swift", "role": "test", "blob": "86c1f0337c639fb366a6328be2d951c225df9dda"}
+    {"path": "OpenIntelligenceTests/Services/Infrastructure/SettingsPersistenceTests.swift", "role": "test", "blob": "86c1f0337c639fb366a6328be2d951c225df9dda"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "role": "shared", "blob": "ac11bc245dda36a00e6c0fee4f64caf087e48bf8"}
   ],
   "nodes": [
     {"id": "SettingsView", "kind": "view", "path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 21, "match": "struct SettingsView: View {", "status": "VERIFIED", "by": "build"},
@@ -64,7 +65,7 @@
     {"id": "WhatsNewStore.releaseForCurrentVersion", "kind": "function", "path": "OpenIntelligence/Features/Onboarding/WhatsNewStore.swift", "line": 90, "match": "func releaseForCurrentVersion() -> WhatsNewRelease? {", "status": "VERIFIED", "by": "build"},
     {"id": "OpenIntelligenceRuntimePaths", "kind": "model", "path": "OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift", "line": 3, "match": "enum OpenIntelligenceRuntimePaths {", "status": "VERIFIED", "by": "build"},
     {"id": "AppSupportPaths.configureBaseDir", "kind": "function", "path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 444, "match": "nonisolated static func configureBaseDir(_ url: URL?) {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.performReconfigureIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 438, "match": "private func performReconfigureIfNeeded(bootstrapBehavior: BootstrapBehavior) async -> Bool {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.performReconfigureIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "line": 49, "match": "private func performReconfigureIfNeeded(bootstrapBehavior: BootstrapBehavior) async -> Bool {", "status": "VERIFIED", "by": "build"},
     {"id": "SQLiteFullTextService.directDatabaseURL", "kind": "service", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 84, "match": "nonisolated static var directDatabaseURL: URL {", "status": "VERIFIED", "by": "build"},
     {"id": "BNNSVectorDatabase.saveToDisk", "kind": "function", "path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 450, "match": "private func saveToDisk() throws {", "status": "VERIFIED", "by": "build"}
   ],
@@ -106,7 +107,7 @@
     {"from": "AboutView", "type": "calls", "to": "WhatsNewStore.releaseForCurrentVersion", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/AboutView.swift", "line": 115, "match": "if let release = WhatsNewStore().releaseForCurrentVersion() {"}], "by": "build", "note": "named in the body"},
     {"from": "AboutView", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/AboutView.swift", "line": 333, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},
     {"from": "AppSupportPaths.configureBaseDir", "type": "depends_on", "to": "OpenIntelligenceRuntimePaths", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 445, "match": "OpenIntelligenceRuntimePaths.setBaseDirectory(url)"}], "by": "build", "note": "named there"},
-    {"from": "WorkspaceSyncService.performReconfigureIfNeeded", "type": "depends_on", "to": "OpenIntelligenceRuntimePaths", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 439, "match": "let localWorkspaceRoot = OpenIntelligenceRuntimePaths.applicationSupportRoot()"}], "by": "build", "note": "named there"},
+    {"from": "WorkspaceSyncService.performReconfigureIfNeeded", "type": "depends_on", "to": "OpenIntelligenceRuntimePaths", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "line": 50, "match": "let localWorkspaceRoot = OpenIntelligenceRuntimePaths.applicationSupportRoot()"}], "by": "build", "note": "named there"},
     {"from": "SQLiteFullTextService.directDatabaseURL", "type": "depends_on", "to": "OpenIntelligenceRuntimePaths", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 85, "match": "OpenIntelligenceRuntimePaths.localCacheDirectory()"}], "by": "build", "note": "named there"},
     {"from": "BNNSVectorDatabase.saveToDisk", "type": "depends_on", "to": "OpenIntelligenceRuntimePaths", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 501, "match": "if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),"}], "by": "build", "note": "named there"}
   ],

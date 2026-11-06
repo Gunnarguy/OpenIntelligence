@@ -4,7 +4,7 @@
   "name": "Document Ingestion Pipeline",
   "aliases": ["document ingestion", "ingestion pipeline", "import documents", "importing documents", "import PDFs", "choose documents to import", "document processor", "Vision OCR fallback", "OCR configuration", "stage ledger", "ingestion queue", "the import", "an import", "importing a", "OCR", "scanned pages"],
   "purpose": "Turns an imported file into text, pages and chunks through staged extraction, with Vision OCR as the fallback, and shows the import queue's progress.",
-  "revision": "6e9871df",
+  "revision": "5c032ca8",
   "verified_on": "2026-11-05",
   "entry_points": ["DocumentLibraryView.enqueueDocumentIngestion", "RAGService.enqueueDocuments", "RAGService.runIngestionLoop", "RAGService.addDocument", "RAGService.importLargePDFStreamed", "DocumentProcessor.processDocument", "DocumentProcessor.extractStructuredPDFContent", "DocumentProcessor.performOCR", "IngestionQueueOverlay"],
   "files": [
@@ -85,7 +85,8 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Sending.swift", "role": "shared", "blob": "c34ad91804ef3bf3372186d1fd2c4d906496c221"},
     {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"},
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "role": "shared", "blob": "0238f065e864fa4f14cdb6756b1e13254af04ded"},
-    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"}
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"},
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "role": "shared", "blob": "ac11bc245dda36a00e6c0fee4f64caf087e48bf8"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2045, "match": "private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {", "status": "VERIFIED", "by": "build"},
@@ -99,7 +100,7 @@
     {"id": "IngestDocumentIntent.perform", "kind": "function", "path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "line": 54, "match": "func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.runIngestionLoop", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 437, "match": "private func runIngestionLoop(loopID: Int) async {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.addDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 862, "match": "func addDocument(", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.ensureItemAvailableLocally", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 898, "match": "nonisolated static func ensureItemAvailableLocally(at url: URL, timeout: TimeInterval = 20) async throws {", "status": "VERIFIED", "by": "build"},
+    {"id": "WorkspaceSyncService.ensureItemAvailableLocally", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "line": 509, "match": "nonisolated static func ensureItemAvailableLocally(at url: URL, timeout: TimeInterval = 20) async throws {", "status": "VERIFIED", "by": "build"},
     {"id": "AppSupportPaths.relativePath", "kind": "function", "path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 510, "match": "nonisolated static func relativePath(for url: URL) -> String? {", "status": "VERIFIED", "by": "build"},
     {"id": "EntitlementStore.savedDocumentAllowance", "kind": "function", "path": "OpenIntelligence/Services/Billing/EntitlementStore.swift", "line": 283, "match": "static func savedDocumentAllowance(", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentQuotaError", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "line": 85, "match": "struct DocumentQuotaError: LocalizedError {", "status": "VERIFIED", "by": "build"},
