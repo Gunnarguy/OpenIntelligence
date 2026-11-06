@@ -2,95 +2,894 @@
   "schema": "codemap/1",
   "id": "evidence-threads",
   "name": "Evidence Threads",
-  "aliases": ["Evidence Threads", "thread sidebar", "thread store", "conversation history", "saved chats", "thread list", "chat history"],
+  "aliases": [
+    "Evidence Threads",
+    "thread sidebar",
+    "thread store",
+    "conversation history",
+    "saved chats",
+    "thread list",
+    "chat history"
+  ],
   "purpose": "Keeps each conversation as a thread tied to the evidence its answers used, and lets the user switch between threads.",
-  "revision": "fb5f0107",
+  "revision": "e68facb2",
   "verified_on": "2026-11-05",
-  "entry_points": ["EvidenceThread", "EvidenceThreadStore", "RAGService.createNewThread", "RAGService.persistChatHistory", "ThreadSidebarView", "QuotaPolicy.evidenceThreadLimit", "WorkspaceSyncService.synchronizeEvidenceThreads"],
+  "entry_points": [
+    "EvidenceThread",
+    "EvidenceThreadStore",
+    "RAGService.createNewThread",
+    "RAGService.persistChatHistory",
+    "ThreadSidebarView",
+    "QuotaPolicy.evidenceThreadLimit",
+    "WorkspaceSyncService.synchronizeEvidenceThreads"
+  ],
   "files": [
-    {"path": "OpenIntelligence/Core/Models/EvidenceThread.swift", "role": "primary", "blob": "df2d7a87b1b0e842ee45a09feca2b43d42ded0f0"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "role": "primary", "blob": "1c82d6e9726bc4bd828f96c30c00acd4921017e7"},
-    {"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "role": "primary", "blob": "44bd2fb6d2fb2f11b419db3b436b4db32f47f268"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "role": "shared", "blob": "280adf492488b3c93175acbbc2a2bf64c3b6c13e"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "role": "shared", "blob": "ac628224d8ca6aa4f610204605277ade309ea09a"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "role": "shared", "blob": "f7731b0f03eea28cd4cf175d6658b18557558b0a"},
-    {"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "role": "test", "blob": "6fd5ca7fb3ab94409ddbaf31167bc0af6bb3ff82"}
+    {
+      "path": "OpenIntelligence/Core/Models/EvidenceThread.swift",
+      "role": "primary",
+      "blob": "df2d7a87b1b0e842ee45a09feca2b43d42ded0f0"
+    },
+    {
+      "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+      "role": "primary",
+      "blob": "1c82d6e9726bc4bd828f96c30c00acd4921017e7"
+    },
+    {
+      "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+      "role": "primary",
+      "blob": "44bd2fb6d2fb2f11b419db3b436b4db32f47f268"
+    },
+    {
+      "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+      "role": "shared",
+      "blob": "280adf492488b3c93175acbbc2a2bf64c3b6c13e"
+    },
+    {
+      "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift",
+      "role": "shared",
+      "blob": "ac628224d8ca6aa4f610204605277ade309ea09a"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+      "role": "shared",
+      "blob": "4e31876547c586be5d228cbbc573267e23fab2b2"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift",
+      "role": "test",
+      "blob": "6fd5ca7fb3ab94409ddbaf31167bc0af6bb3ff82"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift",
+      "role": "shared",
+      "blob": "39d0f8fab427dd8df0672bef1a3135eb674fb672"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AnswerFinishing.swift",
+      "role": "shared",
+      "blob": "db2a9cbd311d7ce203373146cc5972eda97c5f62"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+      "role": "shared",
+      "blob": "217f72ea075857e0b50528187721bb66c545e7b0"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Consent.swift",
+      "role": "shared",
+      "blob": "266c0dfcfceaf8e860dabf8adaa859e04e5ab08b"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift",
+      "role": "shared",
+      "blob": "1108e6b8798448485e229e48b201b1ad8c84c424"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Device.swift",
+      "role": "shared",
+      "blob": "bfd1f74a983af872bcce60c64e56b7f49ab868b3"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift",
+      "role": "shared",
+      "blob": "c38e45a7c8b5a2cfd50127a28925b4cd9f4c791d"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift",
+      "role": "shared",
+      "blob": "9812782997875200685853418177aec5d27ff0a5"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
+      "role": "shared",
+      "blob": "c2a34b37ccc46f02c6ea7b310702588044a9a136"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SelfTuning.swift",
+      "role": "shared",
+      "blob": "afd94638c2927c42c3ba56ed5c7098ec27b59a55"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SentenceExtraction.swift",
+      "role": "shared",
+      "blob": "7ab225f32574eea959a94573af238cbfebfd7a5b"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+StandardRetrieval.swift",
+      "role": "shared",
+      "blob": "baf28b5ee5f2a91dfa2e8a2152fb6043585a20dd"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Storage.swift",
+      "role": "shared",
+      "blob": "94a35e18abdcf7359bc6d5627e10cf8f519e8948"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift",
+      "role": "shared",
+      "blob": "706a46bc936b951d314bbe130389550ed449fad3"
+    },
+    {
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift",
+      "role": "shared",
+      "blob": "de98218afe9aa6487faeb2b4b564ffe8d9131702"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+      "role": "shared",
+      "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"
+    }
   ],
   "nodes": [
-    {"id": "EvidenceThread", "kind": "model", "path": "OpenIntelligence/Core/Models/EvidenceThread.swift", "line": 10, "match": "struct EvidenceThread: Codable, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ThreadSidebarView.threads", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 14, "match": "@State private var threads: [EvidenceThread] = []", "status": "VERIFIED", "by": "build"},
-    {"id": "ThreadListSnippetView.threads", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 1406, "match": "let threads: [EvidenceThread]", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.persistChatHistory", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1057, "match": "func persistChatHistory(_ messages: [ChatMessage], for containerId: UUID?) {", "status": "VERIFIED", "by": "build"},
-    {"id": "EvidenceThreadStore.saveThread", "kind": "function", "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 120, "match": "func saveThread(_ thread: EvidenceThread) throws {", "status": "VERIFIED", "by": "build"},
-    {"id": "EvidenceThreadStore", "kind": "model", "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 22, "match": "final class EvidenceThreadStore: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.coordinatedWriteData", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3987, "match": "nonisolated static func coordinatedWriteData(_ data: Data, to url: URL) throws {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.coordinatedReadData", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 3961, "match": "nonisolated static func coordinatedReadData(from url: URL) throws -> Data {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.coordinatedRemoveItem", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 4088, "match": "nonisolated static func coordinatedRemoveItem(at url: URL) throws {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.threadStore", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 363, "match": "let threadStore = EvidenceThreadStore()", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.createNewThread", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1247, "match": "func createNewThread(for containerId: UUID) throws {", "status": "VERIFIED", "by": "build"},
-    {"id": "QuotaPolicy.evidenceThreadLimit", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "line": 59, "match": "static func evidenceThreadLimit(for tier: WorkspaceTier = .free) -> Int {", "status": "VERIFIED", "by": "build"},
-    {"id": "EvidenceThreadQuotaError", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift", "line": 71, "match": "struct EvidenceThreadQuotaError: LocalizedError {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.newChat", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2398, "match": "private func newChat() -> Bool {", "status": "VERIFIED", "by": "build"},
-    {"id": "ThreadSidebarView.body", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 18, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "CreateNewEvidenceThreadIntent.perform", "kind": "function", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 1372, "match": "func perform() async throws -> some IntentResult & ProvidesDialog {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatMessage.sanitizedForPersistence", "kind": "function", "path": "OpenIntelligence/Core/Models/ChatMessage.swift", "line": 116, "match": "nonisolated func sanitizedForPersistence() -> ChatMessage {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.persistChatHistory", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2227, "match": "private func persistChatHistory(for containerId: UUID?) {", "status": "VERIFIED", "by": "build"},
-    {"id": "ThreadSidebarView", "kind": "view", "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 9, "match": "struct ThreadSidebarView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.listThreads", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1242, "match": "func listThreads(for containerId: UUID) -> [EvidenceThread] {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.chatLifecycleLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 672, "match": "private var chatLifecycleLayer: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "WorkspaceSyncService.synchronizeEvidenceThreads", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 2888, "match": "nonisolated private func synchronizeEvidenceThreads(", "status": "VERIFIED", "by": "build"},
-    {"id": "test:EvidenceThreadStoreTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
+    {
+      "id": "EvidenceThread",
+      "kind": "model",
+      "path": "OpenIntelligence/Core/Models/EvidenceThread.swift",
+      "line": 10,
+      "match": "struct EvidenceThread: Codable, Identifiable, Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ThreadSidebarView.threads",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+      "line": 14,
+      "match": "@State private var threads: [EvidenceThread] = []",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ThreadListSnippetView.threads",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift",
+      "line": 1406,
+      "match": "let threads: [EvidenceThread]",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.persistChatHistory",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+      "line": 92,
+      "match": "func persistChatHistory(_ messages: [ChatMessage], for containerId: UUID?) {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "EvidenceThreadStore.saveThread",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+      "line": 120,
+      "match": "func saveThread(_ thread: EvidenceThread) throws {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "EvidenceThreadStore",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+      "line": 22,
+      "match": "final class EvidenceThreadStore: Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "WorkspaceSyncService.coordinatedWriteData",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift",
+      "line": 3987,
+      "match": "nonisolated static func coordinatedWriteData(_ data: Data, to url: URL) throws {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "WorkspaceSyncService.coordinatedReadData",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift",
+      "line": 3961,
+      "match": "nonisolated static func coordinatedReadData(from url: URL) throws -> Data {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "WorkspaceSyncService.coordinatedRemoveItem",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift",
+      "line": 4088,
+      "match": "nonisolated static func coordinatedRemoveItem(at url: URL) throws {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.threadStore",
+      "kind": "service",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+      "line": 52,
+      "match": "let threadStore = EvidenceThreadStore()",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.createNewThread",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+      "line": 276,
+      "match": "func createNewThread(for containerId: UUID) throws {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "QuotaPolicy.evidenceThreadLimit",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+      "line": 59,
+      "match": "static func evidenceThreadLimit(for tier: WorkspaceTier = .free) -> Int {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "EvidenceThreadQuotaError",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift",
+      "line": 71,
+      "match": "struct EvidenceThreadQuotaError: LocalizedError {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChatScreen.newChat",
+      "kind": "function",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+      "line": 2398,
+      "match": "private func newChat() -> Bool {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ThreadSidebarView.body",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+      "line": 18,
+      "match": "var body: some View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "CreateNewEvidenceThreadIntent.perform",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift",
+      "line": 1372,
+      "match": "func perform() async throws -> some IntentResult & ProvidesDialog {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChatMessage.sanitizedForPersistence",
+      "kind": "function",
+      "path": "OpenIntelligence/Core/Models/ChatMessage.swift",
+      "line": 116,
+      "match": "nonisolated func sanitizedForPersistence() -> ChatMessage {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChatScreen.persistChatHistory",
+      "kind": "function",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+      "line": 2227,
+      "match": "private func persistChatHistory(for containerId: UUID?) {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ThreadSidebarView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+      "line": 9,
+      "match": "struct ThreadSidebarView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.listThreads",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+      "line": 271,
+      "match": "func listThreads(for containerId: UUID) -> [EvidenceThread] {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChatScreen.chatLifecycleLayer",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+      "line": 672,
+      "match": "private var chatLifecycleLayer: some View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "WorkspaceSyncService.synchronizeEvidenceThreads",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift",
+      "line": 2888,
+      "match": "nonisolated private func synchronizeEvidenceThreads(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "test:EvidenceThreadStoreTests.swift",
+      "kind": "test",
+      "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift",
+      "line": 1,
+      "match": "//",
+      "status": "VERIFIED",
+      "by": "build"
+    }
   ],
   "edges": [
-    {"from": "RAGService.persistChatHistory", "type": "depends_on", "to": "EvidenceThread", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1073, "match": "let thread = EvidenceThread("}], "by": "build", "note": "constructs it"},
-    {"from": "EvidenceThreadStore", "type": "calls", "to": "WorkspaceSyncService.coordinatedWriteData", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 129, "match": "try WorkspaceSyncService.coordinatedWriteData(data, to: fileURL)"}], "by": "build", "note": "the call names the type"},
-    {"from": "EvidenceThreadStore", "type": "calls", "to": "WorkspaceSyncService.coordinatedReadData", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 146, "match": "let data = try WorkspaceSyncService.coordinatedReadData(from: fileURL)"}], "by": "build", "note": "the call names the type"},
-    {"from": "EvidenceThreadStore", "type": "calls", "to": "WorkspaceSyncService.coordinatedRemoveItem", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 187, "match": "try WorkspaceSyncService.coordinatedRemoveItem(at: fileURL)"}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGService.threadStore", "type": "depends_on", "to": "EvidenceThreadStore", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 363, "match": "let threadStore = EvidenceThreadStore()"}], "by": "build", "note": "constructs it"},
-    {"from": "RAGService.createNewThread", "type": "calls", "to": "QuotaPolicy.evidenceThreadLimit", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1251, "match": "let limit = QuotaPolicy.evidenceThreadLimit(for: tier)"}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGService.createNewThread", "type": "depends_on", "to": "EvidenceThreadQuotaError", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1255, "match": "throw EvidenceThreadQuotaError(limit: limit, tier: tier)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChatScreen.chatLifecycleLayer", "type": "renders", "to": "ThreadSidebarView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 706, "match": "ThreadSidebarView("}], "by": "build", "note": "constructs it"},
-    {"from": "ThreadSidebarView.threads", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 14, "match": "@State private var threads: [EvidenceThread] = []"}], "by": "build", "note": "named there"},
-    {"from": "ThreadListSnippetView.threads", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 1406, "match": "let threads: [EvidenceThread]"}], "by": "build", "note": "named there"},
-    {"from": "EvidenceThreadStore.saveThread", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 120, "match": "func saveThread(_ thread: EvidenceThread) throws {"}], "by": "build", "note": "named there"},
-    {"from": "ChatScreen.newChat", "type": "calls", "to": "RAGService.createNewThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2401, "match": "try ragService.createNewThread(for: ragService.containerService.activeContainerId)"}], "by": "build", "note": "named there"},
-    {"from": "ThreadSidebarView.body", "type": "calls", "to": "RAGService.createNewThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 28, "match": "try ragService.createNewThread(for: containerId)"}], "by": "build", "note": "named there"},
-    {"from": "CreateNewEvidenceThreadIntent.perform", "type": "calls", "to": "RAGService.createNewThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 1385, "match": "try ragService.createNewThread(for: containerId)"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.persistChatHistory", "type": "calls", "to": "ChatMessage.sanitizedForPersistence", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1079, "match": "messages: trimmedMessages.map { $0.sanitizedForPersistence() },"}], "by": "build", "note": "named in the body"},
-    {"from": "RAGService.persistChatHistory", "type": "calls", "to": "EvidenceThreadStore.saveThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1084, "match": "try threadStore.saveThread(thread)"}], "by": "build", "note": "named in the body"},
-    {"from": "ChatScreen.persistChatHistory", "type": "calls", "to": "RAGService.persistChatHistory", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 2227, "match": "private func persistChatHistory(for containerId: UUID?) {"}], "by": "build", "note": "named there"},
-    {"from": "ThreadSidebarView", "type": "calls", "to": "RAGService.createNewThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 28, "match": "try ragService.createNewThread(for: containerId)"}], "by": "build", "note": "named in the body"},
-    {"from": "ThreadSidebarView", "type": "calls", "to": "RAGService.listThreads", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 112, "match": "threads = ragService.listThreads(for: containerId)"}], "by": "build", "note": "named in the body"},
-    {"from": "EvidenceThread", "type": "tested_by", "to": "test:EvidenceThreadStoreTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 12, "match": "var testThread: EvidenceThread!"}], "by": "build", "note": "the test names it"},
-    {"from": "EvidenceThreadStore", "type": "tested_by", "to": "test:EvidenceThreadStoreTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 10, "match": "var store: EvidenceThreadStore!"}], "by": "build", "note": "the test names it"}
+    {
+      "from": "RAGService.persistChatHistory",
+      "type": "depends_on",
+      "to": "EvidenceThread",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+          "line": 108,
+          "match": "let thread = EvidenceThread("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "EvidenceThreadStore",
+      "type": "calls",
+      "to": "WorkspaceSyncService.coordinatedWriteData",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+          "line": 129,
+          "match": "try WorkspaceSyncService.coordinatedWriteData(data, to: fileURL)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "EvidenceThreadStore",
+      "type": "calls",
+      "to": "WorkspaceSyncService.coordinatedReadData",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+          "line": 146,
+          "match": "let data = try WorkspaceSyncService.coordinatedReadData(from: fileURL)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "EvidenceThreadStore",
+      "type": "calls",
+      "to": "WorkspaceSyncService.coordinatedRemoveItem",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+          "line": 187,
+          "match": "try WorkspaceSyncService.coordinatedRemoveItem(at: fileURL)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGService.threadStore",
+      "type": "depends_on",
+      "to": "EvidenceThreadStore",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+          "line": 52,
+          "match": "let threadStore = EvidenceThreadStore()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "RAGService.createNewThread",
+      "type": "calls",
+      "to": "QuotaPolicy.evidenceThreadLimit",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+          "line": 280,
+          "match": "let limit = QuotaPolicy.evidenceThreadLimit(for: tier)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGService.createNewThread",
+      "type": "depends_on",
+      "to": "EvidenceThreadQuotaError",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+          "line": 284,
+          "match": "throw EvidenceThreadQuotaError(limit: limit, tier: tier)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ChatScreen.chatLifecycleLayer",
+      "type": "renders",
+      "to": "ThreadSidebarView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+          "line": 706,
+          "match": "ThreadSidebarView("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ThreadSidebarView.threads",
+      "type": "depends_on",
+      "to": "EvidenceThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+          "line": 14,
+          "match": "@State private var threads: [EvidenceThread] = []"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "ThreadListSnippetView.threads",
+      "type": "depends_on",
+      "to": "EvidenceThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift",
+          "line": 1406,
+          "match": "let threads: [EvidenceThread]"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "EvidenceThreadStore.saveThread",
+      "type": "depends_on",
+      "to": "EvidenceThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+          "line": 120,
+          "match": "func saveThread(_ thread: EvidenceThread) throws {"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "ChatScreen.newChat",
+      "type": "calls",
+      "to": "RAGService.createNewThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+          "line": 2401,
+          "match": "try ragService.createNewThread(for: ragService.containerService.activeContainerId)"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "ThreadSidebarView.body",
+      "type": "calls",
+      "to": "RAGService.createNewThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+          "line": 28,
+          "match": "try ragService.createNewThread(for: containerId)"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "CreateNewEvidenceThreadIntent.perform",
+      "type": "calls",
+      "to": "RAGService.createNewThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift",
+          "line": 1385,
+          "match": "try ragService.createNewThread(for: containerId)"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "RAGService.persistChatHistory",
+      "type": "calls",
+      "to": "ChatMessage.sanitizedForPersistence",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+          "line": 114,
+          "match": "messages: trimmedMessages.map { $0.sanitizedForPersistence() },"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "RAGService.persistChatHistory",
+      "type": "calls",
+      "to": "EvidenceThreadStore.saveThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+          "line": 119,
+          "match": "try threadStore.saveThread(thread)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "ChatScreen.persistChatHistory",
+      "type": "calls",
+      "to": "RAGService.persistChatHistory",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+          "line": 2227,
+          "match": "private func persistChatHistory(for containerId: UUID?) {"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "ThreadSidebarView",
+      "type": "calls",
+      "to": "RAGService.createNewThread",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+          "line": 28,
+          "match": "try ragService.createNewThread(for: containerId)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "ThreadSidebarView",
+      "type": "calls",
+      "to": "RAGService.listThreads",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+          "line": 112,
+          "match": "threads = ragService.listThreads(for: containerId)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "EvidenceThread",
+      "type": "tested_by",
+      "to": "test:EvidenceThreadStoreTests.swift",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift",
+          "line": 12,
+          "match": "var testThread: EvidenceThread!"
+        }
+      ],
+      "by": "build",
+      "note": "the test names it"
+    },
+    {
+      "from": "EvidenceThreadStore",
+      "type": "tested_by",
+      "to": "test:EvidenceThreadStoreTests.swift",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift",
+          "line": 10,
+          "match": "var store: EvidenceThreadStore!"
+        }
+      ],
+      "by": "build",
+      "note": "the test names it"
+    }
   ],
   "docs": [],
   "unknowns": [],
-  "related": ["app-intents-and-siri", "billing-and-quotas", "chat-conversation-view", "icloud-workspace-synchronization", "rag-orchestration-core"],
-  "entries": ["OpenIntelligence/Core/Models/EvidenceThread.swift::EvidenceThread", "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift::EvidenceThreadStore", "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift::RAGService.createNewThread", "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift::RAGService.persistChatHistory", "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift::ThreadSidebarView", "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift::QuotaPolicy.evidenceThreadLimit", "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::WorkspaceSyncService.synchronizeEvidenceThreads"],
-  "owns": ["OpenIntelligence/Core/Models/EvidenceThread.swift", "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift"],
+  "related": [
+    "app-intents-and-siri",
+    "billing-and-quotas",
+    "chat-conversation-view",
+    "icloud-workspace-synchronization",
+    "rag-orchestration-core"
+  ],
+  "entries": [
+    "OpenIntelligence/Core/Models/EvidenceThread.swift::EvidenceThread",
+    "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift::EvidenceThreadStore",
+    "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift::RAGService.createNewThread",
+    "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift::RAGService.persistChatHistory",
+    "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift::ThreadSidebarView",
+    "OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift::QuotaPolicy.evidenceThreadLimit",
+    "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift::WorkspaceSyncService.synchronizeEvidenceThreads"
+  ],
+  "owns": [
+    "OpenIntelligence/Core/Models/EvidenceThread.swift",
+    "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+    "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift"
+  ],
   "decisions": [],
-  "traps": ["Threads wrap ChatMessage, which is Tier 2: it is persisted as monolithic JSON arrays, so any shape change breaks existing chat history (Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md)."],
+  "traps": [
+    "Threads wrap ChatMessage, which is Tier 2: it is persisted as monolithic JSON arrays, so any shape change breaks existing chat history (Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md)."
+  ],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [
-      {"id": "test:ShortcutsActionTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "line": 21, "match": "final class ShortcutsActionTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:EvidenceThreadStoreTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 9, "match": "final class EvidenceThreadStoreTests: XCTestCase {", "status": "VERIFIED"}
+      {
+        "id": "test:ShortcutsActionTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift",
+        "line": 21,
+        "match": "final class ShortcutsActionTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:EvidenceThreadStoreTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift",
+        "line": 9,
+        "match": "final class EvidenceThreadStoreTests: XCTestCase {",
+        "status": "VERIFIED"
+      }
     ],
     "edges": [
-      {"from": "ThreadSidebarView", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 14, "match": "@State private var threads: [EvidenceThread] = []"}]},
-      {"from": "EvidenceThreadStore", "type": "depends_on", "to": "EvidenceThread", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 120, "match": "func saveThread(_ thread: EvidenceThread) throws {"}]},
-      {"from": "EvidenceThread", "type": "tested_by", "to": "test:ShortcutsActionTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "line": 183, "match": "let thread = EvidenceThread("}]},
-      {"from": "EvidenceThreadStore", "type": "tested_by", "to": "test:ShortcutsActionTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "line": 189, "match": "try EvidenceThreadStore().saveThread(thread)"}]},
-      {"from": "EvidenceThread", "type": "tested_by", "to": "test:EvidenceThreadStoreTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 12, "match": "var testThread: EvidenceThread!"}]},
-      {"from": "EvidenceThreadStore", "type": "tested_by", "to": "test:EvidenceThreadStoreTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift", "line": 10, "match": "var store: EvidenceThreadStore!"}]},
-      {"from": "EvidenceThread", "type": "depends_on", "to": "feature:chat-conversation-view", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/EvidenceThread.swift", "line": 16, "match": "var messages: [ChatMessage]"}], "note": "via ChatMessage"},
-      {"from": "ThreadSidebarView", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 10, "match": "@ObservedObject var ragService: RAGService"}], "note": "via RAGService"},
-      {"from": "ThreadSidebarView", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 23, "match": ".font(DSTypography.title)"}], "note": "via DSTypography, DSColors, DSSpacing, DSAnimations"},
-      {"from": "ThreadSidebarView", "type": "depends_on", "to": "feature:billing-and-quotas", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 31, "match": "} catch let quotaError as EvidenceThreadQuotaError {"}], "note": "via EvidenceThreadQuotaError"},
-      {"from": "ThreadSidebarView", "type": "depends_on", "to": "feature:live-activities", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift", "line": 77, "match": "WidgetSnapshot.forgetAnswer(inLibrary: containerId)"}], "note": "via WidgetSnapshot"},
-      {"from": "EvidenceThreadStore", "type": "depends_on", "to": "feature:settings-and-configuration", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 40, "match": "OpenIntelligenceRuntimePaths.baseDirectory().appendingPathComponent(\"EvidenceThreads\", isDirectory: true)"}], "note": "via OpenIntelligenceRuntimePaths"},
-      {"from": "EvidenceThreadStore", "type": "depends_on", "to": "feature:icloud-workspace-synchronization", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift", "line": 129, "match": "try WorkspaceSyncService.coordinatedWriteData(data, to: fileURL)"}], "note": "via WorkspaceSyncService"}
+      {
+        "from": "ThreadSidebarView",
+        "type": "depends_on",
+        "to": "EvidenceThread",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+            "line": 14,
+            "match": "@State private var threads: [EvidenceThread] = []"
+          }
+        ]
+      },
+      {
+        "from": "EvidenceThreadStore",
+        "type": "depends_on",
+        "to": "EvidenceThread",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+            "line": 120,
+            "match": "func saveThread(_ thread: EvidenceThread) throws {"
+          }
+        ]
+      },
+      {
+        "from": "EvidenceThread",
+        "type": "tested_by",
+        "to": "test:ShortcutsActionTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift",
+            "line": 183,
+            "match": "let thread = EvidenceThread("
+          }
+        ]
+      },
+      {
+        "from": "EvidenceThreadStore",
+        "type": "tested_by",
+        "to": "test:ShortcutsActionTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift",
+            "line": 189,
+            "match": "try EvidenceThreadStore().saveThread(thread)"
+          }
+        ]
+      },
+      {
+        "from": "EvidenceThread",
+        "type": "tested_by",
+        "to": "test:EvidenceThreadStoreTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift",
+            "line": 12,
+            "match": "var testThread: EvidenceThread!"
+          }
+        ]
+      },
+      {
+        "from": "EvidenceThreadStore",
+        "type": "tested_by",
+        "to": "test:EvidenceThreadStoreTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Storage/EvidenceThreadStoreTests.swift",
+            "line": 10,
+            "match": "var store: EvidenceThreadStore!"
+          }
+        ]
+      },
+      {
+        "from": "EvidenceThread",
+        "type": "depends_on",
+        "to": "feature:chat-conversation-view",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Core/Models/EvidenceThread.swift",
+            "line": 16,
+            "match": "var messages: [ChatMessage]"
+          }
+        ],
+        "note": "via ChatMessage"
+      },
+      {
+        "from": "ThreadSidebarView",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+            "line": 10,
+            "match": "@ObservedObject var ragService: RAGService"
+          }
+        ],
+        "note": "via RAGService"
+      },
+      {
+        "from": "ThreadSidebarView",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+            "line": 23,
+            "match": ".font(DSTypography.title)"
+          }
+        ],
+        "note": "via DSTypography, DSColors, DSSpacing, DSAnimations"
+      },
+      {
+        "from": "ThreadSidebarView",
+        "type": "depends_on",
+        "to": "feature:billing-and-quotas",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+            "line": 31,
+            "match": "} catch let quotaError as EvidenceThreadQuotaError {"
+          }
+        ],
+        "note": "via EvidenceThreadQuotaError"
+      },
+      {
+        "from": "ThreadSidebarView",
+        "type": "depends_on",
+        "to": "feature:live-activities",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift",
+            "line": 77,
+            "match": "WidgetSnapshot.forgetAnswer(inLibrary: containerId)"
+          }
+        ],
+        "note": "via WidgetSnapshot"
+      },
+      {
+        "from": "EvidenceThreadStore",
+        "type": "depends_on",
+        "to": "feature:settings-and-configuration",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+            "line": 40,
+            "match": "OpenIntelligenceRuntimePaths.baseDirectory().appendingPathComponent(\"EvidenceThreads\", isDirectory: true)"
+          }
+        ],
+        "note": "via OpenIntelligenceRuntimePaths"
+      },
+      {
+        "from": "EvidenceThreadStore",
+        "type": "depends_on",
+        "to": "feature:icloud-workspace-synchronization",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Storage/EvidenceThreadStore.swift",
+            "line": 129,
+            "match": "try WorkspaceSyncService.coordinatedWriteData(data, to: fileURL)"
+          }
+        ],
+        "note": "via WorkspaceSyncService"
+      }
     ],
     "edges_omitted": 0
   }

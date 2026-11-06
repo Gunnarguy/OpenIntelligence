@@ -2,207 +2,2152 @@
   "schema": "codemap/1",
   "id": "rag-validation-and-diagnostics",
   "name": "RAG Validation and Diagnostics",
-  "aliases": ["developer diagnostics hub", "database dashboard", "chunk inspector", "RAG pipeline audit", "container scoping tests", "validation harness"],
+  "aliases": [
+    "developer diagnostics hub",
+    "database dashboard",
+    "chunk inspector",
+    "RAG pipeline audit",
+    "container scoping tests",
+    "validation harness"
+  ],
   "purpose": "Developer screens for inspecting chunks, the database and accuracy, and the headless validation harness run from launch arguments.",
   "revision": "099c12af",
   "verified_on": "2026-11-04",
-  "entry_points": ["DeveloperDiagnosticsHubView", "ChunkInspectorView", "CoreValidationView", "RAGAccuracyView", "DatabaseDashboardView", "DebugRAGValidationHarness"],
+  "entry_points": [
+    "DeveloperDiagnosticsHubView",
+    "ChunkInspectorView",
+    "CoreValidationView",
+    "RAGAccuracyView",
+    "DatabaseDashboardView",
+    "DebugRAGValidationHarness"
+  ],
   "files": [
-    {"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "role": "primary", "blob": "57cc26ac3ed856a1a8bc05aad886c63ba695f500"},
-    {"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "role": "primary", "blob": "4d39dff5df54607862d45c8d160dc4323a059f50"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "role": "primary", "blob": "63852b8c00333102a83b9436f0dfc35adcc7a931"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift", "role": "primary", "blob": "470caf4a61954fafc9667e06bf1700bf51c0e395"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Monitoring/LiveSystemMonitorWrapper.swift", "role": "primary", "blob": "e831600e5e6f35eda290226bd8185377097b99f4"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "role": "primary", "blob": "8127ad90f5f5c1ff24b7c9776783988e7cdca701"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift", "role": "primary", "blob": "6390a8086172cd164d7f41f257bf235a38ed5a30"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "role": "primary", "blob": "a7f9da9e0e83235d5c7fb5e08e5a7e921adbfff4"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift", "role": "primary", "blob": "a379c0148912d014cf8ed85a6a52bcc8da69944b"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift", "role": "primary", "blob": "ca8f92d1181931039ecaf654eeae25c7f24b0297"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift", "role": "primary", "blob": "6c0d292e89faea5c4148df173f96fb3ba76e4d98"},
-    {"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift", "role": "primary", "blob": "81ffbf7b714c6fcffd2020c40afbd49d1a54b4f7"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Configuration/VerificationJournal.swift", "role": "primary", "blob": "7059ac3a4b5cbe2445a41097a58a2c2c7d3786a5"},
-    {"path": "OpenIntelligenceTests/Services/Infrastructure/VerificationJournalTests.swift", "role": "test", "blob": "c8689a8ec542fe616540d9141d4fde1283b3da84"},
-    {"path": "OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift", "role": "test", "blob": "2f551656f513564c4b89238a71a50f5dea1751c7"}
+    {
+      "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+      "role": "primary",
+      "blob": "57cc26ac3ed856a1a8bc05aad886c63ba695f500"
+    },
+    {
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "role": "primary",
+      "blob": "4d39dff5df54607862d45c8d160dc4323a059f50"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+      "role": "primary",
+      "blob": "63852b8c00333102a83b9436f0dfc35adcc7a931"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift",
+      "role": "primary",
+      "blob": "470caf4a61954fafc9667e06bf1700bf51c0e395"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Monitoring/LiveSystemMonitorWrapper.swift",
+      "role": "primary",
+      "blob": "e831600e5e6f35eda290226bd8185377097b99f4"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+      "role": "primary",
+      "blob": "8127ad90f5f5c1ff24b7c9776783988e7cdca701"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift",
+      "role": "primary",
+      "blob": "6390a8086172cd164d7f41f257bf235a38ed5a30"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "role": "primary",
+      "blob": "a7f9da9e0e83235d5c7fb5e08e5a7e921adbfff4"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift",
+      "role": "primary",
+      "blob": "a379c0148912d014cf8ed85a6a52bcc8da69944b"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift",
+      "role": "primary",
+      "blob": "ca8f92d1181931039ecaf654eeae25c7f24b0297"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift",
+      "role": "primary",
+      "blob": "6c0d292e89faea5c4148df173f96fb3ba76e4d98"
+    },
+    {
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift",
+      "role": "primary",
+      "blob": "81ffbf7b714c6fcffd2020c40afbd49d1a54b4f7"
+    },
+    {
+      "path": "OpenIntelligence/Services/Infrastructure/Configuration/VerificationJournal.swift",
+      "role": "primary",
+      "blob": "7059ac3a4b5cbe2445a41097a58a2c2c7d3786a5"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Infrastructure/VerificationJournalTests.swift",
+      "role": "test",
+      "blob": "c8689a8ec542fe616540d9141d4fde1283b3da84"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift",
+      "role": "test",
+      "blob": "2f551656f513564c4b89238a71a50f5dea1751c7"
+    }
   ],
   "nodes": [
-    {"id": "DeveloperDiagnosticsHubView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 10, "match": "struct DeveloperDiagnosticsHubView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "FoundationModelRoutePolicy.determineRoute", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift", "line": 23, "match": "static func determineRoute(", "status": "VERIFIED", "by": "build"},
-    {"id": "InferenceConfig", "kind": "model", "path": "OpenIntelligence/Core/Models/LLMModel.swift", "line": 121, "match": "struct InferenceConfig {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGAccuracyView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift", "line": 13, "match": "struct RAGAccuracyView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ValidationDashboardView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift", "line": 5, "match": "struct ValidationDashboardView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "SettingsStore", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift", "line": 58, "match": "final class SettingsStore: ObservableObject {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChunkInspectorView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 10, "match": "struct ChunkInspectorView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ContainerScopingSelfTestsView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift", "line": 11, "match": "struct ContainerScopingSelfTestsView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "CoreValidationView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 11, "match": "struct CoreValidationView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "BackendHealthDiagnosticsView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift", "line": 11, "match": "struct BackendHealthDiagnosticsView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGPipelineAuditView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift", "line": 10, "match": "struct RAGPipelineAuditView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "TelemetryDashboardView", "kind": "view", "path": "OpenIntelligence/Features/Telemetry/Dashboard/TelemetryDashboardView.swift", "line": 3, "match": "struct TelemetryDashboardView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "AdaptiveVisualizationsView", "kind": "view", "path": "OpenIntelligence/Features/Telemetry/Visualizations/AdaptiveVisualizationsView.swift", "line": 125, "match": "struct AdaptiveVisualizationsView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "LiveFoundationModelCapabilityProvider", "kind": "model", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelCapabilityProvider.swift", "line": 12, "match": "struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.checkDeviceCapabilities", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 21692, "match": "static func checkDeviceCapabilities() -> DeviceCapabilities {", "status": "VERIFIED", "by": "build"},
-    {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 430, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "LoggingConfiguration.Level", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift", "line": 24, "match": "enum Level: Int, Comparable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SettingsView.destination", "kind": "function", "path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 590, "match": "private func destination(for entry: SettingsEntry) -> some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChunkDetailSheet", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 464, "match": "struct ChunkDetailSheet: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentRow.iconName", "kind": "function", "path": "OpenIntelligence/Features/Documents/Components/DocumentRow.swift", "line": 37, "match": "private func iconName(for type: DocumentType) -> String {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChunkRowView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 388, "match": "struct ChunkRowView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChunkInspectionResult", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 659, "match": "struct ChunkInspectionResult: Identifiable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.countPatternInCorpus", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 1698, "match": "func countPatternInCorpus(pattern: String, containerId: UUID? = nil) async -> [UUID: Int] {", "status": "VERIFIED", "by": "build"},
-    {"id": "CorpusVerificationResult", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 677, "match": "struct CorpusVerificationResult {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.search", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 1557, "match": "func search(query: String, containerId: UUID? = nil, limit: Int = 20) async -> [FTS5SearchResult] {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.searchDocumentsRaw", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 22764, "match": "func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float? = nil) async throws -> [RetrievedChunk]", "status": "VERIFIED", "by": "build"},
-    {"id": "DeveloperDiagnosticsHubView.body", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 21, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModernStatusCard", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 370, "match": "struct ModernStatusCard: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "EmbeddingStatusCard", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 422, "match": "struct EmbeddingStatusCard: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "EmbeddingTelemetryList", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 499, "match": "struct EmbeddingTelemetryList: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModernTestResultCard", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 563, "match": "struct ModernTestResultCard: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ModernTestInfoSection", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 610, "match": "struct ModernTestInfoSection: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentProcessor", "kind": "model", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 27, "match": "class DocumentProcessor {", "status": "VERIFIED", "by": "build"},
-    {"id": "InMemoryVectorDatabase", "kind": "model", "path": "OpenIntelligence/Services/VectorStore/VectorDatabase.swift", "line": 195, "match": "class InMemoryVectorDatabase: VectorDatabase {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentChunk", "kind": "model", "path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "line": 12, "match": "struct DocumentChunk: Identifiable, Codable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 342, "match": "class RAGService: ObservableObject {", "status": "VERIFIED", "by": "build"},
-    {"id": "ScreenshotMockLLMService", "kind": "service", "path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 2165, "match": "class ScreenshotMockLLMService: LLMService {", "status": "VERIFIED", "by": "build"},
-    {"id": "Document", "kind": "model", "path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "line": 501, "match": "struct Document: Identifiable, Codable, Equatable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "TestResult", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 718, "match": "struct TestResult: Identifiable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.embeddingDiagnosticsSnapshot", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 5955, "match": "func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.EmbeddingDiagnosticsSnapshot.makeEmbeddingService", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 2251, "match": "func makeEmbeddingService() -> EmbeddingService {", "status": "VERIFIED", "by": "build"},
-    {"id": "DatabaseDashboardView", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 13, "match": "struct DatabaseDashboardView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareXRayOverlay", "kind": "view", "path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 296, "match": "struct HardwareXRayOverlay: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentPreviewSheet", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2478, "match": "struct DocumentPreviewSheet: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DatabaseStatusBadge", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1843, "match": "private struct DatabaseStatusBadge: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "QuickStat", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1822, "match": "private struct QuickStat: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DatabaseMetricCard", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1861, "match": "private struct DatabaseMetricCard: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "HealthIndicator", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2128, "match": "private struct HealthIndicator: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "IndexFactRow", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1898, "match": "private struct IndexFactRow: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "MiniStatCard", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2091, "match": "private struct MiniStatCard: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DocumentStatRow", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1915, "match": "private struct DocumentStatRow: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "LibraryIntelligenceCard", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2170, "match": "struct LibraryIntelligenceCard: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "IntelligenceExplanationRow", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2447, "match": "struct IntelligenceExplanationRow: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "IndexStatCard", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1951, "match": "private struct IndexStatCard: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "TokenizerInfoRow", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1977, "match": "private struct TokenizerInfoRow: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "FeatureBadge", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1993, "match": "private struct FeatureBadge: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ContentView.tabViewContent", "kind": "model", "path": "OpenIntelligence/App/ContentView.swift", "line": 436, "match": "private var tabViewContent: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "DebugRAGValidationHarness", "kind": "model", "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 4, "match": "enum DebugRAGValidationHarness {", "status": "VERIFIED", "by": "build"}
+    {
+      "id": "DeveloperDiagnosticsHubView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+      "line": 10,
+      "match": "struct DeveloperDiagnosticsHubView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "FoundationModelRoutePolicy.determineRoute",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift",
+      "line": 23,
+      "match": "static func determineRoute(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "InferenceConfig",
+      "kind": "model",
+      "path": "OpenIntelligence/Core/Models/LLMModel.swift",
+      "line": 121,
+      "match": "struct InferenceConfig {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGAccuracyView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift",
+      "line": 13,
+      "match": "struct RAGAccuracyView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ValidationDashboardView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift",
+      "line": 5,
+      "match": "struct ValidationDashboardView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "SettingsStore",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift",
+      "line": 58,
+      "match": "final class SettingsStore: ObservableObject {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChunkInspectorView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+      "line": 10,
+      "match": "struct ChunkInspectorView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ContainerScopingSelfTestsView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift",
+      "line": 11,
+      "match": "struct ContainerScopingSelfTestsView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "CoreValidationView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "line": 11,
+      "match": "struct CoreValidationView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "BackendHealthDiagnosticsView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift",
+      "line": 11,
+      "match": "struct BackendHealthDiagnosticsView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGPipelineAuditView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift",
+      "line": 10,
+      "match": "struct RAGPipelineAuditView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "TelemetryDashboardView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Telemetry/Dashboard/TelemetryDashboardView.swift",
+      "line": 3,
+      "match": "struct TelemetryDashboardView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "AdaptiveVisualizationsView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Telemetry/Visualizations/AdaptiveVisualizationsView.swift",
+      "line": 125,
+      "match": "struct AdaptiveVisualizationsView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "LiveFoundationModelCapabilityProvider",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelCapabilityProvider.swift",
+      "line": 12,
+      "match": "struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.checkDeviceCapabilities",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Device.swift",
+      "line": 36,
+      "match": "static func checkDeviceCapabilities() -> DeviceCapabilities {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "View.navigationBarTitleDisplayMode",
+      "kind": "function",
+      "path": "OpenIntelligence/UI/DesignSystem/Theme.swift",
+      "line": 430,
+      "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "LoggingConfiguration.Level",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift",
+      "line": 24,
+      "match": "enum Level: Int, Comparable, Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "SettingsView.destination",
+      "kind": "function",
+      "path": "OpenIntelligence/Features/Settings/SettingsView.swift",
+      "line": 590,
+      "match": "private func destination(for entry: SettingsEntry) -> some View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChunkDetailSheet",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+      "line": 464,
+      "match": "struct ChunkDetailSheet: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DocumentRow.iconName",
+      "kind": "function",
+      "path": "OpenIntelligence/Features/Documents/Components/DocumentRow.swift",
+      "line": 37,
+      "match": "private func iconName(for type: DocumentType) -> String {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChunkRowView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+      "line": 388,
+      "match": "struct ChunkRowView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChunkInspectionResult",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+      "line": 659,
+      "match": "struct ChunkInspectionResult: Identifiable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "SQLiteFullTextService.countPatternInCorpus",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift",
+      "line": 1698,
+      "match": "func countPatternInCorpus(pattern: String, containerId: UUID? = nil) async -> [UUID: Int] {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "CorpusVerificationResult",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+      "line": 677,
+      "match": "struct CorpusVerificationResult {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "SQLiteFullTextService.search",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift",
+      "line": 1557,
+      "match": "func search(query: String, containerId: UUID? = nil, limit: Int = 20) async -> [FTS5SearchResult] {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.searchDocumentsRaw",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift",
+      "line": 527,
+      "match": "func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float? = nil) async throws -> [RetrievedChunk]",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DeveloperDiagnosticsHubView.body",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+      "line": 21,
+      "match": "var body: some View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ModernStatusCard",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "line": 370,
+      "match": "struct ModernStatusCard: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "EmbeddingStatusCard",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "line": 422,
+      "match": "struct EmbeddingStatusCard: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "EmbeddingTelemetryList",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "line": 499,
+      "match": "struct EmbeddingTelemetryList: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ModernTestResultCard",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "line": 563,
+      "match": "struct ModernTestResultCard: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ModernTestInfoSection",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "line": 610,
+      "match": "struct ModernTestInfoSection: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DocumentProcessor",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift",
+      "line": 27,
+      "match": "class DocumentProcessor {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "InMemoryVectorDatabase",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/VectorStore/VectorDatabase.swift",
+      "line": 195,
+      "match": "class InMemoryVectorDatabase: VectorDatabase {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DocumentChunk",
+      "kind": "model",
+      "path": "OpenIntelligence/Core/Models/DocumentChunk.swift",
+      "line": 12,
+      "match": "struct DocumentChunk: Identifiable, Codable, Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService",
+      "kind": "service",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+      "line": 31,
+      "match": "class RAGService: ObservableObject {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ScreenshotMockLLMService",
+      "kind": "service",
+      "path": "OpenIntelligence/Services/LLM/LLMService.swift",
+      "line": 2165,
+      "match": "class ScreenshotMockLLMService: LLMService {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "Document",
+      "kind": "model",
+      "path": "OpenIntelligence/Core/Models/DocumentChunk.swift",
+      "line": 501,
+      "match": "struct Document: Identifiable, Codable, Equatable, Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "TestResult",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+      "line": 718,
+      "match": "struct TestResult: Identifiable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.embeddingDiagnosticsSnapshot",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Storage.swift",
+      "line": 1176,
+      "match": "func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.EmbeddingDiagnosticsSnapshot.makeEmbeddingService",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+      "line": 867,
+      "match": "func makeEmbeddingService() -> EmbeddingService {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DatabaseDashboardView",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 13,
+      "match": "struct DatabaseDashboardView: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "HardwareXRayOverlay",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift",
+      "line": 296,
+      "match": "struct HardwareXRayOverlay: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DocumentPreviewSheet",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 2478,
+      "match": "struct DocumentPreviewSheet: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DatabaseStatusBadge",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1843,
+      "match": "private struct DatabaseStatusBadge: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "QuickStat",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1822,
+      "match": "private struct QuickStat: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DatabaseMetricCard",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1861,
+      "match": "private struct DatabaseMetricCard: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "HealthIndicator",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 2128,
+      "match": "private struct HealthIndicator: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "IndexFactRow",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1898,
+      "match": "private struct IndexFactRow: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "MiniStatCard",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 2091,
+      "match": "private struct MiniStatCard: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DocumentStatRow",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1915,
+      "match": "private struct DocumentStatRow: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "LibraryIntelligenceCard",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 2170,
+      "match": "struct LibraryIntelligenceCard: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "IntelligenceExplanationRow",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 2447,
+      "match": "struct IntelligenceExplanationRow: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "IndexStatCard",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1951,
+      "match": "private struct IndexStatCard: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "TokenizerInfoRow",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1977,
+      "match": "private struct TokenizerInfoRow: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "FeatureBadge",
+      "kind": "view",
+      "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+      "line": 1993,
+      "match": "private struct FeatureBadge: View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ContentView.tabViewContent",
+      "kind": "model",
+      "path": "OpenIntelligence/App/ContentView.swift",
+      "line": 436,
+      "match": "private var tabViewContent: some View {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DebugRAGValidationHarness",
+      "kind": "model",
+      "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+      "line": 4,
+      "match": "enum DebugRAGValidationHarness {",
+      "status": "VERIFIED",
+      "by": "build"
+    }
   ],
   "edges": [
-    {"from": "DeveloperDiagnosticsHubView", "type": "calls", "to": "FoundationModelRoutePolicy.determineRoute", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 67, "match": "let policyRoute = FoundationModelRoutePolicy.determineRoute("}], "by": "build", "note": "the call names the type"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "InferenceConfig", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 70, "match": "config: InferenceConfig("}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "RAGAccuracyView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 151, "match": "RAGAccuracyView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "ValidationDashboardView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 160, "match": "ValidationDashboardView("}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "SettingsStore", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 12, "match": "@EnvironmentObject private var settings: SettingsStore"}], "by": "build", "note": "takes the app's store from the environment; it no longer constructs its own SettingsStore (5.8)"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "ChunkInspectorView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 166, "match": "ChunkInspectorView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "ContainerScopingSelfTestsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 177, "match": "ContainerScopingSelfTestsView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "CoreValidationView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 182, "match": "CoreValidationView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "BackendHealthDiagnosticsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 187, "match": "BackendHealthDiagnosticsView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "RAGPipelineAuditView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 192, "match": "RAGPipelineAuditView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "TelemetryDashboardView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 197, "match": "TelemetryDashboardView()"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "renders", "to": "AdaptiveVisualizationsView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 208, "match": "AdaptiveVisualizationsView()"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "LiveFoundationModelCapabilityProvider", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 229, "match": "pccCapability = await LiveFoundationModelCapabilityProvider().snapshot()"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "calls", "to": "RAGService.checkDeviceCapabilities", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 238, "match": "let caps = RAGService.checkDeviceCapabilities()"}], "by": "build", "note": "the call names the type"},
-    {"from": "SettingsView.destination", "type": "renders", "to": "DeveloperDiagnosticsHubView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView.swift", "line": 640, "match": "DeveloperDiagnosticsHubView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChunkInspectorView", "type": "renders", "to": "ChunkDetailSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 76, "match": "ChunkDetailSheet(chunk: chunk)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChunkInspectorView", "type": "calls", "to": "DocumentRow.iconName", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 200, "match": "Image(systemName: DocumentRow.iconName(for: doc.contentType)).font(.caption)"}], "by": "build", "note": "the call names the type"},
-    {"from": "ChunkInspectorView", "type": "renders", "to": "ChunkRowView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 268, "match": "ChunkRowView(chunk: chunk)"}], "by": "build", "note": "constructs it"},
-    {"from": "ChunkInspectorView", "type": "depends_on", "to": "ChunkInspectionResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 298, "match": "ChunkInspectionResult("}], "by": "build", "note": "constructs it"},
-    {"from": "ChunkInspectorView", "type": "calls", "to": "SQLiteFullTextService.countPatternInCorpus", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 324, "match": "let counts = await SQLiteFullTextService.shared.countPatternInCorpus(pattern: searchQuery, containerId: cid)"}], "by": "build", "note": "the call names the type"},
-    {"from": "ChunkInspectorView", "type": "depends_on", "to": "CorpusVerificationResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 325, "match": "let v = CorpusVerificationResult("}], "by": "build", "note": "constructs it"},
-    {"from": "ChunkInspectorView", "type": "calls", "to": "SQLiteFullTextService.search", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 331, "match": "let fts = await SQLiteFullTextService.shared.search(query: searchQuery, containerId: cid, limit: 50)"}], "by": "build", "note": "the call names the type"},
-    {"from": "DeveloperDiagnosticsHubView.body", "type": "renders", "to": "ChunkInspectorView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 166, "match": "ChunkInspectorView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "renders", "to": "ModernStatusCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 36, "match": "ModernStatusCard(status: overallStatus, isRunning: isRunning, currentTest: currentTest)"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "renders", "to": "EmbeddingStatusCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 41, "match": "EmbeddingStatusCard(snapshot: snapshot)"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "renders", "to": "EmbeddingTelemetryList", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 44, "match": "EmbeddingTelemetryList(events: recentEmbeddingEvents)"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "renders", "to": "ModernTestResultCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 101, "match": "ModernTestResultCard(result: result)"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "renders", "to": "ModernTestInfoSection", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 109, "match": "ModernTestInfoSection()"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "calls", "to": "DocumentProcessor", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 145, "match": "let processor = DocumentProcessor()"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "calls", "to": "InMemoryVectorDatabase", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 197, "match": "let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "depends_on", "to": "DocumentChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 199, "match": "let testChunk = DocumentChunk("}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "calls", "to": "RAGService.checkDeviceCapabilities", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 231, "match": "let capabilities = RAGService.checkDeviceCapabilities()"}], "by": "build", "note": "the call names the type"},
-    {"from": "CoreValidationView", "type": "calls", "to": "RAGService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 262, "match": "let testService = RAGService("}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "calls", "to": "ScreenshotMockLLMService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 266, "match": "llmService: ScreenshotMockLLMService()"}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "depends_on", "to": "Document", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 288, "match": "let doc = Document("}], "by": "build", "note": "constructs it"},
-    {"from": "CoreValidationView", "type": "depends_on", "to": "TestResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 355, "match": "let result = TestResult("}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView.body", "type": "renders", "to": "CoreValidationView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 182, "match": "CoreValidationView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView.body", "type": "renders", "to": "RAGAccuracyView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 151, "match": "RAGAccuracyView(ragService: ragService)"}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "HardwareXRayOverlay", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 179, "match": "HardwareXRayOverlay()"}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "DocumentPreviewSheet", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 211, "match": "DocumentPreviewSheet("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "DatabaseStatusBadge", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 309, "match": "DatabaseStatusBadge("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "QuickStat", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 334, "match": "QuickStat(value: \"\\(scopedDocumentCount(stats))\", label: \"Docs\", icon: \"doc.fill\", color: .accentColor)"}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "DatabaseMetricCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 596, "match": "DatabaseMetricCard("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "HealthIndicator", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 697, "match": "HealthIndicator("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "IndexFactRow", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 736, "match": "IndexFactRow("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "MiniStatCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 848, "match": "MiniStatCard(label: \"Words\", value: formatLargeNumber(listedWordCount))"}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "DocumentStatRow", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 862, "match": "DocumentStatRow(doc: doc, documentName: documentName(for: doc.documentId))"}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "LibraryIntelligenceCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 889, "match": "LibraryIntelligenceCard("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "IntelligenceExplanationRow", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 914, "match": "IntelligenceExplanationRow("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "IndexStatCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 963, "match": "IndexStatCard("}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "TokenizerInfoRow", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1006, "match": "TokenizerInfoRow(label: \"Tokenizer\", value: \"porter unicode61\")"}], "by": "build", "note": "constructs it"},
-    {"from": "DatabaseDashboardView", "type": "renders", "to": "FeatureBadge", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1026, "match": "FeatureBadge(name: \"MATCH Queries\", enabled: true)"}], "by": "build", "note": "constructs it"},
-    {"from": "ContentView.tabViewContent", "type": "renders", "to": "DatabaseDashboardView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 467, "match": "DatabaseDashboardView()"}], "by": "build", "note": "constructs it"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 220, "match": ".navigationBarTitleDisplayMode(.large)"}], "by": "build", "note": "named in the body"},
-    {"from": "DeveloperDiagnosticsHubView", "type": "calls", "to": "LoggingConfiguration.Level", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 315, "match": "let level = LoggingConfiguration.Level(rawValue: loggingLevelRaw) ?? .info"}], "by": "build", "note": "named in the body"},
-    {"from": "ChunkInspectorView", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 74, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},
-    {"from": "ChunkInspectorView", "type": "calls", "to": "RAGService.searchDocumentsRaw", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 296, "match": "let retrieved = try await ragService.searchDocumentsRaw(query: searchQuery, topK: 50, minSimilarity: 0.1)"}], "by": "build", "note": "named in the body"},
-    {"from": "CoreValidationView", "type": "calls", "to": "View.navigationBarTitleDisplayMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 116, "match": ".navigationBarTitleDisplayMode(.inline)"}], "by": "build", "note": "named in the body"},
-    {"from": "CoreValidationView", "type": "calls", "to": "RAGService.embeddingDiagnosticsSnapshot", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 119, "match": "embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()"}], "by": "build", "note": "named in the body"},
-    {"from": "CoreValidationView", "type": "calls", "to": "RAGService.EmbeddingDiagnosticsSnapshot.makeEmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 139, "match": "let makeEmbeddingService = { snapshot.makeEmbeddingService() }"}], "by": "build", "note": "named in the body"}
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "calls",
+      "to": "FoundationModelRoutePolicy.determineRoute",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 67,
+          "match": "let policyRoute = FoundationModelRoutePolicy.determineRoute("
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "depends_on",
+      "to": "InferenceConfig",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 70,
+          "match": "config: InferenceConfig("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "RAGAccuracyView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 151,
+          "match": "RAGAccuracyView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "ValidationDashboardView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 160,
+          "match": "ValidationDashboardView("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "depends_on",
+      "to": "SettingsStore",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 12,
+          "match": "@EnvironmentObject private var settings: SettingsStore"
+        }
+      ],
+      "by": "build",
+      "note": "takes the app's store from the environment; it no longer constructs its own SettingsStore (5.8)"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "ChunkInspectorView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 166,
+          "match": "ChunkInspectorView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "ContainerScopingSelfTestsView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 177,
+          "match": "ContainerScopingSelfTestsView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "CoreValidationView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 182,
+          "match": "CoreValidationView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "BackendHealthDiagnosticsView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 187,
+          "match": "BackendHealthDiagnosticsView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "RAGPipelineAuditView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 192,
+          "match": "RAGPipelineAuditView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "TelemetryDashboardView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 197,
+          "match": "TelemetryDashboardView()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "renders",
+      "to": "AdaptiveVisualizationsView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 208,
+          "match": "AdaptiveVisualizationsView()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "depends_on",
+      "to": "LiveFoundationModelCapabilityProvider",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 229,
+          "match": "pccCapability = await LiveFoundationModelCapabilityProvider().snapshot()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "calls",
+      "to": "RAGService.checkDeviceCapabilities",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 238,
+          "match": "let caps = RAGService.checkDeviceCapabilities()"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "SettingsView.destination",
+      "type": "renders",
+      "to": "DeveloperDiagnosticsHubView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Settings/SettingsView.swift",
+          "line": 640,
+          "match": "DeveloperDiagnosticsHubView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "renders",
+      "to": "ChunkDetailSheet",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 76,
+          "match": "ChunkDetailSheet(chunk: chunk)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "calls",
+      "to": "DocumentRow.iconName",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 200,
+          "match": "Image(systemName: DocumentRow.iconName(for: doc.contentType)).font(.caption)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "renders",
+      "to": "ChunkRowView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 268,
+          "match": "ChunkRowView(chunk: chunk)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "depends_on",
+      "to": "ChunkInspectionResult",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 298,
+          "match": "ChunkInspectionResult("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "calls",
+      "to": "SQLiteFullTextService.countPatternInCorpus",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 324,
+          "match": "let counts = await SQLiteFullTextService.shared.countPatternInCorpus(pattern: searchQuery, containerId: cid)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "depends_on",
+      "to": "CorpusVerificationResult",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 325,
+          "match": "let v = CorpusVerificationResult("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "calls",
+      "to": "SQLiteFullTextService.search",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 331,
+          "match": "let fts = await SQLiteFullTextService.shared.search(query: searchQuery, containerId: cid, limit: 50)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView.body",
+      "type": "renders",
+      "to": "ChunkInspectorView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 166,
+          "match": "ChunkInspectorView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "renders",
+      "to": "ModernStatusCard",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 36,
+          "match": "ModernStatusCard(status: overallStatus, isRunning: isRunning, currentTest: currentTest)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "renders",
+      "to": "EmbeddingStatusCard",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 41,
+          "match": "EmbeddingStatusCard(snapshot: snapshot)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "renders",
+      "to": "EmbeddingTelemetryList",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 44,
+          "match": "EmbeddingTelemetryList(events: recentEmbeddingEvents)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "renders",
+      "to": "ModernTestResultCard",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 101,
+          "match": "ModernTestResultCard(result: result)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "renders",
+      "to": "ModernTestInfoSection",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 109,
+          "match": "ModernTestInfoSection()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "DocumentProcessor",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 145,
+          "match": "let processor = DocumentProcessor()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "InMemoryVectorDatabase",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 197,
+          "match": "let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "depends_on",
+      "to": "DocumentChunk",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 199,
+          "match": "let testChunk = DocumentChunk("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "RAGService.checkDeviceCapabilities",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 231,
+          "match": "let capabilities = RAGService.checkDeviceCapabilities()"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "RAGService",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 262,
+          "match": "let testService = RAGService("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "ScreenshotMockLLMService",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 266,
+          "match": "llmService: ScreenshotMockLLMService()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "depends_on",
+      "to": "Document",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 288,
+          "match": "let doc = Document("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "depends_on",
+      "to": "TestResult",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 355,
+          "match": "let result = TestResult("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView.body",
+      "type": "renders",
+      "to": "CoreValidationView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 182,
+          "match": "CoreValidationView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView.body",
+      "type": "renders",
+      "to": "RAGAccuracyView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 151,
+          "match": "RAGAccuracyView(ragService: ragService)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "HardwareXRayOverlay",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 179,
+          "match": "HardwareXRayOverlay()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "DocumentPreviewSheet",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 211,
+          "match": "DocumentPreviewSheet("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "DatabaseStatusBadge",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 309,
+          "match": "DatabaseStatusBadge("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "QuickStat",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 334,
+          "match": "QuickStat(value: \"\\(scopedDocumentCount(stats))\", label: \"Docs\", icon: \"doc.fill\", color: .accentColor)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "DatabaseMetricCard",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 596,
+          "match": "DatabaseMetricCard("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "HealthIndicator",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 697,
+          "match": "HealthIndicator("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "IndexFactRow",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 736,
+          "match": "IndexFactRow("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "MiniStatCard",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 848,
+          "match": "MiniStatCard(label: \"Words\", value: formatLargeNumber(listedWordCount))"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "DocumentStatRow",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 862,
+          "match": "DocumentStatRow(doc: doc, documentName: documentName(for: doc.documentId))"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "LibraryIntelligenceCard",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 889,
+          "match": "LibraryIntelligenceCard("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "IntelligenceExplanationRow",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 914,
+          "match": "IntelligenceExplanationRow("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "IndexStatCard",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 963,
+          "match": "IndexStatCard("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "TokenizerInfoRow",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 1006,
+          "match": "TokenizerInfoRow(label: \"Tokenizer\", value: \"porter unicode61\")"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DatabaseDashboardView",
+      "type": "renders",
+      "to": "FeatureBadge",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+          "line": 1026,
+          "match": "FeatureBadge(name: \"MATCH Queries\", enabled: true)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "ContentView.tabViewContent",
+      "type": "renders",
+      "to": "DatabaseDashboardView",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/App/ContentView.swift",
+          "line": 467,
+          "match": "DatabaseDashboardView()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "calls",
+      "to": "View.navigationBarTitleDisplayMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 220,
+          "match": ".navigationBarTitleDisplayMode(.large)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "DeveloperDiagnosticsHubView",
+      "type": "calls",
+      "to": "LoggingConfiguration.Level",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+          "line": 315,
+          "match": "let level = LoggingConfiguration.Level(rawValue: loggingLevelRaw) ?? .info"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "calls",
+      "to": "View.navigationBarTitleDisplayMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 74,
+          "match": ".navigationBarTitleDisplayMode(.inline)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "ChunkInspectorView",
+      "type": "calls",
+      "to": "RAGService.searchDocumentsRaw",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+          "line": 296,
+          "match": "let retrieved = try await ragService.searchDocumentsRaw(query: searchQuery, topK: 50, minSimilarity: 0.1)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "View.navigationBarTitleDisplayMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 116,
+          "match": ".navigationBarTitleDisplayMode(.inline)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "RAGService.embeddingDiagnosticsSnapshot",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 119,
+          "match": "embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "CoreValidationView",
+      "type": "calls",
+      "to": "RAGService.EmbeddingDiagnosticsSnapshot.makeEmbeddingService",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+          "line": 139,
+          "match": "let makeEmbeddingService = { snapshot.makeEmbeddingService() }"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    }
   ],
   "docs": [],
   "unknowns": [],
-  "related": ["app-lifecycle", "apple-foundation-models", "design-system-and-markdown", "document-ingestion-pipeline", "document-library-and-containers", "embedding-visualizations-and-3d", "full-text-search-storage", "llm-execution"],
-  "entries": ["OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift::DeveloperDiagnosticsHubView", "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift::ChunkInspectorView", "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift::CoreValidationView", "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift::RAGAccuracyView", "OpenIntelligence/Features/Database/DatabaseDashboardView.swift::DatabaseDashboardView", "OpenIntelligence/App/DebugRAGValidationHarness.swift::DebugRAGValidationHarness"],
-  "owns": ["OpenIntelligence/Features/Diagnostics/Hub/**", "OpenIntelligence/Features/Diagnostics/Monitoring/**", "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift", "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift", "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift", "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift", "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift", "OpenIntelligence/Features/Telemetry/Diagnostics/**", "OpenIntelligence/Features/Database/**", "OpenIntelligence/App/DebugRAGValidationHarness.swift"],
+  "related": [
+    "app-lifecycle",
+    "apple-foundation-models",
+    "design-system-and-markdown",
+    "document-ingestion-pipeline",
+    "document-library-and-containers",
+    "embedding-visualizations-and-3d",
+    "full-text-search-storage",
+    "llm-execution"
+  ],
+  "entries": [
+    "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift::DeveloperDiagnosticsHubView",
+    "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift::ChunkInspectorView",
+    "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift::CoreValidationView",
+    "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift::RAGAccuracyView",
+    "OpenIntelligence/Features/Database/DatabaseDashboardView.swift::DatabaseDashboardView",
+    "OpenIntelligence/App/DebugRAGValidationHarness.swift::DebugRAGValidationHarness"
+  ],
+  "owns": [
+    "OpenIntelligence/Features/Diagnostics/Hub/**",
+    "OpenIntelligence/Features/Diagnostics/Monitoring/**",
+    "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift",
+    "OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift",
+    "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift",
+    "OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift",
+    "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift",
+    "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift",
+    "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift",
+    "OpenIntelligence/Features/Telemetry/Diagnostics/**",
+    "OpenIntelligence/Features/Database/**",
+    "OpenIntelligence/App/DebugRAGValidationHarness.swift"
+  ],
   "decisions": [],
   "traps": [],
   "edges_omitted": 10,
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [
-      {"id": "SearchTip", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2011, "match": "private struct SearchTip: View {", "status": "VERIFIED"},
-      {"id": "SearchResultRow", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2032, "match": "private struct SearchResultRow: View {", "status": "VERIFIED"},
-      {"id": "DiagnosticCard", "kind": "view", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2063, "match": "private struct DiagnosticCard: View {", "status": "VERIFIED"},
-      {"id": "ValidationDashboardViewModel", "kind": "view_model", "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift", "line": 7, "match": "class ValidationDashboardViewModel: ObservableObject {", "status": "VERIFIED"}
+      {
+        "id": "SearchTip",
+        "kind": "view",
+        "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+        "line": 2011,
+        "match": "private struct SearchTip: View {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "SearchResultRow",
+        "kind": "view",
+        "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+        "line": 2032,
+        "match": "private struct SearchResultRow: View {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "DiagnosticCard",
+        "kind": "view",
+        "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+        "line": 2063,
+        "match": "private struct DiagnosticCard: View {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "ValidationDashboardViewModel",
+        "kind": "view_model",
+        "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift",
+        "line": 7,
+        "match": "class ValidationDashboardViewModel: ObservableObject {",
+        "status": "VERIFIED"
+      }
     ],
     "edges": [
-      {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "RAGAccuracyView", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 151, "match": "RAGAccuracyView(ragService: ragService)"}]},
-      {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "ValidationDashboardView", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 160, "match": "ValidationDashboardView(ragService: ragService, settingsStore: settings)"}]},
-      {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "ChunkInspectorView", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 166, "match": "ChunkInspectorView(ragService: ragService)"}]},
-      {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "ContainerScopingSelfTestsView", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 177, "match": "ContainerScopingSelfTestsView(ragService: ragService)"}]},
-      {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "CoreValidationView", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 182, "match": "CoreValidationView(ragService: ragService)"}]},
-      {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "BackendHealthDiagnosticsView", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 187, "match": "BackendHealthDiagnosticsView(ragService: ragService)"}]},
-      {"from": "DeveloperDiagnosticsHubView", "type": "depends_on", "to": "RAGPipelineAuditView", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 192, "match": "RAGPipelineAuditView(ragService: ragService)"}]},
-      {"from": "ValidationDashboardView", "type": "depends_on", "to": "ValidationDashboardViewModel", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift", "line": 6, "match": "@StateObject private var viewModel: ValidationDashboardViewModel"}]},
-      {"from": "ValidationDashboardView", "type": "depends_on", "to": "DebugRAGValidationHarness", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift", "line": 99, "match": "guard DebugRAGValidationHarness.isVisualModeEnabled,"}]},
-      {"from": "ValidationDashboardViewModel", "type": "depends_on", "to": "DebugRAGValidationHarness", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift", "line": 31, "match": "if let lastReport = DebugRAGValidationHarness.lastReport {"}]},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:llm-execution", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 25, "match": "func record(_ event: LLMStreamEvent) {"}], "note": "via LLMStreamEvent"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:quality-modes-and-agentic-orchestrator", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 76, "match": "let qualityMode: RAGQualityMode?"}], "note": "via RAGQualityMode"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:billing-and-quotas", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 79, "match": "let benchmarkEntitlement: WorkspaceTier?"}], "note": "via WorkspaceTier, StoreKitBillingService"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:app-lifecycle", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 113, "match": "&& (LaunchArguments.has(\"--rag-validation-visual\") || LaunchArguments.has(\"rag-validation-visual\"))"}], "note": "via LaunchArguments"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:document-library-and-containers", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 124, "match": "AppSupportPaths.pinRuntimeDirectories("}], "note": "via AppSupportPaths, ContainerService"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 229, "match": "let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)"}], "note": "via RAGService, RAGResponse, RAGAuditSnapshot, RetrievedChunk"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:settings-and-configuration", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 230, "match": "let settingsStore = SettingsStore(ragService: ragService)"}], "note": "via SettingsStore"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:document-ingestion-pipeline", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 307, "match": "var ingestionResult: IngestionBatchResult?"}], "note": "via IngestionBatchResult"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:hybrid-retrieval-and-fusion", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 322, "match": "let trace = RetrievalTraceCollector()"}], "note": "via RetrievalTraceCollector"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:smart-replies-and-suggestions", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 385, "match": "let questions = await SuggestedQuestionsService.shared.generateQuestions("}], "note": "via SuggestedQuestionsService"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:semantic-chunking", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 472, "match": "private static func documentIdsByName(_ documents: [Document]) -> [String: UUID] {"}], "note": "via Document"},
-      {"from": "DebugRAGValidationHarness", "type": "depends_on", "to": "feature:rag-evaluation-and-benchmarks", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 475, "match": "let stem = RetrievalRelevanceJudge.documentStem(document.filename)"}], "note": "via RetrievalRelevanceJudge, RetrievalStageEvaluator"},
-      {"from": "DatabaseDashboardView", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 14, "match": "@EnvironmentObject private var ragService: RAGService"}], "note": "via RAGService"},
-      {"from": "DatabaseDashboardView", "type": "depends_on", "to": "feature:document-library-and-containers", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 15, "match": "@EnvironmentObject private var containerService: ContainerService"}], "note": "via ContainerService"},
-      {"from": "DatabaseDashboardView", "type": "depends_on", "to": "feature:settings-and-configuration", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 16, "match": "@EnvironmentObject private var settings: SettingsStore"}], "note": "via SettingsStore"},
-      {"from": "DatabaseDashboardView", "type": "depends_on", "to": "feature:full-text-search-storage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 41, "match": "@State private var stats: SQLiteFullTextService.FTS5Statistics?"}], "note": "via SQLiteFullTextService, FTS5SearchResult"},
-      {"from": "DatabaseDashboardView", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 144, "match": "VStack(spacing: DSSpacing.lg) {"}], "note": "via DSSpacing, DSColors, DSCorners, DSAnimations"},
-      {"from": "DatabaseDashboardView", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 179, "match": "HardwareXRayOverlay()"}], "note": "via HardwareXRayOverlay"},
-      {"from": "QuickStat", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1829, "match": "VStack(spacing: DSSpacing.xs) {"}], "note": "via DSSpacing"},
-      {"from": "DatabaseStatusBadge", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1848, "match": "HStack(spacing: DSSpacing.xs) {"}], "note": "via DSSpacing"},
-      {"from": "DatabaseMetricCard", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1870, "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"}], "note": "via DSSpacing, DSColors, DSCorners"},
-      {"from": "IndexFactRow", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1903, "match": "VStack(alignment: .leading, spacing: DSSpacing.xxs) {"}], "note": "via DSSpacing"},
-      {"from": "DocumentStatRow", "type": "depends_on", "to": "feature:full-text-search-storage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1916, "match": "let doc: SQLiteFullTextService.DocumentStat"}], "note": "via SQLiteFullTextService"},
-      {"from": "DocumentStatRow", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1921, "match": "VStack(alignment: .leading, spacing: DSSpacing.xs) {"}], "note": "via DSSpacing, DSColors, DSCorners"},
-      {"from": "IndexStatCard", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1958, "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"}], "note": "via DSSpacing, DSCorners"},
-      {"from": "FeatureBadge", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 1998, "match": "HStack(spacing: DSSpacing.xs) {"}], "note": "via DSSpacing, DSCorners"},
-      {"from": "SearchTip", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2016, "match": "HStack(alignment: .top, spacing: DSSpacing.md) {"}], "note": "via DSSpacing, DSCorners"},
-      {"from": "SearchResultRow", "type": "depends_on", "to": "feature:full-text-search-storage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2033, "match": "let result: FTS5SearchResult"}], "note": "via FTS5SearchResult"},
-      {"from": "SearchResultRow", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2037, "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"}], "note": "via DSSpacing, DSCorners, DSColors"},
-      {"from": "DiagnosticCard", "type": "depends_on", "to": "feature:design-system-and-markdown", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2070, "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"}], "note": "via DSSpacing, DSCorners"}
+      {
+        "from": "DeveloperDiagnosticsHubView",
+        "type": "depends_on",
+        "to": "RAGAccuracyView",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+            "line": 151,
+            "match": "RAGAccuracyView(ragService: ragService)"
+          }
+        ]
+      },
+      {
+        "from": "DeveloperDiagnosticsHubView",
+        "type": "depends_on",
+        "to": "ValidationDashboardView",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+            "line": 160,
+            "match": "ValidationDashboardView(ragService: ragService, settingsStore: settings)"
+          }
+        ]
+      },
+      {
+        "from": "DeveloperDiagnosticsHubView",
+        "type": "depends_on",
+        "to": "ChunkInspectorView",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+            "line": 166,
+            "match": "ChunkInspectorView(ragService: ragService)"
+          }
+        ]
+      },
+      {
+        "from": "DeveloperDiagnosticsHubView",
+        "type": "depends_on",
+        "to": "ContainerScopingSelfTestsView",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+            "line": 177,
+            "match": "ContainerScopingSelfTestsView(ragService: ragService)"
+          }
+        ]
+      },
+      {
+        "from": "DeveloperDiagnosticsHubView",
+        "type": "depends_on",
+        "to": "CoreValidationView",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+            "line": 182,
+            "match": "CoreValidationView(ragService: ragService)"
+          }
+        ]
+      },
+      {
+        "from": "DeveloperDiagnosticsHubView",
+        "type": "depends_on",
+        "to": "BackendHealthDiagnosticsView",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+            "line": 187,
+            "match": "BackendHealthDiagnosticsView(ragService: ragService)"
+          }
+        ]
+      },
+      {
+        "from": "DeveloperDiagnosticsHubView",
+        "type": "depends_on",
+        "to": "RAGPipelineAuditView",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift",
+            "line": 192,
+            "match": "RAGPipelineAuditView(ragService: ragService)"
+          }
+        ]
+      },
+      {
+        "from": "ValidationDashboardView",
+        "type": "depends_on",
+        "to": "ValidationDashboardViewModel",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift",
+            "line": 6,
+            "match": "@StateObject private var viewModel: ValidationDashboardViewModel"
+          }
+        ]
+      },
+      {
+        "from": "ValidationDashboardView",
+        "type": "depends_on",
+        "to": "DebugRAGValidationHarness",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardView.swift",
+            "line": 99,
+            "match": "guard DebugRAGValidationHarness.isVisualModeEnabled,"
+          }
+        ]
+      },
+      {
+        "from": "ValidationDashboardViewModel",
+        "type": "depends_on",
+        "to": "DebugRAGValidationHarness",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Diagnostics/Validation/ValidationDashboardViewModel.swift",
+            "line": 31,
+            "match": "if let lastReport = DebugRAGValidationHarness.lastReport {"
+          }
+        ]
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:llm-execution",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 25,
+            "match": "func record(_ event: LLMStreamEvent) {"
+          }
+        ],
+        "note": "via LLMStreamEvent"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:quality-modes-and-agentic-orchestrator",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 76,
+            "match": "let qualityMode: RAGQualityMode?"
+          }
+        ],
+        "note": "via RAGQualityMode"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:billing-and-quotas",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 79,
+            "match": "let benchmarkEntitlement: WorkspaceTier?"
+          }
+        ],
+        "note": "via WorkspaceTier, StoreKitBillingService"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:app-lifecycle",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 113,
+            "match": "&& (LaunchArguments.has(\"--rag-validation-visual\") || LaunchArguments.has(\"rag-validation-visual\"))"
+          }
+        ],
+        "note": "via LaunchArguments"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:document-library-and-containers",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 124,
+            "match": "AppSupportPaths.pinRuntimeDirectories("
+          }
+        ],
+        "note": "via AppSupportPaths, ContainerService"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 229,
+            "match": "let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)"
+          }
+        ],
+        "note": "via RAGService, RAGResponse, RAGAuditSnapshot, RetrievedChunk"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:settings-and-configuration",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 230,
+            "match": "let settingsStore = SettingsStore(ragService: ragService)"
+          }
+        ],
+        "note": "via SettingsStore"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:document-ingestion-pipeline",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 307,
+            "match": "var ingestionResult: IngestionBatchResult?"
+          }
+        ],
+        "note": "via IngestionBatchResult"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:hybrid-retrieval-and-fusion",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 322,
+            "match": "let trace = RetrievalTraceCollector()"
+          }
+        ],
+        "note": "via RetrievalTraceCollector"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:smart-replies-and-suggestions",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 385,
+            "match": "let questions = await SuggestedQuestionsService.shared.generateQuestions("
+          }
+        ],
+        "note": "via SuggestedQuestionsService"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:semantic-chunking",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 472,
+            "match": "private static func documentIdsByName(_ documents: [Document]) -> [String: UUID] {"
+          }
+        ],
+        "note": "via Document"
+      },
+      {
+        "from": "DebugRAGValidationHarness",
+        "type": "depends_on",
+        "to": "feature:rag-evaluation-and-benchmarks",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+            "line": 475,
+            "match": "let stem = RetrievalRelevanceJudge.documentStem(document.filename)"
+          }
+        ],
+        "note": "via RetrievalRelevanceJudge, RetrievalStageEvaluator"
+      },
+      {
+        "from": "DatabaseDashboardView",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 14,
+            "match": "@EnvironmentObject private var ragService: RAGService"
+          }
+        ],
+        "note": "via RAGService"
+      },
+      {
+        "from": "DatabaseDashboardView",
+        "type": "depends_on",
+        "to": "feature:document-library-and-containers",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 15,
+            "match": "@EnvironmentObject private var containerService: ContainerService"
+          }
+        ],
+        "note": "via ContainerService"
+      },
+      {
+        "from": "DatabaseDashboardView",
+        "type": "depends_on",
+        "to": "feature:settings-and-configuration",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 16,
+            "match": "@EnvironmentObject private var settings: SettingsStore"
+          }
+        ],
+        "note": "via SettingsStore"
+      },
+      {
+        "from": "DatabaseDashboardView",
+        "type": "depends_on",
+        "to": "feature:full-text-search-storage",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 41,
+            "match": "@State private var stats: SQLiteFullTextService.FTS5Statistics?"
+          }
+        ],
+        "note": "via SQLiteFullTextService, FTS5SearchResult"
+      },
+      {
+        "from": "DatabaseDashboardView",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 144,
+            "match": "VStack(spacing: DSSpacing.lg) {"
+          }
+        ],
+        "note": "via DSSpacing, DSColors, DSCorners, DSAnimations"
+      },
+      {
+        "from": "DatabaseDashboardView",
+        "type": "depends_on",
+        "to": "feature:silicon-hud-and-telemetry",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 179,
+            "match": "HardwareXRayOverlay()"
+          }
+        ],
+        "note": "via HardwareXRayOverlay"
+      },
+      {
+        "from": "QuickStat",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1829,
+            "match": "VStack(spacing: DSSpacing.xs) {"
+          }
+        ],
+        "note": "via DSSpacing"
+      },
+      {
+        "from": "DatabaseStatusBadge",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1848,
+            "match": "HStack(spacing: DSSpacing.xs) {"
+          }
+        ],
+        "note": "via DSSpacing"
+      },
+      {
+        "from": "DatabaseMetricCard",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1870,
+            "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"
+          }
+        ],
+        "note": "via DSSpacing, DSColors, DSCorners"
+      },
+      {
+        "from": "IndexFactRow",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1903,
+            "match": "VStack(alignment: .leading, spacing: DSSpacing.xxs) {"
+          }
+        ],
+        "note": "via DSSpacing"
+      },
+      {
+        "from": "DocumentStatRow",
+        "type": "depends_on",
+        "to": "feature:full-text-search-storage",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1916,
+            "match": "let doc: SQLiteFullTextService.DocumentStat"
+          }
+        ],
+        "note": "via SQLiteFullTextService"
+      },
+      {
+        "from": "DocumentStatRow",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1921,
+            "match": "VStack(alignment: .leading, spacing: DSSpacing.xs) {"
+          }
+        ],
+        "note": "via DSSpacing, DSColors, DSCorners"
+      },
+      {
+        "from": "IndexStatCard",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1958,
+            "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"
+          }
+        ],
+        "note": "via DSSpacing, DSCorners"
+      },
+      {
+        "from": "FeatureBadge",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 1998,
+            "match": "HStack(spacing: DSSpacing.xs) {"
+          }
+        ],
+        "note": "via DSSpacing, DSCorners"
+      },
+      {
+        "from": "SearchTip",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 2016,
+            "match": "HStack(alignment: .top, spacing: DSSpacing.md) {"
+          }
+        ],
+        "note": "via DSSpacing, DSCorners"
+      },
+      {
+        "from": "SearchResultRow",
+        "type": "depends_on",
+        "to": "feature:full-text-search-storage",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 2033,
+            "match": "let result: FTS5SearchResult"
+          }
+        ],
+        "note": "via FTS5SearchResult"
+      },
+      {
+        "from": "SearchResultRow",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 2037,
+            "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"
+          }
+        ],
+        "note": "via DSSpacing, DSCorners, DSColors"
+      },
+      {
+        "from": "DiagnosticCard",
+        "type": "depends_on",
+        "to": "feature:design-system-and-markdown",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift",
+            "line": 2070,
+            "match": "VStack(alignment: .leading, spacing: DSSpacing.sm) {"
+          }
+        ],
+        "note": "via DSSpacing, DSCorners"
+      }
     ],
     "edges_omitted": 68
   }

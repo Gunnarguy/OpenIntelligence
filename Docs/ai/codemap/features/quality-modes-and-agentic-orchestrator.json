@@ -2,122 +2,1130 @@
   "schema": "codemap/1",
   "id": "quality-modes-and-agentic-orchestrator",
   "name": "Quality Modes and Agentic Orchestrator",
-  "aliases": ["quality modes", "Deep Think", "Maximum mode", "Standard mode", "agentic orchestrator", "multi-step reasoning", "conversation memory"],
+  "aliases": [
+    "quality modes",
+    "Deep Think",
+    "Maximum mode",
+    "Standard mode",
+    "agentic orchestrator",
+    "multi-step reasoning",
+    "conversation memory"
+  ],
   "purpose": "Runs the Deep Think and Maximum quality modes as multi-step reasoning over the library, with conversation memory.",
-  "revision": "fb5f0107",
+  "revision": "e68facb2",
   "verified_on": "2026-11-05",
-  "entry_points": ["RAGQualityMode", "AgenticOrchestrator.execute", "AgenticOrchestrator", "ConversationMemoryService", "ResponseTransformService"],
+  "entry_points": [
+    "RAGQualityMode",
+    "AgenticOrchestrator.execute",
+    "AgenticOrchestrator",
+    "ConversationMemoryService",
+    "ResponseTransformService"
+  ],
   "files": [
-    {"path": "OpenIntelligence/Core/Models/RAGQualityMode.swift", "role": "primary", "blob": "b3511811f8b60f8376541e7101bfa6b4c438a37c"},
-    {"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "role": "primary", "blob": "d433ee01d485b0a6fd9bca367f4461d9e7f315d0"},
-    {"path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift", "role": "primary", "blob": "94c39f3e431dee84a067eef4b566869c9907c5f3"},
-    {"path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift", "role": "primary", "blob": "38d1060a516b9aa34a27394fc90449eacc52983f"},
-    {"path": "OpenIntelligence/Services/Agentic/ToolCallCounter.swift", "role": "primary", "blob": "2503e4558e02c9acff23d80354431509750985a3"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift", "role": "test", "blob": "4004de08939de3d4873b796506b8ee29fa0f202a"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "role": "test", "blob": "b2a3daa032e951d8af61ac5445e358548d7f0735"},
-    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift", "role": "test", "blob": "1239543431bbd009aaff59edd0de8c131b769dcd"},
-    {"path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift", "role": "primary", "blob": "663efa7d4017b0593a17355f5c81c654131520f1"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift", "role": "test", "blob": "911301020bc5ea03edd14c5355b1f056094089a0"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift", "role": "test", "blob": "9c9b84fbc73f3986dae7cf3542378b69d550d528"}
+    {
+      "path": "OpenIntelligence/Core/Models/RAGQualityMode.swift",
+      "role": "primary",
+      "blob": "b3511811f8b60f8376541e7101bfa6b4c438a37c"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+      "role": "primary",
+      "blob": "0aa4fc79cfb7b16b07273f1cba57ff02b1ef1b7d"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift",
+      "role": "primary",
+      "blob": "94c39f3e431dee84a067eef4b566869c9907c5f3"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift",
+      "role": "primary",
+      "blob": "38d1060a516b9aa34a27394fc90449eacc52983f"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/ToolCallCounter.swift",
+      "role": "primary",
+      "blob": "2503e4558e02c9acff23d80354431509750985a3"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift",
+      "role": "test",
+      "blob": "4004de08939de3d4873b796506b8ee29fa0f202a"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift",
+      "role": "test",
+      "blob": "b2a3daa032e951d8af61ac5445e358548d7f0735"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift",
+      "role": "test",
+      "blob": "1239543431bbd009aaff59edd0de8c131b769dcd"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift",
+      "role": "primary",
+      "blob": "663efa7d4017b0593a17355f5c81c654131520f1"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift",
+      "role": "test",
+      "blob": "911301020bc5ea03edd14c5355b1f056094089a0"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift",
+      "role": "test",
+      "blob": "9c9b84fbc73f3986dae7cf3542378b69d550d528"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Maximum.swift",
+      "role": "primary",
+      "blob": "79f3ca506517c0052a03d59e2904f2be85c5fb62"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+MultiChain.swift",
+      "role": "primary",
+      "blob": "0854ceea325fc123c3ba977a7c534c212808a128"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift",
+      "role": "primary",
+      "blob": "034606ba884129272752b10f5c989cfcb3482a27"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Research.swift",
+      "role": "primary",
+      "blob": "ec93898d4ff1bbaa22e38569b05a0c9fab4ee807"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift",
+      "role": "primary",
+      "blob": "7a6b0706cf0bb0b7a2cb91f8e57fa5b75235bebe"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+SelfRAG.swift",
+      "role": "primary",
+      "blob": "2e22bde4c32d29ed03637102c2b9e84fc40afe42"
+    },
+    {
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+      "role": "primary",
+      "blob": "9a9d757f63f172eb53f80e60c14c3626d3905593"
+    }
   ],
   "nodes": [
-    {"id": "RAGQualityMode", "kind": "model", "path": "OpenIntelligence/Core/Models/RAGQualityMode.swift", "line": 13, "match": "enum RAGQualityMode: String, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "DebugRAGValidationHarness.Configuration.qualityMode", "kind": "model", "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 76, "match": "let qualityMode: RAGQualityMode?", "status": "VERIFIED", "by": "build"},
-    {"id": "InferenceConfig.qualityMode", "kind": "model", "path": "OpenIntelligence/Core/Models/LLMModel.swift", "line": 146, "match": "var qualityMode: RAGQualityMode = .standard", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.effectiveQualityMode", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1352, "match": "private var effectiveQualityMode: RAGQualityMode {", "status": "VERIFIED", "by": "build"},
-    {"id": "MessageListV2.qualityMode", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift", "line": 18, "match": "let qualityMode: RAGQualityMode", "status": "VERIFIED", "by": "build"},
-    {"id": "ThinkingStreamView.qualityMode", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift", "line": 7, "match": "var qualityMode: RAGQualityMode? = nil", "status": "VERIFIED", "by": "build"},
-    {"id": "UnifiedMetricsBar.qualityMode", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 47, "match": "let qualityMode: RAGQualityMode", "status": "VERIFIED", "by": "build"},
-    {"id": "AgenticOrchestrator.execute", "kind": "function", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 272, "match": "func execute(", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.executeAgenticQuery", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 11319, "match": "private func executeAgenticQuery(", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.beginTransaction", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 139, "match": "private func beginTransaction() {", "status": "VERIFIED", "by": "build"},
-    {"id": "AgenticOrchestrator", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 173, "match": "final class AgenticOrchestrator: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ConversationMemoryService", "kind": "service", "path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift", "line": 170, "match": "final class ConversationMemoryService {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.clearChatHistory", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1094, "match": "func clearChatHistory(for containerId: UUID?) {", "status": "VERIFIED", "by": "build"},
-    {"id": "ResponseTransformService", "kind": "service", "path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift", "line": 28, "match": "final class ResponseTransformService: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "ChatScreen.performTransformAction", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 3018, "match": "private func performTransformAction(_ action: TransformAction, on text: String, question: String = \"\") {", "status": "VERIFIED", "by": "build"},
-    {"id": "test:AnswerReplacementGuardTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
-    {"id": "test:CitationGroundingTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
-    {"id": "test:SourceOnlyStandardGateTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
+    {
+      "id": "RAGQualityMode",
+      "kind": "model",
+      "path": "OpenIntelligence/Core/Models/RAGQualityMode.swift",
+      "line": 13,
+      "match": "enum RAGQualityMode: String, Identifiable, Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DebugRAGValidationHarness.Configuration.qualityMode",
+      "kind": "model",
+      "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+      "line": 76,
+      "match": "let qualityMode: RAGQualityMode?",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "InferenceConfig.qualityMode",
+      "kind": "model",
+      "path": "OpenIntelligence/Core/Models/LLMModel.swift",
+      "line": 146,
+      "match": "var qualityMode: RAGQualityMode = .standard",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChatScreen.effectiveQualityMode",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+      "line": 1352,
+      "match": "private var effectiveQualityMode: RAGQualityMode {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "MessageListV2.qualityMode",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift",
+      "line": 18,
+      "match": "let qualityMode: RAGQualityMode",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ThinkingStreamView.qualityMode",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift",
+      "line": 7,
+      "match": "var qualityMode: RAGQualityMode? = nil",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "UnifiedMetricsBar.qualityMode",
+      "kind": "model",
+      "path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift",
+      "line": 47,
+      "match": "let qualityMode: RAGQualityMode",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "AgenticOrchestrator.execute",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+      "line": 113,
+      "match": "func execute(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.executeAgenticQuery",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift",
+      "line": 333,
+      "match": "func executeAgenticQuery(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "SQLiteFullTextService.beginTransaction",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift",
+      "line": 139,
+      "match": "private func beginTransaction() {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "AgenticOrchestrator",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+      "line": 14,
+      "match": "final class AgenticOrchestrator: Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ConversationMemoryService",
+      "kind": "service",
+      "path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift",
+      "line": 170,
+      "match": "final class ConversationMemoryService {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.clearChatHistory",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+      "line": 129,
+      "match": "func clearChatHistory(for containerId: UUID?) {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ResponseTransformService",
+      "kind": "service",
+      "path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift",
+      "line": 28,
+      "match": "final class ResponseTransformService: Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "ChatScreen.performTransformAction",
+      "kind": "function",
+      "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+      "line": 3018,
+      "match": "private func performTransformAction(_ action: TransformAction, on text: String, question: String = \"\") {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "test:AnswerReplacementGuardTests.swift",
+      "kind": "test",
+      "path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift",
+      "line": 1,
+      "match": "import XCTest",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "test:CitationGroundingTests.swift",
+      "kind": "test",
+      "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift",
+      "line": 1,
+      "match": "import XCTest",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "test:SourceOnlyStandardGateTests.swift",
+      "kind": "test",
+      "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift",
+      "line": 1,
+      "match": "//",
+      "status": "VERIFIED",
+      "by": "build"
+    }
   ],
   "edges": [
-    {"from": "RAGService.executeAgenticQuery", "type": "calls", "to": "AgenticOrchestrator", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 11463, "match": "let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)"}], "by": "build", "note": "constructs it"},
-    {"from": "DebugRAGValidationHarness.Configuration.qualityMode", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 76, "match": "let qualityMode: RAGQualityMode?"}], "by": "build", "note": "named there"},
-    {"from": "InferenceConfig.qualityMode", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/LLMModel.swift", "line": 146, "match": "var qualityMode: RAGQualityMode = .standard"}], "by": "build", "note": "named there"},
-    {"from": "ChatScreen.effectiveQualityMode", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 1352, "match": "private var effectiveQualityMode: RAGQualityMode {"}], "by": "build", "note": "named there"},
-    {"from": "MessageListV2.qualityMode", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift", "line": 18, "match": "let qualityMode: RAGQualityMode"}], "by": "build", "note": "named there"},
-    {"from": "ThinkingStreamView.qualityMode", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift", "line": 7, "match": "var qualityMode: RAGQualityMode? = nil"}], "by": "build", "note": "named there"},
-    {"from": "UnifiedMetricsBar.qualityMode", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift", "line": 47, "match": "let qualityMode: RAGQualityMode"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.executeAgenticQuery", "type": "calls", "to": "AgenticOrchestrator.execute", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 11470, "match": "let result = try await orchestrator.execute("}], "by": "build", "note": "named there"},
-    {"from": "SQLiteFullTextService.beginTransaction", "type": "calls", "to": "AgenticOrchestrator.execute", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 142, "match": "execute(sql: \"BEGIN TRANSACTION\")"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.clearChatHistory", "type": "depends_on", "to": "ConversationMemoryService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1116, "match": "ConversationMemoryService.shared.clearMemory(for: resolvedId)"}], "by": "build", "note": "named there"},
-    {"from": "ChatScreen.performTransformAction", "type": "calls", "to": "ResponseTransformService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift", "line": 3031, "match": "let prewarmService = ResponseTransformService()"}], "by": "build", "note": "named there"},
-    {"from": "AgenticOrchestrator", "type": "tested_by", "to": "test:AnswerReplacementGuardTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift", "line": 19, "match": "XCTAssertEqual(AgenticOrchestrator.citationCount(in: \"Dopamine acts fast (S1) and slow (S2).\"), 2)"}], "by": "build", "note": "the test names it"},
-    {"from": "AgenticOrchestrator", "type": "tested_by", "to": "test:CitationGroundingTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "line": 14, "match": "XCTAssertEqual(AgenticOrchestrator.danglingCitations(in: text, sourceCount: 12), [])"}], "by": "build", "note": "the test names it"},
-    {"from": "RAGQualityMode", "type": "tested_by", "to": "test:SourceOnlyStandardGateTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift", "line": 36, "match": "for mode in [RAGQualityMode.deepThink, .maximum, .agentic] {"}], "by": "build", "note": "the test names it"}
+    {
+      "from": "RAGService.executeAgenticQuery",
+      "type": "calls",
+      "to": "AgenticOrchestrator",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift",
+          "line": 477,
+          "match": "let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "DebugRAGValidationHarness.Configuration.qualityMode",
+      "type": "depends_on",
+      "to": "RAGQualityMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/App/DebugRAGValidationHarness.swift",
+          "line": 76,
+          "match": "let qualityMode: RAGQualityMode?"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "InferenceConfig.qualityMode",
+      "type": "depends_on",
+      "to": "RAGQualityMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Core/Models/LLMModel.swift",
+          "line": 146,
+          "match": "var qualityMode: RAGQualityMode = .standard"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "ChatScreen.effectiveQualityMode",
+      "type": "depends_on",
+      "to": "RAGQualityMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+          "line": 1352,
+          "match": "private var effectiveQualityMode: RAGQualityMode {"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "MessageListV2.qualityMode",
+      "type": "depends_on",
+      "to": "RAGQualityMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift",
+          "line": 18,
+          "match": "let qualityMode: RAGQualityMode"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "ThinkingStreamView.qualityMode",
+      "type": "depends_on",
+      "to": "RAGQualityMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift",
+          "line": 7,
+          "match": "var qualityMode: RAGQualityMode? = nil"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "UnifiedMetricsBar.qualityMode",
+      "type": "depends_on",
+      "to": "RAGQualityMode",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift",
+          "line": 47,
+          "match": "let qualityMode: RAGQualityMode"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "RAGService.executeAgenticQuery",
+      "type": "calls",
+      "to": "AgenticOrchestrator.execute",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift",
+          "line": 484,
+          "match": "let result = try await orchestrator.execute("
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "SQLiteFullTextService.beginTransaction",
+      "type": "calls",
+      "to": "AgenticOrchestrator.execute",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift",
+          "line": 142,
+          "match": "execute(sql: \"BEGIN TRANSACTION\")"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "RAGService.clearChatHistory",
+      "type": "depends_on",
+      "to": "ConversationMemoryService",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+          "line": 151,
+          "match": "ConversationMemoryService.shared.clearMemory(for: resolvedId)"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "ChatScreen.performTransformAction",
+      "type": "calls",
+      "to": "ResponseTransformService",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift",
+          "line": 3031,
+          "match": "let prewarmService = ResponseTransformService()"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "AgenticOrchestrator",
+      "type": "tested_by",
+      "to": "test:AnswerReplacementGuardTests.swift",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift",
+          "line": 19,
+          "match": "XCTAssertEqual(AgenticOrchestrator.citationCount(in: \"Dopamine acts fast (S1) and slow (S2).\"), 2)"
+        }
+      ],
+      "by": "build",
+      "note": "the test names it"
+    },
+    {
+      "from": "AgenticOrchestrator",
+      "type": "tested_by",
+      "to": "test:CitationGroundingTests.swift",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift",
+          "line": 14,
+          "match": "XCTAssertEqual(AgenticOrchestrator.danglingCitations(in: text, sourceCount: 12), [])"
+        }
+      ],
+      "by": "build",
+      "note": "the test names it"
+    },
+    {
+      "from": "RAGQualityMode",
+      "type": "tested_by",
+      "to": "test:SourceOnlyStandardGateTests.swift",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift",
+          "line": 36,
+          "match": "for mode in [RAGQualityMode.deepThink, .maximum, .agentic] {"
+        }
+      ],
+      "by": "build",
+      "note": "the test names it"
+    }
   ],
   "docs": [],
   "unknowns": [],
-  "related": ["chat-citations-and-evidence", "chat-conversation-view", "full-text-search-storage", "model-selector", "rag-orchestration-core", "rag-validation-and-diagnostics", "silicon-hud-and-telemetry"],
-  "entries": ["OpenIntelligence/Core/Models/RAGQualityMode.swift::RAGQualityMode", "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift::AgenticOrchestrator.execute", "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift::AgenticOrchestrator", "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift::ConversationMemoryService", "OpenIntelligence/Services/Agentic/ResponseTransformService.swift::ResponseTransformService"],
-  "owns": ["OpenIntelligence/Core/Models/RAGQualityMode.swift", "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift", "OpenIntelligence/Services/Agentic/ResponseTransformService.swift", "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift", "OpenIntelligence/Services/Agentic/ToolCallCounter.swift"],
+  "related": [
+    "chat-citations-and-evidence",
+    "chat-conversation-view",
+    "full-text-search-storage",
+    "model-selector",
+    "rag-orchestration-core",
+    "rag-validation-and-diagnostics",
+    "silicon-hud-and-telemetry"
+  ],
+  "entries": [
+    "OpenIntelligence/Core/Models/RAGQualityMode.swift::RAGQualityMode",
+    "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift::AgenticOrchestrator.execute",
+    "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift::AgenticOrchestrator",
+    "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift::ConversationMemoryService",
+    "OpenIntelligence/Services/Agentic/ResponseTransformService.swift::ResponseTransformService"
+  ],
+  "owns": [
+    "OpenIntelligence/Core/Models/RAGQualityMode.swift",
+    "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+    "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift",
+    "OpenIntelligence/Services/Agentic/ResponseTransformService.swift",
+    "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift",
+    "OpenIntelligence/Services/Agentic/ToolCallCounter.swift"
+  ],
   "decisions": [],
   "traps": [],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [
-      {"id": "ThinkingStep", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 13, "match": "struct ThinkingStep: Identifiable, Sendable {", "status": "VERIFIED"},
-      {"id": "AgenticConfig", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 96, "match": "struct AgenticConfig: Sendable {", "status": "VERIFIED"},
-      {"id": "AgenticResult", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 154, "match": "struct AgenticResult: Sendable {", "status": "VERIFIED"},
-      {"id": "DocumentCluster", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4666, "match": "struct DocumentCluster {", "status": "VERIFIED"},
-      {"id": "DocumentSemanticProfile", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4672, "match": "private struct DocumentSemanticProfile {", "status": "VERIFIED"},
-      {"id": "ReasoningChainResult", "kind": "model", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4680, "match": "struct ReasoningChainResult: Sendable {", "status": "VERIFIED"},
-      {"id": "SessionEvidencePlan", "kind": "model", "path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift", "line": 30, "match": "nonisolated enum SessionEvidencePlan {", "status": "VERIFIED"},
-      {"id": "SessionEvidenceTokenCounter", "kind": "model", "path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift", "line": 134, "match": "nonisolated enum SessionEvidenceTokenCounter {", "status": "VERIFIED"},
-      {"id": "test:AnswerReplacementGuardTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift", "line": 11, "match": "final class AnswerReplacementGuardTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:CitationGroundingTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "line": 8, "match": "final class CitationGroundingTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:DeepThinkSelfRAGTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift", "line": 8, "match": "final class DeepThinkSelfRAGTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:SessionEvidencePlanTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift", "line": 16, "match": "final class SessionEvidencePlanTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:SourceOnlyStandardGateTests", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift", "line": 22, "match": "final class SourceOnlyStandardGateTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:RetrievalStyleTests", "kind": "test", "path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift", "line": 17, "match": "final class RetrievalStyleTests: XCTestCase {", "status": "VERIFIED"}
+      {
+        "id": "ThinkingStep",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+        "line": 12,
+        "match": "struct ThinkingStep: Identifiable, Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "AgenticConfig",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+        "line": 95,
+        "match": "struct AgenticConfig: Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "AgenticResult",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+        "line": 153,
+        "match": "struct AgenticResult: Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "DocumentCluster",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+        "line": 303,
+        "match": "struct DocumentCluster {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "DocumentSemanticProfile",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+        "line": 309,
+        "match": "struct DocumentSemanticProfile {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "ReasoningChainResult",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+        "line": 317,
+        "match": "struct ReasoningChainResult: Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "SessionEvidencePlan",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift",
+        "line": 30,
+        "match": "nonisolated enum SessionEvidencePlan {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "SessionEvidenceTokenCounter",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift",
+        "line": 134,
+        "match": "nonisolated enum SessionEvidenceTokenCounter {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:AnswerReplacementGuardTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift",
+        "line": 11,
+        "match": "final class AnswerReplacementGuardTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:CitationGroundingTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift",
+        "line": 8,
+        "match": "final class CitationGroundingTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:DeepThinkSelfRAGTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift",
+        "line": 8,
+        "match": "final class DeepThinkSelfRAGTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:SessionEvidencePlanTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift",
+        "line": 16,
+        "match": "final class SessionEvidencePlanTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:SourceOnlyStandardGateTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift",
+        "line": 22,
+        "match": "final class SourceOnlyStandardGateTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:RetrievalStyleTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift",
+        "line": 17,
+        "match": "final class RetrievalStyleTests: XCTestCase {",
+        "status": "VERIFIED"
+      }
     ],
     "edges": [
-      {"from": "RAGQualityMode", "type": "depends_on", "to": "AgenticConfig", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/RAGQualityMode.swift", "line": 178, "match": "var agenticConfig: AgenticConfig {"}]},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 179, "match": "let qualityMode: RAGQualityMode"}]},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "SessionEvidencePlan", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4982, "match": "let firstSessionTokenBudget = SessionEvidencePlan.evidenceTokenBudget("}]},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "SessionEvidenceTokenCounter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4996, "match": "? await SessionEvidenceTokenCounter.counts("}]},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "RAGQualityMode", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9221, "match": "qualityMode: RAGQualityMode = .deepThink,"}]},
-      {"from": "AgenticOrchestrator", "type": "tested_by", "to": "test:AnswerReplacementGuardTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift", "line": 19, "match": "XCTAssertEqual(AgenticOrchestrator.citationCount(in: \"Dopamine acts fast (S1) and slow (S2).\"), 2)"}]},
-      {"from": "AgenticOrchestrator", "type": "tested_by", "to": "test:CitationGroundingTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "line": 14, "match": "XCTAssertEqual(AgenticOrchestrator.danglingCitations(in: text, sourceCount: 12), [])"}]},
-      {"from": "AgenticConfig", "type": "tested_by", "to": "test:DeepThinkSelfRAGTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift", "line": 9, "match": "private func config(steps: Int) -> AgenticConfig {"}]},
-      {"from": "AgenticOrchestrator", "type": "tested_by", "to": "test:DeepThinkSelfRAGTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift", "line": 19, "match": "AgenticOrchestrator.runsDeepThinkSelfRAG(qualityMode: .deepThink, config: config(steps: steps)),"}]},
-      {"from": "SessionEvidencePlan", "type": "tested_by", "to": "test:SessionEvidencePlanTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift", "line": 18, "match": "SessionEvidencePlan.evidenceTokenBudget("}]},
-      {"from": "RAGQualityMode", "type": "tested_by", "to": "test:SourceOnlyStandardGateTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift", "line": 36, "match": "for mode in [RAGQualityMode.deepThink, .maximum, .agentic] {"}]},
-      {"from": "RAGQualityMode", "type": "tested_by", "to": "test:RetrievalStyleTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift", "line": 169, "match": "lowered.baseMinSimilarity, RAGQualityMode.standard.minSimilarity, accuracy: 0.0001,"}]},
-      {"from": "RAGQualityMode", "type": "depends_on", "to": "feature:hybrid-retrieval-and-fusion", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/RAGQualityMode.swift", "line": 131, "match": "var iterativeRetrievalConfig: IterativeRetrievalConfig {"}], "note": "via IterativeRetrievalConfig"},
-      {"from": "ThinkingStep", "type": "depends_on", "to": "feature:chat-citations-and-evidence", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 53, "match": "var thinkingKind: ThinkingEvent.Kind {"}], "note": "via ThinkingEvent"},
-      {"from": "AgenticResult", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 162, "match": "let retrievedChunks: [RetrievedChunk]"}], "note": "via RetrievedChunk"},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 174, "match": "private weak var ragService: RAGService?"}], "note": "via RAGService, RetrievedChunk"},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "feature:chat-citations-and-evidence", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 232, "match": ") -> (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? {"}], "note": "via ThinkingEvent"},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "feature:llm-execution", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 277, "match": "let chatStream = LLMStreamingContext.handler"}], "note": "via LLMStreamingContext, LLMResponse, ModelErrorClassifier, LLMError"},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 290, "match": "let __spAgenticExecute = PipelineSignposts.synthesis.beginInterval(\"AgenticExecute\")"}], "note": "via PipelineSignposts, SystemResourceAdvice"},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "feature:retrieval-policy-and-tuning", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 416, "match": "if lexicalRelevance < AgenticPolicyService.hardIrrelevanceLexicalThreshold() && !intentValid {"}], "note": "via AgenticPolicyService, RetrievalPolicyService, AgenticRetrievalQuality"},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "feature:apple-foundation-models", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 1348, "match": "let contextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)"}], "note": "via FoundationModelTokenBudget"},
-      {"from": "AgenticOrchestrator", "type": "depends_on", "to": "feature:query-understanding-and-rewriting", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 1923, "match": "let planningProfile = await QueryProfileService.shared.buildProfile("}], "note": "via QueryProfileService, QueryExecutionPlannerService, QueryEnhancementService, QueryIntent"},
-      {"from": "DocumentCluster", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4669, "match": "var chunks: [RetrievedChunk]"}], "note": "via RetrievedChunk"},
-      {"from": "DocumentSemanticProfile", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4674, "match": "let chunks: [RetrievedChunk]"}], "note": "via RetrievedChunk"},
-      {"from": "ReasoningChainResult", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 4720, "match": "let routedChunks: [RetrievedChunk]"}], "note": "via RetrievedChunk"},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9101, "match": "chunks: [RetrievedChunk],"}], "note": "via RetrievedChunk, RAGServiceError"},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "feature:query-understanding-and-rewriting", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9105, "match": "let complexity = QueryComplexityAnalyzer.shared.analyze(query).complexity"}], "note": "via QueryComplexityAnalyzer"},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "feature:llm-execution", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9159, "match": "func generateWithFreshSession(prompt: String, maxTokens: Int, skipContinuation: Bool = false) async throws -> LLMResponse {"}], "note": "via LLMResponse, AppleFoundationLLMService, ModelErrorClassifier, LLMError"},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "feature:model-selector", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9170, "match": "var config = InferenceConfig("}], "note": "via InferenceConfig"},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "feature:app-lifecycle", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9265, "match": "let networkAvailable = NetworkMonitor.shared.isConnected"}], "note": "via NetworkMonitor"},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "feature:apple-foundation-models", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9343, "match": "* FoundationModelTokenBudget.cloudFallbackCharsPerToken)"}], "note": "via FoundationModelTokenBudget"},
-      {"from": "rag-orchestration-core#RAGService", "type": "depends_on", "to": "feature:private-cloud-compute-routing", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 9353, "match": "let envelope = CloudEvidenceMinimizer().makeEnvelope("}], "note": "via CloudEvidenceMinimizer"},
-      {"from": "ConversationMemoryService", "type": "depends_on", "to": "feature:document-library-and-containers", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift", "line": 681, "match": "AppSupportPaths.baseDir().appendingPathComponent(\"conversation_memory_\\(containerId.uuidString).json\")"}], "note": "via AppSupportPaths"},
-      {"from": "ConversationMemoryService", "type": "depends_on", "to": "feature:icloud-workspace-synchronization", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift", "line": 693, "match": "try WorkspaceSyncService.coordinatedWriteData(data, to: url)"}], "note": "via WorkspaceSyncService"},
-      {"from": "ResponseTransformService", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift", "line": 59, "match": "func keyFacts(response: String, chunks: [RetrievedChunk]) async throws -> String {"}], "note": "via RetrievedChunk"},
-      {"from": "SessionEvidencePlan", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift", "line": 112, "match": "static func block(for chunk: RetrievedChunk, label: Int) -> String {"}], "note": "via RetrievedChunk"}
+      {
+        "from": "RAGQualityMode",
+        "type": "depends_on",
+        "to": "AgenticConfig",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Core/Models/RAGQualityMode.swift",
+            "line": 178,
+            "match": "var agenticConfig: AgenticConfig {"
+          }
+        ]
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "RAGQualityMode",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+            "line": 20,
+            "match": "let qualityMode: RAGQualityMode"
+          }
+        ]
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "SessionEvidencePlan",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift",
+            "line": 269,
+            "match": "let firstSessionTokenBudget = SessionEvidencePlan.evidenceTokenBudget("
+          }
+        ]
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "SessionEvidenceTokenCounter",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift",
+            "line": 283,
+            "match": "? await SessionEvidenceTokenCounter.counts("
+          }
+        ]
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "RAGQualityMode",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 149,
+            "match": "qualityMode: RAGQualityMode = .deepThink,"
+          }
+        ]
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "tested_by",
+        "to": "test:AnswerReplacementGuardTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift",
+            "line": 19,
+            "match": "XCTAssertEqual(AgenticOrchestrator.citationCount(in: \"Dopamine acts fast (S1) and slow (S2).\"), 2)"
+          }
+        ]
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "tested_by",
+        "to": "test:CitationGroundingTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift",
+            "line": 14,
+            "match": "XCTAssertEqual(AgenticOrchestrator.danglingCitations(in: text, sourceCount: 12), [])"
+          }
+        ]
+      },
+      {
+        "from": "AgenticConfig",
+        "type": "tested_by",
+        "to": "test:DeepThinkSelfRAGTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift",
+            "line": 9,
+            "match": "private func config(steps: Int) -> AgenticConfig {"
+          }
+        ]
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "tested_by",
+        "to": "test:DeepThinkSelfRAGTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Agentic/DeepThinkSelfRAGTests.swift",
+            "line": 19,
+            "match": "AgenticOrchestrator.runsDeepThinkSelfRAG(qualityMode: .deepThink, config: config(steps: steps)),"
+          }
+        ]
+      },
+      {
+        "from": "SessionEvidencePlan",
+        "type": "tested_by",
+        "to": "test:SessionEvidencePlanTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Agentic/SessionEvidencePlanTests.swift",
+            "line": 18,
+            "match": "SessionEvidencePlan.evidenceTokenBudget("
+          }
+        ]
+      },
+      {
+        "from": "RAGQualityMode",
+        "type": "tested_by",
+        "to": "test:SourceOnlyStandardGateTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift",
+            "line": 36,
+            "match": "for mode in [RAGQualityMode.deepThink, .maximum, .agentic] {"
+          }
+        ]
+      },
+      {
+        "from": "RAGQualityMode",
+        "type": "tested_by",
+        "to": "test:RetrievalStyleTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift",
+            "line": 169,
+            "match": "lowered.baseMinSimilarity, RAGQualityMode.standard.minSimilarity, accuracy: 0.0001,"
+          }
+        ]
+      },
+      {
+        "from": "RAGQualityMode",
+        "type": "depends_on",
+        "to": "feature:hybrid-retrieval-and-fusion",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Core/Models/RAGQualityMode.swift",
+            "line": 131,
+            "match": "var iterativeRetrievalConfig: IterativeRetrievalConfig {"
+          }
+        ],
+        "note": "via IterativeRetrievalConfig"
+      },
+      {
+        "from": "ThinkingStep",
+        "type": "depends_on",
+        "to": "feature:chat-citations-and-evidence",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+            "line": 52,
+            "match": "var thinkingKind: ThinkingEvent.Kind {"
+          }
+        ],
+        "note": "via ThinkingEvent"
+      },
+      {
+        "from": "AgenticResult",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+            "line": 161,
+            "match": "let retrievedChunks: [RetrievedChunk]"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+            "line": 15,
+            "match": "weak var ragService: RAGService?"
+          }
+        ],
+        "note": "via RAGService, RetrievedChunk"
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "feature:chat-citations-and-evidence",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+            "line": 73,
+            "match": ") -> (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? {"
+          }
+        ],
+        "note": "via ThinkingEvent"
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "feature:llm-execution",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+            "line": 118,
+            "match": "let chatStream = LLMStreamingContext.handler"
+          }
+        ],
+        "note": "via LLMStreamingContext, LLMResponse, ModelErrorClassifier, LLMError"
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "feature:silicon-hud-and-telemetry",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+            "line": 131,
+            "match": "let __spAgenticExecute = PipelineSignposts.synthesis.beginInterval(\"AgenticExecute\")"
+          }
+        ],
+        "note": "via PipelineSignposts, SystemResourceAdvice"
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "feature:retrieval-policy-and-tuning",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift",
+            "line": 257,
+            "match": "if lexicalRelevance < AgenticPolicyService.hardIrrelevanceLexicalThreshold() && !intentValid {"
+          }
+        ],
+        "note": "via AgenticPolicyService, RetrievalPolicyService, AgenticRetrievalQuality"
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "feature:apple-foundation-models",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift",
+            "line": 214,
+            "match": "let contextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)"
+          }
+        ],
+        "note": "via FoundationModelTokenBudget"
+      },
+      {
+        "from": "AgenticOrchestrator",
+        "type": "depends_on",
+        "to": "feature:query-understanding-and-rewriting",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift",
+            "line": 789,
+            "match": "let planningProfile = await QueryProfileService.shared.buildProfile("
+          }
+        ],
+        "note": "via QueryProfileService, QueryExecutionPlannerService, QueryEnhancementService, QueryIntent"
+      },
+      {
+        "from": "DocumentCluster",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+            "line": 306,
+            "match": "var chunks: [RetrievedChunk]"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      },
+      {
+        "from": "DocumentSemanticProfile",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+            "line": 311,
+            "match": "let chunks: [RetrievedChunk]"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      },
+      {
+        "from": "ReasoningChainResult",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift",
+            "line": 357,
+            "match": "let routedChunks: [RetrievedChunk]"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 29,
+            "match": "chunks: [RetrievedChunk],"
+          }
+        ],
+        "note": "via RetrievedChunk, RAGServiceError"
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "feature:query-understanding-and-rewriting",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 33,
+            "match": "let complexity = QueryComplexityAnalyzer.shared.analyze(query).complexity"
+          }
+        ],
+        "note": "via QueryComplexityAnalyzer"
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "feature:llm-execution",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 87,
+            "match": "func generateWithFreshSession(prompt: String, maxTokens: Int, skipContinuation: Bool = false) async throws -> LLMResponse {"
+          }
+        ],
+        "note": "via LLMResponse, AppleFoundationLLMService, ModelErrorClassifier, LLMError"
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "feature:model-selector",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 98,
+            "match": "var config = InferenceConfig("
+          }
+        ],
+        "note": "via InferenceConfig"
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "feature:app-lifecycle",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 193,
+            "match": "let networkAvailable = NetworkMonitor.shared.isConnected"
+          }
+        ],
+        "note": "via NetworkMonitor"
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "feature:apple-foundation-models",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 271,
+            "match": "* FoundationModelTokenBudget.cloudFallbackCharsPerToken)"
+          }
+        ],
+        "note": "via FoundationModelTokenBudget"
+      },
+      {
+        "from": "rag-orchestration-core#RAGService",
+        "type": "depends_on",
+        "to": "feature:private-cloud-compute-routing",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift",
+            "line": 281,
+            "match": "let envelope = CloudEvidenceMinimizer().makeEnvelope("
+          }
+        ],
+        "note": "via CloudEvidenceMinimizer"
+      },
+      {
+        "from": "ConversationMemoryService",
+        "type": "depends_on",
+        "to": "feature:document-library-and-containers",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift",
+            "line": 681,
+            "match": "AppSupportPaths.baseDir().appendingPathComponent(\"conversation_memory_\\(containerId.uuidString).json\")"
+          }
+        ],
+        "note": "via AppSupportPaths"
+      },
+      {
+        "from": "ConversationMemoryService",
+        "type": "depends_on",
+        "to": "feature:icloud-workspace-synchronization",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift",
+            "line": 693,
+            "match": "try WorkspaceSyncService.coordinatedWriteData(data, to: url)"
+          }
+        ],
+        "note": "via WorkspaceSyncService"
+      },
+      {
+        "from": "ResponseTransformService",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift",
+            "line": 59,
+            "match": "func keyFacts(response: String, chunks: [RetrievedChunk]) async throws -> String {"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      },
+      {
+        "from": "SessionEvidencePlan",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift",
+            "line": 112,
+            "match": "static func block(for chunk: RetrievedChunk, label: Int) -> String {"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      }
     ],
     "edges_omitted": 0
   }

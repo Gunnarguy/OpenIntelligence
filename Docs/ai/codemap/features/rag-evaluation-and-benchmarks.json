@@ -2,128 +2,1136 @@
   "schema": "codemap/1",
   "id": "rag-evaluation-and-benchmarks",
   "name": "RAG Evaluation and Benchmarks",
-  "aliases": ["evaluation harness", "RAG evaluation", "benchmarks", "retrieval stage metrics", "route invariant evaluation", "Apple evaluations bridge"],
+  "aliases": [
+    "evaluation harness",
+    "RAG evaluation",
+    "benchmarks",
+    "retrieval stage metrics",
+    "route invariant evaluation",
+    "Apple evaluations bridge"
+  ],
   "purpose": "Runs ground-truth question sets through the pipeline and scores retrieval and routing.",
   "revision": "099c12af",
   "verified_on": "2026-11-04",
-  "entry_points": ["RAGEvalRunner", "RetrievalStageMetrics", "RouteEvalMetrics"],
+  "entry_points": [
+    "RAGEvalRunner",
+    "RetrievalStageMetrics",
+    "RouteEvalMetrics"
+  ],
   "files": [
-    {"path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "role": "primary", "blob": "2872aaef74765057c76fe84ebfb9ca3f31966468"},
-    {"path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift", "role": "primary", "blob": "d0d0e5c1f33039235b4d642178ccae2a689c5b23"},
-    {"path": "OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift", "role": "primary", "blob": "b99f49dc8fd96a90a92db13d05074d438113236f"},
-    {"path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift", "role": "primary", "blob": "20a25697733565686e1bbb60c44c332a7f78b34d"},
-    {"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "role": "primary", "blob": "b893f68281ed3692502defbacb47173e45bab0ee"},
-    {"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "role": "primary", "blob": "900701160bbb73b3eace50867f3659cb17f838a3"},
-    {"path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift", "role": "primary", "blob": "43855061717b7c66a5cdf5167cf698a930282c84"},
-    {"path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift", "role": "test", "blob": "e670037eb58a3e77127a575fb975f6844edaf83a"},
-    {"path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift", "role": "test", "blob": "c5c76c96583a2e9a935407878feb8d6defba14d3"},
-    {"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "role": "test", "blob": "794c22b606fd9349b7e137fb9e63ab0684613e4b"},
-    {"path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "role": "test", "blob": "6b93075805c0d82c5e4a6dc2e75447d39f3a3376"}
+    {
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift",
+      "role": "primary",
+      "blob": "2872aaef74765057c76fe84ebfb9ca3f31966468"
+    },
+    {
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift",
+      "role": "primary",
+      "blob": "d0d0e5c1f33039235b4d642178ccae2a689c5b23"
+    },
+    {
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift",
+      "role": "primary",
+      "blob": "b99f49dc8fd96a90a92db13d05074d438113236f"
+    },
+    {
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift",
+      "role": "primary",
+      "blob": "20a25697733565686e1bbb60c44c332a7f78b34d"
+    },
+    {
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+      "role": "primary",
+      "blob": "b893f68281ed3692502defbacb47173e45bab0ee"
+    },
+    {
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "role": "primary",
+      "blob": "900701160bbb73b3eace50867f3659cb17f838a3"
+    },
+    {
+      "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift",
+      "role": "primary",
+      "blob": "43855061717b7c66a5cdf5167cf698a930282c84"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift",
+      "role": "test",
+      "blob": "e670037eb58a3e77127a575fb975f6844edaf83a"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift",
+      "role": "test",
+      "blob": "c5c76c96583a2e9a935407878feb8d6defba14d3"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+      "role": "test",
+      "blob": "794c22b606fd9349b7e137fb9e63ab0684613e4b"
+    },
+    {
+      "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift",
+      "role": "test",
+      "blob": "6b93075805c0d82c5e4a6dc2e75447d39f3a3376"
+    }
   ],
   "nodes": [
-    {"id": "RAGEvalRunner", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 11, "match": "final class RAGEvalRunner: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalStageEvaluator.aggregate", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 405, "match": "static func aggregate(perQuery: [[RetrievalStageMetrics]]) -> [AggregateStageMetrics] {", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalTraceCollector", "kind": "model", "path": "OpenIntelligence/Services/RAG/Retrieval/RetrievalTraceCollector.swift", "line": 62, "match": "final class RetrievalTraceCollector: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalStageMetrics.score", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 269, "match": "static func score(", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalRelevanceJudge.normalize", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 138, "match": "static func normalize(_ key: String) -> String {", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalRelevanceJudge.matches", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 174, "match": "static func matches(_ chunk: RetrievedChunk, expected: String) -> Bool {", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalStageEvaluator.score", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 388, "match": "static func score(", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGEvalResult", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "line": 97, "match": "struct RAGEvalResult: Codable, Identifiable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.queryWithAudit", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 11941, "match": "func queryWithAudit(", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalTraceCollector.stages", "kind": "function", "path": "OpenIntelligence/Services/RAG/Retrieval/RetrievalTraceCollector.swift", "line": 126, "match": "func stages(inOrder order: [Stage] = Stage.allCases) -> [RetrievalStageTrace] {", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalStageMetrics", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 240, "match": "struct RetrievalStageMetrics: Codable, Sendable, Equatable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalRelevanceJudge.creditedRelevanceVector", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 222, "match": "static func creditedRelevanceVector(", "status": "VERIFIED", "by": "build"},
-    {"id": "RetrievalRelevanceJudge.relevanceVector", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 197, "match": "static func relevanceVector(", "status": "VERIFIED", "by": "build"},
-    {"id": "RankedRelevance.recall", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 47, "match": "static func recall(at k: Int, relevance: [Bool], totalRelevant: Int) -> Double {", "status": "VERIFIED", "by": "build"},
-    {"id": "RankedRelevance.reciprocalRank", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 83, "match": "static func reciprocalRank(at k: Int = 10, _ relevance: [Bool]) -> Double {", "status": "VERIFIED", "by": "build"},
-    {"id": "RankedRelevance.ndcg", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 109, "match": "static func ndcg(at k: Int, gains: [Double], idealGains: [Double]) -> Double {", "status": "VERIFIED", "by": "build"},
-    {"id": "RankedRelevance.precision", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 70, "match": "static func precision(at k: Int, relevance: [Bool]) -> Double {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGEvalResult.stageMetrics", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "line": 146, "match": "var stageMetrics: [RetrievalStageMetrics]? = nil", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGEvalRunner.evaluate", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 48, "match": "func evaluate(", "status": "VERIFIED", "by": "build"},
-    {"id": "RouteEvalMetrics", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift", "line": 233, "match": "struct RouteEvalMetrics: Codable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "test:RetrievalStageMetricsTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"},
-    {"id": "test:RouteEvalMetricsTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"}
+    {
+      "id": "RAGEvalRunner",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+      "line": 11,
+      "match": "final class RAGEvalRunner: Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalStageEvaluator.aggregate",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 405,
+      "match": "static func aggregate(perQuery: [[RetrievalStageMetrics]]) -> [AggregateStageMetrics] {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalTraceCollector",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/RAG/Retrieval/RetrievalTraceCollector.swift",
+      "line": 62,
+      "match": "final class RetrievalTraceCollector: @unchecked Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalStageMetrics.score",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 269,
+      "match": "static func score(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalRelevanceJudge.normalize",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 138,
+      "match": "static func normalize(_ key: String) -> String {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalRelevanceJudge.matches",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 174,
+      "match": "static func matches(_ chunk: RetrievedChunk, expected: String) -> Bool {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalStageEvaluator.score",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 388,
+      "match": "static func score(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGEvalResult",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift",
+      "line": 97,
+      "match": "struct RAGEvalResult: Codable, Identifiable, Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.queryWithAudit",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
+      "line": 86,
+      "match": "func queryWithAudit(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalTraceCollector.stages",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Retrieval/RetrievalTraceCollector.swift",
+      "line": 126,
+      "match": "func stages(inOrder order: [Stage] = Stage.allCases) -> [RetrievalStageTrace] {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalStageMetrics",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 240,
+      "match": "struct RetrievalStageMetrics: Codable, Sendable, Equatable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalRelevanceJudge.creditedRelevanceVector",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 222,
+      "match": "static func creditedRelevanceVector(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RetrievalRelevanceJudge.relevanceVector",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 197,
+      "match": "static func relevanceVector(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RankedRelevance.recall",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 47,
+      "match": "static func recall(at k: Int, relevance: [Bool], totalRelevant: Int) -> Double {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RankedRelevance.reciprocalRank",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 83,
+      "match": "static func reciprocalRank(at k: Int = 10, _ relevance: [Bool]) -> Double {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RankedRelevance.ndcg",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 109,
+      "match": "static func ndcg(at k: Int, gains: [Double], idealGains: [Double]) -> Double {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RankedRelevance.precision",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+      "line": 70,
+      "match": "static func precision(at k: Int, relevance: [Bool]) -> Double {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGEvalResult.stageMetrics",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift",
+      "line": 146,
+      "match": "var stageMetrics: [RetrievalStageMetrics]? = nil",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGEvalRunner.evaluate",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+      "line": 48,
+      "match": "func evaluate(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RouteEvalMetrics",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift",
+      "line": 233,
+      "match": "struct RouteEvalMetrics: Codable, Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "test:RetrievalStageMetricsTests.swift",
+      "kind": "test",
+      "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+      "line": 1,
+      "match": "//",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "test:RouteEvalMetricsTests.swift",
+      "kind": "test",
+      "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift",
+      "line": 1,
+      "match": "//",
+      "status": "VERIFIED",
+      "by": "build"
+    }
   ],
   "edges": [
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RetrievalStageEvaluator.aggregate", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 44, "match": "RetrievalStageEvaluator.aggregate(perQuery: results.compactMap(\\.stageMetrics))"}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RetrievalTraceCollector", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 67, "match": "let trace = RetrievalTraceCollector()"}], "by": "build", "note": "constructs it"},
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RetrievalStageMetrics.score", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 118, "match": "recall = RetrievalStageMetrics.score("}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RetrievalRelevanceJudge.normalize", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 140, "match": ".map { RetrievalRelevanceJudge.normalize($0.sourceDocument) }"}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RetrievalRelevanceJudge.matches", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 151, "match": "expectedSources.contains { RetrievalRelevanceJudge.matches(chunk, expected: $0) }"}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RetrievalStageEvaluator.score", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 201, "match": "return RetrievalStageEvaluator.score(traces: traces, expectedSources: expectedSources)"}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGEvalRunner", "type": "depends_on", "to": "RAGEvalResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 204, "match": "return RAGEvalResult("}], "by": "build", "note": "constructs it"},
-    {"from": "RetrievalStageMetrics", "type": "calls", "to": "RetrievalRelevanceJudge.creditedRelevanceVector", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 277, "match": "let credited = RetrievalRelevanceJudge.creditedRelevanceVector("}], "by": "build", "note": "the call names the type"},
-    {"from": "RetrievalStageMetrics", "type": "calls", "to": "RetrievalRelevanceJudge.relevanceVector", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 281, "match": "let perChunk = RetrievalRelevanceJudge.relevanceVector("}], "by": "build", "note": "the call names the type"},
-    {"from": "RetrievalStageMetrics", "type": "calls", "to": "RankedRelevance.recall", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 291, "match": "recallAt1: RankedRelevance.recall(at: 1, relevance: credited, totalRelevant: total),"}], "by": "build", "note": "the call names the type"},
-    {"from": "RetrievalStageMetrics", "type": "calls", "to": "RankedRelevance.reciprocalRank", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 295, "match": "reciprocalRank: RankedRelevance.reciprocalRank(at: 10, credited),"}], "by": "build", "note": "the call names the type"},
-    {"from": "RetrievalStageMetrics", "type": "calls", "to": "RankedRelevance.ndcg", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 296, "match": "ndcgAt5: RankedRelevance.ndcg(at: 5, relevance: credited, totalRelevant: total),"}], "by": "build", "note": "the call names the type"},
-    {"from": "RetrievalStageMetrics", "type": "calls", "to": "RankedRelevance.precision", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 298, "match": "precisionAt5: RankedRelevance.precision(at: 5, relevance: perChunk),"}], "by": "build", "note": "the call names the type"},
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RAGService.queryWithAudit", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 70, "match": "let (response, _) = try await ragService.queryWithAudit("}], "by": "build", "note": "named in the body"},
-    {"from": "RAGEvalRunner", "type": "calls", "to": "RetrievalTraceCollector.stages", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 199, "match": "let traces = trace.stages(inOrder: RetrievalTraceCollector.Stage.allCases)"}], "by": "build", "note": "named in the body"},
-    {"from": "RAGEvalResult.stageMetrics", "type": "depends_on", "to": "RetrievalStageMetrics", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "line": 146, "match": "var stageMetrics: [RetrievalStageMetrics]? = nil"}], "by": "build", "note": "named there"},
-    {"from": "RAGEvalRunner.evaluate", "type": "depends_on", "to": "RetrievalStageMetrics", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 118, "match": "recall = RetrievalStageMetrics.score("}], "by": "build", "note": "named there"},
-    {"from": "RetrievalStageMetrics", "type": "tested_by", "to": "test:RetrievalStageMetricsTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 198, "match": "let metrics = RetrievalStageMetrics.score("}], "by": "build", "note": "the test names it"},
-    {"from": "RouteEvalMetrics", "type": "tested_by", "to": "test:RouteEvalMetricsTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "line": 132, "match": "let metrics = RouteEvalMetrics.compute(from: [receipt, cleanLocalReceipt])"}], "by": "build", "note": "the test names it"}
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RetrievalStageEvaluator.aggregate",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 44,
+          "match": "RetrievalStageEvaluator.aggregate(perQuery: results.compactMap(\\.stageMetrics))"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RetrievalTraceCollector",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 67,
+          "match": "let trace = RetrievalTraceCollector()"
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RetrievalStageMetrics.score",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 118,
+          "match": "recall = RetrievalStageMetrics.score("
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RetrievalRelevanceJudge.normalize",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 140,
+          "match": ".map { RetrievalRelevanceJudge.normalize($0.sourceDocument) }"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RetrievalRelevanceJudge.matches",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 151,
+          "match": "expectedSources.contains { RetrievalRelevanceJudge.matches(chunk, expected: $0) }"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RetrievalStageEvaluator.score",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 201,
+          "match": "return RetrievalStageEvaluator.score(traces: traces, expectedSources: expectedSources)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "depends_on",
+      "to": "RAGEvalResult",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 204,
+          "match": "return RAGEvalResult("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "RetrievalStageMetrics",
+      "type": "calls",
+      "to": "RetrievalRelevanceJudge.creditedRelevanceVector",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+          "line": 277,
+          "match": "let credited = RetrievalRelevanceJudge.creditedRelevanceVector("
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RetrievalStageMetrics",
+      "type": "calls",
+      "to": "RetrievalRelevanceJudge.relevanceVector",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+          "line": 281,
+          "match": "let perChunk = RetrievalRelevanceJudge.relevanceVector("
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RetrievalStageMetrics",
+      "type": "calls",
+      "to": "RankedRelevance.recall",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+          "line": 291,
+          "match": "recallAt1: RankedRelevance.recall(at: 1, relevance: credited, totalRelevant: total),"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RetrievalStageMetrics",
+      "type": "calls",
+      "to": "RankedRelevance.reciprocalRank",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+          "line": 295,
+          "match": "reciprocalRank: RankedRelevance.reciprocalRank(at: 10, credited),"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RetrievalStageMetrics",
+      "type": "calls",
+      "to": "RankedRelevance.ndcg",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+          "line": 296,
+          "match": "ndcgAt5: RankedRelevance.ndcg(at: 5, relevance: credited, totalRelevant: total),"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RetrievalStageMetrics",
+      "type": "calls",
+      "to": "RankedRelevance.precision",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+          "line": 298,
+          "match": "precisionAt5: RankedRelevance.precision(at: 5, relevance: perChunk),"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RAGService.queryWithAudit",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 70,
+          "match": "let (response, _) = try await ragService.queryWithAudit("
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "RAGEvalRunner",
+      "type": "calls",
+      "to": "RetrievalTraceCollector.stages",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 199,
+          "match": "let traces = trace.stages(inOrder: RetrievalTraceCollector.Stage.allCases)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "RAGEvalResult.stageMetrics",
+      "type": "depends_on",
+      "to": "RetrievalStageMetrics",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift",
+          "line": 146,
+          "match": "var stageMetrics: [RetrievalStageMetrics]? = nil"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "RAGEvalRunner.evaluate",
+      "type": "depends_on",
+      "to": "RetrievalStageMetrics",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+          "line": 118,
+          "match": "recall = RetrievalStageMetrics.score("
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "RetrievalStageMetrics",
+      "type": "tested_by",
+      "to": "test:RetrievalStageMetricsTests.swift",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+          "line": 198,
+          "match": "let metrics = RetrievalStageMetrics.score("
+        }
+      ],
+      "by": "build",
+      "note": "the test names it"
+    },
+    {
+      "from": "RouteEvalMetrics",
+      "type": "tested_by",
+      "to": "test:RouteEvalMetricsTests.swift",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift",
+          "line": 132,
+          "match": "let metrics = RouteEvalMetrics.compute(from: [receipt, cleanLocalReceipt])"
+        }
+      ],
+      "by": "build",
+      "note": "the test names it"
+    }
   ],
   "docs": [],
   "unknowns": [],
-  "related": ["hybrid-retrieval-and-fusion", "rag-orchestration-core"],
-  "entries": ["OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift::RAGEvalRunner", "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift::RetrievalStageMetrics", "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift::RouteEvalMetrics"],
-  "owns": ["OpenIntelligence/Services/Evaluation/**"],
+  "related": [
+    "hybrid-retrieval-and-fusion",
+    "rag-orchestration-core"
+  ],
+  "entries": [
+    "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift::RAGEvalRunner",
+    "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift::RetrievalStageMetrics",
+    "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift::RouteEvalMetrics"
+  ],
+  "owns": [
+    "OpenIntelligence/Services/Evaluation/**"
+  ],
   "decisions": [],
   "traps": [],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [
-      {"id": "RAGEvalCase", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "line": 24, "match": "struct RAGEvalCase: Codable, Identifiable, Sendable {", "status": "VERIFIED"},
-      {"id": "EvalCategory", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "line": 62, "match": "enum EvalCategory: String, Codable, CaseIterable, Sendable {", "status": "VERIFIED"},
-      {"id": "RAGEvalDataset", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift", "line": 13, "match": "struct RAGEvalDataset: Sendable {", "status": "VERIFIED"},
-      {"id": "RAGEvalMetrics", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift", "line": 26, "match": "struct RAGEvalMetrics: Codable, Sendable {", "status": "VERIFIED"},
-      {"id": "RAGEvalReportWriter", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift", "line": 11, "match": "final class RAGEvalReportWriter: Sendable {", "status": "VERIFIED"},
-      {"id": "RankedRelevance", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 28, "match": "enum RankedRelevance {", "status": "VERIFIED"},
-      {"id": "RetrievalRelevanceJudge", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 134, "match": "enum RetrievalRelevanceJudge {", "status": "VERIFIED"},
-      {"id": "AggregateStageMetrics", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 311, "match": "struct AggregateStageMetrics: Codable, Sendable, Equatable {", "status": "VERIFIED"},
-      {"id": "RetrievalStageEvaluator", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 385, "match": "enum RetrievalStageEvaluator {", "status": "VERIFIED"},
-      {"id": "RouteInvariant", "kind": "model", "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift", "line": 27, "match": "enum RouteInvariant: String, Codable, Sendable, CaseIterable {", "status": "VERIFIED"},
-      {"id": "test:RAGEvalDatasetSchemaTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift", "line": 21, "match": "final class RAGEvalDatasetSchemaTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:RAGEvalMetricsTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift", "line": 11, "match": "final class RAGEvalMetricsTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:RetrievalStageMetricsTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 15, "match": "final class RetrievalStageMetricsTests: XCTestCase {", "status": "VERIFIED"},
-      {"id": "test:RouteEvalMetricsTests", "kind": "test", "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "line": 13, "match": "final class RouteEvalMetricsTests: XCTestCase {", "status": "VERIFIED"}
+      {
+        "id": "RAGEvalCase",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift",
+        "line": 24,
+        "match": "struct RAGEvalCase: Codable, Identifiable, Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "EvalCategory",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift",
+        "line": 62,
+        "match": "enum EvalCategory: String, Codable, CaseIterable, Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "RAGEvalDataset",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift",
+        "line": 13,
+        "match": "struct RAGEvalDataset: Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "RAGEvalMetrics",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift",
+        "line": 26,
+        "match": "struct RAGEvalMetrics: Codable, Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "RAGEvalReportWriter",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift",
+        "line": 11,
+        "match": "final class RAGEvalReportWriter: Sendable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "RankedRelevance",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+        "line": 28,
+        "match": "enum RankedRelevance {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "RetrievalRelevanceJudge",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+        "line": 134,
+        "match": "enum RetrievalRelevanceJudge {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "AggregateStageMetrics",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+        "line": 311,
+        "match": "struct AggregateStageMetrics: Codable, Sendable, Equatable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "RetrievalStageEvaluator",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+        "line": 385,
+        "match": "enum RetrievalStageEvaluator {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "RouteInvariant",
+        "kind": "model",
+        "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift",
+        "line": 27,
+        "match": "enum RouteInvariant: String, Codable, Sendable, CaseIterable {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:RAGEvalDatasetSchemaTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift",
+        "line": 21,
+        "match": "final class RAGEvalDatasetSchemaTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:RAGEvalMetricsTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift",
+        "line": 11,
+        "match": "final class RAGEvalMetricsTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:RetrievalStageMetricsTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+        "line": 15,
+        "match": "final class RetrievalStageMetricsTests: XCTestCase {",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "test:RouteEvalMetricsTests",
+        "kind": "test",
+        "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift",
+        "line": 13,
+        "match": "final class RouteEvalMetricsTests: XCTestCase {",
+        "status": "VERIFIED"
+      }
     ],
     "edges": [
-      {"from": "RAGEvalResult", "type": "depends_on", "to": "RetrievalStageMetrics", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift", "line": 146, "match": "var stageMetrics: [RetrievalStageMetrics]? = nil"}]},
-      {"from": "RAGEvalDataset", "type": "depends_on", "to": "RAGEvalCase", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift", "line": 18, "match": "let cases: [RAGEvalCase]"}]},
-      {"from": "RAGEvalDataset", "type": "depends_on", "to": "EvalCategory", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift", "line": 24, "match": "func cases(for category: EvalCategory) -> [RAGEvalCase] {"}]},
-      {"from": "RAGEvalMetrics", "type": "depends_on", "to": "RAGEvalResult", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift", "line": 111, "match": "static func compute(from results: [RAGEvalResult]) -> RAGEvalMetrics {"}]},
-      {"from": "RAGEvalReportWriter", "type": "depends_on", "to": "RAGEvalMetrics", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift", "line": 17, "match": "metrics: RAGEvalMetrics,"}]},
-      {"from": "RAGEvalReportWriter", "type": "depends_on", "to": "RAGEvalResult", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift", "line": 18, "match": "results: [RAGEvalResult],"}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "RAGEvalDataset", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 23, "match": "dataset: RAGEvalDataset,"}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "RAGEvalResult", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 26, "match": ") async throws -> [RAGEvalResult] {"}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "AggregateStageMetrics", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 43, "match": "static func aggregateStageMetrics(_ results: [RAGEvalResult]) -> [AggregateStageMetrics] {"}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "RetrievalStageEvaluator", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 44, "match": "RetrievalStageEvaluator.aggregate(perQuery: results.compactMap(\\.stageMetrics))"}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "RAGEvalCase", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 49, "match": "case evalCase: RAGEvalCase,"}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "RetrievalStageMetrics", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 118, "match": "recall = RetrievalStageMetrics.score("}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "RetrievalRelevanceJudge", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 140, "match": ".map { RetrievalRelevanceJudge.normalize($0.sourceDocument) }"}]},
-      {"from": "EvalCategory", "type": "tested_by", "to": "test:RAGEvalDatasetSchemaTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift", "line": 94, "match": "EvalCategory(rawValue: raw),"}]},
-      {"from": "RAGEvalCase", "type": "tested_by", "to": "test:RAGEvalDatasetSchemaTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift", "line": 25, "match": "private func decode(_ line: String) throws -> RAGEvalCase {"}]},
-      {"from": "RAGEvalDataset", "type": "tested_by", "to": "test:RAGEvalDatasetSchemaTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift", "line": 83, "match": "let dataset = try RAGEvalDataset.load(from: url)"}]},
-      {"from": "RAGEvalMetrics", "type": "tested_by", "to": "test:RAGEvalMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift", "line": 42, "match": "let metrics = RAGEvalMetrics.compute(from: [])"}]},
-      {"from": "RAGEvalResult", "type": "tested_by", "to": "test:RAGEvalMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift", "line": 20, "match": ") -> RAGEvalResult {"}]},
-      {"from": "AggregateStageMetrics", "type": "tested_by", "to": "test:RetrievalStageMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 360, "match": "let aggregate = AggregateStageMetrics.aggregate(stage: \"bm25\", perQuery: [empty, empty])"}]},
-      {"from": "RankedRelevance", "type": "tested_by", "to": "test:RetrievalStageMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 25, "match": "XCTAssertEqual(RankedRelevance.recall(at: 1, relevance: relevance, totalRelevant: 1), 0.0)"}]},
-      {"from": "RetrievalRelevanceJudge", "type": "tested_by", "to": "test:RetrievalStageMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 133, "match": "XCTAssertEqual(RetrievalRelevanceJudge.normalize(\"Vehicle_Specs.md\"), \"vehiclespecsmd\")"}]},
-      {"from": "RetrievalStageEvaluator", "type": "tested_by", "to": "test:RetrievalStageMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 348, "match": "let aggregates = RetrievalStageEvaluator.aggregate(perQuery: [[vectorStage, hit], [miss]])"}]},
-      {"from": "RetrievalStageMetrics", "type": "tested_by", "to": "test:RetrievalStageMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift", "line": 198, "match": "let metrics = RetrievalStageMetrics.score("}]},
-      {"from": "RouteEvalMetrics", "type": "tested_by", "to": "test:RouteEvalMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "line": 132, "match": "let metrics = RouteEvalMetrics.compute(from: [receipt, cleanLocalReceipt])"}]},
-      {"from": "RouteInvariant", "type": "tested_by", "to": "test:RouteEvalMetricsTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift", "line": 342, "match": "XCTAssertTrue(summary.contains(RouteInvariant.attemptChainPresent.rawValue))"}]},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 24, "match": "ragService: RAGService,"}], "note": "via RAGService"},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "feature:quality-modes-and-agentic-orchestrator", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 55, "match": "let qualityMode: RAGQualityMode? = evalCase.qualityMode.flatMap { modeStr in"}], "note": "via RAGQualityMode"},
-      {"from": "RAGEvalRunner", "type": "depends_on", "to": "feature:hybrid-retrieval-and-fusion", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 67, "match": "let trace = RetrievalTraceCollector()"}], "note": "via RetrievalTraceCollector"},
-      {"from": "RetrievalRelevanceJudge", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 174, "match": "static func matches(_ chunk: RetrievedChunk, expected: String) -> Bool {"}], "note": "via RetrievedChunk"},
-      {"from": "RetrievalStageMetrics", "type": "depends_on", "to": "feature:rag-orchestration-core", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 271, "match": "results: [RetrievedChunk],"}], "note": "via RetrievedChunk"},
-      {"from": "RetrievalStageEvaluator", "type": "depends_on", "to": "feature:hybrid-retrieval-and-fusion", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift", "line": 389, "match": "traces: [RetrievalStageTrace],"}], "note": "via RetrievalStageTrace"},
-      {"from": "private-cloud-compute-routing#ModelExecutionReceipt", "type": "depends_on", "to": "feature:private-cloud-compute-routing", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift", "line": 195, "match": "static var nonAuthorizingQuotaStates: Set<PCCQuotaState> {"}], "note": "via PCCQuotaState"},
-      {"from": "RouteEvalMetrics", "type": "depends_on", "to": "feature:private-cloud-compute-routing", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift", "line": 339, "match": "static func compute(from receipts: [ModelExecutionReceipt]) -> RouteEvalMetrics {"}], "note": "via ModelExecutionReceipt"}
+      {
+        "from": "RAGEvalResult",
+        "type": "depends_on",
+        "to": "RetrievalStageMetrics",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalCase.swift",
+            "line": 146,
+            "match": "var stageMetrics: [RetrievalStageMetrics]? = nil"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalDataset",
+        "type": "depends_on",
+        "to": "RAGEvalCase",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift",
+            "line": 18,
+            "match": "let cases: [RAGEvalCase]"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalDataset",
+        "type": "depends_on",
+        "to": "EvalCategory",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift",
+            "line": 24,
+            "match": "func cases(for category: EvalCategory) -> [RAGEvalCase] {"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalMetrics",
+        "type": "depends_on",
+        "to": "RAGEvalResult",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift",
+            "line": 111,
+            "match": "static func compute(from results: [RAGEvalResult]) -> RAGEvalMetrics {"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalReportWriter",
+        "type": "depends_on",
+        "to": "RAGEvalMetrics",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift",
+            "line": 17,
+            "match": "metrics: RAGEvalMetrics,"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalReportWriter",
+        "type": "depends_on",
+        "to": "RAGEvalResult",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift",
+            "line": 18,
+            "match": "results: [RAGEvalResult],"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "RAGEvalDataset",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 23,
+            "match": "dataset: RAGEvalDataset,"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "RAGEvalResult",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 26,
+            "match": ") async throws -> [RAGEvalResult] {"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "AggregateStageMetrics",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 43,
+            "match": "static func aggregateStageMetrics(_ results: [RAGEvalResult]) -> [AggregateStageMetrics] {"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "RetrievalStageEvaluator",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 44,
+            "match": "RetrievalStageEvaluator.aggregate(perQuery: results.compactMap(\\.stageMetrics))"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "RAGEvalCase",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 49,
+            "match": "case evalCase: RAGEvalCase,"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "RetrievalStageMetrics",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 118,
+            "match": "recall = RetrievalStageMetrics.score("
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "RetrievalRelevanceJudge",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 140,
+            "match": ".map { RetrievalRelevanceJudge.normalize($0.sourceDocument) }"
+          }
+        ]
+      },
+      {
+        "from": "EvalCategory",
+        "type": "tested_by",
+        "to": "test:RAGEvalDatasetSchemaTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift",
+            "line": 94,
+            "match": "EvalCategory(rawValue: raw),"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalCase",
+        "type": "tested_by",
+        "to": "test:RAGEvalDatasetSchemaTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift",
+            "line": 25,
+            "match": "private func decode(_ line: String) throws -> RAGEvalCase {"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalDataset",
+        "type": "tested_by",
+        "to": "test:RAGEvalDatasetSchemaTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalDatasetSchemaTests.swift",
+            "line": 83,
+            "match": "let dataset = try RAGEvalDataset.load(from: url)"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalMetrics",
+        "type": "tested_by",
+        "to": "test:RAGEvalMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift",
+            "line": 42,
+            "match": "let metrics = RAGEvalMetrics.compute(from: [])"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalResult",
+        "type": "tested_by",
+        "to": "test:RAGEvalMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RAGEvalMetricsTests.swift",
+            "line": 20,
+            "match": ") -> RAGEvalResult {"
+          }
+        ]
+      },
+      {
+        "from": "AggregateStageMetrics",
+        "type": "tested_by",
+        "to": "test:RetrievalStageMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+            "line": 360,
+            "match": "let aggregate = AggregateStageMetrics.aggregate(stage: \"bm25\", perQuery: [empty, empty])"
+          }
+        ]
+      },
+      {
+        "from": "RankedRelevance",
+        "type": "tested_by",
+        "to": "test:RetrievalStageMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+            "line": 25,
+            "match": "XCTAssertEqual(RankedRelevance.recall(at: 1, relevance: relevance, totalRelevant: 1), 0.0)"
+          }
+        ]
+      },
+      {
+        "from": "RetrievalRelevanceJudge",
+        "type": "tested_by",
+        "to": "test:RetrievalStageMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+            "line": 133,
+            "match": "XCTAssertEqual(RetrievalRelevanceJudge.normalize(\"Vehicle_Specs.md\"), \"vehiclespecsmd\")"
+          }
+        ]
+      },
+      {
+        "from": "RetrievalStageEvaluator",
+        "type": "tested_by",
+        "to": "test:RetrievalStageMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+            "line": 348,
+            "match": "let aggregates = RetrievalStageEvaluator.aggregate(perQuery: [[vectorStage, hit], [miss]])"
+          }
+        ]
+      },
+      {
+        "from": "RetrievalStageMetrics",
+        "type": "tested_by",
+        "to": "test:RetrievalStageMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RetrievalStageMetricsTests.swift",
+            "line": 198,
+            "match": "let metrics = RetrievalStageMetrics.score("
+          }
+        ]
+      },
+      {
+        "from": "RouteEvalMetrics",
+        "type": "tested_by",
+        "to": "test:RouteEvalMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift",
+            "line": 132,
+            "match": "let metrics = RouteEvalMetrics.compute(from: [receipt, cleanLocalReceipt])"
+          }
+        ]
+      },
+      {
+        "from": "RouteInvariant",
+        "type": "tested_by",
+        "to": "test:RouteEvalMetricsTests",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligenceTests/Services/Evaluation/RouteEvalMetricsTests.swift",
+            "line": 342,
+            "match": "XCTAssertTrue(summary.contains(RouteInvariant.attemptChainPresent.rawValue))"
+          }
+        ]
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 24,
+            "match": "ragService: RAGService,"
+          }
+        ],
+        "note": "via RAGService"
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "feature:quality-modes-and-agentic-orchestrator",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 55,
+            "match": "let qualityMode: RAGQualityMode? = evalCase.qualityMode.flatMap { modeStr in"
+          }
+        ],
+        "note": "via RAGQualityMode"
+      },
+      {
+        "from": "RAGEvalRunner",
+        "type": "depends_on",
+        "to": "feature:hybrid-retrieval-and-fusion",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift",
+            "line": 67,
+            "match": "let trace = RetrievalTraceCollector()"
+          }
+        ],
+        "note": "via RetrievalTraceCollector"
+      },
+      {
+        "from": "RetrievalRelevanceJudge",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+            "line": 174,
+            "match": "static func matches(_ chunk: RetrievedChunk, expected: String) -> Bool {"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      },
+      {
+        "from": "RetrievalStageMetrics",
+        "type": "depends_on",
+        "to": "feature:rag-orchestration-core",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+            "line": 271,
+            "match": "results: [RetrievedChunk],"
+          }
+        ],
+        "note": "via RetrievedChunk"
+      },
+      {
+        "from": "RetrievalStageEvaluator",
+        "type": "depends_on",
+        "to": "feature:hybrid-retrieval-and-fusion",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift",
+            "line": 389,
+            "match": "traces: [RetrievalStageTrace],"
+          }
+        ],
+        "note": "via RetrievalStageTrace"
+      },
+      {
+        "from": "private-cloud-compute-routing#ModelExecutionReceipt",
+        "type": "depends_on",
+        "to": "feature:private-cloud-compute-routing",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift",
+            "line": 195,
+            "match": "static var nonAuthorizingQuotaStates: Set<PCCQuotaState> {"
+          }
+        ],
+        "note": "via PCCQuotaState"
+      },
+      {
+        "from": "RouteEvalMetrics",
+        "type": "depends_on",
+        "to": "feature:private-cloud-compute-routing",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Evaluation/RouteEvalMetrics.swift",
+            "line": 339,
+            "match": "static func compute(from receipts: [ModelExecutionReceipt]) -> RouteEvalMetrics {"
+          }
+        ],
+        "note": "via ModelExecutionReceipt"
+      }
     ],
     "edges_omitted": 0
   }

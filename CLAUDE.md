@@ -135,8 +135,11 @@ Load these on demand. Do not read the documentation set by default. Every task r
 the superseding protocol and `Docs/ai/ARCHITECTURE.md`; the preflight names the rest. Read large
 files by section (`grep -n '^## ' <file>`, then that range), never whole: `CHANGELOG.md` (only its
 first numbered section is the open release), `Docs/ai/RUNBOOK.md`, `Docs/ai/DECISIONS.md`, the Atlas,
-`Docs/INGESTION_PIPELINE.md`. Swift is no different: `RAGService.swift` is about 1 MB and 20,000
-lines, so find the symbol with `grep -n` and read that range.
+`Docs/INGESTION_PIPELINE.md`. `RAGService` and `AgenticOrchestrator` are split by job into extension
+files (`RAGService+Import.swift`, `AgenticOrchestrator+ReasoningChain.swift`, ...; the map is in
+`Docs/ai/ARCHITECTURE.md`), most of them small enough to read whole. Two are not: `RAGService+QueryPipeline.swift` (about 6,000 lines, nearly
+all `queryInternal`) and `RAGService+Import.swift` (about 3,300, with `addDocument`): find the symbol with `grep -n`
+and read that range. An old `RAGService.swift:N` citation resolves with `python3 scripts/split_linemap.py`.
 
 ## Context governance
 

@@ -123,7 +123,7 @@ retrieved text before you see it.
 > Deep Think and Maximum the nine checks only label it (from 5.7); a lookup there that is not
 > locked to an extracted value gets the source-only check instead, which can rewrite the
 > answer or, for a precise-value or state question, refuse it.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen.swift:3757 and 3788 (streamed text reaches the chat), RAGService.swift:16630-16807 (step 7.5, after generation), StructuredAnswer.swift:988 (claims marked unsupported are left out), RAGService.swift:11261-11309 (Deep Think and Maximum: source-only check, else the gates as a label), Docs/HOW_IT_WORKS.md section 04 correction of 2026-10-20; read at 1e4a718]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen.swift:3757 and 3788 (streamed text reaches the chat), RAGService.swift@1e4a718:16630-16807 (step 7.5, after generation), StructuredAnswer.swift:988 (claims marked unsupported are left out), RAGService.swift@1e4a718:11261-11309 (Deep Think and Maximum: source-only check, else the gates as a label), Docs/HOW_IT_WORKS.md section 04 correction of 2026-10-20; read at 1e4a718]`
 
 Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on
 PCC**, time-to-first-token 2.2–3.2s. The PCC figure was measured from an Xcode 27
@@ -232,7 +232,7 @@ of starting over.
 > length, and a PDF of 10 MB or less takes the ordinary import however many pages it has.
 > The 8 MB rule for text, Markdown and JSON Lines below is the same kind of gate, and a
 > `.json` file over 64 MB is imported in pieces too.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:7267 (fileSizeMB in units of 1,048,576 bytes) and 7301 (documentType == .pdf && fileSizeMB > 10), RAGService+Streaming.swift:70 (batchSize = 15), DocumentProcessor.swift:691-707 (piecewiseTextBytes, importsInPieces), TextPieceReader.swift:22 (pieceBytes), JSONRecordExtractor.swift:35 (maxFileBytes); read at 1e4a718]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift@1e4a718:7267 (fileSizeMB in units of 1,048,576 bytes) and 7301 (documentType == .pdf && fileSizeMB > 10), RAGService+Streaming.swift:70 (batchSize = 15), DocumentProcessor.swift:691-707 (piecewiseTextBytes, importsInPieces), TextPieceReader.swift:22 (pieceBytes), JSONRecordExtractor.swift:35 (maxFileBytes); read at 1e4a718]`
 
 From 5.7 a text, Markdown or JSON Lines file over 8 MB is imported the same way, in pieces of
 about 2 MB with a checkpoint after each. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro

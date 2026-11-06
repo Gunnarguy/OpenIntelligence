@@ -1,10 +1,10 @@
 # Current State
 
-Updated: 2026-11-05 about 12:45 PT (5.8 open; all work committed locally with `[ci skip]`, nothing pushed. 5.7 is live on iPhone, iPad
+Updated: 2026-11-05 about 17:45 PT (5.8 open; all work committed locally with `[ci skip]`, nothing pushed. 5.7 is live on iPhone, iPad
 and Mac since 2026-10-22, build 487. Xcode Cloud build 488 (`fb225053`) is VALID on both platforms and attached to
 neither record.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: fb5f0107
+Last verified commit: e68facb2
 
 ## Objective
 
@@ -88,4 +88,25 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Exact Next Action
 
-Read the golden baseline pair: `python3 scripts/golden_retrieval.py compare /private/tmp/oi-golden/results-base1.json /private/tmp/oi-golden/results-base2.json` (recorded by scratchpad `golden_run.sh base1 base2` on `OI 5.8 tests` `603FB180-...`, library "Golden retrieval", 71 fixtures prepared by `scripts/golden_retrieval.py prepare /private/tmp/oi-golden`). It must report 0 differing searches and no "library changed" line. If it does, record a run on the working tree (`golden_run.sh step1`) and compare it with base1: 0 differences is the bar for the sibling-lookup change; then build and run `EmbeddingConcurrencyIdentityTests`, `SourceOnlyVerdictTests`, `IngestionModeSwitchTests`, commit the UI and Atlas changes with their CHANGELOG lines, and build to his iPhone. If the pair differs, find why before any retrieval change ships.
+**The RAGService/AgenticOrchestrator split is committed** (the commit after `e68facb2`; message starts "Split RAGService
+and AgenticOrchestrator"). Proven and read before committing: the move check (0 lines added or lost; original order
+except the 5 stored properties moved into the class by design; 236 access keywords removed across 204 names, no call can
+bind differently); iOS Simulator build-for-testing, macOS Debug build and iOS Release build all succeeded; golden harness
+760 of 760 identical to the code before the split in the same simulator state; full suite 1,199 passed, the 16 failures
+all simulator state (free-plan limit filled by the golden library, a language asset after an erase, a duplicate note
+left by a run the owner's closing the simulators cut off) and each passing on a clean `OI 5.8 checks`; a Fable 5.1
+review found no behaviour change; codemap 0 errors, 0 warnings.
+
+**Waiting for the owner's "go"** to run `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md` on the other 15 large
+files. Before starting: generalize `fix_access.py` (its setter search globs RAGService/Agentic files) and
+`prove_move.py` (its `pairs`) to the file being split, and name the groups in each `plans/*.json` by job. A stray
+`.git.nosync/.DS_Store` is reported by `scripts/check_icloud_conflicts.sh`; harmless (not in `refs/`), and the
+permission check refused deleting it, so the owner removes it if he wants.
+
+**Overnight: the other 15 large files** (owner, 2026-11-05 evening: "I'm gonna name those files those excluded ones so like whatever needs to be done to literally square all this off"; that names the hard-boundary `WorkspaceSyncService.swift` and `SQLiteFullTextService.swift` for a pure move only: no change to the FTS5 schema or to sync behaviour, proven by the move check). Runbook: `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md`.
+
+After the split: a separate, reviewed commit for the main-actor warnings in `CoreMLSentenceEmbeddingProvider.swift`
+(lines with `DeviceCapabilityService.shared`, `MLArrayBufferSet`; from `b70da2d3`, no race found by the 2026-11-05
+review); the 5.8 user copy (What's New, `Docs/USER_CHANGELOG.md`, release notes) for the week's user-visible changes;
+then the speed list in `BenchmarkRuns/2026-11-04-speed-research/` (one evidence session, prewarm, planner schema,
+parallel sub-searches) and the three 2026-11-05 rows from his stress test.

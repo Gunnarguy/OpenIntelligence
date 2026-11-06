@@ -2124,3 +2124,37 @@ equality there is not yet shown.
 **Consequences.** Every later retrieval speed change has a pass or fail answer. The tie-break changes which tied passage
 is kept in 28 of 57 merged searches against any one earlier run, where earlier runs disagreed with each other too.
 
+## 2026-11-05 - RAGService and AgenticOrchestrator are split into files by job, as a pure move
+
+**Context.** `RAGService.swift` was 23,427 lines (391,593 tokens) and `AgenticOrchestrator.swift` 9,447 (161,551). An
+agent could read neither whole, so every change began with searching slices; every edit recompiled the whole file; the
+format hook rewrote whole files; two sessions could not work in one. The owner asked for the split on the condition
+that the app behaves exactly as before.
+
+**Decision.** Move whole sections into `Type+Job.swift` extension files, change nothing but the access keywords the
+compiler names (`private`/`fileprivate` removed where another file now uses the declaration), and keep instance stored
+properties in the class. The scripts that did it and proved it are recorded in the commit message; the line map is
+`Docs/ai/split-2026-11-05-linemap.json`.
+
+**Proof (2026-11-05, iOS 27 Simulator).** Every original line in the new files exactly once and in its original order
+(access keywords aside; the five stored properties moved into the class by design); 236 keywords removed across 204
+names, none equal to a module-level declaration or a member of `RAGService`'s protocols, and the four names with a
+same-named declaration are member against local variable, which Swift resolves the same way; build-for-testing clean;
+`DeepThinkRetrievalGoldenTests` 760 of 760 searches identical between the code before and after, recorded in the same
+simulator state; the full suite 1,199 passed and 16 failed, every failure traced to the test simulator and passing on a
+clean one. A review by a second model found no behaviour change. A first golden comparison against a run from the
+morning showed 211 searches differing in the last bits of their scores; the code before the split, recorded again in
+the afternoon's state, differed from the morning in the same way and matched the split exactly, so the full suite run
+before it had left the simulator in a state that changes Core ML's last digits.
+
+**Alternatives.** Splitting `queryInternal` (5,824 lines, one function) as well: that changes code, not only where it
+lives, and the golden harness does not cover Standard's path, so it waits for its own proof. Fewer, larger files: the
+section sizes were measured and grouped so that all but two files are under 2,000 lines.
+
+**Consequences.** Members that moved out of the class body into extensions are no longer overridable (static rather
+than table dispatch); no subclass of `RAGService` exists, so nothing changes, but a future test double cannot override
+them. One file-scope global, `deferredEnrichmentIsRunning`, is internal now because two files use it.
+`RAGService+QueryPipeline.swift` stays about 6,000 lines until `queryInternal` is broken up. Doc
+citations written before the split name the old files; they are history and resolve through the line map. The codemap
+was repointed by each citation's matched text.
+

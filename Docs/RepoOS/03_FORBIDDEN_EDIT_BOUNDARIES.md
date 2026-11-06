@@ -29,7 +29,7 @@ Explicit list of sensitive files. "Forbidden" means: do not edit without the use
 | `OpenIntelligence/Services/Billing/StoreKitBillingService.swift` | StoreKit transaction handling; subsystem risk HIGH (subsystem_map). |
 | `OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift` | Monetization tier limits (5 Free / 20 Pro / Unlimited Lifetime, canonical §11); changes are revenue-affecting. |
 | `OpenIntelligence/Services/Agentic/RAGAppIntents.swift` | 10 of 10 App Shortcut slots consumed since 5.7 (canonical §10); adding shortcuts past 10 fails silently OS-wide, and `AppShortcutsProviderTests` fails at eleven. Intents bypass UI straight into `RAGService` (Atlas §12) — PCC consent deadlock risk R07. |
-| `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift` + `RAGService+Streaming.swift` | Central orchestrator; streaming ingestion contract (page batches, incremental FTS5 appends) is OOM-safety-critical (canonical §3). |
+| `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`, its `RAGService+*.swift` extension files (split 2026-11-05) and `RAGService+Streaming.swift` | Central orchestrator; streaming ingestion contract (page batches, incremental FTS5 appends) is OOM-safety-critical (canonical §3). |
 
 ## Tier 3 — Process prohibitions (always)
 - No destructive git commands (`git reset --hard`, `git clean`, `rm -rf`) — `00_SUPERSEDING_EVIDENCE_PROTOCOL.md`.

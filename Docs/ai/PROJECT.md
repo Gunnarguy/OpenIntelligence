@@ -52,7 +52,7 @@ developers, and product copy is read by people who will not check the source.
   Just Once, Deny), and after Always Allow later sends are not asked about. PCC needs iOS or macOS 27, a
   build made with Swift 6.4 or later, the app's entitlement, and quota left. `[evidence_level:
   code_verified, confidence: high, evidence_source: SettingsStore.swift:44-50, 450-462, LLMModel.swift:218,
-  264-268, ChatScreen.swift:3172-3190, RAGService.swift:4391-4440, FoundationModelSessionFactory.swift:86-110]`
+  264-268, ChatScreen.swift:3172-3190, RAGService+SentenceExtraction.swift:624-673, FoundationModelSessionFactory.swift:86-110]`
 - Three answer modes (added 2026-10-20): Standard, the default for a new install, gathers its evidence in
   one pipeline and writes the answer in one generation, with at most a citation retry and an integrity repair
   on the same route. The nine verification gates then run once and never send the answer back to the model:
@@ -63,8 +63,8 @@ developers, and product copy is read by people who will not check the source.
   picker, before a final synthesis, with no tools in any session. They run the gates from 5.7, as a label only
   (in 5.6 those answers read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop and its stop rules.
   `[evidence_level: code_verified, confidence: high, evidence_source: SettingsStore.swift:617-624,
-  RAGService.swift:11588, 11239-11263, 16274-16392, 16571-16834, 16870-16894, 19500-19525,
-  AgenticOrchestrator.swift:339, 544-1143, 5313, 9228-9240]`
+  RAGService+AgenticQuery.swift:602, 11239-11263, 16274-16392, 16571-16834, 16870-16894, 19500-19525,
+  AgenticOrchestrator.swift:180, 544-1143, 5313, 9228-9240]`
 - iCloud sync of the document library across a user's own devices.
 - Siri Shortcuts and App Intents.
 - Paid tiers with quotas.

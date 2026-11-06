@@ -2,60 +2,414 @@
   "schema": "codemap/1",
   "id": "hardware-compute-acceleration",
   "name": "Hardware Compute Acceleration",
-  "aliases": ["GPU compute service", "Metal buffer pool", "BNNS graph service", "adaptive pipeline optimizer"],
+  "aliases": [
+    "GPU compute service",
+    "Metal buffer pool",
+    "BNNS graph service",
+    "adaptive pipeline optimizer"
+  ],
   "purpose": "Runs vector math on the GPU with Metal.",
   "revision": "099c12af",
   "verified_on": "2026-11-04",
-  "entry_points": ["GPUComputeService", "AdaptivePipelineOptimizer"],
+  "entry_points": [
+    "GPUComputeService",
+    "AdaptivePipelineOptimizer"
+  ],
   "files": [
-    {"path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift", "role": "primary", "blob": "7a3284a98e691185645345b372f7e1b0a7c98557"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "role": "primary", "blob": "b400d1c381924b2ac8d2e65c867df7d41b7f8050"}
+    {
+      "path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift",
+      "role": "primary",
+      "blob": "7a3284a98e691185645345b372f7e1b0a7c98557"
+    },
+    {
+      "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+      "role": "primary",
+      "blob": "b400d1c381924b2ac8d2e65c867df7d41b7f8050"
+    }
   ],
   "nodes": [
-    {"id": "GPUComputeService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift", "line": 165, "match": "final class GPUComputeService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGEngine.applyMMR", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift", "line": 135, "match": "func applyMMR(", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.init", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 1538, "match": "init(", "status": "VERIFIED", "by": "build"},
-    {"id": "BNNSVectorDatabase.gpuCompute", "kind": "model", "path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 71, "match": "private var gpuCompute: GPUComputeService?", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareTelemetryReporter.pulse", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 990, "match": "nonisolated static func pulse(", "status": "VERIFIED", "by": "build"},
-    {"id": "HardwareTelemetryReporter.reportGPUCompute", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 1037, "match": "nonisolated static func reportGPUCompute(operation: HardwareActivityType = .vectorSimilarity) {", "status": "VERIFIED", "by": "build"},
-    {"id": "AdaptivePipelineOptimizer", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 268, "match": "final class AdaptivePipelineOptimizer: ObservableObject {", "status": "VERIFIED", "by": "build"},
-    {"id": "AdaptivePipelineConfig.base", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 115, "match": "static func base(for tier: DeviceCapabilityTier) -> AdaptivePipelineConfig {", "status": "VERIFIED", "by": "build"},
-    {"id": "AdaptivePipelineConfig", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 92, "match": "struct AdaptivePipelineConfig: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SystemStateMonitor.macAvailableMemory", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift", "line": 531, "match": "static func macAvailableMemory() -> UInt64 {", "status": "VERIFIED", "by": "build"},
-    {"id": "DeviceRuntimeState", "kind": "model", "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 42, "match": "struct DeviceRuntimeState: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "AdaptivePipelineConfig.adjusted", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 205, "match": "func adjusted(for level: PipelineOptimizationLevel) -> AdaptivePipelineConfig {", "status": "VERIFIED", "by": "build"},
-    {"id": "SystemStateMonitor.captureState", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift", "line": 391, "match": "private static func captureState() -> SystemStateSnapshot {", "status": "VERIFIED", "by": "build"},
-    {"id": "QueryRuntimeCoordinator.resolveContext", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift", "line": 130, "match": "func resolveContext(", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.queryInternal", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 11984, "match": "private func queryInternal(", "status": "VERIFIED", "by": "build"}
+    {
+      "id": "GPUComputeService",
+      "kind": "service",
+      "path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift",
+      "line": 165,
+      "match": "final class GPUComputeService: @unchecked Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGEngine.applyMMR",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift",
+      "line": 135,
+      "match": "func applyMMR(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.init",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift",
+      "line": 595,
+      "match": "init(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "BNNSVectorDatabase.gpuCompute",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift",
+      "line": 71,
+      "match": "private var gpuCompute: GPUComputeService?",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "HardwareTelemetryReporter.pulse",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift",
+      "line": 990,
+      "match": "nonisolated static func pulse(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "HardwareTelemetryReporter.reportGPUCompute",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift",
+      "line": 1037,
+      "match": "nonisolated static func reportGPUCompute(operation: HardwareActivityType = .vectorSimilarity) {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "AdaptivePipelineOptimizer",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+      "line": 268,
+      "match": "final class AdaptivePipelineOptimizer: ObservableObject {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "AdaptivePipelineConfig.base",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+      "line": 115,
+      "match": "static func base(for tier: DeviceCapabilityTier) -> AdaptivePipelineConfig {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "AdaptivePipelineConfig",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+      "line": 92,
+      "match": "struct AdaptivePipelineConfig: Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "SystemStateMonitor.macAvailableMemory",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift",
+      "line": 531,
+      "match": "static func macAvailableMemory() -> UInt64 {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "DeviceRuntimeState",
+      "kind": "model",
+      "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+      "line": 42,
+      "match": "struct DeviceRuntimeState: Sendable {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "AdaptivePipelineConfig.adjusted",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+      "line": 205,
+      "match": "func adjusted(for level: PipelineOptimizationLevel) -> AdaptivePipelineConfig {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "SystemStateMonitor.captureState",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift",
+      "line": 391,
+      "match": "private static func captureState() -> SystemStateSnapshot {",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "QueryRuntimeCoordinator.resolveContext",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift",
+      "line": 130,
+      "match": "func resolveContext(",
+      "status": "VERIFIED",
+      "by": "build"
+    },
+    {
+      "id": "RAGService.queryInternal",
+      "kind": "function",
+      "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
+      "line": 126,
+      "match": "func queryInternal(",
+      "status": "VERIFIED",
+      "by": "build"
+    }
   ],
   "edges": [
-    {"from": "AdaptivePipelineOptimizer", "type": "calls", "to": "AdaptivePipelineConfig.base", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 302, "match": "currentConfig = AdaptivePipelineConfig.base(for: deviceTier)"}], "by": "build", "note": "the call names the type"},
-    {"from": "AdaptivePipelineOptimizer", "type": "depends_on", "to": "AdaptivePipelineConfig", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 338, "match": "adjusted = AdaptivePipelineConfig("}], "by": "build", "note": "constructs it"},
-    {"from": "AdaptivePipelineOptimizer", "type": "calls", "to": "SystemStateMonitor.macAvailableMemory", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 472, "match": "availableMemory = SystemStateMonitor.macAvailableMemory()"}], "by": "build", "note": "the call names the type"},
-    {"from": "AdaptivePipelineOptimizer", "type": "depends_on", "to": "DeviceRuntimeState", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 485, "match": "return DeviceRuntimeState("}], "by": "build", "note": "constructs it"},
-    {"from": "RAGEngine.applyMMR", "type": "depends_on", "to": "GPUComputeService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift", "line": 162, "match": "let gpuCompute = await MainActor.run { GPUComputeService.shared }"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.init", "type": "depends_on", "to": "GPUComputeService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 2476, "match": "let gpuService = GPUComputeService.shared"}], "by": "build", "note": "named there"},
-    {"from": "BNNSVectorDatabase.gpuCompute", "type": "depends_on", "to": "GPUComputeService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 71, "match": "private var gpuCompute: GPUComputeService?"}], "by": "build", "note": "named there"},
-    {"from": "AdaptivePipelineOptimizer", "type": "calls", "to": "AdaptivePipelineConfig.adjusted", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 303, "match": ".adjusted(for: level)"}], "by": "build", "note": "named in the body"},
-    {"from": "SystemStateMonitor.captureState", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift", "line": 498, "match": "let optimizer = AdaptivePipelineOptimizer.shared"}], "by": "build", "note": "named there"},
-    {"from": "QueryRuntimeCoordinator.resolveContext", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift", "line": 233, "match": "let adaptiveConfig = AdaptivePipelineOptimizer.shared.configForQuery(complexity: queryComplexity)"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 16085, "match": "await AdaptivePipelineOptimizer.shared.applyCooldown()"}], "by": "build", "note": "named there"}
+    {
+      "from": "AdaptivePipelineOptimizer",
+      "type": "calls",
+      "to": "AdaptivePipelineConfig.base",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+          "line": 302,
+          "match": "currentConfig = AdaptivePipelineConfig.base(for: deviceTier)"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "AdaptivePipelineOptimizer",
+      "type": "depends_on",
+      "to": "AdaptivePipelineConfig",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+          "line": 338,
+          "match": "adjusted = AdaptivePipelineConfig("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "AdaptivePipelineOptimizer",
+      "type": "calls",
+      "to": "SystemStateMonitor.macAvailableMemory",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+          "line": 472,
+          "match": "availableMemory = SystemStateMonitor.macAvailableMemory()"
+        }
+      ],
+      "by": "build",
+      "note": "the call names the type"
+    },
+    {
+      "from": "AdaptivePipelineOptimizer",
+      "type": "depends_on",
+      "to": "DeviceRuntimeState",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+          "line": 485,
+          "match": "return DeviceRuntimeState("
+        }
+      ],
+      "by": "build",
+      "note": "constructs it"
+    },
+    {
+      "from": "RAGEngine.applyMMR",
+      "type": "depends_on",
+      "to": "GPUComputeService",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift",
+          "line": 162,
+          "match": "let gpuCompute = await MainActor.run { GPUComputeService.shared }"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "RAGService.init",
+      "type": "depends_on",
+      "to": "GPUComputeService",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift",
+          "line": 1092,
+          "match": "let gpuService = GPUComputeService.shared"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "BNNSVectorDatabase.gpuCompute",
+      "type": "depends_on",
+      "to": "GPUComputeService",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift",
+          "line": 71,
+          "match": "private var gpuCompute: GPUComputeService?"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "AdaptivePipelineOptimizer",
+      "type": "calls",
+      "to": "AdaptivePipelineConfig.adjusted",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+          "line": 303,
+          "match": ".adjusted(for: level)"
+        }
+      ],
+      "by": "build",
+      "note": "named in the body"
+    },
+    {
+      "from": "SystemStateMonitor.captureState",
+      "type": "depends_on",
+      "to": "AdaptivePipelineOptimizer",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift",
+          "line": 498,
+          "match": "let optimizer = AdaptivePipelineOptimizer.shared"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "QueryRuntimeCoordinator.resolveContext",
+      "type": "depends_on",
+      "to": "AdaptivePipelineOptimizer",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift",
+          "line": 233,
+          "match": "let adaptiveConfig = AdaptivePipelineOptimizer.shared.configForQuery(complexity: queryComplexity)"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    },
+    {
+      "from": "RAGService.queryInternal",
+      "type": "depends_on",
+      "to": "AdaptivePipelineOptimizer",
+      "status": "INFERRED",
+      "evidence": [
+        {
+          "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift",
+          "line": 4227,
+          "match": "await AdaptivePipelineOptimizer.shared.applyCooldown()"
+        }
+      ],
+      "by": "build",
+      "note": "named there"
+    }
   ],
   "docs": [],
   "unknowns": [],
-  "related": ["rag-orchestration-core", "silicon-hud-and-telemetry", "vector-database-storage"],
-  "entries": ["OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift::GPUComputeService", "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift::AdaptivePipelineOptimizer"],
-  "owns": ["OpenIntelligence/Services/Infrastructure/Compute/**", "OpenIntelligence/Services/Infrastructure/Optimization/**"],
+  "related": [
+    "rag-orchestration-core",
+    "silicon-hud-and-telemetry",
+    "vector-database-storage"
+  ],
+  "entries": [
+    "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift::GPUComputeService",
+    "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift::AdaptivePipelineOptimizer"
+  ],
+  "owns": [
+    "OpenIntelligence/Services/Infrastructure/Compute/**",
+    "OpenIntelligence/Services/Infrastructure/Optimization/**"
+  ],
   "decisions": [],
-  "traps": ["BNNSGraphService.swift, the BNNS and vDSP service this slice also named, was removed in 5.7 on 2026-10-20: nothing referenced it."],
+  "traps": [
+    "BNNSGraphService.swift, the BNNS and vDSP service this slice also named, was removed in 5.7 on 2026-10-20: nothing referenced it."
+  ],
   "derived": {
     "generated_by": "codemap 1.1.0 derive: declarations, type references and test mentions; edges are INFERRED",
     "nodes": [],
     "edges": [
-      {"from": "GPUComputeService", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift", "line": 408, "match": "HardwareTelemetryReporter.pulse(.vectorSimilarity, intensity: 0.85, duration: 0.3)"}], "note": "via HardwareTelemetryReporter"},
-      {"from": "DeviceRuntimeState", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 76, "match": "let isMac = DeviceCapabilityService.shared.isMac || ProcessInfo.processInfo.isiOSAppOnMac"}], "note": "via DeviceCapabilityService"},
-      {"from": "AdaptivePipelineConfig", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 115, "match": "static func base(for tier: DeviceCapabilityTier) -> AdaptivePipelineConfig {"}], "note": "via DeviceCapabilityTier"},
-      {"from": "AdaptivePipelineOptimizer", "type": "depends_on", "to": "feature:silicon-hud-and-telemetry", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 284, "match": "private let deviceTier: DeviceCapabilityTier"}], "note": "via DeviceCapabilityTier, DeviceCapabilityService, SystemStateMonitor, TelemetryCenter"}
+      {
+        "from": "GPUComputeService",
+        "type": "depends_on",
+        "to": "feature:silicon-hud-and-telemetry",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift",
+            "line": 408,
+            "match": "HardwareTelemetryReporter.pulse(.vectorSimilarity, intensity: 0.85, duration: 0.3)"
+          }
+        ],
+        "note": "via HardwareTelemetryReporter"
+      },
+      {
+        "from": "DeviceRuntimeState",
+        "type": "depends_on",
+        "to": "feature:silicon-hud-and-telemetry",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+            "line": 76,
+            "match": "let isMac = DeviceCapabilityService.shared.isMac || ProcessInfo.processInfo.isiOSAppOnMac"
+          }
+        ],
+        "note": "via DeviceCapabilityService"
+      },
+      {
+        "from": "AdaptivePipelineConfig",
+        "type": "depends_on",
+        "to": "feature:silicon-hud-and-telemetry",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+            "line": 115,
+            "match": "static func base(for tier: DeviceCapabilityTier) -> AdaptivePipelineConfig {"
+          }
+        ],
+        "note": "via DeviceCapabilityTier"
+      },
+      {
+        "from": "AdaptivePipelineOptimizer",
+        "type": "depends_on",
+        "to": "feature:silicon-hud-and-telemetry",
+        "status": "INFERRED",
+        "evidence": [
+          {
+            "path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift",
+            "line": 284,
+            "match": "private let deviceTier: DeviceCapabilityTier"
+          }
+        ],
+        "note": "via DeviceCapabilityTier, DeviceCapabilityService, SystemStateMonitor, TelemetryCenter"
+      }
     ],
     "edges_omitted": 0
   }
