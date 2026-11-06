@@ -73,7 +73,7 @@ All paths below are under `OpenIntelligence/` unless stated.
 | 3 | `WindowGroup { ContentView() }` | `App/OpenIntelligenceApp.swift:41-45` | Main | Yes | Scene | CPU | code_verified / exact |
 | 4 | `ContentView.init` | `App/ContentView.swift:27-60` | Main | Yes | Constructs, in order: `WorkspaceSyncService`, `ContainerService`, `StoreKitBillingService`, `EntitlementStore`, `RAGService`, `SettingsStore`, `ModelResolutionService`, `OnboardingStateStore`, `WhatsNewStore` | CPU | code_verified / exact |
 | 5 | `StoreKitBillingService.init` | `Services/Billing/StoreKitBillingService.swift:24-29` | Main → Task | Deferred | Spawns the `Transaction.updates` listener (`:306`) that runs for the life of the process | CPU | code_verified / exact |
-| 6 | `RAGService.init` | `Services/RAG/Orchestration/RAGService+ChatHistory.swift:566-599` | Main | Yes | `DocumentProcessor()`, `DocumentSummaryService()`, `EmbeddingService()`, `VectorStoreRouter()`, `ContextPackingService`, `ExtractiveSummarizationService` | CPU | code_verified / exact |
+| 6 | `RAGService.init` | `Services/RAG/Orchestration/RAGService.swift:937-1154` | Main | Yes | `DocumentProcessor()`, `DocumentSummaryService()`, `EmbeddingService()`, `VectorStoreRouter()`, `ContextPackingService`, `ExtractiveSummarizationService` | CPU | code_verified / exact |
 | 7 | `EmbeddingService.init` → `CoreMLSentenceEmbeddingProvider.setup` | `Services/Embedding/EmbeddingService.swift:57-58`, `Services/Embedding/Providers/CoreMLSentenceEmbeddingProvider.swift:174-181` | Main → Task | Deferred | Loads only the Rust-backed tokenizer (`AutoTokenizer.from(directory:)`, `:242`). **The embedding model is not loaded at launch.** It loads on first `embed()` (`:183-194`) | CPU | code_verified / exact |
 | 8 | `RAGEngine.init` | `Services/RAG/Orchestration/RAGEngine.swift:69-71` | Task | Deferred | `setupReRanker()` loads `ReRankerModel.mlmodelc` with `computeUnits = .all` and `allowLowPrecisionAccumulationOnGPU = true` (`:84-88`), plus its tokenizer (`:112`) | Core ML, unit requested `.all` | code_verified / exact |
 | 9 | `DeviceCapabilityService.shared` | `Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:275, 293-320` | First access, Main | Yes, on first touch | `utsname` (`:1038`), `sysctlbyname("machdep.cpu.brand_string")` (`:1104, 1139`), `ProcessInfo.physicalMemory` (`:1122, 1578`), `MTLCreateSystemDefaultDevice()` for the Metal snapshot (`:1583`). Produces tier, chip, form factor, TOPS, memory, Metal limits | CPU + a Metal device handle | code_verified / exact |
@@ -97,7 +97,7 @@ opens on first access. `[evidence_level: code_verified, confidence: high]`
 | `BGProcessingTask` index maintenance | Earliest 4 h, requires external power | `Services/Infrastructure/Background/BackgroundTaskService.swift:186-188` | Vector compaction and index maintenance | code_verified / exact |
 | `BGProcessingTask` Spotlight reindex | Earliest 2 h | `…/BackgroundTaskService.swift:201-203` | Spotlight reindex | code_verified / exact |
 | `BGAppRefreshTask` | Earliest 30 min | `…/BackgroundTaskService.swift:216` | App refresh | code_verified / exact |
-| Chat UI clock | `Timer.publish(every: 0.2)` | `Features/Chat/Conversation/ContinuedQueryCoordinator.swift:186` | Streaming UI tick | code_verified / exact |
+| Chat UI clock | `Timer.publish(every: 0.2)` | `Features/Chat/Conversation/ChatScreen.swift:110` | Streaming UI tick | code_verified / exact |
 | Thermal, memory, battery, low-power observers | Notification | `Services/Infrastructure/Monitoring/SystemStateMonitor.swift:523, 599` | Feeds `AdaptivePipelineOptimizer` | code_verified / exact |
 | **Idle churn** | **1.68 s, indefinitely, while idle** | Trigger in `WorkspaceSyncService`; damage bounded in `Services/VectorStore/VectorStoreRouter.swift:248-262` | `reloadWorkspaceData()` fires every 1.68 s when a container's orphaned state never resolves. On 2026-08-29 it produced 2,848 vector loads in 164 idle seconds. The router now compares an on-disk signature first, so idle reloads are free. **The trigger itself is untouched**, which is the open item in `Docs/ai/STATE.md` | code_verified / exact |
 
@@ -142,9 +142,9 @@ to `RAGService.query`, so a Siri question runs the same §4 pipeline in the back
 |---|---|---|---|---|
 | 1 | Enqueue | `RAGService.enqueueDocuments` (`RAGService+Import.swift:35`), item state `.queued` (`:4681`) | `MainActor` | code_verified / exact |
 | 2 | Serial loop | `RAGService.runIngestionLoop` (`:4969`): `while let next = nextQueuedIngestionItem()` → `addDocument` (`:5356`) | **One document at a time.** Parallelism exists only inside a document (pages, embeddings) | code_verified / exact |
-| 3 | iCloud materialisation guard | `WorkspaceSyncService.ensureItemAvailableLocally(at:timeout: 20)` (`Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift:461`) | Blocks the document up to 20 s while iCloud downloads a placeholder | code_verified / exact |
+| 3 | iCloud materialisation guard | `WorkspaceSyncService.ensureItemAvailableLocally(at:timeout: 20)` (`Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift:509`) | Blocks the document up to 20 s while iCloud downloads a placeholder | code_verified / exact |
 | 4 | Stage `.loading` | `RAGService+Storage.swift:769` | | code_verified / exact |
-| 5 | Parse and chunk | Step 1 at `:5644` → `DocumentProcessor.processDocument` (`Services/Document/Processing/DocumentProcessor.swift:569`) | See §3.2 | code_verified / exact |
+| 5 | Parse and chunk | Step 1 at `:5644` → `DocumentProcessor.processDocument` (`Services/Document/Processing/DocumentProcessor+Import.swift:67`) | See §3.2 | code_verified / exact |
 | 6 | Auto-adapt configuration | Step 1.5 at `:5787-5980`, stage `.analyzing` | | code_verified / exact |
 | 7 | Embed | Step 2 at `:6011`, stage `.embedding` (`:6099`) | See §3.4 | code_verified / exact |
 | 8 | Build chunk records | Step 3 at `:6172` | | code_verified / exact |
@@ -173,7 +173,7 @@ switch. Files over 500 MB that cannot be streamed are rejected before reading (`
 | Input | What runs | Unit | Concurrency | Evidence |
 |---|---|---|---|---|
 | PDF with a text layer | `PDFPage.string` per page. First, text-layer validation (`:3220-3262`): the longest page sample of at least 50 characters is rendered and given a quick OCR pass; if the native text is garbled, every page is routed to OCR instead | CPU | Page loop | code_verified / exact |
-| PDF page raster | `renderPDFPageAsImage(page:scale: 5.0)` (`:6978`), which is 360 DPI. iOS draws through `UIGraphicsImageRenderer` with an opaque format (`:7018-7050`); macOS draws into a `CGContext` with `noneSkipLast` (`:7061-7090`), written to replace the deprecated `NSImage.lockFocus` | CPU (Quartz). Not the GPU | Bounded by `pdfRenderingConcurrency` (§6.3) and sub-batched by `maxRenderConcurrency` (`:4149`) | code_verified / exact |
+| PDF page raster | `renderPDFPageAsImage(page:scale: 5.0)` (`:6978`), which is 360 DPI. iOS draws through `UIGraphicsImageRenderer` with an opaque format (`DocumentProcessor+TokenLimits.swift:575-617`); macOS draws into a `CGContext` with `noneSkipLast` (`DocumentProcessor+TokenLimits.swift:618-682`), written to replace the deprecated `NSImage.lockFocus` | CPU (Quartz). Not the GPU | Bounded by `pdfRenderingConcurrency` (§6.3) and sub-batched by `maxRenderConcurrency` (`:4149`) | code_verified / exact |
 | Page complexity triage | `PageComplexityAnalyzer` renders at 144 DPI (`Services/Document/Chunking/PageComplexityAnalyzer.swift:1048`) to decide which pages need the structured parser | CPU | | code_verified / exact |
 | Scanned or photographed page, OCR | `VNRecognizeTextRequest` (`:7510`), configured by `OCRConfiguration.configureRequest` (`Services/Document/Config/OCRConfiguration.swift:185-202`; corrected 2026-09-28 from `configure`, which is not declared): `.accurate`, `usesLanguageCorrection = true`, and either the languages detected for this document with `automaticallyDetectsLanguage = false`, or all thirteen configured languages with auto-detect on. Narrowing landed 2026-08-29 | **Framework-decided.** Vision does not expose placement | `VisionOCRThrottle` async semaphore sized by `DeviceCapabilityService.visionOperationConcurrency`, with a GPU cooldown between operations (`Services/Document/Config/VisionOCRThrottle.swift:100-110, 159`) | code_verified / exact |
 | Layout, tables, structure | `RecognizeDocumentsRequest` in `StructuredDocumentParser.swift:680`, `IntelligentDocumentProcessor.swift:847`, `CoreMLRegionDetector.swift:429`. Structure pass at 180 DPI downscaled, or the full 360 DPI for high-risk pages (`StructuredDocumentParser.swift:598-641`) | **Framework-decided.** The code comment at `DocumentProcessor+PDFText.swift:1009` says Neural Engine; that is a comment, not a placement | `withTaskGroup` over pages (`:3547`) bounded by `visionParsingConcurrency` (`:4084`) | code_verified for the calls / inferred for the unit |
@@ -231,7 +231,7 @@ is what reconciles it. `[evidence_level: code_verified, confidence: high]`
 
 `documents`, `chunks`, `document_pages` (FTS5), `documents_vocab` (fts5vocab), and the plain
 tables `chunk_structured`, `chunk_table_rows`, `document_content`, `document_meta`,
-`semantic_query_cache` (`SQLiteFullTextService.swift:191-321, SQLiteFullTextService+Statistics.swift:336`). The `chunks` table indexes
+`semantic_query_cache` (`SQLiteFullTextService.swift:191-347, SQLiteFullTextService+Statistics.swift:336`). The `chunks` table indexes
 `section_title`, `section_path` and `content`, tokenised `porter unicode61`, and leaves the IDs,
 page number and structure type `UNINDEXED` (`:242-254`). `[evidence_level: code_verified, confidence: exact]`
 
@@ -245,7 +245,7 @@ page number and structure type `UNINDEXED` (`:242-254`). `[evidence_level: code_
 | Pages | Text-layer garble check routes the page to OCR; OCR confidence and noise filters strip strings | `DocumentProcessor+PDFText.swift:149-191, DocumentProcessor+Import.swift:112` |
 | Table cells | Uncertain numeric cells dropped from structure | `DocumentProcessor+Layout.swift:345` |
 | Chunk tail | Anything past 510 tokens after prefix, if a chunk is still oversized after the split pass | `DocumentProcessor+StructuredParsing.swift:2586` |
-| Whole document | iCloud placeholder not materialised within 20 s | `WorkspaceSyncService+Bootstrap.swift:461` |
+| Whole document | iCloud placeholder not materialised within 20 s | `WorkspaceSyncService+Bootstrap.swift:509` |
 
 Each of these is logged; none of them is surfaced as a count the user can see, which is the
 failure class the ledger keeps recording. The `IngestionStageLedger`
@@ -453,7 +453,7 @@ confidence: exact]`
 
 | Point | Rule | Where |
 |---|---|---|
-| Candidates | Below `minSimilarity` after rerank | `RAGService+SelfTuning.swift:39` |
+| Candidates | Below `minSimilarity` after rerank | `RAGService+QueryPipeline.swift:2089` |
 | Candidates | MMR redundancy | `:11063` |
 | Chunks | Do not fit the token budget | `ContextPackingService.swift:208-218` |
 | Siblings | Skipped for budget | `RAGService+Generation.swift:993` |
@@ -470,7 +470,7 @@ confidence: exact]`
 one of three agentic paths: `.agentic` (mode is Deep Think or Maximum), `.forcedAgentic` (the
 user pressed Go Deeper), `.plannerEscalated` (the planner escalated a Standard query; logged at
 `:218`). `isAgentic` is true for all three (`:78-80`). `RAGService.executeAgenticQuery` builds an
-`AgenticOrchestrator(ragService:config:qualityMode:)` and calls `execute` (`RAGService+Import.swift:2216-2223`).
+`AgenticOrchestrator(ragService:config:qualityMode:)` and calls `execute` (`RAGService+AgenticQuery.swift:477-484`).
 `[evidence_level: code_verified, confidence: exact]`
 
 ### 5.2 Profiles
@@ -534,7 +534,7 @@ Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path i
    (A17 Pro 5 steps, 20,000 tokens, 0.85, 0.35. A18 8, 32,000, 0.90, 0.40. A19 10, 40,000, 0.92, 0.45.
    The ultra tier 12 steps and 56,000 tokens for each 16 GB of memory, at least 12 and 56,000 and at
    most 32 and 128,000, 0.95, 0.50: a Mac with an M1 Ultra or an M2 or later, an iPad Pro with an M2 or
-   later, an iPhone with an A20 or later), and Maximum takes `unlimited` (`RAGService+SelfTuning.swift:121-129`,
+   later, an iPhone with an A20 or later), and Maximum takes `unlimited` (`RAGService+AgenticQuery.swift:426-435`,
    `DeviceCapabilityService.swift:1044-1091`, `:1096-1488`). The steps only pick the chain's starting
    configuration (`:212-226`), and `maxTotalTokens` is read only by the decomposed pipeline
    and the research rounds (`:1751`, `:2942`).
@@ -587,7 +587,7 @@ Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path i
    Mode. `isConstrained`, which counts a low battery on iOS, is read only by the interface, the battery
    lowers no work anywhere, and Low Power Mode only keeps background work off the GPU
    (`AdaptivePipelineOptimizer.swift:56-71`, `BackgroundTaskService.swift:1084-1087`). The optimizer's
-   `stepCooldownMs` delays only Standard's generation (`RAGService+QueryPipeline.swift:3648`). The loops wait only
+   `stepCooldownMs` delays only Standard's generation (`RAGService+QueryPipeline.swift:4227`). The loops wait only
    1.5 s after a failed session (`:5430`, `:6952`) and, from 5.7, 1 s before each session from the
    second while iOS 27 asks apps to use less (`:5174`, `:6643`, `SystemResourceAdvice.swift:28-32`).
 10. **After the run.** The extractor's locked value replaces the answer, the source-only check runs for
@@ -667,9 +667,9 @@ insights" task group belongs to `executeMultiChainReasoning`, which nothing call
 | `MainActor` | UI, `RAGService` published state, `DeviceCapabilityService.shared` | UI |
 | Actors | `BNNSVectorDatabase`, `VecturaVectorDatabase`, `SQLiteFullTextService`, `VerificationGateService`, `AsyncVisionSemaphore` | Retrieval, storage, gates, OCR throttle |
 | Serial ingestion loop | `RAGService.runIngestionLoop` (`:4969`) | Ingestion |
-| `withTaskGroup` | Page extraction (`DocumentProcessor+PDFText.swift:476`), embeddings (`CoreMLSentenceEmbeddingProvider.swift:461`), rerank (`RAGEngine.swift:1516`), agentic cluster insights (`AgenticOrchestrator+Maximum.swift:1046`), suggested questions (`SuggestedQuestionsService+Bank.swift:349`) | Ingestion, retrieval, agentic |
+| `withTaskGroup` | Page extraction (`DocumentProcessor+PDFText.swift:755`), embeddings (`CoreMLSentenceEmbeddingProvider.swift:461`), rerank (`RAGEngine.swift:1516`), agentic cluster insights (`AgenticOrchestrator+Maximum.swift:1046`), suggested questions (`SuggestedQuestionsService+Bank.swift:349`) | Ingestion, retrieval, agentic |
 | `async let` | Vector and FTS5 searches in parallel (`HybridSearchService.swift:1032-1037`) | Retrieval |
-| `Task.detached` | Workspace sync and artifact persistence (`WorkspaceSyncService+Bootstrap.swift:559, WorkspaceSyncService+FileCoordination.swift:22`) | Sync |
+| `Task.detached` | Workspace sync and artifact persistence (`WorkspaceSyncService+Bootstrap.swift:607, WorkspaceSyncService+FileCoordination.swift:22`) | Sync |
 | `DispatchQueue` | `com.openintelligence.vectordb` concurrent (`VectorDatabase.swift:98`), camera analysis and capture queues (`CameraManager.swift:30-31`) | Legacy store, camera |
 | `OperationQueue` | `syncVisionOperationQueue` (`VisionOCRThrottle.swift:166`) | OCR |
 | `BGTaskScheduler` | Five registrations (§1.1) | Background |
@@ -684,7 +684,7 @@ insights" task group belongs to `executeMultiChainReasoning`, which nothing call
 |---|---|---|---|
 | Background tasks | `BGTaskScheduler` registered | Not registered (`#if os(iOS)`); Catalyst bypasses `UIBackgroundTask` | `OpenIntelligenceApp.swift:37-38`; `BackgroundTaskService.swift:143` |
 | Live Activity | Yes | No | `IngestionLiveActivityService.swift` |
-| PDF page raster | `UIGraphicsImageRenderer`, opaque | `CGContext`, `noneSkipLast`; the `NSImage.lockFocus` path was replaced because it exploded memory on Retina | `DocumentProcessor+TokenLimits.swift:271-303`, `7061-7090` |
+| PDF page raster | `UIGraphicsImageRenderer`, opaque | `CGContext`, `noneSkipLast`; the `NSImage.lockFocus` path was replaced because it exploded memory on Retina | `DocumentProcessor+TokenLimits.swift:575-617`, `:618-682` |
 | GPU memory-warning observer | `UIApplication.didReceiveMemoryWarningNotification` clears the buffer pool | No equivalent observer | `GPUComputeService.swift:313` |
 | Memory pressure source | `os_proc_available_memory` and the memory-warning notification | `os_proc_available_memory` only | `SystemStateMonitor.swift:429, 599` |
 | Window tabbing | n/a | Disabled at launch | `OpenIntelligenceApp.swift:23-27` |

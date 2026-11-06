@@ -60,7 +60,7 @@ Twenty-seven concepts. Deciding what the model actually reads: a hard token budg
 ### ContextPackingService (Core, verified)
 - **Idiot:** the desk arranger.
 - **Dot-connector:** chooses and orders core hits, parents, siblings, graph neighbours and compressed content under the ceiling; rank alone can't solve budget, diversity, sequence and support.
-- **Expert:** after retrieval and expansion, before prompt compilation. **Corrected 2026-10-20:** its one caller is graph packing for investigate, compare and findings questions, which passes its own budget. Other answers are packed by `RAGEngine.assembleContext` or, for a lookup, by sentence selection (`RAGService+QueryPipeline.swift:2665-2697`, `:14935-14975`).
+- **Expert:** after retrieval and expansion, before prompt compilation. **Corrected 2026-10-20:** its one caller is graph packing for investigate, compare and findings questions, which passes its own budget. Other answers are packed by `RAGEngine.assembleContext` or, for a lookup, by sentence selection (`RAGService+QueryPipeline.swift:3224-3254`, `:14935-14975`).
 
 ### Contextual compression (Conditional, verified)
 - **Idiot:** cross out the useless sentences.
