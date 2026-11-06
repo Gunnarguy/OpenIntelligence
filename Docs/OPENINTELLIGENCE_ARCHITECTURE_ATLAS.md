@@ -678,7 +678,7 @@ supposed to be agentic.
   source-only check's two calls are skipped, in every mode, where the check could only keep the answer: below
   the 85% coverage floor that `SourceOnlyAnswerService.candidateCoverageBeforeModel` works out with no model call,
   for a question that is not a precise-value or state question (`RAGService.sourceOnlyVerdict`).
-  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift@1e379aa:13135-13328, :14098-14182, :14636-14755, :14769-14775, :16289-16374, :16868-16876 at 1e379aa, LLMService.swift:1149-1162, SourceOnlyAnswerService.swift:363-441]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift@1e379aa:13135-13328, :14098-14182, :14636-14755, :14769-14775, :16289-16374, :16868-16876 at 1e379aa, LLMService.swift@1e379aa:1149-1162, SourceOnlyAnswerService.swift:363-441]`
   Do not read the items below as an argument for making it
   agentic. `[evidence: code_verified, exact, device trace 2026-08-14 message D74F98E4; RAGService useAgentic gate]`
 - **Deep Think and Maximum are where the agentic loop is supposed to fire.** The rest of this section

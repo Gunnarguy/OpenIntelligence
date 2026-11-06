@@ -4,7 +4,7 @@
   "name": "Private Cloud Compute Routing",
   "aliases": ["Private Cloud Compute routing", "PCC routing", "on-device vs PCC", "model routing", "PCC consent sheet", "cloud consent prompt", "model execution planner", "Private Cloud Compute", "PCC", "consent sheet"],
   "purpose": "Decides whether an answer runs on device or on Private Cloud Compute, and holds the consent sheet that asks before a cloud transmission.",
-  "revision": "fe3df217",
+  "revision": "0c08f1ed",
   "verified_on": "2026-11-05",
   "entry_points": ["ModelExecutionPlanner.makePlan", "RAGService.makePostRetrievalModelPlan", "RAGService.ensureCloudConsentIfNeeded", "RAGService.pendingCloudConsent", "RAGService.resolveCloudConsent", "CloudConsentPromptView", "FoundationModelRoutePolicy.determineRoute", "ModelExecutionReceipt"],
   "files": [
@@ -38,7 +38,8 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift", "role": "shared", "blob": "706a46bc936b951d314bbe130389550ed449fad3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift", "role": "shared", "blob": "de98218afe9aa6487faeb2b4b564ffe8d9131702"},
     {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "shared", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
+    {"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "role": "shared", "blob": "d9f1686486ff1e63113f74b084f403ee8d6d6943"}
   ],
   "nodes": [
     {"id": "ModelExecutionPlanner.makePlan", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/ModelExecutionPlanner.swift", "line": 24, "match": "func makePlan(", "status": "VERIFIED", "by": "build"},
@@ -68,7 +69,7 @@
     {"id": "FoundationModelRoutePolicy.determineRoute", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift", "line": 23, "match": "static func determineRoute(", "status": "VERIFIED", "by": "build"},
     {"id": "FoundationModelTokenBudget.contextSize", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift", "line": 36, "match": "public nonisolated static func contextSize(isAppleFMOnDevice: Bool) -> Int {", "status": "VERIFIED", "by": "build"},
     {"id": "DeveloperDiagnosticsHubView.body", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 21, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "AppleFoundationLLMService.generate", "kind": "function", "path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 661, "match": "func generate(", "status": "VERIFIED", "by": "build"},
+    {"id": "AppleFoundationLLMService.generate", "kind": "function", "path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "line": 428, "match": "func generate(", "status": "VERIFIED", "by": "build"},
     {"id": "ModelExecutionReceipt", "kind": "model", "path": "OpenIntelligence/Services/RAG/Orchestration/ModelExecutionReceipt.swift", "line": 41, "match": "struct ModelExecutionReceipt: Identifiable, Codable, Sendable, Equatable {", "status": "VERIFIED", "by": "build"},
     {"id": "ResponseMetadata.executionReceipt", "kind": "model", "path": "OpenIntelligence/Core/Models/RAGQuery.swift", "line": 109, "match": "let executionReceipt: ModelExecutionReceipt?", "status": "VERIFIED", "by": "build"},
     {"id": "RouteLogLine.completed", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Configuration/RouteLog.swift", "line": 59, "match": "static func completed(", "status": "VERIFIED", "by": "build"},
@@ -96,7 +97,7 @@
     {"from": "CloudConsentPromptView", "type": "renders", "to": "ConsentDetailRow", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/UI/Components/CloudConsentPromptView.swift", "line": 174, "match": "ConsentDetailRow(label: \"Provider\", value: record.provider.displayName)"}], "by": "build", "note": "constructs it"},
     {"from": "ChatScreen.chatPresentationLayer", "type": "renders", "to": "CloudConsentPromptView", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 603, "match": "CloudConsentPromptView(record: record) { decision in"}], "by": "build", "note": "constructs it"},
     {"from": "DeveloperDiagnosticsHubView.body", "type": "calls", "to": "FoundationModelRoutePolicy.determineRoute", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 67, "match": "let policyRoute = FoundationModelRoutePolicy.determineRoute("}], "by": "build", "note": "the call names the type"},
-    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelRoutePolicy.determineRoute", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/LLMService.swift", "line": 729, "match": "let targetRoute = FoundationModelRoutePolicy.determineRoute("}], "by": "build", "note": "the call names the type"},
+    {"from": "AppleFoundationLLMService.generate", "type": "calls", "to": "FoundationModelRoutePolicy.determineRoute", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "line": 496, "match": "let targetRoute = FoundationModelRoutePolicy.determineRoute("}], "by": "build", "note": "the call names the type"},
     {"from": "RAGService.attempt", "type": "depends_on", "to": "ModelExecutionReceipt", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "line": 1603, "match": "ModelExecutionReceipt("}], "by": "build", "note": "constructs it"},
     {"from": "RAGService.makePostRetrievalModelPlan", "type": "calls", "to": "ModelExecutionPlanner.makePlan", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "line": 1259, "match": "let plan = ModelExecutionPlanner().makePlan("}], "by": "build", "note": "named there"},
     {"from": "RAGService.makePostRetrievalModelPlan", "type": "calls", "to": "ModelExecutionPlanning.makePlan", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "line": 1259, "match": "let plan = ModelExecutionPlanner().makePlan("}], "by": "build", "note": "named in the body"},
