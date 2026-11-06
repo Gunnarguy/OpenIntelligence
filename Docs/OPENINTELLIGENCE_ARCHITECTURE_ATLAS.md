@@ -746,7 +746,7 @@ supposed to be agentic.
   at its third strike before researching). Maximum reaches neither. (Corrected 2026-10-20: this said
   exactly one call site, which the 2026-10-18 note below already contradicts.)
   `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:386-472, AgenticOrchestrator.swift:526-575, AgenticOrchestrator.swift:639, AgenticOrchestrator.swift:745, AgenticOrchestrator+SelfRAG.swift:463-527]`
-  `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "executeRecursiveResearch(" OpenIntelligence OpenIntelligenceTests finds only AgenticOrchestrator.swift:572 and :3855]`
+  `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "executeRecursiveResearch(" OpenIntelligence OpenIntelligenceTests finds only AgenticOrchestrator.swift:572 and AgenticOrchestrator+SelfRAG.swift:528]`
   **Changed 2026-08-14:** that call was gated solely on
   `answerIndicatesRetrievalMiss(chainResult.finalAnswer)`, a string heuristic scanning the answer
   for hedging. It fails in both directions: a confidently wrong answer contains no hedging so the

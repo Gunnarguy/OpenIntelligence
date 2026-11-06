@@ -1,10 +1,10 @@
 # Current State
 
-Updated: 2026-11-05 about 17:45 PT (5.8 open; all work committed locally with `[ci skip]`, nothing pushed. 5.7 is live on iPhone, iPad
+Updated: 2026-11-05 about 17:45 PT (5.8 open; all work committed with `[ci skip]` and pushed to origin/main on 2026-11-05 evening (through 2f443996, then the citation fix after it). 5.7 is live on iPhone, iPad
 and Mac since 2026-10-22, build 487. Xcode Cloud build 488 (`fb225053`) is VALID on both platforms and attached to
 neither record.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: d355dda5
+Last verified commit: 2f443996
 
 ## Objective
 
@@ -89,7 +89,7 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 ## Exact Next Action
 
 **The RAGService/AgenticOrchestrator split is committed** as `d355dda5` ("Split RAGService and AgenticOrchestrator
-into files by job, a pure move"; not pushed). verify_doc_claims 0 failures at that commit (citations pinned to older commits now read `File.swift@sha:N`). A Debug device build of it was started 2026-11-05 evening and installs on his iPhone once it answers with the app closed (`BenchmarkRuns/2026-11-05-file-split/device_split.sh`, log `/private/tmp/oi58-device-split.log`); if the session ended first, check `xcrun devicectl device info apps` against the build time. Proven and read before committing: the move check (0 lines added or lost; original order
+into files by job, a pure move"; pushed 2026-11-05). Its first citation pass skipped 18 follow-ons written ":N" after "and" or "or" (13 in CANONICAL, 2 RETRIEVAL_PIPELINE, 2 PRIVACY_AND_ROUTING, 1 Atlas); fixed in the commit after 2f443996 by the same line map, and `BenchmarkRuns/2026-11-05-file-split/translate_citations.py` now accepts them. verify_doc_claims 0 failures at that commit (citations pinned to older commits now read `File.swift@sha:N`). A Debug device build of it was started 2026-11-05 evening and installs on his iPhone once it answers with the app closed (`BenchmarkRuns/2026-11-05-file-split/device_split.sh`, log `/private/tmp/oi58-device-split.log`); if the session ended first, check `xcrun devicectl device info apps` against the build time. Proven and read before committing: the move check (0 lines added or lost; original order
 except the 5 stored properties moved into the class by design; 236 access keywords removed across 204 names, no call can
 bind differently); iOS Simulator build-for-testing, macOS Debug build and iOS Release build all succeeded; golden harness
 760 of 760 identical to the code before the split in the same simulator state; full suite 1,199 passed, the 16 failures
