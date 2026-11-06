@@ -94,8 +94,8 @@ First real numbers, from an iPhone A18 Pro. These superseded the unbacked `< 0.8
 > one caller overrides, and the most evidence one Deep Think session reads. A Deep Think session's
 > budget is the window less 700 for the reply, 400 for the prompt, 256 for safety and the carried
 > text. `[evidence_level: code_verified, measured for the 3,190, confidence: high, evidence_source:
-> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:2891-2945, :2639-2650,
-> :15839-15904, :3746-3747, :14580, OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift:60,
+> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:3457-3511, :3198-3209,
+> :4525-4590, RAGService+SentenceExtraction.swift:91-92, RAGService+QueryPipeline.swift:3246, OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift:60,
 > OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift:30-62]`
 
 ### Infrastructure Constraints
@@ -139,7 +139,7 @@ Important current implementation note:
 > Cloud Compute is picked in the model picker. `[evidence_level: code_verified, confidence: exact,
 > evidence_source: OpenIntelligence/Services/RAG/Orchestration/ModelExecutionPlanner.swift:24-130,
 > OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift:50 and :454-461,
-> OpenIntelligence/Services/Agentic/RAGService+Agentic.swift:162-168]`
+> OpenIntelligence/Services/Agentic/RAGService+Agentic.swift:214-220]`
 
 ### Do not claim from current repo state
 
