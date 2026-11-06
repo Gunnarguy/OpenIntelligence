@@ -4,7 +4,7 @@
   "name": "Silicon HUD and Telemetry",
   "aliases": ["The HUD", "Silicon HUD", "X-ray overlay", "hardware telemetry", "motherboard HUD", "floating legend"],
   "purpose": "Shows live Neural Engine, CPU, GPU and memory activity in an overlay while the app works.",
-  "revision": "b8f2eb23",
+  "revision": "a64feedd",
   "verified_on": "2026-11-05",
   "entry_points": ["HardwareXRayOverlay", "SiliconLegend", "FloatingLegendWindowManager", "SettingsStore.showSiliconHUD", "HardwareTelemetryState", "DeviceCapabilityService", "SystemStateMonitor"],
   "files": [
@@ -24,7 +24,8 @@
     {"path": "OpenIntelligenceTests/Services/Infrastructure/SystemResourceAdviceTests.swift", "role": "test", "blob": "52b072876615b93c09641ff42d0f763d54212f1a"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
     {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "c74582170c1e99628bc851caa842957903913336"},
-    {"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar+Badges.swift", "role": "shared", "blob": "84aced295af6099306bbea2ac9d5dfe3d95daf1d"}
+    {"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar+Badges.swift", "role": "shared", "blob": "84aced295af6099306bbea2ac9d5dfe3d95daf1d"},
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Intelligence.swift", "role": "shared", "blob": "282462976f4cfbcebacdbd91a8895e8906a28d1e"}
   ],
   "nodes": [
     {"id": "HardwareXRayOverlay", "kind": "view", "path": "OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift", "line": 296, "match": "struct HardwareXRayOverlay: View {", "status": "VERIFIED", "by": "build"},
@@ -49,7 +50,7 @@
     {"id": "TranslationService.translate", "kind": "function", "path": "OpenIntelligence/Services/Document/Extraction/TranslationService.swift", "line": 80, "match": "func translate(", "status": "VERIFIED", "by": "build"},
     {"id": "DeviceCapabilityService", "kind": "service", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift", "line": 343, "match": "final class DeviceCapabilityService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "UnifiedMetricsBar.executionBadge", "kind": "model", "path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar+Badges.swift", "line": 269, "match": "private var executionBadge: some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "ContainerSettingsSheet.siliconNativeChunkingInfo", "kind": "model", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift", "line": 286, "match": "var siliconNativeChunkingInfo: some View {", "status": "VERIFIED", "by": "build"},
+    {"id": "ContainerSettingsSheet.siliconNativeChunkingInfo", "kind": "model", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Intelligence.swift", "line": 61, "match": "var siliconNativeChunkingInfo: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "OnboardingChecklistView.deviceService", "kind": "service", "path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 698, "match": "private var deviceService: DeviceCapabilityService { .shared }", "status": "VERIFIED", "by": "build"},
     {"id": "AboutView.deviceService", "kind": "service", "path": "OpenIntelligence/Features/Settings/AboutView.swift", "line": 47, "match": "private let deviceService = DeviceCapabilityService.shared", "status": "VERIFIED", "by": "build"},
     {"id": "SettingsView.coolingDescription", "kind": "model", "path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 401, "match": "var coolingDescription: String {", "status": "VERIFIED", "by": "build"},
@@ -98,7 +99,7 @@
     {"from": "ContentTaggingService.generateTags", "type": "depends_on", "to": "HardwareTelemetryState", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 188, "match": "HardwareTelemetryState.shared.sustain(.llmInference, active: true, intensity: 0.7)"}], "by": "build", "note": "named there"},
     {"from": "TranslationService.translate", "type": "depends_on", "to": "HardwareTelemetryState", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Extraction/TranslationService.swift", "line": 125, "match": "HardwareTelemetryState.shared.sustain(.queryProcessing, active: false)"}], "by": "build", "note": "named there"},
     {"from": "UnifiedMetricsBar.executionBadge", "type": "depends_on", "to": "DeviceCapabilityService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar+Badges.swift", "line": 270, "match": "let device = DeviceCapabilityService.shared"}], "by": "build", "note": "named there"},
-    {"from": "ContainerSettingsSheet.siliconNativeChunkingInfo", "type": "depends_on", "to": "DeviceCapabilityService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift", "line": 295, "match": "Text(DeviceCapabilityService.shared.chipName)"}], "by": "build", "note": "named there"},
+    {"from": "ContainerSettingsSheet.siliconNativeChunkingInfo", "type": "depends_on", "to": "DeviceCapabilityService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Intelligence.swift", "line": 70, "match": "Text(DeviceCapabilityService.shared.chipName)"}], "by": "build", "note": "named there"},
     {"from": "OnboardingChecklistView.deviceService", "type": "depends_on", "to": "DeviceCapabilityService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift", "line": 698, "match": "private var deviceService: DeviceCapabilityService { .shared }"}], "by": "build", "note": "named there"},
     {"from": "AboutView.deviceService", "type": "depends_on", "to": "DeviceCapabilityService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/AboutView.swift", "line": 47, "match": "private let deviceService = DeviceCapabilityService.shared"}], "by": "build", "note": "named there"},
     {"from": "SettingsView.coolingDescription", "type": "depends_on", "to": "DeviceCapabilityService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "line": 402, "match": "switch DeviceCapabilityService.shared.formFactor.hasActiveCooling {"}], "by": "build", "note": "named there"},
