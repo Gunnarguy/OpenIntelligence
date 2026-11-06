@@ -65,7 +65,7 @@
     {"id": "OpenIntelligenceRuntimePaths", "kind": "model", "path": "OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift", "line": 3, "match": "enum OpenIntelligenceRuntimePaths {", "status": "VERIFIED", "by": "build"},
     {"id": "AppSupportPaths.configureBaseDir", "kind": "function", "path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 444, "match": "nonisolated static func configureBaseDir(_ url: URL?) {", "status": "VERIFIED", "by": "build"},
     {"id": "WorkspaceSyncService.performReconfigureIfNeeded", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift", "line": 438, "match": "private func performReconfigureIfNeeded(bootstrapBehavior: BootstrapBehavior) async -> Bool {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.directDatabaseURL", "kind": "service", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 84, "match": "nonisolated private static var directDatabaseURL: URL {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.directDatabaseURL", "kind": "service", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 84, "match": "nonisolated static var directDatabaseURL: URL {", "status": "VERIFIED", "by": "build"},
     {"id": "BNNSVectorDatabase.saveToDisk", "kind": "function", "path": "OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift", "line": 450, "match": "private func saveToDisk() throws {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [

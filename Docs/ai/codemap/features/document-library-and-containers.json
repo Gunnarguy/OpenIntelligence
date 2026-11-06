@@ -4,7 +4,7 @@
   "name": "Document Library and Containers",
   "aliases": ["document library", "libraries", "knowledge containers", "deleting a library", "container picker", "document details view", "semantic document search"],
   "purpose": "Lists the libraries and their documents, shows each document's details and search, and deletes a library with everything in it.",
-  "revision": "36482725",
+  "revision": "6e9871df",
   "verified_on": "2026-11-05",
   "entry_points": ["DocumentLibraryView", "LibraryDeletion.delete", "RAGService.removeDocument", "WorkspaceSyncService.deleteSharedLibrary", "ContainerService", "KnowledgeContainer", "DocumentDetailsView", "SemanticSearchView"],
   "files": [
@@ -57,7 +57,9 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift", "role": "shared", "blob": "706a46bc936b951d314bbe130389550ed449fad3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift", "role": "shared", "blob": "de98218afe9aa6487faeb2b4b564ffe8d9131702"},
     {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "shared", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
-    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"}
+    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"},
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "role": "shared", "blob": "0238f065e864fa4f14cdb6756b1e13254af04ded"},
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView", "kind": "view", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 13, "match": "struct DocumentLibraryView: View {", "status": "VERIFIED", "by": "build"},
@@ -89,8 +91,8 @@
     {"id": "RAGService.removeDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "line": 262, "match": "func removeDocument(_ document: Document, keepPhysicalFile: Bool = false, forRebuild: Bool = false) async throws {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentationCacheService.delete", "kind": "function", "path": "OpenIntelligence/Services/Storage/DocumentationCacheService.swift", "line": 236, "match": "func delete(id: UUID) throws {", "status": "VERIFIED", "by": "build"},
     {"id": "FullTextStorageService.delete", "kind": "function", "path": "OpenIntelligence/Services/Storage/FullTextStorageService.swift", "line": 110, "match": "func delete(for documentId: UUID) async {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.delete", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 629, "match": "func delete(for documentId: UUID) async {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.deleteChunks", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 974, "match": "func deleteChunks(for documentId: UUID) async {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.delete", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "line": 289, "match": "func delete(for documentId: UUID) async {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.deleteChunks", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "line": 248, "match": "func deleteChunks(for documentId: UUID) async {", "status": "VERIFIED", "by": "build"},
     {"id": "EntityIndexService.removeDocument", "kind": "function", "path": "OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift", "line": 259, "match": "func removeDocument(_ documentId: UUID) {", "status": "VERIFIED", "by": "build"},
     {"id": "SuggestedQuestionsService.removeQuestions", "kind": "function", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "line": 49, "match": "func removeQuestions(for documentId: UUID, in containerId: UUID) {", "status": "VERIFIED", "by": "build"},
     {"id": "SpotlightIndexService.deindexDocument", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift", "line": 183, "match": "func deindexDocument(id: UUID, containerId: UUID? = nil) {", "status": "VERIFIED", "by": "build"},

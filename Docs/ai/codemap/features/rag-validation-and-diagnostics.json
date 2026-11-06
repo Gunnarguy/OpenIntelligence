@@ -4,7 +4,7 @@
   "name": "RAG Validation and Diagnostics",
   "aliases": ["developer diagnostics hub", "database dashboard", "chunk inspector", "RAG pipeline audit", "container scoping tests", "validation harness"],
   "purpose": "Developer screens for inspecting chunks, the database and accuracy, and the headless validation harness run from launch arguments.",
-  "revision": "fe3df217",
+  "revision": "6e9871df",
   "verified_on": "2026-11-05",
   "entry_points": ["DeveloperDiagnosticsHubView", "ChunkInspectorView", "CoreValidationView", "RAGAccuracyView", "DatabaseDashboardView", "DebugRAGValidationHarness"],
   "files": [
@@ -23,7 +23,8 @@
     {"path": "OpenIntelligence/Services/Infrastructure/Configuration/VerificationJournal.swift", "role": "primary", "blob": "7059ac3a4b5cbe2445a41097a58a2c2c7d3786a5"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/VerificationJournalTests.swift", "role": "test", "blob": "c8689a8ec542fe616540d9141d4fde1283b3da84"},
     {"path": "OpenIntelligenceTests/Services/Evaluation/AnswerQualityEvaluationTests.swift", "role": "test", "blob": "2f551656f513564c4b89238a71a50f5dea1751c7"},
-    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "c74582170c1e99628bc851caa842957903913336"}
+    {"path": "OpenIntelligence/Features/Settings/SettingsView+List.swift", "role": "shared", "blob": "c74582170c1e99628bc851caa842957903913336"},
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "role": "shared", "blob": "0c54edee5b924994ad1ac5c44fa3c09253d2fbdb"}
   ],
   "nodes": [
     {"id": "DeveloperDiagnosticsHubView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 10, "match": "struct DeveloperDiagnosticsHubView: View {", "status": "VERIFIED", "by": "build"},
@@ -48,9 +49,9 @@
     {"id": "DocumentRow.iconName", "kind": "function", "path": "OpenIntelligence/Features/Documents/Components/DocumentRow.swift", "line": 37, "match": "private func iconName(for type: DocumentType) -> String {", "status": "VERIFIED", "by": "build"},
     {"id": "ChunkRowView", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 388, "match": "struct ChunkRowView: View {", "status": "VERIFIED", "by": "build"},
     {"id": "ChunkInspectionResult", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 659, "match": "struct ChunkInspectionResult: Identifiable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.countPatternInCorpus", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 1698, "match": "func countPatternInCorpus(pattern: String, containerId: UUID? = nil) async -> [UUID: Int] {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.countPatternInCorpus", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "line": 164, "match": "func countPatternInCorpus(pattern: String, containerId: UUID? = nil) async -> [UUID: Int] {", "status": "VERIFIED", "by": "build"},
     {"id": "CorpusVerificationResult", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift", "line": 677, "match": "struct CorpusVerificationResult {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.search", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 1557, "match": "func search(query: String, containerId: UUID? = nil, limit: Int = 20) async -> [FTS5SearchResult] {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.search", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "line": 23, "match": "func search(query: String, containerId: UUID? = nil, limit: Int = 20) async -> [FTS5SearchResult] {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.searchDocumentsRaw", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift", "line": 527, "match": "func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float? = nil) async throws -> [RetrievedChunk]", "status": "VERIFIED", "by": "build"},
     {"id": "DeveloperDiagnosticsHubView.body", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift", "line": 21, "match": "var body: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ModernStatusCard", "kind": "view", "path": "OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift", "line": 370, "match": "struct ModernStatusCard: View {", "status": "VERIFIED", "by": "build"},

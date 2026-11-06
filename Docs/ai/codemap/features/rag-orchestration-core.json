@@ -4,7 +4,7 @@
   "name": "RAG Orchestration Core",
   "aliases": ["RAG service", "core RAG engine", "query runtime coordinator", "query pipeline", "knowledge retrieval engine"],
   "purpose": "Runs a question end to end: retrieval, reranking, the model plan, generation and citations.",
-  "revision": "e68facb2",
+  "revision": "6e9871df",
   "verified_on": "2026-11-05",
   "entry_points": ["RAGService", "RAGService.queryInternal", "RAGEngine", "QueryRuntimeCoordinator", "RAGQuery", "RAGService.query", "RAGService.generateWithFallback", "RAGService.rebuildLLMServicesFromSettings"],
   "files": [
@@ -44,7 +44,8 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Storage.swift", "role": "primary", "blob": "94a35e18abdcf7359bc6d5627e10cf8f519e8948"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift", "role": "primary", "blob": "706a46bc936b951d314bbe130389550ed449fad3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift", "role": "primary", "blob": "de98218afe9aa6487faeb2b4b564ffe8d9131702"},
-    {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "primary", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"}
+    {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "primary", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "role": "shared", "blob": "0c54edee5b924994ad1ac5c44fa3c09253d2fbdb"}
   ],
   "nodes": [
     {"id": "RAGService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 31, "match": "class RAGService: ObservableObject {", "status": "VERIFIED", "by": "build"},
@@ -53,8 +54,8 @@
     {"id": "InferenceConfig", "kind": "model", "path": "OpenIntelligence/Core/Models/LLMModel.swift", "line": 121, "match": "struct InferenceConfig {", "status": "VERIFIED", "by": "build"},
     {"id": "FoundationModelDynamicProfileRegistry.profile", "kind": "function", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelDynamicProfileRegistry.swift", "line": 95, "match": "static func profile(for intent: AnswerIntent) -> FoundationModelDynamicProfile {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGQuery", "kind": "model", "path": "OpenIntelligence/Core/Models/RAGQuery.swift", "line": 11, "match": "struct RAGQuery: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.normalizeQuery", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 3366, "match": "static func normalizeQuery(_ query: String) -> String {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.getCachedQuery", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 3377, "match": "func getCachedQuery(normalizedQuery: String, containerId: UUID) async -> (embedding: [Float], results: [RetrievedChunk])? {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.normalizeQuery", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "line": 318, "match": "static func normalizeQuery(_ query: String) -> String {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.getCachedQuery", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "line": 329, "match": "func getCachedQuery(normalizedQuery: String, containerId: UUID) async -> (embedding: [Float], results: [RetrievedChunk])? {", "status": "VERIFIED", "by": "build"},
     {"id": "CorpusVocabulary.build", "kind": "function", "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 1160, "match": "static func build(from chunks: [DocumentChunk]) -> CorpusVocabulary {", "status": "VERIFIED", "by": "build"},
     {"id": "QueryEnhancementService", "kind": "service", "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 172, "match": "final class QueryEnhancementService {", "status": "VERIFIED", "by": "build"},
     {"id": "QueryRewriterService", "kind": "service", "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "line": 57, "match": "final class QueryRewriterService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},

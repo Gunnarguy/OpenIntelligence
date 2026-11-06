@@ -4,7 +4,7 @@
   "name": "Document Ingestion Pipeline",
   "aliases": ["document ingestion", "ingestion pipeline", "import documents", "importing documents", "import PDFs", "choose documents to import", "document processor", "Vision OCR fallback", "OCR configuration", "stage ledger", "ingestion queue", "the import", "an import", "importing a", "OCR", "scanned pages"],
   "purpose": "Turns an imported file into text, pages and chunks through staged extraction, with Vision OCR as the fallback, and shows the import queue's progress.",
-  "revision": "36482725",
+  "revision": "6e9871df",
   "verified_on": "2026-11-05",
   "entry_points": ["DocumentLibraryView.enqueueDocumentIngestion", "RAGService.enqueueDocuments", "RAGService.runIngestionLoop", "RAGService.addDocument", "RAGService.importLargePDFStreamed", "DocumentProcessor.processDocument", "DocumentProcessor.extractStructuredPDFContent", "DocumentProcessor.performOCR", "IngestionQueueOverlay"],
   "files": [
@@ -83,7 +83,9 @@
     {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "shared", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Sending.swift", "role": "shared", "blob": "c34ad91804ef3bf3372186d1fd2c4d906496c221"},
-    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"}
+    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"},
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "role": "shared", "blob": "0238f065e864fa4f14cdb6756b1e13254af04ded"},
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2045, "match": "private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {", "status": "VERIFIED", "by": "build"},
@@ -105,7 +107,7 @@
     {"id": "ChunkingDirective", "kind": "model", "path": "OpenIntelligence/Core/Models/KnowledgeContainer.swift", "line": 401, "match": "struct ChunkingDirective: Codable, Equatable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "GazetteerService.extractAndAddTerms", "kind": "function", "path": "OpenIntelligence/Services/Document/Extraction/GazetteerService.swift", "line": 88, "match": "func extractAndAddTerms(from text: String, source: String = \"document\") {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentChunk", "kind": "model", "path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "line": 12, "match": "struct DocumentChunk: Identifiable, Codable, Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.storeChunks", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 834, "match": "func storeChunks(", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.storeChunks", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "line": 108, "match": "func storeChunks(", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerVocabularyService.learnFromChunk", "kind": "function", "path": "OpenIntelligence/Services/RAG/Retrieval/ContainerVocabularyService.swift", "line": 119, "match": "func learnFromChunk(_ text: String, containerId: UUID) async {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerVocabularyService.learnFromDetectedEntities", "kind": "function", "path": "OpenIntelligence/Services/RAG/Retrieval/ContainerVocabularyService.swift", "line": 153, "match": "func learnFromDetectedEntities(_ entities: [(type: String, value: String)], containerId: UUID) async {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerVocabularyService.documentIngested", "kind": "function", "path": "OpenIntelligence/Services/RAG/Retrieval/ContainerVocabularyService.swift", "line": 182, "match": "func documentIngested(_ filename: String, containerId: UUID) async {", "status": "VERIFIED", "by": "build"},
@@ -130,11 +132,11 @@
     {"id": "StructuredDocumentParser.setDocumentCustomWords", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift", "line": 589, "match": "func setDocumentCustomWords(_ words: [String]) {", "status": "VERIFIED", "by": "build"},
     {"id": "StreamingXMLProcessor", "kind": "model", "path": "OpenIntelligence/Services/Document/Processing/StreamingXMLProcessor.swift", "line": 24, "match": "final class StreamingXMLProcessor: NSObject, XMLParserDelegate {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentProcessor.ProcessedChunk", "kind": "model", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 45, "match": "struct ProcessedChunk: Sendable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.store", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 362, "match": "func store(text: String, for documentId: UUID, containerId: UUID, append: Bool = false) async {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.store", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "line": 22, "match": "func store(text: String, for documentId: UUID, containerId: UUID, append: Bool = false) async {", "status": "VERIFIED", "by": "build"},
     {"id": "FullTextStorageService.store", "kind": "function", "path": "OpenIntelligence/Services/Storage/FullTextStorageService.swift", "line": 70, "match": "func store(text: String, for documentId: UUID) async {", "status": "VERIFIED", "by": "build"},
     {"id": "OCRConfiguration.filterGarbageText", "kind": "function", "path": "OpenIntelligence/Services/Document/Config/OCRConfiguration.swift", "line": 591, "match": "static func filterGarbageText(", "status": "VERIFIED", "by": "build"},
     {"id": "OCRConfiguration.normalizeExtractedText", "kind": "function", "path": "OpenIntelligence/Services/Document/Config/OCRConfiguration.swift", "line": 660, "match": "nonisolated static func normalizeExtractedText(", "status": "VERIFIED", "by": "build"},
-    {"id": "SQLiteFullTextService.storePages", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 438, "match": "func storePages(pages: [(pageNumber: Int, content: String)], for documentId: UUID, containerId: UUID, append: Bool = false) async {", "status": "VERIFIED", "by": "build"},
+    {"id": "SQLiteFullTextService.storePages", "kind": "function", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "line": 98, "match": "func storePages(pages: [(pageNumber: Int, content: String)], for documentId: UUID, containerId: UUID, append: Bool = false) async {", "status": "VERIFIED", "by": "build"},
     {"id": "IngestionStageLedger", "kind": "model", "path": "OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift", "line": 151, "match": "struct IngestionStageLedger: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "SemanticChunker", "kind": "model", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 52, "match": "class SemanticChunker {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentProcessor.extractStructuredPDFContent", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 32, "match": "func extractStructuredPDFContent(url: URL, pageRange: ClosedRange<Int>? = nil) async throws -> StructuredExtractionResult {", "status": "VERIFIED", "by": "build"},
