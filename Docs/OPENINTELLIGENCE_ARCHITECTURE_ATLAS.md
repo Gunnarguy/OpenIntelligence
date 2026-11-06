@@ -742,8 +742,9 @@ supposed to be agentic.
   `.answer` or `.search(query)`, and re-retrieves on demand. It has two call sites,
   both reached only in Deep Think and only after the chain has finished: research after a chain from
   an excellent first search (up to 5 rounds), and the research call inside Deep Think's Self-RAG loop
-  after an excellent or good one (up to 3 rounds a call, and at most two calls, because the loop stops
-  at its third strike before researching). Maximum reaches neither. (Corrected 2026-10-20: this said
+  after an excellent or good one (up to 3 rounds a call, and from 5.8 one call an answer: a second retry
+  verdict stops the loop, since research takes only the question; through 5.7 at most two calls, the third strike
+  stopping it). Maximum reaches neither. (Corrected 2026-10-20: this said
   exactly one call site, which the 2026-10-18 note below already contradicts.)
   `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.swift:386-472, AgenticOrchestrator.swift:526-575, AgenticOrchestrator.swift:639, AgenticOrchestrator.swift:745, AgenticOrchestrator+SelfRAG.swift:463-527]`
   `[evidence_level: grep_verified, confidence: exact, evidence_source: grep -rn "executeRecursiveResearch(" OpenIntelligence OpenIntelligenceTests finds only AgenticOrchestrator.swift:572 and AgenticOrchestrator+SelfRAG.swift:528]`
@@ -772,6 +773,12 @@ supposed to be agentic.
   `loopResearchVerdict`, which applies the first site's checks (`researchMayReplaceSynthesis`,
   `shouldAcceptReplacement`, the evidence-dump and retrieval-miss checks), and the loop stops with its
   answer when research's answer doesn't agree with it rather than running research again. `[evidence: test_verified for loopResearchVerdict, AnswerReplacementGuardTests; code_verified for the two call sites; not run on a Deep Think question]`
+  **Changed 2026-11-05, for 5.8:** a `.keep` still let the loop go round, check the unchanged answer again and run
+  research a second time, and research takes only the question, so that run repeated the first. On the owner's
+  iPhone on 2026-11-05 two of three loops did this and kept the same answer both times (9.3 s and 4.7 s for the
+  second run; the second time the same 2,295-character decision prompt and the same 648 tokens in and 23 out).
+  `loopMayRunResearch` now lets the loop run research once; the check after it still runs, with the passages research
+  added. `[evidence: test_verified for loopMayRunResearch, AnswerReplacementGuardTests; code_verified, AgenticOrchestrator+SelfRAG.swift:525; artifact_derived for the two loops, his iPhone trace 2026-11-05 13:05 and 21:48 PT; the fixed loop not yet run on a device]`
 
 - **Synthesis truncation was removing the highest-ranked chunk, and it is now budgeted rather than
   cut.** `executeDirectSynthesis` and `executeSynthesisStep` each ended in a hardcoded

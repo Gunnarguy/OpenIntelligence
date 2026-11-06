@@ -394,6 +394,15 @@ extension AgenticOrchestrator {
         return shouldAcceptReplacement(previous: answer, replacement: research) ? .replace : .keep
     }
 
+    /// Whether the Self-RAG loop may run research for its answer (5.8): once. Research takes only the question, so a
+    /// second run in the same loop repeats the first. On the owner's iPhone on 2026-11-05 two loops ran it twice, and
+    /// both kept the same answer: the second run cost 9.3 s (a 153-character answer after a 247-character one) and 4.7 s
+    /// (92 characters both times, the same prompt and the same token counts). The check after research still runs,
+    /// with the passages research added, so an answer those passages now support can still pass it.
+    nonisolated static func loopMayRunResearch(researchRuns: Int) -> Bool {
+        researchRuns == 0
+    }
+
     /// The words of an answer that carry its content: lowercased, three letters or more or a number,
     /// without stop words, and a number written as a word ("nine") counted as its digits ("9").
     nonisolated static func answerWords(in text: String) -> Set<String> {
@@ -475,6 +484,7 @@ extension AgenticOrchestrator {
 
         var strikeCount = 0
         let maxStrikes = 3
+        var researchRuns = 0
 
         while strikeCount < maxStrikes {
             let verification = await verifySelfRAG(
@@ -511,6 +521,15 @@ extension AgenticOrchestrator {
                         category: .llm)
                     break
                 }
+
+                guard Self.loopMayRunResearch(researchRuns: researchRuns) else {
+                    Log.info(
+                        "[Agentic] Self-RAG: research already ran for this answer and takes only the question, "
+                            + "so another run would repeat it. Keeping the answer (\(currentAnswer.count) chars).",
+                        category: .llm)
+                    break
+                }
+                researchRuns += 1
 
                 // Try recursive research as backup.
                 //

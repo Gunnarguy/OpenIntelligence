@@ -4,7 +4,7 @@
   "name": "Quality Modes and Agentic Orchestrator",
   "aliases": ["quality modes", "Deep Think", "Maximum mode", "Standard mode", "agentic orchestrator", "multi-step reasoning", "conversation memory"],
   "purpose": "Runs the Deep Think and Maximum quality modes as multi-step reasoning over the library, with conversation memory.",
-  "revision": "e68facb2",
+  "revision": "e669436b",
   "verified_on": "2026-11-05",
   "entry_points": ["RAGQualityMode", "AgenticOrchestrator.execute", "AgenticOrchestrator", "ConversationMemoryService", "ResponseTransformService"],
   "files": [
@@ -13,7 +13,7 @@
     {"path": "OpenIntelligence/Services/Agentic/ConversationMemoryService.swift", "role": "primary", "blob": "94c39f3e431dee84a067eef4b566869c9907c5f3"},
     {"path": "OpenIntelligence/Services/Agentic/ResponseTransformService.swift", "role": "primary", "blob": "38d1060a516b9aa34a27394fc90449eacc52983f"},
     {"path": "OpenIntelligence/Services/Agentic/ToolCallCounter.swift", "role": "primary", "blob": "2503e4558e02c9acff23d80354431509750985a3"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift", "role": "test", "blob": "4004de08939de3d4873b796506b8ee29fa0f202a"},
+    {"path": "OpenIntelligenceTests/Services/Agentic/AnswerReplacementGuardTests.swift", "role": "test", "blob": "5afceab4c1ba7e67b00c54b4fa30dcd04386b8be"},
     {"path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "role": "test", "blob": "b2a3daa032e951d8af61ac5445e358548d7f0735"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift", "role": "test", "blob": "1239543431bbd009aaff59edd0de8c131b769dcd"},
     {"path": "OpenIntelligence/Services/Agentic/SessionEvidencePlan.swift", "role": "primary", "blob": "663efa7d4017b0593a17355f5c81c654131520f1"},
@@ -24,7 +24,7 @@
     {"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift", "role": "primary", "blob": "034606ba884129272752b10f5c989cfcb3482a27"},
     {"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Research.swift", "role": "primary", "blob": "ec93898d4ff1bbaa22e38569b05a0c9fab4ee807"},
     {"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift", "role": "primary", "blob": "7a6b0706cf0bb0b7a2cb91f8e57fa5b75235bebe"},
-    {"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+SelfRAG.swift", "role": "primary", "blob": "2e22bde4c32d29ed03637102c2b9e84fc40afe42"},
+    {"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+SelfRAG.swift", "role": "primary", "blob": "0e68f8d8fec1c61837699a033af5e07d30e1da43"},
     {"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Types.swift", "role": "primary", "blob": "9a9d757f63f172eb53f80e60c14c3626d3905593"}
   ],
   "nodes": [

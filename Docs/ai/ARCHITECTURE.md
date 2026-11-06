@@ -93,7 +93,7 @@ RAGService.swift:N` (map in `Docs/ai/split-2026-11-05-linemap.json`, lines as of
 | `AgenticOrchestrator+Types.swift` | 358 | `ThinkingStep`, `AgenticConfig`, `AgenticResult`, chain and cluster configs, `AgenticError` |
 | `AgenticOrchestrator+Retrieval.swift` | 1,719 | retrieval quality, evidence budget, step executors, `executeMultiQuerySearch`, cross-references, graph expansion |
 | `AgenticOrchestrator+Research.swift` | 511 | the recursive research loop |
-| `AgenticOrchestrator+SelfRAG.swift` | 1,191 | Self-RAG, Self-RAG 2.0 verification and citations, speculative RAG |
+| `AgenticOrchestrator+SelfRAG.swift` | 1,210 | Self-RAG, Self-RAG 2.0 verification and citations, speculative RAG |
 | `AgenticOrchestrator+ReasoningChain.swift` | 1,317 | `executeReasoningChain` (Deep Think's sessions) |
 | `AgenticOrchestrator+Maximum.swift` | 1,539 | `executeTrueUnlimitedReasoning` (Maximum) |
 | `AgenticOrchestrator+MultiChain.swift` | 1,536 | multi-chain execution |

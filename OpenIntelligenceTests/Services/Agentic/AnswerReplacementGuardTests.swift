@@ -113,6 +113,14 @@ final class AnswerReplacementGuardTests: XCTestCase {
             .keep)
     }
 
+    /// The Self-RAG loop runs research once (5.8): research takes only the question, so a second run repeats the first
+    /// (on 2026-11-05 two loops on the owner's iPhone ran it twice and kept the same answer both times).
+    func testTheLoopRunsResearchOnce() {
+        XCTAssertTrue(AgenticOrchestrator.loopMayRunResearch(researchRuns: 0))
+        XCTAssertFalse(AgenticOrchestrator.loopMayRunResearch(researchRuns: 1))
+        XCTAssertFalse(AgenticOrchestrator.loopMayRunResearch(researchRuns: 2))
+    }
+
     /// The right line from the same day agrees with the synthesis: it may replace it.
     func testAOneLineAnswerThatAgreesWithTheSynthesisReplacesIt() {
         XCTAssertTrue(
