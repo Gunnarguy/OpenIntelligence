@@ -4,7 +4,7 @@
   "name": "Document Ingestion Pipeline",
   "aliases": ["document ingestion", "ingestion pipeline", "import documents", "importing documents", "import PDFs", "choose documents to import", "document processor", "Vision OCR fallback", "OCR configuration", "stage ledger", "ingestion queue", "the import", "an import", "importing a", "OCR", "scanned pages"],
   "purpose": "Turns an imported file into text, pages and chunks through staged extraction, with Vision OCR as the fallback, and shows the import queue's progress.",
-  "revision": "fe3df217",
+  "revision": "36482725",
   "verified_on": "2026-11-05",
   "entry_points": ["DocumentLibraryView.enqueueDocumentIngestion", "RAGService.enqueueDocuments", "RAGService.runIngestionLoop", "RAGService.addDocument", "RAGService.importLargePDFStreamed", "DocumentProcessor.processDocument", "DocumentProcessor.extractStructuredPDFContent", "DocumentProcessor.performOCR", "IngestionQueueOverlay"],
   "files": [
@@ -82,7 +82,8 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift", "role": "shared", "blob": "de98218afe9aa6487faeb2b4b564ffe8d9131702"},
     {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "shared", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Sending.swift", "role": "shared", "blob": "c34ad91804ef3bf3372186d1fd2c4d906496c221"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Sending.swift", "role": "shared", "blob": "c34ad91804ef3bf3372186d1fd2c4d906496c221"},
+    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift", "line": 2045, "match": "private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {", "status": "VERIFIED", "by": "build"},
@@ -123,7 +124,7 @@
     {"id": "ChatScreen.handleAttachments", "kind": "function", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Sending.swift", "line": 106, "match": "private func handleAttachments(_ urls: [URL]) {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.importLargePDFStreamed", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 19, "match": "func importLargePDFStreamed(", "status": "VERIFIED", "by": "build"},
     {"id": "StreamingIngestionState", "kind": "model", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 8, "match": "struct StreamingIngestionState: Codable {", "status": "VERIFIED", "by": "build"},
-    {"id": "SuggestedQuestionsService.generateQuestionsForIngestedDocument", "kind": "function", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift", "line": 323, "match": "func generateQuestionsForIngestedDocument(", "status": "VERIFIED", "by": "build"},
+    {"id": "SuggestedQuestionsService.generateQuestionsForIngestedDocument", "kind": "function", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "line": 66, "match": "func generateQuestionsForIngestedDocument(", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentProcessor.computeDocumentFingerprint", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Checkpointing.swift", "line": 48, "match": "func computeDocumentFingerprint(at url: URL) -> String {", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentProcessor.checkpointDirectoryURL", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Checkpointing.swift", "line": 37, "match": "func checkpointDirectoryURL(for fingerprint: String) -> URL {", "status": "VERIFIED", "by": "build"},
     {"id": "StructuredDocumentParser.setDocumentCustomWords", "kind": "function", "path": "OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift", "line": 589, "match": "func setDocumentCustomWords(_ words: [String]) {", "status": "VERIFIED", "by": "build"},

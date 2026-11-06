@@ -338,7 +338,7 @@ A library reads as Automatic while tuning after an import may still change it; o
 
 ## Suggested questions
 
-`Services/Query/UX/SuggestedQuestionsService.swift` writes the chips on the Chat tab's empty state.
+`Services/Query/UX/SuggestedQuestionsService.swift` writes the chips on the Chat tab's empty state. Since the 2026-11-05 split (5.8, a pure move) the actor's steps sit in files of their own: `+Bank` (the persisted bank and the public API), `+ChunkSelection` (step 1), `+LLMGeneration` (step 2), `+ContentFallback` (steps 3 and 4) and `+Grounding`; `scripts/split_linemap.py SuggestedQuestionsService.swift:N` finds where an older line went.
 It is retrieval-adjacent rather than retrieval: it reads chunks, never the index. Three paths,
 in the order they are tried:
 
