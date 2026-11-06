@@ -4,7 +4,7 @@
   "name": "Vector Embeddings",
   "aliases": ["embedding service", "embedding provider", "Core ML sentence embeddings", "contextual embeddings", "adaptive embedding optimizer", "embedding model", "embeddings"],
   "purpose": "Turns chunks and queries into vectors with the library's embedding provider (Core ML, Apple Foundation Models or NaturalLanguage).",
-  "revision": "21f71b54",
+  "revision": "950262e3",
   "verified_on": "2026-11-05",
   "entry_points": ["EmbeddingService", "LibraryIntelligenceCenter", "CoreAISentenceEmbeddingProvider", "CoreMLSentenceEmbeddingProvider", "NLContextualEmbeddingProvider", "EmbeddingService.generateEmbeddings"],
   "files": [
@@ -27,7 +27,8 @@
     {"path": "OpenIntelligenceTests/Services/Storage/LibraryAnalysisScaleBenchmarkTests.swift", "role": "test", "blob": "65e59e500eda432deda02b8fe5ef3c549165fe67"},
     {"path": "OpenIntelligenceTests/Services/Embedding/IngestionModeSwitchTests.swift", "role": "test", "blob": "8896ec8b5b7edd2c483883bfdbe351aeae50d7cb"},
     {"path": "OpenIntelligenceTests/Services/Embedding/EmbeddingConcurrencyIdentityTests.swift", "role": "test", "blob": "479ec217c2de64300e83af3584d0c4a3a1f4c083"},
-    {"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker+Boundaries.swift", "role": "shared", "blob": "4b0a62d92bf3cbb04ec014931c7134f2e544c3ed"}
+    {"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker+Boundaries.swift", "role": "shared", "blob": "4b0a62d92bf3cbb04ec014931c7134f2e544c3ed"},
+    {"path": "OpenIntelligence/Features/Database/LibraryIntelligenceCard.swift", "role": "shared", "blob": "5a8a60e996861c1f0d8c968b400c497c6b356768"}
   ],
   "nodes": [
     {"id": "EmbeddingService", "kind": "service", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 14, "match": "class EmbeddingService {", "status": "VERIFIED", "by": "build"},
@@ -38,7 +39,7 @@
     {"id": "ExtractiveSummarizationService.embeddingService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 68, "match": "private let embeddingService: EmbeddingService", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.importLargePDFStreamed", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 19, "match": "func importLargePDFStreamed(", "status": "VERIFIED", "by": "build"},
     {"id": "LibraryIntelligenceCenter", "kind": "model", "path": "OpenIntelligence/Services/Embedding/AdaptiveEmbeddingOptimizer.swift", "line": 15, "match": "actor LibraryIntelligenceCenter {", "status": "VERIFIED", "by": "build"},
-    {"id": "LibraryIntelligenceCard.intelligenceReport", "kind": "model", "path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2172, "match": "let intelligenceReport: LibraryIntelligenceCenter.IntelligenceReport?", "status": "VERIFIED", "by": "build"},
+    {"id": "LibraryIntelligenceCard.intelligenceReport", "kind": "model", "path": "OpenIntelligence/Features/Database/LibraryIntelligenceCard.swift", "line": 16, "match": "let intelligenceReport: LibraryIntelligenceCenter.IntelligenceReport?", "status": "VERIFIED", "by": "build"},
     {"id": "RAGPipelineAuditView.intelligenceReport", "kind": "model", "path": "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift", "line": 18, "match": "private var intelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerSettingsSheet.corpusIntelligenceCard", "kind": "function", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift", "line": 388, "match": "private func corpusIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {", "status": "VERIFIED", "by": "build"},
     {"id": "ContainerSettingsSheet.activeIntelligenceReport", "kind": "model", "path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 72, "match": "var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {", "status": "VERIFIED", "by": "build"},
@@ -75,7 +76,7 @@
     {"from": "SemanticChunker.embeddingService", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 74, "match": "var embeddingService: EmbeddingService?"}], "by": "build", "note": "named there"},
     {"from": "ExtractiveSummarizationService.embeddingService", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift", "line": 68, "match": "private let embeddingService: EmbeddingService"}], "by": "build", "note": "named there"},
     {"from": "RAGService.importLargePDFStreamed", "type": "depends_on", "to": "EmbeddingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 27, "match": "containerEmbeddingService: EmbeddingService"}], "by": "build", "note": "named there"},
-    {"from": "LibraryIntelligenceCard.intelligenceReport", "type": "depends_on", "to": "LibraryIntelligenceCenter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/DatabaseDashboardView.swift", "line": 2172, "match": "let intelligenceReport: LibraryIntelligenceCenter.IntelligenceReport?"}], "by": "build", "note": "named there"},
+    {"from": "LibraryIntelligenceCard.intelligenceReport", "type": "depends_on", "to": "LibraryIntelligenceCenter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Database/LibraryIntelligenceCard.swift", "line": 16, "match": "let intelligenceReport: LibraryIntelligenceCenter.IntelligenceReport?"}], "by": "build", "note": "named there"},
     {"from": "RAGPipelineAuditView.intelligenceReport", "type": "depends_on", "to": "LibraryIntelligenceCenter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift", "line": 18, "match": "private var intelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {"}], "by": "build", "note": "named there"},
     {"from": "ContainerSettingsSheet.corpusIntelligenceCard", "type": "depends_on", "to": "LibraryIntelligenceCenter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift", "line": 388, "match": "private func corpusIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {"}], "by": "build", "note": "named there"},
     {"from": "ContainerSettingsSheet.activeIntelligenceReport", "type": "depends_on", "to": "LibraryIntelligenceCenter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift", "line": 72, "match": "var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {"}], "by": "build", "note": "named there"},
