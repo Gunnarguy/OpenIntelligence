@@ -4,7 +4,7 @@
   "name": "Hybrid Retrieval and Fusion",
   "aliases": ["hybrid retrieval", "hybrid search", "BM25 scoring", "reciprocal rank fusion", "reranking", "cross-encoder reranker", "context packing", "iterative retrieval", "retrieval trace", "reranker", "rerank"],
   "purpose": "Finds the chunks for a question by running vector and keyword search together, fusing them with reciprocal rank fusion, reranking, and packing the context.",
-  "revision": "fe3df217",
+  "revision": "81b03ee8",
   "verified_on": "2026-11-05",
   "entry_points": ["HybridSearchService", "RAGEngine.reciprocalRankFusion", "RAGEngine.rerank", "RAGEngine.rerankWithCrossEncoder", "ContextPackingService", "IterativeRetrievalService", "RetrievalTraceCollector.Stage"],
   "files": [
@@ -24,7 +24,8 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/HybridSearchServiceTests.swift", "role": "test", "blob": "6a7f6fd8976768170687a4a3a580a077338bb112"},
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/ParentDocumentServiceTests.swift", "role": "test", "blob": "06a358abbe1ffc67c59858a4b8bb004caf2e9b39"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/MMRStoredVectorsTests.swift", "role": "test", "blob": "480c62ec7158d4b35bd840e508198ddfd96f75d2"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
+    {"path": "OpenIntelligence/Features/Telemetry/Visualizations/PipelineTimelineView.swift", "role": "shared", "blob": "4af4c49a5644e9720fc4e99e1454c4e2f8ae259a"}
   ],
   "nodes": [
     {"id": "HybridSearchService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift", "line": 161, "match": "class HybridSearchService {", "status": "VERIFIED", "by": "build"},
@@ -58,7 +59,7 @@
     {"id": "IterativeRetrievalService.ConfidenceAssessment", "kind": "service", "path": "OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift", "line": 272, "match": "private struct ConfidenceAssessment {", "status": "VERIFIED", "by": "build"},
     {"id": "EmbeddingService.generateEmbedding", "kind": "function", "path": "OpenIntelligence/Services/Embedding/EmbeddingService.swift", "line": 263, "match": "func generateEmbedding(for text: String) async throws -> [Float] {", "status": "VERIFIED", "by": "build"},
     {"id": "RetrievalTraceCollector.Stage", "kind": "model", "path": "OpenIntelligence/Services/RAG/Retrieval/RetrievalTraceCollector.swift", "line": 70, "match": "enum Stage: String, CaseIterable {", "status": "VERIFIED", "by": "build"},
-    {"id": "PipelineTimelineView.Stage", "kind": "model", "path": "OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift", "line": 2306, "match": "private struct Stage: Identifiable {", "status": "VERIFIED", "by": "build"},
+    {"id": "PipelineTimelineView.Stage", "kind": "model", "path": "OpenIntelligence/Features/Telemetry/Visualizations/PipelineTimelineView.swift", "line": 18, "match": "private struct Stage: Identifiable {", "status": "VERIFIED", "by": "build"},
     {"id": "IngestionStageLedger.Stage", "kind": "model", "path": "OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift", "line": 156, "match": "enum Stage: String, CaseIterable {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGEvalRunner.evaluate", "kind": "function", "path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 48, "match": "func evaluate(", "status": "VERIFIED", "by": "build"},
     {"id": "test:IngestionStageLedgerTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Document/Processing/IngestionStageLedgerTests.swift", "line": 1, "match": "//", "status": "VERIFIED", "by": "build"},
@@ -99,7 +100,7 @@
     {"from": "IterativeRetrievalService", "type": "calls", "to": "EmbeddingService.generateEmbedding", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift", "line": 159, "match": "let embedding = try await embeddingService.generateEmbedding(for: currentQuery)"}], "by": "build", "note": "named in the body"},
     {"from": "IterativeRetrievalService", "type": "calls", "to": "RAGEngine.rerank", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift", "line": 243, "match": "let reranked = await ragEngine.rerank("}], "by": "build", "note": "named in the body"},
     {"from": "DebugRAGValidationHarness.stageMetricsLines", "type": "depends_on", "to": "RetrievalTraceCollector.Stage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/DebugRAGValidationHarness.swift", "line": 500, "match": "let traces = trace.stages(inOrder: RetrievalTraceCollector.Stage.allCases)"}], "by": "build", "note": "named there"},
-    {"from": "PipelineTimelineView.Stage", "type": "depends_on", "to": "RetrievalTraceCollector.Stage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift", "line": 2306, "match": "private struct Stage: Identifiable {"}], "by": "build", "note": "named there"},
+    {"from": "PipelineTimelineView.Stage", "type": "depends_on", "to": "RetrievalTraceCollector.Stage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Features/Telemetry/Visualizations/PipelineTimelineView.swift", "line": 18, "match": "private struct Stage: Identifiable {"}], "by": "build", "note": "named there"},
     {"from": "IngestionStageLedger.Stage", "type": "depends_on", "to": "RetrievalTraceCollector.Stage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift", "line": 156, "match": "enum Stage: String, CaseIterable {"}], "by": "build", "note": "named there"},
     {"from": "RAGEvalRunner.evaluate", "type": "depends_on", "to": "RetrievalTraceCollector.Stage", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift", "line": 199, "match": "let traces = trace.stages(inOrder: RetrievalTraceCollector.Stage.allCases)"}], "by": "build", "note": "named there"},
     {"from": "RetrievalTraceCollector.Stage", "type": "tested_by", "to": "test:IngestionStageLedgerTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Document/Processing/IngestionStageLedgerTests.swift", "line": 47, "match": "XCTAssertEqual(IngestionStageLedger.Stage.sanitized.conservationFromPredecessor, .exact)"}], "by": "build", "note": "the test names it"},
