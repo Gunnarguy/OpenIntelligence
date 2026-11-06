@@ -4,7 +4,7 @@ Updated: 2026-11-05 about 17:45 PT (5.8 open; all work committed locally with `[
 and Mac since 2026-10-22, build 487. Xcode Cloud build 488 (`fb225053`) is VALID on both platforms and attached to
 neither record.)
 Branch/worktree: `main`, primary checkout
-Last verified commit: e68facb2
+Last verified commit: d355dda5
 
 ## Objective
 
@@ -88,8 +88,8 @@ now 5.8 and Future Backlog only. What remains is checks on his iPhone and Mac, t
 
 ## Exact Next Action
 
-**The RAGService/AgenticOrchestrator split is committed** (the commit after `e68facb2`; message starts "Split RAGService
-and AgenticOrchestrator"). Proven and read before committing: the move check (0 lines added or lost; original order
+**The RAGService/AgenticOrchestrator split is committed** as `d355dda5` ("Split RAGService and AgenticOrchestrator
+into files by job, a pure move"; not pushed). verify_doc_claims 0 failures at that commit (citations pinned to older commits now read `File.swift@sha:N`). A Debug device build of it was started 2026-11-05 evening and installs on his iPhone once it answers with the app closed (`BenchmarkRuns/2026-11-05-file-split/device_split.sh`, log `/private/tmp/oi58-device-split.log`); if the session ended first, check `xcrun devicectl device info apps` against the build time. Proven and read before committing: the move check (0 lines added or lost; original order
 except the 5 stored properties moved into the class by design; 236 access keywords removed across 204 names, no call can
 bind differently); iOS Simulator build-for-testing, macOS Debug build and iOS Release build all succeeded; golden harness
 760 of 760 identical to the code before the split in the same simulator state; full suite 1,199 passed, the 16 failures
@@ -98,8 +98,14 @@ left by a run the owner's closing the simulators cut off) and each passing on a 
 review found no behaviour change; codemap 0 errors, 0 warnings.
 
 **Waiting for the owner's "go"** to run `BenchmarkRuns/2026-11-05-file-split/OVERNIGHT.md` on the other 15 large
-files. Before starting: generalize `fix_access.py` (its setter search globs RAGService/Agentic files) and
-`prove_move.py` (its `pairs`) to the file being split, and name the groups in each `plans/*.json` by job. A stray
+files. The scripts there take any file as of 2026-11-05 evening: `access_loop.sh <label> <globs>`, `fix_access.py`
+(setter search limited to the globs), `prove_move.py --plan` (move, order and access-keyword counts; on the committed
+split against `e68facb2` it still reads 0 added, 0 lost, 236 removed) and `translate_citations.py --old/--merge/--base`
+(one run per file; it refuses a second). A dry run of `split_type.py` plus `prove_move.py --plan` on the SemanticChunker
+and SuggestedQuestionsService drafts read 0 added and 0 lost. Still for the night itself: name each `plans/*.json` by
+job (the drafts are cut by size: SQLiteFullTextService's first group takes the singleton, properties and init out of
+the main file) and write plans for the four files without one (DocumentLibraryView, LLMService, VisualizationsView,
+ContainerSettingsSheet+Sections). A stray
 `.git.nosync/.DS_Store` is reported by `scripts/check_icloud_conflicts.sh`; harmless (not in `refs/`), and the
 permission check refused deleting it, so the owner removes it if he wants.
 
