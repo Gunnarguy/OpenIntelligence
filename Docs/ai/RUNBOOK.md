@@ -642,7 +642,7 @@ files, bury the actual change in the diff, and touch hard-boundary files.
 There is no operator-invoked migration command. Migrations run inside the app at startup:
 `SQLiteFullTextService` tracks `PRAGMA user_version`, adds columns through `ensureColumnExists`, and
 carries `migrateFromFileStorage` and `migrateRowToContentTable` for older stores.
-`[evidence_level: code_verified, confidence: high, evidence_source: SQLiteFullTextService.swift:359, SQLiteFullTextService+Statistics.swift:418, SQLiteFullTextService+ContentReader.swift:76, SQLiteFullTextService.swift:407]`
+`[evidence_level: code_verified, confidence: high, evidence_source: SQLiteFullTextService.swift:359, SQLiteFullTextService+Statistics.swift:418, SQLiteFullTextService+ContentReader.swift:139, SQLiteFullTextService.swift:470]`
 
 The operational consequence is the constraint, not a command: a change to the FTS5 schema, the
 `BNNSVectorDatabase` on-disk format, or the embedding dimensionality forces every existing user to

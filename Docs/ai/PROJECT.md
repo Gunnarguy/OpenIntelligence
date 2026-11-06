@@ -33,7 +33,7 @@ developers, and product copy is read by people who will not check the source.
   Corrected 2026-10-20: "Office files" means `.docx`, `.xlsx` and `.pptx`, read from their zipped XML. A
   legacy `.doc`, `.xls` or `.ppt` does not open as a ZIP, and its import fails with "Office document
   detected. For best results, export as PDF before importing." `[evidence_level: code_verified,
-  confidence: high, evidence_source: DocumentProcessor+MediaAndOffice.swift:117-215, DocumentProcessor.swift:780-785, DocumentProcessor.swift:883-884]`
+  confidence: high, evidence_source: DocumentProcessor+MediaAndOffice.swift:133-231, DocumentProcessor.swift:796-801, DocumentProcessor.swift:899-900]`
 - On-device indexing: dense vectors plus a SQLite FTS5 keyword index.
   Corrected 2026-10-20: the vectors are 384 numbers a passage from MiniLM-L6-v2 (512 from `NLEmbedding`
   when it stands in), kept in one flat file per library in arrival order, rewritten whole at each save, and
@@ -41,7 +41,7 @@ developers, and product copy is read by people who will not check the source.
   (porter) and weights section titles. `Docs/INGESTION_PIPELINE.md` §4 has the detail. `[evidence_level:
   code_verified, confidence: high, evidence_source: CoreMLSentenceEmbeddingProvider.swift:66,
   EmbeddingService.swift:181-213, BNNSVectorDatabase.swift:26-41, 1104-1201, SQLiteFullTextService.swift:242-255,
-  1440-1461]`
+  SQLiteFullTextService+Chunks.swift:714-735]`
 - Hybrid retrieval with reciprocal rank fusion and cross-encoder reranking.
   Added 2026-10-20: the fusion is weighted, with `k = 60`. `[evidence_level: code_verified, confidence:
   exact, evidence_source: HybridSearchService.swift:1328-1334, QueryProfileService.swift:49-52]`
@@ -52,7 +52,7 @@ developers, and product copy is read by people who will not check the source.
   Just Once, Deny), and after Always Allow later sends are not asked about. PCC needs iOS or macOS 27, a
   build made with Swift 6.4 or later, the app's entitlement, and quota left. `[evidence_level:
   code_verified, confidence: high, evidence_source: SettingsStore.swift:44-50, 450-462, LLMModel.swift:218,
-  264-268, ChatScreen+Sending.swift:317-335, RAGService+SentenceExtraction.swift:624-673, FoundationModelSessionFactory.swift:86-110]`
+  264-268, ChatScreen+Sending.swift:316-334, RAGService+StandardRetrieval.swift:873-927, FoundationModelSessionFactory.swift:86-110]`
 - Three answer modes (added 2026-10-20): Standard, the default for a new install, gathers its evidence in
   one pipeline and writes the answer in one generation, with at most a citation retry and an integrity repair
   on the same route. The nine verification gates then run once and never send the answer back to the model:
@@ -63,8 +63,8 @@ developers, and product copy is read by people who will not check the source.
   picker, before a final synthesis, with no tools in any session. They run the gates from 5.7, as a label only
   (in 5.6 those answers read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop and its stop rules.
   `[evidence_level: code_verified, confidence: high, evidence_source: SettingsStore.swift:617-624,
-  RAGService+AgenticQuery.swift:602, 253-277, RAGService+QueryPipeline.swift:4381-4499, RAGService+QueryPipeline.swift:4678-4941, RAGService+QueryPipeline.swift:4977-5001, RAGService+Generation.swift:1648-1673,
-  AgenticOrchestrator.swift:180, 385-984, AgenticOrchestrator+ReasoningChain.swift:600, RAGService+Agentic.swift:156-168]`
+  RAGService+QueryPipeline.swift:252, RAGService+AgenticQuery.swift:802-826, RAGService+QueryPipeline.swift:4960-5078, RAGService+QueryPipeline.swift:5257-5520, RAGService+QueryPipeline.swift:5557-5581, RAGService+AnswerFinishing.swift:428-453,
+  AgenticOrchestrator.swift:180, 385-984, AgenticOrchestrator+ReasoningChain.swift:623, RAGService+Agentic.swift:208-220]`
 - iCloud sync of the document library across a user's own devices.
 - Siri Shortcuts and App Intents.
 - Paid tiers with quotas.
