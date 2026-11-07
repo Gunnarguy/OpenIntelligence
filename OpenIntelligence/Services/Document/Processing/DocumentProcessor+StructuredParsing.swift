@@ -1587,59 +1587,7 @@ extension DocumentProcessor {
                 }
 
                 if element.elementType == "figure", let imageAnalysis = element.imageAnalysis {
-                    let figureTitle = resolveFigureTitle(from: imageAnalysis)
-                    let siblingGroupId = siblingGroupIdentifier(
-                        prefix: "figure",
-                        pageNumber: element.pageNumber,
-                        title: figureTitle
-                    )
-                    let figureText = buildFigureChunkText(
-                        analyzed: imageAnalysis,
-                        filename: filename,
-                        sectionPath: currentSectionPath
-                    )
-                    let visualMetadata = makeChunkMetadata(
-                        chunkIndex: chunkIndex,
-                        text: figureText,
-                        pageNumber: element.pageNumber,
-                        sectionTitle: currentSectionTitle,
-                        structureType: "figure",
-                        chunkType: .prose,
-                        documentCategory: documentCategory,
-                        sectionPath: currentSectionPath,
-                        semanticDensity: 0.78,
-                        hasNumericData: figureText.rangeOfCharacter(from: .decimalDigits) != nil,
-                        hasListStructure: false,
-                        entities: imageClassificationLabels(from: imageAnalysis),
-                        siblingGroupId: siblingGroupId,
-                        bbox: imageAnalysis.boundingBox,
-                        imageContentType: imageAnalysis.contentType.rawValue,
-                        imageCaption: imageAnalysis.associatedCaption,
-                        imageDescription: imageAnalysis.description,
-                        imageExtractedText: imageAnalysis.extractedText,
-                        imageClassifications: imageClassificationLabels(from: imageAnalysis)
-                    )
-
-                    let maxAtomicWords = 380
-                    if countWords(figureText) > maxAtomicWords {
-                        let splitChunks = splitOversizedAtomicChunk(
-                            text: figureText,
-                            contextPrefix: "",
-                            element: element,
-                            baseMetadata: visualMetadata,
-                            parentText: currentSectionTitle,
-                            maxWords: maxAtomicWords
-                        )
-                        chunks.append(contentsOf: splitChunks)
-                        chunkIndex += splitChunks.count
-                    } else {
-                        chunks.append(ProcessedChunk(
-                            text: figureText,
-                            parentText: currentSectionTitle,
-                            metadata: visualMetadata
-                        ))
-                        chunkIndex += 1
-                    }
+                    appendFigureChunks(imageAnalysis: imageAnalysis, element: element, filename: filename, currentSectionPath: currentSectionPath, chunkIndex: &chunkIndex, currentSectionTitle: currentSectionTitle, documentCategory: documentCategory, chunks: &chunks)
 
                     continue
                 }
@@ -1672,6 +1620,64 @@ extension DocumentProcessor {
         logStructureBreakdown(chunks: chunks)
 
         return chunks
+    }
+
+    /// Step B12: turns a figure element with an image analysis into its chunk (split when oversized), its continue kept in the host.
+    /// Moved unchanged from `createStructureAwareChunks` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func appendFigureChunks(imageAnalysis: AnalyzedImage, element: DocumentProcessor.StructuredElementWrapper, filename: String, currentSectionPath: [String], chunkIndex: inout Int, currentSectionTitle: String?, documentCategory: DocumentSemanticCategory, chunks: inout [DocumentProcessor.ProcessedChunk]) {
+        let figureTitle = resolveFigureTitle(from: imageAnalysis)
+        let siblingGroupId = siblingGroupIdentifier(
+            prefix: "figure",
+            pageNumber: element.pageNumber,
+            title: figureTitle
+        )
+        let figureText = buildFigureChunkText(
+            analyzed: imageAnalysis,
+            filename: filename,
+            sectionPath: currentSectionPath
+        )
+        let visualMetadata = makeChunkMetadata(
+            chunkIndex: chunkIndex,
+            text: figureText,
+            pageNumber: element.pageNumber,
+            sectionTitle: currentSectionTitle,
+            structureType: "figure",
+            chunkType: .prose,
+            documentCategory: documentCategory,
+            sectionPath: currentSectionPath,
+            semanticDensity: 0.78,
+            hasNumericData: figureText.rangeOfCharacter(from: .decimalDigits) != nil,
+            hasListStructure: false,
+            entities: imageClassificationLabels(from: imageAnalysis),
+            siblingGroupId: siblingGroupId,
+            bbox: imageAnalysis.boundingBox,
+            imageContentType: imageAnalysis.contentType.rawValue,
+            imageCaption: imageAnalysis.associatedCaption,
+            imageDescription: imageAnalysis.description,
+            imageExtractedText: imageAnalysis.extractedText,
+            imageClassifications: imageClassificationLabels(from: imageAnalysis)
+        )
+
+        let maxAtomicWords = 380
+        if countWords(figureText) > maxAtomicWords {
+            let splitChunks = splitOversizedAtomicChunk(
+                text: figureText,
+                contextPrefix: "",
+                element: element,
+                baseMetadata: visualMetadata,
+                parentText: currentSectionTitle,
+                maxWords: maxAtomicWords
+            )
+            chunks.append(contentsOf: splitChunks)
+            chunkIndex += splitChunks.count
+        } else {
+            chunks.append(ProcessedChunk(
+                text: figureText,
+                parentText: currentSectionTitle,
+                metadata: visualMetadata
+            ))
+            chunkIndex += 1
+        }
     }
 
     /// Step B14: logs how many table, list and paragraph chunks the document produced.
