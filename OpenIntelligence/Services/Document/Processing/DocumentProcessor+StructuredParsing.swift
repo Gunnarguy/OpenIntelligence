@@ -342,85 +342,7 @@ extension DocumentProcessor {
                 renderPageForParsing(pageIndex: pageIndex, pdfDocument: pdfDocument, batchRenderData: &batchRenderData, pageComplexity: pageComplexity, documentTextLayerGarbled: documentTextLayerGarbled)
             }
 
-            // LAYOUT-AWARE EXTRACTION: Only for pages that need Vision
-            // Simple pages already have layoutText from PDFKit above
-            // This properly handles multi-column layouts by detecting columns spatially
-            let pagesNeedingVision = batchRenderData.filter { $0.pageImage != nil && $0.layoutText == nil }
-            if useHybridMode && !pagesNeedingVision.isEmpty {
-                // Emit layout extraction progress. Vision chooses the hardware it runs on.
-                await MainActor.run {
-                    self.emitProgress(
-                        stage: "layout",
-                        detail: "📐 Detecting columns for \(pagesNeedingVision.count) complex pages",
-                        page: batchStart,
-                        totalPages: pageCount
-                    )
-                }
-
-                var layoutResults: [Int: LayoutAnalysisResult] = [:]
-                await withTaskGroup(of: (Int, LayoutAnalysisResult?).self) { group in
-                    for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
-                        let renderData = batchRenderData[batchOffset]
-                        // ADAPTIVE: Skip pages that already have layoutText (PDFKit extraction)
-                        // Only run Vision on pages with images that need layout detection
-                        guard let pageImage = renderData.pageImage, renderData.layoutText == nil else { continue }
-
-                        group.addTask {
-                            let pageNumber = pageIndex + 1
-                            do {
-                                let layoutResult = try await layoutExtractor.extractWithLayout(
-                                    from: pageImage,
-                                    pageNumber: pageNumber
-                                )
-                                return (batchOffset, layoutResult)
-                            } catch {
-                                Log.warning("[DocumentProcessor] Layout extraction failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
-                                return (batchOffset, nil)
-                            }
-                        }
-                    }
-
-                    for await (offset, result) in group {
-                        if let result {
-                            layoutResults[offset] = result
-                        }
-                    }
-                }
-
-                // Emit layout complete progress
-                await MainActor.run {
-                    self.emitProgress(
-                        stage: "layout",
-                        detail: "✅ Layout detected, parsing structure \(batchStart + 1)-\(batchEnd)",
-                        page: batchEnd,
-                        totalPages: pageCount
-                    )
-                }
-
-                // Update batch render data with layout results
-                for i in batchRenderData.indices {
-                    if let layoutResult = layoutResults[i] {
-                        let old = batchRenderData[i]
-                        let preferredLayoutText: String = {
-                            if !layoutResult.tables.isEmpty || layoutResult.isMultiColumn {
-                                return layoutResult.readingOrderText
-                            }
-                            if let plainText = old.plainText, !plainText.isEmpty {
-                                return plainText
-                            }
-                            return layoutResult.readingOrderText
-                        }()
-                        batchRenderData[i] = PageRenderData(
-                            pageIndex: old.pageIndex,
-                            pageImage: old.pageImage,
-                            plainText: old.plainText,
-                            layoutText: preferredLayoutText,
-                            layoutTables: layoutResult.tables,
-                            preferHighResolutionStructure: old.preferHighResolutionStructure
-                        )
-                    }
-                }
-            }
+            await detectSubBatchLayouts(batchRenderData: &batchRenderData, useHybridMode: useHybridMode, batchStart: batchStart, pageCount: pageCount, subBatchIndices: subBatchIndices, layoutExtractor: layoutExtractor, batchEnd: batchEnd)
 
             let batchResults = await parseSubBatchStructure(batchEnd: batchEnd, batchStart: batchStart, pageCount: pageCount, subBatchIndices: subBatchIndices, batchRenderData: batchRenderData, useHybridMode: useHybridMode, documentTextLayerGarbled: documentTextLayerGarbled, pageComplexity: pageComplexity, parser: parser)
 
@@ -450,6 +372,91 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A8: in hybrid mode, detects columns and tables on the sub-batch's pages that need Vision, concurrently, and merges the reading-order text into their render records.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func detectSubBatchLayouts(batchRenderData: inout [DocumentProcessor.PageRenderData], useHybridMode: Bool, batchStart: Int, pageCount: Int, subBatchIndices: Range<Int>, layoutExtractor: LayoutAwareExtractor, batchEnd: Int) async {
+        // LAYOUT-AWARE EXTRACTION: Only for pages that need Vision
+        // Simple pages already have layoutText from PDFKit above
+        // This properly handles multi-column layouts by detecting columns spatially
+        let pagesNeedingVision = batchRenderData.filter { $0.pageImage != nil && $0.layoutText == nil }
+        if useHybridMode && !pagesNeedingVision.isEmpty {
+            // Emit layout extraction progress. Vision chooses the hardware it runs on.
+            await MainActor.run {
+                self.emitProgress(
+                    stage: "layout",
+                    detail: "📐 Detecting columns for \(pagesNeedingVision.count) complex pages",
+                    page: batchStart,
+                    totalPages: pageCount
+                )
+            }
+
+            var layoutResults: [Int: LayoutAnalysisResult] = [:]
+            await withTaskGroup(of: (Int, LayoutAnalysisResult?).self) { group in
+                for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
+                    let renderData = batchRenderData[batchOffset]
+                    // ADAPTIVE: Skip pages that already have layoutText (PDFKit extraction)
+                    // Only run Vision on pages with images that need layout detection
+                    guard let pageImage = renderData.pageImage, renderData.layoutText == nil else { continue }
+
+                    group.addTask {
+                        let pageNumber = pageIndex + 1
+                        do {
+                            let layoutResult = try await layoutExtractor.extractWithLayout(
+                                from: pageImage,
+                                pageNumber: pageNumber
+                            )
+                            return (batchOffset, layoutResult)
+                        } catch {
+                            Log.warning("[DocumentProcessor] Layout extraction failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+                            return (batchOffset, nil)
+                        }
+                    }
+                }
+
+                for await (offset, result) in group {
+                    if let result {
+                        layoutResults[offset] = result
+                    }
+                }
+            }
+
+            // Emit layout complete progress
+            await MainActor.run {
+                self.emitProgress(
+                    stage: "layout",
+                    detail: "✅ Layout detected, parsing structure \(batchStart + 1)-\(batchEnd)",
+                    page: batchEnd,
+                    totalPages: pageCount
+                )
+            }
+
+            // Update batch render data with layout results
+            for i in batchRenderData.indices {
+                if let layoutResult = layoutResults[i] {
+                    let old = batchRenderData[i]
+                    let preferredLayoutText: String = {
+                        if !layoutResult.tables.isEmpty || layoutResult.isMultiColumn {
+                            return layoutResult.readingOrderText
+                        }
+                        if let plainText = old.plainText, !plainText.isEmpty {
+                            return plainText
+                        }
+                        return layoutResult.readingOrderText
+                    }()
+                    batchRenderData[i] = PageRenderData(
+                        pageIndex: old.pageIndex,
+                        pageImage: old.pageImage,
+                        plainText: old.plainText,
+                        layoutText: preferredLayoutText,
+                        layoutTables: layoutResult.tables,
+                        preferHighResolutionStructure: old.preferHighResolutionStructure
+                    )
+                }
+            }
+        }
     }
 
     /// Step A9: reports structure progress and parses every page of a sub-batch concurrently (one task per page), returning each page's elements, text and counts.
