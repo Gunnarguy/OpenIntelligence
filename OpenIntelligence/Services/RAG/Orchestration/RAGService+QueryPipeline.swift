@@ -188,44 +188,16 @@ extension RAGService {
             inferenceConfig: config ?? InferenceConfig()
         )
 
-        // Unpack coordinator results into local variables for the pipeline
-        // (preserves existing variable names used downstream)
-        var inferenceConfig = runtimeContext.inferenceConfig
-        let networkAvailable = runtimeContext.networkAvailable
-        let reliabilityModeEnabled = runtimeContext.reliabilityModeEnabled
-        if reliabilityModeEnabled {
-            Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
-        }
-        let initialWantsCloudContext = runtimeContext.initialWantsCloudContext
-        let qualityMode = runtimeContext.qualityMode
-        let initialQueryProfile = runtimeContext.queryProfile
-        let initialQueryPlan = runtimeContext.queryPlan
-        let useAgentic = runtimeContext.isAgentic
-        let raptorSummariesEnabled = runtimeContext.raptorSummariesEnabled
-        let raptorRoutingEnabled = runtimeContext.raptorRoutingEnabled
-        let adaptiveConfig = runtimeContext.adaptiveConfig
-        // Track query context for potential "Go Deeper" re-query
-        await MainActor.run {
-            self.lastQueryUsedAgentic = useAgentic
-            self.lastQueryText = question
-        }
-
-        // Pipeline Trace: Emit header with mode and RAPTOR-lite status
-        let modeDisplayName = runtimeContext.qualityModeDisplayName
-        Log.pipelineHeader(
-            mode: modeDisplayName,
-            raptorSummaries: raptorSummariesEnabled,
-            raptorRouting: raptorRoutingEnabled
-        )
-
-        emitThinkingEvent(
-            .planning,
-            title: "Execution plan: \(initialQueryPlan.executionMode.displayName)",
-            detail: initialQueryPlan.reasoning
-        )
-
-        // The stored consent choices as they are now, for the plan and the gate (5.7).
-        await MainActor.run { self.refreshCloudConsentFromDefaults() }
+        let __unpackRuntimeContextResult = await unpackRuntimeContext(runtimeContext: runtimeContext, question: question)
+        let useAgentic = __unpackRuntimeContextResult.useAgentic
+        let qualityMode = __unpackRuntimeContextResult.qualityMode
+        var inferenceConfig = __unpackRuntimeContextResult.inferenceConfig
+        let initialQueryProfile = __unpackRuntimeContextResult.initialQueryProfile
+        let reliabilityModeEnabled = __unpackRuntimeContextResult.reliabilityModeEnabled
+        let adaptiveConfig = __unpackRuntimeContextResult.adaptiveConfig
+        let initialWantsCloudContext = __unpackRuntimeContextResult.initialWantsCloudContext
+        let initialQueryPlan = __unpackRuntimeContextResult.initialQueryPlan
+        let networkAvailable = __unpackRuntimeContextResult.networkAvailable
 
         // Resolve embedding context first (needed for both agentic and standard paths)
         let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
@@ -288,106 +260,13 @@ extension RAGService {
             "[RAGService] Quality mode '\(qualityModeDisplayName)' features: HyDE=\(qualityModeUsesHyDE), ReRank=\(qualityModeUsesReRanking), MMR=\(qualityModeUsesMMR), Verification=\(qualityModeUsesVerificationGates), QueryExpand=\(qualityModeUsesQueryExpansion), ContainerVocab=\(qualityModeUsesContainerVocabulary), ParentDoc=\(qualityModeUsesParentDocRetrieval), Compression=\(qualityModeUsesContextualCompression)",
             category: .pipeline)
 
-        let developerTuningEnabled: Bool = await MainActor.run {
-            settingsStore?.developerRAGTuningEnabled ?? false
-        }
-
-        let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
-        // A question an action asks (Siri, Shortcuts) of a library with no documents is answered with that, not by the
-        // model alone (5.7); see the no-documents branch below.
-        let asksForAnAction = await MainActor.run { asksThroughRelay }
-
-        let selectedContainer = await MainActor.run {
-            self.containerService.containers.first { $0.id == selectedId }
-        }
-
-        // OPTIMIZED: Use container's retrievalConfig if available, otherwise default.
-        // Previous behavior hardcoded `.default` ignoring user-customized per-container weights.
-        // Container settings UI lets users tune vector vs lexical weight — now those actually propagate.
-        let retrievalConfig: RetrievalConfig = selectedContainer?.retrievalConfig ?? .default
-
-        let vdb = await dbFor(selectedId)
-
-        // Establish query-scoped container context for downstream tool calls and listings
-        await MainActor.run {
-            self.currentQueryContainerId = selectedId
-            self.transientConsentGrants.removeAll()
-        }
-        // Optional DB warmup to ensure the vector store is loaded (prevents first-touch latency)
-        let _ = try? await vdb.count()
+        let (vdb, retrievalConfig, selectedContainer, allowUngroundedFallback, asksForAnAction) = await resolveQueryContainer(reliabilityModeEnabled: reliabilityModeEnabled, selectedId: selectedId)
         // Ensure cleanup even if an error is thrown later in the pipeline
         defer {
             Task { await MainActor.run { self.currentQueryContainerId = nil } }
         }
 
-        // Fetch current stored chunk count from vector database (fallback to cached total)
-        let totalStored = (try? await vdb.count()) ?? totalChunksStored
-
-        // CRITICAL: Dynamic topK scaling based on corpus size
-        // For large documents (1000+ pages = 10,000+ chunks), fixed topK of 20 samples only 0.2%
-        // This scaling ensures we sample a meaningful percentage regardless of corpus size
-        //
-        // Scaling strategy:
-        // - Small corpus (<100 chunks): topK = 15-20 (15-20% sample)
-        // - Medium corpus (100-1000): topK = 20-40 (4-20% sample)
-        // - Large corpus (1000-5000): topK = 40-80 (1.5-8% sample)
-        // - Huge corpus (5000-15000): topK = 80-150 (1-3% sample)
-        // - Massive corpus (15000+): topK = 150-250 (1-2% sample, capped for memory)
-        let corpusSizeAdjustedTopK: Int = {
-            switch totalStored {
-            case 0..<100:
-                return max(15, min(totalStored, 20))  // Small: up to 20
-            case 100..<500:
-                return 25  // Medium-small
-            case 500..<1000:
-                return 35  // Medium
-            case 1000..<2500:
-                return 50  // Large
-            case 2500..<5000:
-                return 75  // Very large
-            case 5000..<10000:
-                return 100  // Huge (1000-page dense doc)
-            case 10000..<20000:
-                return 150  // Massive
-            default:
-                return 200  // Cap at 200 for memory safety
-            }
-        }()
-
-        // Adjust topK based on adaptive mode parameters AND corpus size
-        let requestedTopK = max(topK, qualityModeInitialTopK)
-        let baseTopK = max(requestedTopK, corpusSizeAdjustedTopK)
-
-        let queryWords = initialQueryProfile.wordCount
-        let isTrivial = initialQueryProfile.isTrivial
-        let applyTrivialTopKCap = isTrivial && !initialWantsCloudContext
-
-        // Apply adaptive pipeline limit (thermal/battery/memory aware)
-        // Caps retrieval when device is under pressure to prevent throttling
-        let adaptiveMaxTopK = adaptiveConfig.maxRetrievalCandidates
-        let uncappedEffectiveTopK =
-            initialWantsCloudContext
-            ? max(baseTopK, 50)  // PCC mode: even more context since we have headroom
-            : max(1, applyTrivialTopKCap ? min(baseTopK, 15) : baseTopK)
-        let effectiveTopK = min(uncappedEffectiveTopK, adaptiveMaxTopK)
-
-        if corpusSizeAdjustedTopK > requestedTopK {
-            Log.info(
-                "[RAG] Corpus-size scaling: \(totalStored) chunks → topK boosted from \(requestedTopK) to \(corpusSizeAdjustedTopK)",
-                category: .retrieval)
-        }
-        if effectiveTopK < uncappedEffectiveTopK {
-            Log.info(
-                "[Adaptive] TopK capped: \(uncappedEffectiveTopK) → \(effectiveTopK) (device pressure)",
-                category: .pipeline)
-        }
-        if isTrivial {
-            let detail =
-                applyTrivialTopKCap
-                ? "fast topK cap (\(effectiveTopK))"
-                : "cloud context available - keeping full topK"
-            Log.info("[RAG] Trivial query detected - \(detail)", category: .retrieval)
-        }
+        let (effectiveTopK, queryWords, totalStored, isTrivial) = await sizeStandardTopK(vdb: vdb, qualityModeInitialTopK: qualityModeInitialTopK, topK: topK, initialQueryProfile: initialQueryProfile, initialWantsCloudContext: initialWantsCloudContext, adaptiveConfig: adaptiveConfig)
 
         var auditCandidatesCount = 0
         var auditRerankedCount = 0
@@ -490,81 +369,7 @@ extension RAGService {
                     let (useIterative, iterativeConfig) = decideIterativeRetrieval(answerIntentIsExtractive: answerIntentIsExtractive, answerIntent: answerIntent, qualityModeUsesIterativeRetrieval: qualityModeUsesIterativeRetrieval)
 
                     if useIterative {
-                        // Multi-pass iterative retrieval with self-correction
-                        Log.section(
-                            "Step 3: Iterative Retrieval (\(iterativeConfig.maxIterations) max passes)",
-                            level: .info,
-                            category: .pipeline
-                        )
-
-                        // Pipeline Trace: Step 3 (Iterative)
-                        Log.pipelineStep(
-                            "3", title: "Iterative Retrieval",
-                            details: [
-                                ("maxPasses", "\(iterativeConfig.maxIterations)"),
-                                ("targetConf", String(format: "%.0f%%", iterativeConfig.confidenceThreshold * 100)),
-                            ])
-                        emitThinkingEvent(
-                            .retrieval,
-                            title: "Multi-pass retrieval",
-                            detail:
-                                "Up to \(iterativeConfig.maxIterations) iterations for confidence ≥\(Int(iterativeConfig.confidenceThreshold * 100))%"
-                        )
-
-                        let iterativeService = IterativeRetrievalService(
-                            hybridSearchFactory: { db in
-                                HybridSearchService(
-                                    vectorDatabase: db,
-                                    vectorWeight: adjustedVectorWeight,
-                                    keywordWeight: adjustedKeywordWeight
-                                )
-                            },
-                            embeddingService: queryEmbeddingService
-                        )
-
-                        // Pass cached chunks to avoid redundant allChunks() calls in iterative retrieval
-                        let iterativeResult = try await iterativeService.retrieve(
-                            query: expandedQueries.joined(separator: " "),
-                            originalQuery: originalKeywordQuery ?? effectiveQuery,
-                            vectorDatabase: vdb,
-                            config: iterativeConfig,
-                            topK: effectiveTopK,
-                            cachedChunks: filteredCachedChunks,
-                            isOverviewQuery: answerIntent == .summarize
-                        )
-
-                        retrievedChunks = iterativeResult.allChunks
-                        iterativeMetadata = (
-                            iterations: iterativeResult.iterations,
-                            confidence: iterativeResult.confidence,
-                            queries: iterativeResult.queriesUsed.count
-                        )
-                        auditUsedIterativeRetrieval = true
-                        auditIterativePassCount = iterativeResult.iterations
-
-                        Log.info(
-                            "✓ Iterative retrieval complete: \(iterativeResult.iterations) passes, "
-                                + "\(retrievedChunks.count) chunks, confidence \(String(format: "%.0f", iterativeResult.confidence * 100))%",
-                            category: .retrieval
-                        )
-                        TelemetryCenter.emit(
-                            .retrieval,
-                            title: "Iterative retrieval complete",
-                            metadata: [
-                                "iterations": "\(iterativeResult.iterations)",
-                                "chunks": "\(retrievedChunks.count)",
-                                "confidence": String(format: "%.2f", iterativeResult.confidence),
-                                "queries": "\(iterativeResult.queriesUsed.count)",
-                                "hitMax": "\(iterativeResult.hitMaxIterations)",
-                            ],
-                            duration: iterativeResult.totalTime
-                        )
-                        emitThinkingEvent(
-                            .retrieval,
-                            title: "Retrieval complete",
-                            detail:
-                                "\(iterativeResult.iterations) passes → \(retrievedChunks.count) chunks (\(Int(iterativeResult.confidence * 100))% confidence)"
-                        )
+                        try await runIterativeRetrieval(iterativeConfig: iterativeConfig, adjustedVectorWeight: adjustedVectorWeight, adjustedKeywordWeight: adjustedKeywordWeight, queryEmbeddingService: queryEmbeddingService, expandedQueries: expandedQueries, effectiveQuery: effectiveQuery, originalKeywordQuery: originalKeywordQuery, vdb: vdb, effectiveTopK: effectiveTopK, filteredCachedChunks: filteredCachedChunks, answerIntent: answerIntent, retrievedChunks: &retrievedChunks, iterativeMetadata: &iterativeMetadata, auditUsedIterativeRetrieval: &auditUsedIterativeRetrieval, auditIterativePassCount: &auditIterativePassCount)
                     } else {
                         try await runHybridSearch(adjustedVectorWeight: adjustedVectorWeight, adjustedKeywordWeight: adjustedKeywordWeight, effectiveTopK: effectiveTopK, queryIntent: queryIntent, vdb: vdb, retrievedChunks: &retrievedChunks, expandedQueries: expandedQueries, effectiveQuery: effectiveQuery, originalKeywordQuery: originalKeywordQuery, queryEmbedding: queryEmbedding, filteredCachedChunks: filteredCachedChunks, selectedId: selectedId, answerIntent: answerIntent, trace: trace)
 
@@ -1256,167 +1061,7 @@ extension RAGService {
                 var generationRetrievedChunks = includedRetrievedChunks
                 var usedOverflowRetry = false
 
-                if ModelRoutingFeatureFlags.plannerV1Enabled,
-                    llmService is AppleFoundationLLMService
-                {
-                    let requiresMultiDocumentSynthesis: Bool = {
-                        guard uniqueSourceDocs > 1 else { return false }
-                        switch answerIntent {
-                        case .compare, .investigate, .findings, .compute:
-                            return true
-                        default:
-                            return qualityMode.canonical != .standard
-                        }
-                    }()
-                    let planned = await makePostRetrievalModelPlan(
-                        prompt: promptForGeneration,
-                        context: generationContext,
-                        config: genConfig,
-                        chunks: generationRetrievedChunks,
-                        consentState: cloudConsentState,
-                        networkAvailable: networkAvailable,
-                        requiresMultiDocumentSynthesis: requiresMultiDocumentSynthesis
-                    )
-                    let plan = planned.plan
-                    genConfig.modelExecutionPlan = plan
-
-                    switch plan.synthesisTarget {
-                    case .privateCloudCompute:
-                        let maximumCloudCharacters = max(
-                            800,
-                            min(
-                                generationContext.count,
-                                Int(
-                                    Double(plan.contextBudget.remaining + plan.contextBudget.evidence)
-                                        * FoundationModelTokenBudget.cloudFallbackCharsPerToken)
-                            )
-                        )
-                        let envelope = CloudEvidenceMinimizer().makeEnvelope(
-                            plan: plan,
-                            query: question,
-                            chunks: generationRetrievedChunks,
-                            maximumCharacters: maximumCloudCharacters
-                        )
-                        generationContext = renderCloudEvidenceEnvelope(envelope)
-                        // The envelope numbers its evidence [S1], [S2] ... in its own order, by rank, so the answer
-                        // keeps the passages in that order (5.7). Filtered in the local order, a label could open
-                        // the passage at that place in the local list (found by review, 2026-10-20).
-                        generationRetrievedChunks = Self.passages(generationRetrievedChunks, inTheOrderOf: envelope)
-                        generationChunks = generationRetrievedChunks.map(\.chunk)
-
-                        do {
-                            try await ensureCloudConsentIfNeeded(
-                                service: llmService,
-                                prompt: promptForGeneration,
-                                context: generationContext,
-                                sourceChunks: generationChunks,
-                                allowPrivateCloudCompute: genConfig.allowPrivateCloudCompute,
-                                modelExecutionPlan: plan
-                            )
-                        } catch let error as RAGServiceError {
-                            let canFallback = plan.fallback.target == .onDevice
-                            switch error {
-                            case .cloudConsentDenied(_), .cloudConsentUnavailable(_):
-                                guard canFallback else { throw error }
-                                let nonEvidenceTokens = planned.localBudget.used - planned.localBudget.evidence
-                                let localEvidenceTokens = max(
-                                    256,
-                                    planned.localBudget.contextSize - nonEvidenceTokens
-                                )
-                                let localMaxCharacters = min(
-                                    10_000,
-                                    max(
-                                        800,
-                                        Int(
-                                            Double(localEvidenceTokens)
-                                                * FoundationModelTokenBudget.onDeviceCharsPerToken)
-                                    )
-                                )
-                                let localAssembly = await engine.assembleContext(
-                                    chunks: orderedCandidates,
-                                    maxChars: localMaxCharacters,
-                                    compact: true,
-                                    useLostInMiddleMitigation: useLostInMiddleMitigation
-                                )
-                                generationContext = localAssembly.context
-                                // Label order, not input order. See assembleContext.
-                                generationRetrievedChunks = localAssembly.sources
-                                generationChunks = generationRetrievedChunks.map(\.chunk)
-                                genConfig.executionContext = .onDeviceOnly
-                                genConfig.allowPrivateCloudCompute = false
-                                Log.info(
-                                    "[ModelRouter] PCC consent unavailable/denied → local fallback for plan \(plan.id)",
-                                    category: .pipeline
-                                )
-                            default:
-                                throw error
-                            }
-                        }
-                    case .onDevice, .deterministic:
-                        if !planned.localBudget.fits {
-                            let nonEvidenceTokens = planned.localBudget.used - planned.localBudget.evidence
-                            let localEvidenceTokens = max(
-                                256,
-                                planned.localBudget.contextSize - nonEvidenceTokens
-                            )
-                            let localAssembly = await engine.assembleContext(
-                                chunks: orderedCandidates,
-                                maxChars: min(
-                                    10_000,
-                                    max(
-                                        800,
-                                        Int(
-                                            Double(localEvidenceTokens)
-                                                * FoundationModelTokenBudget.onDeviceCharsPerToken)
-                                    )
-                                ),
-                                compact: true,
-                                useLostInMiddleMitigation: useLostInMiddleMitigation
-                            )
-                            generationContext = localAssembly.context
-                            // Label order, not input order. See assembleContext.
-                            generationRetrievedChunks = localAssembly.sources
-                            generationChunks = generationRetrievedChunks.map(\.chunk)
-                        }
-                        genConfig.executionContext = .onDeviceOnly
-                    case .abstain:
-                        // The planner declined to route. That is not the same as
-                        // the model being unavailable, and reporting it that way
-                        // has now sent two separate debugging sessions after a
-                        // model that was working. Device log 2026-08-03: this
-                        // fired, then on-device generation completed 32 words
-                        // 4 seconds later.
-                        //
-                        // Log what the planner actually saw so the next
-                        // occurrence names its own cause instead of blaming the
-                        // model, and surface a truthful error.
-                        Log.warning(
-                            """
-                            [RAGService] Planner abstained with \(generationChunks.count) chunk(s) available \
-                            (top score \(String(format: "%.2f", orderedCandidates.first?.similarityScore ?? 0))). \
-                            This is a routing decision, not model unavailability.
-                            """,
-                            category: .pipeline
-                        )
-                        throw RAGServiceError.routingAbstained
-                    }
-
-                    TelemetryCenter.emit(
-                        .generation,
-                        title: "Post-retrieval model route selected",
-                        metadata: [
-                            "planID": plan.id.uuidString,
-                            "policy": plan.policyVersion,
-                            "target": plan.synthesisTarget.rawValue,
-                            "reason": plan.stages.first(where: { $0.role == .synthesize })?.reason.rawValue
-                                ?? "unknown",
-                            "quota": plan.pccQuotaAtPlanning.rawValue,
-                            "budgetSource": plan.contextBudget.source.rawValue,
-                            "evidenceChunks": "\(plan.evidence.chunkCount)",
-                            "evidenceTokens": "\(plan.evidence.estimatedEvidenceTokens)",
-                        ]
-                    )
-                }
+                try await applyPostRetrievalModelPlan(uniqueSourceDocs: uniqueSourceDocs, answerIntent: answerIntent, qualityMode: qualityMode, promptForGeneration: promptForGeneration, generationContext: &generationContext, genConfig: &genConfig, generationRetrievedChunks: &generationRetrievedChunks, cloudConsentState: cloudConsentState, networkAvailable: networkAvailable, question: question, generationChunks: &generationChunks, engine: engine, orderedCandidates: orderedCandidates, useLostInMiddleMitigation: useLostInMiddleMitigation)
 
                 let __decideReasoningChainResult = decideReasoningChain(initialQueryProfile: initialQueryProfile, qualityMode: qualityMode, useEvidenceFirstMode: useEvidenceFirstMode, isTrivial: isTrivial, bestRetrievalSim: bestRetrievalSim, contextSize: contextSize, includedRetrievedChunks: includedRetrievedChunks)
                 let useReasoningChain = __decideReasoningChainResult.useReasoningChain
@@ -2176,6 +1821,403 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step P1b: unpacks the coordinator's QueryRuntimeContext into the pipeline's locals, records the query on self, logs the header and refreshes cloud consent.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func unpackRuntimeContext(runtimeContext: QueryRuntimeContext, question: String) async -> (useAgentic: Bool, qualityMode: RAGQualityMode, inferenceConfig: InferenceConfig, initialQueryProfile: QueryProfile, reliabilityModeEnabled: Bool, adaptiveConfig: AdaptivePipelineConfig, initialWantsCloudContext: Bool, initialQueryPlan: QueryExecutionPlan, networkAvailable: Bool) {
+        // Unpack coordinator results into local variables for the pipeline
+        // (preserves existing variable names used downstream)
+        var inferenceConfig = runtimeContext.inferenceConfig
+        let networkAvailable = runtimeContext.networkAvailable
+        let reliabilityModeEnabled = runtimeContext.reliabilityModeEnabled
+        if reliabilityModeEnabled {
+            Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
+        }
+        let initialWantsCloudContext = runtimeContext.initialWantsCloudContext
+        let qualityMode = runtimeContext.qualityMode
+        let initialQueryProfile = runtimeContext.queryProfile
+        let initialQueryPlan = runtimeContext.queryPlan
+        let useAgentic = runtimeContext.isAgentic
+        let raptorSummariesEnabled = runtimeContext.raptorSummariesEnabled
+        let raptorRoutingEnabled = runtimeContext.raptorRoutingEnabled
+        let adaptiveConfig = runtimeContext.adaptiveConfig
+        // Track query context for potential "Go Deeper" re-query
+        await MainActor.run {
+            self.lastQueryUsedAgentic = useAgentic
+            self.lastQueryText = question
+        }
+
+        // Pipeline Trace: Emit header with mode and RAPTOR-lite status
+        let modeDisplayName = runtimeContext.qualityModeDisplayName
+        Log.pipelineHeader(
+            mode: modeDisplayName,
+            raptorSummaries: raptorSummariesEnabled,
+            raptorRouting: raptorRoutingEnabled
+        )
+
+        emitThinkingEvent(
+            .planning,
+            title: "Execution plan: \(initialQueryPlan.executionMode.displayName)",
+            detail: initialQueryPlan.reasoning
+        )
+
+        // The stored consent choices as they are now, for the plan and the gate (5.7).
+        await MainActor.run { self.refreshCloudConsentFromDefaults() }
+        return (useAgentic: useAgentic, qualityMode: qualityMode, inferenceConfig: inferenceConfig, initialQueryProfile: initialQueryProfile, reliabilityModeEnabled: reliabilityModeEnabled, adaptiveConfig: adaptiveConfig, initialWantsCloudContext: initialWantsCloudContext, initialQueryPlan: initialQueryPlan, networkAvailable: networkAvailable)
+    }
+
+    /// Step P4b: resolves the developer-tuning and relay flags, the selected container, its retrieval config and vector database, and records the query's container.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func resolveQueryContainer(reliabilityModeEnabled: Bool, selectedId: UUID) async -> (vdb: any VectorDatabase, retrievalConfig: RetrievalConfig, selectedContainer: KnowledgeContainer?, allowUngroundedFallback: Bool, asksForAnAction: Bool) {
+        let developerTuningEnabled: Bool = await MainActor.run {
+            settingsStore?.developerRAGTuningEnabled ?? false
+        }
+
+        let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
+        // A question an action asks (Siri, Shortcuts) of a library with no documents is answered with that, not by the
+        // model alone (5.7); see the no-documents branch below.
+        let asksForAnAction = await MainActor.run { asksThroughRelay }
+
+        let selectedContainer = await MainActor.run {
+            self.containerService.containers.first { $0.id == selectedId }
+        }
+
+        // OPTIMIZED: Use container's retrievalConfig if available, otherwise default.
+        // Previous behavior hardcoded `.default` ignoring user-customized per-container weights.
+        // Container settings UI lets users tune vector vs lexical weight — now those actually propagate.
+        let retrievalConfig: RetrievalConfig = selectedContainer?.retrievalConfig ?? .default
+
+        let vdb = await dbFor(selectedId)
+
+        // Establish query-scoped container context for downstream tool calls and listings
+        await MainActor.run {
+            self.currentQueryContainerId = selectedId
+            self.transientConsentGrants.removeAll()
+        }
+        // Optional DB warmup to ensure the vector store is loaded (prevents first-touch latency)
+        let _ = try? await vdb.count()
+        return (vdb: vdb, retrievalConfig: retrievalConfig, selectedContainer: selectedContainer, allowUngroundedFallback: allowUngroundedFallback, asksForAnAction: asksForAnAction)
+    }
+
+    /// Step 3 (iterative): runs multi-pass iterative retrieval with self-correction.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func runIterativeRetrieval(iterativeConfig: IterativeRetrievalConfig, adjustedVectorWeight: Float, adjustedKeywordWeight: Float, queryEmbeddingService: EmbeddingService, expandedQueries: [String], effectiveQuery: String, originalKeywordQuery: String?, vdb: any VectorDatabase, effectiveTopK: Int, filteredCachedChunks: [DocumentChunk]?, answerIntent: AnswerIntent, retrievedChunks: inout [RetrievedChunk], iterativeMetadata: inout (iterations: Int, confidence: Float, queries: Int)?, auditUsedIterativeRetrieval: inout Bool, auditIterativePassCount: inout Int) async throws {
+        // Multi-pass iterative retrieval with self-correction
+        Log.section(
+            "Step 3: Iterative Retrieval (\(iterativeConfig.maxIterations) max passes)",
+            level: .info,
+            category: .pipeline
+        )
+
+        // Pipeline Trace: Step 3 (Iterative)
+        Log.pipelineStep(
+            "3", title: "Iterative Retrieval",
+            details: [
+                ("maxPasses", "\(iterativeConfig.maxIterations)"),
+                ("targetConf", String(format: "%.0f%%", iterativeConfig.confidenceThreshold * 100)),
+            ])
+        emitThinkingEvent(
+            .retrieval,
+            title: "Multi-pass retrieval",
+            detail:
+                "Up to \(iterativeConfig.maxIterations) iterations for confidence ≥\(Int(iterativeConfig.confidenceThreshold * 100))%"
+        )
+
+        let iterativeService = IterativeRetrievalService(
+            hybridSearchFactory: { db in
+                HybridSearchService(
+                    vectorDatabase: db,
+                    vectorWeight: adjustedVectorWeight,
+                    keywordWeight: adjustedKeywordWeight
+                )
+            },
+            embeddingService: queryEmbeddingService
+        )
+
+        // Pass cached chunks to avoid redundant allChunks() calls in iterative retrieval
+        let iterativeResult = try await iterativeService.retrieve(
+            query: expandedQueries.joined(separator: " "),
+            originalQuery: originalKeywordQuery ?? effectiveQuery,
+            vectorDatabase: vdb,
+            config: iterativeConfig,
+            topK: effectiveTopK,
+            cachedChunks: filteredCachedChunks,
+            isOverviewQuery: answerIntent == .summarize
+        )
+
+        retrievedChunks = iterativeResult.allChunks
+        iterativeMetadata = (
+            iterations: iterativeResult.iterations,
+            confidence: iterativeResult.confidence,
+            queries: iterativeResult.queriesUsed.count
+        )
+        auditUsedIterativeRetrieval = true
+        auditIterativePassCount = iterativeResult.iterations
+
+        Log.info(
+            "✓ Iterative retrieval complete: \(iterativeResult.iterations) passes, "
+                + "\(retrievedChunks.count) chunks, confidence \(String(format: "%.0f", iterativeResult.confidence * 100))%",
+            category: .retrieval
+        )
+        TelemetryCenter.emit(
+            .retrieval,
+            title: "Iterative retrieval complete",
+            metadata: [
+                "iterations": "\(iterativeResult.iterations)",
+                "chunks": "\(retrievedChunks.count)",
+                "confidence": String(format: "%.2f", iterativeResult.confidence),
+                "queries": "\(iterativeResult.queriesUsed.count)",
+                "hitMax": "\(iterativeResult.hitMaxIterations)",
+            ],
+            duration: iterativeResult.totalTime
+        )
+        emitThinkingEvent(
+            .retrieval,
+            title: "Retrieval complete",
+            detail:
+                "\(iterativeResult.iterations) passes → \(retrievedChunks.count) chunks (\(Int(iterativeResult.confidence * 100))% confidence)"
+        )
+    }
+
+    /// Step 6 (route plan): applies the post-retrieval model plan (Private Cloud Compute envelope, consent, local fallback, abstain).
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applyPostRetrievalModelPlan(uniqueSourceDocs: Int, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, promptForGeneration: String, generationContext: inout String, genConfig: inout InferenceConfig, generationRetrievedChunks: inout [RetrievedChunk], cloudConsentState: CloudConsentState, networkAvailable: Bool, question: String, generationChunks: inout [DocumentChunk], engine: RAGEngine, orderedCandidates: [RetrievedChunk], useLostInMiddleMitigation: Bool) async throws {
+        if ModelRoutingFeatureFlags.plannerV1Enabled,
+            llmService is AppleFoundationLLMService
+        {
+            let requiresMultiDocumentSynthesis: Bool = {
+                guard uniqueSourceDocs > 1 else { return false }
+                switch answerIntent {
+                case .compare, .investigate, .findings, .compute:
+                    return true
+                default:
+                    return qualityMode.canonical != .standard
+                }
+            }()
+            let planned = await makePostRetrievalModelPlan(
+                prompt: promptForGeneration,
+                context: generationContext,
+                config: genConfig,
+                chunks: generationRetrievedChunks,
+                consentState: cloudConsentState,
+                networkAvailable: networkAvailable,
+                requiresMultiDocumentSynthesis: requiresMultiDocumentSynthesis
+            )
+            let plan = planned.plan
+            genConfig.modelExecutionPlan = plan
+
+            switch plan.synthesisTarget {
+            case .privateCloudCompute:
+                let maximumCloudCharacters = max(
+                    800,
+                    min(
+                        generationContext.count,
+                        Int(
+                            Double(plan.contextBudget.remaining + plan.contextBudget.evidence)
+                                * FoundationModelTokenBudget.cloudFallbackCharsPerToken)
+                    )
+                )
+                let envelope = CloudEvidenceMinimizer().makeEnvelope(
+                    plan: plan,
+                    query: question,
+                    chunks: generationRetrievedChunks,
+                    maximumCharacters: maximumCloudCharacters
+                )
+                generationContext = renderCloudEvidenceEnvelope(envelope)
+                // The envelope numbers its evidence [S1], [S2] ... in its own order, by rank, so the answer
+                // keeps the passages in that order (5.7). Filtered in the local order, a label could open
+                // the passage at that place in the local list (found by review, 2026-10-20).
+                generationRetrievedChunks = Self.passages(generationRetrievedChunks, inTheOrderOf: envelope)
+                generationChunks = generationRetrievedChunks.map(\.chunk)
+
+                do {
+                    try await ensureCloudConsentIfNeeded(
+                        service: llmService,
+                        prompt: promptForGeneration,
+                        context: generationContext,
+                        sourceChunks: generationChunks,
+                        allowPrivateCloudCompute: genConfig.allowPrivateCloudCompute,
+                        modelExecutionPlan: plan
+                    )
+                } catch let error as RAGServiceError {
+                    let canFallback = plan.fallback.target == .onDevice
+                    switch error {
+                    case .cloudConsentDenied(_), .cloudConsentUnavailable(_):
+                        guard canFallback else { throw error }
+                        let nonEvidenceTokens = planned.localBudget.used - planned.localBudget.evidence
+                        let localEvidenceTokens = max(
+                            256,
+                            planned.localBudget.contextSize - nonEvidenceTokens
+                        )
+                        let localMaxCharacters = min(
+                            10_000,
+                            max(
+                                800,
+                                Int(
+                                    Double(localEvidenceTokens)
+                                        * FoundationModelTokenBudget.onDeviceCharsPerToken)
+                            )
+                        )
+                        let localAssembly = await engine.assembleContext(
+                            chunks: orderedCandidates,
+                            maxChars: localMaxCharacters,
+                            compact: true,
+                            useLostInMiddleMitigation: useLostInMiddleMitigation
+                        )
+                        generationContext = localAssembly.context
+                        // Label order, not input order. See assembleContext.
+                        generationRetrievedChunks = localAssembly.sources
+                        generationChunks = generationRetrievedChunks.map(\.chunk)
+                        genConfig.executionContext = .onDeviceOnly
+                        genConfig.allowPrivateCloudCompute = false
+                        Log.info(
+                            "[ModelRouter] PCC consent unavailable/denied → local fallback for plan \(plan.id)",
+                            category: .pipeline
+                        )
+                    default:
+                        throw error
+                    }
+                }
+            case .onDevice, .deterministic:
+                if !planned.localBudget.fits {
+                    let nonEvidenceTokens = planned.localBudget.used - planned.localBudget.evidence
+                    let localEvidenceTokens = max(
+                        256,
+                        planned.localBudget.contextSize - nonEvidenceTokens
+                    )
+                    let localAssembly = await engine.assembleContext(
+                        chunks: orderedCandidates,
+                        maxChars: min(
+                            10_000,
+                            max(
+                                800,
+                                Int(
+                                    Double(localEvidenceTokens)
+                                        * FoundationModelTokenBudget.onDeviceCharsPerToken)
+                            )
+                        ),
+                        compact: true,
+                        useLostInMiddleMitigation: useLostInMiddleMitigation
+                    )
+                    generationContext = localAssembly.context
+                    // Label order, not input order. See assembleContext.
+                    generationRetrievedChunks = localAssembly.sources
+                    generationChunks = generationRetrievedChunks.map(\.chunk)
+                }
+                genConfig.executionContext = .onDeviceOnly
+            case .abstain:
+                // The planner declined to route. That is not the same as
+                // the model being unavailable, and reporting it that way
+                // has now sent two separate debugging sessions after a
+                // model that was working. Device log 2026-08-03: this
+                // fired, then on-device generation completed 32 words
+                // 4 seconds later.
+                //
+                // Log what the planner actually saw so the next
+                // occurrence names its own cause instead of blaming the
+                // model, and surface a truthful error.
+                Log.warning(
+                    """
+                    [RAGService] Planner abstained with \(generationChunks.count) chunk(s) available \
+                    (top score \(String(format: "%.2f", orderedCandidates.first?.similarityScore ?? 0))). \
+                    This is a routing decision, not model unavailability.
+                    """,
+                    category: .pipeline
+                )
+                throw RAGServiceError.routingAbstained
+            }
+
+            TelemetryCenter.emit(
+                .generation,
+                title: "Post-retrieval model route selected",
+                metadata: [
+                    "planID": plan.id.uuidString,
+                    "policy": plan.policyVersion,
+                    "target": plan.synthesisTarget.rawValue,
+                    "reason": plan.stages.first(where: { $0.role == .synthesize })?.reason.rawValue
+                        ?? "unknown",
+                    "quota": plan.pccQuotaAtPlanning.rawValue,
+                    "budgetSource": plan.contextBudget.source.rawValue,
+                    "evidenceChunks": "\(plan.evidence.chunkCount)",
+                    "evidenceTokens": "\(plan.evidence.estimatedEvidenceTokens)",
+                ]
+            )
+        }
+    }
+
+    /// Step P4c: sizes topK from the live passage count, the quality mode, the query profile and the adaptive candidate cap.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func sizeStandardTopK(vdb: any VectorDatabase, qualityModeInitialTopK: Int, topK: Int, initialQueryProfile: QueryProfile, initialWantsCloudContext: Bool, adaptiveConfig: AdaptivePipelineConfig) async -> (effectiveTopK: Int, queryWords: Int, totalStored: Int, isTrivial: Bool) {
+        // Fetch current stored chunk count from vector database (fallback to cached total)
+        let totalStored = (try? await vdb.count()) ?? totalChunksStored
+
+        // CRITICAL: Dynamic topK scaling based on corpus size
+        // For large documents (1000+ pages = 10,000+ chunks), fixed topK of 20 samples only 0.2%
+        // This scaling ensures we sample a meaningful percentage regardless of corpus size
+        //
+        // Scaling strategy:
+        // - Small corpus (<100 chunks): topK = 15-20 (15-20% sample)
+        // - Medium corpus (100-1000): topK = 20-40 (4-20% sample)
+        // - Large corpus (1000-5000): topK = 40-80 (1.5-8% sample)
+        // - Huge corpus (5000-15000): topK = 80-150 (1-3% sample)
+        // - Massive corpus (15000+): topK = 150-250 (1-2% sample, capped for memory)
+        let corpusSizeAdjustedTopK: Int = {
+            switch totalStored {
+            case 0..<100:
+                return max(15, min(totalStored, 20))  // Small: up to 20
+            case 100..<500:
+                return 25  // Medium-small
+            case 500..<1000:
+                return 35  // Medium
+            case 1000..<2500:
+                return 50  // Large
+            case 2500..<5000:
+                return 75  // Very large
+            case 5000..<10000:
+                return 100  // Huge (1000-page dense doc)
+            case 10000..<20000:
+                return 150  // Massive
+            default:
+                return 200  // Cap at 200 for memory safety
+            }
+        }()
+
+        // Adjust topK based on adaptive mode parameters AND corpus size
+        let requestedTopK = max(topK, qualityModeInitialTopK)
+        let baseTopK = max(requestedTopK, corpusSizeAdjustedTopK)
+
+        let queryWords = initialQueryProfile.wordCount
+        let isTrivial = initialQueryProfile.isTrivial
+        let applyTrivialTopKCap = isTrivial && !initialWantsCloudContext
+
+        // Apply adaptive pipeline limit (thermal/battery/memory aware)
+        // Caps retrieval when device is under pressure to prevent throttling
+        let adaptiveMaxTopK = adaptiveConfig.maxRetrievalCandidates
+        let uncappedEffectiveTopK =
+            initialWantsCloudContext
+            ? max(baseTopK, 50)  // PCC mode: even more context since we have headroom
+            : max(1, applyTrivialTopKCap ? min(baseTopK, 15) : baseTopK)
+        let effectiveTopK = min(uncappedEffectiveTopK, adaptiveMaxTopK)
+
+        if corpusSizeAdjustedTopK > requestedTopK {
+            Log.info(
+                "[RAG] Corpus-size scaling: \(totalStored) chunks → topK boosted from \(requestedTopK) to \(corpusSizeAdjustedTopK)",
+                category: .retrieval)
+        }
+        if effectiveTopK < uncappedEffectiveTopK {
+            Log.info(
+                "[Adaptive] TopK capped: \(uncappedEffectiveTopK) → \(effectiveTopK) (device pressure)",
+                category: .pipeline)
+        }
+        if isTrivial {
+            let detail =
+                applyTrivialTopKCap
+                ? "fast topK cap (\(effectiveTopK))"
+                : "cloud context available - keeping full topK"
+            Log.info("[RAG] Trivial query detected - \(detail)", category: .retrieval)
+        }
+        return (effectiveTopK: effectiveTopK, queryWords: queryWords, totalStored: totalStored, isTrivial: isTrivial)
     }
 
     /// Step SC: looks the question up in the persistent semantic query cache and takes an exact, still-current hit.

@@ -4,7 +4,7 @@
   "name": "Hardware Compute Acceleration",
   "aliases": ["GPU compute service", "Metal buffer pool", "BNNS graph service", "adaptive pipeline optimizer"],
   "purpose": "Runs vector math on the GPU with Metal.",
-  "revision": "b015bde6",
+  "revision": "0a3ffe48",
   "verified_on": "2026-11-07",
   "entry_points": ["GPUComputeService", "AdaptivePipelineOptimizer"],
   "files": [
@@ -39,7 +39,7 @@
     {"from": "AdaptivePipelineOptimizer", "type": "calls", "to": "AdaptivePipelineConfig.adjusted", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift", "line": 303, "match": ".adjusted(for: level)"}], "by": "build", "note": "named in the body"},
     {"from": "SystemStateMonitor.captureState", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift", "line": 498, "match": "let optimizer = AdaptivePipelineOptimizer.shared"}], "by": "build", "note": "named there"},
     {"from": "QueryRuntimeCoordinator.resolveContext", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift", "line": 233, "match": "let adaptiveConfig = AdaptivePipelineOptimizer.shared.configForQuery(complexity: queryComplexity)"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 4249, "match": "await AdaptivePipelineOptimizer.shared.applyCooldown()"}], "by": "build", "note": "named there"}
+    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "AdaptivePipelineOptimizer", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 4291, "match": "await AdaptivePipelineOptimizer.shared.applyCooldown()"}], "by": "build", "note": "named there"}
   ],
   "docs": [],
   "unknowns": [],
