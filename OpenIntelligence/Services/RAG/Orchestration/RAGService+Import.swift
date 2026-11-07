@@ -1197,38 +1197,7 @@ extension RAGService {
             let fileAttrs = try? FileManager.default.attributesOfItem(atPath: managedURL.path)
             let fileSizeMB = Double((fileAttrs?[.size] as? Int64) ?? 0) / 1_048_576.0
 
-            // Pre-scan document and auto-tune container settings before ingestion starts (predictive self-tuning)
-            var activeChunkOverride = chunkOverride
-            if let currentContainer = container, currentContainer.autoAdaptDimension {
-                let previewText = await extractPreviewText(from: managedURL, documentType: documentType)
-                if !previewText.isEmpty {
-                    let plan = await intelligenceCenter.recommendChunkingPlan(
-                        forPreviewText: previewText, contentType: documentType)
-
-                    var updated = currentContainer
-                    let directive = ChunkingDirective(
-                        source: .auto,
-                        strategy: plan.strategy.rawValue,
-                        targetWordWindow: plan.targetWordWindow,
-                        overlapWords: plan.overlapWords,
-                        rationale: plan.rationales
-                    )
-                    updated.chunkingDirective = directive
-
-                    if updated != currentContainer {
-                        await MainActor.run {
-                            self.containerService.updateContainer(updated)
-                        }
-                        container = updated
-                        activeChunkOverride = chunkingOverride(for: updated)
-                        Log.info(
-                            "[SelfTuning] Predictive pre-scan auto-tuned configuration for \(filename): Chunk strategy → \(plan.strategy.rawValue.capitalized) • Window \(plan.targetWordWindow) (Rationale: \(plan.rationales.joined(separator: " | "))). Ingesting with optimized settings.",
-                            category: .ingestion
-                        )
-                    }
-                }
-            }
-
+            let activeChunkOverride = await prescanChunkingPlan(chunkOverride: chunkOverride, container: &container, documentType: documentType, managedURL: managedURL, filename: filename)
             let isLargePDF = documentType == .pdf && fileSizeMB > 10
             if isLargePDF {
                 try await importLargePDFStreamed(
@@ -1438,6 +1407,44 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step L: when the library adapts itself, pre-scans the document's text and stores the chunking plan it recommends before the import uses it.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func prescanChunkingPlan(chunkOverride: DocumentProcessor.ChunkingOverride?, container: inout KnowledgeContainer?, documentType: DocumentType, managedURL: URL, filename: String) async -> DocumentProcessor.ChunkingOverride? {
+        // Pre-scan document and auto-tune container settings before ingestion starts (predictive self-tuning)
+        var activeChunkOverride = chunkOverride
+        if let currentContainer = container, currentContainer.autoAdaptDimension {
+            let previewText = await extractPreviewText(from: managedURL, documentType: documentType)
+            if !previewText.isEmpty {
+                let plan = await intelligenceCenter.recommendChunkingPlan(
+                    forPreviewText: previewText, contentType: documentType)
+
+                var updated = currentContainer
+                let directive = ChunkingDirective(
+                    source: .auto,
+                    strategy: plan.strategy.rawValue,
+                    targetWordWindow: plan.targetWordWindow,
+                    overlapWords: plan.overlapWords,
+                    rationale: plan.rationales
+                )
+                updated.chunkingDirective = directive
+
+                if updated != currentContainer {
+                    await MainActor.run {
+                        self.containerService.updateContainer(updated)
+                    }
+                    container = updated
+                    activeChunkOverride = chunkingOverride(for: updated)
+                    Log.info(
+                        "[SelfTuning] Predictive pre-scan auto-tuned configuration for \(filename): Chunk strategy → \(plan.strategy.rawValue.capitalized) • Window \(plan.targetWordWindow) (Rationale: \(plan.rationales.joined(separator: " | "))). Ingesting with optimized settings.",
+                        category: .ingestion
+                    )
+                }
+            }
+        }
+
+        return activeChunkOverride
     }
 
     /// Step N: reads and cuts the document into passages and journals how long the main thread went unanswered meanwhile.

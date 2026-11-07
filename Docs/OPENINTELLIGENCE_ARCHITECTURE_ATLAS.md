@@ -933,6 +933,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I16 | P (lists the document in Spotlight when the setting allows it and records that it did, so a failed import removes the entry) into `indexDocumentInSpotlight` |
 | I17 | O (counts the document's characters, words and per-passage word statistics and emits Extraction complete) into `measureExtraction` |
 | I18 | N (reads and cuts the document into passages and journals how long the main thread went unanswered meanwhile) into `parseDocumentForImport` |
+| I19 | L (when the library adapts itself, pre-scans the document's text and stores the chunking plan it recommends before the import uses it) into `prescanChunkingPlan` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 
