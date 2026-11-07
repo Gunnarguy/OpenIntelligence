@@ -1063,11 +1063,14 @@ extension AgenticOrchestrator {
 
         var allResults: [[RetrievedChunk]] = []
 
-        // Search with each query variation - show FULL pipeline for ALL queries
-        // This gives Deep Think/Maximum the same granular console output as Standard mode
-        for (index, query) in queries.enumerated() {
-            if Task.isCancelled { break }
-
+        // Up to three searches at a time instead of one after another (5.8, 2026-11-07). The five searches took 17.1 s on
+        // average one after another on the owner's iPhone (2026-11-04, about 3.6 s each), and no search reads another's
+        // result. The results are put back in query order before the fusion below, so its ranks and its first-seen
+        // tie-break see exactly the lists the loop used to append; only the order of the progress events changes. Three,
+        // not five: each search's reranker already runs up to four Core ML predictions at once (`RAGEngine`).
+        let maxConcurrentSearches = 3
+        let mode = qualityMode
+        let search: @Sendable (Int, String) async throws -> (Int, [RetrievedChunk]) = { index, query in
             await onDetailedEvent?(.retrieval, "Query \(index + 1)/\(queries.count)", "\"\(query.prefix(40))...\"")
 
             // Show full pipeline details for ALL queries (not just first)
@@ -1076,13 +1079,33 @@ extension AgenticOrchestrator {
                 query: query,
                 topK: 15,
                 minSimilarity: 0.05,  // Very low - we'll use RRF to rank
-                qualityMode: qualityMode,
+                qualityMode: mode,
                 onDetailedEvent: onDetailedEvent  // Always forward events
             )
-            allResults.append(chunks)
 
             // Show result count for each query
             await onDetailedEvent?(.retrieval, "Query \(index + 1) done", "\(chunks.count) chunks retrieved")
+            return (index, chunks)
+        }
+        var resultsByQuery: [Int: [RetrievedChunk]] = [:]
+        try await withThrowingTaskGroup(of: (Int, [RetrievedChunk]).self) { group in
+            var nextQuery = 0
+            while nextQuery < queries.count, nextQuery < maxConcurrentSearches, !Task.isCancelled {
+                let index = nextQuery, query = queries[index]
+                group.addTask { try await search(index, query) }
+                nextQuery += 1
+            }
+            while let (index, chunks) = try await group.next() {
+                resultsByQuery[index] = chunks
+                if nextQuery < queries.count, !Task.isCancelled {
+                    let next = nextQuery, query = queries[next]
+                    group.addTask { try await search(next, query) }
+                    nextQuery += 1
+                }
+            }
+        }
+        for index in queries.indices {
+            if let chunks = resultsByQuery[index] { allResults.append(chunks) }
         }
 
         await onDetailedEvent?(.rrf, "Fusing results", "RRF across \(allResults.count) result sets")
@@ -1225,9 +1248,11 @@ extension AgenticOrchestrator {
             Reply with ONLY one word: YES or NO
             """
 
+        // A one-word YES or NO is complete as it stands; no continuation turn (5.8, 2026-11-07, as for the reformulation above).
         let response = try await ragService.generateWithFreshSession(
             prompt: prompt,
-            maxTokens: 10
+            maxTokens: 10,
+            skipContinuation: true
         )
 
         let answer = response.text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)

@@ -122,7 +122,11 @@ extension AgenticOrchestrator {
             // of 700 and 1500. Input size was never the variable; four earlier hypotheses (rate
             // limiting, guided generation, prompt size, empty context) were each investigated and
             // ruled out before the trace made the output cap visible.
-            response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 256)
+            // No continuation (5.8, 2026-11-07). The reply is a list of numbers, so it never ends in a full stop and the
+            // continuation check took it for a cut-off sentence and asked for up to two more turns, 1.4 to 1.7 s each on
+            // the owner's iPhone (2026-11-04). The parser below reads every number in the text, so a continuation could only
+            // add numbers the model offered after its answer was complete. Without it the selection is the model's answer.
+            response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 256, skipContinuation: true)
         } catch {
             Log.warning(
                 "[ReasoningChain] Title routing generation failed (\(type(of: error))): "

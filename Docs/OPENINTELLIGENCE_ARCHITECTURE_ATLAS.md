@@ -685,6 +685,11 @@ supposed to be agentic.
   agentic. `[evidence: code_verified, exact, device trace 2026-08-14 message D74F98E4; RAGService useAgentic gate]`
 - **Deep Think and Maximum are where the agentic loop is supposed to fire.** The rest of this section
   is about those two modes only.
+- **The five sub-searches run three at a time (5.8, 2026-11-07).** `AgenticOrchestrator.executeMultiQuerySearch`
+  runs at most three `executeFullRetrievalPipeline` calls at once in a throwing task group and merges their results
+  in query order, so the fusion is unchanged (`DeepThinkRetrievalGoldenTests`: 57 of 57 multi-query searches identical
+  before and after). Title routing and the semantic-intent check pass `skipContinuation: true`.
+  `[evidence_level: test_verified, confidence: high]`
 - **Only the final answer streams (5.4).** Every model call an agentic run makes streams through the
   task-local `LLMStreamingContext.handler`, and until 5.4 the chat passed none in these modes, so the
   answer appeared whole when the run ended. `execute` now clears that handler for the run and parks the
