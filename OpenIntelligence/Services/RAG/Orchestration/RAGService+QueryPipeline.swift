@@ -4228,145 +4228,7 @@ extension RAGService {
 
                 let generationStartTime = Date()
 
-                var genConfig = inferenceConfig
-
-                // ═══════════════════════════════════════════════════════════════
-                // Context Homogeneity Detection
-                // ═══════════════════════════════════════════════════════════════
-                // If retrieved chunks are >55% similar to each other (Jaccard),
-                // the source content is repetitive (e.g., inspection reports with
-                // repeated dates/entries). Inject synthesis-focused instructions
-                // into the system prompt to prevent the LLM from enumerating
-                // each chunk separately (which causes repetition loops).
-                let contextIsHomogeneous = detectContextHomogeneity(chunks: includedChunks)
-
-                // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
-                // Keep concise to maximize context budget (every 100 chars = ~70 tokens)
-
-                // Customize system prompt based on answer intent (AppleRAG §3)
-                // BUDGET-CONSCIOUS: Every 100 chars ≈ 70 tokens. Keep prompts tight.
-                let lowerQuestion = question.lowercased()
-                let isBehavioralOutcomeQuery =
-                    lowerQuestion.contains("happens if")
-                    || lowerQuestion.contains("happens when")
-                    || lowerQuestion.contains("what does")
-                    || lowerQuestion.contains("what do")
-                    || lowerQuestion.contains("do when")
-
-                let intentSpecificInstructions: String
-                switch answerIntent {
-                case .lookup, .tableLookup:
-                    // Detect count/enumeration queries that slipped through to lookup
-                    // (e.g., "how many quarts" — single-value with unit)
-                    let isCountQuery = lowerQuestion.contains("how many") || lowerQuestion.contains("how much")
-                    if isCountQuery {
-                        intentSpecificInstructions = """
-                            State the exact count FIRST, then list only the directly relevant items by name.
-                            Keep each bullet brief. Copy names, labels, and values VERBATIM from the excerpts.
-                            Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
-                            Use only the minimum citations needed for the count sentence or for bullets that come from different sources.
-                            """
-                    } else if contextualDefinitionLookup {
-                        intentSpecificInstructions = """
-                            Define the subject directly in the first sentence.
-                            Then explain the most relevant grounded context or significance from the excerpts.
-                            Use concise prose, but allow 2-4 sentences when the excerpts support a fuller explanation.
-                            Do not collapse a research concept into a nearby product, delivery form, or adjacent therapy unless the excerpts explicitly equate them.
-                            If the excerpts distinguish the subject from similar items, state that distinction clearly.
-                            Use the minimum citations needed — usually one citation cluster at the end of a sentence or short paragraph.
-                            """
-                    } else {
-                        intentSpecificInstructions = """
-                            Answer only the exact question being asked.
-                            Start with the direct answer in the first sentence.
-                            If the excerpts support additional details that materially answer the question, include them instead of collapsing everything into a one-line reply.
-                            Use concise prose by default, but allow 2-4 sentences when needed for a complete grounded answer.
-                            Keep it to one short paragraph unless bullets materially improve clarity.
-                            Copy numbers, units, and codes VERBATIM.
-                            Use the minimum citations needed — usually one citation cluster at the end of the sentence or paragraph. Do not repeat citations after every clause or restated fact.
-                            Many excerpts say similar things in different words — combine them into one cohesive explanation. Never repeat the same fact twice.
-                            If the question assumes a mapping or condition that the excerpts contradict, correct the premise explicitly using the exact source mapping instead of accepting the user's wording.
-                            """
-                    }
-                case .procedure:
-                    if isBehavioralOutcomeQuery {
-                        intentSpecificInstructions = """
-                            Answer with the direct outcome FIRST in 1-2 clear sentences. If excerpts include explicit steps, include only the relevant steps in source order.
-                            Do NOT force a long numbered list when the question asks what happens.
-                            """
-                    } else {
-                        intentSpecificInstructions = """
-                            List relevant steps in source order. Number steps only when explicit ordered steps exist in the excerpts.
-                            Include warnings and prerequisites when present in source text.
-                            """
-                    }
-                case .compare:
-                    intentSpecificInstructions = """
-                        Compare the options found. Use a structured format. Copy exact product codes and specs from excerpts.
-                        """
-                case .summarize:
-                    // Detect enumeration queries routed here ("how many X are available")
-                    let isSummarizeEnumeration = lowerQuestion.contains("how many")
-                    if isSummarizeEnumeration {
-                        intentSpecificInstructions = """
-                            The user asked for a COUNT and LIST. Follow these rules STRICTLY:
-                            1. Count ONLY items explicitly named in the excerpts below.
-                            2. List EVERY distinct item by name using bullets — copy names VERBATIM.
-                            3. Include a brief description for each item when available.
-                            4. State the count as "There are N [items]" where N is YOUR count of the bullets below it.
-                            5. If the excerpts don't contain a complete list, say "The excerpts mention N of the following" — NEVER guess the total.
-                            6. NEVER state a number larger than the items you actually list.
-                            """
-                    } else {
-                        intentSpecificInstructions = """
-                            Provide a comprehensive overview covering all major points. Organize by theme.
-                            """
-                    }
-                case .investigate, .compute:
-                    intentSpecificInstructions = """
-                        Synthesize across sources. Show reasoning and connections. Copy specific values VERBATIM.
-                        """
-                case .findings:
-                    intentSpecificInstructions = """
-                        Summarize key findings, thesis, evidence, and methodology. Name researchers and contributions.
-                        """
-                }
-
-                genConfig.systemPrompt = """
-                    Answer using document excerpts [S1], [S2], etc.
-                    \(intentSpecificInstructions)
-                    Rules: Cite sources [S1]/[S2] using the minimum citations needed to support the answer. Copy values VERBATIM. Answer exactly what was asked; be complete for the request, not exhaustive. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
-                    CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
-                    ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
-                    Format: Write naturally and match format to the question. Use ### headers only for multi-topic answers or explicit summaries. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications the user asked to enumerate. Write prose paragraphs for direct explanations and factual lookups. Combine overlapping excerpts into unified sentences — never repeat the same fact. For direct factual questions, prefer concise prose over sections or lists, but include all materially supported details. When multiple grounded facts are needed, use 2-4 sentences rather than a one-line reply.
-                    \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
-                    """
-
-                // Evidence-First mode: cautious prompt for low retrieval confidence
-                if useEvidenceFirstMode {
-                    genConfig.systemPrompt = """
-                        EVIDENCE-FIRST MODE (low confidence retrieval). Use ONLY excerpts [S1], [S2], etc.
-                        \(intentSpecificInstructions)
-                        Rules: Cite only the minimum supporting sources needed for each grounded point. Copy values VERBATIM. Answer exactly what was asked. Do NOT fill gaps with assumptions. NEVER invent numbers.
-                        ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions. Never expand abbreviations differently.
-                        For procedures: preserve exact order, never omit steps, include feedback indicators.
-                        Format: Write naturally. Use ### headers only for multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations and direct factual answers. Merge overlapping excerpts into unified sentences. For direct factual questions, stay concise but include all materially supported details. Do not force a one-line answer when the evidence supports a fuller grounded explanation.
-                        \(contextIsHomogeneous ? "IMPORTANT: Excerpts contain repetitive entries. SYNTHESIZE into ONE answer. Mention each fact ONCE." : "")
-                        If the excerpts leave part of the question unanswered, end with one plain sentence saying what they do not cover. Do not name source ids in that sentence, and do not add a heading, a summary or a confidence note.
-                        """
-                    // Lower temperature for more conservative output
-                    genConfig.temperature = min(genConfig.temperature, 0.2)
-                    Log.info("[RAG] Using Evidence-First prompt (cautious mode)", category: .llm)
-                }
-
-                // Use adaptive mode's temperature
-                genConfig.temperature = min(genConfig.temperature, qualityModeTemperature)
-
-                // High Accuracy retrieval config overrides quality mode. By style, so the cap holds while the library
-                // reads as High Precision in Library Settings (5.7).
-                if retrievalConfig.style == .precise {
-                    genConfig.temperature = min(genConfig.temperature, 0.2)
-                }
+                var genConfig = composeStandardGenerationConfig(inferenceConfig: inferenceConfig, includedChunks: includedChunks, question: question, answerIntent: answerIntent, contextualDefinitionLookup: contextualDefinitionLookup, useEvidenceFirstMode: useEvidenceFirstMode, qualityModeTemperature: qualityModeTemperature, retrievalConfig: retrievalConfig)
 
                 // Provider-aware token budgeting (avoid hard 4K clamps for large-context providers).
                 let contextTokens = estimateTokensConservative(chars: context.count)
@@ -5615,6 +5477,151 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 6 (prompt): writes the intent-specific system prompt and the temperature caps into the generation config.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func composeStandardGenerationConfig(inferenceConfig: InferenceConfig, includedChunks: [DocumentChunk], question: String, answerIntent: AnswerIntent, contextualDefinitionLookup: Bool, useEvidenceFirstMode: Bool, qualityModeTemperature: Float, retrievalConfig: RetrievalConfig) -> InferenceConfig {
+        var genConfig = inferenceConfig
+
+        // ═══════════════════════════════════════════════════════════════
+        // Context Homogeneity Detection
+        // ═══════════════════════════════════════════════════════════════
+        // If retrieved chunks are >55% similar to each other (Jaccard),
+        // the source content is repetitive (e.g., inspection reports with
+        // repeated dates/entries). Inject synthesis-focused instructions
+        // into the system prompt to prevent the LLM from enumerating
+        // each chunk separately (which causes repetition loops).
+        let contextIsHomogeneous = detectContextHomogeneity(chunks: includedChunks)
+
+        // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
+        // Keep concise to maximize context budget (every 100 chars = ~70 tokens)
+
+        // Customize system prompt based on answer intent (AppleRAG §3)
+        // BUDGET-CONSCIOUS: Every 100 chars ≈ 70 tokens. Keep prompts tight.
+        let lowerQuestion = question.lowercased()
+        let isBehavioralOutcomeQuery =
+            lowerQuestion.contains("happens if")
+            || lowerQuestion.contains("happens when")
+            || lowerQuestion.contains("what does")
+            || lowerQuestion.contains("what do")
+            || lowerQuestion.contains("do when")
+
+        let intentSpecificInstructions: String
+        switch answerIntent {
+        case .lookup, .tableLookup:
+            // Detect count/enumeration queries that slipped through to lookup
+            // (e.g., "how many quarts" — single-value with unit)
+            let isCountQuery = lowerQuestion.contains("how many") || lowerQuestion.contains("how much")
+            if isCountQuery {
+                intentSpecificInstructions = """
+                    State the exact count FIRST, then list only the directly relevant items by name.
+                    Keep each bullet brief. Copy names, labels, and values VERBATIM from the excerpts.
+                    Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
+                    Use only the minimum citations needed for the count sentence or for bullets that come from different sources.
+                    """
+            } else if contextualDefinitionLookup {
+                intentSpecificInstructions = """
+                    Define the subject directly in the first sentence.
+                    Then explain the most relevant grounded context or significance from the excerpts.
+                    Use concise prose, but allow 2-4 sentences when the excerpts support a fuller explanation.
+                    Do not collapse a research concept into a nearby product, delivery form, or adjacent therapy unless the excerpts explicitly equate them.
+                    If the excerpts distinguish the subject from similar items, state that distinction clearly.
+                    Use the minimum citations needed — usually one citation cluster at the end of a sentence or short paragraph.
+                    """
+            } else {
+                intentSpecificInstructions = """
+                    Answer only the exact question being asked.
+                    Start with the direct answer in the first sentence.
+                    If the excerpts support additional details that materially answer the question, include them instead of collapsing everything into a one-line reply.
+                    Use concise prose by default, but allow 2-4 sentences when needed for a complete grounded answer.
+                    Keep it to one short paragraph unless bullets materially improve clarity.
+                    Copy numbers, units, and codes VERBATIM.
+                    Use the minimum citations needed — usually one citation cluster at the end of the sentence or paragraph. Do not repeat citations after every clause or restated fact.
+                    Many excerpts say similar things in different words — combine them into one cohesive explanation. Never repeat the same fact twice.
+                    If the question assumes a mapping or condition that the excerpts contradict, correct the premise explicitly using the exact source mapping instead of accepting the user's wording.
+                    """
+            }
+        case .procedure:
+            if isBehavioralOutcomeQuery {
+                intentSpecificInstructions = """
+                    Answer with the direct outcome FIRST in 1-2 clear sentences. If excerpts include explicit steps, include only the relevant steps in source order.
+                    Do NOT force a long numbered list when the question asks what happens.
+                    """
+            } else {
+                intentSpecificInstructions = """
+                    List relevant steps in source order. Number steps only when explicit ordered steps exist in the excerpts.
+                    Include warnings and prerequisites when present in source text.
+                    """
+            }
+        case .compare:
+            intentSpecificInstructions = """
+                Compare the options found. Use a structured format. Copy exact product codes and specs from excerpts.
+                """
+        case .summarize:
+            // Detect enumeration queries routed here ("how many X are available")
+            let isSummarizeEnumeration = lowerQuestion.contains("how many")
+            if isSummarizeEnumeration {
+                intentSpecificInstructions = """
+                    The user asked for a COUNT and LIST. Follow these rules STRICTLY:
+                    1. Count ONLY items explicitly named in the excerpts below.
+                    2. List EVERY distinct item by name using bullets — copy names VERBATIM.
+                    3. Include a brief description for each item when available.
+                    4. State the count as "There are N [items]" where N is YOUR count of the bullets below it.
+                    5. If the excerpts don't contain a complete list, say "The excerpts mention N of the following" — NEVER guess the total.
+                    6. NEVER state a number larger than the items you actually list.
+                    """
+            } else {
+                intentSpecificInstructions = """
+                    Provide a comprehensive overview covering all major points. Organize by theme.
+                    """
+            }
+        case .investigate, .compute:
+            intentSpecificInstructions = """
+                Synthesize across sources. Show reasoning and connections. Copy specific values VERBATIM.
+                """
+        case .findings:
+            intentSpecificInstructions = """
+                Summarize key findings, thesis, evidence, and methodology. Name researchers and contributions.
+                """
+        }
+
+        genConfig.systemPrompt = """
+            Answer using document excerpts [S1], [S2], etc.
+            \(intentSpecificInstructions)
+            Rules: Cite sources [S1]/[S2] using the minimum citations needed to support the answer. Copy values VERBATIM. Answer exactly what was asked; be complete for the request, not exhaustive. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
+            CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
+            ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
+            Format: Write naturally and match format to the question. Use ### headers only for multi-topic answers or explicit summaries. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications the user asked to enumerate. Write prose paragraphs for direct explanations and factual lookups. Combine overlapping excerpts into unified sentences — never repeat the same fact. For direct factual questions, prefer concise prose over sections or lists, but include all materially supported details. When multiple grounded facts are needed, use 2-4 sentences rather than a one-line reply.
+            \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
+            """
+
+        // Evidence-First mode: cautious prompt for low retrieval confidence
+        if useEvidenceFirstMode {
+            genConfig.systemPrompt = """
+                EVIDENCE-FIRST MODE (low confidence retrieval). Use ONLY excerpts [S1], [S2], etc.
+                \(intentSpecificInstructions)
+                Rules: Cite only the minimum supporting sources needed for each grounded point. Copy values VERBATIM. Answer exactly what was asked. Do NOT fill gaps with assumptions. NEVER invent numbers.
+                ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions. Never expand abbreviations differently.
+                For procedures: preserve exact order, never omit steps, include feedback indicators.
+                Format: Write naturally. Use ### headers only for multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations and direct factual answers. Merge overlapping excerpts into unified sentences. For direct factual questions, stay concise but include all materially supported details. Do not force a one-line answer when the evidence supports a fuller grounded explanation.
+                \(contextIsHomogeneous ? "IMPORTANT: Excerpts contain repetitive entries. SYNTHESIZE into ONE answer. Mention each fact ONCE." : "")
+                If the excerpts leave part of the question unanswered, end with one plain sentence saying what they do not cover. Do not name source ids in that sentence, and do not add a heading, a summary or a confidence note.
+                """
+            // Lower temperature for more conservative output
+            genConfig.temperature = min(genConfig.temperature, 0.2)
+            Log.info("[RAG] Using Evidence-First prompt (cautious mode)", category: .llm)
+        }
+
+        // Use adaptive mode's temperature
+        genConfig.temperature = min(genConfig.temperature, qualityModeTemperature)
+
+        // High Accuracy retrieval config overrides quality mode. By style, so the cap holds while the library
+        // reads as High Precision in Library Settings (5.7).
+        if retrievalConfig.style == .precise {
+            genConfig.temperature = min(genConfig.temperature, 0.2)
+        }
+        return genConfig
     }
 
     /// Step 6 (output budget): caps maxTokens to the room left after the context and applies the procedural and trivial adjustments.
