@@ -1316,3 +1316,10 @@ identically to the commit before (`BenchmarkRuns/2026-11-06-decomposition/PLAN.m
 | P4 | Step A4 (the complexity prescan of pages with no checkpoint, and the count that skip Vision) into `prescanPageComplexity` |
 | P5b | Step A7's page render (the autorelease-pool block that renders a page or keeps its text layer) into `renderPageForParsing` |
 | P5a | Step A7's checkpoint load (a saved page turned back into its result, metrics and placeholder render record) into `loadCheckpointedPage`; the `continue` stays in the host |
+
+## The import, broken into steps (2026-11-06, for 5.8)
+
+`RAGService.addDocument` in `RAGService+Import.swift` is being cut into methods, one step per commit, each a move with no change in behaviour: every commit builds for the iOS Simulator, an iOS device and macOS, and `ImportGoldenTests` records the 31 fixtures identically to the commit before (`BenchmarkRuns/2026-11-06-decomposition/specs/import/README.md` has the order and what stays in `addDocument`).
+
+| Step | What moved |
+|---|---|
