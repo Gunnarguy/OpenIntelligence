@@ -5113,27 +5113,7 @@ extension RAGService {
                     }
                 }
 
-                let generationTime = Date().timeIntervalSince(generationStartTime)
-                let responseWordCount = wordCount(of: responseText)
-                TelemetryCenter.emit(
-                    .generation,
-                    title: "Response generated",
-                    metadata: [
-                        "model": llmService.modelName,
-                        "tokens": "\(llmResponse.tokensGenerated)",
-                        "container": selectedName,
-                        "containerId": selectedId.uuidString,
-                        "words": "\(responseWordCount)",
-                        "characters": "\(responseText.count)",
-                    ],
-                    duration: generationTime
-                )
-
-                emitThinkingEvent(
-                    .generation,
-                    title: "Answer composed",
-                    detail: "\(llmResponse.tokensGenerated) tokens in \(String(format: "%.2f", generationTime))s"
-                )
+                let (generationTime, responseWordCount) = emitGenerationTelemetry(generationStartTime: generationStartTime, responseText: responseText, llmResponse: llmResponse, selectedName: selectedName, selectedId: selectedId)
 
                 // Wrap all printing in error handling to prevent crashes
                 do {
@@ -5754,6 +5734,33 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 6 (telemetry): measures the generation time and emits the 'Response generated' events.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func emitGenerationTelemetry(generationStartTime: Date, responseText: String, llmResponse: LLMResponse, selectedName: String, selectedId: UUID) -> (generationTime: TimeInterval, responseWordCount: Int) {
+        let generationTime = Date().timeIntervalSince(generationStartTime)
+        let responseWordCount = wordCount(of: responseText)
+        TelemetryCenter.emit(
+            .generation,
+            title: "Response generated",
+            metadata: [
+                "model": llmService.modelName,
+                "tokens": "\(llmResponse.tokensGenerated)",
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+                "words": "\(responseWordCount)",
+                "characters": "\(responseText.count)",
+            ],
+            duration: generationTime
+        )
+
+        emitThinkingEvent(
+            .generation,
+            title: "Answer composed",
+            detail: "\(llmResponse.tokensGenerated) tokens in \(String(format: "%.2f", generationTime))s"
+        )
+        return (generationTime: generationTime, responseWordCount: responseWordCount)
     }
 
     /// Step 6g (log): logs the model, timing, length and token rate of the generated answer.

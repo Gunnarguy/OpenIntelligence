@@ -441,7 +441,7 @@ the others, after the answer is written: it compares the question's domain with 
 to an abstention only when reliability mode is off (on by default) or the gates' overall confidence is
 under the bar, halved for a lookup with a floor of 0.25, and otherwise the answer is shown marked
 Unverified, with its text unchanged and nothing regenerated, though the claims Gate B could not
-support leave the structured answer's claim list and are listed as gaps (`RAGService+QueryPipeline.swift:5319-5376`,
+support leave the structured answer's claim list and are listed as gaps (`RAGService+QueryPipeline.swift:5299-5356`,
 `:332`, `RAGService+AnswerFinishing.swift:1043-1060`, `StructuredAnswer.swift:955-1048`, `ConfidencePolicyService.swift:48-54`). The
 critical gates' abstain flag (`VerificationGateService.swift:250-260`) decides nothing and only adds
 its reason to that list of gaps. Deep Think and Maximum answers get no gates in 5.6, and from 5.7 the

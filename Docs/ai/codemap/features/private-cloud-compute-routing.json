@@ -4,7 +4,7 @@
   "name": "Private Cloud Compute Routing",
   "aliases": ["Private Cloud Compute routing", "PCC routing", "on-device vs PCC", "model routing", "PCC consent sheet", "cloud consent prompt", "model execution planner", "Private Cloud Compute", "PCC", "consent sheet"],
   "purpose": "Decides whether an answer runs on device or on Private Cloud Compute, and holds the consent sheet that asks before a cloud transmission.",
-  "revision": "4be6352f",
+  "revision": "dc6627fa",
   "verified_on": "2026-11-07",
   "entry_points": ["ModelExecutionPlanner.makePlan", "RAGService.makePostRetrievalModelPlan", "RAGService.ensureCloudConsentIfNeeded", "RAGService.pendingCloudConsent", "RAGService.resolveCloudConsent", "CloudConsentPromptView", "FoundationModelRoutePolicy.determineRoute", "ModelExecutionReceipt"],
   "files": [
@@ -30,7 +30,7 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Device.swift", "role": "shared", "blob": "bfd1f74a983af872bcce60c64e56b7f49ab868b3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "role": "shared", "blob": "c38e45a7c8b5a2cfd50127a28925b4cd9f4c791d"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "role": "shared", "blob": "d04aeb2a4c66027a8ce6cd4f26ff4c2b6685c493"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "role": "shared", "blob": "e7994fdfe8b516a0cce3dae8f064baf89ce2299a"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "role": "shared", "blob": "90567f7d1e26b8cdace575ca7496e1c46952dd0a"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SelfTuning.swift", "role": "shared", "blob": "afd94638c2927c42c3ba56ed5c7098ec27b59a55"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SentenceExtraction.swift", "role": "shared", "blob": "7ab225f32574eea959a94573af238cbfebfd7a5b"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+StandardRetrieval.swift", "role": "shared", "blob": "baf28b5ee5f2a91dfa2e8a2152fb6043585a20dd"},

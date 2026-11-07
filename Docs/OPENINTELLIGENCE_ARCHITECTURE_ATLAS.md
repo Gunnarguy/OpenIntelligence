@@ -947,3 +947,4 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | Q02 | 9 (gating) (builds the gating summary, final warnings and the structured answer) into `summarizeGatingAndWarnings` |
 | Q03 | 8 (calibrates confidence and logs and emits the pipeline completion) into `calibrateConfidenceAndLogCompletion` |
 | Q04 | 6g (log) (logs the model, timing, length and token rate of the generated answer) into `logGeneratedResponse` |
+| Q05 | 6 (telemetry) (measures the generation time and emits the 'Response generated' events) into `emitGenerationTelemetry` |
