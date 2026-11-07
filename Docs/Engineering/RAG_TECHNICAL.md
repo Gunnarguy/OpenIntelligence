@@ -156,7 +156,7 @@ and the website all carry it and must move together.
 | HyDE                      | `HyDEService.swift`                  | `enableHyDE`                    | ON      | +15-25% recall            |
 | Parent Document Retrieval | `ParentDocumentService.swift`        | `enableParentDocumentRetrieval` | ON      | Multi-paragraph coherence |
 | Contextual Compression    | `ContextualCompressionService.swift` | `enableContextualCompression`   | ON      | -40-60% tokens            |
-| Agentic Orchestration     | `AgenticOrchestrator.swift`          | `.agentic` quality mode         | Manual  | Multi-session reasoning, not one larger context |
+| Agentic Orchestration     | `AgenticOrchestrator.swift`          | `.deepThink` or `.maximum` mode (`.agentic` is now `.deepThink`) | Manual  | Multi-session reasoning, not one larger context |
 | Lost-in-Middle            | `RAGEngine.swift`                    | Always on                       | ON      | Better LLM attention      |
 | Cross-Encoder Rerank      | `RAGEngine.swift`                    | Always on                       | ON      | Improved ranking          |
 | Query Rewriting           | `QueryRewriterService.swift`         | `enableQueryRewriting`          | ON      | Clarifies ambiguity       |
@@ -182,7 +182,7 @@ and the website all carry it and must move together.
   writing the answer, so a bad extraction becomes a bad *candidate* the verification gates can catch
   rather than an answer that skipped them. Both `exact_value` failures in the current benchmark
   (`exact_service_interval`, `exact_temperature_limit`) sit in this area.
-  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:556-574 commented block, GroundedAnswerPolicy.swift@2fae8509^:38-66 (removed in 2fae8509), ModelExecutionPlanner.swift:69-72, RAGService+QueryPipeline.swift:2177 and FoundationModelRoutePolicy.swift:36 both grouping .deterministic with .onDevice]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:556-574 commented block, GroundedAnswerPolicy.swift@2fae8509^:38-66 (removed in 2fae8509), ModelExecutionPlanner.swift:69-72, RAGService+QueryRetrieval.swift:206 and FoundationModelRoutePolicy.swift:36 both grouping .deterministic with .onDevice]`
 - `VerificationGateService.swift` now defines gates A-I, not only A-G.
 - The vector store is not only HNSW. The current BNNS/Accelerate implementation persists memory-mapped vectors and uses Metal for larger searches when available; Vectura/HNSW is a selectable backend path.
 - Full GraphRAG is not a shipped claim. The app has graph-style context packing, deterministic entities, and RAPTOR-lite summaries, but not evaluated LLM-derived entity graph/community summaries.
@@ -192,7 +192,7 @@ and the website all carry it and must move together.
   - "Vectura/HNSW is a selectable backend path" is not true of any build: `VecturaVectorDatabase` is behind `#if canImport(VecturaKit)`, VecturaKit is not a dependency, and a library configured for it falls back to the BNNS store.
   - The quick reference table's HyDE and contextual compression rows say ON. Their settings default to true, but neither runs in any user-selectable mode. Each needs a mode flag that is off in Standard, and Deep Think and Maximum leave for the agentic path before either step.
   - "Deterministic entities" are attached to chunks, but the entity index is never filled, so nothing expands through it.
-  `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:482-493, RAGService+AgenticQuery.swift:124-300, RAGService+AgenticQuery.swift:754-761, RAGService+QueryPipeline.swift:929-4576, :2749-2796, :5678-5684 and :3765, RAGService+ToolHandler.swift:207-210, OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift:167-172, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195 and :277-284, OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-50, OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:482-495 and :511-513, RAGService+AgenticQuery.swift:124-300, RAGService+AgenticQuery.swift:754-761, RAGService+QueryPipeline.swift:930 and RAGService+QueryAnswer.swift:207-236, RAGService+QueryPreparation.swift:609-656, RAGService+QueryContext.swift:1070-1086, RAGService+ToolHandler.swift:207-210, OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift:167-172, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195 and :277-284, OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137]`
 
 ---
 
@@ -220,7 +220,7 @@ User Query → LLM generates hypothetical answer → Embed hypothetical → Sear
 ### Code Location
 
 ```swift
-// OpenIntelligence/Services/HyDEService.swift
+// OpenIntelligence/Services/Query/Rewriting/HyDEService.swift
 
 let hydeService = HyDEService()
 let result = try await hydeService.generateHyDEQuery(for: "What oil does my car take?")
@@ -249,7 +249,7 @@ static func shouldUseHyDE(for query: String) -> Bool
 > construction is in Standard's pipeline, behind a mode flag that is false for Standard, and Deep
 > Think and Maximum embed without it ("HyDE disabled in Deep Think"). The recall figure above has no
 > benchmark artifact cited for this app. `[evidence_level: code_verified, confidence: exact,
-> evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:2749-2796 and
+> evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPreparation.swift:609-656 and
 > RAGService+ToolHandler.swift:207-210, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195]`
 
 ---
@@ -277,7 +277,7 @@ Retrieved Chunks → Find siblings (same page/section) → Expand context → Co
 ### Code Location
 
 ```swift
-// OpenIntelligence/Services/ParentDocumentService.swift
+// OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift
 
 let service = ParentDocumentService(config: .default)
 let result = await service.expandWithSiblings(
@@ -340,7 +340,7 @@ Retrieved Chunks → LLM filters each → Keep only relevant sentences → Assem
 ### Code Location
 
 ```swift
-// OpenIntelligence/Services/ContextualCompressionService.swift
+// OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift
 
 let service = ContextualCompressionService()
 let results = try await service.compressChunks(chunks, forQuery: query)
@@ -367,8 +367,8 @@ Config.conservative // 60% retention (safer)
 > **Corrected 2026-10-20:** in the working tree contextual compression runs in no user-selectable
 > mode. Its only call is in Standard's pipeline, behind a mode flag that is off for Standard and
 > Maximum and on only for Deep Think, which never reaches that step. `[evidence_level: code_verified,
-> confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:5678-5684
-> and :3072, OpenIntelligence/Core/Models/RAGQualityMode.swift:277-284]`
+> confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryContext.swift:1070-1086
+> and RAGService+QueryPipeline.swift:212-224, OpenIntelligence/Core/Models/RAGQualityMode.swift:277-284]`
 
 ---
 
@@ -393,7 +393,7 @@ enum GroundingStatus {
 ### Code Location
 
 ```swift
-// OpenIntelligence/Services/ContextualCompressionService.swift
+// OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift
 
 let verification = try await service.verifyAnswerGrounding(
     answer: generatedAnswer,
@@ -415,7 +415,7 @@ let verification = try await service.verifyAnswerGrounding(
 > their overall confidence is under the bar. No gate triggers re-retrieval. `[evidence_level:
 > code_verified, confidence: exact, evidence_source:
 > OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift:452 (no caller),
-> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:4672-1625]`
+> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift:330 and RAGService+QueryExits.swift:596-653]`
 
 ---
 
@@ -447,7 +447,7 @@ Chains multiple 4K-token sessions together to handle complex queries requiring e
 ### Code Location
 
 ```swift
-// OpenIntelligence/Services/AgenticOrchestrator.swift
+// OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift
 
 let config = AgenticConfig(
     maxSteps: 6,
@@ -461,7 +461,7 @@ let response = try await orchestrator.process(query: userQuery, ragService: ragS
 ### Device Detection
 
 ```swift
-// OpenIntelligence/Services/DeviceCapabilityService.swift
+// OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift
 
 let tier = DeviceCapabilityService.currentTier
 let config = DeviceCapabilityService.optimizedAgenticConfig()
@@ -528,7 +528,7 @@ User sends Query B → Query A continues in background → Memory accumulates
 ### Solution
 
 ```swift
-// OpenIntelligence/Views/ChatV2/ChatScreen.swift
+// OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift (currentQueryTask is used across ChatScreen+Sending.swift, +Streaming.swift, +Actions.swift and +Body.swift since the 2026-11-05 split)
 
 @State private var currentQueryTask: Task<Void, Never>?
 
@@ -580,7 +580,7 @@ Output: [1st, 3rd, 5th, 6th, 4th, 2nd]  (interleaved)
 ### Code Location
 
 ```swift
-// OpenIntelligence/Services/RAGEngine.swift
+// OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift
 
 func applyLostInMiddleReordering(_ chunks: [DocumentChunk]) -> [DocumentChunk]
 ```
@@ -612,7 +612,7 @@ Hybrid Search (Vector + BM25) → RRF Fusion → Cross-Encoder Rerank → Final 
 ### Code Location
 
 ```swift
-// OpenIntelligence/Services/RAGEngine.swift
+// OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift
 
 let reranked = await engine.rerankWithCrossEncoder(
     query: query,
@@ -682,8 +682,8 @@ All advanced RAG settings in `SettingsStore.swift`:
 > below, "Enable grounding verification" names a method nothing calls (section 4), and Query
 > Rewriting costs a model call only for a question the ambiguity check flags. `[evidence_level:
 > code_verified for the modes and the method, device_verified for the 99.4 s (that document's own tag),
-> confidence: high, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:2749-2796,
-> :2986-2992, :646-647, OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift:83-100,
+> confidence: high, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPreparation.swift:609-656,
+> RAGService+QueryRetrieval.swift:359-365, RAGService+QueryPreparation.swift:308, OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift:83-100,
 > OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift:452, Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md lines 25-33]`
 
 ---
@@ -766,7 +766,7 @@ The adaptive optimizer provides automatic graceful degradation.
 ### Device State Monitoring
 
 ```swift
-// OpenIntelligence/Services/AdaptivePipelineOptimizer.swift
+// OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift
 
 struct DeviceRuntimeState {
     let thermalState: ProcessInfo.ThermalState
@@ -877,8 +877,8 @@ text above is kept as it was written.
 `[evidence_level: code_verified, confidence: exact, evidence_source:
 OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift:56-71
 (recommendedOptimizationLevel), :115-261 (the tiers and levels), :324-400 (configForQuery), :408-413
-(applyCooldown), :599-603 (QueryComplexity), OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:1939,
-:404, :2857, :2991 and :4227, OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift:66
+(applyCooldown), :599-603 (QueryComplexity), OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPreparation.swift:45,
+RAGService+QueryPipeline.swift:197, RAGService+QueryPreparation.swift:151, RAGService+QueryRetrieval.swift:996 and RAGService+QueryContext.swift:1085, OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift:66
 and :233-234, OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift:484 and AgenticOrchestrator+Maximum.swift:661 (the pauses),
 OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift:1084-1087, the v5.6.0 tag
 (no pause), a search of every Swift file under OpenIntelligence/ for each field and for the thermal,

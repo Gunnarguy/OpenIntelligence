@@ -4,7 +4,7 @@
   "name": "Camera Document Capture",
   "aliases": ["camera scanner", "document capture view", "vision overlay", "smart capture manager", "scan a page"],
   "purpose": "Captures paper documents with the camera and reads their text on device with Vision.",
-  "revision": "95cfe7ae",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["CameraManager", "CameraVisionOverlayView", "CaptureToRAGBridge"],
   "files": [
@@ -19,7 +19,7 @@
     {"path": "OpenIntelligence/Features/Camera/LockedCaptureImport.swift", "role": "primary", "blob": "3564c5e4e3d0f71119c17eaabdc8d442687111d6"},
     {"path": "OpenIntelligenceTests/Features/Camera/LockedCaptureImportTests.swift", "role": "test", "blob": "a3fc9ec71710aaee9558281817df13e8c81260a4"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "50e4541037ccd12d0484f9787a02d5f9fb3d6ead"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "f75efccda09054a71cda9dc05fc38c56fd5fe706"}
   ],
   "nodes": [
     {"id": "CameraManager", "kind": "model", "path": "OpenIntelligence/Features/Camera/CameraManager.swift", "line": 25, "match": "class CameraManager: NSObject, ObservableObject {", "status": "VERIFIED", "by": "build"},

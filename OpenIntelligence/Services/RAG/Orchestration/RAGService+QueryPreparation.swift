@@ -2,7 +2,7 @@
 //  RAGService+QueryPreparation.swift
 //  OpenIntelligence
 //
-//  Part of RAGService, moved from RAGService+QueryPipeline.swift on 2026-11-05 (5.8 split); only access keywords changed.
+//  Part of RAGService, moved from RAGService+QueryPipeline.swift on 2026-11-07 (5.8 split); only access keywords changed.
 //
 
 import Combine
@@ -77,7 +77,7 @@ extension RAGService {
 
         let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
         // A question an action asks (Siri, Shortcuts) of a library with no documents is answered with that, not by the
-        // model alone (5.7); see the no-documents branch below.
+        // model alone (5.7); see `answerWithoutDocuments` in RAGService+QueryExits.swift.
         let asksForAnAction = await MainActor.run { asksThroughRelay }
 
         let selectedContainer = await MainActor.run {

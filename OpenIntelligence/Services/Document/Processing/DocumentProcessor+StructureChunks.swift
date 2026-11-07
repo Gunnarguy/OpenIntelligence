@@ -2,7 +2,7 @@
 //  DocumentProcessor+StructureChunks.swift
 //  OpenIntelligence
 //
-//  Part of DocumentProcessor, moved from DocumentProcessor+StructuredParsing.swift on 2026-11-05 (5.8 split); only access keywords changed.
+//  Part of DocumentProcessor, moved from DocumentProcessor+StructuredParsing.swift on 2026-11-07 (5.8 split); only access keywords changed.
 //
 
 import Foundation

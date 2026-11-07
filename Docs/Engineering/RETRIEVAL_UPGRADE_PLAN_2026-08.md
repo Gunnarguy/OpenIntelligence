@@ -16,7 +16,7 @@
 > - **3B, resolved without Apple's protocol.** `f26dc5b` and `0da8528` (2026-09-11) turned `FoundationModelDynamicProfileRegistry` into generation parameters per answer intent, called from `RAGService` and off unless enabled in Model Parameters. It does not adopt Apple's `DynamicProfile`.
 > - **3D and 4, not started.** `0e647c7` removed a "Late Chunking" label that described a different technique; `BNNSVectorDatabase.swift` has no multi-vector or MaxSim code. **3C was not checked.**
 >
-> `[evidence_level: code_verified+grep_verified, confidence: high, evidence_source: git show of c6052df, 176e32c, 0e647c7, cb82471, 493d577, 6e5937e, 3b48c88, f26dc5b, 0da8528; FoundationModelTokenBudget.swift:97-123; AgenticOrchestrator.swift:8366-8375; SQLiteFullTextService.swift:195, :252, :327, :1458; grep for Spotlight and DynamicProfile; category counts in Benchmarks/ResearchFixtures/*/manifest.json; grep of BenchmarkRuns/LEDGER.md for NLContextual and Gemma; checked 2026-09-29]`
+> `[evidence_level: code_verified+grep_verified, confidence: high, evidence_source: git show of c6052df, 176e32c, 0e647c7, cb82471, 493d577, 6e5937e, 3b48c88, f26dc5b, 0da8528; FoundationModelTokenBudget.swift:97-123; AgenticOrchestrator+MultiChain.swift:557-564; SQLiteFullTextService.swift:195, :252, :327, SQLiteFullTextService+Chunks.swift:732; grep for Spotlight and DynamicProfile; category counts in Benchmarks/ResearchFixtures/*/manifest.json; grep of BenchmarkRuns/LEDGER.md for NLContextual and Gemma; checked 2026-09-29]`
 
 ---
 

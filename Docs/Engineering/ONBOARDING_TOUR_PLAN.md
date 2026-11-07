@@ -42,9 +42,9 @@ TipKit has no API tagged iOS 27 in this SDK. Apple's own change list stops at 20
 ## Found while inventorying, fixed with the tour
 
 - **Three tips never show.** `FirstQueryTip`, `IngestDocumentTip` and `ContainerTip` (`AppTips.swift:17, 42, 67`) exist
-  and nothing displays them or donates their events. They become the composer, Add Document and New Library tips below.
+  and nothing displays them or donates their events (removed with the tour; `AppTips.swift:19-20` records it). They become the composer, Add Document and New Library tips below.
 - **The setup step that may never finish.** The welcome's third step completes only when the model is changed by hand
-  (`OnboardingStateStore`, `ContentView.swift:419`), and the only screen that changes it, `QuickModelPickerSheet`, isn't
+  (`OnboardingStateStore`, `ContentView.swift:423`), and the only screen that changes it, `QuickModelPickerSheet`, isn't
   used anywhere (removed 2026-11-06: only a `#Preview` created it; `ModelStatusIndicator`'s menu is the live picker `[evidence_level: code_verified, confidence: exact, evidence_source: grep -rw QuickModelPickerSheet OpenIntelligence: no hits after removal; ModelStatusIndicator.swift:11]`). So the launcher at the bottom right may stay until skipped. Not seen on a device; checked first.
 - **An answer's buttons are hidden behind a tap on the bubble** (`MessageBubbleV2.swift:191`) and nothing says so. Tip 2.4.
 - **Not tipped, because they don't work:** Illustrate under an answer is never shown (ChatScreen never passes
@@ -56,72 +56,72 @@ TipKit has no API tagged iOS 27 in this SDK. Apple's own change list stops at 20
 Each line: **the control** (file:line) — the tip's title / its one sentence — when it shows. 46 in all.
 
 ### 1. Tab bar (`ContentView.swift:433`)
-1. **Documents tab** (:442) — "Your documents live here" / "Add files, switch libraries, and see what's imported." — first launch after the welcome.
-2. **Atlas tab** (:453) — "See your library as a map" / "Similar passages sit together, so you can see what your documents cover." — after 10 passages exist.
+1. **Documents tab** (:446) — "Your documents live here" / "Add files, switch libraries, and see what's imported." — first launch after the welcome.
+2. **Atlas tab** (:457) — "See your library as a map" / "Similar passages sit together, so you can see what your documents cover." — after 10 passages exist.
 
 ### 2. Chat (`ChatScreen.swift`, `ChatComposerV2.swift`)
 1. **Composer** (`ChatComposerV2.swift:122`, was `FirstQueryTip`) — "Ask about your documents" / "Answers come from your own files, with links to where each point came from." — empty chat.
-2. **Mode picker** (:4201) — "Choose how hard it works" / "Standard is fastest. Deep Think checks several searches. Maximum goes deepest." — after the first answer.
-3. **Library pills** (:4166) — "Switch libraries here" / "Questions only search the library that's selected." — when 2 or more libraries exist.
-4. **Answer bubble** (`MessageBubbleV2.swift:191`) — "Tap an answer for more" / "Copy, share, retry, translate, or see exactly how it was answered." — first answer.
+2. **Mode picker** (`ChatScreen.swift:330`) — "Choose how hard it works" / "Standard is fastest. Deep Think checks several searches. Maximum goes deepest." — after the first answer.
+3. **Library pills** (`ChatScreen.swift:405`) — "Switch libraries here" / "Questions only search the library that's selected." — when 2 or more libraries exist.
+4. **Answer bubble** (`MessageBubbleV2.swift:198`) — "Tap an answer for more" / "Copy, share, retry, translate, or see exactly how it was answered." — first answer.
 5. **A citation** (`GroundedAnswerView.swift:40`) — "Tap a citation to check it" / "It opens the passage in your document, highlighted, and says whether it was found word for word." — first answer with a citation.
 6. **Go Deeper** (`MessageActionsBar.swift:63`) — "Not enough? Go Deeper" / "Asks again with several searches and checks." — first time the actions bar opens on a single-pass answer.
-7. **Details** (`MessageActionsBar.swift:117`) — "See how it was answered" / "Which passages were used, how each claim held up, and where it ran." — same, after 2.6.
-8. **Route badge** (`MessageBubbleV2.swift:233`) — "Where it ran" / "On-device means nothing left your phone. Private Cloud Compute only runs if you allow it." — first answer.
+7. **Details** (`MessageActionsBar.swift:126`) — "See how it was answered" / "Which passages were used, how each claim held up, and where it ran." — same, after 2.6.
+8. **Route badge** (`MessageBubbleV2.swift:252`) — "Where it ran" / "On-device means nothing left your phone. Private Cloud Compute only runs if you allow it." — first answer.
 9. **Dictation** (`ChatComposerV2.swift:135`) — "Or just say it" / "Dictate your question." — second visit to Chat.
 10. **Attach** (`AttachmentPicker.swift:339`) — "Add a file from here" / "A file you attach joins this library and this conversation." — second visit.
-11. **Sidebar** (:841) — "Your conversations" / "Each conversation is kept, with its sources." — after the second conversation.
-12. **AI Hub** (:2797, iPhone and iPad) — "Rework an answer" / "Key facts, step by step, plain English, or what's missing." — after the first answer.
-13. **More menu** (:858) — "New chat and export" / "Start fresh, export a conversation, or turn on Technical Details." — third visit.
+11. **Sidebar** (`ChatScreen+Body.swift:438`) — "Your conversations" / "Each conversation is kept, with its sources." — after the second conversation.
+12. **AI Hub** (`ChatScreen+Actions.swift:699`, iPhone and iPad) — "Rework an answer" / "Key facts, step by step, plain English, or what's missing." — after the first answer.
+13. **More menu** (`ChatScreen+Body.swift:485`) — "New chat and export" / "Start fresh, export a conversation, or turn on Technical Details." — third visit.
 
 ### 3. Citation screens (`SourcePageView.swift`, `SourceTextView.swift`)
-1. **Match banner** (`SourceTextView.swift:234`) — "Is it really there?" / "This line says whether the passage was found word for word, in part, or not at all." — first open.
-2. **Show Earlier/Later Text** (:249) — "Need more context?" / "Show the text around the passage." — first open of a non-PDF source.
+1. **Match banner** (`SourceTextView.swift:240`, `SourcePageView.swift:51`) — "Is it really there?" / "This line says whether the passage was found word for word, in part, or not at all." — first open.
+2. **Show Earlier/Later Text** (`SourceTextView.swift:255`) — "Need more context?" / "Show the text around the passage." — first open of a non-PDF source.
 
 ### 4. Documents (`DocumentLibraryView.swift`)
-1. **Add Document** (:572, was `IngestDocumentTip`) — "Add your files" / "PDFs, Word, spreadsheets, slides, images, recordings and more." — empty library.
-2. **Paste** (:584) — "Paste works too" / "A copied file, link or text becomes a document." — after the first import.
-3. **New Library** (:144, was `ContainerTip`) — "Keep topics apart" / "Each library has its own documents and settings." — after 3 documents.
-4. **Library Settings** (:606) — "Tune this library" / "Search style, chunking, translation, and a watched folder." — after the first import.
-5. **Semantic Search** (:596) — "Search by meaning" / "Find passages without asking a question." — after 3 documents.
+1. **Add Document** (`DocumentLibraryView+DocumentList.swift:420`, was `IngestDocumentTip`) — "Add your files" / "PDFs, Word, spreadsheets, slides, images, recordings and more." — empty library.
+2. **Paste** (`DocumentLibraryView+DocumentList.swift:437`) — "Paste works too" / "A copied file, link or text becomes a document." — after the first import.
+3. **New Library** (`ContainerPicker.swift:165`, was `ContainerTip`) — "Keep topics apart" / "Each library has its own documents and settings." — after 3 documents.
+4. **Library Settings** (`DocumentLibraryView+DocumentList.swift:460`) — "Tune this library" / "Search style, chunking, translation, and a watched folder." — after the first import.
+5. **Semantic Search** (`DocumentLibraryView+DocumentList.swift:449`) — "Search by meaning" / "Find passages without asking a question." — after 3 documents.
 6. **Document card, long press** (`DocumentCard.swift:118`) — "More on a document" / "Hold it to copy its link or delete it." — after 3 documents.
-7. **Drag and drop** (:1635, Mac and iPad) — "Drop files here" / "Drag files or a whole folder in." — first Documents visit on a Mac or iPad.
+7. **Drag and drop** (`DocumentLibraryView+DocumentList.swift:71`, Mac and iPad) — "Drop files here" / "Drag files or a whole folder in." — first Documents visit on a Mac or iPad.
 
 ### 5. Import queue (`IngestionQueueOverlay.swift`)
 1. **Pause** (:662) — "Pause anytime" / "Pick up later right where it stopped." — first import of 3 or more files or a large PDF.
-2. **Processing mode** (:683) — "Faster or cooler" / "Choose how hard the phone works while importing." — same, after 5.1.
+2. **Processing mode** (:718) — "Faster or cooler" / "Choose how hard the phone works while importing." — same, after 5.1.
 
 ### 6. Library Settings (`ContainerSettingsSheet*.swift`)
 1. **Watch a Folder** (`WatchedFolderSection.swift:52`) — "Keep up with a folder" / "New files there import by themselves. Pro and Lifetime." — first open.
-2. **Search style cards** (`+Sections.swift:651`) — "How this library searches" / "Automatic suits most. Technical Manual favors exact words and part numbers." — first open.
-3. **Translation Language** (`+Sections.swift:259`) — "Documents in another language?" / "Passages are translated into the language you pick before they're searched." — first open, after 6.2.
+2. **Search style cards** (`ContainerSettingsSheet+Search.swift:24`) — "How this library searches" / "Automatic suits most. Technical Manual favors exact words and part numbers." — first open.
+3. **Translation Language** (`ContainerSettingsSheet+Intelligence.swift:33`) — "Documents in another language?" / "Passages are translated into the language you pick before they're searched." — first open, after 6.2.
 
 ### 7. Atlas (`AdaptiveVisualizationsView.swift`)
-1. **Full screen** (:456, keeps `AtlasTip`) — "Open the full map" / "Turn it, zoom it, and see every library at once." — first visit.
-2. **Atlas settings** (:423) — "Change the view" / "Projection, point size, labels and background." — after 7.1.
-3. **Insight cards** (:742) — "What the map found" / "Tap one to see that part of your library." — first visit with insights.
-4. **Libraries picker** in full screen (:2255) — "All libraries at once" / "Compare what each library covers." — first full screen with 2 or more libraries.
+1. **Full screen** (:229, keeps `AtlasTip`) — "Open the full map" / "Turn it, zoom it, and see every library at once." — first visit.
+2. **Atlas settings** (:431) — "Change the view" / "Projection, point size, labels and background." — after 7.1.
+3. **Insight cards** (:749) — "What the map found" / "Tap one to see that part of your library." — first visit with insights.
+4. **Libraries picker** in full screen (`Fullscreen3DAtlasView.swift:459`) — "All libraries at once" / "Compare what each library covers." — first full screen with 2 or more libraries.
 
 ### 8. Database (`DatabaseDashboardView.swift`)
-1. **Scope chips** (:510) — "One library or all" / "Pick which library these numbers describe." — first visit.
-2. **Section picker** (:548) — "Look inside the index" / "Documents, vocabulary, maintenance and search." — after 8.1.
-3. **Run Check** (:1299) — "Something off?" / "Run Check looks for problems in this library's index." — first Maintenance visit.
+1. **Scope chips** (`DatabaseDashboardView+Header.swift:330`) — "One library or all" / "Pick which library these numbers describe." — first visit.
+2. **Section picker** (`DatabaseDashboardView+Header.swift:365`) — "Look inside the index" / "Documents, vocabulary, maintenance and search." — after 8.1.
+3. **Run Check** (`DatabaseDashboardView+MaintenanceAndSearch.swift:32`) — "Something off?" / "Run Check looks for problems in this library's index." — first Maintenance visit.
 
 ### 9. Settings (`SettingsView.swift`)
-1. **Search settings** (:365) — "Find any setting" / "Type what you're after." — first visit.
-2. **How This Works** (:125) — "How it really works" / "What runs where, in plain words, and Show Me Around." — first visit, after 9.1.
-3. **Private Cloud Compute** (:1033) — "You decide when it's used" / "Never, ask each time, or for long questions." — first visit on a device that supports it.
+1. **Search settings** (`SettingsView+List.swift:302`) — "Find any setting" / "Type what you're after." — first visit.
+2. **How This Works** (`SettingsView+List.swift:82-92`) — "How it really works" / "What runs where, in plain words, and Show Me Around." — first visit, after 9.1.
+3. **Private Cloud Compute** (`SettingsView+ModelAndCloud.swift:143`) — "You decide when it's used" / "Never, ask each time, or for long questions." — first visit on a device that supports it.
 4. **Plain English** (Glossary) — "Every term explained" / "What each word in the app means." — second visit.
-5. **Appearance › Technical Details** (:3281) — "Want to see the work?" / "Show the metrics bar and passage counts under answers." — first Appearance visit.
+5. **Appearance › Technical Details** (`SettingsView+AppearanceAndSupport.swift:79`) — "Want to see the work?" / "Show the metrics bar and passage counts under answers." — first Appearance visit.
 6. **Siri & Shortcuts** — "Ask without opening the app" / "Siri and Shortcuts can ask, search and add." — second visit.
-7. **Advanced** (:320, keeps `ModelConfigTip`) — unchanged.
+7. **Advanced** (`SettingsView+List.swift:233`, keeps `ModelConfigTip`) — unchanged.
 
 ### 10. Plans (`PlanUpgradeSheet.swift`)
 1. **Redeem a Code** (:405) — "Have a code?" / "Redeem it here." — first open.
 
 ### 11. Mac only
 1. **Keyboard shortcuts** (`AppCommands.swift`) — "Faster with the keyboard" / "⌘1 Chat, ⌘2 Documents, ⌘F search, ⌘[ and ⌘] switch libraries." — third launch on a Mac.
-2. **Menu bar** (Appearance, :3409) — "Ask from the menu bar" / "A question box that's always one click away." — first Appearance visit on a Mac.
+2. **Menu bar** (Appearance, `SettingsView+AppearanceAndSupport.swift:205`) — "Ask from the menu bar" / "A question box that's always one click away." — first Appearance visit on a Mac.
 
 ## Size and order of work
 

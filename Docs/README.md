@@ -2,6 +2,11 @@
 
 This index organizes the repository's documentation by purpose, lifecycle state, and the code it maps to.
 
+**New here? Read these, in order:** [How OpenIntelligence Works](HOW_IT_WORKS.md) (every stage of both pipelines,
+plain and technical side by side), [Limitations](LIMITATIONS.md) (what is slow, missing or unverified), then the
+[Architecture Atlas](OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md). For the code itself, [the file map](ai/FILE_MAP.md)
+says which file holds what, and the [codemap](ai/codemap/INDEX.md) gives each feature's code to read first.
+
 > **Reconciled 2026-09-24.** This index no longer copies the live version number, because copies of it went stale; read what is live and what is in review from `Docs/SHIPPED_VERSION.json`. 5.2 was the Private Cloud Compute release and shipped on 2026-09-10, so PCC is live to users rather than staged; `Docs/SHIPPED_VERSION.json` is the per-platform record and `Docs/SHIPPED_CAPABILITIES.json` is the per-capability one.
 >
 > Lifecycle state describes the **document**, not the code. A document can be an Active Reference and still be verified at an older version; where that is true, the entry says which version, and the document's own header carries the detail.
@@ -126,32 +131,27 @@ Inventories and maps compiled during audit checkpoints. Per the RepoOS Command C
 | Subsystem Map | [subsystem_map.md](AuditArtifacts/ArchitectureAtlas/subsystem_map.md) | Subsystem divisions mapping features back to files. |
 | Verification Matrix | [document_claim_matrix.csv](AuditArtifacts/Verification/document_claim_matrix.csv) | Maps public claims to codebase logic, to prevent false claims. |
 
-### Dated snapshots that still sit at the top level
+### Dated snapshots, moved to `Archive/` on 2026-11-07
 
-These seven live in `Docs/` rather than `AuditArtifacts/` and were previously unlisted here, which is
-the worst combination: they sit beside the canonical documents, look authoritative, and describe a
-tree that has moved. **They are point-in-time records of what was believed on a date. None is a
-source of truth.**
-
-They are deliberately **not** relocated. A move was scoped on 2026-08-17 and rejected: the seven
-carry **48 inbound references** between them, `PCC_Dynamic_Routing_Audit_Spec.md` is cited from
-the changelog history (now `Archive/CHANGELOG_2.0_to_5.2.md`), which must not be rewritten, and one of them is load-bearing for the
-live routing system. Listing them here costs nothing and breaks nothing; moving them breaks the
-RepoOS.
-
-**Re-examined 2026-09-29 and kept.** A cleanup pass proposed archiving the four June audits; its own final check
-refused. All four already open with an [Archived] banner, gunnarguy.me already files them under Historical,
-and moving them would break 71 working links inside the three `FULL_REPO_*` files.
+Six dated audits used to sit at the top of `Docs/` beside the reference documents, looking authoritative while
+describing a tree that had moved. On 2026-11-07, at the owner's word, they moved to `Archive/`. They were kept,
+not deleted, and their 112 relative links and the 6 inbound links from this index were rewritten in the same
+change. The two earlier refusals (2026-08-17 and 2026-09-29) were about links that would break; none did this
+time. They remain point-in-time records of what was believed on a date. None is a source of truth.
 
 | Document | Lifecycle State | Note |
 | :--- | :--- | :--- |
-| [DOCUMENTATION_CONSISTENCY_AUDIT.md](DOCUMENTATION_CONSISTENCY_AUDIT.md) | **Active Directive, not a snapshot** | The exception. Referenced by 29 files (counted 2026-09-29) including `RepoOS/01_TASK_ROUTER.md`, `02_AGENT_PROMPT_COMPILER.md` (archived 2026-09-29), `03_FORBIDDEN_EDIT_BOUNDARIES.md`, `04_RELEASE_READINESS_DASHBOARD.md` and the Atlas. Live governance depends on it. Do not move or delete. |
-| [FULL_REPO_LINE_BY_LINE_AUDIT.md](FULL_REPO_LINE_BY_LINE_AUDIT.md) | *Dated snapshot* | Referenced only from within `AuditArtifacts/` phase documents. |
-| [FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md](FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md) | *Dated snapshot* | Paired with its verification document below. |
-| [FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md](FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md) | *Dated snapshot* | Verifies the document above. |
-| [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md](PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md) | *Dated snapshot, superseded by V2* | Read V2 instead. |
-| [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md](PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md) | *Dated snapshot* | Positioning as understood at the time of writing. |
-| [PCC_Dynamic_Routing_Audit_Spec.md](PCC_Dynamic_Routing_Audit_Spec.md) | *Dated spec* | Cited from `Archive/CHANGELOG_2.0_to_5.2.md`; still the only spec of the open PCC test matrix. |
+| [FULL_REPO_LINE_BY_LINE_AUDIT.md](Archive/FULL_REPO_LINE_BY_LINE_AUDIT.md) | *Dated snapshot* | Referenced only from within `AuditArtifacts/` phase documents. |
+| [FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md](Archive/FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md) | *Dated snapshot* | Paired with its verification document below. |
+| [FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md](Archive/FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md) | *Dated snapshot* | Verifies the document above. |
+| [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md](Archive/PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md) | *Dated snapshot, superseded by V2* | Read V2 instead. |
+| [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md](Archive/PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md) | *Dated snapshot* | Positioning as understood at the time of writing. |
+| [PCC_Dynamic_Routing_Audit_Spec.md](Archive/PCC_Dynamic_Routing_Audit_Spec.md) | *Dated spec* | Cited from `Archive/CHANGELOG_2.0_to_5.2.md`; still the only spec of the open PCC test matrix. |
+
+Two stay at the top level for now, because the RepoOS router and its tests read them by path:
+[DOCUMENTATION_CONSISTENCY_AUDIT.md](DOCUMENTATION_CONSISTENCY_AUDIT.md) (an active directive, referenced by 29
+files on 2026-09-29) and [AppleIntelligenceTransitionPlan.md](AppleIntelligenceTransitionPlan.md) (a historical
+plan still on `AGENTS.md` rule 14's update list). Moving them means changing the router in the same commit.
 
 **Why dated audits are kept rather than deleted.** They record what was believed and when, which is
 load-bearing more often than it looks. On 2026-08-17 the note in

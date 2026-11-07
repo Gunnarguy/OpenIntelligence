@@ -4,7 +4,7 @@
   "name": "Sample Documents",
   "aliases": ["sample documents", "sample workspace", "built-in sample files", "import the sample workspace"],
   "purpose": "Writes the bundled sample documents into a sample workspace so a new user can ask questions at once.",
-  "revision": "95cfe7ae",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["SampleDocumentManager", "SampleDocumentManager.importSamples", "SampleDocumentManager.refreshStaleSamples", "DocumentLibraryView.importSampleWorkspace", "SampleDocumentDescriptor"],
   "files": [
@@ -16,7 +16,7 @@
     {"path": "OpenIntelligenceTests/Features/Documents/SampleDocumentDescriptorTests.swift", "role": "test", "blob": "e300b251fd3ce1e4e0ffccda2700c502581e50fd"},
     {"path": "OpenIntelligenceTests/Features/Documents/SampleQuestionHeadingsTests.swift", "role": "test", "blob": "b95c2dd8edac3266cac9efcd50ef6b680f8520ff"},
     {"path": "OpenIntelligenceTests/Services/Infrastructure/GuideLibraryTests.swift", "role": "test", "blob": "e2928aea01fd1afc79b522d27feb8d0878730f26"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "50e4541037ccd12d0484f9787a02d5f9fb3d6ead"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "f75efccda09054a71cda9dc05fc38c56fd5fe706"}
   ],
   "nodes": [
     {"id": "SampleDocumentManager", "kind": "model", "path": "OpenIntelligence/Features/Documents/Library/SampleDocumentManager.swift", "line": 95, "match": "final class SampleDocumentManager {", "status": "VERIFIED", "by": "build"},

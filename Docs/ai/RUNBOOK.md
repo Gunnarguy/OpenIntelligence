@@ -598,18 +598,18 @@ produces). Each runs its work twice and fails if the passes differ, and writes `
 are compared with `scripts/golden_compare.py`. They skip unless `TEST_RUNNER_OI_GOLDEN_DIR` is set.
 
 ```bash
-python3 scripts/golden_compare.py prepare /private/tmp/oi-decomp-golden
+python3 scripts/golden_compare.py prepare ~/Library/Developer/oi-decomp-golden
 ```
 
 Then, from a build copy synced with `rsync --delete` (a copy synced without it keeps deleted files and builds green),
 once per recorder and label, with the hash seed fixed:
 
 ```bash
-TEST_RUNNER_SWIFT_DETERMINISTIC_HASHING=1 TEST_RUNNER_OI_GOLDEN_DIR=/private/tmp/oi-decomp-golden TEST_RUNNER_OI_GOLDEN_LABEL=before xcodebuild test-without-building -project OpenIntelligence.xcodeproj -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath <dd> -only-testing:OpenIntelligenceTests/StandardPipelineGoldenTests
+TEST_RUNNER_SWIFT_DETERMINISTIC_HASHING=1 TEST_RUNNER_OI_GOLDEN_DIR=~/Library/Developer/oi-decomp-golden TEST_RUNNER_OI_GOLDEN_LABEL=before xcodebuild test-without-building -project OpenIntelligence.xcodeproj -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath <dd> -only-testing:OpenIntelligenceTests/StandardPipelineGoldenTests
 ```
 
 ```bash
-python3 scripts/golden_compare.py compare /private/tmp/oi-decomp-golden/standard-before.json /private/tmp/oi-decomp-golden/standard-after.json
+python3 scripts/golden_compare.py compare ~/Library/Developer/oi-decomp-golden/standard-before.json ~/Library/Developer/oi-decomp-golden/standard-after.json
 ```
 
 `TEST_RUNNER_OI_GOLDEN_PASSES=1` records one pass (for runs after a baseline has shown the passes agree);

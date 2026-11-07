@@ -80,7 +80,7 @@ every run this project made before 2026-08-12.
 
 A run costs about 4.7 hours and pins the machine. The hybrid fusion weight does not need one:
 `RAGEngine.reciprocalRankFusion` is a pure function of the two arms' rank orders, the weight, and
-`k = 60` (both call sites, `HybridSearchService.swift:276` and `:1075`). The harness records both
+`k = 60` (both call sites, `HybridSearchService.swift:314` and `:1331`). The harness records both
 arms in rank order, so the fusion can be replayed for any weight in seconds.
 
 ```bash
@@ -107,7 +107,7 @@ by hand for the same reason. It now emits `<chunkId>#<documentId>#<name>`: chunk
 fusion keys on `chunk.id`, document identity because relevance is judged per document.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: DebugRAGValidationHarness.swift
-stageMetricsLines; RAGEngine.swift:899-956; sweep_fusion_weight.py --self-test]`
+stageMetricsLines; RAGEngine.swift:1003-1075; sweep_fusion_weight.py --self-test]`
 
 ### Which stage actually earns its place, measured 2026-08-14
 
@@ -403,7 +403,7 @@ truth also came from outside: readers wrote the questions from title and abstrac
 separate annotators answered them against the full text. Cases are kept only where at least
 two annotators agreed, and the count is recorded per case.
 
-`[evidence_level: run_artifact_verified, confidence: exact, evidence_source: BenchmarkRuns/20260811-150328-matrix/reports/*.txt STAGE METRICS results column; run_quality_matrix.py:391 and :720]`
+`[evidence_level: run_artifact_verified, confidence: exact, evidence_source: BenchmarkRuns/20260811-150328-matrix/reports/*.txt STAGE METRICS results column; run_quality_matrix.py:517 and :1065]`
 
 Ground truth lives in the pack manifests, which the in-app validation harness already consumed
 in its own schema. `scripts/build_eval_dataset.py` converts each manifest into the `RAGEvalCase`
@@ -542,7 +542,7 @@ Alongside the gates, the type reports completion latency by route, PCC→on-devi
 
 ### Scope
 
-Scoring is computable from receipts alone, so identical scoring applies to simulator, physical-device, and TestFlight runs. **This makes device evidence checkable; it does not substitute for it.** Producing receipts that represent real Private Cloud Compute execution still requires a signed device — see the `Validate:` items in the Notion engineering roadmap and `Docs/AUDIT/PCC_DYNAMIC_ROUTING_TEST_MATRIX.csv` (no longer in the repository: `Docs/AUDIT/` is gitignored; its column layout is specified in `Docs/PCC_Dynamic_Routing_Audit_Spec.md`).
+Scoring is computable from receipts alone, so identical scoring applies to simulator, physical-device, and TestFlight runs. **This makes device evidence checkable; it does not substitute for it.** Producing receipts that represent real Private Cloud Compute execution still requires a signed device — see the `Validate:` items in the Notion engineering roadmap and `Docs/AUDIT/PCC_DYNAMIC_ROUTING_TEST_MATRIX.csv` (no longer in the repository: `Docs/AUDIT/` is gitignored; its column layout is specified in `Docs/Archive/PCC_Dynamic_Routing_Audit_Spec.md`).
 
 ### Novelty counts rephrasing as new information
 

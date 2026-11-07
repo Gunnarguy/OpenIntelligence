@@ -4,7 +4,7 @@
   "name": "Verification Gates and Safety",
   "aliases": ["verification gates", "verification gate service", "source-only check", "confidence calibration", "domain isolation"],
   "purpose": "Checks a generated answer against the retrieved source text before it is shown, and scores how far to trust it.",
-  "revision": "4b042ad6",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["VerificationGateService", "SourceOnlyAnswerService", "ConfidenceCalibrationService", "DomainIsolationService"],
   "files": [
@@ -27,7 +27,7 @@
     {"path": "OpenIntelligence/Services/RAG/Safety/DetectedValueCheck.swift", "role": "primary", "blob": "3a0b42d58dd25922a00522b79972317e63a2aa9f"},
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/DetectedValueCheckTests.swift", "role": "test", "blob": "027705a7841331b40e6e2f09d0cccea018aa808a"},
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/ClaimCoverageFallbackTests.swift", "role": "test", "blob": "6e523a50c87f31b26ff7cfce05f74f61d798ba2e"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "role": "shared", "blob": "a4cbcbd90e951d2f81f39b0c98da3051dc9fced3"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "role": "shared", "blob": "15d063d5429595b4923629acd8c7867d8a5be6c8"}
   ],
   "nodes": [
     {"id": "VerificationGateService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 127, "match": "actor VerificationGateService {", "status": "VERIFIED", "by": "build"},

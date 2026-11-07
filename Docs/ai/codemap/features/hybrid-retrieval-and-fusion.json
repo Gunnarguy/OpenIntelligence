@@ -4,7 +4,7 @@
   "name": "Hybrid Retrieval and Fusion",
   "aliases": ["hybrid retrieval", "hybrid search", "BM25 scoring", "reciprocal rank fusion", "reranking", "cross-encoder reranker", "context packing", "iterative retrieval", "retrieval trace", "reranker", "rerank"],
   "purpose": "Finds the chunks for a question by running vector and keyword search together, fusing them with reciprocal rank fusion, reranking, and packing the context.",
-  "revision": "4b042ad6",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["HybridSearchService", "RAGEngine.reciprocalRankFusion", "RAGEngine.rerank", "RAGEngine.rerankWithCrossEncoder", "ContextPackingService", "IterativeRetrievalService", "RetrievalTraceCollector.Stage"],
   "files": [
@@ -27,7 +27,7 @@
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/StandardPipelineGoldenTests.swift", "role": "test", "blob": "13373c0444885704695b892e427021d3a5caf6c5"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/GoldenRecording.swift", "role": "test", "blob": "1202b8cf94d34809ee8f0ef33b39b52026f44c51"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "role": "shared", "blob": "8ad76ed88b88b37d0af2823b13670a5a16dd36ba"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "role": "shared", "blob": "d4790d2ff4fcd6fd198ef9a1669be3964674c5e8"}
   ],
   "nodes": [
     {"id": "HybridSearchService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift", "line": 161, "match": "class HybridSearchService {", "status": "VERIFIED", "by": "build"},

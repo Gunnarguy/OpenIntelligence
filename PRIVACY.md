@@ -1,7 +1,7 @@
 # OpenIntelligence privacy
 
 The privacy policy is at **https://gunndamental.com/openintelligence/privacy/**. It is the one the App Store
-listing links to, and from 5.7 (in preparation, not yet on the App Store) the same text is in the app, in Settings,
+listing links to, and from 5.7 the same text is in the app, in Settings,
 About, Privacy Policy. How the app decides where an answer is written, and what can leave the device, is
 documented against the code in [Docs/PRIVACY_AND_ROUTING.md](Docs/PRIVACY_AND_ROUTING.md).
 
@@ -17,7 +17,7 @@ In short:
   Ask when needed, or Allow without asking (shown as "Allow for Deep Think and Maximum" before 5.7, though
   it was never limited to those modes).
 - Library sync through your iCloud Drive is available on Pro and Lifetime, and only when you turn it on.
-- From 5.7 (in preparation, not yet on the App Store) the app downloads a web page when you give it the
+- From 5.7 the app downloads a web page when you give it the
   address, with "Save a Web Page", the Link field of "Add to Library", a web address you paste on the
   Documents screen or a page you share to OpenIntelligence from another app's share sheet. The request goes to that
   site and carries nothing from your library.

@@ -113,7 +113,7 @@ Root is `TabView(selection:)` at `App/ContentView.swift:259`, each tab in its ow
 | Tab | View | Heavy work it can start | Where the call leaves the UI |
 |---|---|---|---|
 | Chat | `ChatScreen` (`Features/Chat/Conversation/ChatScreen.swift:59`) | The full query pipeline (§4) via `sendMessage(_:)` (`ChatScreen+Sending.swift:190`) → `ragService.query(text, topK:, config:)` (`:414-489`); Writing Tools transforms; cloud-consent sheet (`ChatScreen+Body.swift:602`) | `Task` off the main actor, streaming back through `LLMStreamingContext` |
-| Documents | `DocumentLibraryView` (`Features/Documents/Library/DocumentLibraryView.swift:50`) | Ingestion (§3) via `reviewAndEnqueueDocuments(urls)` (`DocumentLibraryView+Body.swift:448`) → `RAGService.enqueueDocuments` (`RAGService+Import.swift:35`); sample import; reindex and re-embed of a whole container (`ContainerSettingsSheet+Chunking.swift:93`); wipe | `MainActor` enqueue, then the serial ingestion loop (§3.1) |
+| Documents | `DocumentLibraryView` (`Features/Documents/Library/DocumentLibraryView.swift:50`) | Ingestion (§3) via `reviewAndEnqueueDocuments(urls)` (`DocumentLibraryView+Body.swift:448`) → `RAGService.enqueueDocuments` (`RAGService+ImportQueue.swift:33`); sample import; reindex and re-embed of a whole container (`ContainerSettingsSheet+Chunking.swift:93`); wipe | `MainActor` enqueue, then the serial ingestion loop (§3.1) |
 | Atlas | `AdaptiveVisualizationsView` (`Features/Telemetry/Visualizations/AdaptiveVisualizationsView.swift:125`) | `LibraryVisualizationEngine.shared.analyze(containerId:)` on appear: dimensionality reduction over every vector in the container, then SceneKit for the 3D atlas (`Embedding3DView.swift`) | Background `Task`; SceneKit renders on the GPU |
 | Database | `DatabaseDashboardView` (`Features/Database/DatabaseDashboardView.swift:13`) | FTS5 statistics, optimize, rebuild, vacuum, integrity check, search benchmark, K-means cluster labelling with LLM naming (`:155-167`) | Background `Task` with a watchdog |
 | Settings | `SettingsView` (`Features/Settings/SettingsView.swift:21`) | GPU profile change (`DeviceCapabilityService.shared.setGPUProfile`, `:105`), iCloud sync toggle (`SettingsView+ModelAndCloud.swift:243`), model configuration sheet, developer diagnostics hub with benchmark and validation runs | `MainActor`, then whatever the service does |
@@ -140,22 +140,22 @@ to `RAGService.query`, so a Siri question runs the same §4 pipeline in the back
 
 | # | Stage | Entry | Concurrency | Evidence |
 |---|---|---|---|---|
-| 1 | Enqueue | `RAGService.enqueueDocuments` (`RAGService+Import.swift:35`), item state `.queued` (`:64`) | `MainActor` | code_verified / exact |
-| 2 | Serial loop | `RAGService.runIngestionLoop` (`RAGService+Import.swift:437`): `while let next = nextQueuedIngestionItem()` → `addDocument` (`:862`) | **One document at a time.** Parallelism exists only inside a document (pages, embeddings) | code_verified / exact |
+| 1 | Enqueue | `RAGService.enqueueDocuments` (`RAGService+ImportQueue.swift:33`), item state `.queued` (`:62`) | `MainActor` | code_verified / exact |
+| 2 | Serial loop | `RAGService.runIngestionLoop` (`RAGService+ImportQueue.swift:435`): `while let next = nextQueuedIngestionItem()` → `addDocument` (`RAGService+Import.swift:33`) | **One document at a time.** Parallelism exists only inside a document (pages, embeddings) | code_verified / exact |
 | 3 | iCloud materialisation guard | `WorkspaceSyncService.ensureItemAvailableLocally(at:timeout: 20)` (`Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift:509`) | Blocks the document up to 20 s while iCloud downloads a placeholder | code_verified / exact |
-| 4 | Stage `.loading` | `RAGService+Import.swift:1045` | | code_verified / exact |
-| 5 | Parse and chunk | Step 1 at `RAGService+Import.swift:1056` → `DocumentProcessor.processDocument` (`Services/Document/Processing/DocumentProcessor+Import.swift:67`) | See §3.2 | code_verified / exact |
-| 6 | Auto-adapt configuration | Step 1.5 at `RAGService+Import.swift:1611-1824`, stage `.analyzing` | | code_verified / exact |
-| 7 | Embed | Step 2 at `RAGService+Import.swift:1122`, stage `.embedding` (`:1729`) | See §3.4 | code_verified / exact |
-| 8 | Build chunk records | Step 3 at `RAGService+Import.swift:2282` | | code_verified / exact |
-| 9 | Store vectors | Step 4 at `RAGService+Import.swift:1146`: `db.storeBatch(chunks:)` (`:1887`), `db.persist()` (`:1888`) | Actor-serialised | code_verified / exact |
-| 10 | Spotlight chunks | Step 4.0.0 at `RAGService+Import.swift:1951` (if enabled) | | code_verified / exact |
-| 11 | Store chunk rows in FTS5 | Step 4.0.1 at `RAGService+Import.swift:1989`, `SQLiteFullTextService.shared.storeChunks` (`:1974`), stage `.indexing` | Actor | code_verified / exact |
-| 12 | Learn vocabulary and Vision entities | Steps 4.1 and 4.1b at `RAGService+Import.swift:2045, 2063` | | code_verified / exact |
-| 13 | Document summary (RAPTOR-lite L1) | Step 4.5 at `RAGService+Import.swift:2472` (if enabled) | One LLM call | code_verified / exact |
-| 14 | Persist vector store again | Step 4.9 at `RAGService+Import.swift:1182-1185` | | code_verified / exact |
-| 15 | Content tags | Step 5 at `RAGService+Import.swift:2568` (iOS 26+ tagging model) | | code_verified / exact |
-| 16 | State update, `.complete` | `RAGService+Import.swift:2092`, `:2207` | | code_verified / exact |
+| 4 | Stage `.loading` | `RAGService+Import.swift:216` | | code_verified / exact |
+| 5 | Parse and chunk | Step 1 at `RAGService+Import.swift:227` → `DocumentProcessor.processDocument` (`Services/Document/Processing/DocumentProcessor+Import.swift:67`) | See §3.2 | code_verified / exact |
+| 6 | Auto-adapt configuration | Step 1.5 at `RAGService+Import.swift:782-995`, stage `.analyzing` | | code_verified / exact |
+| 7 | Embed | Step 2 at `RAGService+Import.swift:293`, stage `.embedding` (`:1040`) | See §3.4 | code_verified / exact |
+| 8 | Build chunk records | Step 3 at `RAGService+Import.swift:1453` | | code_verified / exact |
+| 9 | Store vectors | Step 4 at `RAGService+Import.swift:317`: `db.storeBatch(chunks:)` (`:339`), `db.persist()` (`:340`) | Actor-serialised | code_verified / exact |
+| 10 | Spotlight chunks | Step 4.0.0 at `RAGService+Import.swift:1122` (if enabled) | | code_verified / exact |
+| 11 | Store chunk rows in FTS5 | Step 4.0.1 at `RAGService+Import.swift:1160`, `SQLiteFullTextService.shared.storeChunks` (`:1205`), stage `.indexing` | Actor | code_verified / exact |
+| 12 | Learn vocabulary and Vision entities | Steps 4.1 and 4.1b at `RAGService+Import.swift:1216, 1234` | | code_verified / exact |
+| 13 | Document summary (RAPTOR-lite L1) | Step 4.5 at `RAGService+ImportEnrichment.swift:44` (if enabled) | One LLM call | code_verified / exact |
+| 14 | Persist vector store again | Step 4.9 at `RAGService+Import.swift:353-356` | | code_verified / exact |
+| 15 | Content tags | Step 5 at `RAGService+ImportEnrichment.swift:140` (iOS 26+ tagging model) | | code_verified / exact |
+| 16 | State update, `.complete` | `RAGService+Import.swift:1263`, `:1339` | | code_verified / exact |
 
 The full document text goes into the FTS `documents` table **before** chunking, from inside
 `processDocument` (`DocumentProcessor+Import.swift:140, 359` → `SQLiteFullTextService.store(text:for:containerId:)`
@@ -240,8 +240,8 @@ page number and structure type `UNINDEXED` (`:242-254`). `[evidence_level: code_
 | Point | Rule | Where |
 |---|---|---|
 | Whole file | Non-streamable and over 500 MB | `DocumentProcessor+Import.swift:179` |
-| Whole file | Duplicate of an already-imported document | `RAGService+Import.swift:903` |
-| Whole file | Tier quota reached | `RAGService+Import.swift:996` (`DocumentQuotaError`) |
+| Whole file | Duplicate of an already-imported document | `RAGService+Import.swift:74` |
+| Whole file | Tier quota reached | `RAGService+Import.swift:167` (`DocumentQuotaError`) |
 | Pages | Text-layer garble check routes the page to OCR; OCR confidence and noise filters strip strings | `DocumentProcessor+PDFText.swift:428-470, DocumentProcessor+Import.swift:298` |
 | Table cells | Uncertain numeric cells dropped from structure | `DocumentProcessor+TablesAndTextFiles.swift:121` |
 | Chunk tail | Anything past 510 tokens after prefix, if a chunk is still oversized after the split pass | `DocumentProcessor+TokenLimits.swift:226` |
@@ -265,9 +265,9 @@ failure class the ledger keeps recording. The `IngestionStageLedger`
 `queryInternal` (`:126`). `[evidence_level: code_verified, confidence: exact]`
 
 `queryInternal` first resolves the run through `QueryRuntimeCoordinator.resolveContext`
-(`RAGService+QueryPipeline.swift:180`), which decides the quality mode, PCC eligibility, adaptive configuration, the query
-profile, and whether the run is agentic. If `runtimeContext.isAgentic` (`:203`) the call leaves
-for `executeAgenticQuery` (`:240`) and §5 applies. Otherwise the steps below run in this order.
+(`RAGService+QueryPipeline.swift:181`), which decides the quality mode, PCC eligibility, adaptive configuration, the query
+profile, and whether the run is agentic. If `runtimeContext.isAgentic` (`RAGService+QueryPreparation.swift:42`) the call leaves
+for `executeAgenticQuery` (`RAGService+QueryPipeline.swift:224`) and §5 applies. Otherwise the steps below run in this order.
 `[evidence_level: code_verified, confidence: exact]`
 
 ### 4.2 Stage table
@@ -276,36 +276,36 @@ Line numbers are in `RAGService.swift` unless a path is given.
 
 | Step | Stage | What runs | Unit | Candidates in → out | Evidence |
 |---|---|---|---|---|---|
-| Cache | Semantic query cache | Exact hit reuses the cached vector and skips Step 2 (`RAGService+QueryPipeline.swift:2321, 2829`); stored in `semantic_query_cache` | CPU | | code_verified / exact |
-| 0 | Corpus vocabulary | Build or fetch the container's vocabulary (`RAGService+QueryPipeline.swift:2368`) | CPU | | code_verified / exact |
-| 1 | Query understanding | Optional LLM rewrite when `enableQueryRewriting` (`RAGService+QueryPipeline.swift:2442`, reader at `:647`), then corpus-aware expansion (`:776-840`) and answer-intent classification (`:899`) | FoundationModels, framework-decided | | code_verified / exact |
-| 2 | Query embedding | Same provider as ingestion, one text (`RAGService+QueryPipeline.swift:2744-2774`) | Core ML or Core AI, as §3.4 | 1 vector | code_verified / exact |
+| Cache | Semantic query cache | Exact hit reuses the cached vector and skips Step 2 (`RAGService+QueryPreparation.swift:181, 689`); stored in `semantic_query_cache` | CPU | | code_verified / exact |
+| 0 | Corpus vocabulary | Build or fetch the container's vocabulary (`RAGService+QueryPreparation.swift:228`) | CPU | | code_verified / exact |
+| 1 | Query understanding | Optional LLM rewrite when `enableQueryRewriting` (`RAGService+QueryPreparation.swift:302`, reader at `:308`), then corpus-aware expansion (`:431-495`) and answer-intent classification (`:559`) | FoundationModels, framework-decided | | code_verified / exact |
+| 2 | Query embedding | Same provider as ingestion, one text (`RAGService+QueryPreparation.swift:604-634`) | Core ML or Core AI, as §3.4 | 1 vector | code_verified / exact |
 | 3 | Hybrid search | `HybridSearchService.searchWithFTS5` (`Services/RAG/Retrieval/HybridSearchService.swift:1007-1060`): `async let` vector search and FTS5 search **in parallel**. Vector side asks for `topK × 3` (`× 2` when `topK > 50`, `:250`); FTS5 side `min(topK × 3, 60)` (`:1030`); structured rows `min(topK × 3, 36)` (`:1036`). Fusion is Reciprocal Rank Fusion with `k = 60` (`:293-299`) and the weights the caller passes; on the first pass, vector 0.50 and keyword 0.50 in a default library, moved by the query's intent to 0.45 and 0.55 for keyword questions or 0.60 and 0.40 for conceptual ones, each clamped to 0.35 to 0.65 (corrected 2026-09-29: this said "weights vector 0.7, keyword 0.3", which is only the initialiser's default at `:208`; every `RAGService` construction passes explicit weights, e.g. `RAGService.swift@8be003a:10490, 10562`, from `QueryProfileService.swift:39-52` over `RetrievalConfig.default` at `KnowledgeContainer.swift:266-273`, with the intent deltas at `QueryEnhancementService.swift:37-50`, all read at `8be003a`). Two later Standard searches re-fuse leaning keyword: the retrieval cascade (`RAGService.swift@8be003a:11051-11067`, weights from `RetrievalPolicyService.swift:119-130`: lexical = min(0.65, lexicalWeight + 0.20 or 0.12), vector = max(0.35, 1 - lexical), so 0.35 and 0.65 or 0.38 and 0.62 in a default library) when retrieval looks weak, and a keyword retry at vector 0.3, keyword 0.7 (`RAGService.swift@8be003a:11145-11166`) when the top reranked score is below 0.45 and the cleaned keyword query differs from the question. No path fuses at vector 0.7, keyword 0.3; only `HybridSearchServiceTests.swift:70` uses the initialiser's default. The FTS5 path fuses at `:1186-1192` with the same caller weights. Keyword hits that would fall below the cut are re-attached up to `max(4, topK / 6)` survivors (`:377`). Section-title and path boosts are applied afterwards (`:10453`) | See 4.3 | `initialTopK` is 30 in Standard (`Core/Models/RAGQualityMode.swift:74-80`), so 90 vector + up to 60 lexical candidates in, a fused ranked list out | code_verified / exact |
 | 4 | Rerank | `RAGEngine.rerank` (`Services/RAG/Orchestration/RAGEngine.swift:294`) → `rerankWithCrossEncoder` (`:1404`): query and passage tokenised together to 512 tokens (`:1412`), `MLModel.prediction` per pair, concurrent via `withTaskGroup` (`:1516`). Called with `topK: effectiveTopK × 3` and trimmed to that (`:10502, 10535`) | Core ML, `computeUnits = .all`, low-precision GPU accumulation allowed (`RAGEngine.swift:86-87`) | Up to 90 pairs scored | code_verified / exact |
 | 4.3 | Confidence filter | Drop below the mode's `minSimilarity`: 0.28 Standard, 0.25 Deep Think, 0.20 Maximum (`RAGQualityMode.swift:85-92`); procedural queries raise the bar (`:10822`); lenient mode lowers it (`:10784`) | CPU | | code_verified / exact |
-| 4.4 | Document spread | Ensure more than one document is represented before diversifying (`RAGService+QueryPipeline.swift:5235`) | CPU | | code_verified / exact |
+| 4.4 | Document spread | Ensure more than one document is represented before diversifying (`RAGService+QueryRetrieval.swift:1365`) | CPU | | code_verified / exact |
 | 4.5 | MMR | `RAGEngine.applyMMR` with `mmrLambda` 0.60 / 0.55 / 0.50 by mode (`RAGQualityMode.swift:210-217`). The pairwise similarity matrix goes to Metal when there are more than 50 candidates **and** `useMetalForVectorOps` **and** a GPU device exists (`RAGEngine.swift:155-160`), else CPU | GPU or CPU, decided at `RAGEngine.swift:158` | Diversified set | code_verified / exact |
-| 4.6 | Expansion | Parent document retrieval when enabled (`RAGService+QueryPipeline.swift:3617`, reader `:2854`), cross-reference resolution (`:2915`), targeted spec retrieval (`:2942`) | CPU + SQLite | | code_verified / exact |
-| 4.7 | Contextual compression | Optional extractive sentence filtering (`RAGService+QueryPipeline.swift:5668`, reader `:2985`), followed by a one-second cooldown to protect the Foundation Models rate budget (`:3179-3182`) | FoundationModels when enabled | | code_verified / exact |
-| 4.9 | Graph-based packing | `ContextPackingService` (`RAGService+QueryPipeline.swift:3883`; `Services/RAG/Retrieval/ContextPackingService.swift`) | CPU | | code_verified / exact |
+| 4.6 | Expansion | Parent document retrieval when enabled (`RAGService+QueryRetrieval.swift:990`, reader `:996`), cross-reference resolution (`:1058`), targeted spec retrieval (`RAGService+QueryContext.swift:1032`) | CPU + SQLite | | code_verified / exact |
+| 4.7 | Contextual compression | Optional extractive sentence filtering (`RAGService+QueryContext.swift:1070`, reader `:1085`), followed by a one-second cooldown to protect the Foundation Models rate budget (`:189`) | FoundationModels when enabled | | code_verified / exact |
+| 4.9 | Graph-based packing | `ContextPackingService` (`RAGService+QueryContext.swift:198`; `Services/RAG/Retrieval/ContextPackingService.swift`) | CPU | | code_verified / exact |
 | 5 | Context assembly | Off-main string build (`:12066`); extractive summarisation (`:12650`); step 5.10's extractive QA block is commented out (`:12731`) (corrected 2026-09-29: this said "extractive QA is disabled, generation always runs"; the same extractor answers value questions without generation through `highPrecisionLookupOverrideAnswer`, live at `RAGService.swift@8be003a:8705, 8734, 9199, 14383, 15192` at `8be003a`) | CPU | Chunks that do not fit the token budget are trimmed and their IDs recorded (`ContextPackingService.swift:208-218`) | code_verified / exact |
-| Plan | Post-retrieval model plan | `makePostRetrievalModelPlan` (`RAGService+QueryPipeline.swift:2093`, defined `RAGService+Generation.swift:1138`) → `ModelExecutionPlanner.makePlan` (§4.4) | CPU | | code_verified / exact |
-| 6 | Generation | `switch plan.synthesisTarget` (`RAGService+QueryPipeline.swift:2105`): `.privateCloudCompute` (`:4492`), `.onDevice` and `.deterministic` (`:4563`), `.abstain` (`:4590`). Local generation goes through `LLMService` (§4.5) | FoundationModels, framework-decided; or PCC | | code_verified / exact |
+| Plan | Post-retrieval model plan | `makePostRetrievalModelPlan` (`RAGService+QueryRetrieval.swift:122`, defined `RAGService+Generation.swift:1138`) → `ModelExecutionPlanner.makePlan` (§4.4) | CPU | | code_verified / exact |
+| 6 | Generation | `switch plan.synthesisTarget` (`RAGService+QueryRetrieval.swift:134`): `.privateCloudCompute` (`:135`), `.onDevice` and `.deterministic` (`:206`), `.abstain` (`:233`). Local generation goes through `LLMService` (§4.5) | FoundationModels, framework-decided; or PCC | | code_verified / exact |
 | Gates | Verification | `VerificationGateService` (§4.6) | CPU, plus one embedding call for Gate E | Claims in, supported and unsupported claims out | code_verified / exact |
 | Render | Structured answer | `StructuredAnswer` and citations mapped back to chunk IDs, each with page, a quote of at most 240 characters, document name and section path (corrected 2026-09-29: this said "chunk offsets"; no citation type carries an offset, `StructuredAnswer.swift:65-117, 436-440` at `8be003a`); route badge in `ResponseDetailsView` reads the completed route label (`Features/Chat/Response/ResponseDetailsView.swift:314-322`) | CPU | | code_verified / exact |
 
 **Since then (note of 2026-10-20, read in the working tree, `b868fc0` plus the 5.7 work in progress).**
 The table above is the tree of 2026-09-01, and four rows read differently in today's code. Cache: an
 exact hit reuses the cached passages as well as the vector, so rewriting, expansion, embedding and the
-hybrid search are skipped, and reranking onward still runs (`RAGService+QueryPipeline.swift:2340-2354`, `:658`,
-`:781`, `:1022`, `:1162-1367`). Step 1: a lookup is kept literal, and the model rewrite runs only
-for a question the ambiguity check flags (`RAGService+QueryPipeline.swift:2431-2432`,
+hybrid search are skipped, and reranking onward still runs (`RAGService+QueryPreparation.swift:200-214`, `:308`,
+`:436`, `RAGService+QueryExits.swift:50`, `:190-395`). Step 1: a lookup is kept literal, and the model rewrite runs only
+for a question the ambiguity check flags (`RAGService+QueryPreparation.swift:291-292`,
 `QueryRewriterService.swift:83-100`), and expansion is off in Standard (`RAGQualityMode.swift:235-242`).
 Step 4.5: `RAGQualityMode.mmrLambda` has no reader, and both pipelines use the library's λ, 0.6 by
-default, at least 0.85 for a procedure (`RAGService+QueryPipeline.swift:3558-3574`, `RAGService+ToolHandler.swift:338`), and from 5.7 the
+default, at least 0.85 for a procedure (`RAGService+QueryRetrieval.swift:931-947`, `RAGService+ToolHandler.swift:338`), and from 5.7 the
 call passes the passages' stored vectors, which 5.6 did not. Step 4.7: the compression call sits behind
 a mode flag that is false for Standard, so in Standard it never runs, and Deep Think, whose flag is on,
-never reaches it (`RAGService+QueryPipeline.swift:5678-5684`, `:3072`, `RAGQualityMode.swift:277-284`).
+never reaches it (`RAGService+QueryContext.swift:1080-1086`, `RAGService+QueryPipeline.swift:212-224`, `RAGQualityMode.swift:277-284`).
 `[evidence_level: code_verified, confidence: exact]`
 
 ### 4.3 The vector search, exactly
@@ -359,7 +359,7 @@ truncation is silent in the payload; the plan records the budget it used.
 
 Consent is asked only after retrieval, once the planner has selected PCC and built the minimised
 payload (`RAGService+QueryPipeline.swift:469-470`). A denied consent forces `executionContext = .onDeviceOnly`
-(`:3190-3196`). `[evidence_level: code_verified, confidence: exact]`
+(`RAGService+QueryRetrieval.swift:168-200`). `[evidence_level: code_verified, confidence: exact]`
 
 **Since then (note of 2026-10-20, working tree).** The PCC rung above leaves out two conditions that
 the code has: the prompt and evidence as assembled, before anything is minimized, must fit the window
@@ -368,12 +368,12 @@ evidence, On-Device chosen, PCC chosen, an exact extracted value, a privacy sett
 (`ModelExecutionPlanner.swift:24-130`). No plan is `.deterministic` today, because the only code that
 builds the planner's evidence passes `requiresExactExtraction: false` (`RAGService+Generation.swift:1185-1186`),
 and one would not skip the model: `RAGService` runs it on the same branch as `.onDevice`
-(`RAGService+QueryPipeline.swift:2177`), and the extracted-value override may then replace the answer (`:5187-5214`). A new install is on Hybrid (`fmPreference = .automatic`) with
+(`RAGService+QueryRetrieval.swift:206`), and the extracted-value override may then replace the answer (`RAGService+QueryPipeline.swift:930`, `RAGService+QueryAnswer.swift:207-236`). A new install is on Hybrid (`fmPreference = .automatic`) with
 PCC permission "Ask when needed", which the chat sends as `executionContext = .preferCloud` with
 `allowPrivateCloudCompute = true` (`SettingsStore.swift:50`, `:454-461`, `ChatScreen+Sending.swift:321-325`).
 When that route is eligible, Standard sizes its first evidence pass for 32,768 tokens at 2.5
 characters a token, capped at 45,000 characters, and re-packs to the device's budget if the plan then
-keeps the answer local (`RAGService+QueryPipeline.swift:482-493`, `:3457-3511`, `:4525-4590`).
+keeps the answer local (`RAGService+QueryPipeline.swift:482-495` and `:511-529`, `RAGService+QueryContext.swift:1157-1185`, `RAGService+QueryRetrieval.swift:158-215`).
 `[evidence_level: code_verified, confidence: exact]`
 
 ### 4.5 Route policy, session, generation
@@ -414,10 +414,10 @@ default (`ContextPackingService.swift:60`). Temperature by mode: 0.4 / 0.4 / 0.3
 
 **Since then (note of 2026-10-20, working tree).** `ContextPackingService`'s 3,200 default is never
 used: its one caller, graph packing for investigate, compare and findings questions, passes 24,000
-when PCC is eligible and otherwise min(6,000, max(1,500, window × 3 ÷ 4)) (`RAGService+QueryPipeline.swift:3915`,
+when PCC is eligible and otherwise min(6,000, max(1,500, window × 3 ÷ 4)) (`RAGService+QueryContext.swift:223-234`,
 `RAGService+SentenceExtraction.swift:93-96`). Standard's own budget is computed per question from the reported window, less 120
 tokens, the system prompt, the question and a 150 to 300 output reserve, times 0.88, at 1.4
-characters a token, capped at 10,000 characters (`RAGService+QueryPipeline.swift:511-5776`), and measured 3,190
+characters a token, capped at 10,000 characters (`RAGService+QueryPipeline.swift:511-529`, `RAGService+QueryContext.swift:1157-1185`), and measured 3,190
 tokens on the owner's iPhone 16 Pro Max on 2026-10-16 (`RAGService+SentenceExtraction.swift:91-92`). The per-mode
 temperature table is read only on Standard's path (`RAGService+QueryPipeline.swift:238`). Deep Think and Maximum's
 calls use the step's temperature, else the adaptive profile's, else 0.5
@@ -441,8 +441,8 @@ the others, after the answer is written: it compares the question's domain with 
 to an abstention only when reliability mode is off (on by default) or the gates' overall confidence is
 under the bar, halved for a lookup with a floor of 0.25, and otherwise the answer is shown marked
 Unverified, with its text unchanged and nothing regenerated, though the claims Gate B could not
-support leave the structured answer's claim list and are listed as gaps (`RAGService+QueryPipeline.swift:1568-1625`,
-`:332`, `RAGService+AnswerFinishing.swift:1043-1060`, `StructuredAnswer.swift:955-1048`, `ConfidencePolicyService.swift:48-54`). The
+support leave the structured answer's claim list and are listed as gaps (`RAGService+QueryExits.swift:596-653`,
+`RAGService+QueryPipeline.swift:332`, `RAGService+AnswerFinishing.swift:1043-1060`, `StructuredAnswer.swift:955-1048`, `ConfidencePolicyService.swift:48-54`). The
 critical gates' abstain flag (`VerificationGateService.swift:250-260`) decides nothing and only adds
 its reason to that list of gaps. Deep Think and Maximum answers get no gates in 5.6, and from 5.7 the
 gates set their label only, Verified when all nine pass with Gate A's floor raised by the mode
@@ -453,8 +453,8 @@ confidence: exact]`
 
 | Point | Rule | Where |
 |---|---|---|
-| Candidates | Below `minSimilarity` after rerank | `RAGService+QueryPipeline.swift:3445` |
-| Candidates | MMR redundancy | `RAGService+QueryPipeline.swift:3527` |
+| Candidates | Below `minSimilarity` after rerank | `RAGService+QueryRetrieval.swift:818` |
+| Candidates | MMR redundancy | `RAGService+QueryRetrieval.swift:900` |
 | Chunks | Do not fit the token budget | `ContextPackingService.swift:208-218` |
 | Siblings | Skipped for budget | `RAGService+ToolHandler.swift:438` |
 | Cloud payload | Per-chunk character allowance | `ModelExecutionPlanner.swift:161` |
@@ -587,7 +587,7 @@ Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path i
    Mode. `isConstrained`, which counts a low battery on iOS, is read only by the interface, the battery
    lowers no work anywhere, and Low Power Mode only keeps background work off the GPU
    (`AdaptivePipelineOptimizer.swift:56-71`, `BackgroundTaskService.swift:1084-1087`). The optimizer's
-   `stepCooldownMs` delays only Standard's generation (`RAGService+QueryPipeline.swift:4386`). The loops wait only
+   `stepCooldownMs` delays only Standard's generation (`RAGService+QueryAnswer.swift:44`). The loops wait only
    1.5 s after a failed session (`AgenticOrchestrator+ReasoningChain.swift:748`, `AgenticOrchestrator+Maximum.swift:970`) and, from 5.7, 1 s before each session from the
    second while iOS 27 asks apps to use less (`AgenticOrchestrator+ReasoningChain.swift:484`, `AgenticOrchestrator+Maximum.swift:661`, `SystemResourceAdvice.swift:28-32`).
 10. **After the run.** The extractor's locked value replaces the answer, the source-only check runs for
@@ -748,7 +748,7 @@ the source disagrees or adds a condition.
 | OI-0601 live Neural Engine utilisation, "Future" | Correct; the HUD pulse is synthetic. |
 | OI-0605 neural extractive QA, "Dormant" | Correct (`RAGService+QueryPipeline.swift:556`). |
 | OI-0185 Metal residency set | Exists (`GPUComputeService.swift:345`). |
-| Pipeline recitation, Standard Query step 10 "post-retrieval ModelExecutionPlan" | Matches the source order (`RAGService+QueryPipeline.swift:2093` after Step 5 at `:3432`). |
+| Pipeline recitation, Standard Query step 10 "post-retrieval ModelExecutionPlan" | Matches the source order (`RAGService+QueryRetrieval.swift:122` after Step 5 at `RAGService+QueryContext.swift:1121`). |
 | Step 6 "Cross-encode the shortlist with TinyBERT" | The model is `ReRankerModel.mlpackage`; the architecture name is not stated in code and was not verified here. |
 | Equations: RRF `k ≈ 60` | Exactly 60 (`HybridSearchService.swift:297`). |
 
@@ -785,7 +785,7 @@ bash -c 'for s in "static let shared = DeviceCapabilityService()" "BGTaskSchedul
 ```
 
 ```bash
-ls /Applications/Xcode-beta.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks | grep -E "^(CoreAI|Speech|FoundationModels)\.framework$"
+ls /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks | grep -E "^(CoreAI|Speech|FoundationModels)\.framework$"
 ```
 
 The second command shows that `CoreAI.framework` and `Speech.framework` exist and that no

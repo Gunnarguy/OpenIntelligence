@@ -2,7 +2,7 @@
 //  RAGService+QueryContext.swift
 //  OpenIntelligence
 //
-//  Part of RAGService, moved from RAGService+QueryPipeline.swift on 2026-11-05 (5.8 split); only access keywords changed.
+//  Part of RAGService, moved from RAGService+QueryPipeline.swift on 2026-11-07 (5.8 split); only access keywords changed.
 //
 
 import Combine

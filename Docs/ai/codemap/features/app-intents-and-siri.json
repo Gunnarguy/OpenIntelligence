@@ -4,7 +4,7 @@
   "name": "App Intents and Siri",
   "aliases": ["Shortcuts", "Siri", "App Shortcuts", "App Intents", "screen awareness intents", "visual intelligence intents"],
   "purpose": "Lets Siri and Shortcuts search, import into and ask the library, and works with what is on screen.",
-  "revision": "95cfe7ae",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["RAGAppShortcutsProvider", "QueryDocumentsIntent", "SearchLibraryIntent", "IngestDocumentIntent", "AnalyzeImageIntent"],
   "files": [
@@ -50,7 +50,7 @@
     {"path": "OpenIntelligenceTests/Services/Agentic/HandedOutItemsTests.swift", "role": "test", "blob": "2c794d80e0d3347fdcdd119ad42ff3fe228a5bf5"},
     {"path": "OpenIntelligence/Features/Chat/Pipeline/OISettingsEntity.swift", "role": "primary", "blob": "a38d4986c4ba02a7224b3d6de78e79c27ba2120a"},
     {"path": "OpenIntelligenceTests/Services/Agentic/SettingsEntityTests.swift", "role": "test", "blob": "f29a0bc8d2a92ed3b913540ff09c5338555ebdbc"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "50e4541037ccd12d0484f9787a02d5f9fb3d6ead"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "f75efccda09054a71cda9dc05fc38c56fd5fe706"}
   ],
   "nodes": [
     {"id": "RAGAppShortcutsProvider", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 666, "match": "struct RAGAppShortcutsProvider: AppShortcutsProvider {", "status": "VERIFIED", "by": "build"},

@@ -98,7 +98,7 @@ Twenty-one concepts. Cutting the document into index cards that fit the embeddin
 ### SemanticChunker (Core, verified)
 - **Idiot:** the cutter.
 - **Dot-connector:** sentence boundaries, headings, structural blocks and transitions instead of fixed character slicing; also supplies the metadata later stages need.
-- **Expert:** 1,951 lines; runs after normalised text and structured elements exist.
+- **Expert:** 2,377 lines across 5 files after the 2026-11-05 split; runs after normalised text and structured elements exist.
 
 ### Sentence boundary (Core, verified)
 - **Idiot:** don't cut in the middle of a sentence.

@@ -1,6 +1,6 @@
 # File map of the split files
 
-Which file holds what, for the large Swift files split by job on 2026-11-05 (5.8). Read this when a file named in an
+Which file holds what, for the large Swift files split by job on 2026-11-05 and 2026-11-07 (5.8). Read this when a file named in an
 older doc, commit or citation no longer has the line it names, or before editing one of these types. A line of an old
 file: `python3 scripts/split_linemap.py File.swift:N`. Moved here from `Docs/ai/ARCHITECTURE.md` on 2026-11-06 so the
 every-task read set does not grow (`test_every_task_loads_only_the_small_universal_set`).
@@ -16,18 +16,26 @@ RAGService.swift:N` (map in `Docs/ai/split-2026-11-05-linemap.json`, lines as of
 
 | File (`Services/RAG/Orchestration/`) | Lines | Holds |
 |---|---|---|
-| `RAGService.swift` | 1,364 | the class: stored and published state, dependencies, setup, model service, the extension files' stored properties |
-| `RAGService+Types.swift` | 337 | audit snapshot, retrieval log entry, ingestion context and the other small types |
+| `RAGService.swift` | 1,366 | the class: stored and published state, dependencies, setup, model service, the extension files' stored properties |
+| `RAGService+Types.swift` | 334 | audit snapshot, retrieval log entry, ingestion context and the other small types |
 | `RAGService+ChatHistory.swift` | 1,122 | chat history, evidence threads, transcript persistence, the import queue's saved state |
 | `RAGService+Consent.swift` | 408 | Private Cloud Compute consent, pipeline tracing |
 | `RAGService+StandardRetrieval.swift` | 1,309 | Standard's retrieval helpers: cross-references, spec-table sniper, section boost, lexical relevance, contextual retrieval |
 | `RAGService+SentenceExtraction.swift` | 726 | sentence-level extraction for lookups |
 | `RAGService+Storage.swift` | 1,509 | document persistence, workspace reload, vector store access |
-| `RAGService+Import.swift` | 3,346 | document management: `addDocument` (1,443 lines), the queue, rebuilds, re-embedding, deferred enrichment |
+| `RAGService+Import.swift` | 1,639 | document management: `addDocument` (410 lines, 33-442, its steps as methods below it), the duplicate check, embedding, both stores. Split again 2026-11-07 into the three files below: |
+| `RAGService+ImportQueue.swift` | 856 | the import queue: `enqueueDocuments`, `runIngestionLoop`, pause, cancel and purge, the re-embed kicks, `syncIngestionLiveActivity` |
+| `RAGService+ImportEnrichment.swift` | 375 | `enrichImportedDocument` and the deferred-enrichment bookkeeping (`shouldDeferEnrichment`, `deferredEnrichments`, `runDeferredEnrichmentsIfNeeded`) |
+| `RAGService+IndexHealth.swift` | 711 | the embedding fingerprint, `evaluateSemanticIndexHealth`, the self-healing rebuilds, `rebuildLocalSearchIndexesFromCanonicalState` |
 | `RAGService+Deletion.swift` | 943 | deleting with undo |
 | `RAGService+SelfTuning.swift` | 271 | self-tuning |
 | `RAGService+AgenticQuery.swift` | 931 | thinking timeline, `executeAgenticQuery` (Deep Think and Maximum entry) |
-| `RAGService+QueryPipeline.swift` | 5,950 | Standard's question path, nearly all one function, `queryInternal` (5,824 lines) |
+| `RAGService+QueryPipeline.swift` | 999 | Standard's question path: `query`, `queryWithAudit`, `reQueryWithAgenticMode` and `queryInternal` (872 lines, 126-997), which calls the 80 step methods in the five files below, in order. Split again 2026-11-07: |
+| `RAGService+QueryPreparation.swift` | 967 | 14 steps before retrieval: `unpackRuntimeContext`, `resolveQueryContainer`, `sizeStandardTopK`, the semantic query cache, `rewriteQueryWithModel`, `expandQueryForRetrieval`, `gateAndGenerateHyDE`, `embedQuery`, `planSearchRouting`, `decideIterativeRetrieval` |
+| `RAGService+QueryRetrieval.swift` | 1,412 | 20 retrieval steps: `runHybridSearch`, `runIterativeRetrieval`, `applyPostRetrievalModelPlan`, `rerankCandidates`, `runRetrievalCascade`, `retryWithCleanKeywordQuery`, `filterLowConfidenceChunks`, `diversifyWithMMR`, `expandParentDocuments`, `injectExternalEvidence`, `rescueDroppedSpecChunks`, `ensureMultiDocumentCoverage` |
+| `RAGService+QueryContext.swift` | 1,401 | 16 context steps: `prepareContextCandidates`, `compressContextCandidates`, `packContextWithGraph`, `runCorrectiveRetrieval`, `assembleStandardContext`, `runSpecTableSniper`, `disableToolsForAssembledContext`, `computeContextCharBudget`, `orderContextCandidates`, `assessEvidenceBeforeGeneration` |
+| `RAGService+QueryAnswer.swift` | 937 | 16 generation steps: `composeStandardGenerationConfig`, `buildGenerationPrompt`, `retryForMissingCitations`, `repairResponseIntegrity`, `applyPrecisionLookupOverride`, `verifyAnswerAgainstEvidence`, `applySourceOnlyCheck`, `calibrateConfidenceAndLogCompletion`, `buildStandardResponse` |
+| `RAGService+QueryExits.swift` | 949 | 14 early exits and recoveries: `handleNoRetrievedPassages`, `handleNoConfidentPassages`, `enforcePassagesNeeded`, `applyHardRelevanceGate`, `answerWithExtractiveSummary`, `abstainForMissingCitations`, `abstainOnFailedVerification`, `answerWithoutDocuments`, `recoverFromQueryFailure` |
 | `RAGService+Generation.swift` | 1,936 | direct chat fallback, context homogeneity, model routing after retrieval, `generateWithFallback` |
 | `RAGService+AnswerFinishing.swift` | 1,957 | content classification, response finishing and cleanup, precision-lookup overrides, corrective retrieval |
 | `RAGService+Device.swift` | 612 | device capability and chip detection, `RAGServiceError` |
@@ -35,8 +43,8 @@ RAGService.swift:N` (map in `Docs/ai/split-2026-11-05-linemap.json`, lines as of
 
 | File (`Services/Agentic/`) | Lines | Holds |
 |---|---|---|
-| `AgenticOrchestrator.swift` | 987 | the class, its state, `executeHoldingAnswerStream` (Deep Think's run) |
-| `AgenticOrchestrator+Types.swift` | 358 | `ThinkingStep`, `AgenticConfig`, `AgenticResult`, chain and cluster configs, `AgenticError` |
+| `AgenticOrchestrator.swift` | 988 | the class, its state, `executeHoldingAnswerStream` (Deep Think's run) |
+| `AgenticOrchestrator+Types.swift` | 286 | `ThinkingStep`, `AgenticConfig`, `AgenticResult`, chain and cluster configs, `AgenticError` |
 | `AgenticOrchestrator+Retrieval.swift` | 1,719 | retrieval quality, evidence budget, step executors, `executeMultiQuerySearch`, cross-references, graph expansion |
 | `AgenticOrchestrator+Research.swift` | 511 | the recursive research loop |
 | `AgenticOrchestrator+SelfRAG.swift` | 1,210 | Self-RAG, Self-RAG 2.0 verification and citations, speculative RAG |
@@ -45,7 +53,7 @@ RAGService.swift:N` (map in `Docs/ai/split-2026-11-05-linemap.json`, lines as of
 | `AgenticOrchestrator+MultiChain.swift` | 1,017 | the shared chain helpers: `gatherAllRelevantChunks` (Maximum's larger pool), chain and session prompts, insight extraction, answer cleanup. The multi-chain path itself (1,536 lines before) had no caller and was removed 2026-11-06. |
 | `RAGService+Agentic.swift` | 374 | the `RAGService` extension the orchestrator uses |
 
-`[evidence_level: measured, confidence: exact, evidence_source: wc -l after the split; the move check that every original line is in the new files once, access keywords aside]`
+`[evidence_level: measured, confidence: exact, evidence_source: wc -l after the split, re-measured 2026-11-07; the move check that every original line is in the new files once, access keywords aside]`
 
 ## The other large files, by file (split 2026-11-05)
 
@@ -54,7 +62,7 @@ Fifteen more files, 60,585 lines in all, were split the same way that night: who
 | Old file | Lines before | Now | What went where |
 |---|---|---|---|
 | `ChatScreen.swift` (`Features/Chat/Conversation/`) | 4,922 | 9 files, largest 1,588 lines | `+Body`: `body`, its lifecycle and presentation layers, the metrics bar and live metrics, the screenshot demo seed. `+Actions`: starter prompts, suggestions, history, export, new/clear/stop/regenerate/go deeper, illustrate, transform actions. `+Content`: the main content views. `+Sending`: sending, attachments, the Maximum paywall, toasts. `+Streaming`: streaming cadence, partial answers, error text. |
-| `DocumentProcessor.swift` (`Services/Document/Processing/`) | 10,669 | 12 files, largest 2,690 lines | `+Import`: `processDocument`. `+TextExtraction`: page text and structure inference. `+PDFText`: text quality, headers and footers, PDF loading. `+StructuredParsing`: Apple's structured parsing. `+TokenLimits`: token limits and coverage checks. `+ImagesAndOCR`, `+Layout`, `+TablesAndTextFiles` (tables, text files, JSON records), `+MediaAndOffice` (audio and video, Office and iWork), `+Checkpointing`, `ZIPArchive`. Stays: configuration, GPU, tracing, progress, chunking strategy. |
+| `DocumentProcessor.swift` (`Services/Document/Processing/`) | 10,669 | 14 files, largest 1,750 lines | `+Import`: `processDocument`. `+TextExtraction`: page text and structure inference. `+PDFText`: text quality, headers and footers, PDF loading. `+StructuredParsing`: Apple's structured parsing (1,396 lines), split again 2026-11-07 into `+StructureChunks` (707 lines: `createStructureAwareChunks` and the table, list, figure and paragraph chunk builders) and `+StructureText` (775 lines: `classifyDocumentCategory`, `makeChunkMetadata`, table and list text, label and metadata sanitising). `+TokenLimits`: token limits and coverage checks. `+ImagesAndOCR`, `+Layout`, `+TablesAndTextFiles` (tables, text files, JSON records), `+MediaAndOffice` (audio and video, Office and iWork), `+Checkpointing`, `ZIPArchive`. Stays: configuration, GPU, tracing, progress, chunking strategy. |
 | `SettingsView.swift` (`Features/Settings/`) | 3,684 | 8 files, largest 809 lines | `+List` (the index and root list), `+Account` (hero, billing), `+ModelAndCloud` (model, Private Cloud Compute, shared-workspace sync), `+Device` (context window, silicon, GPU), `+Modes` (generation, retrieval, mode features), `+AppleIntelligence`, `+AppearanceAndSupport`. |
 | `AdaptiveVisualizationsView.swift` (`Features/Telemetry/Visualizations/`) | 3,238 | 5 files, largest 1,072 lines | Nine views; the four other groups moved whole into files named for them. |
 | `UnifiedMetricsBar.swift` (`Features/Chat/Response/`) | 4,800 | 8 files, largest 835 lines | `+CompactStrip` (the two-row strip and premium badges), `+Badges`, `+DetailsPanel`, `+ReasoningAndSearch`, `+RunSections`, `+CompactRows`, `+IntelligenceCard`. Stays: the audit data (the struct's stored properties, so its memberwise initializer) and the format helpers. |

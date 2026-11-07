@@ -139,9 +139,11 @@ files by section (`grep -n '^## ' <file>`, then that range), never whole: `CHANG
 first numbered section is the open release), `Docs/ai/RUNBOOK.md`, `Docs/ai/DECISIONS.md`, the Atlas,
 `Docs/INGESTION_PIPELINE.md`. `RAGService` and `AgenticOrchestrator` are split by job into extension
 files (`RAGService+Import.swift`, `AgenticOrchestrator+ReasoningChain.swift`, ...; the map is in
-`Docs/ai/ARCHITECTURE.md`), most of them small enough to read whole. Two are not: `RAGService+QueryPipeline.swift` (about 6,000 lines, nearly
-all `queryInternal`) and `RAGService+Import.swift` (about 3,300, with `addDocument`): find the symbol with `grep -n`
-and read that range. An old `RAGService.swift:N` citation resolves with `python3 scripts/split_linemap.py`.
+`Docs/ai/FILE_MAP.md`), every one of them under 2,000 lines. Standard's `queryInternal` (872 lines, in
+`RAGService+QueryPipeline.swift`) calls about 80 step methods spread over `RAGService+QueryPreparation.swift`, `+QueryRetrieval.swift`,
+`+QueryContext.swift`, `+QueryAnswer.swift` and `+QueryExits.swift`, and `addDocument` (410 lines, in `RAGService+Import.swift`) has its
+queue in `+ImportQueue.swift`, its enrichment in `+ImportEnrichment.swift` and its index checks in `+IndexHealth.swift`: find the symbol
+with `grep -n` and read that range. An old `RAGService.swift:N` citation resolves with `python3 scripts/split_linemap.py`.
 Fifteen more large files (ChatScreen, DocumentProcessor, SettingsView, WorkspaceSyncService and the rest) were split the
 same way that night; the list and what went where is `Docs/ai/FILE_MAP.md`. Moving code
 between files here can change which declaration a call reaches, or a member's actor isolation, with the build still

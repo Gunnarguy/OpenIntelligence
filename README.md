@@ -10,27 +10,21 @@
 
 <p align="center">
    <a href="https://apps.apple.com/app/apple-store/id6756559175?pt=127101782&ct=GitHub_Repo&mt=8"><img alt="Download OpenIntelligence on the App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white"></a>
-   <a href="Docs/DEMO.md"><img alt="Read the OpenIntelligence demo guide" src="https://img.shields.io/badge/Demo-Guide-6E56CF?style=for-the-badge"></a>
+   <a href="Docs/HOW_IT_WORKS.md"><img alt="Read how OpenIntelligence works" src="https://img.shields.io/badge/How%20it%20works-Read-6E56CF?style=for-the-badge"></a>
    <a href="Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md"><img alt="Read the OpenIntelligence architecture guide" src="https://img.shields.io/badge/Architecture-Read-111827?style=for-the-badge"></a>
    <a href="https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075"><img alt="View the OpenIntelligence public roadmap" src="https://img.shields.io/badge/Public-Roadmap-FF6B6B?style=for-the-badge&logo=notion&logoColor=white"></a>
 </p>
 
 ---
 
-Drop in PDFs, Office files, code, images, audio, or video. OpenIntelligence reads
-them, builds a private searchable index, and answers questions about them with
-citations you can tap and check.
+Drop in PDFs, Office files, code, images, audio, or video. OpenIntelligence reads them, builds a private
+searchable index, and answers questions about them with citations you can tap and check.
 
-The app icon includes light and dark appearances, so it follows the device's appearance setting.
-
-**It runs on your device.** Ingestion, indexing, retrieval, ranking, and
-verification are all local. Nothing is uploaded to make search work. There is no
-account, no server of mine, and no third-party AI service anywhere in the path.
-
-On iOS and macOS 27+, you can optionally allow Apple **Private Cloud Compute** to
-write the final answer, but only after you have seen how much would be sent
-and why. Every answer carries a badge showing where it actually ran, read
-from an execution receipt rather than from what was requested.
+**It runs on your device.** Ingestion, indexing, retrieval, ranking, and verification are all local. Nothing is
+uploaded to make search work. There is no account, no server of mine, and no third-party AI service anywhere in
+the path. On iOS and macOS 27, you can optionally let Apple **Private Cloud Compute** write the final answer, but
+only after you have seen how much would be sent and why. Every answer carries a badge showing where it actually
+ran, read from an execution receipt rather than from what was requested.
 
 <p align="center">
   <img src=".github/assets/screenshots/openintelligence-cited-answer.png" alt="An answer with inline citations linking back to source excerpts" width="24%">
@@ -38,67 +32,36 @@ from an execution receipt rather than from what was requested.
   <img src=".github/assets/screenshots/openintelligence-ingestion-pipeline.png" alt="The live ingestion pipeline naming each stage as it runs" width="24%">
   <img src=".github/assets/screenshots/openintelligence-library.png" alt="The document library" width="24%">
 </p>
-<p align="center">
-  <em>A cited answer · inspecting the evidence behind it · the live pipeline · the library</em>
-</p>
 
 ## Why it exists
 
-Most document AI asks you to upload your files somewhere first. If those files
-are medical, legal, financial, or simply yours, that is the whole problem.
-
-This is a bet that a genuinely good retrieval engine fits on an iPhone, and that
-an answer is more trustworthy when you can see what it was built from.
+Most document AI asks you to upload your files somewhere first. If those files are medical, legal, financial, or
+simply yours, that is the whole problem. This is a bet that a genuinely good retrieval engine fits on an iPhone,
+and that an answer is more trustworthy when you can see what it was built from.
 
 ## What it does
 
 | | |
 | :-- | :-- |
-| **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, images, audio, and video. From 5.7, JSON and JSON Lines files import as records, a PDF of any size imports, and a search no longer picks up stray letters. Pages, Numbers and Keynote are not readable and must be exported first. Vision handles OCR when a PDF's text layer is unreliable. |
-| **Searches two ways at once** | Meaning-based vector search and keyword BM25 run together, then fuse and re-rank. Hunting a part number and asking a conceptual question both work. |
-| **Shows its work** | A live pipeline view names each stage as it runs, and every claim links back to the excerpt behind it. |
-| **Explains its own vocabulary** | Every figure it shows defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and says that it is a per-chip rating rather than a measurement. |
+| **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, JSON and JSON Lines (as records), images, audio, and video. A PDF of any size imports. Vision handles OCR when a PDF's text layer is unreliable. Pages, Numbers and Keynote files must be exported first. |
+| **Searches two ways at once** | Meaning-based vector search and keyword BM25 run together, then fuse and re-rank, so hunting a part number and asking a conceptual question both work. |
+| **Shows its work** | A live pipeline view names each stage as it runs. A citation opens its passage highlighted in the document for every kind of file and says whether it was found word for word (for Word, Excel and the like, that is the text the app read, not the original page). |
+| **Explains its own vocabulary** | Every figure defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and that it is a per-chip rating rather than a measurement. |
 | **Answers offline** | Airplane mode included. |
-| **Works with Siri, Shortcuts and Spotlight** | From 5.7, Shortcuts actions ask a library in any answer mode and hand the answer and its sources to the next step, and others find passages, check a claim, add a file, a link or text, and create, open and switch libraries. A question from Siri that needs Private Cloud Compute brings the app forward to ask first. Spotlight opens the document you tap, and Visual Intelligence lists the documents that mention what the camera sees. |
-| **Shows every source** | From 5.8, a citation opens its passage highlighted in the document for every kind of file, and says whether it was found word for word. For Word, Excel and the like that is the text the app read, not the original page. |
-| **Keeps up with a folder** | From 5.8, on Pro and Lifetime, a library can watch a folder: new files import by themselves and a changed file replaces the version it imported. On a Mac it checks every few minutes while the app is open, on iPhone and iPad when you open the app. |
-| **Follows you between devices** | From 5.7, an interrupted import picks up where it was, even after an app update, and keeps the pages and embeddings it already had; Handoff carries what's open, conversations in an iCloud library sync with it, and on the Mac there's a menu bar item, Services menu entries and keyboard shortcuts. |
+| **Works with Siri, Shortcuts and Spotlight** | Shortcuts actions ask a library in any answer mode and hand the answer and its sources on; others find passages, check a claim, add a file, link or text, and manage libraries. A Siri question that needs Private Cloud Compute brings the app forward to ask first. Spotlight and Visual Intelligence find the documents that match. |
+| **Keeps up with a folder** | On Pro and Lifetime, a library can watch a folder: new files import by themselves and a changed file replaces the version it imported. |
+| **Follows you between devices** | An interrupted import picks up where it was, Handoff carries what's open, conversations in an iCloud library sync with it, and the Mac has a menu bar item, Services menu entries and keyboard shortcuts. |
 
 ### Quality modes
 
-**Standard** answers in one pass — best for lookups and direct questions. It is
-the only mode with a measured accuracy baseline: **0.410 exact-match across 83
-cases drawn from 40 real research papers** (QASPER), local-only.
+| Mode | What it does | Measured accuracy |
+|---|---|---|
+| **Standard** | One retrieval pass and one answer, for lookups and direct questions. | 0.410 exact match across 83 cases from 40 research papers (QASPER), local only. |
+| **Deep Think** | A chain of evidence sessions over rotating context windows, then a synthesis; research rounds can follow. | 9 of 25 against Standard's 10 of 25 in its largest paired run on the same QASPER pack. 25 cases cannot resolve less than about a four-case swing, so this does not separate the two modes. |
+| **Maximum** | Lifts the session ceiling for questions that span a whole library. | No valid figure yet. |
 
-> **Withdrawn 2026-08-21.** This previously read "80% across 20 ground-truthed
-> cases with zero hallucinations". That figure came from a synthetic corpus
-> written alongside its own questions, from a run now flagged in
-> `BenchmarkRuns/PROGRESSION.md` as averaging 7 seconds per case, below the
-> threshold at which generation almost certainly did not execute. The replacement
-> is a harder external set and a worse number. See
-> [How OpenIntelligence Works, section 08](Docs/HOW_IT_WORKS.md).
-
-**Deep Think** runs a chain of up to 8 sequential reasoning sessions over rotating
-context windows, passing compressed findings forward before synthesising, and
-research rounds can follow it. It stops early once it reaches the confidence it
-aims for on the device and stops learning.
-
-**Maximum** lifts the session ceiling for questions that span a whole library.
-
-> Neither Deep Think nor Maximum has a score against `Benchmarks/rag_eval_v1.jsonl`
-> yet. Their reasoning chain was broken until mid-2026, so the question this
-> architecture exists to answer — *does more compute buy more correctness?* —
-> is still open. Please don't cite a Deep Think accuracy figure; none has been measured.
-
-> **Corrected 2026-10-27,** to agree with `Docs/LIMITATIONS.md` (corrected 2026-09-29). The
-> first sentence holds: neither mode has a score against `Benchmarks/rag_eval_v1.jsonl`.
-> "None has been measured" does not. Deep Think has been benchmarked on the external QASPER
-> pack, 9 of 25 against Standard's 10 of 25 in its largest paired run
-> (`overnight-25case-nodeadlock`) and 2 of 8 against 4 of 7 in its first (`paired-retry`).
-> Each is a single run in the Mac benchmark harness at a forced temperature of 0.7, and 25
-> cases cannot resolve less than about a four-case swing, so neither run separates Deep Think
-> from Standard. Maximum has no valid figure.
-> `[evidence_level: artifact_derived, confidence: high, evidence_source: BenchmarkRuns/LEDGER.md rows paired-retry (1b700ed) and overnight-25case-nodeadlock (73fff4f) and its accuracy line "deep-think 9/25 (36%), standard 10/25 (40%)"; Docs/LIMITATIONS.md Product Limits and Technical Limits; git grep rag_eval_v1 finds no Deep Think or Maximum score]`
+The figures, their runs and an earlier figure that was withdrawn are in [Limitations](Docs/LIMITATIONS.md) and
+`BenchmarkRuns/LEDGER.md`.
 
 ## How it works
 
@@ -109,73 +72,48 @@ Question  →  expand → hybrid search → fuse → re-rank → diversify
           →  expand to parent sections → pack context → answer → verify
 ```
 
-Dense vector similarity and BM25 keyword matching run in parallel, merge through
-Reciprocal Rank Fusion, get re-ranked by a cross-encoder, then pass through MMR
-so the context is diverse rather than five phrasings of one paragraph. Answers
-face verification gates that check the response is genuinely grounded in the
-retrieved text before you see it.
+Dense vector similarity and BM25 keyword matching run in parallel, merge through Reciprocal Rank Fusion, get
+re-ranked by a cross-encoder, then pass through MMR so the context is diverse rather than five phrasings of one
+paragraph. The answer streams into the chat as it is written; verification gates then check the finished answer
+against the retrieved text and label it Verified or Unverified, and under the rule in
+[How OpenIntelligence Works, section 04](Docs/HOW_IT_WORKS.md) they replace it with a refusal.
 
-> **Corrected 2026-10-27.** The gates do not run "before you see it". The answer streams
-> into the chat as it is written, and the nine checks run once, on the finished answer,
-> and label it Verified or Unverified. In Standard they also keep claims they mark
-> unsupported out of the Fact Check list, and they replace the answer with a refusal only
-> under the rule in [How OpenIntelligence Works, section 04](Docs/HOW_IT_WORKS.md). In
-> Deep Think and Maximum the nine checks only label it (from 5.7); a lookup there that is not
-> locked to an extracted value gets the source-only check instead, which can rewrite the
-> answer or, for a precise-value or state question, refuse it.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen.swift@1e4a718:3757 and 3788 (streamed text reaches the chat), RAGService.swift@1e4a718:16630-16807 (step 7.5, after generation), StructuredAnswer.swift:988 (claims marked unsupported are left out), RAGService.swift@1e4a718:11261-11309 (Deep Think and Maximum: source-only check, else the gates as a label), Docs/HOW_IT_WORKS.md section 04 correction of 2026-10-20; read at 1e4a718]`
+Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on Private Cloud Compute**, time to
+first token 2.2 to 3.2 s.
 
-Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on
-PCC**, time-to-first-token 2.2–3.2s. The PCC figure was measured from an Xcode 27
-build, which is what App Store builds have been since 5.2.
+**Routing is a policy, not a hint.** On-Device never uses Private Cloud Compute, not for planning and not for
+synthesis. PCC requests it, with a declared local fallback when an entitlement, availability, quota, network or
+consent gate blocks the route. Hybrid decides per question from the evidence actually retrieved. Consent is asked
+only for a real, finalised evidence envelope, never at launch. Retrieval and verification stay local whichever
+model writes the answer. There is no selectable "3B" or "20B" on-device model, because the public SDK has no such
+selector; from iOS and macOS 27 an app can read which model it has (`SystemLanguageModel.variant`).
 
-### Routing, and what the badge means
+## How it's proven
 
-The model picker is a policy, not a hint:
+The claims above are checked, not asserted:
 
-- **On-Device** never uses PCC. Not for planning, not for synthesis.
-- **PCC** requests Private Cloud Compute, with a declared local fallback if a gate or quota blocks it. Since 5.2 the App Store build carries the PCC paths compiled in, so the fallback is taken only when an entitlement, availability, quota, network or consent gate actually blocks the route.
-- **Hybrid** decides per query, based on the evidence actually retrieved.
-
-Cloud consent is requested only for a real, finalised evidence envelope — never
-at launch, never speculatively. Retrieval and verification stay local regardless
-of which model writes the answer.
-
-There is no separately selectable "3B" or "20B" on-device model here, because the
-public SDK exposes no such selector. Apple's larger on-device model is real and
-managed by the OS; no app can choose it. From iOS and macOS 27 an app can read
-which one it has (`SystemLanguageModel.variant`).
+- **Every doc claim carries its evidence**: source-read, build-checked, test-covered, or confirmed on a physical
+  device, and says so where something is unproven.
+- **Golden recorders pin exact behavior.** `StandardPipelineGoldenTests` (35 Standard questions; every passage,
+  score bit pattern and prompt), `ImportGoldenTests` (every passage, vector and index row of a fresh import),
+  `StructuredParsingGoldenTests` (the PDF parser's output and checkpoints) and `DeepThinkRetrievalGoldenTests`
+  (760 Deep Think searches). Each records twice per run and fails if the two passes differ.
+- **Refactors are moves, proven by those recorders.** In November 2026 the three largest functions (the Standard
+  pipeline, document import and the PDF parser, about 8,500 lines) were cut into about 120 named steps and their
+  files split by stage. Every step built for the Simulator, a device and macOS and recorded identically before
+  and after, and four independent reviews found no behavior change. The record is in the
+  [Atlas, section 22](Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md).
+- **The release gate checks the binary.** Every archive is checked with `nm -u` for Private Cloud Compute
+  symbols against a live `SystemLanguageModel` count as a control, so a build cannot silently contradict this page.
 
 ## Documentation
 
-The engineering docs are unusually detailed, and label every claim with how it
-was verified — source-read, build-checked, test-covered, or confirmed on a
-physical device. Where something is unproven, it says so.
-
-**If you are reading one thing, read this:** [How OpenIntelligence Works](Docs/HOW_IT_WORKS.md). Every stage of both pipelines in order, with the reason each one exists and what breaks without it. Written at two levels, plain English and technical, side by side.
-
-**Start here for everything else:** [Documentation Atlas](Docs/README.md)
-
-**Architecture**
-- [System Architecture](Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md) — import-time and query-time pipelines
-- [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md) — hybrid search, RRF, re-ranking
-- [Ingestion Pipeline](Docs/INGESTION_PIPELINE.md) — semantic chunking, OCR fallbacks, metadata
-- [Privacy & Routing](Docs/PRIVACY_AND_ROUTING.md) — local-first guarantees and the routing protocol
-
-**Apple platform specifics**
-- [Apple Foundation Models](Docs/Engineering/APPLE_MODELS.md) — token budgets, guided generation
-- [Document Intelligence and OCR sources](Docs/Research/DOCUMENT_INTELLIGENCE_AND_OCR.md) — Apple's Vision and PDFKit documentation, as researched
-- [Private Cloud Compute](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md) — enclave constraints, native integration
-
-**Honest limits**
-- [Hard Limits](Docs/Engineering/HARD_LIMITS.md) — token boundaries, model caps, memory ceilings
-- [Limitations](Docs/LIMITATIONS.md) — what is slow, what is missing, what is unverified
-- [Evaluation Framework](Docs/EVALS.md) — how accuracy is measured
-- [Changelog](CHANGELOG.md) · [User-facing changelog](Docs/USER_CHANGELOG.md) · [Roadmap](Docs/ROADMAP.md)
-
-**Contributing agents:** [RepoOS Command Center](Docs/RepoOS/00_REPO_COMMAND_CENTER.md) routes
-repository work through canonical evidence, safe edit boundaries, and required tests.
-The [codemap](Docs/ai/codemap/INDEX.md) names, for each feature, the code to read first and how it connects to the rest.
+- **Start here:** [How OpenIntelligence Works](Docs/HOW_IT_WORKS.md), every stage of both pipelines in order,
+  in plain English and technical side by side.
+- **Everything else:** the [documentation map](Docs/README.md).
+- **Honest limits:** [Limitations](Docs/LIMITATIONS.md) and [Hard Limits](Docs/Engineering/HARD_LIMITS.md).
+- **History:** [Changelog](CHANGELOG.md), [what's new for users](Docs/USER_CHANGELOG.md), the
+  [roadmap](Docs/ROADMAP.md).
 
 ## Codebase map
 
@@ -185,102 +123,48 @@ The [codemap](Docs/ai/codemap/INDEX.md) names, for each feature, the code to rea
 | **Chunking** | `SemanticChunker.swift`, `ContentTaggingService.swift` | Context-aware chunking, entity resolution, metadata |
 | **Indexing** | `SQLiteFullTextService.swift`, `BNNSVectorDatabase.swift` | SQLite FTS5 and BNNS-accelerated vector storage |
 | **Retrieval** | `HybridSearchService.swift`, `ContextPackingService.swift` | Hybrid merge, parent-chunk reconstruction, token packing |
-| **Orchestration** | `RAGEngine.swift`, `AgenticOrchestrator.swift` | Re-ranking, MMR, agentic reasoning loops |
+| **Orchestration** | `RAGService.swift` and its `RAGService+*.swift` files, `RAGEngine.swift`, `AgenticOrchestrator.swift` | The pipelines, re-ranking, MMR, agentic reasoning |
 | **Foundation Models** | `LLMService.swift`, `FoundationModelRoutePolicy.swift` | On-device execution, PCC escalation, routing receipts |
 | **Evidence Threads** | `EvidenceThread.swift`, `EvidenceThreadStore.swift` | Local persistence of conversations and verification state |
 | **Storage & Sync** | `SettingsStore.swift`, `WorkspaceSyncService.swift` | Feature gates, StoreKit 2 quotas, iCloud workspace sync |
 | **Interface** | `ChatScreen.swift`, `DocumentLibraryView.swift` | Chat and library surfaces |
 | **Vocabulary** | `Glossary.swift`, `GlossaryViews.swift` | One definition per term in two registers, attached in place via `.definedTerm(_:)` |
-| **Shortcuts** | `RAGAppIntents.swift`, `ScreenAwarenessIntents.swift`, `VisualIntelligenceIntents.swift`; from 5.7 also `SearchPassagesIntent.swift`, `AddToLibraryIntent.swift`, `LibraryIntents.swift`, `OpenItemIntents.swift` | Siri and App Intents, resolving in-process |
+| **Shortcuts** | `RAGAppIntents.swift`, `SearchPassagesIntent.swift`, `AddToLibraryIntent.swift`, `LibraryIntents.swift`, `OpenItemIntents.swift`, `ScreenAwarenessIntents.swift`, `VisualIntelligenceIntents.swift` | Siri and App Intents, resolving in-process |
+
+Which file of a split type holds what is in [the file map](Docs/ai/FILE_MAP.md); the
+[codemap](Docs/ai/codemap/INDEX.md) names, for each feature, the code to read first.
 
 ## Building
 
-**Requirements:** macOS 26 or later with Xcode 26+, iOS 26.0 deployment target,
-Apple Silicon (M1+ / A17 Pro+) for usable Neural Engine throughput. Xcode 27 is
-needed for the iOS/macOS 27 paths — Core AI embeddings and native Private Cloud
-Compute — which compile out below that SDK.
+Xcode 27 (Swift 6.4) on an Apple silicon Mac; the deployment target is iOS 26.0. The iOS and macOS 27 paths,
+Core AI embeddings and native Private Cloud Compute, compile out below that SDK.
 
 ```bash
-# iCloud sets extended attributes that break codesign — clear them first
-/usr/bin/xattr -cr .
-
-# Simulator smoke build
 ./scripts/build_simulator_smoke.sh
+```
 
-# Quality-mode benchmark matrix, 20 cases per mode
-python3 scripts/run_quality_matrix.py --app <path to the built OpenIntelligence.app>
-
-# Guard against iCloud conflict copies before any signing work
+```bash
 ./scripts/check_icloud_conflicts.sh
 ```
 
-The benchmark denies PCC by default so runs reproduce offline, and reports
-`Measured` separately from `Unmeasured` rather than scoring an empty run as a
-failure.
-
-> This repository lives in iCloud Drive, so builds need a `-derivedDataPath`
-> outside `~/Documents`, and `.git` is redirected through `.git.nosync`.
+Builds need a `-derivedDataPath` outside the repository, because the maintainer's copy lives in iCloud Drive.
+The full procedure, tests and benchmarks are in the [runbook](Docs/ai/RUNBOOK.md).
 
 ## Large documents
 
-500+ page PDFs go through a streamed, batched ingestion pipeline with page-level
-checkpointing, so a long import survives memory pressure and app restarts instead
-of starting over.
-
-> **Corrected 2026-10-27.** The streamed PDF import is chosen by file size, not page count.
-> Every PDF over 10 MB (10 × 1,048,576 bytes) takes it, 15 pages a batch, whatever its
-> length, and a PDF of 10 MB or less takes the ordinary import however many pages it has.
-> The 8 MB rule for text, Markdown and JSON Lines below is the same kind of gate, and a
-> `.json` file over 64 MB is imported in pieces too.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift@1e4a718:7267 (fileSizeMB in units of 1,048,576 bytes) and 7301 (documentType == .pdf && fileSizeMB > 10), RAGService+Streaming.swift:70 (batchSize = 15), DocumentProcessor.swift@1e4a718:691-707 (piecewiseTextBytes, importsInPieces), TextPieceReader.swift:22 (pieceBytes), JSONRecordExtractor.swift:35 (maxFileBytes); read at 1e4a718]`
-
-From 5.7 a text, Markdown or JSON Lines file over 8 MB is imported the same way, in pieces of
-about 2 MB with a checkpoint after each. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro
-Max as 144,247 passages on 2026-10-10.  A resumed import skips the pages it already read and the passages it
-already embedded, and a PDF over 500 MB, which used to be turned away, imports too.
+A PDF over 10 MB imports through a streamed, batched pipeline, 15 pages a batch with a checkpoint per page, so a
+long import survives memory pressure and app restarts instead of starting over. A text, Markdown or JSON Lines
+file over 8 MB imports the same way in pieces of about 2 MB, and a `.json` file over 64 MB is imported in pieces
+too. An 88.5 MB JSON Lines file finished on an iPhone 16 Pro Max as 144,247 passages on 2026-10-10.
 
 ## Status
 
-Shipping on the App Store for iPhone, iPad, and Mac. **5.7 is live on both platforms**, released
-2026-10-22 from build 487. Developed against a
-[public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
-synced from the same database the work is planned in.
-
-**What 5.7 added.** JSON and JSON Lines import as records,
-imports of very large text files in pieces, Shortcuts actions that return their results, Siri that asks
-before using Private Cloud Compute, Spotlight and Visual Intelligence that find documents, Handoff, a Mac
-menu bar item and Services, dictation, and sharing or exporting an answer with its sources.  It
-also says Paused, not failed, when iOS stops a background import, adds an Ask again button for a question the
-app closed on, makes every label in an answer open its passage, opens faster and starts imports without
-freezing, and gives every screen the same spacing, corners and colors. Statements in
-this file marked "from 5.7" describe that release.
-
-**Private Cloud Compute shipped in 5.2**, live on both platforms since 2026-09-10, and execution is
-confirmed on a physical device. The release pipeline enforces the claim rather than trusting it:
-every archive is checked with `nm -u` for `PrivateCloudCompute` symbols, against a live
-`SystemLanguageModel` count as a control so a dead binary cannot pass the gate vacuously. The
-version stamped on the archive decides which way the gate points: below 5.2 any PCC symbol fails the
-build, from 5.2 zero PCC symbols fails it, so the binary cannot silently contradict this page in
-either direction. Edge cases, quota exhaustion, mid-stream network transitions and background
-consent, are still unverified and tracked as open items rather than quietly assumed.
-
-Releases are produced by **Xcode Cloud**, never from the maintainer's Mac. This was not a
-preference. That Mac ran a beta macOS, every local archive stamped a prerelease
-`BuildMachineOSBuild` into `Info.plist`, and App Store *ingestion* rejected that with ITMS-90111 even
-though `altool --validate-app` returned VERIFY SUCCEEDED and processing reached `VALID`. Validation
-is not ingestion. Xcode Cloud builds on Apple's released images, so the stamp comes out clean. The
-Mac now runs the macOS 27.0 release, build 26A428.
-<!-- [evidence_level: measured, confidence: exact, evidence_source: sw_vers on the maintainer's Mac 2026-10-01 read ProductVersion 27.0, BuildVersion 26A428, with no trailing lowercase letter, the prerelease mark per Docs/ai/RUNBOOK.md "Do not build a release on this Mac"] -->
-
-That is also where the toolchain question above is settled. Xcode Cloud runs one workflow,
-`Default`, pinned to the **Xcode 27 release**, build `27A266a`, on macOS `Latest Release`, with two
-archive actions. Xcode 27 ships Swift 6.4, which compiles the `#if compiler(>=6.4)` sites in,
-and `ci_scripts/ci_post_clone.sh` fails in seconds if a 5.2-or-later version ever meets a Swift
-earlier than 6.4 runner.
-
-GitHub Actions ran releases for one stretch in August 2026, as a fallback after the free Xcode Cloud
-allowance ran out, and was retired on 2026-08-28 once paid Xcode Cloud capacity was in place. Its
-workflow no longer exists.
+Shipping on the App Store for iPhone, iPad, and Mac. **5.7 is live on both platforms** (released 2026-10-22,
+build 487) and **5.8 is in development**. Private Cloud Compute shipped in 5.2 and execution is confirmed on a
+physical device; its edge cases (quota exhaustion, mid-stream network changes, background consent) are tracked as
+open items. Releases are built by Xcode Cloud on Apple's released images, never on the maintainer's Mac. Work is
+planned on a [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
+synced from the same database it is planned in.
 
 ## License
 

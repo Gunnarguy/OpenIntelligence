@@ -18,7 +18,7 @@ Raw output: `Docs/AuditArtifacts/DefectDiagnosis/flow_audit.json`. Companion thr
 >   `onTap` it also names is now wired was not checked.
 > - #11, the Atlas half: the loading card now requires `currentProfile == nil` (`b87123d`).
 > - #14, partly: `faed0d6` unlocks the composer once the text stops, during the checks; while text
->   streams it is still `.disabled(isProcessing && !isCheckingAnswer)` (`ChatComposerV2.swift:107`).
+>   streams it is still `.disabled(isProcessing && !isCheckingAnswer)` (`ChatComposerV2.swift:126`).
 > - §6's Atlas duplicate `.task` and the plain-`Text` streaming bubble: `dc097cc` (2026-08-18).
 >
 > **Still open:** #1 (`ContentView.swift:116` assigns `activeContainerId` directly; `setActive(_:)`
@@ -27,11 +27,11 @@ Raw output: `Docs/AuditArtifacts/DefectDiagnosis/flow_audit.json`. Companion thr
 > `ChatScreen.swift:748` still invalidates the cache on a container switch), #7
 > (`MessageListV2.swift:170`), #8 (`ContainerPicker.swift:46` has no `ScrollViewReader`), #10
 > (`ChunkInspectorView.swift:256`, `SettingsView.swift:2224`), the Database half of #11 and #12
-> (`DatabaseDashboardView.swift:219` raises `isLoading` on every load; `:196-198` still seeds the
+> (`DatabaseDashboardView+Header.swift:15` raises `isLoading` on every load; `:196-198` still seeds the
 > scope into the `onChange` at `:192`), #13 (two mounts, per-instance `@State` at
-> `IngestionQueueOverlay.swift:299-300`), #16 (no `@SceneStorage` anywhere), #17
-> (`Embedding3DView.swift:3423`), #18 (`isRefreshingSuggestions` is still set only when forced,
-> `ChatScreen.swift:1948-1950`), #19 (one `accessibilityReduceMotion` reader, 14 `repeatForever`
+> `IngestionQueueOverlay.swift:40-42`), #16 (no `@SceneStorage` anywhere), #17
+> (`SceneViewContainer.swift:49`), #18 (`isRefreshingSuggestions` is still set only when forced,
+> `ChatScreen+Actions.swift:95`), #19 (one `accessibilityReduceMotion` reader, 14 `repeatForever`
 > sites) and §3's `.accessibilityAction`s (none in `MessageBubbleV2.swift`). **Not re-checked:** #15.
 >
 > `[evidence_level: code_verified+grep_verified, confidence: high, evidence_source: git show b87123d, dc097cc, 078292d, faed0d6; grep and read of each file:line named above, 2026-09-29]`

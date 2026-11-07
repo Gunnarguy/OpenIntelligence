@@ -4,7 +4,7 @@
   "name": "Query Understanding and Rewriting",
   "aliases": ["query rewriter", "HyDE service", "query complexity analyzer", "query router service", "contextual compression"],
   "purpose": "Rewrites and classifies a question before retrieval, including HyDE hypothetical answers and entity extraction.",
-  "revision": "4b042ad6",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["QueryRewriterService", "HyDEService", "QueryComplexityAnalyzer", "QueryExecutionPlannerService", "QueryRouterService", "QueryEnhancementService"],
   "files": [
@@ -23,7 +23,7 @@
     {"path": "OpenIntelligenceTests/Services/Query/DayOrdinalsTests.swift", "role": "test", "blob": "c422c310f236ebcf95cd7d7b555b6dda148e8df1"},
     {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Grounding.swift", "role": "shared", "blob": "680e90f23bc136bcfc8ca8f5f3bfcbf45a9df057"},
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "role": "shared", "blob": "0c54edee5b924994ad1ac5c44fa3c09253d2fbdb"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPreparation.swift", "role": "shared", "blob": "0b6f28be14284606d07cbf081169a066422403ee"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPreparation.swift", "role": "shared", "blob": "7f7bc3120f3fdb2b839224803bb59f303060b682"}
   ],
   "nodes": [
     {"id": "QueryRewriterService", "kind": "service", "path": "OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift", "line": 57, "match": "final class QueryRewriterService: @unchecked Sendable {", "status": "VERIFIED", "by": "build"},
@@ -44,7 +44,7 @@
     {"id": "QueryClassification", "kind": "model", "path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "line": 64, "match": "struct QueryClassification: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.queryRouter", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 47, "match": "let queryRouter = QueryRouterService()", "status": "VERIFIED", "by": "build"},
     {"id": "QueryEnhancementService", "kind": "service", "path": "OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift", "line": 172, "match": "final class QueryEnhancementService {", "status": "VERIFIED", "by": "build"},
-    {"id": "AgenticOrchestrator.executeReasoningChain", "kind": "function", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift", "line": 180, "match": "func executeReasoningChain(", "status": "VERIFIED", "by": "build"},
+    {"id": "AgenticOrchestrator.executeReasoningChain", "kind": "function", "path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift", "line": 184, "match": "func executeReasoningChain(", "status": "VERIFIED", "by": "build"},
     {"id": "SuggestedQuestionsService.isAnswerableSuggestedQuestion", "kind": "function", "path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Grounding.swift", "line": 329, "match": "private func isAnswerableSuggestedQuestion(", "status": "VERIFIED", "by": "build"},
     {"id": "RAGService.executeAgenticPrecisionLookupIfAvailable", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 124, "match": "private func executeAgenticPrecisionLookupIfAvailable(", "status": "VERIFIED", "by": "build"},
     {"id": "test:AnswerIntentClassificationTests.swift", "kind": "test", "path": "OpenIntelligenceTests/Services/Query/AnswerIntentClassificationTests.swift", "line": 1, "match": "import XCTest", "status": "VERIFIED", "by": "build"},
@@ -60,7 +60,7 @@
     {"from": "QueryExecutionPlannerService", "type": "depends_on", "to": "QueryExecutionPlan", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift", "line": 148, "match": "return QueryExecutionPlan("}], "by": "build", "note": "constructs it"},
     {"from": "QueryRouterService", "type": "depends_on", "to": "QueryClassification", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/Routing/QueryRouterService.swift", "line": 208, "match": "return QueryClassification("}], "by": "build", "note": "constructs it"},
     {"from": "RAGService.queryRouter", "type": "depends_on", "to": "QueryRouterService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 47, "match": "let queryRouter = QueryRouterService()"}], "by": "build", "note": "constructs it"},
-    {"from": "AgenticOrchestrator.executeReasoningChain", "type": "calls", "to": "QueryEnhancementService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift", "line": 202, "match": "let queryEnhancer = QueryEnhancementService()"}], "by": "build", "note": "constructs it"},
+    {"from": "AgenticOrchestrator.executeReasoningChain", "type": "calls", "to": "QueryEnhancementService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+ReasoningChain.swift", "line": 206, "match": "let queryEnhancer = QueryEnhancementService()"}], "by": "build", "note": "constructs it"},
     {"from": "SuggestedQuestionsService.isAnswerableSuggestedQuestion", "type": "calls", "to": "QueryEnhancementService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Grounding.swift", "line": 333, "match": "let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)"}], "by": "build", "note": "constructs it"},
     {"from": "RAGService.executeAgenticPrecisionLookupIfAvailable", "type": "calls", "to": "QueryEnhancementService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AgenticQuery.swift", "line": 130, "match": "let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)"}], "by": "build", "note": "constructs it"},
     {"from": "RAGService.queryInternal", "type": "depends_on", "to": "HyDEService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPreparation.swift", "line": 610, "match": "let hydeIsAvailable = HyDEService.isAvailable"}], "by": "build", "note": "named there"},

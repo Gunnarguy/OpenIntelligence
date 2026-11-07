@@ -4,7 +4,7 @@
   "name": "Full Text Search Storage",
   "aliases": ["SQLite FTS5 search", "keyword index", "full text storage", "documentation cache", "keyword search", "FTS5", "BM25", "exact phrase"],
   "purpose": "Keeps each library's text in one shared SQLite file with an FTS5 index for keyword search and BM25 scoring.",
-  "revision": "95cfe7ae",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["SQLiteFullTextService", "SQLiteFullTextService.storeChunks", "SQLiteFullTextService.storePages", "SQLiteFullTextService.store", "SQLiteFullTextService.searchChunks", "SQLiteFullTextService.search", "FullTextStorageService", "DocumentationCacheService"],
   "files": [
@@ -20,7 +20,7 @@
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "role": "shared", "blob": "cd0c6e706789c1c49b317d0fbdfca841a73cc3df"},
     {"path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "role": "shared", "blob": "a5b8b5890e0587e0b7a01f6c5aea45325059db8d"},
     {"path": "OpenIntelligence/Features/Telemetry/Visualizations/EmbeddingSpaceRenderer+Data.swift", "role": "shared", "blob": "8869211ca2d32db1a22f510703f9222d4c1582ec"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+IndexHealth.swift", "role": "shared", "blob": "6a4722baa16c7848a383d942d5f350871edae25a"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+IndexHealth.swift", "role": "shared", "blob": "69cdb5727946d43da74f4724d1e36838b5530899"}
   ],
   "nodes": [
     {"id": "SQLiteFullTextService", "kind": "service", "path": "OpenIntelligence/Services/Storage/SQLiteFullTextService.swift", "line": 45, "match": "actor SQLiteFullTextService {", "status": "VERIFIED", "by": "build"},

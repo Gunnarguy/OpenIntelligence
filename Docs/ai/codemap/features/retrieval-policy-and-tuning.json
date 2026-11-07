@@ -4,7 +4,7 @@
   "name": "Retrieval Policy and Tuning",
   "aliases": ["retrieval tuning knobs", "agentic policy service", "evidence scoring policy", "confidence policy", "auto tune service"],
   "purpose": "Sets similarity thresholds, confidence filters and candidate limits for each query at run time.",
-  "revision": "4b042ad6",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["AgenticPolicyService", "EvidenceScoringPolicyService", "RetrievalPolicyService", "ConfidencePolicyService"],
   "files": [
@@ -19,8 +19,8 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift", "role": "test", "blob": "0ec1d5b2e2ff9281ba4a18f84504e9a3f17a74d5"},
     {"path": "OpenIntelligence/Services/RAG/Tuning/EvidenceLineSplitter.swift", "role": "primary", "blob": "fa2ae353c40d7b2bfb339c474a5ad03ee5e4d083"},
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/EvidenceLineSplitterTests.swift", "role": "test", "blob": "29bc67244f85b1162d50da3d517c1ef131715ce4"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "role": "shared", "blob": "8ad76ed88b88b37d0af2823b13670a5a16dd36ba"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "role": "shared", "blob": "a4cbcbd90e951d2f81f39b0c98da3051dc9fced3"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "role": "shared", "blob": "d4790d2ff4fcd6fd198ef9a1669be3964674c5e8"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "role": "shared", "blob": "15d063d5429595b4923629acd8c7867d8a5be6c8"}
   ],
   "nodes": [
     {"id": "AgenticPolicyService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift", "line": 98, "match": "enum AgenticPolicyService {", "status": "VERIFIED", "by": "build"},

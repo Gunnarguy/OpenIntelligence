@@ -4,7 +4,7 @@
   "name": "Semantic Chunking",
   "aliases": ["semantic chunker", "chunk size", "page complexity analyzer", "content tagging service", "chunk metadata", "chunking", "smaller chunks", "larger chunks"],
   "purpose": "Splits extracted text into chunks sized to the kind of file and tags each chunk with its section and metadata.",
-  "revision": "95cfe7ae",
+  "revision": "227fae68",
   "verified_on": "2026-11-07",
   "entry_points": ["SemanticChunker", "PageComplexityAnalyzer", "ContentTaggingService", "DocumentChunk", "SemanticChunker.chunkText"],
   "files": [
@@ -28,7 +28,7 @@
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "role": "shared", "blob": "b13fa29684025950c2e527646e3f7eddd30b248f"},
     {"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "role": "shared", "blob": "d9f1686486ff1e63113f74b084f403ee8d6d6943"},
     {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Chunking.swift", "role": "shared", "blob": "06bd983146a329b83565d56ce11c411f3752c2cd"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportEnrichment.swift", "role": "shared", "blob": "abcaaf3e4bd995e31ffb44721ce31f459392fff3"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportEnrichment.swift", "role": "shared", "blob": "84c1d579375dd0fd5f5094da97639748f2351c8d"}
   ],
   "nodes": [
     {"id": "SemanticChunker", "kind": "model", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 52, "match": "class SemanticChunker {", "status": "VERIFIED", "by": "build"},
