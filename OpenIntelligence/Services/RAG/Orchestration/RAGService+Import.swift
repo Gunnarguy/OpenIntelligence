@@ -1386,254 +1386,7 @@ extension RAGService {
             // Yield to let SwiftUI render chunking status
             await Task.yield()
 
-            // Step 1.5: Auto-adapt configuration if enabled
-            if context.allowsSelfTuningScheduling,
-                let autoContainer = container,
-                autoContainer.autoAdaptDimension
-            {
-                let analysisStartTime = Date()
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .analyzing,
-                        detail: "Loading existing chunks for corpus analysis...",
-                        progress: 0.1
-                    ) { metrics in
-                        metrics.isAutoAdaptive = true
-                    }
-                }
-
-                // This block does not run in any build so far: `allowsSelfTuningScheduling` is
-                // false for every kind of import. It is kept in step with the launch analysis so
-                // that turning it on would not bring back a read of every passage.
-                // The library as it is, counted. Its passages are read by `libraryAnalysisInput`
-                // below, all of them or a sample.
-                let db = await dbForActiveContainer()
-                let existingPassageCount = (try? await db.count()) ?? 0
-
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .analyzing,
-                        detail:
-                            "Analyzing \(existingPassageCount + processedChunks.count) chunks for vocabulary patterns...",
-                        progress: 0.3
-                    )
-                }
-
-                // Analyze combined corpus (existing + new document)
-                let allDocumentsForAnalysis = await MainActor.run {
-                    self.documents.filter { $0.containerId == activeContainerId } + [document]
-                }
-                let newDocumentChunks =
-                    processedChunks.enumerated().map { index, chunk in
-                        DocumentChunk(
-                            documentId: document.id,
-                            content: chunk.text,
-                            parentContent: chunk.parentText,
-                            embedding: [],  // Empty for analysis
-                            metadata: ChunkMetadata(
-                                chunkIndex: index,
-                                startPosition: chunk.metadata.startPosition,
-                                endPosition: chunk.metadata.endPosition,
-                                pageNumber: chunk.metadata.pageNumber,
-                                sectionTitle: chunk.metadata.sectionTitle,
-                                keywords: chunk.metadata.keywords,
-                                semanticDensity: chunk.metadata.semanticDensity,
-                                hasNumericData: chunk.metadata.hasNumericData,
-                                hasListStructure: chunk.metadata.hasListStructure,
-                                wordCount: chunk.metadata.wordCount,
-                                characterCount: chunk.metadata.characterCount,
-                                createdAt: chunk.metadata.createdAt,
-                                structureType: chunk.metadata.structureType,
-                                siblingGroupId: chunk.metadata.siblingGroupId,
-                                siblingCount: chunk.metadata.siblingCount,
-                                entities: chunk.metadata.entities,
-                                abbreviations: chunk.metadata.abbreviations,
-                                abstractionLevel: chunk.metadata.abstractionLevel,
-                                sectionPath: chunk.metadata.sectionPath,
-                                bboxArray: chunk.metadata.bboxArray,
-                                documentCategory: chunk.metadata.documentCategory,
-                                chunkType: chunk.metadata.chunkType,
-                                tableTitle: chunk.metadata.tableTitle,
-                                imageContentType: chunk.metadata.imageContentType,
-                                imageCaption: chunk.metadata.imageCaption,
-                                imageDescription: chunk.metadata.imageDescription,
-                                imageExtractedText: chunk.metadata.imageExtractedText,
-                                imageClassifications: chunk.metadata.imageClassifications,
-                                hasCrossReferences: chunk.metadata.hasCrossReferences,
-                                resolvedReferences: chunk.metadata.resolvedReferences
-                            )
-                        )
-                    }
-
-                // Update progress before analysis
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .analyzing,
-                        detail: "Detecting languages, code patterns, and domain signals...",
-                        progress: 0.5
-                    )
-                }
-
-                let analysisInput = await Self.libraryAnalysisInput(from: db, adding: newDocumentChunks)
-                let report = await intelligenceCenter.analyzeLibrary(
-                    documents: allDocumentsForAnalysis,
-                    chunks: analysisInput.chunks,
-                    library: analysisInput.size
-                )
-
-                // Update progress after analysis
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .analyzing,
-                        detail: "Computing optimal chunking and embedding strategy...",
-                        progress: 0.8
-                    )
-                }
-
-                let analysisTime = Date().timeIntervalSince(analysisStartTime)
-
-                // Update metrics with analysis results
-                let detectedLangs = report.corpus.languageHypotheses.sorted { $0.value > $1.value }.prefix(3).map {
-                    $0.key.rawValue
-                }
-
-                // Classify document domain from filename and content signals
-                let domain = Self.classifyDocumentDomain(
-                    filename: filename, signals: report.corpus, entities: report.documents.flatMap { $0.keyTopics })
-                let descriptor = Self.buildContentDescriptor(
-                    signals: report.corpus, entities: report.documents.flatMap { $0.keyTopics })
-                let categories = Self.extractContentCategories(
-                    entities: report.documents.flatMap { $0.keyTopics }, signals: report.corpus)
-                let primaryLang = detectedLangs.first.flatMap { Self.languageDisplayName($0) } ?? ""
-
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .analyzing,
-                        detail: domain.isEmpty ? "Analyzing content structure..." : "\(domain) • \(descriptor)",
-                        progress: 1.0
-                    ) { metrics in
-                        metrics.vocabularyRichness = report.corpus.vocabularyRichness
-                        metrics.technicalDensity = report.corpus.technicalDensity
-                        metrics.semanticComplexity = report.corpus.semanticComplexity
-                        metrics.multilingualScore = report.corpus.multilingualScore
-                        metrics.hasCode = report.corpus.hasCode
-                        metrics.hasMath = report.corpus.hasMath
-                        metrics.detectedLanguages = detectedLangs
-                        metrics.chunkingStrategy = report.chunking.strategy.rawValue
-                        metrics.targetWordWindow = report.chunking.targetWordWindow
-                        metrics.overlapWords = report.chunking.overlapWords
-                        metrics.analysisTimeMs = Int(analysisTime * 1000)
-
-                        // Document content profile (displayed in UI instead of raw ratios)
-                        metrics.documentDomain = domain
-                        metrics.contentDescriptor = descriptor
-                        metrics.contentCategories = categories
-                        metrics.documentLanguage = primaryLang
-                        // extractionCoverage is set during extraction phase
-                    }
-                }
-
-                await MainActor.run {
-                    // This report is of the library with the document being imported added to
-                    // it, which no signature of the library on disk describes yet.
-                    self.containerIntelligence[activeContainerId] = report
-                    self.containerIntelligenceSignature.removeValue(forKey: activeContainerId)
-                }
-
-                // Log analysis results
-                TelemetryCenter.emit(
-                    .ingestion,
-                    title: "Content analysis complete",
-                    metadata: [
-                        "file": filename,
-                        "vocabularyRichness": String(format: "%.2f", report.corpus.vocabularyRichness),
-                        "multilingualScore": String(format: "%.2f", report.corpus.multilingualScore),
-                        "technicalDensity": String(format: "%.2f", report.corpus.technicalDensity),
-                        "semanticComplexity": String(format: "%.2f", report.corpus.semanticComplexity),
-                        "chunkingStrategy": report.chunking.strategy.rawValue,
-                        "chunkWindow": "\(report.chunking.targetWordWindow)",
-                        "chunkOverlap": "\(report.chunking.overlapWords)",
-                        "retrievalFusion": report.retrieval.fusionStyle.rawValue,
-                        "retrievalVectorWeight": String(format: "%.2f", report.retrieval.vectorWeight),
-                        "retrievalLexicalWeight": String(format: "%.2f", report.retrieval.lexicalWeight),
-                        "recommendedDimension": "\(report.embedding.dimension)",
-                        "recommendedProvider": report.embedding.providerId,
-                        "confidence": String(format: "%.1f%%", report.embedding.confidence * 100),
-                        "reasoning": report.embedding.rationale,
-                        "alerts": report.alerts.joined(separator: " | "),
-                    ]
-                )
-
-                // A library with no documents yet is choosing its settings for this first
-                // import, which nothing has been embedded under, so its embedding model may come
-                // from a sample of a long document. A library that has documents does not get
-                // another model from a sample.
-                let (updatedContainer, autoReasons) = Self.resolveAutoAdjustments(
-                    for: autoContainer,
-                    report: report,
-                    allowingEstimate: preExistingDocumentsInContainerCount == 0
-                )
-
-                if updatedContainer != autoContainer {
-                    let embeddingChanged =
-                        updatedContainer.embeddingProviderId != autoContainer.embeddingProviderId
-                        || updatedContainer.embeddingDim != autoContainer.embeddingDim
-
-                    if embeddingChanged {
-                        providerId = updatedContainer.embeddingProviderId
-                        containerEmbeddingService = EmbeddingService.forProvider(
-                            id: updatedContainer.embeddingProviderId,
-                            targetDimension: updatedContainer.embeddingDim
-                        )
-                        await MainActor.run {
-                            updateIngestionItem(
-                                id: trackingId,
-                                filename: filename,
-                                stage: .analyzing,
-                                detail: "Config adapted to \(updatedContainer.embeddingDim)D"
-                            )
-                        }
-                        try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms flash
-                    }
-
-                    container = updatedContainer
-                    await MainActor.run {
-                        self.containerService.updateContainer(updatedContainer)
-                    }
-                }
-
-                if context.allowsSelfTuningScheduling, !autoReasons.isEmpty {
-                    // If this is the first document in the container, we've already applied the
-                    // updated config *before* embedding, so there is nothing to rebuild yet.
-                    // Without this guard, the app will immediately re-embed the just-added doc,
-                    // which looks like an infinite “re-upload” loop to the user.
-                    if preExistingDocumentsInContainerCount > 0, !report.corpus.isEstimate {
-                        // Never from a sample: its reason can only be the chunking, and a
-                        // rebuild embeds every document again.
-                        pendingSelfTuneReasons = autoReasons
-                    } else if preExistingDocumentsInContainerCount > 0 {
-                        Log.info(
-                            "Skipping self-tuning rebuild: the analysis read a sample of the library.",
-                            category: .ingestion)
-                    } else {
-                        Log.info(
-                            "Skipping self-tuning rebuild: config updated during first ingest and there are no prior documents to rebuild.",
-                            category: .ingestion
-                        )
-                    }
-                }
-            }
-
+            await autoAdaptConfigurationIfEnabled(context: context, container: &container, trackingId: trackingId, filename: filename, processedChunks: processedChunks, activeContainerId: activeContainerId, document: document, preExistingDocumentsInContainerCount: preExistingDocumentsInContainerCount, providerId: &providerId, containerEmbeddingService: &containerEmbeddingService, pendingSelfTuneReasons: &pendingSelfTuneReasons)
             try Task.checkCancellation()
 
             // Step 2: Generate embeddings with progress updates
@@ -1785,6 +1538,259 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step R (Step 1.5): the self-tune corpus analysis, which can change the library's chunking and embedding settings; it does not run today because allowsSelfTuningScheduling is false for every import.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func autoAdaptConfigurationIfEnabled(context: IngestionContext, container: inout KnowledgeContainer?, trackingId: UUID?, filename: String, processedChunks: [DocumentProcessor.ProcessedChunk], activeContainerId: UUID, document: Document, preExistingDocumentsInContainerCount: Int, providerId: inout String, containerEmbeddingService: inout EmbeddingService, pendingSelfTuneReasons: inout [String]) async {
+        // Step 1.5: Auto-adapt configuration if enabled
+        if context.allowsSelfTuningScheduling,
+            let autoContainer = container,
+            autoContainer.autoAdaptDimension
+        {
+            let analysisStartTime = Date()
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .analyzing,
+                    detail: "Loading existing chunks for corpus analysis...",
+                    progress: 0.1
+                ) { metrics in
+                    metrics.isAutoAdaptive = true
+                }
+            }
+
+            // This block does not run in any build so far: `allowsSelfTuningScheduling` is
+            // false for every kind of import. It is kept in step with the launch analysis so
+            // that turning it on would not bring back a read of every passage.
+            // The library as it is, counted. Its passages are read by `libraryAnalysisInput`
+            // below, all of them or a sample.
+            let db = await dbForActiveContainer()
+            let existingPassageCount = (try? await db.count()) ?? 0
+
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .analyzing,
+                    detail:
+                        "Analyzing \(existingPassageCount + processedChunks.count) chunks for vocabulary patterns...",
+                    progress: 0.3
+                )
+            }
+
+            // Analyze combined corpus (existing + new document)
+            let allDocumentsForAnalysis = await MainActor.run {
+                self.documents.filter { $0.containerId == activeContainerId } + [document]
+            }
+            let newDocumentChunks =
+                processedChunks.enumerated().map { index, chunk in
+                    DocumentChunk(
+                        documentId: document.id,
+                        content: chunk.text,
+                        parentContent: chunk.parentText,
+                        embedding: [],  // Empty for analysis
+                        metadata: ChunkMetadata(
+                            chunkIndex: index,
+                            startPosition: chunk.metadata.startPosition,
+                            endPosition: chunk.metadata.endPosition,
+                            pageNumber: chunk.metadata.pageNumber,
+                            sectionTitle: chunk.metadata.sectionTitle,
+                            keywords: chunk.metadata.keywords,
+                            semanticDensity: chunk.metadata.semanticDensity,
+                            hasNumericData: chunk.metadata.hasNumericData,
+                            hasListStructure: chunk.metadata.hasListStructure,
+                            wordCount: chunk.metadata.wordCount,
+                            characterCount: chunk.metadata.characterCount,
+                            createdAt: chunk.metadata.createdAt,
+                            structureType: chunk.metadata.structureType,
+                            siblingGroupId: chunk.metadata.siblingGroupId,
+                            siblingCount: chunk.metadata.siblingCount,
+                            entities: chunk.metadata.entities,
+                            abbreviations: chunk.metadata.abbreviations,
+                            abstractionLevel: chunk.metadata.abstractionLevel,
+                            sectionPath: chunk.metadata.sectionPath,
+                            bboxArray: chunk.metadata.bboxArray,
+                            documentCategory: chunk.metadata.documentCategory,
+                            chunkType: chunk.metadata.chunkType,
+                            tableTitle: chunk.metadata.tableTitle,
+                            imageContentType: chunk.metadata.imageContentType,
+                            imageCaption: chunk.metadata.imageCaption,
+                            imageDescription: chunk.metadata.imageDescription,
+                            imageExtractedText: chunk.metadata.imageExtractedText,
+                            imageClassifications: chunk.metadata.imageClassifications,
+                            hasCrossReferences: chunk.metadata.hasCrossReferences,
+                            resolvedReferences: chunk.metadata.resolvedReferences
+                        )
+                    )
+                }
+
+            // Update progress before analysis
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .analyzing,
+                    detail: "Detecting languages, code patterns, and domain signals...",
+                    progress: 0.5
+                )
+            }
+
+            let analysisInput = await Self.libraryAnalysisInput(from: db, adding: newDocumentChunks)
+            let report = await intelligenceCenter.analyzeLibrary(
+                documents: allDocumentsForAnalysis,
+                chunks: analysisInput.chunks,
+                library: analysisInput.size
+            )
+
+            // Update progress after analysis
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .analyzing,
+                    detail: "Computing optimal chunking and embedding strategy...",
+                    progress: 0.8
+                )
+            }
+
+            let analysisTime = Date().timeIntervalSince(analysisStartTime)
+
+            // Update metrics with analysis results
+            let detectedLangs = report.corpus.languageHypotheses.sorted { $0.value > $1.value }.prefix(3).map {
+                $0.key.rawValue
+            }
+
+            // Classify document domain from filename and content signals
+            let domain = Self.classifyDocumentDomain(
+                filename: filename, signals: report.corpus, entities: report.documents.flatMap { $0.keyTopics })
+            let descriptor = Self.buildContentDescriptor(
+                signals: report.corpus, entities: report.documents.flatMap { $0.keyTopics })
+            let categories = Self.extractContentCategories(
+                entities: report.documents.flatMap { $0.keyTopics }, signals: report.corpus)
+            let primaryLang = detectedLangs.first.flatMap { Self.languageDisplayName($0) } ?? ""
+
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .analyzing,
+                    detail: domain.isEmpty ? "Analyzing content structure..." : "\(domain) • \(descriptor)",
+                    progress: 1.0
+                ) { metrics in
+                    metrics.vocabularyRichness = report.corpus.vocabularyRichness
+                    metrics.technicalDensity = report.corpus.technicalDensity
+                    metrics.semanticComplexity = report.corpus.semanticComplexity
+                    metrics.multilingualScore = report.corpus.multilingualScore
+                    metrics.hasCode = report.corpus.hasCode
+                    metrics.hasMath = report.corpus.hasMath
+                    metrics.detectedLanguages = detectedLangs
+                    metrics.chunkingStrategy = report.chunking.strategy.rawValue
+                    metrics.targetWordWindow = report.chunking.targetWordWindow
+                    metrics.overlapWords = report.chunking.overlapWords
+                    metrics.analysisTimeMs = Int(analysisTime * 1000)
+
+                    // Document content profile (displayed in UI instead of raw ratios)
+                    metrics.documentDomain = domain
+                    metrics.contentDescriptor = descriptor
+                    metrics.contentCategories = categories
+                    metrics.documentLanguage = primaryLang
+                    // extractionCoverage is set during extraction phase
+                }
+            }
+
+            await MainActor.run {
+                // This report is of the library with the document being imported added to
+                // it, which no signature of the library on disk describes yet.
+                self.containerIntelligence[activeContainerId] = report
+                self.containerIntelligenceSignature.removeValue(forKey: activeContainerId)
+            }
+
+            // Log analysis results
+            TelemetryCenter.emit(
+                .ingestion,
+                title: "Content analysis complete",
+                metadata: [
+                    "file": filename,
+                    "vocabularyRichness": String(format: "%.2f", report.corpus.vocabularyRichness),
+                    "multilingualScore": String(format: "%.2f", report.corpus.multilingualScore),
+                    "technicalDensity": String(format: "%.2f", report.corpus.technicalDensity),
+                    "semanticComplexity": String(format: "%.2f", report.corpus.semanticComplexity),
+                    "chunkingStrategy": report.chunking.strategy.rawValue,
+                    "chunkWindow": "\(report.chunking.targetWordWindow)",
+                    "chunkOverlap": "\(report.chunking.overlapWords)",
+                    "retrievalFusion": report.retrieval.fusionStyle.rawValue,
+                    "retrievalVectorWeight": String(format: "%.2f", report.retrieval.vectorWeight),
+                    "retrievalLexicalWeight": String(format: "%.2f", report.retrieval.lexicalWeight),
+                    "recommendedDimension": "\(report.embedding.dimension)",
+                    "recommendedProvider": report.embedding.providerId,
+                    "confidence": String(format: "%.1f%%", report.embedding.confidence * 100),
+                    "reasoning": report.embedding.rationale,
+                    "alerts": report.alerts.joined(separator: " | "),
+                ]
+            )
+
+            // A library with no documents yet is choosing its settings for this first
+            // import, which nothing has been embedded under, so its embedding model may come
+            // from a sample of a long document. A library that has documents does not get
+            // another model from a sample.
+            let (updatedContainer, autoReasons) = Self.resolveAutoAdjustments(
+                for: autoContainer,
+                report: report,
+                allowingEstimate: preExistingDocumentsInContainerCount == 0
+            )
+
+            if updatedContainer != autoContainer {
+                let embeddingChanged =
+                    updatedContainer.embeddingProviderId != autoContainer.embeddingProviderId
+                    || updatedContainer.embeddingDim != autoContainer.embeddingDim
+
+                if embeddingChanged {
+                    providerId = updatedContainer.embeddingProviderId
+                    containerEmbeddingService = EmbeddingService.forProvider(
+                        id: updatedContainer.embeddingProviderId,
+                        targetDimension: updatedContainer.embeddingDim
+                    )
+                    await MainActor.run {
+                        updateIngestionItem(
+                            id: trackingId,
+                            filename: filename,
+                            stage: .analyzing,
+                            detail: "Config adapted to \(updatedContainer.embeddingDim)D"
+                        )
+                    }
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms flash
+                }
+
+                container = updatedContainer
+                await MainActor.run {
+                    self.containerService.updateContainer(updatedContainer)
+                }
+            }
+
+            if context.allowsSelfTuningScheduling, !autoReasons.isEmpty {
+                // If this is the first document in the container, we've already applied the
+                // updated config *before* embedding, so there is nothing to rebuild yet.
+                // Without this guard, the app will immediately re-embed the just-added doc,
+                // which looks like an infinite “re-upload” loop to the user.
+                if preExistingDocumentsInContainerCount > 0, !report.corpus.isEstimate {
+                    // Never from a sample: its reason can only be the chunking, and a
+                    // rebuild embeds every document again.
+                    pendingSelfTuneReasons = autoReasons
+                } else if preExistingDocumentsInContainerCount > 0 {
+                    Log.info(
+                        "Skipping self-tuning rebuild: the analysis read a sample of the library.",
+                        category: .ingestion)
+                } else {
+                    Log.info(
+                        "Skipping self-tuning rebuild: config updated during first ingest and there are no prior documents to rebuild.",
+                        category: .ingestion
+                    )
+                }
+            }
+        }
+
     }
 
     /// Step S (vectors): shows the embedding stage and generates every passage's vector with live progress, using the import's checkpoint folder as cache.
