@@ -385,7 +385,7 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 > library levels are declared in the code and never built. When summaries exist and the router reads a question as an
 > overview with a confidence of 0.5 or more, the search runs over the summary passages instead of the detail ones.
 > Summaries are on by default, and so is the routing.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+Import.swift:2338-2407 (enrichImportedDocument), RAGService+QueryPipeline.swift:1100-1162 (step 2.5), DocumentSummaryService.swift:232-319, DocumentChunk.swift:89-104, SettingsStore.swift:571-574]` `[evidence_level: grep_verified, confidence: exact, evidence_source: .clusterSummary and .librarySummary appear only in their own declarations, grep run 2026-10-20]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+Import.swift:2344-2413 (enrichImportedDocument), RAGService+QueryPipeline.swift:1100-1162 (step 2.5), DocumentSummaryService.swift:232-319, DocumentChunk.swift:89-104, SettingsStore.swift:571-574]` `[evidence_level: grep_verified, confidence: exact, evidence_source: .clusterSummary and .librarySummary appear only in their own declarations, grep run 2026-10-20]`
 
 #### Step 3. Search both systems and merge
 
@@ -445,7 +445,7 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 > the search depth (step 3, usually 30 or more), not five, and packing decides how many reach the model. Through 5.6
 > this step changed nothing: the store hands passages back without their vectors, so MMR found every pair 0 alike.
 > 5.7 loads the stored vectors first.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:2333-2376, RAGService+ToolHandler.swift:337-348, RAGService+Import.swift:2978-2984, KnowledgeContainer.swift:262-305]` `[evidence_level: grep_verified, confidence: exact, evidence_source: RAGQualityMode.mmrLambda is read only into featureToggles (RAGQualityMode.swift:320), which nothing reads, grep run 2026-10-20]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:2333-2376, RAGService+ToolHandler.swift:337-348, RAGService+Import.swift:2984-2990, KnowledgeContainer.swift:262-305]` `[evidence_level: grep_verified, confidence: exact, evidence_source: RAGQualityMode.mmrLambda is read only into featureToggles (RAGQualityMode.swift:320), which nothing reads, grep run 2026-10-20]`
 
 ### Phase D · Arrange the desk
 
@@ -622,7 +622,7 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 
 **How.** Timings, token footprint, cache hits and thermal state are recorded, then the answer renders with inline citation controls that resolve to a source chunk and its page rather than to an exact span; no citation carries byte or character offsets.
 
-(Added 2026-11-04.) Two waits keep the on-device model free for the answer. Background jobs (suggested questions, document overviews and tags, image descriptions, the Atlas's cluster names and analysis) wait while an answer runs (`AnswerModelPriority.waitWhileAnswering`, `AnswerModelPriority.swift:27`), because the model serves one request at a time. And when iOS refuses a model call for an app in the background (a rate limit), the answer pauses at that step and goes on when you open the app, instead of spending its retries (`RAGService.waitWhileAppIsInBackground`, `RAGService+Import.swift:2574`). `[evidence_level: code_verified, confidence: high, evidence_source: AnswerModelPriority.swift:27-39, RAGService+Import.swift:2571-2595, RAGService+Generation.swift:1671, RAGService+Generation.swift:1785, RAGService+Agentic.swift:121]`
+(Added 2026-11-04.) Two waits keep the on-device model free for the answer. Background jobs (suggested questions, document overviews and tags, image descriptions, the Atlas's cluster names and analysis) wait while an answer runs (`AnswerModelPriority.waitWhileAnswering`, `AnswerModelPriority.swift:27`), because the model serves one request at a time. And when iOS refuses a model call for an app in the background (a rate limit), the answer pauses at that step and goes on when you open the app, instead of spending its retries (`RAGService.waitWhileAppIsInBackground`, `RAGService+Import.swift:2580`). `[evidence_level: code_verified, confidence: high, evidence_source: AnswerModelPriority.swift:27-39, RAGService+Import.swift:2577-2601, RAGService+Generation.swift:1671, RAGService+Generation.swift:1785, RAGService+Agentic.swift:121]`
 
 ## 04. The nine checks
 
@@ -1249,7 +1249,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
   Models skim the middle of what they're given, so the good material goes at both ends.A documented attention bias toward the start and end of a context window, mitigated by positional reordering applied last. (Corrected 2026-10-20: in Standard the reorder applies to whole-passage packing, never to a procedure and to a lookup only when its context is packed again for the device, and it runs before the budget cut, not last. Deep Think's searches use their own reorder, which puts the best passage in the middle. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift@1e4a718:14946-15058, 15834-15902, 22121-22134, RAGEngine.swift:500-503]`) (Corrected 2026-10-27: from `fa80e71` (2026-10-21, 5.7) Standard's reorder runs after the budget cut, on the passages chosen, and only when four or more were chosen, so "before the budget cut" describes the code before that commit. Deep Think's own reorder is unchanged. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:496-501, 683-691, RAGService.swift@1e4a718:22192-22205 at 1e4a718]`)
 
 **Summary routing**
-  Whole-library questions go to summaries, because no ten cards can describe a hundred documents.Hierarchical summary nodes retrieved for global queries instead of leaf chunks. (Corrected 2026-10-20: one summary passage per document, written by Apple's model after import or taken from the document's first 150 words when the model fails, and no hierarchy. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+Import.swift:2338-2407, DocumentSummaryService.swift:232-319, DocumentChunk.swift:89-104]`)
+  Whole-library questions go to summaries, because no ten cards can describe a hundred documents.Hierarchical summary nodes retrieved for global queries instead of leaf chunks. (Corrected 2026-10-20: one summary passage per document, written by Apple's model after import or taken from the document's first 150 words when the model fails, and no hierarchy. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+Import.swift:2344-2413, DocumentSummaryService.swift:232-319, DocumentChunk.swift:89-104]`)
 
 ### Answering and checking
 

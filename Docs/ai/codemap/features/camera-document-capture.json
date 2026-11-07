@@ -4,7 +4,7 @@
   "name": "Camera Document Capture",
   "aliases": ["camera scanner", "document capture view", "vision overlay", "smart capture manager", "scan a page"],
   "purpose": "Captures paper documents with the camera and reads their text on device with Vision.",
-  "revision": "26704aee",
+  "revision": "4e44e00c",
   "verified_on": "2026-11-07",
   "entry_points": ["CameraManager", "CameraVisionOverlayView", "CaptureToRAGBridge"],
   "files": [

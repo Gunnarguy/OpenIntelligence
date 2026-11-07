@@ -920,6 +920,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I03 | AA (size) (formats the file's size in MB as the B, KB or MB string the summary and telemetry show) into `formatImportFileSize` |
 | I04 | U (pairs each passage with its vector and contextual prefix into DocumentChunk records and emits the Chunks prepared event) into `buildDocumentChunks` |
 | I05 | S (inputs) (builds each passage's contextual prefix and the token-limited text to embed, translating first when the library asks for it) into `buildEmbeddingInputs` |
+| I06 | AF (marks the item complete, records the completion time, kicks pending re-embeds and retrieval auto-tune, refreshes the library's intelligence, cleans checkpoints and schedules a self-tune rebuild if one was asked for) into `finishImport` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

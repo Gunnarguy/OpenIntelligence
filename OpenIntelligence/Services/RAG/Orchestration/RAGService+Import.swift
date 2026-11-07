@@ -1978,44 +1978,7 @@ extension RAGService {
                     trackingId: trackingId, containerId: activeContainerId)
             }
 
-            // Brief yield for UI to catch up before marking complete
-            await Task.yield()
-
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .complete,
-                    detail: "Complete",
-                    progress: 1.0
-                )
-                if manageProcessingState { isProcessing = false }
-                if manageProcessingState, trackingId == nil {
-                    processingStatus = ""
-                }
-
-                // Record ingestion completion time to prevent immediate self-tuning rebuilds.
-                // This stops the bug where adding a large PDF triggers re-embedding of ALL docs.
-                self.lastIngestionCompletionTime[activeContainerId] = Date()
-
-                self.kickPendingReembedIfNeeded()
-
-                // Auto-tune retrieval config based on document types in container
-                self.autoTuneRetrievalConfigIfNeeded(for: activeContainerId)
-            }
-
-            refreshIntelligence(
-                for: activeContainerId,
-                force: true,
-                allowSelfTuningScheduling: context.allowsSelfTuningScheduling
-            )
-
-            // Clean up temporary page checkpoints on successful ingestion completion
-            documentProcessor.cleanCheckpoints(for: managedURL)
-
-            if context.allowsSelfTuningScheduling, !pendingSelfTuneReasons.isEmpty {
-                scheduleSelfTuningRebuild(for: activeContainerId, reasons: pendingSelfTuneReasons)
-            }
+            await finishImport(trackingId: trackingId, filename: filename, manageProcessingState: manageProcessingState, activeContainerId: activeContainerId, context: context, managedURL: managedURL, pendingSelfTuneReasons: pendingSelfTuneReasons)
 
         } catch {
             if let listedInSpotlight {
@@ -2076,6 +2039,49 @@ extension RAGService {
                 ]
             )
             throw error
+        }
+    }
+
+    /// Step AF: marks the item complete, records the completion time, kicks pending re-embeds and retrieval auto-tune, refreshes the library's intelligence, cleans checkpoints and schedules a self-tune rebuild if one was asked for.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func finishImport(trackingId: UUID?, filename: String, manageProcessingState: Bool, activeContainerId: UUID, context: IngestionContext, managedURL: URL, pendingSelfTuneReasons: [String]) async {
+        // Brief yield for UI to catch up before marking complete
+        await Task.yield()
+
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .complete,
+                detail: "Complete",
+                progress: 1.0
+            )
+            if manageProcessingState { isProcessing = false }
+            if manageProcessingState, trackingId == nil {
+                processingStatus = ""
+            }
+
+            // Record ingestion completion time to prevent immediate self-tuning rebuilds.
+            // This stops the bug where adding a large PDF triggers re-embedding of ALL docs.
+            self.lastIngestionCompletionTime[activeContainerId] = Date()
+
+            self.kickPendingReembedIfNeeded()
+
+            // Auto-tune retrieval config based on document types in container
+            self.autoTuneRetrievalConfigIfNeeded(for: activeContainerId)
+        }
+
+        refreshIntelligence(
+            for: activeContainerId,
+            force: true,
+            allowSelfTuningScheduling: context.allowsSelfTuningScheduling
+        )
+
+        // Clean up temporary page checkpoints on successful ingestion completion
+        documentProcessor.cleanCheckpoints(for: managedURL)
+
+        if context.allowsSelfTuningScheduling, !pendingSelfTuneReasons.isEmpty {
+            scheduleSelfTuningRebuild(for: activeContainerId, reasons: pendingSelfTuneReasons)
         }
     }
 
