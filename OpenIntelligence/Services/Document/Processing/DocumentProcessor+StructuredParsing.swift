@@ -1174,33 +1174,7 @@ extension DocumentProcessor {
 
             try Task.checkCancellation()
 
-            // Aggregate metrics from this sub-batch and emit live progress
-            var batchTables = 0, batchLists = 0, batchHeaders = 0, batchOCR = 0
-            for r in batchResults {
-                batchTables += r.tablesFound
-                batchLists += r.listsFound
-                batchHeaders += r.headersFound
-                if r.usedOCR { batchOCR += 1 }
-
-                // Save page checkpoint
-                let pageIndex = r.pageIndex
-                let checkpointURL = checkpointDir.appendingPathComponent("page_\(pageIndex).json")
-                let checkpointPage = IngestionCheckpointPage(
-                    pageIndex: r.pageIndex,
-                    elements: r.elements.map { CodableStructuredElement($0) },
-                    pageText: r.pageText,
-                    hasStructure: r.hasStructure,
-                    usedOCR: r.usedOCR,
-                    tablesFound: r.tablesFound,
-                    listsFound: r.listsFound,
-                    headersFound: r.headersFound
-                )
-                if let data = try? JSONEncoder().encode(checkpointPage) {
-                    try? data.write(to: checkpointURL)
-                    Log.info("[Checkpoint] Saved checkpoint for page \(r.pageIndex + 1)", category: .ingestion)
-                }
-            }
-            incrementMetric(tables: batchTables, lists: batchLists, headers: batchHeaders, ocrPages: batchOCR)
+            recordParsedBatch(batchResults: batchResults, checkpointDir: checkpointDir)
 
             results.append(contentsOf: batchResults)
             // MEMORY-SAFE: batchRenderData goes out of scope here, releasing CIImages
@@ -1224,6 +1198,39 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A10: counts a sub-batch's tables, lists, headers and OCR pages, saves each page's checkpoint, and adds the counts to the live metrics.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func recordParsedBatch(batchResults: [DocumentProcessor.PageParseResult], checkpointDir: URL) {
+        // Aggregate metrics from this sub-batch and emit live progress
+        var batchTables = 0, batchLists = 0, batchHeaders = 0, batchOCR = 0
+        for r in batchResults {
+            batchTables += r.tablesFound
+            batchLists += r.listsFound
+            batchHeaders += r.headersFound
+            if r.usedOCR { batchOCR += 1 }
+
+            // Save page checkpoint
+            let pageIndex = r.pageIndex
+            let checkpointURL = checkpointDir.appendingPathComponent("page_\(pageIndex).json")
+            let checkpointPage = IngestionCheckpointPage(
+                pageIndex: r.pageIndex,
+                elements: r.elements.map { CodableStructuredElement($0) },
+                pageText: r.pageText,
+                hasStructure: r.hasStructure,
+                usedOCR: r.usedOCR,
+                tablesFound: r.tablesFound,
+                listsFound: r.listsFound,
+                headersFound: r.headersFound
+            )
+            if let data = try? JSONEncoder().encode(checkpointPage) {
+                try? data.write(to: checkpointURL)
+                Log.info("[Checkpoint] Saved checkpoint for page \(r.pageIndex + 1)", category: .ingestion)
+            }
+        }
+        incrementMetric(tables: batchTables, lists: batchLists, headers: batchHeaders, ocrPages: batchOCR)
     }
 
     /// Steps A11 to A13: sorts the parsed pages, flattens them into elements and page texts, adds the embedded-image analysis, and assembles the result.

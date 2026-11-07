@@ -222,7 +222,7 @@ Below 1,000 chunks, similarity is computed with Accelerate's `vDSP_dotpr` direct
 > "never split". 310 is the ceiling and 260 the target, the overlap is counted in words (at most 50), and only a table
 > of up to 380 words stays whole. The suggestion the pre-scan saves for a library (280 to 420 words, overlap 50 to 70)
 > is clamped to the same 260 and 50 before chunking.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: SemanticChunker+Chunking.swift:77-89, DocumentProcessor+Import.swift:404-426, DocumentProcessor+StructuredParsing.swift:1505-1571, DocumentProcessor+StructuredParsing.swift:2483-2511, AdaptiveEmbeddingOptimizer.swift:296-336]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: SemanticChunker+Chunking.swift:77-89, DocumentProcessor+Import.swift:404-426, DocumentProcessor+StructuredParsing.swift:1512-1578, DocumentProcessor+StructuredParsing.swift:2490-2518, AdaptiveEmbeddingOptimizer.swift:296-336]`
 
 #### Step 3. Highlight what matters
 
@@ -1202,7 +1202,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
   One index card, about 310 words.The retrievable unit: ≤310 words with character overlap, carrying a document and section prefix. (Corrected 2026-10-20: about 260 words and never more than 310, with up to 50 words of overlap, and split if it runs over 430 tokens. `[evidence_level: code_verified, confidence: exact, evidence_source: SemanticChunker+Chunking.swift:77-89, DocumentProcessor+Import.swift:404-427, DocumentProcessor+TokenLimits.swift:29-36]`)
 
 **Atomic chunk**
-  A table kept whole, never cut up.A table or list preserved unsplit, so a cell never loses its column header. (Corrected 2026-10-20: only up to 380 words. A longer table is split by rows with its header row repeated, and every table also gets a summary chunk. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor+StructuredParsing.swift:1505-1571, 2483-2511]`)
+  A table kept whole, never cut up.A table or list preserved unsplit, so a cell never loses its column header. (Corrected 2026-10-20: only up to 380 words. A longer table is split by rows with its header row repeated, and every table also gets a summary chunk. `[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor+StructuredParsing.swift:1512-1578, 2490-2518]`)
 
 **Contextual prefix**
   Writing the document and section name at the top of every card.A document and section label prepended before embedding, so an isolated chunk retains what it is about.
