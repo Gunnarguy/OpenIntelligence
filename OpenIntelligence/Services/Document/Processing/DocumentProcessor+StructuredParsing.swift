@@ -263,28 +263,6 @@ extension DocumentProcessor {
         // Each 1260×1785 RGBA image ≈ 9MB; 542 pages = 4.8GB if pre-rendered!
         // Now we render only maxConcurrentPages at a time (~27MB peak)
 
-        struct PageRenderData: Sendable {
-            let pageIndex: Int
-            let pageImage: CIImage?
-            let plainText: String?
-            let layoutText: String?  // Layout-aware extracted text
-            let layoutTables: [TableRegion]
-            let preferHighResolutionStructure: Bool
-        }
-
-        // Result container for parallel processing
-        struct PageParseResult: Sendable {
-            let pageIndex: Int
-            let elements: [StructuredElementWrapper]
-            let pageText: String
-            let hasStructure: Bool
-            let usedOCR: Bool
-            // Metrics from this page
-            let tablesFound: Int
-            let listsFound: Int
-            let headersFound: Int
-        }
-
         // Parallel structured parsing with device-specific concurrency
         // Vision's RecognizeDocumentsRequest runs on Neural Engine (ANE)
         // Higher-tier devices (A18+) can sustain more concurrent ANE operations
@@ -2687,4 +2665,32 @@ extension DocumentProcessor {
         return chunks
     }
 
+}
+
+// MARK: - Page records for extractWithStructuredParsing
+
+// Declared inside `extractWithStructuredParsing` until 2026-11-06; moved here unchanged so the steps it was
+// broken into can name them.
+extension DocumentProcessor {
+    private struct PageRenderData: Sendable {
+        let pageIndex: Int
+        let pageImage: CIImage?
+        let plainText: String?
+        let layoutText: String?  // Layout-aware extracted text
+        let layoutTables: [TableRegion]
+        let preferHighResolutionStructure: Bool
+    }
+
+    // Result container for parallel processing
+    private struct PageParseResult: Sendable {
+        let pageIndex: Int
+        let elements: [StructuredElementWrapper]
+        let pageText: String
+        let hasStructure: Bool
+        let usedOCR: Bool
+        // Metrics from this page
+        let tablesFound: Int
+        let listsFound: Int
+        let headersFound: Int
+    }
 }

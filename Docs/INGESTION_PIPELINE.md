@@ -1300,3 +1300,15 @@ An import's overview (`DocumentSummaryService`) and content tags (`ContentTaggin
 ## Proving an import or parsing change changes nothing (added 2026-11-06, for 5.8)
 
 `ImportGoldenTests` imports 31 fixtures into a new library per pass and records each document record, every stored passage with its vector (bit for bit, as a digest), the keyword index's rows and the vocabulary, with ids numbered by first appearance and clock fields left out; overviews and Spotlight are off and `DirectModelCallsForTesting` turns off the content tags' model call. `StructuredParsingGoldenTests` runs `DocumentProcessor.processDocument` on seven committed PDFs (the first 40 pages of the Sportage manual among them) and six drawn at test time (text layer, scan, figures only, partly legible, Greek, Hebrew), with the interrupted-import checkpoints cleared first. Both match exactly between two runs of the same build (32 and 13 recorded items, 2026-11-06). They exist for the decomposition of `RAGService.addDocument` and the structured PDF parser into steps (`BenchmarkRuns/2026-11-06-decomposition/PLAN.md`); the procedure is in `Docs/ai/RUNBOOK.md`. `[evidence_level: measured, confidence: exact, evidence_source: runs base-a and base-b, 2026-11-06, iOS 27 Simulator]`
+
+## The structured PDF parser, broken into steps (2026-11-06, for 5.8)
+
+`DocumentProcessor.extractWithStructuredParsing` and `createStructureAwareChunks` in
+`DocumentProcessor+StructuredParsing.swift` are being cut into methods, one step per commit, each a move with no
+change in behaviour: every commit builds for iOS and macOS and `StructuredParsingGoldenTests` records the 13 fixtures
+identically to the commit before (`BenchmarkRuns/2026-11-06-decomposition/PLAN.md` has the order and the map).
+
+| Step | What moved |
+|---|---|
+| P1 | `PageRenderData` and `PageParseResult`, declared inside `extractWithStructuredParsing`, into an extension of `DocumentProcessor` at the end of the file |
+
