@@ -4,7 +4,7 @@
   "name": "Evidence Threads",
   "aliases": ["Evidence Threads", "thread sidebar", "thread store", "conversation history", "saved chats", "thread list", "chat history"],
   "purpose": "Keeps each conversation as a thread tied to the evidence its answers used, and lets the user switch between threads.",
-  "revision": "23615d3f",
+  "revision": "9871dedc",
   "verified_on": "2026-11-07",
   "entry_points": ["EvidenceThread", "EvidenceThreadStore", "RAGService.createNewThread", "RAGService.persistChatHistory", "ThreadSidebarView", "QuotaPolicy.evidenceThreadLimit", "WorkspaceSyncService.synchronizeEvidenceThreads"],
   "files": [
@@ -25,7 +25,7 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Device.swift", "role": "shared", "blob": "bfd1f74a983af872bcce60c64e56b7f49ab868b3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "role": "shared", "blob": "c38e45a7c8b5a2cfd50127a28925b4cd9f4c791d"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "role": "shared", "blob": "d04aeb2a4c66027a8ce6cd4f26ff4c2b6685c493"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "role": "shared", "blob": "92f6061aaac0fb9739e4212c61c561d2d9f9d96b"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "role": "shared", "blob": "27471ef5d12838d5b1bd6793afbf1a2ca781bf57"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SelfTuning.swift", "role": "shared", "blob": "afd94638c2927c42c3ba56ed5c7098ec27b59a55"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SentenceExtraction.swift", "role": "shared", "blob": "7ab225f32574eea959a94573af238cbfebfd7a5b"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+StandardRetrieval.swift", "role": "shared", "blob": "baf28b5ee5f2a91dfa2e8a2152fb6043585a20dd"},

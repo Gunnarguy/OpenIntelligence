@@ -145,7 +145,7 @@ touched.** These remain the owner's to choose between, and they answer different
 changed. Anywhere the public figure is updated, `README.md`, `Docs/AppleIntelligenceTransitionPlan.md`
 and the website all carry it and must move together.
 
-`[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift `// Step` markers across the query path; 5.10 disabled block and its recorded reason at RAGService+QueryPipeline.swift:3475-3479; 4.8 prose-bias figures at RAGService+StandardRetrieval.swift:261-267]`
+`[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift `// Step` markers across the query path; 5.10 disabled block and its recorded reason at RAGService+QueryPipeline.swift:3047-3051; 4.8 prose-bias figures at RAGService+StandardRetrieval.swift:261-267]`
 
 ---
 
@@ -182,7 +182,7 @@ and the website all carry it and must move together.
   writing the answer, so a bad extraction becomes a bad *candidate* the verification gates can catch
   rather than an answer that skipped them. Both `exact_value` failures in the current benchmark
   (`exact_service_interval`, `exact_temperature_limit`) sit in this area.
-  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:3475-3493 commented block, GroundedAnswerPolicy.swift@2fae8509^:38-66 (removed in 2fae8509), ModelExecutionPlanner.swift:69-72, RAGService+QueryPipeline.swift:3661 and FoundationModelRoutePolicy.swift:36 both grouping .deterministic with .onDevice]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:3047-3065 commented block, GroundedAnswerPolicy.swift@2fae8509^:38-66 (removed in 2fae8509), ModelExecutionPlanner.swift:69-72, RAGService+QueryPipeline.swift:3233 and FoundationModelRoutePolicy.swift:36 both grouping .deterministic with .onDevice]`
 - `VerificationGateService.swift` now defines gates A-I, not only A-G.
 - The vector store is not only HNSW. The current BNNS/Accelerate implementation persists memory-mapped vectors and uses Metal for larger searches when available; Vectura/HNSW is a selectable backend path.
 - Full GraphRAG is not a shipped claim. The app has graph-style context packing, deterministic entities, and RAPTOR-lite summaries, but not evaluated LLM-derived entity graph/community summaries.
@@ -192,7 +192,7 @@ and the website all carry it and must move together.
   - "Vectura/HNSW is a selectable backend path" is not true of any build: `VecturaVectorDatabase` is behind `#if canImport(VecturaKit)`, VecturaKit is not a dependency, and a library configured for it falls back to the BNNS store.
   - The quick reference table's HyDE and contextual compression rows say ON. Their settings default to true, but neither runs in any user-selectable mode. Each needs a mode flag that is off in Standard, and Deep Think and Maximum leave for the agentic path before either step.
   - "Deterministic entities" are attached to chunks, but the entity index is never filled, so nothing expands through it.
-  `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:2765-2776, RAGService+AgenticQuery.swift:124-300, RAGService+AgenticQuery.swift:754-761, RAGService+QueryPipeline.swift:4210-4237, :944-991, :5247-5253 and :2639, RAGService+ToolHandler.swift:207-210, OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift:167-172, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195 and :277-284, OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:2337-2348, RAGService+AgenticQuery.swift:124-300, RAGService+AgenticQuery.swift:754-761, RAGService+QueryPipeline.swift:3782-3809, :856-903, :5316-5322 and :2211, RAGService+ToolHandler.swift:207-210, OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift:167-172, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195 and :277-284, OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137]`
 
 ---
 
@@ -249,7 +249,7 @@ static func shouldUseHyDE(for query: String) -> Bool
 > construction is in Standard's pipeline, behind a mode flag that is false for Standard, and Deep
 > Think and Maximum embed without it ("HyDE disabled in Deep Think"). The recall figure above has no
 > benchmark artifact cited for this app. `[evidence_level: code_verified, confidence: exact,
-> evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:944-991 and
+> evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:856-903 and
 > RAGService+ToolHandler.swift:207-210, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195]`
 
 ---
@@ -367,7 +367,7 @@ Config.conservative // 60% retention (safer)
 > **Corrected 2026-10-20:** in the working tree contextual compression runs in no user-selectable
 > mode. Its only call is in Standard's pipeline, behind a mode flag that is off for Standard and
 > Maximum and on only for Deep Think, which never reaches that step. `[evidence_level: code_verified,
-> confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:5247-5253
+> confidence: exact, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:5316-5322
 > and :3072, OpenIntelligence/Core/Models/RAGQualityMode.swift:277-284]`
 
 ---
@@ -415,7 +415,7 @@ let verification = try await service.verifyAnswerGrounding(
 > their overall confidence is under the bar. No gate triggers re-retrieval. `[evidence_level:
 > code_verified, confidence: exact, evidence_source:
 > OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift:452 (no caller),
-> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:4332-4418]`
+> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:4310-3933]`
 
 ---
 
@@ -682,7 +682,7 @@ All advanced RAG settings in `SettingsStore.swift`:
 > below, "Enable grounding verification" names a method nothing calls (section 4), and Query
 > Rewriting costs a model call only for a question the ambiguity check flags. `[evidence_level:
 > code_verified for the modes and the method, device_verified for the 99.4 s (that document's own tag),
-> confidence: high, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:944-991,
+> confidence: high, evidence_source: OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:856-903,
 > :2986-2992, :646-647, OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift:83-100,
 > OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift:452, Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md lines 25-33]`
 

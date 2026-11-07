@@ -258,44 +258,7 @@ extension RAGService {
             )
         }
 
-        // Adaptive generation profile, chosen from what the question is asking for rather than
-        // from the quality mode alone. `RAGQualityMode` carries one temperature for every
-        // question asked in that mode, so Standard answers a serial-number lookup and an
-        // open-ended comparison identically; the answer intent is a better signal and is already
-        // resolved by this point.
-        //
-        // **Off unless the owner turns it on.** `UserDefaults.bool(forKey:)` returns false for an
-        // absent key, so an install that has never seen this setting behaves exactly as it did
-        // before. It is opt-in because its effect on answer quality is unmeasured, and currently
-        // unmeasurable in this repository: retrieval is nondeterministic, two runs of one build
-        // return different evidence and different answers, and no A/B here is trustworthy yet.
-        // Shipping it on by default would be changing everyone's answers on a hypothesis.
-        //
-        // **This sits BELOW the agentic return on purpose, and that is a limit, not a detail.**
-        // Deep Think and Maximum return above via `executeAgenticQuery`, which never reads this
-        // `inferenceConfig` or the `config` parameter for generation: it builds `optimizedConfig`
-        // from `qualityMode.agenticConfig` and hands that to `AgenticOrchestrator`. Applying the
-        // profile above the branch, which is where it was first written, mutated a local that the
-        // agentic path never reads while logging `temperature 0.4 -> 0.35` as though it had taken
-        // effect. A log line asserting a change that did not happen is worse than no feature, and
-        // it is the exact failure this repository keeps hitting: a stage reports healthy while the
-        // value it claims to have set goes nowhere. Reaching the agentic path means changing where
-        // `AgenticOrchestrator` gets its generation parameters, which is tracked separately.
-        #if canImport(FoundationModels)
-            if UserDefaults.standard.bool(forKey: "adaptiveInferenceProfiles") {
-                let intent = initialQueryProfile.answerIntent
-                let previousTemperature = inferenceConfig.temperature
-                let previousMaxTokens = inferenceConfig.maxTokens
-                inferenceConfig = inferenceConfig.applyingAdaptiveProfile(for: intent)
-                let rationale = FoundationModelDynamicProfileRegistry.profile(for: intent).generation.rationale
-                Log.info(
-                    "[AdaptiveProfile] intent=\(intent.rawValue) "
-                        + "temperature \(previousTemperature) -> \(inferenceConfig.temperature), "
-                        + "maxTokens \(previousMaxTokens) -> \(inferenceConfig.maxTokens) [\(rationale)]",
-                    category: .llm
-                )
-            }
-        #endif
+        applyAdaptiveGenerationProfile(initialQueryProfile: initialQueryProfile, inferenceConfig: &inferenceConfig)
 
         // Quality mode parameters from user settings
         let qualityModeDisplayName = qualityMode.displayName
@@ -454,58 +417,7 @@ extension RAGService {
         var auditUsedGraphPacking = false
         var auditUsedSupplementaryVectorSearch = false
 
-        Log.box(
-            "ENHANCED RAG QUERY PIPELINE",
-            level: .info,
-            category: .pipeline,
-            content: [
-                "📝 Query: \(question)",
-                "🎯 Retrieving top \(effectiveTopK) chunks from \(totalStored) total",
-                "🧬 Embeddings: \(embeddingProviderId) • \(selectedDim)D",
-                "⚙️ Quality Mode: \(qualityModeDisplayName)",
-            ]
-        )
-
-        // Build quality mode feature summary for thinking stream
-        var enabledFeatures: [String] = []
-        if qualityModeUsesHyDE { enabledFeatures.append("HyDE") }
-        if qualityModeUsesReRanking { enabledFeatures.append("ReRank") }
-        if qualityModeUsesMMR { enabledFeatures.append("MMR") }
-        if qualityModeUsesVerificationGates { enabledFeatures.append("Verify") }
-        if qualityModeUsesQueryExpansion { enabledFeatures.append("Expand") }
-        if qualityModeUsesContainerVocabulary { enabledFeatures.append("Vocab") }
-        if qualityModeUsesParentDocRetrieval { enabledFeatures.append("Parent") }
-        if qualityModeUsesContextualCompression { enabledFeatures.append("Compress") }
-        let featureSummary = enabledFeatures.joined(separator: " • ")
-
-        emitThinkingEvent(
-            .planning,
-            title: "\(qualityModeDisplayName) mode",
-            detail: featureSummary.isEmpty ? "Minimal features" : featureSummary
-        )
-
-        emitThinkingEvent(
-            .planning,
-            title: "Scoping query",
-            detail: "Top \(effectiveTopK) • \(selectedName)"
-        )
-
-        TelemetryCenter.emit(
-            .system,
-            title: "Query received",
-            metadata: [
-                "question": String(question.prefix(80)),
-                "container": selectedName,
-                "containerId": selectedId.uuidString,
-                "qualityMode": qualityModeDisplayName,
-                "words": "\(queryWords)",
-                "characters": "\(question.count)",
-                "topK": "\(effectiveTopK)",
-                "minSimilarity": String(format: "%.2f", retrievalConfig.minSimilarity),
-                "embeddingProvider": embeddingProviderId,
-                "embeddingDim": "\(selectedDim)",
-            ]
-        )
+        logStandardPipelinePlan(question: question, effectiveTopK: effectiveTopK, totalStored: totalStored, embeddingProviderId: embeddingProviderId, selectedDim: selectedDim, qualityModeDisplayName: qualityModeDisplayName, qualityModeUsesHyDE: qualityModeUsesHyDE, qualityModeUsesReRanking: qualityModeUsesReRanking, qualityModeUsesMMR: qualityModeUsesMMR, qualityModeUsesVerificationGates: qualityModeUsesVerificationGates, qualityModeUsesQueryExpansion: qualityModeUsesQueryExpansion, qualityModeUsesContainerVocabulary: qualityModeUsesContainerVocabulary, qualityModeUsesParentDocRetrieval: qualityModeUsesParentDocRetrieval, qualityModeUsesContextualCompression: qualityModeUsesContextualCompression, selectedName: selectedName, selectedId: selectedId, queryWords: queryWords, retrievalConfig: retrievalConfig)
 
         var ragQuery: RAGQuery?
         var recoveryRetrievedChunks: [RetrievedChunk] = []
@@ -1085,103 +997,16 @@ extension RAGService {
                     // this code can check (`SQLiteFullTextService.getCachedQueryBySimilarity`).
                 }  // end of fresh-embedding else branch
 
-                // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
-                // CACHE: Entire Step 3 is bypassed on exact or similarity cache hit.
-                // With optional iterative retrieval for multi-pass refinement
-                let retrievalStartTime = Date()
-                var iterativeMetadata: (iterations: Int, confidence: Float, queries: Int)?
-
-                // Shared retrieval configuration is reused by both live search and recovery paths.
-                let queryIntent = effectiveQueryProfile.searchIntent
-                let adjustedWeights = effectiveQueryProfile.adjustedHybridWeights(from: retrievalConfig)
-                let adjustedVectorWeight = adjustedWeights.vectorWeight
-                let adjustedKeywordWeight = adjustedWeights.keywordWeight
-
-                // Step 2.5: Query Classification for RAPTOR-lite (summary-first retrieval)
-                // Determines whether to search document summaries (L1) or detail chunks (L0)
-                // Controlled by settings.enableQueryRouting
-                auditUsedQueryRouting = queryRoutingEnabled
-                let queryClassification = effectiveQueryProfile.routingClassification
-
-                // Pipeline Trace: Step 2.5 (RAPTOR-lite)
-                if queryRoutingEnabled {
-                    Log.pipelineStep(
-                        "2.5", title: "RAPTOR-lite Query Routing",
-                        details: [
-                            ("type", queryClassification.queryType.rawValue),
-                            ("confidence", String(format: "%.0f%%", queryClassification.confidence * 100)),
-                        ])
-                }
-                var searchLevels = effectiveQueryProfile.abstractionLevelsToSearch
-                if contextualDefinitionLookup && !searchLevels.contains(.documentSummary) {
-                    searchLevels.insert(.documentSummary, at: 0)
-                }
-
-                if queryRoutingEnabled {
-                    Log.info(
-                        "[RAPTOR-lite] Query type: \(queryClassification.queryType.rawValue) "
-                            + "(confidence: \(String(format: "%.0f", queryClassification.confidence * 100))%) "
-                            + "→ search \(searchLevels.map { $0.description }.joined(separator: ", "))",
-                        category: .retrieval
-                    )
-                }
-
-                // Filter cached chunks by abstraction level if we have summaries AND routing is enabled.
-                var filteredCachedChunks: [DocumentChunk]? = cachedAllChunks
-                if queryRoutingEnabled, let allChunks = cachedAllChunks {
-                    if hasSummaryChunks
-                        && (contextualDefinitionLookup
-                            || (queryClassification.queryType == .overview && queryClassification.confidence >= 0.5))
-                    {
-                        filteredCachedChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
-                        if contextualDefinitionLookup {
-                            Log.info(
-                                "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for contextual definition lookup",
-                                category: .retrieval
-                            )
-                            emitThinkingEvent(
-                                .planning,
-                                title: "Using summaries + details",
-                                detail: "Definition query → blend document summaries with detail chunks"
-                            )
-                        } else {
-                            auditUsedSummaryRouting = true
-                            Log.info(
-                                "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for overview query",
-                                category: .retrieval
-                            )
-                            emitThinkingEvent(
-                                .planning,
-                                title: "Using document summaries",
-                                detail: "Overview query → searching L1 summaries first"
-                            )
-                        }
-                    }
-                }
+                let __planSearchRoutingResult = planSearchRouting(effectiveQueryProfile: effectiveQueryProfile, retrievalConfig: retrievalConfig, auditUsedQueryRouting: &auditUsedQueryRouting, queryRoutingEnabled: queryRoutingEnabled, contextualDefinitionLookup: contextualDefinitionLookup, cachedAllChunks: cachedAllChunks, hasSummaryChunks: hasSummaryChunks, auditUsedSummaryRouting: &auditUsedSummaryRouting)
+                let adjustedVectorWeight = __planSearchRoutingResult.adjustedVectorWeight
+                let adjustedKeywordWeight = __planSearchRoutingResult.adjustedKeywordWeight
+                var filteredCachedChunks = __planSearchRoutingResult.filteredCachedChunks
+                var iterativeMetadata = __planSearchRoutingResult.iterativeMetadata
+                let queryIntent = __planSearchRoutingResult.queryIntent
+                let retrievalStartTime = __planSearchRoutingResult.retrievalStartTime
 
                 if !exactCacheHit {
-                    HardwareTelemetryState.shared.reportRAGPipeline(stage: "Hybrid Search")
-                    // UPGRADED: Auto-enable iterative retrieval for multi-hop intents
-                    // (compare, investigate, findings) even if user hasn't toggled the setting.
-                    // The infrastructure is fully built — this just activates it where it matters.
-                    let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
-                    let iterativeAllowedForIntent = !answerIntentIsExtractive
-                    let useIterative =
-                        iterativeAllowedForIntent
-                        && (userEnabledIterative
-                            || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval))
-                    let iterativeConfig = IterativeRetrievalConfig.default
-
-                    if !iterativeAllowedForIntent && userEnabledIterative {
-                        Log.info(
-                            "[RAGService] Iterative retrieval bypassed for extractive intent '\(answerIntent.rawValue)'",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .iterative,
-                            title: "Iterative retrieval skipped",
-                            detail: "Extractive intent — prefer direct grounded lookup"
-                        )
-                    }
+                    let (useIterative, iterativeConfig) = decideIterativeRetrieval(answerIntentIsExtractive: answerIntentIsExtractive, answerIntent: answerIntent, qualityModeUsesIterativeRetrieval: qualityModeUsesIterativeRetrieval)
 
                     if useIterative {
                         // Multi-pass iterative retrieval with self-correction
@@ -1412,117 +1237,7 @@ extension RAGService {
                     )
                 }
 
-                // Inject external evidence (like vision OCR or barcodes) as virtual retrieved chunks
-                if let externalEvidence = externalEvidence {
-                    for evidence in externalEvidence {
-                        switch evidence {
-                        case .imageOCR(let ocrText, let metadata):
-                            let virtualDocId = UUID()
-                            let virtualChunk = DocumentChunk(
-                                id: UUID(),
-                                documentId: virtualDocId,
-                                content: ocrText,
-                                parentContent: nil,
-                                contextualPrefix: nil,
-                                embedding: [],
-                                metadata: ChunkMetadata(
-                                    chunkIndex: 0,
-                                    startPosition: 0,
-                                    endPosition: ocrText.count,
-                                    pageNumber: nil,
-                                    sectionTitle: "Visual OCR Evidence",
-                                    keywords: metadata.detectedObjects,
-                                    semanticDensity: 1.0,
-                                    hasNumericData: false,
-                                    hasListStructure: false,
-                                    wordCount: metadata.ocrWordCount,
-                                    characterCount: ocrText.count,
-                                    createdAt: metadata.timestamp,
-                                    structureType: "paragraph",
-                                    siblingGroupId: nil,
-                                    siblingCount: nil,
-                                    entities: [],
-                                    abbreviations: [:],
-                                    abstractionLevel: .detail,
-                                    sectionPath: nil,
-                                    bboxArray: nil,
-                                    documentCategory: .general,
-                                    chunkType: .prose,
-                                    tableTitle: nil,
-                                    imageContentType: nil,
-                                    imageCaption: nil,
-                                    imageDescription: nil,
-                                    imageExtractedText: ocrText,
-                                    imageClassifications: metadata.detectedObjects,
-                                    hasCrossReferences: false,
-                                    resolvedReferences: []
-                                )
-                            )
-                            let virtualRetrieved = RetrievedChunk(
-                                chunk: virtualChunk,
-                                similarityScore: 1.0,
-                                rank: 0,
-                                sourceDocument: "Camera Capture/Image OCR",
-                                pageNumber: nil
-                            )
-                            retrievedChunks.insert(virtualRetrieved, at: 0)
-
-                        case .barcode(let payload):
-                            let virtualDocId = UUID()
-                            let ocrText = "Barcode scanned payload: \(payload)"
-                            let virtualChunk = DocumentChunk(
-                                id: UUID(),
-                                documentId: virtualDocId,
-                                content: ocrText,
-                                parentContent: nil,
-                                contextualPrefix: nil,
-                                embedding: [],
-                                metadata: ChunkMetadata(
-                                    chunkIndex: 0,
-                                    startPosition: 0,
-                                    endPosition: ocrText.count,
-                                    pageNumber: nil,
-                                    sectionTitle: "Barcode Scanner",
-                                    keywords: ["barcode"],
-                                    semanticDensity: 1.0,
-                                    hasNumericData: true,
-                                    hasListStructure: false,
-                                    wordCount: 3,
-                                    characterCount: ocrText.count,
-                                    createdAt: Date(),
-                                    structureType: "paragraph",
-                                    siblingGroupId: nil,
-                                    siblingCount: nil,
-                                    entities: [],
-                                    abbreviations: [:],
-                                    abstractionLevel: .detail,
-                                    sectionPath: nil,
-                                    bboxArray: nil,
-                                    documentCategory: .general,
-                                    chunkType: .prose,
-                                    tableTitle: nil,
-                                    imageContentType: nil,
-                                    imageCaption: nil,
-                                    imageDescription: nil,
-                                    imageExtractedText: nil,
-                                    imageClassifications: nil,
-                                    hasCrossReferences: false,
-                                    resolvedReferences: []
-                                )
-                            )
-                            let virtualRetrieved = RetrievedChunk(
-                                chunk: virtualChunk,
-                                similarityScore: 1.0,
-                                rank: 0,
-                                sourceDocument: "Barcode Scanner",
-                                pageNumber: nil
-                            )
-                            retrievedChunks.insert(virtualRetrieved, at: 0)
-                        default:
-                            break
-                        }
-                    }
-                }
+                injectExternalEvidence(externalEvidence: externalEvidence, retrievedChunks: &retrievedChunks)
 
                 // Passages whose document is in no library are left out (5.7, `passagesFromKnownDocuments`).
                 let liveDocumentIds = await MainActor.run { Set(self.documents.map(\.id)) }
@@ -1681,40 +1396,7 @@ extension RAGService {
                     logChunkTrace(chunksWithSources, stage: "Post-HybridSearch", query: question)
                 }
 
-                // Step 3.5: Section Metadata Boost
-                // Boost chunks whose sectionTitle/sectionPath match query keywords.
-                // This is THE key signal that distinguishes "Engine Oil" chunks from "Gear Oil" chunks
-                // when both contain oil specs with similar embeddings.
-                // Requires Fix 1 (Title Case detection) and Fix 2 (.first→.last) to populate sectionTitle correctly.
-                let sectionBoostedChunks = Self.applyMetadataBoost(
-                    chunks: chunksWithSources,
-                    query: question
-                )
-
-                if let boosted = sectionBoostedChunks {
-                    chunksWithSources = boosted
-                    Log.debug(
-                        "[RAGService] Applied section metadata boost to \(chunksWithSources.count) chunks",
-                        category: .retrieval)
-                }
-
-                Log.debug(
-                    "  Time: \(String(format: "%.0f", retrievalTime * 1000))ms",
-                    category: .performance
-                )
-                if let topChunk = chunksWithSources.first {
-                    Log.debug(
-                        "  Top semantic score: \(String(format: "%.4f", topChunk.similarityScore))",
-                        category: .retrieval
-                    )
-                    if !topChunk.sourceDocument.isEmpty {
-                        Log.debug(
-                            "  Source: \(topChunk.sourceDocument)\(topChunk.pageNumber.map { " (p. \($0))" } ?? "")",
-                            category: .retrieval
-                        )
-                    }
-                    // BM25 and fusion scores would be displayed here once metadata storage is enhanced
-                }
+                applySectionMetadataBoost(chunksWithSources: &chunksWithSources, question: question, retrievalTime: retrievalTime)
 
                 // Step 4: Re-rank results with multiple signals
                 // QUALITY MODE: Check if re-ranking is enabled
@@ -1889,18 +1571,7 @@ extension RAGService {
                     }
                 }
 
-                if contextualDefinitionLookup,
-                    let boostedDefinitionChunks = applyContextualDefinitionBoost(
-                        chunks: rerankedChunks,
-                        query: question
-                    )
-                {
-                    rerankedChunks = boostedDefinitionChunks
-                    Log.info(
-                        "[RAG] Contextual definition ranking applied: preferring summary/prose evidence over structured comparison fragments",
-                        category: .retrieval
-                    )
-                }
+                boostContextualDefinitionMatches(contextualDefinitionLookup: contextualDefinitionLookup, rerankedChunks: &rerankedChunks, question: question)
 
                 // Keyword search fallback retry if top similarity is low (Standard Mode)
                 var queryRetryDone = false
@@ -2116,106 +1787,7 @@ extension RAGService {
                     detail: "min \(String(format: "%.2f", dynamicMin)) • top \(String(format: "%.2f", topSim))"
                 )
 
-                if filteredChunks.count < rerankedChunks.count {
-                    let dropped = rerankedChunks.count - filteredChunks.count
-                    auditDroppedCount = dropped
-                    Log.warning(
-                        "   ⚠️  Filtered out \(dropped) low-confidence chunks (< \(String(format: "%.2f", dynamicMin)))",
-                        category: .retrieval
-                    )
-                    TelemetryCenter.emit(
-                        .retrieval,
-                        severity: .warning,
-                        title: "Low-confidence filtered",
-                        metadata: ["dropped": "\(dropped)"]
-                    )
-
-                    // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values.
-                    // Cross-encoders often score table/spec chunks lower (sparse text, dense data)
-                    // but these are exactly the chunks that contain the answer.
-                    if answerIntentIsExtractive {
-                        let filteredIds = Set(filteredChunks.map { $0.chunk.id })
-                        let droppedChunks = rerankedChunks.filter { !filteredIds.contains($0.chunk.id) }
-
-                        // Find dropped chunks with high spec scores
-                        var rescuedChunks: [RetrievedChunk] = []
-                        let specThreshold = 5  // Minimum spec pattern score to rescue
-
-                        for chunk in droppedChunks {
-                            let content = chunk.chunk.contextText
-                            let specScore = countSpecPatterns(content)
-
-                            // Also check for table structure (specs often in tables)
-                            let isTableChunk =
-                                chunk.chunk.metadata.structureType == "table"
-                                || content.contains("|") && content.components(separatedBy: "|").count >= 4
-
-                            // Rescue if high spec score OR table chunk with decent spec score
-                            if specScore >= specThreshold || (isTableChunk && specScore >= 3) {
-                                rescuedChunks.append(chunk)
-                            }
-                        }
-
-                        if !rescuedChunks.isEmpty {
-                            let maxRescue = min(5, rescuedChunks.count)
-                            let topRescued = Array(rescuedChunks.prefix(maxRescue))
-
-                            // OPTIMIZED: Boost rescued chunks to topScore - 0.02 instead of + 0.05.
-                            // Previous behavior made rescued chunks rank HIGHER than the best RRF result,
-                            // which could pollute results if spec detection misfires.
-                            // Now: rescued chunks rank just below the top result — included in context
-                            // but won't displace genuinely high-relevance content.
-                            let topScore = filteredChunks.first?.similarityScore ?? 0.8
-                            let rescueScore = max(topScore - 0.02, 0.5)  // Floor at 0.5 to ensure inclusion
-                            let boostedRescued = topRescued.map { chunk -> RetrievedChunk in
-                                RetrievedChunk(
-                                    chunk: chunk.chunk,
-                                    similarityScore: rescueScore,
-                                    rank: 1,
-                                    sourceDocument: chunk.sourceDocument,
-                                    pageNumber: chunk.pageNumber
-                                )
-                            }
-
-                            // Insert *after* the top result, never in front of it.
-                            //
-                            // This was `at: 0`, which contradicted the scoring three lines above and
-                            // silently outranked the cross-encoder. `rescueScore` is deliberately
-                            // `topScore - 0.02` so a rescued chunk sits just below the best result —
-                            // but `applyMMR` selects its first chunk by POSITION, unconditionally
-                            // (`if let first = remaining.first { selected.append(...) }`), and the
-                            // MMR-skipped path takes `prefix(effectiveTopK)` which is also
-                            // positional. Either way the score was decorative and position decided,
-                            // so every rescue displaced the reranker's top-ranked chunk.
-                            //
-                            // Measured over 25 cases x 2 modes on 2026-08-21
-                            // (`BenchmarkRuns/overnight-25case-nodeadlock`): standard `rerank` r@1
-                            // 0.667 collapsing to `final` r@1 0.417 — a quarter of all cases losing
-                            // the gold document from rank 1 *after* the cross-encoder had ranked it
-                            // first. Largest single quality loss measured in the pipeline.
-                            //
-                            // Rescued chunks still enter the candidate set and still reach MMR;
-                            // they simply no longer pre-empt the top result, which is what the
-                            // rescue was always documented to do.
-                            let rescueInsertionIndex = filteredChunks.isEmpty ? 0 : 1
-                            filteredChunks.insert(contentsOf: boostedRescued, at: rescueInsertionIndex)
-
-                            Log.info(
-                                "   🔧 Spec preservation: rescued \(topRescued.count) spec chunks (score=\(String(format: "%.2f", rescueScore)))",
-                                category: .retrieval
-                            )
-                            TelemetryCenter.emit(
-                                .retrieval,
-                                title: "Spec preservation",
-                                metadata: [
-                                    "rescued": "\(topRescued.count)",
-                                    "intent": answerIntent.rawValue,
-                                    "boostedScore": String(format: "%.2f", rescueScore),
-                                ]
-                            )
-                        }
-                    }
-                }
+                rescueDroppedSpecChunks(filteredChunks: &filteredChunks, rerankedChunks: rerankedChunks, auditDroppedCount: &auditDroppedCount, dynamicMin: dynamicMin, answerIntentIsExtractive: answerIntentIsExtractive, answerIntent: answerIntent)
 
                 // Edge case: No high-confidence chunks
                 if filteredChunks.isEmpty {
@@ -4283,64 +3855,7 @@ extension RAGService {
                     var verificationTime: TimeInterval = 0
 
                     if runVerificationGates {
-                        Log.section("Step 7.5: Verification Gates", level: .info, category: .pipeline)
-
-                        let confidencePolicy = ConfidencePolicyService.policy(
-                            for: question,
-                            answerIntent: answerIntent,
-                            qualityMode: qualityMode
-                        )
-                        let verificationService = VerificationGateService(config: confidencePolicy.verificationConfig)
-
-                        let verificationStartTime = Date()
-                        // Use the TOP reranked scores from the pipeline (auditTopSim, auditSecondSim, etc.)
-                        // NOT the scores from generationRetrievedChunks which may be sibling chunks with discounted scores
-                        let topScores = [auditTopSim, auditSecondSim, auditAvgTop5].filter { $0 > 0 }
-
-                        // SEMANTIC GROUNDING: Embed the LLM response to check if its meaning
-                        // is actually grounded in source chunk embeddings. This is the primary
-                        // hallucination detector — catches fabricated content that string-matching
-                        // (number checks, keyword overlap) would miss.
-                        let responseEmbedding: [Float]?
-                        let responseForEmbedding = boundedVerificationResponseText(
-                            responseText,
-                            answerIntent: answerIntent
-                        )
-                        do {
-                            responseEmbedding = try await queryEmbeddingService.generateEmbedding(
-                                for: responseForEmbedding)
-                        } catch {
-                            Log.warning(
-                                "[RAG] Could not embed response for grounding check: \(error.localizedDescription)",
-                                category: .pipeline)
-                            responseEmbedding = nil
-                        }
-
-                        // Fetch ACTUAL chunk embeddings from the vector database mmap file.
-                        // BNNSVectorDatabase returns embedding: [] in search results to save memory,
-                        // so Gate E must load them explicitly for cosine similarity grounding checks.
-                        let chunkIDs = generationRetrievedChunks.map { $0.chunk.id }
-                        let chunkEmbeddings = await vdb.getEmbeddings(forChunkIDs: chunkIDs)
-                        let validChunkEmbeddings = chunkEmbeddings.filter { !$0.isEmpty }
-
-                        if validChunkEmbeddings.isEmpty && responseEmbedding != nil {
-                            Log.warning(
-                                "[RAG] Gate E: No chunk embeddings loaded — vector DB may not support getEmbeddings. Gate E will be skipped.",
-                                category: .pipeline)
-                        }
-
-                        verificationResult = await verificationService.verify(
-                            response: responseText,
-                            query: question,
-                            retrievedChunks: generationRetrievedChunks,
-                            topScores: topScores,
-                            allCandidateChunks: contextCandidates,
-                            responseEmbedding: responseEmbedding,
-                            queryEmbedding: queryEmbedding,
-                            chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings,
-                            structuredClaims: llmResponse.structuredRAGGeneration?.claims
-                        )
-                        verificationTime = Date().timeIntervalSince(verificationStartTime)
+                        let (confidencePolicy, verificationService) = await verifyAnswerAgainstEvidence(question: question, answerIntent: answerIntent, qualityMode: qualityMode, auditAvgTop5: auditAvgTop5, auditSecondSim: auditSecondSim, auditTopSim: auditTopSim, responseText: responseText, queryEmbeddingService: queryEmbeddingService, generationRetrievedChunks: generationRetrievedChunks, vdb: vdb, verificationResult: &verificationResult, contextCandidates: contextCandidates, queryEmbedding: queryEmbedding, llmResponse: llmResponse, verificationTime: &verificationTime)
 
                         if let vr = verificationResult {
                             Log.pipelineStep(
@@ -4456,62 +3971,7 @@ extension RAGService {
 
                     var (finalResponseText, structuredAnswer, gatingSummary, finalWarnings, finalConfidenceScore) = summarizeGatingAndWarnings(acceptanceOverride: acceptanceOverride, lenient: lenient, verificationResult: verificationResult, qualityWarnings: qualityWarnings, responseText: responseText, confidenceScore: confidenceScore, generationRetrievedChunks: generationRetrievedChunks, answerIntent: answerIntent, llmResponse: llmResponse, reasoningTraceForMetadata: reasoningTraceForMetadata, allowUngroundedFallback: allowUngroundedFallback)
 
-                    #if canImport(FoundationModels)
-                        // Standard checks an extractive answer against its sources only when the
-                        // verification gates flagged it. The check is two sequential structured
-                        // model calls after the last word, and until 2026-09-23 it ran on every
-                        // extractive Standard answer; "what", "which" and "how many" questions
-                        // were all classified extractive that day. Measured on the macOS Debug
-                        // build, four such questions whose gates had passed finished 19.4, 37.6,
-                        // 58.3 and 163.8 seconds after their last streamed word (the 163.8 ended
-                        // in "exceeded the model's context size"), with a blinking cursor and a
-                        // locked composer throughout, and the check replaced none of the four
-                        // answers. A passing answer has already been through the nine verification
-                        // gates. Deep Think and Maximum are not skipped here; since 5.8 they, like every mode, skip
-                        // only where `sourceOnlyOutcomeIfNeeded` shows the check could not replace the answer.
-                        let sourceOnlyApplies = answerIntentIsExtractive || isPrecisionValueQuery(question)
-                        let standardGatesPassed = Self.standardSkipsSourceOnlyCheck(
-                            qualityMode: qualityMode,
-                            gatesPassed: verificationResult?.passed
-                        )
-                        if sourceOnlyApplies, standardGatesPassed {
-                            Log.info(
-                                "[SourceOnly] Skipped — Standard answer passed the verification gates "
-                                    + "(confidence \(String(format: "%.2f", verificationResult?.overallConfidence ?? 0))). "
-                                    + "intent=\(answerIntent), answerChars=\(responseText.count)",
-                                category: .llm
-                            )
-                        }
-                        if #available(iOS 26.0, *),
-                            sourceOnlyApplies,
-                            !standardGatesPassed,
-                            let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
-                                query: question,
-                                candidateAnswer: responseText,
-                                retrievedChunks: generationRetrievedChunks,
-                                answerIntent: answerIntent,
-                                verificationResult: verificationResult,
-                                isSourceLocked: sourceLockedFinalResponse
-                            )
-                        {
-                            finalResponseText = sourceOnlyOutcome.finalAnswer
-                            structuredAnswer = sourceOnlyOutcome.structuredAnswer
-                            gatingSummary = appendedGatingDecision(
-                                gatingSummary,
-                                sourceOnlyOutcome.shouldAbstain ? "source_only_abstained" : "source_only_refined"
-                            )
-                            finalWarnings.append(contentsOf: sourceOnlyOutcome.warnings)
-                            if sourceOnlyOutcome.shouldAbstain,
-                                let abstentionReason = sourceOnlyOutcome.abstentionReason
-                            {
-                                finalWarnings.append(abstentionReason)
-                            }
-                            finalConfidenceScore =
-                                sourceOnlyOutcome.shouldAbstain
-                                ? min(confidenceScore, 0.35)
-                                : min(confidenceScore, max(sourceOnlyOutcome.fidelityScore, 0.75))
-                        }
-                    #endif
+                    await applySourceOnlyCheck(answerIntentIsExtractive: answerIntentIsExtractive, question: question, qualityMode: qualityMode, verificationResult: verificationResult, answerIntent: answerIntent, responseText: responseText, generationRetrievedChunks: generationRetrievedChunks, sourceLockedFinalResponse: sourceLockedFinalResponse, finalResponseText: &finalResponseText, structuredAnswer: &structuredAnswer, gatingSummary: &gatingSummary, finalWarnings: &finalWarnings, finalConfidenceScore: &finalConfidenceScore, confidenceScore: confidenceScore)
 
                     let response = buildStandardResponse(llmResponse: llmResponse, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, gatingSummary: gatingSummary, embeddingProviderId: embeddingProviderId, qualityMode: qualityMode, question: question, reasoningTraceForMetadata: reasoningTraceForMetadata, runtimeContext: runtimeContext, generationContext: generationContext, finalResponseText: finalResponseText, structuredAnswer: structuredAnswer, ragQueryValue: ragQueryValue, generationRetrievedChunks: generationRetrievedChunks, finalConfidenceScore: finalConfidenceScore, finalWarnings: finalWarnings, pipelineStartTime: pipelineStartTime)
 
@@ -4795,6 +4255,615 @@ extension RAGService {
                 throw LLMError.contextWindowExceeded
             }
             throw error
+        }
+    }
+
+    /// Step 7.5 (run): runs verification gates A-G against the answer and the evidence embeddings.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func verifyAnswerAgainstEvidence(question: String, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, auditAvgTop5: Float, auditSecondSim: Float, auditTopSim: Float, responseText: String, queryEmbeddingService: EmbeddingService, generationRetrievedChunks: [RetrievedChunk], vdb: any VectorDatabase, verificationResult: inout RAGVerificationResult?, contextCandidates: [RetrievedChunk], queryEmbedding: [Float], llmResponse: LLMResponse, verificationTime: inout TimeInterval) async -> (confidencePolicy: QueryConfidencePolicy, verificationService: VerificationGateService) {
+        Log.section("Step 7.5: Verification Gates", level: .info, category: .pipeline)
+
+        let confidencePolicy = ConfidencePolicyService.policy(
+            for: question,
+            answerIntent: answerIntent,
+            qualityMode: qualityMode
+        )
+        let verificationService = VerificationGateService(config: confidencePolicy.verificationConfig)
+
+        let verificationStartTime = Date()
+        // Use the TOP reranked scores from the pipeline (auditTopSim, auditSecondSim, etc.)
+        // NOT the scores from generationRetrievedChunks which may be sibling chunks with discounted scores
+        let topScores = [auditTopSim, auditSecondSim, auditAvgTop5].filter { $0 > 0 }
+
+        // SEMANTIC GROUNDING: Embed the LLM response to check if its meaning
+        // is actually grounded in source chunk embeddings. This is the primary
+        // hallucination detector — catches fabricated content that string-matching
+        // (number checks, keyword overlap) would miss.
+        let responseEmbedding: [Float]?
+        let responseForEmbedding = boundedVerificationResponseText(
+            responseText,
+            answerIntent: answerIntent
+        )
+        do {
+            responseEmbedding = try await queryEmbeddingService.generateEmbedding(
+                for: responseForEmbedding)
+        } catch {
+            Log.warning(
+                "[RAG] Could not embed response for grounding check: \(error.localizedDescription)",
+                category: .pipeline)
+            responseEmbedding = nil
+        }
+
+        // Fetch ACTUAL chunk embeddings from the vector database mmap file.
+        // BNNSVectorDatabase returns embedding: [] in search results to save memory,
+        // so Gate E must load them explicitly for cosine similarity grounding checks.
+        let chunkIDs = generationRetrievedChunks.map { $0.chunk.id }
+        let chunkEmbeddings = await vdb.getEmbeddings(forChunkIDs: chunkIDs)
+        let validChunkEmbeddings = chunkEmbeddings.filter { !$0.isEmpty }
+
+        if validChunkEmbeddings.isEmpty && responseEmbedding != nil {
+            Log.warning(
+                "[RAG] Gate E: No chunk embeddings loaded — vector DB may not support getEmbeddings. Gate E will be skipped.",
+                category: .pipeline)
+        }
+
+        verificationResult = await verificationService.verify(
+            response: responseText,
+            query: question,
+            retrievedChunks: generationRetrievedChunks,
+            topScores: topScores,
+            allCandidateChunks: contextCandidates,
+            responseEmbedding: responseEmbedding,
+            queryEmbedding: queryEmbedding,
+            chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings,
+            structuredClaims: llmResponse.structuredRAGGeneration?.claims
+        )
+        verificationTime = Date().timeIntervalSince(verificationStartTime)
+        return (confidencePolicy: confidencePolicy, verificationService: verificationService)
+    }
+
+    /// Step 9 (source-only): checks an extractive answer against its sources when the Standard gates flagged it.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applySourceOnlyCheck(answerIntentIsExtractive: Bool, question: String, qualityMode: RAGQualityMode, verificationResult: RAGVerificationResult?, answerIntent: AnswerIntent, responseText: String, generationRetrievedChunks: [RetrievedChunk], sourceLockedFinalResponse: Bool, finalResponseText: inout String, structuredAnswer: inout StructuredAnswer, gatingSummary: inout String?, finalWarnings: inout [String], finalConfidenceScore: inout Float, confidenceScore: Float) async {
+        #if canImport(FoundationModels)
+            // Standard checks an extractive answer against its sources only when the
+            // verification gates flagged it. The check is two sequential structured
+            // model calls after the last word, and until 2026-09-23 it ran on every
+            // extractive Standard answer; "what", "which" and "how many" questions
+            // were all classified extractive that day. Measured on the macOS Debug
+            // build, four such questions whose gates had passed finished 19.4, 37.6,
+            // 58.3 and 163.8 seconds after their last streamed word (the 163.8 ended
+            // in "exceeded the model's context size"), with a blinking cursor and a
+            // locked composer throughout, and the check replaced none of the four
+            // answers. A passing answer has already been through the nine verification
+            // gates. Deep Think and Maximum are not skipped here; since 5.8 they, like every mode, skip
+            // only where `sourceOnlyOutcomeIfNeeded` shows the check could not replace the answer.
+            let sourceOnlyApplies = answerIntentIsExtractive || isPrecisionValueQuery(question)
+            let standardGatesPassed = Self.standardSkipsSourceOnlyCheck(
+                qualityMode: qualityMode,
+                gatesPassed: verificationResult?.passed
+            )
+            if sourceOnlyApplies, standardGatesPassed {
+                Log.info(
+                    "[SourceOnly] Skipped — Standard answer passed the verification gates "
+                        + "(confidence \(String(format: "%.2f", verificationResult?.overallConfidence ?? 0))). "
+                        + "intent=\(answerIntent), answerChars=\(responseText.count)",
+                    category: .llm
+                )
+            }
+            if #available(iOS 26.0, *),
+                sourceOnlyApplies,
+                !standardGatesPassed,
+                let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
+                    query: question,
+                    candidateAnswer: responseText,
+                    retrievedChunks: generationRetrievedChunks,
+                    answerIntent: answerIntent,
+                    verificationResult: verificationResult,
+                    isSourceLocked: sourceLockedFinalResponse
+                )
+            {
+                finalResponseText = sourceOnlyOutcome.finalAnswer
+                structuredAnswer = sourceOnlyOutcome.structuredAnswer
+                gatingSummary = appendedGatingDecision(
+                    gatingSummary,
+                    sourceOnlyOutcome.shouldAbstain ? "source_only_abstained" : "source_only_refined"
+                )
+                finalWarnings.append(contentsOf: sourceOnlyOutcome.warnings)
+                if sourceOnlyOutcome.shouldAbstain,
+                    let abstentionReason = sourceOnlyOutcome.abstentionReason
+                {
+                    finalWarnings.append(abstentionReason)
+                }
+                finalConfidenceScore =
+                    sourceOnlyOutcome.shouldAbstain
+                    ? min(confidenceScore, 0.35)
+                    : min(confidenceScore, max(sourceOnlyOutcome.fidelityScore, 0.75))
+            }
+        #endif
+    }
+
+    /// Step P3: applies the opt-in adaptive generation profile (UserDefaults `adaptiveInferenceProfiles`) to the inference config.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applyAdaptiveGenerationProfile(initialQueryProfile: QueryProfile, inferenceConfig: inout InferenceConfig) {
+        // Adaptive generation profile, chosen from what the question is asking for rather than
+        // from the quality mode alone. `RAGQualityMode` carries one temperature for every
+        // question asked in that mode, so Standard answers a serial-number lookup and an
+        // open-ended comparison identically; the answer intent is a better signal and is already
+        // resolved by this point.
+        //
+        // **Off unless the owner turns it on.** `UserDefaults.bool(forKey:)` returns false for an
+        // absent key, so an install that has never seen this setting behaves exactly as it did
+        // before. It is opt-in because its effect on answer quality is unmeasured, and currently
+        // unmeasurable in this repository: retrieval is nondeterministic, two runs of one build
+        // return different evidence and different answers, and no A/B here is trustworthy yet.
+        // Shipping it on by default would be changing everyone's answers on a hypothesis.
+        //
+        // **This sits BELOW the agentic return on purpose, and that is a limit, not a detail.**
+        // Deep Think and Maximum return above via `executeAgenticQuery`, which never reads this
+        // `inferenceConfig` or the `config` parameter for generation: it builds `optimizedConfig`
+        // from `qualityMode.agenticConfig` and hands that to `AgenticOrchestrator`. Applying the
+        // profile above the branch, which is where it was first written, mutated a local that the
+        // agentic path never reads while logging `temperature 0.4 -> 0.35` as though it had taken
+        // effect. A log line asserting a change that did not happen is worse than no feature, and
+        // it is the exact failure this repository keeps hitting: a stage reports healthy while the
+        // value it claims to have set goes nowhere. Reaching the agentic path means changing where
+        // `AgenticOrchestrator` gets its generation parameters, which is tracked separately.
+        #if canImport(FoundationModels)
+            if UserDefaults.standard.bool(forKey: "adaptiveInferenceProfiles") {
+                let intent = initialQueryProfile.answerIntent
+                let previousTemperature = inferenceConfig.temperature
+                let previousMaxTokens = inferenceConfig.maxTokens
+                inferenceConfig = inferenceConfig.applyingAdaptiveProfile(for: intent)
+                let rationale = FoundationModelDynamicProfileRegistry.profile(for: intent).generation.rationale
+                Log.info(
+                    "[AdaptiveProfile] intent=\(intent.rawValue) "
+                        + "temperature \(previousTemperature) -> \(inferenceConfig.temperature), "
+                        + "maxTokens \(previousMaxTokens) -> \(inferenceConfig.maxTokens) [\(rationale)]",
+                    category: .llm
+                )
+            }
+        #endif
+    }
+
+    /// Step P4e: logs the pipeline box and feature summary and emits the planning events and the 'Query received' telemetry.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func logStandardPipelinePlan(question: String, effectiveTopK: Int, totalStored: Int, embeddingProviderId: String, selectedDim: Int, qualityModeDisplayName: String, qualityModeUsesHyDE: Bool, qualityModeUsesReRanking: Bool, qualityModeUsesMMR: Bool, qualityModeUsesVerificationGates: Bool, qualityModeUsesQueryExpansion: Bool, qualityModeUsesContainerVocabulary: Bool, qualityModeUsesParentDocRetrieval: Bool, qualityModeUsesContextualCompression: Bool, selectedName: String, selectedId: UUID, queryWords: Int, retrievalConfig: RetrievalConfig) {
+        Log.box(
+            "ENHANCED RAG QUERY PIPELINE",
+            level: .info,
+            category: .pipeline,
+            content: [
+                "📝 Query: \(question)",
+                "🎯 Retrieving top \(effectiveTopK) chunks from \(totalStored) total",
+                "🧬 Embeddings: \(embeddingProviderId) • \(selectedDim)D",
+                "⚙️ Quality Mode: \(qualityModeDisplayName)",
+            ]
+        )
+
+        // Build quality mode feature summary for thinking stream
+        var enabledFeatures: [String] = []
+        if qualityModeUsesHyDE { enabledFeatures.append("HyDE") }
+        if qualityModeUsesReRanking { enabledFeatures.append("ReRank") }
+        if qualityModeUsesMMR { enabledFeatures.append("MMR") }
+        if qualityModeUsesVerificationGates { enabledFeatures.append("Verify") }
+        if qualityModeUsesQueryExpansion { enabledFeatures.append("Expand") }
+        if qualityModeUsesContainerVocabulary { enabledFeatures.append("Vocab") }
+        if qualityModeUsesParentDocRetrieval { enabledFeatures.append("Parent") }
+        if qualityModeUsesContextualCompression { enabledFeatures.append("Compress") }
+        let featureSummary = enabledFeatures.joined(separator: " • ")
+
+        emitThinkingEvent(
+            .planning,
+            title: "\(qualityModeDisplayName) mode",
+            detail: featureSummary.isEmpty ? "Minimal features" : featureSummary
+        )
+
+        emitThinkingEvent(
+            .planning,
+            title: "Scoping query",
+            detail: "Top \(effectiveTopK) • \(selectedName)"
+        )
+
+        TelemetryCenter.emit(
+            .system,
+            title: "Query received",
+            metadata: [
+                "question": String(question.prefix(80)),
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+                "qualityMode": qualityModeDisplayName,
+                "words": "\(queryWords)",
+                "characters": "\(question.count)",
+                "topK": "\(effectiveTopK)",
+                "minSimilarity": String(format: "%.2f", retrievalConfig.minSimilarity),
+                "embeddingProvider": embeddingProviderId,
+                "embeddingDim": "\(selectedDim)",
+            ]
+        )
+    }
+
+    /// Step 2.5: starts the retrieval clock and sets the hybrid weights, RAPTOR-lite search levels and filtered passage pool.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func planSearchRouting(effectiveQueryProfile: QueryProfile, retrievalConfig: RetrievalConfig, auditUsedQueryRouting: inout Bool, queryRoutingEnabled: Bool, contextualDefinitionLookup: Bool, cachedAllChunks: [DocumentChunk]?, hasSummaryChunks: Bool, auditUsedSummaryRouting: inout Bool) -> (adjustedVectorWeight: Float, adjustedKeywordWeight: Float, filteredCachedChunks: [DocumentChunk]?, iterativeMetadata: (iterations: Int, confidence: Float, queries: Int)?, queryIntent: QueryIntent, retrievalStartTime: Date) {
+        // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
+        // CACHE: Entire Step 3 is bypassed on exact or similarity cache hit.
+        // With optional iterative retrieval for multi-pass refinement
+        let retrievalStartTime = Date()
+        var iterativeMetadata: (iterations: Int, confidence: Float, queries: Int)?
+
+        // Shared retrieval configuration is reused by both live search and recovery paths.
+        let queryIntent = effectiveQueryProfile.searchIntent
+        let adjustedWeights = effectiveQueryProfile.adjustedHybridWeights(from: retrievalConfig)
+        let adjustedVectorWeight = adjustedWeights.vectorWeight
+        let adjustedKeywordWeight = adjustedWeights.keywordWeight
+
+        // Step 2.5: Query Classification for RAPTOR-lite (summary-first retrieval)
+        // Determines whether to search document summaries (L1) or detail chunks (L0)
+        // Controlled by settings.enableQueryRouting
+        auditUsedQueryRouting = queryRoutingEnabled
+        let queryClassification = effectiveQueryProfile.routingClassification
+
+        // Pipeline Trace: Step 2.5 (RAPTOR-lite)
+        if queryRoutingEnabled {
+            Log.pipelineStep(
+                "2.5", title: "RAPTOR-lite Query Routing",
+                details: [
+                    ("type", queryClassification.queryType.rawValue),
+                    ("confidence", String(format: "%.0f%%", queryClassification.confidence * 100)),
+                ])
+        }
+        var searchLevels = effectiveQueryProfile.abstractionLevelsToSearch
+        if contextualDefinitionLookup && !searchLevels.contains(.documentSummary) {
+            searchLevels.insert(.documentSummary, at: 0)
+        }
+
+        if queryRoutingEnabled {
+            Log.info(
+                "[RAPTOR-lite] Query type: \(queryClassification.queryType.rawValue) "
+                    + "(confidence: \(String(format: "%.0f", queryClassification.confidence * 100))%) "
+                    + "→ search \(searchLevels.map { $0.description }.joined(separator: ", "))",
+                category: .retrieval
+            )
+        }
+
+        // Filter cached chunks by abstraction level if we have summaries AND routing is enabled.
+        var filteredCachedChunks: [DocumentChunk]? = cachedAllChunks
+        if queryRoutingEnabled, let allChunks = cachedAllChunks {
+            if hasSummaryChunks
+                && (contextualDefinitionLookup
+                    || (queryClassification.queryType == .overview && queryClassification.confidence >= 0.5))
+            {
+                filteredCachedChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
+                if contextualDefinitionLookup {
+                    Log.info(
+                        "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for contextual definition lookup",
+                        category: .retrieval
+                    )
+                    emitThinkingEvent(
+                        .planning,
+                        title: "Using summaries + details",
+                        detail: "Definition query → blend document summaries with detail chunks"
+                    )
+                } else {
+                    auditUsedSummaryRouting = true
+                    Log.info(
+                        "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for overview query",
+                        category: .retrieval
+                    )
+                    emitThinkingEvent(
+                        .planning,
+                        title: "Using document summaries",
+                        detail: "Overview query → searching L1 summaries first"
+                    )
+                }
+            }
+        }
+        return (adjustedVectorWeight: adjustedVectorWeight, adjustedKeywordWeight: adjustedKeywordWeight, filteredCachedChunks: filteredCachedChunks, iterativeMetadata: iterativeMetadata, queryIntent: queryIntent, retrievalStartTime: retrievalStartTime)
+    }
+
+    /// Step 3 (gate): decides whether iterative retrieval runs for this intent and logs when the intent overrides the setting.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func decideIterativeRetrieval(answerIntentIsExtractive: Bool, answerIntent: AnswerIntent, qualityModeUsesIterativeRetrieval: Bool) -> (useIterative: Bool, iterativeConfig: IterativeRetrievalConfig) {
+        HardwareTelemetryState.shared.reportRAGPipeline(stage: "Hybrid Search")
+        // UPGRADED: Auto-enable iterative retrieval for multi-hop intents
+        // (compare, investigate, findings) even if user hasn't toggled the setting.
+        // The infrastructure is fully built — this just activates it where it matters.
+        let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
+        let iterativeAllowedForIntent = !answerIntentIsExtractive
+        let useIterative =
+            iterativeAllowedForIntent
+            && (userEnabledIterative
+                || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval))
+        let iterativeConfig = IterativeRetrievalConfig.default
+
+        if !iterativeAllowedForIntent && userEnabledIterative {
+            Log.info(
+                "[RAGService] Iterative retrieval bypassed for extractive intent '\(answerIntent.rawValue)'",
+                category: .retrieval)
+            emitThinkingEvent(
+                .iterative,
+                title: "Iterative retrieval skipped",
+                detail: "Extractive intent — prefer direct grounded lookup"
+            )
+        }
+        return (useIterative: useIterative, iterativeConfig: iterativeConfig)
+    }
+
+    /// Step S3x: inserts OCR and barcode evidence as virtual passages at the front of the retrieved list.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func injectExternalEvidence(externalEvidence: [EvidenceSource]?, retrievedChunks: inout [RetrievedChunk]) {
+        // Inject external evidence (like vision OCR or barcodes) as virtual retrieved chunks
+        if let externalEvidence = externalEvidence {
+            for evidence in externalEvidence {
+                switch evidence {
+                case .imageOCR(let ocrText, let metadata):
+                    let virtualDocId = UUID()
+                    let virtualChunk = DocumentChunk(
+                        id: UUID(),
+                        documentId: virtualDocId,
+                        content: ocrText,
+                        parentContent: nil,
+                        contextualPrefix: nil,
+                        embedding: [],
+                        metadata: ChunkMetadata(
+                            chunkIndex: 0,
+                            startPosition: 0,
+                            endPosition: ocrText.count,
+                            pageNumber: nil,
+                            sectionTitle: "Visual OCR Evidence",
+                            keywords: metadata.detectedObjects,
+                            semanticDensity: 1.0,
+                            hasNumericData: false,
+                            hasListStructure: false,
+                            wordCount: metadata.ocrWordCount,
+                            characterCount: ocrText.count,
+                            createdAt: metadata.timestamp,
+                            structureType: "paragraph",
+                            siblingGroupId: nil,
+                            siblingCount: nil,
+                            entities: [],
+                            abbreviations: [:],
+                            abstractionLevel: .detail,
+                            sectionPath: nil,
+                            bboxArray: nil,
+                            documentCategory: .general,
+                            chunkType: .prose,
+                            tableTitle: nil,
+                            imageContentType: nil,
+                            imageCaption: nil,
+                            imageDescription: nil,
+                            imageExtractedText: ocrText,
+                            imageClassifications: metadata.detectedObjects,
+                            hasCrossReferences: false,
+                            resolvedReferences: []
+                        )
+                    )
+                    let virtualRetrieved = RetrievedChunk(
+                        chunk: virtualChunk,
+                        similarityScore: 1.0,
+                        rank: 0,
+                        sourceDocument: "Camera Capture/Image OCR",
+                        pageNumber: nil
+                    )
+                    retrievedChunks.insert(virtualRetrieved, at: 0)
+
+                case .barcode(let payload):
+                    let virtualDocId = UUID()
+                    let ocrText = "Barcode scanned payload: \(payload)"
+                    let virtualChunk = DocumentChunk(
+                        id: UUID(),
+                        documentId: virtualDocId,
+                        content: ocrText,
+                        parentContent: nil,
+                        contextualPrefix: nil,
+                        embedding: [],
+                        metadata: ChunkMetadata(
+                            chunkIndex: 0,
+                            startPosition: 0,
+                            endPosition: ocrText.count,
+                            pageNumber: nil,
+                            sectionTitle: "Barcode Scanner",
+                            keywords: ["barcode"],
+                            semanticDensity: 1.0,
+                            hasNumericData: true,
+                            hasListStructure: false,
+                            wordCount: 3,
+                            characterCount: ocrText.count,
+                            createdAt: Date(),
+                            structureType: "paragraph",
+                            siblingGroupId: nil,
+                            siblingCount: nil,
+                            entities: [],
+                            abbreviations: [:],
+                            abstractionLevel: .detail,
+                            sectionPath: nil,
+                            bboxArray: nil,
+                            documentCategory: .general,
+                            chunkType: .prose,
+                            tableTitle: nil,
+                            imageContentType: nil,
+                            imageCaption: nil,
+                            imageDescription: nil,
+                            imageExtractedText: nil,
+                            imageClassifications: nil,
+                            hasCrossReferences: false,
+                            resolvedReferences: []
+                        )
+                    )
+                    let virtualRetrieved = RetrievedChunk(
+                        chunk: virtualChunk,
+                        similarityScore: 1.0,
+                        rank: 0,
+                        sourceDocument: "Barcode Scanner",
+                        pageNumber: nil
+                    )
+                    retrievedChunks.insert(virtualRetrieved, at: 0)
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    /// Step 3.5: boosts passages whose section metadata matches the question and logs the top passage.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applySectionMetadataBoost(chunksWithSources: inout [RetrievedChunk], question: String, retrievalTime: TimeInterval) {
+        // Step 3.5: Section Metadata Boost
+        // Boost chunks whose sectionTitle/sectionPath match query keywords.
+        // This is THE key signal that distinguishes "Engine Oil" chunks from "Gear Oil" chunks
+        // when both contain oil specs with similar embeddings.
+        // Requires Fix 1 (Title Case detection) and Fix 2 (.first→.last) to populate sectionTitle correctly.
+        let sectionBoostedChunks = Self.applyMetadataBoost(
+            chunks: chunksWithSources,
+            query: question
+        )
+
+        if let boosted = sectionBoostedChunks {
+            chunksWithSources = boosted
+            Log.debug(
+                "[RAGService] Applied section metadata boost to \(chunksWithSources.count) chunks",
+                category: .retrieval)
+        }
+
+        Log.debug(
+            "  Time: \(String(format: "%.0f", retrievalTime * 1000))ms",
+            category: .performance
+        )
+        if let topChunk = chunksWithSources.first {
+            Log.debug(
+                "  Top semantic score: \(String(format: "%.4f", topChunk.similarityScore))",
+                category: .retrieval
+            )
+            if !topChunk.sourceDocument.isEmpty {
+                Log.debug(
+                    "  Source: \(topChunk.sourceDocument)\(topChunk.pageNumber.map { " (p. \($0))" } ?? "")",
+                    category: .retrieval
+                )
+            }
+            // BM25 and fusion scores would be displayed here once metadata storage is enhanced
+        }
+    }
+
+    /// Step S4d: applies the contextual-definition boost to the re-ranked list.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func boostContextualDefinitionMatches(contextualDefinitionLookup: Bool, rerankedChunks: inout [RetrievedChunk], question: String) {
+        if contextualDefinitionLookup,
+            let boostedDefinitionChunks = applyContextualDefinitionBoost(
+                chunks: rerankedChunks,
+                query: question
+            )
+        {
+            rerankedChunks = boostedDefinitionChunks
+            Log.info(
+                "[RAG] Contextual definition ranking applied: preferring summary/prose evidence over structured comparison fragments",
+                category: .retrieval
+            )
+        }
+    }
+
+    /// Step 4.3 (rescue): reports the dropped passages and rescues specification passages for extractive questions.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func rescueDroppedSpecChunks(filteredChunks: inout [RetrievedChunk], rerankedChunks: [RetrievedChunk], auditDroppedCount: inout Int, dynamicMin: Float, answerIntentIsExtractive: Bool, answerIntent: AnswerIntent) {
+        if filteredChunks.count < rerankedChunks.count {
+            let dropped = rerankedChunks.count - filteredChunks.count
+            auditDroppedCount = dropped
+            Log.warning(
+                "   ⚠️  Filtered out \(dropped) low-confidence chunks (< \(String(format: "%.2f", dynamicMin)))",
+                category: .retrieval
+            )
+            TelemetryCenter.emit(
+                .retrieval,
+                severity: .warning,
+                title: "Low-confidence filtered",
+                metadata: ["dropped": "\(dropped)"]
+            )
+
+            // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values.
+            // Cross-encoders often score table/spec chunks lower (sparse text, dense data)
+            // but these are exactly the chunks that contain the answer.
+            if answerIntentIsExtractive {
+                let filteredIds = Set(filteredChunks.map { $0.chunk.id })
+                let droppedChunks = rerankedChunks.filter { !filteredIds.contains($0.chunk.id) }
+
+                // Find dropped chunks with high spec scores
+                var rescuedChunks: [RetrievedChunk] = []
+                let specThreshold = 5  // Minimum spec pattern score to rescue
+
+                for chunk in droppedChunks {
+                    let content = chunk.chunk.contextText
+                    let specScore = countSpecPatterns(content)
+
+                    // Also check for table structure (specs often in tables)
+                    let isTableChunk =
+                        chunk.chunk.metadata.structureType == "table"
+                        || content.contains("|") && content.components(separatedBy: "|").count >= 4
+
+                    // Rescue if high spec score OR table chunk with decent spec score
+                    if specScore >= specThreshold || (isTableChunk && specScore >= 3) {
+                        rescuedChunks.append(chunk)
+                    }
+                }
+
+                if !rescuedChunks.isEmpty {
+                    let maxRescue = min(5, rescuedChunks.count)
+                    let topRescued = Array(rescuedChunks.prefix(maxRescue))
+
+                    // OPTIMIZED: Boost rescued chunks to topScore - 0.02 instead of + 0.05.
+                    // Previous behavior made rescued chunks rank HIGHER than the best RRF result,
+                    // which could pollute results if spec detection misfires.
+                    // Now: rescued chunks rank just below the top result — included in context
+                    // but won't displace genuinely high-relevance content.
+                    let topScore = filteredChunks.first?.similarityScore ?? 0.8
+                    let rescueScore = max(topScore - 0.02, 0.5)  // Floor at 0.5 to ensure inclusion
+                    let boostedRescued = topRescued.map { chunk -> RetrievedChunk in
+                        RetrievedChunk(
+                            chunk: chunk.chunk,
+                            similarityScore: rescueScore,
+                            rank: 1,
+                            sourceDocument: chunk.sourceDocument,
+                            pageNumber: chunk.pageNumber
+                        )
+                    }
+
+                    // Insert *after* the top result, never in front of it.
+                    //
+                    // This was `at: 0`, which contradicted the scoring three lines above and
+                    // silently outranked the cross-encoder. `rescueScore` is deliberately
+                    // `topScore - 0.02` so a rescued chunk sits just below the best result —
+                    // but `applyMMR` selects its first chunk by POSITION, unconditionally
+                    // (`if let first = remaining.first { selected.append(...) }`), and the
+                    // MMR-skipped path takes `prefix(effectiveTopK)` which is also
+                    // positional. Either way the score was decorative and position decided,
+                    // so every rescue displaced the reranker's top-ranked chunk.
+                    //
+                    // Measured over 25 cases x 2 modes on 2026-08-21
+                    // (`BenchmarkRuns/overnight-25case-nodeadlock`): standard `rerank` r@1
+                    // 0.667 collapsing to `final` r@1 0.417 — a quarter of all cases losing
+                    // the gold document from rank 1 *after* the cross-encoder had ranked it
+                    // first. Largest single quality loss measured in the pipeline.
+                    //
+                    // Rescued chunks still enter the candidate set and still reach MMR;
+                    // they simply no longer pre-empt the top result, which is what the
+                    // rescue was always documented to do.
+                    let rescueInsertionIndex = filteredChunks.isEmpty ? 0 : 1
+                    filteredChunks.insert(contentsOf: boostedRescued, at: rescueInsertionIndex)
+
+                    Log.info(
+                        "   🔧 Spec preservation: rescued \(topRescued.count) spec chunks (score=\(String(format: "%.2f", rescueScore)))",
+                        category: .retrieval
+                    )
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "Spec preservation",
+                        metadata: [
+                            "rescued": "\(topRescued.count)",
+                            "intent": answerIntent.rawValue,
+                            "boostedScore": String(format: "%.2f", rescueScore),
+                        ]
+                    )
+                }
+            }
         }
     }
 
