@@ -1555,34 +1555,7 @@ extension DocumentProcessor {
                 }
 
                 if element.elementType == "list" {
-                    let siblingGroupId = siblingGroupIdentifier(
-                        prefix: "list",
-                        pageNumber: element.pageNumber,
-                        title: currentSectionTitle ?? "list"
-                    )
-                    let listItems = normalizedListItems(from: element)
-                    for item in listItems {
-                        let listText = buildListItemText(item: item, sectionPath: currentSectionPath, sectionTitle: currentSectionTitle)
-                        let itemChunkType: ChunkSemanticType = isWarningLikeListItem(item, sectionTitle: currentSectionTitle) ? .warning : .listItem
-                        appendStructureChunk(
-                            chunks: &chunks,
-                            chunkIndex: &chunkIndex,
-                            documentCategory: documentCategory,
-                            text: listText,
-                            parentText: currentSectionTitle,
-                            pageNumber: element.pageNumber,
-                            sectionTitle: currentSectionTitle,
-                            structureType: "list",
-                            chunkType: itemChunkType,
-                            semanticDensity: 0.72,
-                            hasNumericData: listText.rangeOfCharacter(from: .decimalDigits) != nil,
-                            hasListStructure: true,
-                            sectionPath: currentSectionPath,
-                            entities: element.detectedEntities.map(\ .value),
-                            siblingGroupId: siblingGroupId
-                        )
-                    }
-                    Log.debug("[DocumentProcessor] Created \(listItems.count) list item chunks from page \(element.pageNumber)", category: .ingestion)
+                    appendListChunks(element: element, currentSectionTitle: currentSectionTitle, currentSectionPath: currentSectionPath, chunks: &chunks, chunkIndex: &chunkIndex, documentCategory: documentCategory)
                     continue
                 }
 
@@ -1620,6 +1593,39 @@ extension DocumentProcessor {
         logStructureBreakdown(chunks: chunks)
 
         return chunks
+    }
+
+    /// Step B11: turns a list element into one chunk per normalised item, its continue kept in the host.
+    /// Moved unchanged from `createStructureAwareChunks` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func appendListChunks(element: DocumentProcessor.StructuredElementWrapper, currentSectionTitle: String?, currentSectionPath: [String], chunks: inout [DocumentProcessor.ProcessedChunk], chunkIndex: inout Int, documentCategory: DocumentSemanticCategory) {
+        let siblingGroupId = siblingGroupIdentifier(
+            prefix: "list",
+            pageNumber: element.pageNumber,
+            title: currentSectionTitle ?? "list"
+        )
+        let listItems = normalizedListItems(from: element)
+        for item in listItems {
+            let listText = buildListItemText(item: item, sectionPath: currentSectionPath, sectionTitle: currentSectionTitle)
+            let itemChunkType: ChunkSemanticType = isWarningLikeListItem(item, sectionTitle: currentSectionTitle) ? .warning : .listItem
+            appendStructureChunk(
+                chunks: &chunks,
+                chunkIndex: &chunkIndex,
+                documentCategory: documentCategory,
+                text: listText,
+                parentText: currentSectionTitle,
+                pageNumber: element.pageNumber,
+                sectionTitle: currentSectionTitle,
+                structureType: "list",
+                chunkType: itemChunkType,
+                semanticDensity: 0.72,
+                hasNumericData: listText.rangeOfCharacter(from: .decimalDigits) != nil,
+                hasListStructure: true,
+                sectionPath: currentSectionPath,
+                entities: element.detectedEntities.map(\ .value),
+                siblingGroupId: siblingGroupId
+            )
+        }
+        Log.debug("[DocumentProcessor] Created \(listItems.count) list item chunks from page \(element.pageNumber)", category: .ingestion)
     }
 
     /// Step B12: turns a figure element with an image analysis into its chunk (split when oversized), its continue kept in the host.
