@@ -1396,127 +1396,6 @@ extension DocumentProcessor {
         // Group paragraphs for semantic chunking, but tables and lists become atomic chunks
         var paragraphBuffer: [(text: String, page: Int)] = []
 
-        func appendChunk(
-            text: String,
-            parentText: String?,
-            pageNumber: Int,
-            sectionTitle: String?,
-            structureType: String,
-            chunkType: ChunkSemanticType,
-            semanticDensity: Float,
-            hasNumericData: Bool,
-            hasListStructure: Bool,
-            sectionPath: [String],
-            entities: [String] = [],
-            abbreviations: [String: String] = [:],
-            tableTitle: String? = nil,
-            siblingGroupId: String? = nil,
-            structuredTable: StructuredTablePayload? = nil
-        ) {
-            let resolvedSectionTitle = sectionTitle.flatMap { sanitizeStructuredLabel($0) }
-            let resolvedSectionPath = sanitizedSectionPath(sectionPath)
-            let metadata = makeChunkMetadata(
-                chunkIndex: chunkIndex,
-                text: text,
-                pageNumber: pageNumber,
-                sectionTitle: resolvedSectionTitle,
-                structureType: structureType,
-                chunkType: chunkType,
-                documentCategory: documentCategory,
-                sectionPath: resolvedSectionPath,
-                semanticDensity: semanticDensity,
-                hasNumericData: hasNumericData,
-                hasListStructure: hasListStructure,
-                entities: entities,
-                abbreviations: abbreviations,
-                tableTitle: tableTitle,
-                siblingGroupId: siblingGroupId
-            )
-            chunks.append(ProcessedChunk(
-                text: text,
-                parentText: parentText,
-                metadata: metadata,
-                structuredTable: structuredTable
-            ))
-            chunkIndex += 1
-        }
-
-        func flushParagraphBuffer() {
-            guard !paragraphBuffer.isEmpty else { return }
-
-            // Combine paragraphs for semantic chunking
-            let combinedText = paragraphBuffer.map { $0.text }.joined(separator: "\n\n")
-
-            // Build per-page text ranges from the buffer so SemanticChunker
-            // can assign the correct page number to each sub-chunk.
-            // Each paragraph knows its source page; we track where it lands
-            // in the combined string and build a [pageNum: Range<String.Index>] map.
-            var localPageRanges: [Int: Range<String.Index>] = [:]
-            var currentOffset = combinedText.startIndex
-            for (i, entry) in paragraphBuffer.enumerated() {
-                let textEnd = combinedText.index(currentOffset, offsetBy: entry.text.count, limitedBy: combinedText.endIndex) ?? combinedText.endIndex
-                let entryRange = currentOffset..<textEnd
-
-                if let existing = localPageRanges[entry.page] {
-                    // Extend the range for this page (non-contiguous paragraphs on same page)
-                    localPageRanges[entry.page] = existing.lowerBound..<textEnd
-                } else {
-                    localPageRanges[entry.page] = entryRange
-                }
-
-                // Skip past the "\n\n" separator between paragraphs
-                if i < paragraphBuffer.count - 1 {
-                    currentOffset = combinedText.index(textEnd, offsetBy: 2, limitedBy: combinedText.endIndex) ?? combinedText.endIndex
-                } else {
-                    currentOffset = textEnd
-                }
-            }
-
-            let semanticChunker = SemanticChunker()
-            let subChunks = semanticChunker.chunkText(
-                combinedText,
-                documentId: documentId,
-                config: config,
-                pageNumbers: localPageRanges,
-                documentCategory: documentCategory
-            )
-
-            for subChunk in subChunks {
-                let cleanedSectionTitle = subChunk.metadata.sectionTitle.flatMap { sanitizeStructuredLabel($0) }
-                let cleanedSectionPath = sanitizedSectionPath(subChunk.metadata.sectionPath)
-                let metadata = ChunkMetadata(
-                    chunkIndex: chunkIndex,
-                    startPosition: subChunk.metadata.startOffset,
-                    endPosition: subChunk.metadata.endOffset,
-                    pageNumber: subChunk.metadata.pageNumber,
-                    sectionTitle: cleanedSectionTitle,
-                    keywords: subChunk.metadata.topKeywords,
-                    semanticDensity: subChunk.metadata.semanticDensity,
-                    hasNumericData: subChunk.metadata.hasNumericData,
-                    hasListStructure: subChunk.metadata.hasListStructure,
-                    wordCount: subChunk.metadata.wordCount,
-                    characterCount: subChunk.metadata.characterCount,
-                    structureType: "paragraph",
-                    entities: subChunk.metadata.entities,
-                    abbreviations: subChunk.metadata.abbreviations,
-                    sectionPath: cleanedSectionPath.isEmpty ? nil : cleanedSectionPath,
-                    documentCategory: subChunk.metadata.documentCategory,
-                    chunkType: subChunk.metadata.chunkType,
-                    tableTitle: subChunk.metadata.tableTitle,
-                    hasCrossReferences: subChunk.metadata.hasCrossReferences,
-                    resolvedReferences: subChunk.metadata.resolvedReferences
-                )
-                chunks.append(ProcessedChunk(
-                    text: subChunk.content,
-                    parentText: subChunk.parentContent,
-                    metadata: metadata
-                ))
-                chunkIndex += 1
-            }
-
-            paragraphBuffer.removeAll()
-        }
-
         // Track section context for table association
         var currentSectionTitle: String? = nil
         var currentSectionPath: [String] = []
@@ -1537,7 +1416,7 @@ extension DocumentProcessor {
 
             if element.isAtomicChunk {
                 // Flush any pending paragraphs first
-                flushParagraphBuffer()
+                flushStructureParagraphs(paragraphBuffer: &paragraphBuffer, chunks: &chunks, chunkIndex: &chunkIndex, documentId: documentId, config: config, documentCategory: documentCategory)
 
                 if element.elementType == "table", let tableData = element.tableData {
                     let tableTitle = resolveTableTitle(tableData: tableData, sectionTitle: currentSectionTitle)
@@ -1591,7 +1470,10 @@ extension DocumentProcessor {
                         chunks.append(contentsOf: splitChunks)
                         chunkIndex += splitChunks.count
                     } else {
-                        appendChunk(
+                        appendStructureChunk(
+                            chunks: &chunks,
+                            chunkIndex: &chunkIndex,
+                            documentCategory: documentCategory,
                             text: structuralText,
                             parentText: currentSectionTitle,
                             pageNumber: element.pageNumber,
@@ -1616,7 +1498,10 @@ extension DocumentProcessor {
                         sectionPath: currentSectionPath,
                         documentCategory: documentCategory
                     )
-                    appendChunk(
+                    appendStructureChunk(
+                        chunks: &chunks,
+                        chunkIndex: &chunkIndex,
+                        documentCategory: documentCategory,
                         text: semanticText,
                         parentText: currentSectionTitle,
                         pageNumber: element.pageNumber,
@@ -1644,7 +1529,10 @@ extension DocumentProcessor {
                             sectionPath: currentSectionPath
                         )
                         for rowText in rowTexts {
-                            appendChunk(
+                            appendStructureChunk(
+                                chunks: &chunks,
+                                chunkIndex: &chunkIndex,
+                                documentCategory: documentCategory,
                                 text: rowText,
                                 parentText: currentSectionTitle,
                                 pageNumber: element.pageNumber,
@@ -1676,7 +1564,10 @@ extension DocumentProcessor {
                     for item in listItems {
                         let listText = buildListItemText(item: item, sectionPath: currentSectionPath, sectionTitle: currentSectionTitle)
                         let itemChunkType: ChunkSemanticType = isWarningLikeListItem(item, sectionTitle: currentSectionTitle) ? .warning : .listItem
-                        appendChunk(
+                        appendStructureChunk(
+                            chunks: &chunks,
+                            chunkIndex: &chunkIndex,
+                            documentCategory: documentCategory,
                             text: listText,
                             parentText: currentSectionTitle,
                             pageNumber: element.pageNumber,
@@ -1775,7 +1666,7 @@ extension DocumentProcessor {
         }
 
         // Flush any remaining paragraphs
-        flushParagraphBuffer()
+        flushStructureParagraphs(paragraphBuffer: &paragraphBuffer, chunks: &chunks, chunkIndex: &chunkIndex, documentId: documentId, config: config, documentCategory: documentCategory)
 
         // Log structure breakdown
         let tableChunks = chunks.filter { $0.metadata.structureType == "table" }.count
@@ -1785,6 +1676,141 @@ extension DocumentProcessor {
         Log.info("[DocumentProcessor] Structure-aware chunking: \(tableChunks) tables, \(listChunks) lists, \(paragraphChunks) paragraphs", category: .ingestion)
 
         return chunks
+    }
+
+    /// The nested `appendChunk` of `createStructureAwareChunks`, lifted 2026-11-06 (step C1); its body is unchanged.
+    /// The chunk list, the running index and the document's category are passed in instead of captured.
+    private func appendStructureChunk(
+        chunks: inout [ProcessedChunk],
+        chunkIndex: inout Int,
+        documentCategory: DocumentSemanticCategory,
+        text: String,
+        parentText: String?,
+        pageNumber: Int,
+        sectionTitle: String?,
+        structureType: String,
+        chunkType: ChunkSemanticType,
+        semanticDensity: Float,
+        hasNumericData: Bool,
+        hasListStructure: Bool,
+        sectionPath: [String],
+        entities: [String] = [],
+        abbreviations: [String: String] = [:],
+        tableTitle: String? = nil,
+        siblingGroupId: String? = nil,
+        structuredTable: StructuredTablePayload? = nil
+    ) {
+        let resolvedSectionTitle = sectionTitle.flatMap { sanitizeStructuredLabel($0) }
+        let resolvedSectionPath = sanitizedSectionPath(sectionPath)
+        let metadata = makeChunkMetadata(
+            chunkIndex: chunkIndex,
+            text: text,
+            pageNumber: pageNumber,
+            sectionTitle: resolvedSectionTitle,
+            structureType: structureType,
+            chunkType: chunkType,
+            documentCategory: documentCategory,
+            sectionPath: resolvedSectionPath,
+            semanticDensity: semanticDensity,
+            hasNumericData: hasNumericData,
+            hasListStructure: hasListStructure,
+            entities: entities,
+            abbreviations: abbreviations,
+            tableTitle: tableTitle,
+            siblingGroupId: siblingGroupId
+        )
+        chunks.append(ProcessedChunk(
+            text: text,
+            parentText: parentText,
+            metadata: metadata,
+            structuredTable: structuredTable
+        ))
+        chunkIndex += 1
+    }
+
+    /// The nested `flushParagraphBuffer` of `createStructureAwareChunks`, lifted 2026-11-06 (step C1); its body is
+    /// unchanged. The buffer, the chunk list and the running index are passed in instead of captured.
+    private func flushStructureParagraphs(
+        paragraphBuffer: inout [(text: String, page: Int)],
+        chunks: inout [ProcessedChunk],
+        chunkIndex: inout Int,
+        documentId: UUID,
+        config: SemanticChunker.ChunkingConfig,
+        documentCategory: DocumentSemanticCategory
+    ) {
+        guard !paragraphBuffer.isEmpty else { return }
+
+        // Combine paragraphs for semantic chunking
+        let combinedText = paragraphBuffer.map { $0.text }.joined(separator: "\n\n")
+
+        // Build per-page text ranges from the buffer so SemanticChunker
+        // can assign the correct page number to each sub-chunk.
+        // Each paragraph knows its source page; we track where it lands
+        // in the combined string and build a [pageNum: Range<String.Index>] map.
+        var localPageRanges: [Int: Range<String.Index>] = [:]
+        var currentOffset = combinedText.startIndex
+        for (i, entry) in paragraphBuffer.enumerated() {
+            let textEnd = combinedText.index(currentOffset, offsetBy: entry.text.count, limitedBy: combinedText.endIndex) ?? combinedText.endIndex
+            let entryRange = currentOffset..<textEnd
+
+            if let existing = localPageRanges[entry.page] {
+                // Extend the range for this page (non-contiguous paragraphs on same page)
+                localPageRanges[entry.page] = existing.lowerBound..<textEnd
+            } else {
+                localPageRanges[entry.page] = entryRange
+            }
+
+            // Skip past the "\n\n" separator between paragraphs
+            if i < paragraphBuffer.count - 1 {
+                currentOffset = combinedText.index(textEnd, offsetBy: 2, limitedBy: combinedText.endIndex) ?? combinedText.endIndex
+            } else {
+                currentOffset = textEnd
+            }
+        }
+
+        let semanticChunker = SemanticChunker()
+        let subChunks = semanticChunker.chunkText(
+            combinedText,
+            documentId: documentId,
+            config: config,
+            pageNumbers: localPageRanges,
+            documentCategory: documentCategory
+        )
+
+        for subChunk in subChunks {
+            let cleanedSectionTitle = subChunk.metadata.sectionTitle.flatMap { sanitizeStructuredLabel($0) }
+            let cleanedSectionPath = sanitizedSectionPath(subChunk.metadata.sectionPath)
+            let metadata = ChunkMetadata(
+                chunkIndex: chunkIndex,
+                startPosition: subChunk.metadata.startOffset,
+                endPosition: subChunk.metadata.endOffset,
+                pageNumber: subChunk.metadata.pageNumber,
+                sectionTitle: cleanedSectionTitle,
+                keywords: subChunk.metadata.topKeywords,
+                semanticDensity: subChunk.metadata.semanticDensity,
+                hasNumericData: subChunk.metadata.hasNumericData,
+                hasListStructure: subChunk.metadata.hasListStructure,
+                wordCount: subChunk.metadata.wordCount,
+                characterCount: subChunk.metadata.characterCount,
+                structureType: "paragraph",
+                entities: subChunk.metadata.entities,
+                abbreviations: subChunk.metadata.abbreviations,
+                sectionPath: cleanedSectionPath.isEmpty ? nil : cleanedSectionPath,
+                documentCategory: subChunk.metadata.documentCategory,
+                chunkType: subChunk.metadata.chunkType,
+                tableTitle: subChunk.metadata.tableTitle,
+                hasCrossReferences: subChunk.metadata.hasCrossReferences,
+                resolvedReferences: subChunk.metadata.resolvedReferences
+            )
+            chunks.append(ProcessedChunk(
+                text: subChunk.content,
+                parentText: subChunk.parentContent,
+                metadata: metadata
+            ))
+            chunkIndex += 1
+        }
+
+        paragraphBuffer.removeAll()
     }
 
     func classifyDocumentCategory(
