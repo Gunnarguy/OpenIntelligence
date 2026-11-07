@@ -2279,50 +2279,7 @@ extension RAGService {
                 }
                 auditFilteredCount = filteredChunks.count
 
-                // Step 4.4: Ensure multiple documents are represented before diversification
-                let uniqueDocCount = Set(rerankedChunks.map { $0.chunk.documentId }).count
-                auditUniqueDocCount = uniqueDocCount
-                if uniqueDocCount > 1 {
-                    let desiredDocCoverage = min(
-                        uniqueDocCount,
-                        max(2, min(effectiveTopK, 3))
-                    )
-                    let maxCandidates = max(effectiveTopK * 2, filteredChunks.count)
-                    let (augmented, addedDocs) = ensureDocumentCoverage(
-                        candidates: filteredChunks,
-                        fallbackPool: rerankedChunks,
-                        desiredDocuments: desiredDocCoverage,
-                        maxCandidates: maxCandidates
-                    )
-                    if filteredChunks.count != augmented.count || addedDocs > 0 {
-                        if addedDocs > 0 {
-                            Log.info(
-                                "   🔁 Expanded context to cover \(addedDocs) additional document(s)",
-                                category: .retrieval
-                            )
-                            TelemetryCenter.emit(
-                                .retrieval,
-                                title: "Document coverage boost",
-                                metadata: [
-                                    "addedDocs": "\(addedDocs)",
-                                    "targetDocs": "\(desiredDocCoverage)",
-                                    "uniqueDocs": "\(uniqueDocCount)",
-                                ]
-                            )
-                        } else {
-                            Log.info(
-                                "   🔁 Normalized candidate pool to \(augmented.count) chunks",
-                                category: .retrieval
-                            )
-                        }
-                        filteredChunks = augmented
-                    }
-                } else if filteredChunks.isEmpty {
-                    filteredChunks = Array(rerankedChunks.prefix(max(effectiveTopK, 3)))
-                }
-                retryCandidates = filteredChunks.sorted {
-                    $0.similarityScore > $1.similarityScore
-                }
+                let uniqueDocCount = ensureMultiDocumentCoverage(rerankedChunks: rerankedChunks, auditUniqueDocCount: &auditUniqueDocCount, effectiveTopK: effectiveTopK, filteredChunks: &filteredChunks, retryCandidates: &retryCandidates)
 
                 // Step 4.5: Apply MMR for diversity using container's retrieval config
                 Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
@@ -2521,332 +2478,17 @@ extension RAGService {
                     )
                 }
 
-                let isAppleFMOnDevice = llmService is AppleFoundationLLMService
-                var contextCandidates = diverseChunks
-                var contextStrategy = "mmr"
+                let __prepareContextCandidatesResult = prepareContextCandidates(diverseChunks: diverseChunks, question: question)
+                var contextCandidates = __prepareContextCandidatesResult.contextCandidates
+                var contextStrategy = __prepareContextCandidatesResult.contextStrategy
+                let isEnumerationQuery = __prepareContextCandidatesResult.isEnumerationQuery
+                let isAppleFMOnDevice = __prepareContextCandidatesResult.isAppleFMOnDevice
 
-                // Enumeration queries need ALL chunk slots for detail —
-                // RAPTOR summaries waste 25% of context on generic overviews.
-                // Covers: "how many X", "list all X", "what are all the X", "show every X", etc.
-                let isEnumerationQuery: Bool = {
-                    let lq = question.lowercased()
-                    let quickTriggers = [
-                        "how many", "list all", "list every", "list the", "list each",
-                        "name all", "name every", "show all", "show every",
-                        "what are all", "give me all", "give me every", "enumerate",
-                        "how many kinds", "how many categories",
-                        "count the", "count all", "total number of",
-                    ]
-                    return quickTriggers.contains { lq.contains($0) }
-                }()
+                addSummaryDetailHybrid(answerNeedsDocumentSummary: answerNeedsDocumentSummary, cachedAllChunks: cachedAllChunks, isEnumerationQuery: isEnumerationQuery, contextCandidates: &contextCandidates, question: question, contextStrategy: &contextStrategy)
 
-                // ═══════════════════════════════════════════════════════════════════════════════
-                // Summary-detail hybrid context for research/findings queries
-                // ═══════════════════════════════════════════════════════════════════════════════
-                // When user asks "What did X find?", we need BOTH:
-                // 1. Document summary (L1) for high-level context
-                // 2. Most relevant detail chunks (L0) for specific findings
-                //
-                // Strategy:
-                // - Reserve ~25% of token budget for summary (provides roadmap)
-                // - Use remaining 75% for highest-relevance detail chunks
-                // - Smart deduplication to avoid redundant content
-                // - Dynamic chunk count based on available tokens
-                // ═══════════════════════════════════════════════════════════════════════════════
-                if answerNeedsDocumentSummary && !isEnumerationQuery, let allChunks = cachedAllChunks {
-                    let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
-                    let existingIds = Set(contextCandidates.map { $0.chunk.id })
+                applyFocusedNeighborWindow(diverseChunks: diverseChunks, question: question, auditAvgTop5: auditAvgTop5, auditTopSim: auditTopSim, queryWords: queryWords, rerankedChunks: rerankedChunks, uniqueDocCount: uniqueDocCount, isAppleFMOnDevice: isAppleFMOnDevice, initialWantsCloudContext: initialWantsCloudContext, effectiveTopK: effectiveTopK, contextCandidates: &contextCandidates, contextStrategy: &contextStrategy)
 
-                    // Get relevant document IDs from top candidates
-                    let relevantDocIds = Set(contextCandidates.prefix(5).map { $0.chunk.documentId })
-
-                    // Prioritize summaries from documents that appear in top results
-                    let prioritizedSummaries =
-                        summaryChunks
-                        .filter { !existingIds.contains($0.id) }
-                        .sorted { chunk1, chunk2 in
-                            let score1 = relevantDocIds.contains(chunk1.documentId) ? 1 : 0
-                            let score2 = relevantDocIds.contains(chunk2.documentId) ? 1 : 0
-                            return score1 > score2
-                        }
-
-                    if !prioritizedSummaries.isEmpty {
-                        // Calculate token budget for summaries (~25% of total context)
-                        // Average summary is ~150 words ≈ 200 tokens ≈ 600 chars
-                        let estimatedContextBudget = 4000  // Conservative estimate for on-device
-                        let summaryBudgetChars = estimatedContextBudget / 4  // 25% for summaries
-
-                        // Select summaries that fit in budget, prioritizing relevant docs
-                        var selectedSummaries: [RetrievedChunk] = []
-                        var summaryCharsUsed = 0
-
-                        for (index, chunk) in prioritizedSummaries.enumerated() {
-                            let chunkChars = chunk.content.count
-                            if summaryCharsUsed + chunkChars <= summaryBudgetChars || selectedSummaries.isEmpty {
-                                // Assign high scores with decay for ordering
-                                let score = Float(0.98 - (Double(index) * 0.02))  // 0.98, 0.96, 0.94...
-                                // Look up document name from documents array
-                                let docName = getDocumentName(for: chunk.documentId)
-                                selectedSummaries.append(
-                                    RetrievedChunk(
-                                        chunk: chunk,
-                                        similarityScore: score,
-                                        rank: index,
-                                        sourceDocument: docName,
-                                        pageNumber: nil
-                                    ))
-                                summaryCharsUsed += chunkChars
-                            }
-                            // Limit to max 3 summaries to leave room for detail chunks
-                            if selectedSummaries.count >= 3 { break }
-                        }
-
-                        // Calculate how many detail chunks we can keep
-                        let remainingBudgetChars = estimatedContextBudget - summaryCharsUsed
-                        let avgDetailChunkChars =
-                            contextCandidates.isEmpty
-                            ? 400
-                            : contextCandidates.prefix(10).reduce(0) { $0 + $1.chunk.content.count }
-                                / min(10, contextCandidates.count)
-                        let maxDetailChunks = max(3, remainingBudgetChars / max(avgDetailChunkChars, 200))
-
-                        // Filter detail chunks to remove any that are substantially covered by summaries
-                        // (Avoid redundant content - summaries already capture key points)
-                        var detailCandidates = contextCandidates.filter { retrieved in
-                            // Keep chunk if it's NOT a summary (L0 detail chunks)
-                            retrieved.chunk.metadata.abstractionLevel != .documentSummary
-                        }
-
-                        // ═══════════════════════════════════════════════════════════════════
-                        // Author-name cross-reference boost
-                        // If query contains a name, boost chunks from matching document
-                        // ═══════════════════════════════════════════════════════════════════
-                        let queryWords = question.split(separator: " ").map { String($0).lowercased() }
-                        let potentialAuthorNames = queryWords.filter { word in
-                            // Capitalized in original query, >2 chars, not common words
-                            let originalWord = question.split(separator: " ").first { String($0).lowercased() == word }
-                            let commonWords = Set([
-                                "what", "did", "does", "find", "show", "the", "and", "for", "how", "why",
-                            ])
-                            return originalWord?.first?.isUppercase == true && word.count > 2
-                                && !commonWords.contains(word)
-                        }
-
-                        if !potentialAuthorNames.isEmpty {
-                            // Boost chunks from documents that match author name in filename
-                            detailCandidates = detailCandidates.sorted { a, b in
-                                let aFile = a.sourceDocument.lowercased()
-                                let bFile = b.sourceDocument.lowercased()
-                                let aMatchCount = potentialAuthorNames.filter { aFile.contains($0) }.count
-                                let bMatchCount = potentialAuthorNames.filter { bFile.contains($0) }.count
-
-                                if aMatchCount != bMatchCount {
-                                    return aMatchCount > bMatchCount  // More matches = higher priority
-                                }
-                                return a.similarityScore > b.similarityScore  // Fall back to similarity
-                            }
-
-                            let boostedCount = detailCandidates.prefix(maxDetailChunks).filter { chunk in
-                                potentialAuthorNames.contains { chunk.sourceDocument.lowercased().contains($0) }
-                            }.count
-
-                            if boostedCount > 0 {
-                                Log.debug(
-                                    "[Findings Context] Author boost: \(boostedCount) chunks from '\(potentialAuthorNames.joined(separator: ", "))' documents",
-                                    category: .retrieval)
-                            }
-                        }
-
-                        // Take top N detail chunks by relevance score (now potentially author-boosted)
-                        let topDetailChunks = Array(detailCandidates.prefix(maxDetailChunks))
-
-                        // Merge: Summaries FIRST (high-level roadmap), then detail chunks
-                        contextCandidates = selectedSummaries + topDetailChunks
-                        contextStrategy = "summary_detail_hybrid"
-
-                        let totalChars = summaryCharsUsed + topDetailChunks.reduce(0) { $0 + $1.chunk.content.count }
-                        Log.info(
-                            "[Hybrid Context] \(selectedSummaries.count) summaries (\(summaryCharsUsed) chars) + "
-                                + "\(topDetailChunks.count) detail chunks → \(totalChars) total chars",
-                            category: .retrieval
-                        )
-                        emitThinkingEvent(
-                            .context,
-                            title: "Hybrid Context",
-                            detail:
-                                "\(selectedSummaries.count) summaries + \(topDetailChunks.count) details = comprehensive coverage"
-                        )
-
-                        if Log.pipelineTraceEnabled {
-                            Log.debug(
-                                "[Hybrid Context] Summary budget: \(summaryBudgetChars) chars, used: \(summaryCharsUsed)",
-                                category: .retrieval)
-                            Log.debug(
-                                "[Hybrid Context] Detail budget: \(remainingBudgetChars) chars, chunks: \(topDetailChunks.count)",
-                                category: .retrieval)
-                            Log.debug(
-                                "[Hybrid Context] Avg detail chunk: \(avgDetailChunkChars) chars", category: .retrieval)
-                        }
-                    } else if !summaryChunks.isEmpty {
-                        Log.debug(
-                            "[Hybrid Context] Summary chunks already in candidates - no injection needed",
-                            category: .retrieval)
-                    } else {
-                        Log.info(
-                            "[Hybrid Context] No summary chunks available - using detail-only retrieval",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .context,
-                            title: "Detail-Only Context",
-                            detail: "Re-ingest documents to enable summary-enhanced retrieval"
-                        )
-                    }
-                }
-
-                // Universal pipeline trace: log chunk content previews at each stage
-                if Log.pipelineTraceEnabled {
-                    logChunkTrace(diverseChunks, stage: "Post-MMR", query: question)
-                }
-
-                let strongTopSim =
-                    auditTopSim >= 0.72 || (auditTopSim >= 0.68 && (auditTopSim - auditAvgTop5) >= 0.03)
-                let shortQuery = queryWords <= 12
-                let topDocId = rerankedChunks.first?.chunk.documentId
-                let topDocSample = min(10, rerankedChunks.count)
-                let topDocHits = rerankedChunks.prefix(topDocSample).filter { $0.chunk.documentId == topDocId }.count
-                let topDocShare = topDocSample > 0 ? Double(topDocHits) / Double(topDocSample) : 0
-                let focusedDocScope = uniqueDocCount <= 2 || topDocShare >= 0.6
-
-                if isAppleFMOnDevice,
-                    !initialWantsCloudContext,
-                    strongTopSim,
-                    shortQuery,
-                    focusedDocScope,
-                    let focusSeed = rerankedChunks.first
-                {
-                    let maxFocusedTotal = min(max(5, min(10, effectiveTopK)), rerankedChunks.count)
-                    let neighborsPerSeed = min(4, max(1, (maxFocusedTotal - 1) / 2))
-                    var focused = buildNeighborAwareFallback(
-                        seeds: [focusSeed],
-                        pool: rerankedChunks,
-                        maxTotal: maxFocusedTotal,
-                        neighborsPerSeed: neighborsPerSeed
-                    )
-                    if focused.count > 1 {
-                        focused.sort {
-                            if $0.chunk.documentId == $1.chunk.documentId {
-                                return $0.chunk.metadata.chunkIndex < $1.chunk.metadata.chunkIndex
-                            }
-                            return $0.similarityScore > $1.similarityScore
-                        }
-                        contextCandidates = focused
-                        contextStrategy = "focused_window"
-                        let sourceName = focusSeed.sourceDocument.isEmpty ? "unknown" : focusSeed.sourceDocument
-                        Log.info(
-                            "🔎 Focused context window (\(focused.count) chunks) • topSim \(String(format: "%.3f", auditTopSim)) • source \(sourceName)",
-                            category: .retrieval
-                        )
-
-                        if Log.pipelineTraceEnabled {
-                            logChunkTrace(focused, stage: "Post-FocusedWindow", query: question)
-                        }
-                    }
-                }
-
-                // ═══════════════════════════════════════════════════════════════════
-                // ITERATIVE RETRIEVAL: BM25 second-pass for enumeration queries
-                // ═══════════════════════════════════════════════════════════════════
-                // When asking "how many X are available", vector search retrieves
-                // chunks ABOUT the topic but misses the actual enumerated list page
-                // (sparse, low semantic density). A targeted BM25 keyword scan over
-                // ALL chunks in the container finds it.
-                // ═══════════════════════════════════════════════════════════════════
-                if isEnumerationQuery, let allChunks = cachedAllChunks, !allChunks.isEmpty {
-                    let existingIds = Set(contextCandidates.map { $0.chunk.id })
-
-                    // Extract subject noun from enumeration query patterns:
-                    // "how many [NOUN] are available" → NOUN
-                    // "list all [NOUN]"               → NOUN
-                    // "what are all the [NOUN]"       → NOUN
-                    // "show every [NOUN]"             → NOUN
-                    // "total number of [NOUN]"        → NOUN
-                    let lq = question.lowercased()
-                    let stopWords: Set<String> = [
-                        "are", "is", "does", "do", "can", "will", "were", "was",
-                        "have", "has", "for", "the", "in", "on", "at", "to", "of",
-                        "available", "there", "exist", "supported", "included",
-                        "a", "an", "this", "that", "it", "its", "my", "your",
-                    ]
-                    let subjectNoun: String = {
-                        // Try each trigger phrase, extract noun after it
-                        let triggers = [
-                            "how many ", "list all ", "list every ", "list the ", "list each ",
-                            "name all ", "name every ", "show all ", "show every ",
-                            "what are all the ", "what are all ", "what are the ",
-                            "give me all ", "give me every ",
-                            "total number of ", "count the ", "count all ",
-                            "enumerate ",
-                        ]
-                        for trigger in triggers {
-                            if let range = lq.range(of: trigger) {
-                                let afterTrigger = String(lq[range.upperBound...])
-                                let words = afterTrigger.split(separator: " ")
-                                let nouns = words.prefix(4).filter { !stopWords.contains(String($0)) }
-                                if !nouns.isEmpty {
-                                    return nouns.map(String.init).joined(separator: " ")
-                                }
-                            }
-                        }
-                        return ""
-                    }()
-
-                    if !subjectNoun.isEmpty {
-                        let bm25 = BM25Scorer()
-                        bm25.indexDocuments(allChunks)
-                        let queryTerms = bm25.tokenize(subjectNoun)
-
-                        // Score ALL chunks by BM25 keyword match
-                        var scored: [(chunk: DocumentChunk, score: Float)] = []
-                        for chunk in allChunks {
-                            let s = bm25.score(queryTerms: queryTerms, document: chunk.content)
-                            if s > 0 { scored.append((chunk, s)) }
-                        }
-                        scored.sort { $0.score > $1.score }
-
-                        // Inject top BM25 results not already in candidates
-                        var added = 0
-                        for (chunk, bm25Score) in scored.prefix(15) {
-                            guard !existingIds.contains(chunk.id), added < 5 else { continue }
-                            let docName = getDocumentName(for: chunk.documentId)
-                            contextCandidates.append(
-                                RetrievedChunk(
-                                    chunk: chunk,
-                                    similarityScore: min(bm25Score / 10.0, 0.85),
-                                    rank: contextCandidates.count,
-                                    sourceDocument: docName,
-                                    pageNumber: chunk.metadata.pageNumber
-                                ))
-                            added += 1
-                        }
-
-                        if added > 0 {
-                            contextStrategy = "enumeration_iterative"
-                            Log.info(
-                                "[Iterative Retrieval] Enumeration 2nd pass: +\(added) BM25 chunks for '\(subjectNoun)'",
-                                category: .retrieval
-                            )
-                            emitThinkingEvent(
-                                .retrieval,
-                                title: "Iterative Retrieval",
-                                detail: "BM25 2nd pass: +\(added) chunks targeting '\(subjectNoun)' list"
-                            )
-
-                            if Log.pipelineTraceEnabled {
-                                logChunkTrace(contextCandidates, stage: "Post-EnumerationIterative", query: question)
-                            }
-                        }
-                    }
-                }
+                addEnumerationKeywordPass(cachedAllChunks: cachedAllChunks, isEnumerationQuery: isEnumerationQuery, contextCandidates: &contextCandidates, question: question, contextStrategy: &contextStrategy)
 
                 // Step 4.6: Parent Document Retrieval (optional)
                 // Expand matched chunks to include sibling context from same section/page
@@ -2938,86 +2580,11 @@ extension RAGService {
                     }
                 }
 
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // Step 4.8: Targeted Spec Retrieval ("Spec Table Sniper")
-                // The reranker has an inherent prose bias: prose scores ~0.78 while
-                // tables/specs score ~0.30. For lookup/extractive queries, bypass
-                // semantic scoring entirely and search ALL chunks for co-occurrence
-                // of query keywords + numeric data.
-                //
-                // This is the "needle in a haystack" sniper — universal across domains:
-                // medical dosages, legal statute numbers, technical specs, financial data.
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if answerIntentIsExtractive, let allChunks = cachedAllChunks {
-                    let existingIds = Set(contextCandidates.map { $0.chunk.id })
-                    let sniperResults = specTableSniper(
-                        query: question,
-                        allChunks: allChunks,
-                        excludeIds: existingIds
-                    )
-                    if !sniperResults.isEmpty {
-                        // Insert at position 0 — these targeted results should survive
-                        // context assembly budget cuts ahead of prose chunks
-                        contextCandidates.insert(contentsOf: sniperResults, at: 0)
+                runSpecTableSniper(answerIntentIsExtractive: answerIntentIsExtractive, cachedAllChunks: cachedAllChunks, contextCandidates: &contextCandidates, question: question)
 
-                        // Demote chunks that merely CITE other sections ("given in X on page Y")
-                        // now that we have the actual data they were pointing to
-                        demoteCrossReferenceChunks(&contextCandidates)
-
-                        Log.info(
-                            "[RAG] Spec sniper: +\(sniperResults.count) targeted chunks from \(allChunks.count) total (keyword+number co-occurrence)",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .retrieval, title: "Spec sniper",
-                            detail: "+\(sniperResults.count) targeted chunks via keyword+number co-occurrence")
-                    }
-                }
-
-                // Step 4.7: Contextual Compression (optional)
-                // Extract only query-relevant sentences from chunks to maximize signal and save tokens
-                // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
-                // CRITICAL: Skip compression for procedural queries - compression destroys step ordering
-                // (e.g., 335→27 tokens = 8% retention loses critical procedural constraints)
-                // CRITICAL: Skip compression for vocabulary mismatch - compressor can't judge relevance
-                // when query terms don't match document vocabulary (conversational vs technical)
-                // CRITICAL: Skip compression for parent-expanded content - parent chunks are too large
-                // for compression model (exceed context window) AND compression defeats hierarchical purpose
-                let compressionEnabledBySettings = settingsStore?.enableContextualCompression ?? true
-                let skipCompressionForProcedural = isProceduralQuery  // Preserve contiguous spans
-                let skipCompressionForVocabMismatch = vocabularyMismatch  // Compressor will destroy content
-                let skipCompressionForParentExpansion = contextStrategy == "parent_expanded"  // Chunks too large + defeats purpose
-                let useContextualCompression =
-                    qualityModeUsesContextualCompression && compressionEnabledBySettings
-                    && adaptiveConfig.enableContextualCompression && !skipCompressionForProcedural
-                    && !skipCompressionForVocabMismatch && !skipCompressionForParentExpansion
-                var compressionSavings = 0
-
-                if skipCompressionForProcedural {
-                    Log.info(
-                        "[RAG] Skipping compression for procedural query - preserving contiguous spans",
-                        category: .retrieval)
-                    emitThinkingEvent(
-                        .compression, title: "Compression skipped",
-                        detail: "Procedural query — preserving step ordering")
-                }
-
-                if skipCompressionForVocabMismatch {
-                    Log.info(
-                        "[RAG] Skipping compression for vocabulary mismatch - compressor can't judge relevance",
-                        category: .retrieval)
-                    emitThinkingEvent(
-                        .compression, title: "Compression skipped",
-                        detail: "Vocabulary mismatch — compressor can't judge relevance")
-                }
-
-                if skipCompressionForParentExpansion {
-                    Log.info(
-                        "[RAG] Skipping compression for parent-expanded content - chunks exceed compression model capacity",
-                        category: .retrieval)
-                    emitThinkingEvent(
-                        .compression, title: "Compression skipped",
-                        detail: "Parent-expanded chunks exceed model capacity")
-                }
+                let __gateContextualCompressionResult = gateContextualCompression(isProceduralQuery: isProceduralQuery, vocabularyMismatch: vocabularyMismatch, contextStrategy: contextStrategy, qualityModeUsesContextualCompression: qualityModeUsesContextualCompression, adaptiveConfig: adaptiveConfig)
+                let useContextualCompression = __gateContextualCompressionResult.useContextualCompression
+                var compressionSavings = __gateContextualCompressionResult.compressionSavings
 
                 if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
                     auditUsedContextualCompression = true
@@ -3429,22 +2996,7 @@ extension RAGService {
                     }
                 }
 
-                // Step 5: Construct context from retrieved chunks (off-main)
-                // Note: rawContext assembly is handled via engine.assembleContext with size limits
-                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Context Assembly")
-
-                let applyTrivialCaps = isTrivial && !allowLargeContext
-
-                // CRITICAL OPTIMIZATION: Disable tools when the RAG pipeline has already
-                // retrieved and assembled context. Tool schemas eat ~1000 tokens (24% of
-                // the window). When context is pre-assembled, the LLM prompt already
-                // says "don't use tools" — so we're burning tokens on dead weight.
-                if !inferenceConfig.disableTools && contextCandidates.count > 0 {
-                    inferenceConfig.disableTools = true
-                    Log.info(
-                        "[RAG] Auto-disabled tools: context pre-assembled (\(contextCandidates.count) chunks). Reclaimed ~1000 tokens for context.",
-                        category: .pipeline)
-                }
+                let applyTrivialCaps = disableToolsForAssembledContext(allowLargeContext: allowLargeContext, isTrivial: isTrivial, contextCandidates: contextCandidates, inferenceConfig: &inferenceConfig)
 
                 let conservativeCharsPerToken: Double = FoundationModelTokenBudget.conservativeCharsPerToken(
                     isAppleFMOnDevice: !allowLargeContext)
@@ -3473,150 +3025,9 @@ extension RAGService {
                 let promptOverheadTokens = 120 + systemPromptTokens + toolSchemaTokens
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
-                // Transcript tokens NO LONGER deducted from context budget.
-                // This eliminates the failure mode where transcript > window → 0 context.
-                let rawTranscriptTokens: Int
-                if let appleFMService = llmService as? AppleFoundationLLMService {
-                    rawTranscriptTokens = appleFMService.estimatedTranscriptTokens
-                } else {
-                    rawTranscriptTokens = 0
-                }
-                if rawTranscriptTokens > 0 {
-                    Log.debug(
-                        "[RAG] Transcript history: ~\(rawTranscriptTokens) tokens (auto-trimmed by LLM service, not deducted from context)",
-                        category: .pipeline)
-                }
+                let (maxContextChars, useCompactMode, reservedOutputTokens, availableForContextTokens, globalSafetyFactor) = computeContextCharBudget(inferenceConfig: inferenceConfig, baseWindowTokens: baseWindowTokens, promptOverheadTokens: promptOverheadTokens, questionTokens: questionTokens, allowLargeContext: allowLargeContext, isAppleFMOnDevice: isAppleFMOnDevice, applyTrivialCaps: applyTrivialCaps, conservativeCharsPerToken: conservativeCharsPerToken)
 
-                // Reserve room for output
-                let reservedOutputTokens = max(150, min(inferenceConfig.maxTokens, 300))
-
-                // OPTIMIZED: Single safety margin based on execution location.
-                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
-                let globalSafetyFactor: Double = allowLargeContext ? 0.92 : (isAppleFMOnDevice ? 0.88 : 0.90)
-                let availableForContextTokens = max(
-                    0,
-                    Int(Double(rawAvailableTokens) * globalSafetyFactor)
-                )
-                let cappedContextTokens =
-                    applyTrivialCaps
-                    ? min(availableForContextTokens, allowLargeContext ? 20000 : 2600)
-                    : availableForContextTokens
-
-                let maxContextCharsCap: Int = {
-                    if llmService is AppleFoundationLLMService {
-                        if allowLargeContext {
-                            return applyTrivialCaps ? 6000 : 45000
-                        } else {
-                            return applyTrivialCaps ? 2500 : 10000
-                        }
-                    } else {
-                        return applyTrivialCaps ? 6000 : 10000
-                    }
-                }()
-
-                let maxContextChars = min(
-                    max(800, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
-                    maxContextCharsCap
-                )
-
-                // Use compact mode for Apple FM to maximize content in limited space, unless we have PCC's large context window.
-                let useCompactMode = isAppleFMOnDevice && !allowLargeContext
-
-                #if targetEnvironment(simulator)
-                    Log.info(
-                        "[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)",
-                        category: .pipeline)
-                #endif
-
-                Log.debug(
-                    "Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(rawTranscriptTokens)(not deducted), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)",
-                    category: .pipeline)
-
-                // For procedural queries, preserve document order instead of relevance order
-                // This prevents sequence inversions (e.g., "dry before disinfect" errors)
-                let orderedCandidates: [RetrievedChunk]
-                if isProceduralQuery {
-                    // Sort by document ID then chunk index to preserve original document sequence
-                    orderedCandidates = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
-                        if a.chunk.documentId == b.chunk.documentId {
-                            return a.chunk.metadata.chunkIndex < b.chunk.metadata.chunkIndex
-                        }
-                        // Group by document, then by first appearance order
-                        return a.rank < b.rank
-                    })
-                    Log.info(
-                        "[RAG] Procedural query - preserving document order for sequence fidelity", category: .retrieval
-                    )
-                } else if answerIntentIsExtractive {
-                    // For lookup/table queries, prioritize chunks containing specifications
-                    // that MATCH the query topic — not just any specs
-                    let queryKeywords = extractQueryTerms(question)
-
-                    // CORPUS-AWARE KEYWORD DISCOUNTING:
-                    // Keywords that appear in >40% of candidates are corpus-generic and should
-                    // NOT get bonus weight.  e.g. "car" in a car manual matches everything,
-                    // diluting the signal from discriminative keywords like "oil".
-                    // This is the same principle as IDF in BM25 — universal, domain-agnostic.
-                    let candidateCount = max(1, contextCandidates.count)
-                    let keywordDocFreq: [String: Int] = {
-                        var freq: [String: Int] = [:]
-                        for kw in queryKeywords {
-                            var count = 0
-                            for c in contextCandidates {
-                                let text = c.chunk.contextText.lowercased()
-                                if text.contains(kw) { count += 1 }
-                            }
-                            freq[kw] = count
-                        }
-                        return freq
-                    }()
-                    let discriminativeKeywords = queryKeywords.filter { kw in
-                        let df = keywordDocFreq[kw] ?? 0
-                        return Double(df) / Double(candidateCount) <= 0.40
-                    }
-                    let discardedKeywords = queryKeywords.filter { !discriminativeKeywords.contains($0) }
-                    if !discardedKeywords.isEmpty {
-                        Log.info(
-                            "[RAG] Corpus-aware: discounted generic keywords \(discardedKeywords) (>40% of chunks)",
-                            category: .retrieval)
-                    }
-
-                    let byPriority = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
-                        let aContent = a.chunk.contextText
-                        let bContent = b.chunk.contextText
-                        let aPriority = EvidenceScoringPolicyService.extractivePriorityScore(
-                            content: aContent,
-                            queryKeywords: discriminativeKeywords,
-                            structureType: a.chunk.metadata.structureType
-                        )
-                        let bPriority = EvidenceScoringPolicyService.extractivePriorityScore(
-                            content: bContent,
-                            queryKeywords: discriminativeKeywords,
-                            structureType: b.chunk.metadata.structureType
-                        )
-
-                        // Clear advantage outranks relevance; a difference of 1 does not.
-                        // Expressed as bands rather than an epsilon, because the epsilon
-                        // form was not a strict weak ordering and left this sort's output
-                        // undefined. See `extractiveEvidencePrecedes` for the full note and
-                        // for why the LEDGER's 27.0%/15.2% rank-1 figure needs re-taking.
-                        return EvidenceScoringPolicyService.extractiveEvidencePrecedes(
-                            lhsPriority: aPriority, lhsRelevance: a.similarityScore,
-                            rhsPriority: bPriority, rhsRelevance: b.similarityScore
-                        )
-                    })
-                    // Retrieval's best passage stays first, whatever the question's words say (5.7):
-                    // the keyword priority orders the rest. Sentence extraction below puts it in whole.
-                    orderedCandidates = Self.leadingWithTopRanked(contextCandidates.first, then: byPriority)
-                    Log.info(
-                        "[RAG] Extractive query - prioritizing specs (discriminative: [\(discriminativeKeywords.joined(separator: ", "))])",
-                        category: .retrieval)
-                } else {
-                    orderedCandidates = contextCandidates
-                }
-
-                // For procedural queries, disable "Lost in Middle" reordering to preserve sequence
-                let useLostInMiddleMitigation = !isProceduralQuery
+                let (orderedCandidates, useLostInMiddleMitigation) = orderContextCandidates(isProceduralQuery: isProceduralQuery, contextCandidates: contextCandidates, answerIntentIsExtractive: answerIntentIsExtractive, question: question)
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // SENTENCE-LEVEL EXTRACTION (lookup intent only)
@@ -5385,6 +4796,667 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 4.4: adds passages from other documents before diversification and records the retry candidates.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func ensureMultiDocumentCoverage(rerankedChunks: [RetrievedChunk], auditUniqueDocCount: inout Int, effectiveTopK: Int, filteredChunks: inout [RetrievedChunk], retryCandidates: inout [RetrievedChunk]) -> Int {
+        // Step 4.4: Ensure multiple documents are represented before diversification
+        let uniqueDocCount = Set(rerankedChunks.map { $0.chunk.documentId }).count
+        auditUniqueDocCount = uniqueDocCount
+        if uniqueDocCount > 1 {
+            let desiredDocCoverage = min(
+                uniqueDocCount,
+                max(2, min(effectiveTopK, 3))
+            )
+            let maxCandidates = max(effectiveTopK * 2, filteredChunks.count)
+            let (augmented, addedDocs) = ensureDocumentCoverage(
+                candidates: filteredChunks,
+                fallbackPool: rerankedChunks,
+                desiredDocuments: desiredDocCoverage,
+                maxCandidates: maxCandidates
+            )
+            if filteredChunks.count != augmented.count || addedDocs > 0 {
+                if addedDocs > 0 {
+                    Log.info(
+                        "   🔁 Expanded context to cover \(addedDocs) additional document(s)",
+                        category: .retrieval
+                    )
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "Document coverage boost",
+                        metadata: [
+                            "addedDocs": "\(addedDocs)",
+                            "targetDocs": "\(desiredDocCoverage)",
+                            "uniqueDocs": "\(uniqueDocCount)",
+                        ]
+                    )
+                } else {
+                    Log.info(
+                        "   🔁 Normalized candidate pool to \(augmented.count) chunks",
+                        category: .retrieval
+                    )
+                }
+                filteredChunks = augmented
+            }
+        } else if filteredChunks.isEmpty {
+            filteredChunks = Array(rerankedChunks.prefix(max(effectiveTopK, 3)))
+        }
+        retryCandidates = filteredChunks.sorted {
+            $0.similarityScore > $1.similarityScore
+        }
+        return uniqueDocCount
+    }
+
+    /// Step SX (setup): starts the context candidates from the MMR list and detects enumeration questions.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func prepareContextCandidates(diverseChunks: [RetrievedChunk], question: String) -> (contextCandidates: [RetrievedChunk], contextStrategy: String, isEnumerationQuery: Bool, isAppleFMOnDevice: Bool) {
+        let isAppleFMOnDevice = llmService is AppleFoundationLLMService
+        var contextCandidates = diverseChunks
+        var contextStrategy = "mmr"
+
+        // Enumeration queries need ALL chunk slots for detail —
+        // RAPTOR summaries waste 25% of context on generic overviews.
+        // Covers: "how many X", "list all X", "what are all the X", "show every X", etc.
+        let isEnumerationQuery: Bool = {
+            let lq = question.lowercased()
+            let quickTriggers = [
+                "how many", "list all", "list every", "list the", "list each",
+                "name all", "name every", "show all", "show every",
+                "what are all", "give me all", "give me every", "enumerate",
+                "how many kinds", "how many categories",
+                "count the", "count all", "total number of",
+            ]
+            return quickTriggers.contains { lq.contains($0) }
+        }()
+        return (contextCandidates: contextCandidates, contextStrategy: contextStrategy, isEnumerationQuery: isEnumerationQuery, isAppleFMOnDevice: isAppleFMOnDevice)
+    }
+
+    /// Step SX: blends document summaries with detail passages for questions that need a document summary.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func addSummaryDetailHybrid(answerNeedsDocumentSummary: Bool, cachedAllChunks: [DocumentChunk]?, isEnumerationQuery: Bool, contextCandidates: inout [RetrievedChunk], question: String, contextStrategy: inout String) {
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Summary-detail hybrid context for research/findings queries
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // When user asks "What did X find?", we need BOTH:
+        // 1. Document summary (L1) for high-level context
+        // 2. Most relevant detail chunks (L0) for specific findings
+        //
+        // Strategy:
+        // - Reserve ~25% of token budget for summary (provides roadmap)
+        // - Use remaining 75% for highest-relevance detail chunks
+        // - Smart deduplication to avoid redundant content
+        // - Dynamic chunk count based on available tokens
+        // ═══════════════════════════════════════════════════════════════════════════════
+        if answerNeedsDocumentSummary && !isEnumerationQuery, let allChunks = cachedAllChunks {
+            let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
+            let existingIds = Set(contextCandidates.map { $0.chunk.id })
+
+            // Get relevant document IDs from top candidates
+            let relevantDocIds = Set(contextCandidates.prefix(5).map { $0.chunk.documentId })
+
+            // Prioritize summaries from documents that appear in top results
+            let prioritizedSummaries =
+                summaryChunks
+                .filter { !existingIds.contains($0.id) }
+                .sorted { chunk1, chunk2 in
+                    let score1 = relevantDocIds.contains(chunk1.documentId) ? 1 : 0
+                    let score2 = relevantDocIds.contains(chunk2.documentId) ? 1 : 0
+                    return score1 > score2
+                }
+
+            if !prioritizedSummaries.isEmpty {
+                // Calculate token budget for summaries (~25% of total context)
+                // Average summary is ~150 words ≈ 200 tokens ≈ 600 chars
+                let estimatedContextBudget = 4000  // Conservative estimate for on-device
+                let summaryBudgetChars = estimatedContextBudget / 4  // 25% for summaries
+
+                // Select summaries that fit in budget, prioritizing relevant docs
+                var selectedSummaries: [RetrievedChunk] = []
+                var summaryCharsUsed = 0
+
+                for (index, chunk) in prioritizedSummaries.enumerated() {
+                    let chunkChars = chunk.content.count
+                    if summaryCharsUsed + chunkChars <= summaryBudgetChars || selectedSummaries.isEmpty {
+                        // Assign high scores with decay for ordering
+                        let score = Float(0.98 - (Double(index) * 0.02))  // 0.98, 0.96, 0.94...
+                        // Look up document name from documents array
+                        let docName = getDocumentName(for: chunk.documentId)
+                        selectedSummaries.append(
+                            RetrievedChunk(
+                                chunk: chunk,
+                                similarityScore: score,
+                                rank: index,
+                                sourceDocument: docName,
+                                pageNumber: nil
+                            ))
+                        summaryCharsUsed += chunkChars
+                    }
+                    // Limit to max 3 summaries to leave room for detail chunks
+                    if selectedSummaries.count >= 3 { break }
+                }
+
+                // Calculate how many detail chunks we can keep
+                let remainingBudgetChars = estimatedContextBudget - summaryCharsUsed
+                let avgDetailChunkChars =
+                    contextCandidates.isEmpty
+                    ? 400
+                    : contextCandidates.prefix(10).reduce(0) { $0 + $1.chunk.content.count }
+                        / min(10, contextCandidates.count)
+                let maxDetailChunks = max(3, remainingBudgetChars / max(avgDetailChunkChars, 200))
+
+                // Filter detail chunks to remove any that are substantially covered by summaries
+                // (Avoid redundant content - summaries already capture key points)
+                var detailCandidates = contextCandidates.filter { retrieved in
+                    // Keep chunk if it's NOT a summary (L0 detail chunks)
+                    retrieved.chunk.metadata.abstractionLevel != .documentSummary
+                }
+
+                // ═══════════════════════════════════════════════════════════════════
+                // Author-name cross-reference boost
+                // If query contains a name, boost chunks from matching document
+                // ═══════════════════════════════════════════════════════════════════
+                let queryWords = question.split(separator: " ").map { String($0).lowercased() }
+                let potentialAuthorNames = queryWords.filter { word in
+                    // Capitalized in original query, >2 chars, not common words
+                    let originalWord = question.split(separator: " ").first { String($0).lowercased() == word }
+                    let commonWords = Set([
+                        "what", "did", "does", "find", "show", "the", "and", "for", "how", "why",
+                    ])
+                    return originalWord?.first?.isUppercase == true && word.count > 2
+                        && !commonWords.contains(word)
+                }
+
+                if !potentialAuthorNames.isEmpty {
+                    // Boost chunks from documents that match author name in filename
+                    detailCandidates = detailCandidates.sorted { a, b in
+                        let aFile = a.sourceDocument.lowercased()
+                        let bFile = b.sourceDocument.lowercased()
+                        let aMatchCount = potentialAuthorNames.filter { aFile.contains($0) }.count
+                        let bMatchCount = potentialAuthorNames.filter { bFile.contains($0) }.count
+
+                        if aMatchCount != bMatchCount {
+                            return aMatchCount > bMatchCount  // More matches = higher priority
+                        }
+                        return a.similarityScore > b.similarityScore  // Fall back to similarity
+                    }
+
+                    let boostedCount = detailCandidates.prefix(maxDetailChunks).filter { chunk in
+                        potentialAuthorNames.contains { chunk.sourceDocument.lowercased().contains($0) }
+                    }.count
+
+                    if boostedCount > 0 {
+                        Log.debug(
+                            "[Findings Context] Author boost: \(boostedCount) chunks from '\(potentialAuthorNames.joined(separator: ", "))' documents",
+                            category: .retrieval)
+                    }
+                }
+
+                // Take top N detail chunks by relevance score (now potentially author-boosted)
+                let topDetailChunks = Array(detailCandidates.prefix(maxDetailChunks))
+
+                // Merge: Summaries FIRST (high-level roadmap), then detail chunks
+                contextCandidates = selectedSummaries + topDetailChunks
+                contextStrategy = "summary_detail_hybrid"
+
+                let totalChars = summaryCharsUsed + topDetailChunks.reduce(0) { $0 + $1.chunk.content.count }
+                Log.info(
+                    "[Hybrid Context] \(selectedSummaries.count) summaries (\(summaryCharsUsed) chars) + "
+                        + "\(topDetailChunks.count) detail chunks → \(totalChars) total chars",
+                    category: .retrieval
+                )
+                emitThinkingEvent(
+                    .context,
+                    title: "Hybrid Context",
+                    detail:
+                        "\(selectedSummaries.count) summaries + \(topDetailChunks.count) details = comprehensive coverage"
+                )
+
+                if Log.pipelineTraceEnabled {
+                    Log.debug(
+                        "[Hybrid Context] Summary budget: \(summaryBudgetChars) chars, used: \(summaryCharsUsed)",
+                        category: .retrieval)
+                    Log.debug(
+                        "[Hybrid Context] Detail budget: \(remainingBudgetChars) chars, chunks: \(topDetailChunks.count)",
+                        category: .retrieval)
+                    Log.debug(
+                        "[Hybrid Context] Avg detail chunk: \(avgDetailChunkChars) chars", category: .retrieval)
+                }
+            } else if !summaryChunks.isEmpty {
+                Log.debug(
+                    "[Hybrid Context] Summary chunks already in candidates - no injection needed",
+                    category: .retrieval)
+            } else {
+                Log.info(
+                    "[Hybrid Context] No summary chunks available - using detail-only retrieval",
+                    category: .retrieval)
+                emitThinkingEvent(
+                    .context,
+                    title: "Detail-Only Context",
+                    detail: "Re-ingest documents to enable summary-enhanced retrieval"
+                )
+            }
+        }
+    }
+
+    /// Step SF: narrows strong short single-document questions to a neighbor window around the top passage (on-device Apple model only).
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applyFocusedNeighborWindow(diverseChunks: [RetrievedChunk], question: String, auditAvgTop5: Float, auditTopSim: Float, queryWords: Int, rerankedChunks: [RetrievedChunk], uniqueDocCount: Int, isAppleFMOnDevice: Bool, initialWantsCloudContext: Bool, effectiveTopK: Int, contextCandidates: inout [RetrievedChunk], contextStrategy: inout String) {
+        // Universal pipeline trace: log chunk content previews at each stage
+        if Log.pipelineTraceEnabled {
+            logChunkTrace(diverseChunks, stage: "Post-MMR", query: question)
+        }
+
+        let strongTopSim =
+            auditTopSim >= 0.72 || (auditTopSim >= 0.68 && (auditTopSim - auditAvgTop5) >= 0.03)
+        let shortQuery = queryWords <= 12
+        let topDocId = rerankedChunks.first?.chunk.documentId
+        let topDocSample = min(10, rerankedChunks.count)
+        let topDocHits = rerankedChunks.prefix(topDocSample).filter { $0.chunk.documentId == topDocId }.count
+        let topDocShare = topDocSample > 0 ? Double(topDocHits) / Double(topDocSample) : 0
+        let focusedDocScope = uniqueDocCount <= 2 || topDocShare >= 0.6
+
+        if isAppleFMOnDevice,
+            !initialWantsCloudContext,
+            strongTopSim,
+            shortQuery,
+            focusedDocScope,
+            let focusSeed = rerankedChunks.first
+        {
+            let maxFocusedTotal = min(max(5, min(10, effectiveTopK)), rerankedChunks.count)
+            let neighborsPerSeed = min(4, max(1, (maxFocusedTotal - 1) / 2))
+            var focused = buildNeighborAwareFallback(
+                seeds: [focusSeed],
+                pool: rerankedChunks,
+                maxTotal: maxFocusedTotal,
+                neighborsPerSeed: neighborsPerSeed
+            )
+            if focused.count > 1 {
+                focused.sort {
+                    if $0.chunk.documentId == $1.chunk.documentId {
+                        return $0.chunk.metadata.chunkIndex < $1.chunk.metadata.chunkIndex
+                    }
+                    return $0.similarityScore > $1.similarityScore
+                }
+                contextCandidates = focused
+                contextStrategy = "focused_window"
+                let sourceName = focusSeed.sourceDocument.isEmpty ? "unknown" : focusSeed.sourceDocument
+                Log.info(
+                    "🔎 Focused context window (\(focused.count) chunks) • topSim \(String(format: "%.3f", auditTopSim)) • source \(sourceName)",
+                    category: .retrieval
+                )
+
+                if Log.pipelineTraceEnabled {
+                    logChunkTrace(focused, stage: "Post-FocusedWindow", query: question)
+                }
+            }
+        }
+    }
+
+    /// Step SE: adds a BM25 second pass over every passage for enumeration questions.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func addEnumerationKeywordPass(cachedAllChunks: [DocumentChunk]?, isEnumerationQuery: Bool, contextCandidates: inout [RetrievedChunk], question: String, contextStrategy: inout String) {
+        // ═══════════════════════════════════════════════════════════════════
+        // ITERATIVE RETRIEVAL: BM25 second-pass for enumeration queries
+        // ═══════════════════════════════════════════════════════════════════
+        // When asking "how many X are available", vector search retrieves
+        // chunks ABOUT the topic but misses the actual enumerated list page
+        // (sparse, low semantic density). A targeted BM25 keyword scan over
+        // ALL chunks in the container finds it.
+        // ═══════════════════════════════════════════════════════════════════
+        if isEnumerationQuery, let allChunks = cachedAllChunks, !allChunks.isEmpty {
+            let existingIds = Set(contextCandidates.map { $0.chunk.id })
+
+            // Extract subject noun from enumeration query patterns:
+            // "how many [NOUN] are available" → NOUN
+            // "list all [NOUN]"               → NOUN
+            // "what are all the [NOUN]"       → NOUN
+            // "show every [NOUN]"             → NOUN
+            // "total number of [NOUN]"        → NOUN
+            let lq = question.lowercased()
+            let stopWords: Set<String> = [
+                "are", "is", "does", "do", "can", "will", "were", "was",
+                "have", "has", "for", "the", "in", "on", "at", "to", "of",
+                "available", "there", "exist", "supported", "included",
+                "a", "an", "this", "that", "it", "its", "my", "your",
+            ]
+            let subjectNoun: String = {
+                // Try each trigger phrase, extract noun after it
+                let triggers = [
+                    "how many ", "list all ", "list every ", "list the ", "list each ",
+                    "name all ", "name every ", "show all ", "show every ",
+                    "what are all the ", "what are all ", "what are the ",
+                    "give me all ", "give me every ",
+                    "total number of ", "count the ", "count all ",
+                    "enumerate ",
+                ]
+                for trigger in triggers {
+                    if let range = lq.range(of: trigger) {
+                        let afterTrigger = String(lq[range.upperBound...])
+                        let words = afterTrigger.split(separator: " ")
+                        let nouns = words.prefix(4).filter { !stopWords.contains(String($0)) }
+                        if !nouns.isEmpty {
+                            return nouns.map(String.init).joined(separator: " ")
+                        }
+                    }
+                }
+                return ""
+            }()
+
+            if !subjectNoun.isEmpty {
+                let bm25 = BM25Scorer()
+                bm25.indexDocuments(allChunks)
+                let queryTerms = bm25.tokenize(subjectNoun)
+
+                // Score ALL chunks by BM25 keyword match
+                var scored: [(chunk: DocumentChunk, score: Float)] = []
+                for chunk in allChunks {
+                    let s = bm25.score(queryTerms: queryTerms, document: chunk.content)
+                    if s > 0 { scored.append((chunk, s)) }
+                }
+                scored.sort { $0.score > $1.score }
+
+                // Inject top BM25 results not already in candidates
+                var added = 0
+                for (chunk, bm25Score) in scored.prefix(15) {
+                    guard !existingIds.contains(chunk.id), added < 5 else { continue }
+                    let docName = getDocumentName(for: chunk.documentId)
+                    contextCandidates.append(
+                        RetrievedChunk(
+                            chunk: chunk,
+                            similarityScore: min(bm25Score / 10.0, 0.85),
+                            rank: contextCandidates.count,
+                            sourceDocument: docName,
+                            pageNumber: chunk.metadata.pageNumber
+                        ))
+                    added += 1
+                }
+
+                if added > 0 {
+                    contextStrategy = "enumeration_iterative"
+                    Log.info(
+                        "[Iterative Retrieval] Enumeration 2nd pass: +\(added) BM25 chunks for '\(subjectNoun)'",
+                        category: .retrieval
+                    )
+                    emitThinkingEvent(
+                        .retrieval,
+                        title: "Iterative Retrieval",
+                        detail: "BM25 2nd pass: +\(added) chunks targeting '\(subjectNoun)' list"
+                    )
+
+                    if Log.pipelineTraceEnabled {
+                        logChunkTrace(contextCandidates, stage: "Post-EnumerationIterative", query: question)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Step 4.8: adds specification-table passages found by keyword and number co-occurrence for extractive questions.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func runSpecTableSniper(answerIntentIsExtractive: Bool, cachedAllChunks: [DocumentChunk]?, contextCandidates: inout [RetrievedChunk], question: String) {
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Step 4.8: Targeted Spec Retrieval ("Spec Table Sniper")
+        // The reranker has an inherent prose bias: prose scores ~0.78 while
+        // tables/specs score ~0.30. For lookup/extractive queries, bypass
+        // semantic scoring entirely and search ALL chunks for co-occurrence
+        // of query keywords + numeric data.
+        //
+        // This is the "needle in a haystack" sniper — universal across domains:
+        // medical dosages, legal statute numbers, technical specs, financial data.
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if answerIntentIsExtractive, let allChunks = cachedAllChunks {
+            let existingIds = Set(contextCandidates.map { $0.chunk.id })
+            let sniperResults = specTableSniper(
+                query: question,
+                allChunks: allChunks,
+                excludeIds: existingIds
+            )
+            if !sniperResults.isEmpty {
+                // Insert at position 0 — these targeted results should survive
+                // context assembly budget cuts ahead of prose chunks
+                contextCandidates.insert(contentsOf: sniperResults, at: 0)
+
+                // Demote chunks that merely CITE other sections ("given in X on page Y")
+                // now that we have the actual data they were pointing to
+                demoteCrossReferenceChunks(&contextCandidates)
+
+                Log.info(
+                    "[RAG] Spec sniper: +\(sniperResults.count) targeted chunks from \(allChunks.count) total (keyword+number co-occurrence)",
+                    category: .retrieval)
+                emitThinkingEvent(
+                    .retrieval, title: "Spec sniper",
+                    detail: "+\(sniperResults.count) targeted chunks via keyword+number co-occurrence")
+            }
+        }
+    }
+
+    /// Step 4.7 (gates): decides whether contextual compression runs and logs each reason it is skipped.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func gateContextualCompression(isProceduralQuery: Bool, vocabularyMismatch: Bool, contextStrategy: String, qualityModeUsesContextualCompression: Bool, adaptiveConfig: AdaptivePipelineConfig) -> (useContextualCompression: Bool, compressionSavings: Int) {
+        // Step 4.7: Contextual Compression (optional)
+        // Extract only query-relevant sentences from chunks to maximize signal and save tokens
+        // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
+        // CRITICAL: Skip compression for procedural queries - compression destroys step ordering
+        // (e.g., 335→27 tokens = 8% retention loses critical procedural constraints)
+        // CRITICAL: Skip compression for vocabulary mismatch - compressor can't judge relevance
+        // when query terms don't match document vocabulary (conversational vs technical)
+        // CRITICAL: Skip compression for parent-expanded content - parent chunks are too large
+        // for compression model (exceed context window) AND compression defeats hierarchical purpose
+        let compressionEnabledBySettings = settingsStore?.enableContextualCompression ?? true
+        let skipCompressionForProcedural = isProceduralQuery  // Preserve contiguous spans
+        let skipCompressionForVocabMismatch = vocabularyMismatch  // Compressor will destroy content
+        let skipCompressionForParentExpansion = contextStrategy == "parent_expanded"  // Chunks too large + defeats purpose
+        let useContextualCompression =
+            qualityModeUsesContextualCompression && compressionEnabledBySettings
+            && adaptiveConfig.enableContextualCompression && !skipCompressionForProcedural
+            && !skipCompressionForVocabMismatch && !skipCompressionForParentExpansion
+        var compressionSavings = 0
+
+        if skipCompressionForProcedural {
+            Log.info(
+                "[RAG] Skipping compression for procedural query - preserving contiguous spans",
+                category: .retrieval)
+            emitThinkingEvent(
+                .compression, title: "Compression skipped",
+                detail: "Procedural query — preserving step ordering")
+        }
+
+        if skipCompressionForVocabMismatch {
+            Log.info(
+                "[RAG] Skipping compression for vocabulary mismatch - compressor can't judge relevance",
+                category: .retrieval)
+            emitThinkingEvent(
+                .compression, title: "Compression skipped",
+                detail: "Vocabulary mismatch — compressor can't judge relevance")
+        }
+
+        if skipCompressionForParentExpansion {
+            Log.info(
+                "[RAG] Skipping compression for parent-expanded content - chunks exceed compression model capacity",
+                category: .retrieval)
+            emitThinkingEvent(
+                .compression, title: "Compression skipped",
+                detail: "Parent-expanded chunks exceed model capacity")
+        }
+        return (useContextualCompression: useContextualCompression, compressionSavings: compressionSavings)
+    }
+
+    /// Step 5 (tools): starts context assembly and turns tools off when the context is already assembled.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func disableToolsForAssembledContext(allowLargeContext: Bool, isTrivial: Bool, contextCandidates: [RetrievedChunk], inferenceConfig: inout InferenceConfig) -> Bool {
+        // Step 5: Construct context from retrieved chunks (off-main)
+        // Note: rawContext assembly is handled via engine.assembleContext with size limits
+        HardwareTelemetryState.shared.reportRAGPipeline(stage: "Context Assembly")
+
+        let applyTrivialCaps = isTrivial && !allowLargeContext
+
+        // CRITICAL OPTIMIZATION: Disable tools when the RAG pipeline has already
+        // retrieved and assembled context. Tool schemas eat ~1000 tokens (24% of
+        // the window). When context is pre-assembled, the LLM prompt already
+        // says "don't use tools" — so we're burning tokens on dead weight.
+        if !inferenceConfig.disableTools && contextCandidates.count > 0 {
+            inferenceConfig.disableTools = true
+            Log.info(
+                "[RAG] Auto-disabled tools: context pre-assembled (\(contextCandidates.count) chunks). Reclaimed ~1000 tokens for context.",
+                category: .pipeline)
+        }
+        return applyTrivialCaps
+    }
+
+    /// Step 5 (budget): computes the token and character budget for the context.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func computeContextCharBudget(inferenceConfig: InferenceConfig, baseWindowTokens: Int, promptOverheadTokens: Int, questionTokens: Int, allowLargeContext: Bool, isAppleFMOnDevice: Bool, applyTrivialCaps: Bool, conservativeCharsPerToken: Double) -> (maxContextChars: Int, useCompactMode: Bool, reservedOutputTokens: Int, availableForContextTokens: Int, globalSafetyFactor: Double) {
+        // Transcript tokens NO LONGER deducted from context budget.
+        // This eliminates the failure mode where transcript > window → 0 context.
+        let rawTranscriptTokens: Int
+        if let appleFMService = llmService as? AppleFoundationLLMService {
+            rawTranscriptTokens = appleFMService.estimatedTranscriptTokens
+        } else {
+            rawTranscriptTokens = 0
+        }
+        if rawTranscriptTokens > 0 {
+            Log.debug(
+                "[RAG] Transcript history: ~\(rawTranscriptTokens) tokens (auto-trimmed by LLM service, not deducted from context)",
+                category: .pipeline)
+        }
+
+        // Reserve room for output
+        let reservedOutputTokens = max(150, min(inferenceConfig.maxTokens, 300))
+
+        // OPTIMIZED: Single safety margin based on execution location.
+        let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
+        let globalSafetyFactor: Double = allowLargeContext ? 0.92 : (isAppleFMOnDevice ? 0.88 : 0.90)
+        let availableForContextTokens = max(
+            0,
+            Int(Double(rawAvailableTokens) * globalSafetyFactor)
+        )
+        let cappedContextTokens =
+            applyTrivialCaps
+            ? min(availableForContextTokens, allowLargeContext ? 20000 : 2600)
+            : availableForContextTokens
+
+        let maxContextCharsCap: Int = {
+            if llmService is AppleFoundationLLMService {
+                if allowLargeContext {
+                    return applyTrivialCaps ? 6000 : 45000
+                } else {
+                    return applyTrivialCaps ? 2500 : 10000
+                }
+            } else {
+                return applyTrivialCaps ? 6000 : 10000
+            }
+        }()
+
+        let maxContextChars = min(
+            max(800, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
+            maxContextCharsCap
+        )
+
+        // Use compact mode for Apple FM to maximize content in limited space, unless we have PCC's large context window.
+        let useCompactMode = isAppleFMOnDevice && !allowLargeContext
+
+        #if targetEnvironment(simulator)
+            Log.info(
+                "[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)",
+                category: .pipeline)
+        #endif
+
+        Log.debug(
+            "Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(rawTranscriptTokens)(not deducted), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)",
+            category: .pipeline)
+        return (maxContextChars: maxContextChars, useCompactMode: useCompactMode, reservedOutputTokens: reservedOutputTokens, availableForContextTokens: availableForContextTokens, globalSafetyFactor: globalSafetyFactor)
+    }
+
+    /// Step 5 (ordering): orders the candidates for procedural, extractive or default questions.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func orderContextCandidates(isProceduralQuery: Bool, contextCandidates: [RetrievedChunk], answerIntentIsExtractive: Bool, question: String) -> (orderedCandidates: [RetrievedChunk], useLostInMiddleMitigation: Bool) {
+        // For procedural queries, preserve document order instead of relevance order
+        // This prevents sequence inversions (e.g., "dry before disinfect" errors)
+        let orderedCandidates: [RetrievedChunk]
+        if isProceduralQuery {
+            // Sort by document ID then chunk index to preserve original document sequence
+            orderedCandidates = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
+                if a.chunk.documentId == b.chunk.documentId {
+                    return a.chunk.metadata.chunkIndex < b.chunk.metadata.chunkIndex
+                }
+                // Group by document, then by first appearance order
+                return a.rank < b.rank
+            })
+            Log.info(
+                "[RAG] Procedural query - preserving document order for sequence fidelity", category: .retrieval
+            )
+        } else if answerIntentIsExtractive {
+            // For lookup/table queries, prioritize chunks containing specifications
+            // that MATCH the query topic — not just any specs
+            let queryKeywords = extractQueryTerms(question)
+
+            // CORPUS-AWARE KEYWORD DISCOUNTING:
+            // Keywords that appear in >40% of candidates are corpus-generic and should
+            // NOT get bonus weight.  e.g. "car" in a car manual matches everything,
+            // diluting the signal from discriminative keywords like "oil".
+            // This is the same principle as IDF in BM25 — universal, domain-agnostic.
+            let candidateCount = max(1, contextCandidates.count)
+            let keywordDocFreq: [String: Int] = {
+                var freq: [String: Int] = [:]
+                for kw in queryKeywords {
+                    var count = 0
+                    for c in contextCandidates {
+                        let text = c.chunk.contextText.lowercased()
+                        if text.contains(kw) { count += 1 }
+                    }
+                    freq[kw] = count
+                }
+                return freq
+            }()
+            let discriminativeKeywords = queryKeywords.filter { kw in
+                let df = keywordDocFreq[kw] ?? 0
+                return Double(df) / Double(candidateCount) <= 0.40
+            }
+            let discardedKeywords = queryKeywords.filter { !discriminativeKeywords.contains($0) }
+            if !discardedKeywords.isEmpty {
+                Log.info(
+                    "[RAG] Corpus-aware: discounted generic keywords \(discardedKeywords) (>40% of chunks)",
+                    category: .retrieval)
+            }
+
+            let byPriority = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
+                let aContent = a.chunk.contextText
+                let bContent = b.chunk.contextText
+                let aPriority = EvidenceScoringPolicyService.extractivePriorityScore(
+                    content: aContent,
+                    queryKeywords: discriminativeKeywords,
+                    structureType: a.chunk.metadata.structureType
+                )
+                let bPriority = EvidenceScoringPolicyService.extractivePriorityScore(
+                    content: bContent,
+                    queryKeywords: discriminativeKeywords,
+                    structureType: b.chunk.metadata.structureType
+                )
+
+                // Clear advantage outranks relevance; a difference of 1 does not.
+                // Expressed as bands rather than an epsilon, because the epsilon
+                // form was not a strict weak ordering and left this sort's output
+                // undefined. See `extractiveEvidencePrecedes` for the full note and
+                // for why the LEDGER's 27.0%/15.2% rank-1 figure needs re-taking.
+                return EvidenceScoringPolicyService.extractiveEvidencePrecedes(
+                    lhsPriority: aPriority, lhsRelevance: a.similarityScore,
+                    rhsPriority: bPriority, rhsRelevance: b.similarityScore
+                )
+            })
+            // Retrieval's best passage stays first, whatever the question's words say (5.7):
+            // the keyword priority orders the rest. Sentence extraction below puts it in whole.
+            orderedCandidates = Self.leadingWithTopRanked(contextCandidates.first, then: byPriority)
+            Log.info(
+                "[RAG] Extractive query - prioritizing specs (discriminative: [\(discriminativeKeywords.joined(separator: ", "))])",
+                category: .retrieval)
+        } else {
+            orderedCandidates = contextCandidates
+        }
+
+        // For procedural queries, disable "Lost in Middle" reordering to preserve sequence
+        let useLostInMiddleMitigation = !isProceduralQuery
+        return (orderedCandidates: orderedCandidates, useLostInMiddleMitigation: useLostInMiddleMitigation)
     }
 
     /// Step 5 (citations): logs the assembled context, lists the passages the prompt labelled and records them for recovery.
