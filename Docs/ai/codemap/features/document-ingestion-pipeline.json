@@ -4,7 +4,7 @@
   "name": "Document Ingestion Pipeline",
   "aliases": ["document ingestion", "ingestion pipeline", "import documents", "importing documents", "import PDFs", "choose documents to import", "document processor", "Vision OCR fallback", "OCR configuration", "stage ledger", "ingestion queue", "the import", "an import", "importing a", "OCR", "scanned pages"],
   "purpose": "Turns an imported file into text, pages and chunks through staged extraction, with Vision OCR as the fallback, and shows the import queue's progress.",
-  "revision": "86102722",
+  "revision": "3a71a1ee",
   "verified_on": "2026-11-07",
   "entry_points": ["DocumentLibraryView.enqueueDocumentIngestion", "RAGService.enqueueDocuments", "RAGService.runIngestionLoop", "RAGService.addDocument", "RAGService.importLargePDFStreamed", "DocumentProcessor.processDocument", "DocumentProcessor.extractStructuredPDFContent", "DocumentProcessor.performOCR", "IngestionQueueOverlay"],
   "files": [
@@ -74,7 +74,7 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "role": "shared", "blob": "1108e6b8798448485e229e48b201b1ad8c84c424"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Device.swift", "role": "shared", "blob": "bfd1f74a983af872bcce60c64e56b7f49ab868b3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "role": "shared", "blob": "c38e45a7c8b5a2cfd50127a28925b4cd9f4c791d"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "role": "shared", "blob": "9812782997875200685853418177aec5d27ff0a5"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "role": "shared", "blob": "d57ae3e25c024e7b4355a073709d05b65b36cf75"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "role": "shared", "blob": "c2a34b37ccc46f02c6ea7b310702588044a9a136"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SelfTuning.swift", "role": "shared", "blob": "afd94638c2927c42c3ba56ed5c7098ec27b59a55"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SentenceExtraction.swift", "role": "shared", "blob": "7ab225f32574eea959a94573af238cbfebfd7a5b"},

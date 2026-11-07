@@ -2108,30 +2108,7 @@ extension RAGService {
             )
             updatedDocument = docWithContainer
 
-            // Create processing summary with embedding provider info
-            let activeProviderId =
-                containerService.containers.first { $0.id == activeContainerId }?.embeddingProviderId
-                ?? "coreml_sentence_embedding"
-            let summary = ProcessingSummary(
-                filename: filename,
-                fileSize: fileSizeStr,
-                documentType: document.contentType,
-                pageCount: document.processingMetadata?.pagesProcessed,
-                ocrPagesUsed: document.processingMetadata?.ocrPagesCount,
-                totalChars: totalChars,
-                totalWords: totalWords,
-                chunksCreated: processedChunks.count,
-                extractionTime: extractionTime,
-                chunkingTime: chunkingTime,
-                embeddingTime: embeddingTime,
-                totalTime: totalTime,
-                chunkStats: ProcessingSummary.ChunkStatistics(
-                    avgChars: avgChunkSize,
-                    minChars: minChunkSize,
-                    maxChars: maxChunkSize
-                ),
-                embeddingProviderId: activeProviderId
-            )
+            let summary = makeProcessingSummary(activeContainerId: activeContainerId, filename: filename, fileSizeStr: fileSizeStr, document: document, totalChars: totalChars, totalWords: totalWords, processedChunks: processedChunks, extractionTime: extractionTime, chunkingTime: chunkingTime, embeddingTime: embeddingTime, totalTime: totalTime, avgChunkSize: avgChunkSize, minChunkSize: minChunkSize, maxChunkSize: maxChunkSize)
 
             // Step 5: Update state
             await MainActor.run {
@@ -2296,6 +2273,36 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step AB: builds the import's ProcessingSummary from its timings, counts and chunk statistics, with the library's embedding provider.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func makeProcessingSummary(activeContainerId: UUID, filename: String, fileSizeStr: String, document: Document, totalChars: Int, totalWords: Int, processedChunks: [DocumentProcessor.ProcessedChunk], extractionTime: TimeInterval, chunkingTime: TimeInterval, embeddingTime: TimeInterval, totalTime: TimeInterval, avgChunkSize: Int, minChunkSize: Int, maxChunkSize: Int) -> ProcessingSummary {
+        // Create processing summary with embedding provider info
+        let activeProviderId =
+            containerService.containers.first { $0.id == activeContainerId }?.embeddingProviderId
+            ?? "coreml_sentence_embedding"
+        let summary = ProcessingSummary(
+            filename: filename,
+            fileSize: fileSizeStr,
+            documentType: document.contentType,
+            pageCount: document.processingMetadata?.pagesProcessed,
+            ocrPagesUsed: document.processingMetadata?.ocrPagesCount,
+            totalChars: totalChars,
+            totalWords: totalWords,
+            chunksCreated: processedChunks.count,
+            extractionTime: extractionTime,
+            chunkingTime: chunkingTime,
+            embeddingTime: embeddingTime,
+            totalTime: totalTime,
+            chunkStats: ProcessingSummary.ChunkStatistics(
+                avgChars: avgChunkSize,
+                minChars: minChunkSize,
+                maxChars: maxChunkSize
+            ),
+            embeddingProviderId: activeProviderId
+        )
+        return summary
     }
 
     /// The model work an import does after its document is saved (5.7): the RAPTOR-lite overview, the

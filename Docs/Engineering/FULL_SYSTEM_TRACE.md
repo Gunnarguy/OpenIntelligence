@@ -152,10 +152,10 @@ to `RAGService.query`, so a Siri question runs the same §4 pipeline in the back
 | 10 | Spotlight chunks | Step 4.0.0 at `RAGService+Import.swift:1895` (if enabled) | | code_verified / exact |
 | 11 | Store chunk rows in FTS5 | Step 4.0.1 at `RAGService+Import.swift:1929`, `SQLiteFullTextService.shared.storeChunks` (`:1974`), stage `.indexing` | Actor | code_verified / exact |
 | 12 | Learn vocabulary and Vision entities | Steps 4.1 and 4.1b at `RAGService+Import.swift:1981, 1999` | | code_verified / exact |
-| 13 | Document summary (RAPTOR-lite L1) | Step 4.5 at `RAGService+Import.swift:2318` (if enabled) | One LLM call | code_verified / exact |
+| 13 | Document summary (RAPTOR-lite L1) | Step 4.5 at `RAGService+Import.swift:2325` (if enabled) | One LLM call | code_verified / exact |
 | 14 | Persist vector store again | Step 4.9 at `RAGService+Import.swift:2024-2027` | | code_verified / exact |
-| 15 | Content tags | Step 5 at `RAGService+Import.swift:2414` (iOS 26+ tagging model) | | code_verified / exact |
-| 16 | State update, `.complete` | `RAGService+Import.swift:2136`, `:2207` | | code_verified / exact |
+| 15 | Content tags | Step 5 at `RAGService+Import.swift:2421` (iOS 26+ tagging model) | | code_verified / exact |
+| 16 | State update, `.complete` | `RAGService+Import.swift:2113`, `:2207` | | code_verified / exact |
 
 The full document text goes into the FTS `documents` table **before** chunking, from inside
 `processDocument` (`DocumentProcessor+Import.swift:140, 359` → `SQLiteFullTextService.store(text:for:containerId:)`

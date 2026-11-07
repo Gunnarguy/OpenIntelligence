@@ -900,3 +900,25 @@ Three properties of the design, each load-bearing:
    changing every answer on a hypothesis.
 
 `[evidence_level: test_verified, confidence: high, evidence_source: RAGService.swift adaptive gate; FoundationModelDynamicProfileRegistry.swift; AdaptiveInferenceProfileTests.swift, 10 cases]`
+
+## 22. The three giant functions, broken into steps (2026-11-06, for 5.8)
+
+`RAGService.addDocument` (1,438 lines), `RAGService.queryInternal` (5,826) and the structured PDF parser (1,652) are
+being cut into methods in the same file, one step per commit, each a move that changes no behaviour: every commit
+builds for the iOS Simulator, an iOS device and macOS, and a golden recorder (`ImportGoldenTests`,
+`StandardPipelineGoldenTests`, `StructuredParsingGoldenTests`) records the same output as the commit before. The
+host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the order and the reasons are in
+`BenchmarkRuns/2026-11-06-decomposition/` (`PLAN.md`, `specs/*/README.md`). The parser's steps are in
+`Docs/INGESTION_PIPELINE.md`, "The structured PDF parser, broken into steps".
+
+### `RAGService.addDocument`, broken into steps (2026-11-06)
+
+| Step | What moved |
+|---|---|
+| I01 | Step AB (the import's ProcessingSummary from its timings, counts and chunk statistics, with the library's embedding provider) into `makeProcessingSummary` |
+
+### `RAGService.queryInternal`, broken into steps (2026-11-06)
+
+| Step | What moved |
+|---|---|
+

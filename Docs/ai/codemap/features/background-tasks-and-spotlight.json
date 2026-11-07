@@ -4,8 +4,8 @@
   "name": "Background Tasks and Spotlight",
   "aliases": ["background task scheduler", "Spotlight indexing", "transcript persistence", "background indexing sweep"],
   "purpose": "Runs maintenance in the background with BGTaskScheduler, adds documents to Spotlight, and saves transcripts.",
-  "revision": "5c032ca8",
-  "verified_on": "2026-11-05",
+  "revision": "3a71a1ee",
+  "verified_on": "2026-11-07",
   "entry_points": ["BackgroundTaskService", "SpotlightIndexService", "TranscriptPersistenceService"],
   "files": [
     {"path": "OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift", "role": "primary", "blob": "387386adc8360da682ecb15156a0f6ed59806f87"},
