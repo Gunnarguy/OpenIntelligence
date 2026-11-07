@@ -4,7 +4,7 @@
   "name": "Retrieval Policy and Tuning",
   "aliases": ["retrieval tuning knobs", "agentic policy service", "evidence scoring policy", "confidence policy", "auto tune service"],
   "purpose": "Sets similarity thresholds, confidence filters and candidate limits for each query at run time.",
-  "revision": "54a504d6",
+  "revision": "4b042ad6",
   "verified_on": "2026-11-07",
   "entry_points": ["AgenticPolicyService", "EvidenceScoringPolicyService", "RetrievalPolicyService", "ConfidencePolicyService"],
   "files": [
@@ -18,7 +18,9 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/ExtractiveEvidenceOrderingTests.swift", "role": "test", "blob": "650dea520b98fc00c7d01d27201088d9c93232de"},
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/RetrievalStyleTests.swift", "role": "test", "blob": "0ec1d5b2e2ff9281ba4a18f84504e9a3f17a74d5"},
     {"path": "OpenIntelligence/Services/RAG/Tuning/EvidenceLineSplitter.swift", "role": "primary", "blob": "fa2ae353c40d7b2bfb339c474a5ad03ee5e4d083"},
-    {"path": "OpenIntelligenceTests/Services/RAG/Tuning/EvidenceLineSplitterTests.swift", "role": "test", "blob": "29bc67244f85b1162d50da3d517c1ef131715ce4"}
+    {"path": "OpenIntelligenceTests/Services/RAG/Tuning/EvidenceLineSplitterTests.swift", "role": "test", "blob": "29bc67244f85b1162d50da3d517c1ef131715ce4"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "role": "shared", "blob": "8ad76ed88b88b37d0af2823b13670a5a16dd36ba"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "role": "shared", "blob": "a4cbcbd90e951d2f81f39b0c98da3051dc9fced3"}
   ],
   "nodes": [
     {"id": "AgenticPolicyService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift", "line": 98, "match": "enum AgenticPolicyService {", "status": "VERIFIED", "by": "build"},
@@ -50,8 +52,8 @@
     {"from": "RAGService.resolveCrossReferencesStandard", "type": "depends_on", "to": "EvidenceScoringPolicyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+StandardRetrieval.swift", "line": 183, "match": "if let score = EvidenceScoringPolicyService.crossReferenceSectionScore("}], "by": "build", "note": "named there"},
     {"from": "HybridSearchService.searchWithFTS5", "type": "depends_on", "to": "EvidenceScoringPolicyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift", "line": 1225, "match": "let useStructuredRowSearch = EvidenceScoringPolicyService.isStateLookupQuery(queryLower)"}], "by": "build", "note": "named there"},
     {"from": "AgenticOrchestrator.executeHoldingAnswerStream", "type": "depends_on", "to": "RetrievalPolicyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift", "line": 941, "match": "minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .fallback),"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "RetrievalPolicyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 3253, "match": "if let cascadeDecision = RetrievalPolicyService.cascadeDecision("}], "by": "build", "note": "named there"},
-    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "ConfidencePolicyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 4628, "match": "let confidencePolicy = ConfidencePolicyService.policy("}], "by": "build", "note": "named there"},
+    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "RetrievalPolicyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "line": 626, "match": "if let cascadeDecision = RetrievalPolicyService.cascadeDecision("}], "by": "build", "note": "named there"},
+    {"from": "RAGService.queryInternal", "type": "depends_on", "to": "ConfidencePolicyService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "line": 286, "match": "let confidencePolicy = ConfidencePolicyService.policy("}], "by": "build", "note": "named there"},
     {"from": "AgenticPolicyService", "type": "tested_by", "to": "test:CitationGroundingTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/Agentic/CitationGroundingTests.swift", "line": 41, "match": "let action = AgenticPolicyService.verificationAction("}], "by": "build", "note": "the test names it"},
     {"from": "AgenticPolicyService", "type": "tested_by", "to": "test:AbsenceAssertionTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Tuning/AbsenceAssertionTests.swift", "line": 21, "match": "XCTAssertTrue(AgenticPolicyService.assertsAbsenceOfEvidence(in: answer))"}], "by": "build", "note": "the test names it"},
     {"from": "EvidenceScoringPolicyService", "type": "tested_by", "to": "test:ExtractiveEvidenceOrderingTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Tuning/ExtractiveEvidenceOrderingTests.swift", "line": 17, "match": "EvidenceScoringPolicyService.extractiveEvidencePrecedes("}], "by": "build", "note": "the test names it"}
