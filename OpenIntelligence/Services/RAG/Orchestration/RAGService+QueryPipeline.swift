@@ -1206,24 +1206,7 @@ extension RAGService {
                 }
                 // ────────────────────────────────────────────────────────────────────────────
 
-                // Document scope (set by the Shortcuts actions that name a document). Every search
-                // above went through `HybridSearchService.search`, which searches inside the named
-                // documents when a scope is set. This narrows what did not: passages added by a
-                // direct vector search, and the two candidate lists the later stages (parent
-                // expansion, summaries, enumeration, multi-hop) draw on. A scoped question with no
-                // passage is an error; the general fallback would answer it from the model alone.
-                if let scope = RAGQueryScope.documentIds, !scope.isEmpty {
-                    let before = retrievedChunks.count
-                    retrievedChunks = RAGQueryScope.apply(to: retrievedChunks)
-                    cachedAllChunks = cachedAllChunks.map { RAGQueryScope.apply(to: $0) }
-                    filteredCachedChunks = filteredCachedChunks.map { RAGQueryScope.apply(to: $0) }
-                    Log.info(
-                        "[RAGService] Document scope: \(retrievedChunks.count) of \(before) retrieved passages are in the \(scope.count) named document(s)",
-                        category: .retrieval)
-                    if retrievedChunks.isEmpty {
-                        throw RAGQueryScopeEmptyError()
-                    }
-                }
+                try applyDocumentScope(retrievedChunks: &retrievedChunks, cachedAllChunks: &cachedAllChunks, filteredCachedChunks: &filteredCachedChunks)
 
                 // Measure retrieval time before any MainActor work
                 var retrievalTime = Date().timeIntervalSince(retrievalStartTime)
@@ -1239,16 +1222,7 @@ extension RAGService {
 
                 injectExternalEvidence(externalEvidence: externalEvidence, retrievedChunks: &retrievedChunks)
 
-                // Passages whose document is in no library are left out (5.7, `passagesFromKnownDocuments`).
-                let liveDocumentIds = await MainActor.run { Set(self.documents.map(\.id)) }
-                let fromKnownDocuments = Self.passagesFromKnownDocuments(
-                    retrievedChunks, knownDocumentIds: liveDocumentIds)
-                if fromKnownDocuments.dropped > 0 {
-                    Log.warning(
-                        "[RAGService] Left out \(fromKnownDocuments.dropped) passage(s) whose document is in no library",
-                        category: .retrieval)
-                    retrievedChunks = fromKnownDocuments.kept
-                }
+                await dropPassagesOfUnknownDocuments(retrievedChunks: &retrievedChunks)
 
                 // Edge case: No relevant chunks found
                 if retrievedChunks.isEmpty {
@@ -1306,365 +1280,22 @@ extension RAGService {
                     )
                 }
 
-                // Add source information for citations with a safe MainActor snapshot
-                let docsSnapshot = await snapshotDocuments()
-                var chunksWithSources: [RetrievedChunk] = retrievedChunks.map { retrieved in
-                    let docName =
-                        docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
-                        ?? (retrieved.sourceDocument.isEmpty ? "Unknown" : retrieved.sourceDocument)
-                    let pageNum = retrieved.chunk.metadata.pageNumber
-                    return RetrievedChunk(
-                        chunk: retrieved.chunk,
-                        similarityScore: retrieved.similarityScore,
-                        rank: retrieved.rank,
-                        sourceDocument: docName,
-                        pageNumber: pageNum
-                    )
-                }
-                // Demote purely interrogative chunks if the query isn't asking about questions/examples
-                var demotedCount = 0
-                for i in 0..<chunksWithSources.count {
-                    if isInterrogativeChunk(chunksWithSources[i].chunk, query: question) {
-                        let originalScore = chunksWithSources[i].similarityScore
-                        chunksWithSources[i] = RetrievedChunk(
-                            chunk: chunksWithSources[i].chunk,
-                            similarityScore: originalScore * 0.1,  // Demote severely
-                            rank: chunksWithSources[i].rank,
-                            sourceDocument: chunksWithSources[i].sourceDocument,
-                            pageNumber: chunksWithSources[i].pageNumber
-                        )
-                        demotedCount += 1
-                    }
-                }
-                if demotedCount > 0 {
-                    chunksWithSources.sort { $0.similarityScore > $1.similarityScore }
-                    Log.info(
-                        "[RAG] Demoted \(demotedCount) interrogative FAQ chunks to prevent context poisoning.",
-                        category: .retrieval)
-                }
-
-                auditCandidatesCount = chunksWithSources.count
-                recoveryRetrievedChunks = chunksWithSources
-
-                let chunkWordCounts = chunksWithSources.map { wordCount(of: $0.chunk.content) }
-                let totalChunkWords = chunkWordCounts.reduce(0, +)
-                let topContextWords = chunkWordCounts.prefix(effectiveTopK).reduce(0, +)
-                let averageChunkWords =
-                    chunkWordCounts.isEmpty
-                    ? 0.0
-                    : Double(totalChunkWords) / Double(chunkWordCounts.count)
-
-                TelemetryCenter.emit(
-                    .retrieval,
-                    title: "Hybrid retrieval",
-                    metadata: [
-                        "candidates": "\(chunksWithSources.count)",
-                        "topK": "\(effectiveTopK * 2)",
-                        "container": selectedName,
-                        "containerId": selectedId.uuidString,
-                        "totalWords": "\(totalChunkWords)",
-                        "topWords": "\(topContextWords)",
-                        "avgWords": String(format: "%.1f", averageChunkWords),
-                    ],
-                    duration: retrievalTime
-                )
-
-                // Emit detailed technique events for full transparency
-                emitThinkingEvent(
-                    .vectorSearch,
-                    title: "Vector search",
-                    detail: "Semantic similarity • \(Int(adjustedVectorWeight * 100))% weight"
-                )
-                emitThinkingEvent(
-                    .bm25,
-                    title: "BM25 search",
-                    detail: "Keyword matching • \(Int(adjustedKeywordWeight * 100))% weight"
-                )
-                emitThinkingEvent(
-                    .rrf,
-                    title: "RRF fusion",
-                    detail: "\(chunksWithSources.count) candidates merged"
-                )
-
-                Log.info(
-                    "✓ Retrieved \(chunksWithSources.count) chunks with hybrid fusion",
-                    category: .retrieval
-                )
-
-                // Universal pipeline trace: log chunks after hybrid search
-                if Log.pipelineTraceEnabled {
-                    logChunkTrace(chunksWithSources, stage: "Post-HybridSearch", query: question)
-                }
+                let __attachSourcesAndDemoteQuestionsResult = await attachSourcesAndDemoteQuestions(retrievedChunks: retrievedChunks, question: question, auditCandidatesCount: &auditCandidatesCount, recoveryRetrievedChunks: &recoveryRetrievedChunks, effectiveTopK: effectiveTopK, selectedName: selectedName, selectedId: selectedId, retrievalTime: retrievalTime, adjustedVectorWeight: adjustedVectorWeight, adjustedKeywordWeight: adjustedKeywordWeight)
+                var chunksWithSources = __attachSourcesAndDemoteQuestionsResult.chunksWithSources
+                let docsSnapshot = __attachSourcesAndDemoteQuestionsResult.docsSnapshot
 
                 applySectionMetadataBoost(chunksWithSources: &chunksWithSources, question: question, retrievalTime: retrievalTime)
 
-                // Step 4: Re-rank results with multiple signals
-                // QUALITY MODE: Check if re-ranking is enabled
-                let engine = RAGEngine.shared
-                let rerankStartTime = Date()
-                var rerankedChunks: [RetrievedChunk]
-                var rerankTime: TimeInterval = 0
+                let __rerankCandidatesResult = await rerankCandidates(qualityModeUsesReRanking: qualityModeUsesReRanking, chunksWithSources: chunksWithSources, question: question, effectiveTopK: effectiveTopK, auditRerankedCount: &auditRerankedCount, qualityModeDisplayName: qualityModeDisplayName, trace: trace)
+                let engine = __rerankCandidatesResult.engine
+                var rerankTime = __rerankCandidatesResult.rerankTime
+                var rerankedChunks = __rerankCandidatesResult.rerankedChunks
 
-                if qualityModeUsesReRanking {
-                    Log.section("Step 4: Multi-Signal Re-ranking", level: .info, category: .pipeline)
-
-                    // Pipeline Trace: Step 4
-                    Log.pipelineStep(
-                        "4", title: "Multi-Signal Reranking",
-                        details: [
-                            ("candidates", "\(chunksWithSources.count)")
-                        ])
-
-                    rerankedChunks = await engine.rerank(
-                        chunks: chunksWithSources,
-                        query: question,
-                        topK: effectiveTopK * 3  // Get more candidates for MMR diversification (clamped)
-                    )
-                    auditRerankedCount = rerankedChunks.count
-                    rerankTime = Date().timeIntervalSince(rerankStartTime)
-                    Log.info(
-                        "✓ Re-ranked to top \(rerankedChunks.count) in \(String(format: "%.0f", rerankTime * 1000))ms",
-                        category: .retrieval
-                    )
-
-                    // Universal pipeline trace: log chunks after re-ranking
-                    if Log.pipelineTraceEnabled {
-                        logChunkTrace(rerankedChunks, stage: "Post-Rerank", query: question)
-                    }
-
-                    TelemetryCenter.emit(
-                        .retrieval,
-                        title: "Re-ranking complete",
-                        metadata: [
-                            "candidates": "\(rerankedChunks.count)"
-                        ],
-                        duration: rerankTime
-                    )
-                    emitThinkingEvent(
-                        .rerank,
-                        title: "Cross-encoder rerank",
-                        detail: "\(rerankedChunks.count) candidates scored"
-                    )
-                } else {
-                    Log.info("[RAG] Re-ranking skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
-                    // Use chunks as-is, sorted by existing scores
-                    rerankedChunks = chunksWithSources.sorted { $0.similarityScore > $1.similarityScore }
-                    rerankedChunks = Array(rerankedChunks.prefix(effectiveTopK * 3))
-                    auditRerankedCount = rerankedChunks.count
-                    rerankTime = Date().timeIntervalSince(rerankStartTime)
-                    emitThinkingEvent(
-                        .rerank,
-                        title: "Re-ranking skipped",
-                        detail: "Quality mode: \(qualityModeDisplayName)"
-                    )
-                }
-
-                // Stage capture for the retrieval benchmark. Recorded after the if/else so it
-                // covers both branches: when the quality mode skips the cross-encoder,
-                // `rerankedChunks` is a score-sorted passthrough and the stage still describes what
-                // the pipeline handed onward. Recording only inside the reranking branch would make
-                // the stage silently absent for Standard mode, which is the mode with the measured
-                // baseline and therefore the one most likely to be benchmarked.
-                trace?.record(.rerank, results: rerankedChunks)
-
-                let cascadeTopSim = rerankedChunks.first?.similarityScore ?? 0
-                let cascadeAvgTop5: Float = {
-                    let sims = rerankedChunks.prefix(5).map { $0.similarityScore }
-                    guard !sims.isEmpty else { return 0 }
-                    return sims.reduce(0, +) / Float(sims.count)
-                }()
-                let cascadeMetrics = RetrievalMetrics(
-                    topSimilarity: cascadeTopSim,
-                    secondSimilarity: 0,
-                    averageTopFive: cascadeAvgTop5,
-                    candidateCount: rerankedChunks.count
-                )
-
-                if let cascadeDecision = RetrievalPolicyService.cascadeDecision(
-                    for: effectiveQueryProfile,
-                    qualityMode: qualityMode,
-                    retrievalConfig: retrievalConfig,
-                    effectiveTopK: effectiveTopK,
-                    totalStored: totalStored,
-                    metrics: cascadeMetrics,
-                    usedRetrievalCascade: usedRetrievalCascade
-                ) {
-                    let baseCandidateCount = rerankedChunks.count
-                    let cascadeStartTime = Date()
-                    let cascadeQuery = (expandedQueries + [question]).joined(separator: " ")
-                    let cascadeHybrid = HybridSearchService(
-                        vectorDatabase: vdb,
-                        vectorWeight: cascadeDecision.vectorWeight,
-                        keywordWeight: cascadeDecision.lexicalWeight
-                    )
-                    let cascadeRetrieved = try await cascadeHybrid.search(
-                        query: cascadeQuery,
-                        originalQuery: originalKeywordQuery ?? question,
-                        embedding: queryEmbedding,
-                        topK: cascadeDecision.topK
-                    )
-
-                    let cascadeTime = Date().timeIntervalSince(cascadeStartTime)
-                    if !cascadeRetrieved.isEmpty {
-                        let cascadeChunksWithSources: [RetrievedChunk] = cascadeRetrieved.map { retrieved in
-                            let docName =
-                                docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
-                                ?? "Unknown"
-                            let pageNum = retrieved.chunk.metadata.pageNumber
-                            return RetrievedChunk(
-                                chunk: retrieved.chunk,
-                                similarityScore: retrieved.similarityScore,
-                                rank: retrieved.rank,
-                                sourceDocument: docName,
-                                pageNumber: pageNum
-                            )
-                        }
-
-                        // Passages whose document is in no library are left out here too (5.7,
-                        // `passagesFromKnownDocuments`): this search runs after the first check, and on 2026-10-19 it
-                        // brought back the overview of a deleted note, which the answer then cited as "Unknown".
-                        let cascadeFromKnown = Self.passagesFromKnownDocuments(
-                            cascadeChunksWithSources, knownDocumentIds: Set(docsSnapshot.map(\.id)))
-                        if cascadeFromKnown.dropped > 0 {
-                            Log.warning(
-                                "[RAGService] Left out \(cascadeFromKnown.dropped) cascade passage(s) whose document is in no library",
-                                category: .retrieval)
-                        }
-                        let mergedCandidates = mergeUniqueChunks(rerankedChunks, cascadeFromKnown.kept)
-                        if mergedCandidates.count > rerankedChunks.count {
-                            let cascadeRerankStart = Date()
-                            rerankedChunks = await engine.rerank(
-                                chunks: mergedCandidates,
-                                query: question,
-                                topK: effectiveTopK * 3
-                            )
-                            let cascadeRerankTime = Date().timeIntervalSince(cascadeRerankStart)
-                            usedRetrievalCascade = true
-                            auditCandidatesCount = mergedCandidates.count
-                            auditRerankedCount = rerankedChunks.count
-                            retrievalTime += cascadeTime
-                            rerankTime += cascadeRerankTime
-                            recoveryRetrievalTime = retrievalTime
-
-                            let addedCount = max(0, mergedCandidates.count - baseCandidateCount)
-                            Log.info(
-                                "🔁 Retrieval cascade added \(addedCount) candidates (lexical \(String(format: "%.2f", cascadeDecision.lexicalWeight)))",
-                                category: .retrieval
-                            )
-                            TelemetryCenter.emit(
-                                .retrieval,
-                                title: "Retrieval cascade",
-                                metadata: [
-                                    "candidates": "\(mergedCandidates.count)",
-                                    "lexicalWeight": String(format: "%.2f", cascadeDecision.lexicalWeight),
-                                    "vectorWeight": String(format: "%.2f", cascadeDecision.vectorWeight),
-                                ],
-                                duration: cascadeTime
-                            )
-                            emitThinkingEvent(
-                                .retrieval,
-                                title: "Retrieval cascade",
-                                detail:
-                                    "\(mergedCandidates.count) candidates • lex \(String(format: "%.2f", cascadeDecision.lexicalWeight))"
-                            )
-                        }
-                    }
-                }
+                try await runRetrievalCascade(rerankedChunks: &rerankedChunks, effectiveQueryProfile: effectiveQueryProfile, qualityMode: qualityMode, retrievalConfig: retrievalConfig, effectiveTopK: effectiveTopK, totalStored: totalStored, usedRetrievalCascade: &usedRetrievalCascade, expandedQueries: expandedQueries, question: question, vdb: vdb, originalKeywordQuery: originalKeywordQuery, queryEmbedding: queryEmbedding, docsSnapshot: docsSnapshot, engine: engine, auditCandidatesCount: &auditCandidatesCount, auditRerankedCount: &auditRerankedCount, retrievalTime: &retrievalTime, rerankTime: &rerankTime, recoveryRetrievalTime: &recoveryRetrievalTime)
 
                 boostContextualDefinitionMatches(contextualDefinitionLookup: contextualDefinitionLookup, rerankedChunks: &rerankedChunks, question: question)
 
-                // Keyword search fallback retry if top similarity is low (Standard Mode)
-                var queryRetryDone = false
-                let preRetryTopSim = rerankedChunks.first?.similarityScore ?? 0
-                if preRetryTopSim < 0.45 && !queryRetryDone {
-                    queryRetryDone = true
-                    let cleanQuery = cleanQueryForKeywordSearch(question)
-                    if !cleanQuery.isEmpty && cleanQuery != question.lowercased() {
-                        Log.info(
-                            "[RAG] Top similarity \(preRetryTopSim) < 0.45. Retrying search with keywords: \"\(cleanQuery)\"",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .queryRewrite,
-                            title: "Keyword search retry",
-                            detail: "Retrying with: \(cleanQuery)"
-                        )
-                        do {
-                            let cleanEmbedding = try await queryEmbeddingService.generateEmbedding(for: cleanQuery)
-                            let retryHybrid = HybridSearchService(
-                                vectorDatabase: vdb,
-                                vectorWeight: 0.3,  // favor keyword matching for recovery
-                                keywordWeight: 0.7
-                            )
-                            let retryResults = try await retryHybrid.search(
-                                query: cleanQuery,
-                                originalQuery: cleanQuery,
-                                embedding: cleanEmbedding,
-                                topK: effectiveTopK * 2,
-                                cachedChunks: filteredCachedChunks,
-                                containerId: selectedId
-                            )
-
-                            // Map with sources
-                            let retryChunksWithSources: [RetrievedChunk] = retryResults.map { retrieved in
-                                let docName =
-                                    docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
-                                    ?? "Unknown"
-                                let pageNum = retrieved.chunk.metadata.pageNumber
-                                return RetrievedChunk(
-                                    chunk: retrieved.chunk,
-                                    similarityScore: retrieved.similarityScore,
-                                    rank: retrieved.rank,
-                                    sourceDocument: docName,
-                                    pageNumber: pageNum
-                                )
-                            }
-
-                            // Demote any interrogative chunks in the retry candidates as well
-                            var cleanedRetryChunks = retryChunksWithSources
-                            for i in 0..<cleanedRetryChunks.count {
-                                if isInterrogativeChunk(cleanedRetryChunks[i].chunk, query: question) {
-                                    let originalScore = cleanedRetryChunks[i].similarityScore
-                                    cleanedRetryChunks[i] = RetrievedChunk(
-                                        chunk: cleanedRetryChunks[i].chunk,
-                                        similarityScore: originalScore * 0.1,
-                                        rank: cleanedRetryChunks[i].rank,
-                                        sourceDocument: cleanedRetryChunks[i].sourceDocument,
-                                        pageNumber: cleanedRetryChunks[i].pageNumber
-                                    )
-                                }
-                            }
-
-                            // Passages whose document is in no library are left out here too (5.7,
-                            // `passagesFromKnownDocuments`), as in the retrieval cascade above.
-                            cleanedRetryChunks = Self.passagesFromKnownDocuments(
-                                cleanedRetryChunks, knownDocumentIds: Set(docsSnapshot.map(\.id))
-                            ).kept
-
-                            // Merge retry results with existing reranked chunks
-                            let mergedChunks = mergeUniqueChunks(rerankedChunks, cleanedRetryChunks)
-
-                            // Rerank again!
-                            if qualityModeUsesReRanking && !mergedChunks.isEmpty {
-                                rerankedChunks = await engine.rerank(
-                                    chunks: mergedChunks,
-                                    query: cleanQuery,
-                                    topK: effectiveTopK * 3
-                                )
-                            } else {
-                                rerankedChunks = mergedChunks.sorted { $0.similarityScore > $1.similarityScore }
-                                rerankedChunks = Array(rerankedChunks.prefix(effectiveTopK * 3))
-                            }
-
-                            Log.info(
-                                "[RAG] Keyword retry completed, new top similarity: \(rerankedChunks.first?.similarityScore ?? 0)",
-                                category: .retrieval)
-                        } catch {
-                            Log.warning(
-                                "[RAG] Keyword search retry failed: \(error.localizedDescription)", category: .retrieval
-                            )
-                        }
-                    }
-                }
+                await retryWithCleanKeywordQuery(rerankedChunks: &rerankedChunks, question: question, queryEmbeddingService: queryEmbeddingService, vdb: vdb, effectiveTopK: effectiveTopK, filteredCachedChunks: filteredCachedChunks, selectedId: selectedId, docsSnapshot: docsSnapshot, qualityModeUsesReRanking: qualityModeUsesReRanking, engine: engine)
 
                 if rerankedChunks.isEmpty {
                     Log.warning(
@@ -1710,82 +1341,15 @@ extension RAGService {
                     )
                 }
 
-                // Step 4.3: Filter low-confidence chunks using container's retrieval config
-                // Adaptive gating: consider "lenient" mode, quality mode, and trivial/short queries
-                let lenient = await MainActor.run {
-                    self.settingsStore?.lenientRetrievalMode ?? false
-                }
-                auditLenient = lenient
-
-                // Relative-score metrics (computed on reranked results)
-                let topSim: Float = rerankedChunks.first?.similarityScore ?? 0
-                let secondSim: Float = rerankedChunks.dropFirst().first?.similarityScore ?? 0
-                let avgTop5: Float = {
-                    let sims = rerankedChunks.prefix(5).map { $0.similarityScore }
-                    guard !sims.isEmpty else { return 0 }
-                    return sims.reduce(0, +) / Float(sims.count)
-                }()
-                auditTopSim = topSim
-                auditSecondSim = secondSim
-                auditAvgTop5 = avgTop5
-
-                let filteringMetrics = RetrievalMetrics(
-                    topSimilarity: topSim,
-                    secondSimilarity: secondSim,
-                    averageTopFive: avgTop5,
-                    candidateCount: rerankedChunks.count
-                )
-                let filteringDecision = RetrievalPolicyService.filteringDecision(
-                    for: effectiveQueryProfile,
-                    qualityMode: qualityMode,
-                    retrievalConfig: retrievalConfig,
-                    lenient: lenient,
-                    metrics: filteringMetrics
-                )
-                let dynamicMin = filteringDecision.dynamicMinSimilarity
-                let vocabularyMismatch = filteringDecision.vocabularyMismatch
-
-                if vocabularyMismatch {
-                    Log.info(
-                        "[RAG] Vocabulary mismatch detected (topSim=\(String(format: "%.2f", topSim)), avgTop5=\(String(format: "%.2f", avgTop5))) - using adaptive floor \(String(format: "%.2f", dynamicMin))",
-                        category: .retrieval
-                    )
-                } else if effectiveQueryProfile.answerIntent == .procedure {
-                    Log.info(
-                        "[RAG] Procedural query detected - requiring higher evidence threshold \(dynamicMin)",
-                        category: .retrieval)
-                }
-
-                auditDynamicMin = dynamicMin
-                var filteredChunks = await engine.filterBySimilarity(
-                    chunks: rerankedChunks,
-                    min: dynamicMin
-                )
-
-                // Acceptance override if relative signals are strong even with modest absolute scores
-                // Also override for vocabulary mismatch scenarios where we trust relative ranking
-                let acceptanceOverride = filteringDecision.acceptanceOverride
-                auditAcceptanceOverride = acceptanceOverride
-
-                TelemetryCenter.emit(
-                    .retrieval,
-                    title: "Gating metrics",
-                    metadata: [
-                        "minSimilarity": String(format: "%.2f", retrievalConfig.minSimilarity),
-                        "lenient": lenient ? "true" : "false",
-                        "topSim": String(format: "%.3f", topSim),
-                        "secondSim": String(format: "%.3f", secondSim),
-                        "avgTop5": String(format: "%.3f", avgTop5),
-                        "dynamicMin": String(format: "%.2f", dynamicMin),
-                        "override": acceptanceOverride ? "true" : "false",
-                    ]
-                )
-
-                emitThinkingEvent(
-                    .gating,
-                    title: "Confidence gate (\(retrievalConfig.summary))",
-                    detail: "min \(String(format: "%.2f", dynamicMin)) • top \(String(format: "%.2f", topSim))"
-                )
+                let __filterLowConfidenceChunksResult = await filterLowConfidenceChunks(auditLenient: &auditLenient, rerankedChunks: rerankedChunks, auditTopSim: &auditTopSim, auditSecondSim: &auditSecondSim, auditAvgTop5: &auditAvgTop5, effectiveQueryProfile: effectiveQueryProfile, qualityMode: qualityMode, retrievalConfig: retrievalConfig, auditDynamicMin: &auditDynamicMin, engine: engine, auditAcceptanceOverride: &auditAcceptanceOverride)
+                let dynamicMin = __filterLowConfidenceChunksResult.dynamicMin
+                var filteredChunks = __filterLowConfidenceChunksResult.filteredChunks
+                let acceptanceOverride = __filterLowConfidenceChunksResult.acceptanceOverride
+                let lenient = __filterLowConfidenceChunksResult.lenient
+                let topSim = __filterLowConfidenceChunksResult.topSim
+                let secondSim = __filterLowConfidenceChunksResult.secondSim
+                let avgTop5 = __filterLowConfidenceChunksResult.avgTop5
+                let vocabularyMismatch = __filterLowConfidenceChunksResult.vocabularyMismatch
 
                 rescueDroppedSpecChunks(filteredChunks: &filteredChunks, rerankedChunks: rerankedChunks, auditDroppedCount: &auditDroppedCount, dynamicMin: dynamicMin, answerIntentIsExtractive: answerIntentIsExtractive, answerIntent: answerIntent)
 
@@ -1853,90 +1417,7 @@ extension RAGService {
 
                 let uniqueDocCount = ensureMultiDocumentCoverage(rerankedChunks: rerankedChunks, auditUniqueDocCount: &auditUniqueDocCount, effectiveTopK: effectiveTopK, filteredChunks: &filteredChunks, retryCandidates: &retryCandidates)
 
-                // Step 4.5: Apply MMR for diversity using container's retrieval config
-                Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
-                let mmrStartTime = Date()
-                var mmrTime: TimeInterval = 0  // Defined at outer scope for final logging
-
-                var diverseChunks: [RetrievedChunk] = []
-                var mmrLambda: Float = retrievalConfig.mmrLambda
-
-                // Check if MMR is enabled for this quality mode
-                if !qualityModeUsesMMR {
-                    Log.info(
-                        "[RAG] MMR diversification skipped (quality mode: \(qualityModeDisplayName))",
-                        category: .pipeline)
-                    diverseChunks = Array(filteredChunks.prefix(effectiveTopK))
-                    auditMMRSelectedCount = diverseChunks.count
-                    mmrTime = Date().timeIntervalSince(mmrStartTime)
-                    TelemetryCenter.emit(
-                        .retrieval,
-                        title: "MMR skipped",
-                        metadata: ["reason": "quality_mode", "passed": "\(diverseChunks.count)"],
-                        duration: mmrTime
-                    )
-                } else {
-                    // Pipeline Trace: Step 4.5
-                    Log.pipelineStep(
-                        "4.5", title: "MMR Diversification",
-                        details: [
-                            ("candidates", "\(filteredChunks.count)"),
-                            ("targetK", "\(effectiveTopK)"),
-                        ])
-
-                    // Procedural query override: favor relevance over diversity for step-by-step content
-                    // Consecutive chunks from same document are valuable context, not redundant
-                    // Note: isProceduralQuery already defined in Step 4.3.
-                    // Use the library's retrieval config as the base, override for procedural queries.
-                    mmrLambda = isProceduralQuery ? max(retrievalConfig.mmrLambda, 0.85) : retrievalConfig.mmrLambda
-                    if isProceduralQuery {
-                        Log.info(
-                            "[RAG] Procedural query - boosting MMR lambda to \(mmrLambda) (favor sequential chunks)",
-                            category: .retrieval)
-                    }
-
-                    diverseChunks = await engine.applyMMR(
-                        candidates: filteredChunks,
-                        queryEmbedding: queryEmbedding,
-                        topK: effectiveTopK,  // Clamped for short queries
-                        lambda: mmrLambda,
-                        vectors: await storedVectors(for: filteredChunks, in: selectedId)
-                    )
-                    auditMMRSelectedCount = diverseChunks.count
-                    mmrTime = Date().timeIntervalSince(mmrStartTime)
-                    Log.info(
-                        "✓ Selected \(diverseChunks.count) diverse chunks in \(String(format: "%.0f", mmrTime * 1000))ms",
-                        category: .retrieval
-                    )
-                    Log.debug(
-                        "  λ=\(String(format: "%.2f", mmrLambda)) (\(Int(mmrLambda * 100))% relevance, \(Int((1 - mmrLambda) * 100))% diversity)",
-                        category: .retrieval)
-                    let contextWordCounts = diverseChunks.map { wordCount(of: $0.chunk.content) }
-                    let totalContextWords = contextWordCounts.reduce(0, +)
-                    let maxContextWords = contextWordCounts.max() ?? 0
-                    let averageContextWords =
-                        contextWordCounts.isEmpty
-                        ? 0.0
-                        : Double(totalContextWords) / Double(contextWordCounts.count)
-                    TelemetryCenter.emit(
-                        .retrieval,
-                        title: "MMR diversification",
-                        metadata: [
-                            "selected": "\(diverseChunks.count)",
-                            "lambda": String(format: "%.2f", mmrLambda),
-                            "totalWords": "\(totalContextWords)",
-                            "avgWords": String(format: "%.1f", averageContextWords),
-                            "maxWords": "\(maxContextWords)",
-                        ],
-                        duration: mmrTime
-                    )
-
-                    emitThinkingEvent(
-                        .mmr,
-                        title: "MMR diversity",
-                        detail: "λ=\(String(format: "%.1f", mmrLambda)) • \(diverseChunks.count) selected"
-                    )
-                }
+                let (diverseChunks, mmrTime) = await diversifyWithMMR(retrievalConfig: retrievalConfig, qualityModeUsesMMR: qualityModeUsesMMR, qualityModeDisplayName: qualityModeDisplayName, effectiveTopK: effectiveTopK, filteredChunks: filteredChunks, auditMMRSelectedCount: &auditMMRSelectedCount, isProceduralQuery: isProceduralQuery, engine: engine, queryEmbedding: queryEmbedding, selectedId: selectedId)
 
                 if diverseChunks.isEmpty {
                     Log.warning(
@@ -2062,95 +1543,9 @@ extension RAGService {
 
                 addEnumerationKeywordPass(cachedAllChunks: cachedAllChunks, isEnumerationQuery: isEnumerationQuery, contextCandidates: &contextCandidates, question: question, contextStrategy: &contextStrategy)
 
-                // Step 4.6: Parent Document Retrieval (optional)
-                // Expand matched chunks to include sibling context from same section/page
-                // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
-                let parentDocEnabledBySettings = settingsStore?.enableParentDocumentRetrieval ?? true
-                let useParentDocRetrieval =
-                    qualityModeUsesParentDocRetrieval && parentDocEnabledBySettings
-                    && adaptiveConfig.enableParentDocumentRetrieval
+                await expandParentDocuments(qualityModeUsesParentDocRetrieval: qualityModeUsesParentDocRetrieval, adaptiveConfig: adaptiveConfig, cachedAllChunks: cachedAllChunks, contextCandidates: &contextCandidates, auditUsedParentDocumentRetrieval: &auditUsedParentDocumentRetrieval, effectiveQueryProfile: effectiveQueryProfile, qualityMode: qualityMode, qualityModeMaxSiblingChunks: qualityModeMaxSiblingChunks, useAgentic: useAgentic, question: question, contextStrategy: &contextStrategy)
 
-                if useParentDocRetrieval, contextCandidates.count > 0, let allChunks = cachedAllChunks {
-                    auditUsedParentDocumentRetrieval = true
-                    let parentConfig = RetrievalPolicyService.parentDocumentConfig(
-                        for: effectiveQueryProfile,
-                        qualityMode: qualityMode,
-                        maxSiblingChunks: qualityModeMaxSiblingChunks,
-                        useAgentic: useAgentic
-                    )
-                    if effectiveQueryProfile.answerIntent == .procedure {
-                        Log.info(
-                            "[RAG] Procedural query - using maximum parent expansion (8 siblings)", category: .retrieval
-                        )
-                    }
-                    let parentService = ParentDocumentService(config: parentConfig)
-
-                    let expansionResult = await parentService.expandWithSiblings(
-                        retrievedChunks: contextCandidates,
-                        allChunks: allChunks,
-                        query: question
-                    )
-
-                    if expansionResult.addedSiblings > 0 {
-                        contextCandidates = expansionResult.expandedChunks
-                        contextStrategy = "parent_expanded"
-
-                        TelemetryCenter.emit(
-                            .retrieval,
-                            title: "Parent document expansion",
-                            metadata: [
-                                "original": "\(expansionResult.originalChunks.count)",
-                                "expanded": "\(expansionResult.expandedChunks.count)",
-                                "siblings": "\(expansionResult.addedSiblings)",
-                                "ratio": String(format: "%.2f", expansionResult.expansionRatio),
-                            ]
-                        )
-
-                        emitThinkingEvent(
-                            .parentDoc,
-                            title: "Parent context expanded",
-                            detail:
-                                "+\(expansionResult.addedSiblings) siblings • \(expansionResult.expandedChunks.count) total chunks"
-                        )
-
-                        Log.info(
-                            "📚 Parent document expansion: \(expansionResult.originalChunks.count) → \(expansionResult.expandedChunks.count) chunks (+\(expansionResult.addedSiblings) siblings)",
-                            category: .retrieval
-                        )
-
-                        if Log.pipelineTraceEnabled {
-                            logChunkTrace(
-                                expansionResult.expandedChunks, stage: "Post-ParentExpansion", query: question)
-                        }
-                    }
-                }
-
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // Step 4.6: Cross-Reference Resolution
-                // Technical documents often say "see Section X on page Y". The actual
-                // data (spec tables, values) lives in the referenced section but the
-                // reranker scores prose cross-references higher than the actual table.
-                // Scan retrieved chunks for cross-refs and fetch the referenced content.
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if answerIntentIsExtractive {
-                    let crossRefChunks = await resolveCrossReferencesStandard(
-                        chunks: contextCandidates,
-                        query: question,
-                        allChunks: cachedAllChunks ?? []
-                    )
-                    if !crossRefChunks.isEmpty {
-                        // Insert cross-referenced chunks near the top so they survive context assembly
-                        let existingIds = Set(contextCandidates.map { $0.chunk.id })
-                        let newChunks = crossRefChunks.filter { !existingIds.contains($0.chunk.id) }
-                        contextCandidates.insert(contentsOf: newChunks, at: 0)
-                        Log.info(
-                            "[RAG] Cross-reference resolution: +\(newChunks.count) chunks from referenced sections",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .retrieval, title: "Cross-ref resolved",
-                            detail: "+\(newChunks.count) chunks from referenced sections")
-                    }
-                }
+                await addCrossReferencedPassages(answerIntentIsExtractive: answerIntentIsExtractive, contextCandidates: &contextCandidates, question: question, cachedAllChunks: cachedAllChunks)
 
                 runSpecTableSniper(answerIntentIsExtractive: answerIntentIsExtractive, cachedAllChunks: cachedAllChunks, contextCandidates: &contextCandidates, question: question)
 
@@ -3411,6 +2806,688 @@ extension RAGService {
                 throw LLMError.contextWindowExceeded
             }
             throw error
+        }
+    }
+
+    /// Step S3s: narrows the retrieved and cached pools to the documents a Shortcuts action named.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applyDocumentScope(retrievedChunks: inout [RetrievedChunk], cachedAllChunks: inout [DocumentChunk]?, filteredCachedChunks: inout [DocumentChunk]?) throws {
+        // Document scope (set by the Shortcuts actions that name a document). Every search
+        // above went through `HybridSearchService.search`, which searches inside the named
+        // documents when a scope is set. This narrows what did not: passages added by a
+        // direct vector search, and the two candidate lists the later stages (parent
+        // expansion, summaries, enumeration, multi-hop) draw on. A scoped question with no
+        // passage is an error; the general fallback would answer it from the model alone.
+        if let scope = RAGQueryScope.documentIds, !scope.isEmpty {
+            let before = retrievedChunks.count
+            retrievedChunks = RAGQueryScope.apply(to: retrievedChunks)
+            cachedAllChunks = cachedAllChunks.map { RAGQueryScope.apply(to: $0) }
+            filteredCachedChunks = filteredCachedChunks.map { RAGQueryScope.apply(to: $0) }
+            Log.info(
+                "[RAGService] Document scope: \(retrievedChunks.count) of \(before) retrieved passages are in the \(scope.count) named document(s)",
+                category: .retrieval)
+            if retrievedChunks.isEmpty {
+                throw RAGQueryScopeEmptyError()
+            }
+        }
+    }
+
+    /// Step S3k: drops passages whose document is in no library.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func dropPassagesOfUnknownDocuments(retrievedChunks: inout [RetrievedChunk]) async {
+        // Passages whose document is in no library are left out (5.7, `passagesFromKnownDocuments`).
+        let liveDocumentIds = await MainActor.run { Set(self.documents.map(\.id)) }
+        let fromKnownDocuments = Self.passagesFromKnownDocuments(
+            retrievedChunks, knownDocumentIds: liveDocumentIds)
+        if fromKnownDocuments.dropped > 0 {
+            Log.warning(
+                "[RAGService] Left out \(fromKnownDocuments.dropped) passage(s) whose document is in no library",
+                category: .retrieval)
+            retrievedChunks = fromKnownDocuments.kept
+        }
+    }
+
+    /// Step S3n: attaches source names, demotes interrogative FAQ passages and emits the retrieval telemetry.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func attachSourcesAndDemoteQuestions(retrievedChunks: [RetrievedChunk], question: String, auditCandidatesCount: inout Int, recoveryRetrievedChunks: inout [RetrievedChunk], effectiveTopK: Int, selectedName: String, selectedId: UUID, retrievalTime: TimeInterval, adjustedVectorWeight: Float, adjustedKeywordWeight: Float) async -> (chunksWithSources: [RetrievedChunk], docsSnapshot: [Document]) {
+        // Add source information for citations with a safe MainActor snapshot
+        let docsSnapshot = await snapshotDocuments()
+        var chunksWithSources: [RetrievedChunk] = retrievedChunks.map { retrieved in
+            let docName =
+                docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
+                ?? (retrieved.sourceDocument.isEmpty ? "Unknown" : retrieved.sourceDocument)
+            let pageNum = retrieved.chunk.metadata.pageNumber
+            return RetrievedChunk(
+                chunk: retrieved.chunk,
+                similarityScore: retrieved.similarityScore,
+                rank: retrieved.rank,
+                sourceDocument: docName,
+                pageNumber: pageNum
+            )
+        }
+        // Demote purely interrogative chunks if the query isn't asking about questions/examples
+        var demotedCount = 0
+        for i in 0..<chunksWithSources.count {
+            if isInterrogativeChunk(chunksWithSources[i].chunk, query: question) {
+                let originalScore = chunksWithSources[i].similarityScore
+                chunksWithSources[i] = RetrievedChunk(
+                    chunk: chunksWithSources[i].chunk,
+                    similarityScore: originalScore * 0.1,  // Demote severely
+                    rank: chunksWithSources[i].rank,
+                    sourceDocument: chunksWithSources[i].sourceDocument,
+                    pageNumber: chunksWithSources[i].pageNumber
+                )
+                demotedCount += 1
+            }
+        }
+        if demotedCount > 0 {
+            chunksWithSources.sort { $0.similarityScore > $1.similarityScore }
+            Log.info(
+                "[RAG] Demoted \(demotedCount) interrogative FAQ chunks to prevent context poisoning.",
+                category: .retrieval)
+        }
+
+        auditCandidatesCount = chunksWithSources.count
+        recoveryRetrievedChunks = chunksWithSources
+
+        let chunkWordCounts = chunksWithSources.map { wordCount(of: $0.chunk.content) }
+        let totalChunkWords = chunkWordCounts.reduce(0, +)
+        let topContextWords = chunkWordCounts.prefix(effectiveTopK).reduce(0, +)
+        let averageChunkWords =
+            chunkWordCounts.isEmpty
+            ? 0.0
+            : Double(totalChunkWords) / Double(chunkWordCounts.count)
+
+        TelemetryCenter.emit(
+            .retrieval,
+            title: "Hybrid retrieval",
+            metadata: [
+                "candidates": "\(chunksWithSources.count)",
+                "topK": "\(effectiveTopK * 2)",
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+                "totalWords": "\(totalChunkWords)",
+                "topWords": "\(topContextWords)",
+                "avgWords": String(format: "%.1f", averageChunkWords),
+            ],
+            duration: retrievalTime
+        )
+
+        // Emit detailed technique events for full transparency
+        emitThinkingEvent(
+            .vectorSearch,
+            title: "Vector search",
+            detail: "Semantic similarity • \(Int(adjustedVectorWeight * 100))% weight"
+        )
+        emitThinkingEvent(
+            .bm25,
+            title: "BM25 search",
+            detail: "Keyword matching • \(Int(adjustedKeywordWeight * 100))% weight"
+        )
+        emitThinkingEvent(
+            .rrf,
+            title: "RRF fusion",
+            detail: "\(chunksWithSources.count) candidates merged"
+        )
+
+        Log.info(
+            "✓ Retrieved \(chunksWithSources.count) chunks with hybrid fusion",
+            category: .retrieval
+        )
+
+        // Universal pipeline trace: log chunks after hybrid search
+        if Log.pipelineTraceEnabled {
+            logChunkTrace(chunksWithSources, stage: "Post-HybridSearch", query: question)
+        }
+        return (chunksWithSources: chunksWithSources, docsSnapshot: docsSnapshot)
+    }
+
+    /// Step 4: re-ranks the candidates (cross-encoder or similarity order) and records the rerank trace stage.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func rerankCandidates(qualityModeUsesReRanking: Bool, chunksWithSources: [RetrievedChunk], question: String, effectiveTopK: Int, auditRerankedCount: inout Int, qualityModeDisplayName: String, trace: RetrievalTraceCollector?) async -> (engine: RAGEngine, rerankTime: TimeInterval, rerankedChunks: [RetrievedChunk]) {
+        // Step 4: Re-rank results with multiple signals
+        // QUALITY MODE: Check if re-ranking is enabled
+        let engine = RAGEngine.shared
+        let rerankStartTime = Date()
+        var rerankedChunks: [RetrievedChunk]
+        var rerankTime: TimeInterval = 0
+
+        if qualityModeUsesReRanking {
+            Log.section("Step 4: Multi-Signal Re-ranking", level: .info, category: .pipeline)
+
+            // Pipeline Trace: Step 4
+            Log.pipelineStep(
+                "4", title: "Multi-Signal Reranking",
+                details: [
+                    ("candidates", "\(chunksWithSources.count)")
+                ])
+
+            rerankedChunks = await engine.rerank(
+                chunks: chunksWithSources,
+                query: question,
+                topK: effectiveTopK * 3  // Get more candidates for MMR diversification (clamped)
+            )
+            auditRerankedCount = rerankedChunks.count
+            rerankTime = Date().timeIntervalSince(rerankStartTime)
+            Log.info(
+                "✓ Re-ranked to top \(rerankedChunks.count) in \(String(format: "%.0f", rerankTime * 1000))ms",
+                category: .retrieval
+            )
+
+            // Universal pipeline trace: log chunks after re-ranking
+            if Log.pipelineTraceEnabled {
+                logChunkTrace(rerankedChunks, stage: "Post-Rerank", query: question)
+            }
+
+            TelemetryCenter.emit(
+                .retrieval,
+                title: "Re-ranking complete",
+                metadata: [
+                    "candidates": "\(rerankedChunks.count)"
+                ],
+                duration: rerankTime
+            )
+            emitThinkingEvent(
+                .rerank,
+                title: "Cross-encoder rerank",
+                detail: "\(rerankedChunks.count) candidates scored"
+            )
+        } else {
+            Log.info("[RAG] Re-ranking skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
+            // Use chunks as-is, sorted by existing scores
+            rerankedChunks = chunksWithSources.sorted { $0.similarityScore > $1.similarityScore }
+            rerankedChunks = Array(rerankedChunks.prefix(effectiveTopK * 3))
+            auditRerankedCount = rerankedChunks.count
+            rerankTime = Date().timeIntervalSince(rerankStartTime)
+            emitThinkingEvent(
+                .rerank,
+                title: "Re-ranking skipped",
+                detail: "Quality mode: \(qualityModeDisplayName)"
+            )
+        }
+
+        // Stage capture for the retrieval benchmark. Recorded after the if/else so it
+        // covers both branches: when the quality mode skips the cross-encoder,
+        // `rerankedChunks` is a score-sorted passthrough and the stage still describes what
+        // the pipeline handed onward. Recording only inside the reranking branch would make
+        // the stage silently absent for Standard mode, which is the mode with the measured
+        // baseline and therefore the one most likely to be benchmarked.
+        trace?.record(.rerank, results: rerankedChunks)
+        return (engine: engine, rerankTime: rerankTime, rerankedChunks: rerankedChunks)
+    }
+
+    /// Step S4c: runs the lexical-heavy cascade search and re-rank when the policy asks for it.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func runRetrievalCascade(rerankedChunks: inout [RetrievedChunk], effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode, retrievalConfig: RetrievalConfig, effectiveTopK: Int, totalStored: Int, usedRetrievalCascade: inout Bool, expandedQueries: [String], question: String, vdb: any VectorDatabase, originalKeywordQuery: String?, queryEmbedding: [Float], docsSnapshot: [Document], engine: RAGEngine, auditCandidatesCount: inout Int, auditRerankedCount: inout Int, retrievalTime: inout TimeInterval, rerankTime: inout TimeInterval, recoveryRetrievalTime: inout TimeInterval) async throws {
+        let cascadeTopSim = rerankedChunks.first?.similarityScore ?? 0
+        let cascadeAvgTop5: Float = {
+            let sims = rerankedChunks.prefix(5).map { $0.similarityScore }
+            guard !sims.isEmpty else { return 0 }
+            return sims.reduce(0, +) / Float(sims.count)
+        }()
+        let cascadeMetrics = RetrievalMetrics(
+            topSimilarity: cascadeTopSim,
+            secondSimilarity: 0,
+            averageTopFive: cascadeAvgTop5,
+            candidateCount: rerankedChunks.count
+        )
+
+        if let cascadeDecision = RetrievalPolicyService.cascadeDecision(
+            for: effectiveQueryProfile,
+            qualityMode: qualityMode,
+            retrievalConfig: retrievalConfig,
+            effectiveTopK: effectiveTopK,
+            totalStored: totalStored,
+            metrics: cascadeMetrics,
+            usedRetrievalCascade: usedRetrievalCascade
+        ) {
+            let baseCandidateCount = rerankedChunks.count
+            let cascadeStartTime = Date()
+            let cascadeQuery = (expandedQueries + [question]).joined(separator: " ")
+            let cascadeHybrid = HybridSearchService(
+                vectorDatabase: vdb,
+                vectorWeight: cascadeDecision.vectorWeight,
+                keywordWeight: cascadeDecision.lexicalWeight
+            )
+            let cascadeRetrieved = try await cascadeHybrid.search(
+                query: cascadeQuery,
+                originalQuery: originalKeywordQuery ?? question,
+                embedding: queryEmbedding,
+                topK: cascadeDecision.topK
+            )
+
+            let cascadeTime = Date().timeIntervalSince(cascadeStartTime)
+            if !cascadeRetrieved.isEmpty {
+                let cascadeChunksWithSources: [RetrievedChunk] = cascadeRetrieved.map { retrieved in
+                    let docName =
+                        docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
+                        ?? "Unknown"
+                    let pageNum = retrieved.chunk.metadata.pageNumber
+                    return RetrievedChunk(
+                        chunk: retrieved.chunk,
+                        similarityScore: retrieved.similarityScore,
+                        rank: retrieved.rank,
+                        sourceDocument: docName,
+                        pageNumber: pageNum
+                    )
+                }
+
+                // Passages whose document is in no library are left out here too (5.7,
+                // `passagesFromKnownDocuments`): this search runs after the first check, and on 2026-10-19 it
+                // brought back the overview of a deleted note, which the answer then cited as "Unknown".
+                let cascadeFromKnown = Self.passagesFromKnownDocuments(
+                    cascadeChunksWithSources, knownDocumentIds: Set(docsSnapshot.map(\.id)))
+                if cascadeFromKnown.dropped > 0 {
+                    Log.warning(
+                        "[RAGService] Left out \(cascadeFromKnown.dropped) cascade passage(s) whose document is in no library",
+                        category: .retrieval)
+                }
+                let mergedCandidates = mergeUniqueChunks(rerankedChunks, cascadeFromKnown.kept)
+                if mergedCandidates.count > rerankedChunks.count {
+                    let cascadeRerankStart = Date()
+                    rerankedChunks = await engine.rerank(
+                        chunks: mergedCandidates,
+                        query: question,
+                        topK: effectiveTopK * 3
+                    )
+                    let cascadeRerankTime = Date().timeIntervalSince(cascadeRerankStart)
+                    usedRetrievalCascade = true
+                    auditCandidatesCount = mergedCandidates.count
+                    auditRerankedCount = rerankedChunks.count
+                    retrievalTime += cascadeTime
+                    rerankTime += cascadeRerankTime
+                    recoveryRetrievalTime = retrievalTime
+
+                    let addedCount = max(0, mergedCandidates.count - baseCandidateCount)
+                    Log.info(
+                        "🔁 Retrieval cascade added \(addedCount) candidates (lexical \(String(format: "%.2f", cascadeDecision.lexicalWeight)))",
+                        category: .retrieval
+                    )
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "Retrieval cascade",
+                        metadata: [
+                            "candidates": "\(mergedCandidates.count)",
+                            "lexicalWeight": String(format: "%.2f", cascadeDecision.lexicalWeight),
+                            "vectorWeight": String(format: "%.2f", cascadeDecision.vectorWeight),
+                        ],
+                        duration: cascadeTime
+                    )
+                    emitThinkingEvent(
+                        .retrieval,
+                        title: "Retrieval cascade",
+                        detail:
+                            "\(mergedCandidates.count) candidates • lex \(String(format: "%.2f", cascadeDecision.lexicalWeight))"
+                    )
+                }
+            }
+        }
+    }
+
+    /// Step S4k: retries with a cleaned keyword query when the top similarity is below 0.45.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func retryWithCleanKeywordQuery(rerankedChunks: inout [RetrievedChunk], question: String, queryEmbeddingService: EmbeddingService, vdb: any VectorDatabase, effectiveTopK: Int, filteredCachedChunks: [DocumentChunk]?, selectedId: UUID, docsSnapshot: [Document], qualityModeUsesReRanking: Bool, engine: RAGEngine) async {
+        // Keyword search fallback retry if top similarity is low (Standard Mode)
+        var queryRetryDone = false
+        let preRetryTopSim = rerankedChunks.first?.similarityScore ?? 0
+        if preRetryTopSim < 0.45 && !queryRetryDone {
+            queryRetryDone = true
+            let cleanQuery = cleanQueryForKeywordSearch(question)
+            if !cleanQuery.isEmpty && cleanQuery != question.lowercased() {
+                Log.info(
+                    "[RAG] Top similarity \(preRetryTopSim) < 0.45. Retrying search with keywords: \"\(cleanQuery)\"",
+                    category: .retrieval)
+                emitThinkingEvent(
+                    .queryRewrite,
+                    title: "Keyword search retry",
+                    detail: "Retrying with: \(cleanQuery)"
+                )
+                do {
+                    let cleanEmbedding = try await queryEmbeddingService.generateEmbedding(for: cleanQuery)
+                    let retryHybrid = HybridSearchService(
+                        vectorDatabase: vdb,
+                        vectorWeight: 0.3,  // favor keyword matching for recovery
+                        keywordWeight: 0.7
+                    )
+                    let retryResults = try await retryHybrid.search(
+                        query: cleanQuery,
+                        originalQuery: cleanQuery,
+                        embedding: cleanEmbedding,
+                        topK: effectiveTopK * 2,
+                        cachedChunks: filteredCachedChunks,
+                        containerId: selectedId
+                    )
+
+                    // Map with sources
+                    let retryChunksWithSources: [RetrievedChunk] = retryResults.map { retrieved in
+                        let docName =
+                            docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
+                            ?? "Unknown"
+                        let pageNum = retrieved.chunk.metadata.pageNumber
+                        return RetrievedChunk(
+                            chunk: retrieved.chunk,
+                            similarityScore: retrieved.similarityScore,
+                            rank: retrieved.rank,
+                            sourceDocument: docName,
+                            pageNumber: pageNum
+                        )
+                    }
+
+                    // Demote any interrogative chunks in the retry candidates as well
+                    var cleanedRetryChunks = retryChunksWithSources
+                    for i in 0..<cleanedRetryChunks.count {
+                        if isInterrogativeChunk(cleanedRetryChunks[i].chunk, query: question) {
+                            let originalScore = cleanedRetryChunks[i].similarityScore
+                            cleanedRetryChunks[i] = RetrievedChunk(
+                                chunk: cleanedRetryChunks[i].chunk,
+                                similarityScore: originalScore * 0.1,
+                                rank: cleanedRetryChunks[i].rank,
+                                sourceDocument: cleanedRetryChunks[i].sourceDocument,
+                                pageNumber: cleanedRetryChunks[i].pageNumber
+                            )
+                        }
+                    }
+
+                    // Passages whose document is in no library are left out here too (5.7,
+                    // `passagesFromKnownDocuments`), as in the retrieval cascade above.
+                    cleanedRetryChunks = Self.passagesFromKnownDocuments(
+                        cleanedRetryChunks, knownDocumentIds: Set(docsSnapshot.map(\.id))
+                    ).kept
+
+                    // Merge retry results with existing reranked chunks
+                    let mergedChunks = mergeUniqueChunks(rerankedChunks, cleanedRetryChunks)
+
+                    // Rerank again!
+                    if qualityModeUsesReRanking && !mergedChunks.isEmpty {
+                        rerankedChunks = await engine.rerank(
+                            chunks: mergedChunks,
+                            query: cleanQuery,
+                            topK: effectiveTopK * 3
+                        )
+                    } else {
+                        rerankedChunks = mergedChunks.sorted { $0.similarityScore > $1.similarityScore }
+                        rerankedChunks = Array(rerankedChunks.prefix(effectiveTopK * 3))
+                    }
+
+                    Log.info(
+                        "[RAG] Keyword retry completed, new top similarity: \(rerankedChunks.first?.similarityScore ?? 0)",
+                        category: .retrieval)
+                } catch {
+                    Log.warning(
+                        "[RAG] Keyword search retry failed: \(error.localizedDescription)", category: .retrieval
+                    )
+                }
+            }
+        }
+    }
+
+    /// Step 4.3 (filter): computes the adaptive similarity floor and filters the re-ranked passages.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func filterLowConfidenceChunks(auditLenient: inout Bool, rerankedChunks: [RetrievedChunk], auditTopSim: inout Float, auditSecondSim: inout Float, auditAvgTop5: inout Float, effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode, retrievalConfig: RetrievalConfig, auditDynamicMin: inout Float, engine: RAGEngine, auditAcceptanceOverride: inout Bool) async -> (dynamicMin: Float, filteredChunks: [RetrievedChunk], acceptanceOverride: Bool, lenient: Bool, topSim: Float, secondSim: Float, avgTop5: Float, vocabularyMismatch: Bool) {
+        // Step 4.3: Filter low-confidence chunks using container's retrieval config
+        // Adaptive gating: consider "lenient" mode, quality mode, and trivial/short queries
+        let lenient = await MainActor.run {
+            self.settingsStore?.lenientRetrievalMode ?? false
+        }
+        auditLenient = lenient
+
+        // Relative-score metrics (computed on reranked results)
+        let topSim: Float = rerankedChunks.first?.similarityScore ?? 0
+        let secondSim: Float = rerankedChunks.dropFirst().first?.similarityScore ?? 0
+        let avgTop5: Float = {
+            let sims = rerankedChunks.prefix(5).map { $0.similarityScore }
+            guard !sims.isEmpty else { return 0 }
+            return sims.reduce(0, +) / Float(sims.count)
+        }()
+        auditTopSim = topSim
+        auditSecondSim = secondSim
+        auditAvgTop5 = avgTop5
+
+        let filteringMetrics = RetrievalMetrics(
+            topSimilarity: topSim,
+            secondSimilarity: secondSim,
+            averageTopFive: avgTop5,
+            candidateCount: rerankedChunks.count
+        )
+        let filteringDecision = RetrievalPolicyService.filteringDecision(
+            for: effectiveQueryProfile,
+            qualityMode: qualityMode,
+            retrievalConfig: retrievalConfig,
+            lenient: lenient,
+            metrics: filteringMetrics
+        )
+        let dynamicMin = filteringDecision.dynamicMinSimilarity
+        let vocabularyMismatch = filteringDecision.vocabularyMismatch
+
+        if vocabularyMismatch {
+            Log.info(
+                "[RAG] Vocabulary mismatch detected (topSim=\(String(format: "%.2f", topSim)), avgTop5=\(String(format: "%.2f", avgTop5))) - using adaptive floor \(String(format: "%.2f", dynamicMin))",
+                category: .retrieval
+            )
+        } else if effectiveQueryProfile.answerIntent == .procedure {
+            Log.info(
+                "[RAG] Procedural query detected - requiring higher evidence threshold \(dynamicMin)",
+                category: .retrieval)
+        }
+
+        auditDynamicMin = dynamicMin
+        var filteredChunks = await engine.filterBySimilarity(
+            chunks: rerankedChunks,
+            min: dynamicMin
+        )
+
+        // Acceptance override if relative signals are strong even with modest absolute scores
+        // Also override for vocabulary mismatch scenarios where we trust relative ranking
+        let acceptanceOverride = filteringDecision.acceptanceOverride
+        auditAcceptanceOverride = acceptanceOverride
+
+        TelemetryCenter.emit(
+            .retrieval,
+            title: "Gating metrics",
+            metadata: [
+                "minSimilarity": String(format: "%.2f", retrievalConfig.minSimilarity),
+                "lenient": lenient ? "true" : "false",
+                "topSim": String(format: "%.3f", topSim),
+                "secondSim": String(format: "%.3f", secondSim),
+                "avgTop5": String(format: "%.3f", avgTop5),
+                "dynamicMin": String(format: "%.2f", dynamicMin),
+                "override": acceptanceOverride ? "true" : "false",
+            ]
+        )
+
+        emitThinkingEvent(
+            .gating,
+            title: "Confidence gate (\(retrievalConfig.summary))",
+            detail: "min \(String(format: "%.2f", dynamicMin)) • top \(String(format: "%.2f", topSim))"
+        )
+        return (dynamicMin: dynamicMin, filteredChunks: filteredChunks, acceptanceOverride: acceptanceOverride, lenient: lenient, topSim: topSim, secondSim: secondSim, avgTop5: avgTop5, vocabularyMismatch: vocabularyMismatch)
+    }
+
+    /// Step 4.5: diversifies the filtered passages with MMR (or takes the top K when MMR is off).
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func diversifyWithMMR(retrievalConfig: RetrievalConfig, qualityModeUsesMMR: Bool, qualityModeDisplayName: String, effectiveTopK: Int, filteredChunks: [RetrievedChunk], auditMMRSelectedCount: inout Int, isProceduralQuery: Bool, engine: RAGEngine, queryEmbedding: [Float], selectedId: UUID) async -> (diverseChunks: [RetrievedChunk], mmrTime: TimeInterval) {
+        // Step 4.5: Apply MMR for diversity using container's retrieval config
+        Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
+        let mmrStartTime = Date()
+        var mmrTime: TimeInterval = 0  // Defined at outer scope for final logging
+
+        var diverseChunks: [RetrievedChunk] = []
+        var mmrLambda: Float = retrievalConfig.mmrLambda
+
+        // Check if MMR is enabled for this quality mode
+        if !qualityModeUsesMMR {
+            Log.info(
+                "[RAG] MMR diversification skipped (quality mode: \(qualityModeDisplayName))",
+                category: .pipeline)
+            diverseChunks = Array(filteredChunks.prefix(effectiveTopK))
+            auditMMRSelectedCount = diverseChunks.count
+            mmrTime = Date().timeIntervalSince(mmrStartTime)
+            TelemetryCenter.emit(
+                .retrieval,
+                title: "MMR skipped",
+                metadata: ["reason": "quality_mode", "passed": "\(diverseChunks.count)"],
+                duration: mmrTime
+            )
+        } else {
+            // Pipeline Trace: Step 4.5
+            Log.pipelineStep(
+                "4.5", title: "MMR Diversification",
+                details: [
+                    ("candidates", "\(filteredChunks.count)"),
+                    ("targetK", "\(effectiveTopK)"),
+                ])
+
+            // Procedural query override: favor relevance over diversity for step-by-step content
+            // Consecutive chunks from same document are valuable context, not redundant
+            // Note: isProceduralQuery already defined in Step 4.3.
+            // Use the library's retrieval config as the base, override for procedural queries.
+            mmrLambda = isProceduralQuery ? max(retrievalConfig.mmrLambda, 0.85) : retrievalConfig.mmrLambda
+            if isProceduralQuery {
+                Log.info(
+                    "[RAG] Procedural query - boosting MMR lambda to \(mmrLambda) (favor sequential chunks)",
+                    category: .retrieval)
+            }
+
+            diverseChunks = await engine.applyMMR(
+                candidates: filteredChunks,
+                queryEmbedding: queryEmbedding,
+                topK: effectiveTopK,  // Clamped for short queries
+                lambda: mmrLambda,
+                vectors: await storedVectors(for: filteredChunks, in: selectedId)
+            )
+            auditMMRSelectedCount = diverseChunks.count
+            mmrTime = Date().timeIntervalSince(mmrStartTime)
+            Log.info(
+                "✓ Selected \(diverseChunks.count) diverse chunks in \(String(format: "%.0f", mmrTime * 1000))ms",
+                category: .retrieval
+            )
+            Log.debug(
+                "  λ=\(String(format: "%.2f", mmrLambda)) (\(Int(mmrLambda * 100))% relevance, \(Int((1 - mmrLambda) * 100))% diversity)",
+                category: .retrieval)
+            let contextWordCounts = diverseChunks.map { wordCount(of: $0.chunk.content) }
+            let totalContextWords = contextWordCounts.reduce(0, +)
+            let maxContextWords = contextWordCounts.max() ?? 0
+            let averageContextWords =
+                contextWordCounts.isEmpty
+                ? 0.0
+                : Double(totalContextWords) / Double(contextWordCounts.count)
+            TelemetryCenter.emit(
+                .retrieval,
+                title: "MMR diversification",
+                metadata: [
+                    "selected": "\(diverseChunks.count)",
+                    "lambda": String(format: "%.2f", mmrLambda),
+                    "totalWords": "\(totalContextWords)",
+                    "avgWords": String(format: "%.1f", averageContextWords),
+                    "maxWords": "\(maxContextWords)",
+                ],
+                duration: mmrTime
+            )
+
+            emitThinkingEvent(
+                .mmr,
+                title: "MMR diversity",
+                detail: "λ=\(String(format: "%.1f", mmrLambda)) • \(diverseChunks.count) selected"
+            )
+        }
+        return (diverseChunks: diverseChunks, mmrTime: mmrTime)
+    }
+
+    /// Step 4.6: expands the candidates with sibling passages from their parent sections.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func expandParentDocuments(qualityModeUsesParentDocRetrieval: Bool, adaptiveConfig: AdaptivePipelineConfig, cachedAllChunks: [DocumentChunk]?, contextCandidates: inout [RetrievedChunk], auditUsedParentDocumentRetrieval: inout Bool, effectiveQueryProfile: QueryProfile, qualityMode: RAGQualityMode, qualityModeMaxSiblingChunks: Int, useAgentic: Bool, question: String, contextStrategy: inout String) async {
+        // Step 4.6: Parent Document Retrieval (optional)
+        // Expand matched chunks to include sibling context from same section/page
+        // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
+        let parentDocEnabledBySettings = settingsStore?.enableParentDocumentRetrieval ?? true
+        let useParentDocRetrieval =
+            qualityModeUsesParentDocRetrieval && parentDocEnabledBySettings
+            && adaptiveConfig.enableParentDocumentRetrieval
+
+        if useParentDocRetrieval, contextCandidates.count > 0, let allChunks = cachedAllChunks {
+            auditUsedParentDocumentRetrieval = true
+            let parentConfig = RetrievalPolicyService.parentDocumentConfig(
+                for: effectiveQueryProfile,
+                qualityMode: qualityMode,
+                maxSiblingChunks: qualityModeMaxSiblingChunks,
+                useAgentic: useAgentic
+            )
+            if effectiveQueryProfile.answerIntent == .procedure {
+                Log.info(
+                    "[RAG] Procedural query - using maximum parent expansion (8 siblings)", category: .retrieval
+                )
+            }
+            let parentService = ParentDocumentService(config: parentConfig)
+
+            let expansionResult = await parentService.expandWithSiblings(
+                retrievedChunks: contextCandidates,
+                allChunks: allChunks,
+                query: question
+            )
+
+            if expansionResult.addedSiblings > 0 {
+                contextCandidates = expansionResult.expandedChunks
+                contextStrategy = "parent_expanded"
+
+                TelemetryCenter.emit(
+                    .retrieval,
+                    title: "Parent document expansion",
+                    metadata: [
+                        "original": "\(expansionResult.originalChunks.count)",
+                        "expanded": "\(expansionResult.expandedChunks.count)",
+                        "siblings": "\(expansionResult.addedSiblings)",
+                        "ratio": String(format: "%.2f", expansionResult.expansionRatio),
+                    ]
+                )
+
+                emitThinkingEvent(
+                    .parentDoc,
+                    title: "Parent context expanded",
+                    detail:
+                        "+\(expansionResult.addedSiblings) siblings • \(expansionResult.expandedChunks.count) total chunks"
+                )
+
+                Log.info(
+                    "📚 Parent document expansion: \(expansionResult.originalChunks.count) → \(expansionResult.expandedChunks.count) chunks (+\(expansionResult.addedSiblings) siblings)",
+                    category: .retrieval
+                )
+
+                if Log.pipelineTraceEnabled {
+                    logChunkTrace(
+                        expansionResult.expandedChunks, stage: "Post-ParentExpansion", query: question)
+                }
+            }
+        }
+    }
+
+    /// Step 4.6 (cross references): adds the passages that extractive candidates refer to.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func addCrossReferencedPassages(answerIntentIsExtractive: Bool, contextCandidates: inout [RetrievedChunk], question: String, cachedAllChunks: [DocumentChunk]?) async {
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Step 4.6: Cross-Reference Resolution
+        // Technical documents often say "see Section X on page Y". The actual
+        // data (spec tables, values) lives in the referenced section but the
+        // reranker scores prose cross-references higher than the actual table.
+        // Scan retrieved chunks for cross-refs and fetch the referenced content.
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if answerIntentIsExtractive {
+            let crossRefChunks = await resolveCrossReferencesStandard(
+                chunks: contextCandidates,
+                query: question,
+                allChunks: cachedAllChunks ?? []
+            )
+            if !crossRefChunks.isEmpty {
+                // Insert cross-referenced chunks near the top so they survive context assembly
+                let existingIds = Set(contextCandidates.map { $0.chunk.id })
+                let newChunks = crossRefChunks.filter { !existingIds.contains($0.chunk.id) }
+                contextCandidates.insert(contentsOf: newChunks, at: 0)
+                Log.info(
+                    "[RAG] Cross-reference resolution: +\(newChunks.count) chunks from referenced sections",
+                    category: .retrieval)
+                emitThinkingEvent(
+                    .retrieval, title: "Cross-ref resolved",
+                    detail: "+\(newChunks.count) chunks from referenced sections")
+            }
         }
     }
 

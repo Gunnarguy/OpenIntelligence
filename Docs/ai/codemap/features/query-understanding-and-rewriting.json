@@ -4,7 +4,7 @@
   "name": "Query Understanding and Rewriting",
   "aliases": ["query rewriter", "HyDE service", "query complexity analyzer", "query router service", "contextual compression"],
   "purpose": "Rewrites and classifies a question before retrieval, including HyDE hypothetical answers and entity extraction.",
-  "revision": "073abfd4",
+  "revision": "c8971562",
   "verified_on": "2026-11-07",
   "entry_points": ["QueryRewriterService", "HyDEService", "QueryComplexityAnalyzer", "QueryExecutionPlannerService", "QueryRouterService", "QueryEnhancementService"],
   "files": [
