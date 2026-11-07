@@ -279,42 +279,7 @@ extension DocumentProcessor {
         // Only render images and run Vision for pages that NEED it
         // Simple single-column pages skip Vision entirely → massive speedup
         // ═══════════════════════════════════════════════════════════════════════
-        let complexityStartTime = Date()
-        // A page with a checkpoint is loaded from it below and never rendered, so it is not analysed either (5.7):
-        // a resumed 913-page import on the owner's iPhone re-scanned every page first (24 s) before loading 568 saved
-        // ones.
-        let pagesToAnalyze: [(PDFPage, Int)] = (startPageIdx...endPageIdx).compactMap { index in
-            let saved = checkpointDir.appendingPathComponent("page_\(index).json")
-            guard !FileManager.default.fileExists(atPath: saved.path),
-                let page = pdfDocument.page(at: index)
-            else { return nil }
-            return (page, index + 1)
-        }
-        let complexityAnalyses = await PageComplexityAnalyzer.shared.analyzeBatch(pages: pagesToAnalyze)
-        PageComplexityAnalyzer.shared.logBatchSummary(complexityAnalyses)
-        let complexityTime = Date().timeIntervalSince(complexityStartTime) * 1000
-        Log.info("[DocumentProcessor] Complexity pre-scan: \(String(format: "%.0f", complexityTime))ms for \(pageCount) pages", category: .ingestion)
-
-        // Build lookup for quick access
-        var pageComplexity: [Int: PageComplexityAnalysis] = [:]
-        for analysis in complexityAnalyses {
-            pageComplexity[analysis.pageNumber] = analysis
-        }
-
-        // Count pages that can skip Vision after fidelity overrides are applied.
-        let skipVisionCount = complexityAnalyses.filter { analysis in
-            let strategy = analysis.processingStrategy
-            let baseSkip = strategy == .directText || strategy == .spatialText
-            return (baseSkip && !shouldForceVisionForAdaptiveRecovery(
-                analysis: analysis,
-                strategy: strategy,
-                documentTextLayerGarbled: documentTextLayerGarbled
-            )) || Self.readsTextLayerVisionCannotRead(
-                pdfDocument.page(at: analysis.pageNumber - 1)?.string, complexity: analysis,
-                documentTextLayerGarbled: documentTextLayerGarbled)
-        }.count
-        let visionRequired = pageCount - skipVisionCount
-        Log.info("[DocumentProcessor] 🚀 ADAPTIVE: \(skipVisionCount) pages skip Vision OCR, \(visionRequired) need layout detection", category: .ingestion)
+        let pageComplexity = await prescanPageComplexity(endPageIdx: endPageIdx, startPageIdx: startPageIdx, checkpointDir: checkpointDir, pdfDocument: pdfDocument, pageCount: pageCount, documentTextLayerGarbled: documentTextLayerGarbled)
 
         // MEMORY-SAFE RENDERING: Limit concurrent full-res page images.
         // At 360 DPI, each page = 6210×11040px ≈ 206 MB (opaque RGB).
@@ -1198,6 +1163,49 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A4: measures each page that has no checkpoint for layout complexity, so simple pages skip Vision, and logs how many need it.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func prescanPageComplexity(endPageIdx: Int, startPageIdx: Int, checkpointDir: URL, pdfDocument: PDFDocument, pageCount: Int, documentTextLayerGarbled: Bool) async -> [Int : PageComplexityAnalysis] {
+        let complexityStartTime = Date()
+        // A page with a checkpoint is loaded from it below and never rendered, so it is not analysed either (5.7):
+        // a resumed 913-page import on the owner's iPhone re-scanned every page first (24 s) before loading 568 saved
+        // ones.
+        let pagesToAnalyze: [(PDFPage, Int)] = (startPageIdx...endPageIdx).compactMap { index in
+            let saved = checkpointDir.appendingPathComponent("page_\(index).json")
+            guard !FileManager.default.fileExists(atPath: saved.path),
+                let page = pdfDocument.page(at: index)
+            else { return nil }
+            return (page, index + 1)
+        }
+        let complexityAnalyses = await PageComplexityAnalyzer.shared.analyzeBatch(pages: pagesToAnalyze)
+        PageComplexityAnalyzer.shared.logBatchSummary(complexityAnalyses)
+        let complexityTime = Date().timeIntervalSince(complexityStartTime) * 1000
+        Log.info("[DocumentProcessor] Complexity pre-scan: \(String(format: "%.0f", complexityTime))ms for \(pageCount) pages", category: .ingestion)
+
+        // Build lookup for quick access
+        var pageComplexity: [Int: PageComplexityAnalysis] = [:]
+        for analysis in complexityAnalyses {
+            pageComplexity[analysis.pageNumber] = analysis
+        }
+
+        // Count pages that can skip Vision after fidelity overrides are applied.
+        let skipVisionCount = complexityAnalyses.filter { analysis in
+            let strategy = analysis.processingStrategy
+            let baseSkip = strategy == .directText || strategy == .spatialText
+            return (baseSkip && !shouldForceVisionForAdaptiveRecovery(
+                analysis: analysis,
+                strategy: strategy,
+                documentTextLayerGarbled: documentTextLayerGarbled
+            )) || Self.readsTextLayerVisionCannotRead(
+                pdfDocument.page(at: analysis.pageNumber - 1)?.string, complexity: analysis,
+                documentTextLayerGarbled: documentTextLayerGarbled)
+        }.count
+        let visionRequired = pageCount - skipVisionCount
+        Log.info("[DocumentProcessor] 🚀 ADAPTIVE: \(skipVisionCount) pages skip Vision OCR, \(visionRequired) need layout detection", category: .ingestion)
+        return pageComplexity
     }
 
     /// Step A10: counts a sub-batch's tables, lists, headers and OCR pages, saves each page's checkpoint, and adds the counts to the live metrics.
