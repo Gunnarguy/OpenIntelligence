@@ -1851,48 +1851,7 @@ extension RAGService {
             )
             Log.info("[RAGService] Stored \(documentChunks.count) chunks in FTS5 chunk index", category: .ingestion)
 
-            // Step 4.1: Learn vocabulary from chunks for per-container domain adaptation
-            // Extracts domain terms, spec codes, and technical phrases to improve future retrieval
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .analyzing,
-                    detail: "Learning vocabulary...",
-                    progress: 0.97
-                )
-            }
-            for chunk in documentChunks {
-                await ContainerVocabularyService.shared.learnFromChunk(
-                    chunk.content,
-                    containerId: activeContainerId
-                )
-            }
-
-            // Step 4.1b: Learn from Vision-detected entities (emails, phones, dates, URLs, etc.)
-            // These are automatically extracted during structured document parsing
-            let visionEntities = documentProcessor.lastDetectedEntities
-            if !visionEntities.isEmpty {
-                await ContainerVocabularyService.shared.learnFromDetectedEntities(
-                    visionEntities,
-                    containerId: activeContainerId
-                )
-                Log.debug("[RAGService] Learned \(visionEntities.count) Vision-detected entities", category: .ingestion)
-            }
-
-            await ContainerVocabularyService.shared.documentIngested(
-                filename,
-                containerId: activeContainerId
-            )
-            TelemetryCenter.emit(
-                .ingestion,
-                title: "Vocabulary learned",
-                metadata: [
-                    "file": filename,
-                    "container": activeContainerId.uuidString,
-                    "visionEntities": "\(visionEntities.count)",
-                ]
-            )
+            await learnImportVocabulary(trackingId: trackingId, filename: filename, documentChunks: documentChunks, activeContainerId: activeContainerId)
 
             // Step 4.9: Persist vector store to disk (single write after all batch stores). Before the
             // model work in `enrichImportedDocument`, which comes after the document is saved (5.7).
@@ -1983,6 +1942,53 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step Y: teaches the library's vocabulary every passage and the Vision-detected entities, records the document, and emits Vocabulary learned.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func learnImportVocabulary(trackingId: UUID?, filename: String, documentChunks: [DocumentChunk], activeContainerId: UUID) async {
+        // Step 4.1: Learn vocabulary from chunks for per-container domain adaptation
+        // Extracts domain terms, spec codes, and technical phrases to improve future retrieval
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .analyzing,
+                detail: "Learning vocabulary...",
+                progress: 0.97
+            )
+        }
+        for chunk in documentChunks {
+            await ContainerVocabularyService.shared.learnFromChunk(
+                chunk.content,
+                containerId: activeContainerId
+            )
+        }
+
+        // Step 4.1b: Learn from Vision-detected entities (emails, phones, dates, URLs, etc.)
+        // These are automatically extracted during structured document parsing
+        let visionEntities = documentProcessor.lastDetectedEntities
+        if !visionEntities.isEmpty {
+            await ContainerVocabularyService.shared.learnFromDetectedEntities(
+                visionEntities,
+                containerId: activeContainerId
+            )
+            Log.debug("[RAGService] Learned \(visionEntities.count) Vision-detected entities", category: .ingestion)
+        }
+
+        await ContainerVocabularyService.shared.documentIngested(
+            filename,
+            containerId: activeContainerId
+        )
+        TelemetryCenter.emit(
+            .ingestion,
+            title: "Vocabulary learned",
+            metadata: [
+                "file": filename,
+                "container": activeContainerId.uuidString,
+                "visionEntities": "\(visionEntities.count)",
+            ]
+        )
     }
 
     /// Step AC: lists the document in its library, updates the chunk count, library stats and processing summary on the main actor, and emits Document indexed.
