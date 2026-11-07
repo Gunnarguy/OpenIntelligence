@@ -1382,16 +1382,7 @@ extension DocumentProcessor {
         _ = pageInfo
 
         // Collect all detected entities from structured elements
-        var allDetectedEntities: [(type: String, value: String)] = []
-        for element in elements {
-            allDetectedEntities.append(contentsOf: element.detectedEntities)
-        }
-
-        // Store entities for vocabulary learning
-        self.lastDetectedEntities = allDetectedEntities
-        if !allDetectedEntities.isEmpty {
-            Log.info("[DocumentProcessor] Collected \(allDetectedEntities.count) Vision-detected entities for vocabulary learning", category: .ingestion)
-        }
+        collectDetectedEntities(elements: elements)
 
         // Group paragraphs for semantic chunking, but tables and lists become atomic chunks
         var paragraphBuffer: [(text: String, page: Int)] = []
@@ -1452,6 +1443,21 @@ extension DocumentProcessor {
         logStructureBreakdown(chunks: chunks)
 
         return chunks
+    }
+
+    /// Step B1: collects the entities Vision detected in the elements and keeps them for vocabulary learning.
+    /// Moved unchanged from `createStructureAwareChunks` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func collectDetectedEntities(elements: [DocumentProcessor.StructuredElementWrapper]) {
+        var allDetectedEntities: [(type: String, value: String)] = []
+        for element in elements {
+            allDetectedEntities.append(contentsOf: element.detectedEntities)
+        }
+
+        // Store entities for vocabulary learning
+        self.lastDetectedEntities = allDetectedEntities
+        if !allDetectedEntities.isEmpty {
+            Log.info("[DocumentProcessor] Collected \(allDetectedEntities.count) Vision-detected entities for vocabulary learning", category: .ingestion)
+        }
     }
 
     /// Step B6: a title element updates the current section title and path the following chunks carry.
