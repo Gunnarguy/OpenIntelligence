@@ -1345,46 +1345,7 @@ extension RAGService {
             }
             try Task.checkCancellation()
 
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .chunking,
-                    detail: "\(processedChunks.count) chunks • \(totalWords) words • avg \(avgChunkWords)w/chunk"
-                ) { metrics in
-                    metrics.fileSizeMB = fileSizeMB
-                    metrics.totalCharacters = totalChars
-                    metrics.totalWords = totalWords
-                    metrics.pageCount = document.processingMetadata?.pagesProcessed ?? 0
-                    metrics.ocrPagesCount = document.processingMetadata?.ocrPagesCount ?? 0
-                    metrics.chunkCount = processedChunks.count
-                    metrics.avgChunkWords = avgChunkWords
-                    metrics.minChunkWords = minChunkWords
-                    metrics.maxChunkWords = maxChunkWords
-                    metrics.extractionTimeMs = Int(extractionTime * 1000)
-
-                    // === STRUCTURED PARSING TRANSPARENCY ===
-                    if let meta = document.processingMetadata {
-                        metrics.usedStructuredParsing = meta.usedStructuredParsing
-                        metrics.structuredParsingQuality = meta.structuredParsingQuality
-                        metrics.tablesExtracted = meta.tablesExtracted
-                        metrics.tableRowsTotal = meta.tableRowsTotal
-                        metrics.tableColumnsMax = meta.tableColumnsMax
-                        metrics.listsExtracted = meta.listsExtracted
-                        metrics.listItemsTotal = meta.listItemsTotal
-                        metrics.titlesDetected = meta.titlesDetected
-                        metrics.figureReferences = meta.figureReferences
-                        metrics.visionEntitiesDetected = meta.visionEntitiesDetected
-                        metrics.sectionPathDepth = meta.sectionPathDepth
-                        metrics.structuredParsingTimeMs = Int(meta.structuredParsingTimeSeconds * 1000)
-                        metrics.atomicTableChunks = meta.atomicTableChunks
-                        metrics.atomicListChunks = meta.atomicListChunks
-                    }
-                }
-            }
-
-            // Yield to let SwiftUI render chunking status
-            await Task.yield()
+            await showChunkingStage(trackingId: trackingId, filename: filename, avgChunkWords: avgChunkWords, processedChunks: processedChunks, totalWords: totalWords, fileSizeMB: fileSizeMB, totalChars: totalChars, document: document, minChunkWords: minChunkWords, maxChunkWords: maxChunkWords, extractionTime: extractionTime)
 
             await autoAdaptConfigurationIfEnabled(context: context, container: &container, trackingId: trackingId, filename: filename, processedChunks: processedChunks, activeContainerId: activeContainerId, document: document, preExistingDocumentsInContainerCount: preExistingDocumentsInContainerCount, providerId: &providerId, containerEmbeddingService: &containerEmbeddingService, pendingSelfTuneReasons: &pendingSelfTuneReasons)
             try Task.checkCancellation()
@@ -1538,6 +1499,51 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step Q: shows the chunking stage with the extraction's live metrics and yields so the interface can draw it.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func showChunkingStage(trackingId: UUID?, filename: String, avgChunkWords: Int, processedChunks: [DocumentProcessor.ProcessedChunk], totalWords: Int, fileSizeMB: Double, totalChars: Int, document: Document, minChunkWords: Int, maxChunkWords: Int, extractionTime: TimeInterval) async {
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .chunking,
+                detail: "\(processedChunks.count) chunks • \(totalWords) words • avg \(avgChunkWords)w/chunk"
+            ) { metrics in
+                metrics.fileSizeMB = fileSizeMB
+                metrics.totalCharacters = totalChars
+                metrics.totalWords = totalWords
+                metrics.pageCount = document.processingMetadata?.pagesProcessed ?? 0
+                metrics.ocrPagesCount = document.processingMetadata?.ocrPagesCount ?? 0
+                metrics.chunkCount = processedChunks.count
+                metrics.avgChunkWords = avgChunkWords
+                metrics.minChunkWords = minChunkWords
+                metrics.maxChunkWords = maxChunkWords
+                metrics.extractionTimeMs = Int(extractionTime * 1000)
+
+                // === STRUCTURED PARSING TRANSPARENCY ===
+                if let meta = document.processingMetadata {
+                    metrics.usedStructuredParsing = meta.usedStructuredParsing
+                    metrics.structuredParsingQuality = meta.structuredParsingQuality
+                    metrics.tablesExtracted = meta.tablesExtracted
+                    metrics.tableRowsTotal = meta.tableRowsTotal
+                    metrics.tableColumnsMax = meta.tableColumnsMax
+                    metrics.listsExtracted = meta.listsExtracted
+                    metrics.listItemsTotal = meta.listItemsTotal
+                    metrics.titlesDetected = meta.titlesDetected
+                    metrics.figureReferences = meta.figureReferences
+                    metrics.visionEntitiesDetected = meta.visionEntitiesDetected
+                    metrics.sectionPathDepth = meta.sectionPathDepth
+                    metrics.structuredParsingTimeMs = Int(meta.structuredParsingTimeSeconds * 1000)
+                    metrics.atomicTableChunks = meta.atomicTableChunks
+                    metrics.atomicListChunks = meta.atomicListChunks
+                }
+            }
+        }
+
+        // Yield to let SwiftUI render chunking status
+        await Task.yield()
     }
 
     /// Step R (Step 1.5): the self-tune corpus analysis, which can change the library's chunking and embedding settings; it does not run today because allowsSelfTuningScheduling is false for every import.

@@ -104,7 +104,7 @@ one, and one row per passage goes in after the vectors are stored. A single-page
 no page rows, and a file imported in pieces stores its whole text once at the end. `RAGService.addDocument`
 drives both, and `Docs/INGESTION_PIPELINE.md` §1, "The order the code runs", has the steps.
 `[evidence_level: code_verified, confidence: high, evidence_source: DocumentProcessor+Import.swift:337-365, 396,
-RAGService+Import.swift:1438, 1969, RAGService+TextStreaming.swift:320-321]`
+RAGService+Import.swift:1399, 1975, RAGService+TextStreaming.swift:320-321]`
 
 Query → `Services/Query` rewrites and classifies intent → `HybridSearchService` runs dense vector
 search and lexical scoring (concurrently on the FTS5 path), fuses them with reciprocal rank fusion
@@ -170,7 +170,7 @@ stand-in is used, the library is switched to the stand-in and its vectors are cl
 on. `[evidence_level: code_verified,
 confidence: high, evidence_source: BNNSVectorDatabase.swift:26-41, 1036-1091, 1104-1201,
 VectorStoreRouter.swift:154-172, Package.resolved, SQLiteFullTextService.swift:87-94, 242-255, SQLiteFullTextService+Chunks.swift:714-735,
-RAGService+Import.swift:1047-1095, 1438-1439]`
+RAGService+Import.swift:1047-1095, 1399-1400]`
 
 ## Security and privacy boundaries
 

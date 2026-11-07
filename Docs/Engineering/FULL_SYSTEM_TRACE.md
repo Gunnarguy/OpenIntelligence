@@ -145,17 +145,17 @@ to `RAGService.query`, so a Siri question runs the same §4 pipeline in the back
 | 3 | iCloud materialisation guard | `WorkspaceSyncService.ensureItemAvailableLocally(at:timeout: 20)` (`Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift:509`) | Blocks the document up to 20 s while iCloud downloads a placeholder | code_verified / exact |
 | 4 | Stage `.loading` | `RAGService+Import.swift:1124` | | code_verified / exact |
 | 5 | Parse and chunk | Step 1 at `RAGService+Import.swift:1195` → `DocumentProcessor.processDocument` (`Services/Document/Processing/DocumentProcessor+Import.swift:67`) | See §3.2 | code_verified / exact |
-| 6 | Auto-adapt configuration | Step 1.5 at `RAGService+Import.swift:1546-1759`, stage `.analyzing` | | code_verified / exact |
-| 7 | Embed | Step 2 at `RAGService+Import.swift:1392`, stage `.embedding` (`:1729`) | See §3.4 | code_verified / exact |
-| 8 | Build chunk records | Step 3 at `RAGService+Import.swift:2217` | | code_verified / exact |
-| 9 | Store vectors | Step 4 at `RAGService+Import.swift:1416`: `db.storeBatch(chunks:)` (`:1887`), `db.persist()` (`:1888`) | Actor-serialised | code_verified / exact |
-| 10 | Spotlight chunks | Step 4.0.0 at `RAGService+Import.swift:1886` (if enabled) | | code_verified / exact |
-| 11 | Store chunk rows in FTS5 | Step 4.0.1 at `RAGService+Import.swift:1924`, `SQLiteFullTextService.shared.storeChunks` (`:1974`), stage `.indexing` | Actor | code_verified / exact |
-| 12 | Learn vocabulary and Vision entities | Steps 4.1 and 4.1b at `RAGService+Import.swift:1980, 1998` | | code_verified / exact |
-| 13 | Document summary (RAPTOR-lite L1) | Step 4.5 at `RAGService+Import.swift:2407` (if enabled) | One LLM call | code_verified / exact |
-| 14 | Persist vector store again | Step 4.9 at `RAGService+Import.swift:1452-1455` | | code_verified / exact |
-| 15 | Content tags | Step 5 at `RAGService+Import.swift:2503` (iOS 26+ tagging model) | | code_verified / exact |
-| 16 | State update, `.complete` | `RAGService+Import.swift:2027`, `:2207` | | code_verified / exact |
+| 6 | Auto-adapt configuration | Step 1.5 at `RAGService+Import.swift:1552-1765`, stage `.analyzing` | | code_verified / exact |
+| 7 | Embed | Step 2 at `RAGService+Import.swift:1353`, stage `.embedding` (`:1729`) | See §3.4 | code_verified / exact |
+| 8 | Build chunk records | Step 3 at `RAGService+Import.swift:2223` | | code_verified / exact |
+| 9 | Store vectors | Step 4 at `RAGService+Import.swift:1377`: `db.storeBatch(chunks:)` (`:1887`), `db.persist()` (`:1888`) | Actor-serialised | code_verified / exact |
+| 10 | Spotlight chunks | Step 4.0.0 at `RAGService+Import.swift:1892` (if enabled) | | code_verified / exact |
+| 11 | Store chunk rows in FTS5 | Step 4.0.1 at `RAGService+Import.swift:1930`, `SQLiteFullTextService.shared.storeChunks` (`:1974`), stage `.indexing` | Actor | code_verified / exact |
+| 12 | Learn vocabulary and Vision entities | Steps 4.1 and 4.1b at `RAGService+Import.swift:1986, 2004` | | code_verified / exact |
+| 13 | Document summary (RAPTOR-lite L1) | Step 4.5 at `RAGService+Import.swift:2413` (if enabled) | One LLM call | code_verified / exact |
+| 14 | Persist vector store again | Step 4.9 at `RAGService+Import.swift:1413-1416` | | code_verified / exact |
+| 15 | Content tags | Step 5 at `RAGService+Import.swift:2509` (iOS 26+ tagging model) | | code_verified / exact |
+| 16 | State update, `.complete` | `RAGService+Import.swift:2033`, `:2207` | | code_verified / exact |
 
 The full document text goes into the FTS `documents` table **before** chunking, from inside
 `processDocument` (`DocumentProcessor+Import.swift:140, 359` → `SQLiteFullTextService.store(text:for:containerId:)`
