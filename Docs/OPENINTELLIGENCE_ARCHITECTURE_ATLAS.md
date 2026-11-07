@@ -916,6 +916,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | Step | What moved |
 |---|---|
 | I01 | Step AB (the import's ProcessingSummary from its timings, counts and chunk statistics, with the library's embedding provider) into `makeProcessingSummary` |
+| I02 | AA (document) (rebuilds the imported Document with its complete processing metadata, the file hash and the import's library) into `buildCompletedDocument` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

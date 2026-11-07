@@ -2045,68 +2045,7 @@ extension RAGService {
                 fileSizeStr = String(format: "%.2f MB", fileSizeMB)
             }
 
-            // Update document with embedding time and complete metadata
-            var updatedDocument = document
-            if let existingMetadata = document.processingMetadata {
-                // Create new metadata with embedding time added
-                var completeMetadata = ProcessingMetadata(
-                    fileSizeMB: fileSizeMB,
-                    totalCharacters: existingMetadata.totalCharacters,
-                    totalWords: existingMetadata.totalWords,
-                    extractionTimeSeconds: existingMetadata.extractionTimeSeconds,
-                    chunkingTimeSeconds: existingMetadata.chunkingTimeSeconds,
-                    embeddingTimeSeconds: embeddingTime,
-                    totalProcessingTimeSeconds: totalTime,
-                    pagesProcessed: existingMetadata.pagesProcessed,
-                    ocrPagesCount: existingMetadata.ocrPagesCount,
-                    chunkStats: existingMetadata.chunkStats
-                )
-                completeMetadata.usedStructuredParsing = existingMetadata.usedStructuredParsing
-                completeMetadata.structuredParsingQuality = existingMetadata.structuredParsingQuality
-                completeMetadata.tablesExtracted = existingMetadata.tablesExtracted
-                completeMetadata.tableRowsTotal = existingMetadata.tableRowsTotal
-                completeMetadata.tableColumnsMax = existingMetadata.tableColumnsMax
-                completeMetadata.listsExtracted = existingMetadata.listsExtracted
-                completeMetadata.listItemsTotal = existingMetadata.listItemsTotal
-                completeMetadata.titlesDetected = existingMetadata.titlesDetected
-                completeMetadata.figureReferences = existingMetadata.figureReferences
-                completeMetadata.visionEntitiesDetected = existingMetadata.visionEntitiesDetected
-                completeMetadata.sectionPathDepth = existingMetadata.sectionPathDepth
-                completeMetadata.structuredParsingTimeSeconds = existingMetadata.structuredParsingTimeSeconds
-                completeMetadata.atomicTableChunks = existingMetadata.atomicTableChunks
-                completeMetadata.atomicListChunks = existingMetadata.atomicListChunks
-                completeMetadata.documentCategory = existingMetadata.documentCategory
-
-                updatedDocument = Document(
-                    id: document.id,
-                    filename: document.filename,
-                    fileURL: document.fileURL,
-                    storageRelativePath: document.storageRelativePath,
-                    fileHash: documentHash ?? document.fileHash,
-                    contentType: document.contentType,
-                    addedAt: document.addedAt,
-                    totalChunks: document.totalChunks,
-                    processingMetadata: completeMetadata,
-                    containerId: document.containerId,
-                    contentTags: nil
-                )
-            }
-
-            // Ensure document is associated with the active container and has content tags
-            let docWithContainer = Document(
-                id: updatedDocument.id,
-                filename: updatedDocument.filename,
-                fileURL: updatedDocument.fileURL,
-                storageRelativePath: updatedDocument.storageRelativePath,
-                fileHash: documentHash ?? updatedDocument.fileHash,
-                contentType: updatedDocument.contentType,
-                addedAt: updatedDocument.addedAt,
-                totalChunks: updatedDocument.totalChunks,
-                processingMetadata: updatedDocument.processingMetadata,
-                containerId: activeContainerId,
-                contentTags: updatedDocument.contentTags
-            )
-            updatedDocument = docWithContainer
+            let updatedDocument = buildCompletedDocument(document: document, fileSizeMB: fileSizeMB, embeddingTime: embeddingTime, totalTime: totalTime, documentHash: documentHash, activeContainerId: activeContainerId)
 
             let summary = makeProcessingSummary(activeContainerId: activeContainerId, filename: filename, fileSizeStr: fileSizeStr, document: document, totalChars: totalChars, totalWords: totalWords, processedChunks: processedChunks, extractionTime: extractionTime, chunkingTime: chunkingTime, embeddingTime: embeddingTime, totalTime: totalTime, avgChunkSize: avgChunkSize, minChunkSize: minChunkSize, maxChunkSize: maxChunkSize)
 
@@ -2273,6 +2212,74 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step AA (document): rebuilds the imported Document with its complete processing metadata, the file hash and the import's library.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func buildCompletedDocument(document: Document, fileSizeMB: Double, embeddingTime: TimeInterval, totalTime: TimeInterval, documentHash: String?, activeContainerId: UUID) -> Document {
+        // Update document with embedding time and complete metadata
+        var updatedDocument = document
+        if let existingMetadata = document.processingMetadata {
+            // Create new metadata with embedding time added
+            var completeMetadata = ProcessingMetadata(
+                fileSizeMB: fileSizeMB,
+                totalCharacters: existingMetadata.totalCharacters,
+                totalWords: existingMetadata.totalWords,
+                extractionTimeSeconds: existingMetadata.extractionTimeSeconds,
+                chunkingTimeSeconds: existingMetadata.chunkingTimeSeconds,
+                embeddingTimeSeconds: embeddingTime,
+                totalProcessingTimeSeconds: totalTime,
+                pagesProcessed: existingMetadata.pagesProcessed,
+                ocrPagesCount: existingMetadata.ocrPagesCount,
+                chunkStats: existingMetadata.chunkStats
+            )
+            completeMetadata.usedStructuredParsing = existingMetadata.usedStructuredParsing
+            completeMetadata.structuredParsingQuality = existingMetadata.structuredParsingQuality
+            completeMetadata.tablesExtracted = existingMetadata.tablesExtracted
+            completeMetadata.tableRowsTotal = existingMetadata.tableRowsTotal
+            completeMetadata.tableColumnsMax = existingMetadata.tableColumnsMax
+            completeMetadata.listsExtracted = existingMetadata.listsExtracted
+            completeMetadata.listItemsTotal = existingMetadata.listItemsTotal
+            completeMetadata.titlesDetected = existingMetadata.titlesDetected
+            completeMetadata.figureReferences = existingMetadata.figureReferences
+            completeMetadata.visionEntitiesDetected = existingMetadata.visionEntitiesDetected
+            completeMetadata.sectionPathDepth = existingMetadata.sectionPathDepth
+            completeMetadata.structuredParsingTimeSeconds = existingMetadata.structuredParsingTimeSeconds
+            completeMetadata.atomicTableChunks = existingMetadata.atomicTableChunks
+            completeMetadata.atomicListChunks = existingMetadata.atomicListChunks
+            completeMetadata.documentCategory = existingMetadata.documentCategory
+
+            updatedDocument = Document(
+                id: document.id,
+                filename: document.filename,
+                fileURL: document.fileURL,
+                storageRelativePath: document.storageRelativePath,
+                fileHash: documentHash ?? document.fileHash,
+                contentType: document.contentType,
+                addedAt: document.addedAt,
+                totalChunks: document.totalChunks,
+                processingMetadata: completeMetadata,
+                containerId: document.containerId,
+                contentTags: nil
+            )
+        }
+
+        // Ensure document is associated with the active container and has content tags
+        let docWithContainer = Document(
+            id: updatedDocument.id,
+            filename: updatedDocument.filename,
+            fileURL: updatedDocument.fileURL,
+            storageRelativePath: updatedDocument.storageRelativePath,
+            fileHash: documentHash ?? updatedDocument.fileHash,
+            contentType: updatedDocument.contentType,
+            addedAt: updatedDocument.addedAt,
+            totalChunks: updatedDocument.totalChunks,
+            processingMetadata: updatedDocument.processingMetadata,
+            containerId: activeContainerId,
+            contentTags: updatedDocument.contentTags
+        )
+        updatedDocument = docWithContainer
+        return updatedDocument
     }
 
     /// Step AB: builds the import's ProcessingSummary from its timings, counts and chunk statistics, with the library's embedding provider.

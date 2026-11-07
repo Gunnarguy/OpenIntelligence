@@ -4,7 +4,7 @@
   "name": "App Intents and Siri",
   "aliases": ["Shortcuts", "Siri", "App Shortcuts", "App Intents", "screen awareness intents", "visual intelligence intents"],
   "purpose": "Lets Siri and Shortcuts search, import into and ask the library, and works with what is on screen.",
-  "revision": "3a71a1ee",
+  "revision": "22c77fa6",
   "verified_on": "2026-11-07",
   "entry_points": ["RAGAppShortcutsProvider", "QueryDocumentsIntent", "SearchLibraryIntent", "IngestDocumentIntent", "AnalyzeImageIntent"],
   "files": [
