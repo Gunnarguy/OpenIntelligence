@@ -5137,26 +5137,7 @@ extension RAGService {
 
                 // Wrap all printing in error handling to prevent crashes
                 do {
-                    Log.info("✓ Response generated", category: .llm)
-                    Log.info("  Model: \(llmService.modelName)", category: .llm)
-                    Log.info(
-                        "  Generation time: \(String(format: "%.2f", generationTime))s",
-                        category: .performance
-                    )
-
-                    // Access response text safely
-                    Log.debug("  Response length: \(responseText.count) chars", category: .llm)
-                    Log.debug("  Words: \(responseWordCount)", category: .llm)
-
-                    if llmResponse.tokensGenerated > 0 {
-                        Log.debug("  Tokens: \(llmResponse.tokensGenerated)", category: .llm)
-                        if let tps = llmResponse.tokensPerSecond {
-                            Log.debug(
-                                "  Speed: \(String(format: "%.1f", tps)) tokens/sec",
-                                category: .performance
-                            )
-                        }
-                    }
+                    logGeneratedResponse(generationTime: generationTime, responseText: responseText, responseWordCount: responseWordCount, llmResponse: llmResponse)
 
                     // Verify we got a response — if empty, route to reliability fallback
                     // instead of throwing modelNotAvailable (which skips fallback entirely)
@@ -5772,6 +5753,31 @@ extension RAGService {
                 throw LLMError.contextWindowExceeded
             }
             throw error
+        }
+    }
+
+    /// Step 6g (log): logs the model, timing, length and token rate of the generated answer.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func logGeneratedResponse(generationTime: TimeInterval, responseText: String, responseWordCount: Int, llmResponse: LLMResponse) {
+        Log.info("✓ Response generated", category: .llm)
+        Log.info("  Model: \(llmService.modelName)", category: .llm)
+        Log.info(
+            "  Generation time: \(String(format: "%.2f", generationTime))s",
+            category: .performance
+        )
+
+        // Access response text safely
+        Log.debug("  Response length: \(responseText.count) chars", category: .llm)
+        Log.debug("  Words: \(responseWordCount)", category: .llm)
+
+        if llmResponse.tokensGenerated > 0 {
+            Log.debug("  Tokens: \(llmResponse.tokensGenerated)", category: .llm)
+            if let tps = llmResponse.tokensPerSecond {
+                Log.debug(
+                    "  Speed: \(String(format: "%.1f", tps)) tokens/sec",
+                    category: .performance
+                )
+            }
         }
     }
 

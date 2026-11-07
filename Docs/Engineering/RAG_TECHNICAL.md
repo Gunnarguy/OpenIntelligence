@@ -192,7 +192,7 @@ and the website all carry it and must move together.
   - "Vectura/HNSW is a selectable backend path" is not true of any build: `VecturaVectorDatabase` is behind `#if canImport(VecturaKit)`, VecturaKit is not a dependency, and a library configured for it falls back to the BNNS store.
   - The quick reference table's HyDE and contextual compression rows say ON. Their settings default to true, but neither runs in any user-selectable mode. Each needs a mode flag that is off in Standard, and Deep Think and Maximum leave for the agentic path before either step.
   - "Deterministic entities" are attached to chunks, but the entity index is never filled, so nothing expands through it.
-  `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:3198-3209, RAGService+AgenticQuery.swift:124-300, RAGService+AgenticQuery.swift:754-761, RAGService+QueryPipeline.swift:5187-5214, :944-991, :2986-2992 and :3072, RAGService+ToolHandler.swift:207-210, OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift:167-172, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195 and :277-284, OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137]`
+  `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift:25-40, OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:3198-3209, RAGService+AgenticQuery.swift:124-300, RAGService+AgenticQuery.swift:754-761, RAGService+QueryPipeline.swift:5168-5195, :944-991, :2986-2992 and :3072, RAGService+ToolHandler.swift:207-210, OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift:167-172, OpenIntelligence/Core/Models/RAGQualityMode.swift:189-195 and :277-284, OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift:31 and :137]`
 
 ---
 
@@ -415,7 +415,7 @@ let verification = try await service.verifyAnswerGrounding(
 > their overall confidence is under the bar. No gate triggers re-retrieval. `[evidence_level:
 > code_verified, confidence: exact, evidence_source:
 > OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift:452 (no caller),
-> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:5309-5395]`
+> OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift:5290-5376]`
 
 ---
 
