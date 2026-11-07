@@ -4,8 +4,8 @@
   "name": "Document Ingestion Pipeline",
   "aliases": ["document ingestion", "ingestion pipeline", "import documents", "importing documents", "import PDFs", "choose documents to import", "document processor", "Vision OCR fallback", "OCR configuration", "stage ledger", "ingestion queue", "the import", "an import", "importing a", "OCR", "scanned pages"],
   "purpose": "Turns an imported file into text, pages and chunks through staged extraction, with Vision OCR as the fallback, and shows the import queue's progress.",
-  "revision": "7d1ae2ed",
-  "verified_on": "2026-11-06",
+  "revision": "b6675a8e",
+  "verified_on": "2026-11-07",
   "entry_points": ["DocumentLibraryView.enqueueDocumentIngestion", "RAGService.enqueueDocuments", "RAGService.runIngestionLoop", "RAGService.addDocument", "RAGService.importLargePDFStreamed", "DocumentProcessor.processDocument", "DocumentProcessor.extractStructuredPDFContent", "DocumentProcessor.performOCR", "IngestionQueueOverlay"],
   "files": [
     {"path": "OpenIntelligence/Core/Models/IngestionItem.swift", "role": "primary", "blob": "4967018371ee1f165c2fa89f2e5b0e4ff91729ed"},
@@ -17,7 +17,7 @@
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "role": "primary", "blob": "cd0c6e706789c1c49b317d0fbdfca841a73cc3df"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+TextExtraction.swift", "role": "primary", "blob": "b8e6f1b2cf20a784d6eda3b03ada79c2fda57d8c"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "role": "primary", "blob": "b13fa29684025950c2e527646e3f7eddd30b248f"},
-    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "role": "primary", "blob": "4cdc7e09d225429296c16fcf5a5c25abf4a30ff4"},
+    {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "role": "primary", "blob": "af93aeab578bb8a08c0d205b966686eda0065f37"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+TokenLimits.swift", "role": "primary", "blob": "2c9b63639caf7124235e6ab511d92dee85e09f52"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "role": "primary", "blob": "097505a20eb76107851e5695dacd8308c569f779"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Layout.swift", "role": "primary", "blob": "1937a83e68bcdfffe438d0a74c2b706d47e8f742"},
@@ -90,7 +90,7 @@
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"},
     {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "role": "shared", "blob": "ac11bc245dda36a00e6c0fee4f64caf087e48bf8"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ImportGoldenTests.swift", "role": "test", "blob": "15a135004710c5610a96fca53d874535c5d53382"},
-    {"path": "OpenIntelligenceTests/Services/Document/Processing/StructuredParsingGoldenTests.swift", "role": "test", "blob": "f7caff74d9b87d5f06f998fb6c5c6967c55f6ead"}
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/StructuredParsingGoldenTests.swift", "role": "test", "blob": "8344328c0fb74b6d258e4757306a9c9dc84cec1d"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 125, "match": "private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {", "status": "VERIFIED", "by": "build"},
@@ -190,7 +190,7 @@
     {"from": "DocumentProcessor.processDocument", "type": "calls", "to": "OCRConfiguration.normalizeExtractedText", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "line": 311, "match": "let normalizedText = await Self.normalizeOffMainActor("}], "by": "build", "note": "through normalizeOffMainActor, which calls it on the concurrent pool"},
     {"from": "DocumentProcessor.processDocument", "type": "calls", "to": "SQLiteFullTextService.storePages", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift", "line": 942, "match": "await SQLiteFullTextService.shared.storePages(pages: rows, for: documentId, containerId: containerId, append: append)"}], "by": "build", "note": "the call names the type"},
     {"from": "DocumentProcessor.processDocument", "type": "depends_on", "to": "IngestionStageLedger", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "line": 383, "match": "var stageLedger = IngestionStageLedger(documentName: filename)"}], "by": "build", "note": "constructs it"},
-    {"from": "DocumentProcessor.processDocument", "type": "calls", "to": "SemanticChunker", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 1445, "match": "let semanticChunker = SemanticChunker()"}], "by": "build", "note": "constructs it"},
+    {"from": "DocumentProcessor.processDocument", "type": "calls", "to": "SemanticChunker", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 1453, "match": "let semanticChunker = SemanticChunker()"}], "by": "build", "note": "constructs it"},
     {"from": "DocumentProcessor.extractStructuredPDFContent", "type": "depends_on", "to": "DocumentProcessor.StructuredExtractionResult", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 55, "match": "return StructuredExtractionResult("}], "by": "build", "note": "constructs it"},
     {"from": "DocumentProcessor.performOCR", "type": "calls", "to": "AdaptivePreprocessor.apply", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "line": 583, "match": "let preprocessed = AdaptivePreprocessor.apply("}], "by": "build", "note": "the call names the type"},
     {"from": "IngestionQueueOverlay", "type": "renders", "to": "TotalsSummaryCard", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/UI/Components/IngestionQueueOverlay.swift", "line": 472, "match": "TotalsSummaryCard("}], "by": "build", "note": "constructs it"},
@@ -275,8 +275,8 @@
       {"from": "DocumentProcessor", "type": "depends_on", "to": "RegionRescueResult", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+TextExtraction.swift", "line": 519, "match": "from rescue: RegionRescueResult,"}]},
       {"from": "DocumentProcessor", "type": "depends_on", "to": "LayoutAwareExtractor", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 98, "match": "let layoutExtractor = LayoutAwareExtractor.shared"}]},
       {"from": "DocumentProcessor", "type": "depends_on", "to": "LayoutAnalysisResult", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 360, "match": "var layoutResults: [Int: LayoutAnalysisResult] = [:]"}]},
-      {"from": "DocumentProcessor", "type": "depends_on", "to": "IntelligentDocumentProcessor", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 730, "match": "), let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions("}]},
-      {"from": "DocumentProcessor", "type": "depends_on", "to": "StructuredParsingError", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 826, "match": "} catch StructuredParsingError.noDocumentDetected {"}]},
+      {"from": "DocumentProcessor", "type": "depends_on", "to": "IntelligentDocumentProcessor", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 764, "match": "), let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions("}]},
+      {"from": "DocumentProcessor", "type": "depends_on", "to": "StructuredParsingError", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+StructuredParsing.swift", "line": 860, "match": "} catch StructuredParsingError.noDocumentDetected {"}]},
       {"from": "DocumentProcessor", "type": "depends_on", "to": "OversizedChunkSplitter", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+TokenLimits.swift", "line": 213, "match": "let parts = OversizedChunkSplitter.parts(of: chunk.text, maxTokens: maxTokens, countTokens: countTokens)"}]},
       {"from": "DocumentProcessor", "type": "depends_on", "to": "VisionOCRThrottle", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+ImagesAndOCR.swift", "line": 437, "match": "VisionOCRThrottle.performSync {"}]},
       {"from": "DocumentProcessor", "type": "depends_on", "to": "ConfidenceVerifier", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Layout.swift", "line": 336, "match": "let result = ConfidenceVerifier.assembleVerifiedText(from: observations)"}]},

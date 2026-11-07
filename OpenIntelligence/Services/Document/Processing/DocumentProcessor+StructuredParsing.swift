@@ -422,583 +422,7 @@ extension DocumentProcessor {
                 }
             }
 
-            // Emit structured extraction progress. Vision chooses the hardware it runs on.
-            await MainActor.run {
-                self.emitProgress(
-                    stage: "structure",
-                    detail: "🔍 Tables/lists \(batchStart + 1)-\(batchEnd)/\(pageCount)",
-                    page: batchStart,
-                    totalPages: pageCount
-                )
-            }
-
-            let batchResults = await withTaskGroup(of: PageParseResult.self) { group in
-                for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
-                    let renderData = batchRenderData[batchOffset]
-                    if renderData.layoutText == "[CHECKPOINT_SKIPPED]" {
-                        continue
-                    }
-                    let isHybridMode = useHybridMode  // Capture for sendable closure
-                    let isGarbled = documentTextLayerGarbled  // Capture for sendable closure
-                    // Gap 1 fix: capture customWords by value here (not via actor state on shared
-                    // parser). If two documents ingest concurrently, setDocumentCustomWords() on
-                    // the shared singleton clobbers vocabulary mid-parse for the first document.
-                    // Capturing here binds this task to doc1's vocabulary regardless of doc2.
-                    let capturedCustomWords = currentDocumentCustomWords
-                    // Captured alongside the vocabulary for the same reason: these run concurrently
-                    // and must not read actor state that a later document could have replaced.
-                    let capturedLanguages = currentDocumentRecognitionLanguages
-                    let capturedComplexity = pageComplexity[pageIndex + 1]
-
-                    group.addTask {
-                        if Task.isCancelled {
-                            return PageParseResult(
-                                pageIndex: pageIndex,
-                                elements: [],
-                                pageText: "",
-                                hasStructure: false,
-                                usedOCR: false,
-                                tablesFound: 0,
-                                listsFound: 0,
-                                headersFound: 0
-                            )
-                        }
-
-                        let pageNumber = pageIndex + 1
-                        let bestAvailableText = (renderData.layoutText ?? renderData.plainText)?
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                        // No page data available
-                        guard let pageImage = renderData.pageImage else {
-                            // PHASE -1: when text layer is garbled, don't use PDFKit fallback
-                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
-                                self.traceIngestionOutcome(
-                                    pageNumber: pageNumber,
-                                    path: renderData.layoutText != nil ? "structured-skip-vision-layout" : "structured-skip-vision-native",
-                                    chars: nativeText.count
-                                )
-                                return PageParseResult(
-                                    pageIndex: pageIndex,
-                                    elements: [StructuredElementWrapper(
-                                        text: nativeText,
-                                        elementType: "paragraph",
-                                        pageNumber: pageNumber,
-                                        isAtomicChunk: false
-                                    )],
-                                    pageText: nativeText,
-                                    hasStructure: false,
-                                    usedOCR: false,
-                                    tablesFound: 0,
-                                    listsFound: 0,
-                                    headersFound: 0
-                                )
-                            }
-                            self.traceIngestionOutcome(
-                                pageNumber: pageNumber,
-                                path: "structured-empty-no-image",
-                                chars: 0
-                            )
-                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
-                        }
-
-                        do {
-                            // MAXIMUM QUALITY: Run full Vision structured parsing for tables/lists/headers
-                            // customWords: passed explicitly per-task (not actor state) to prevent
-                            //   concurrent-document vocab clobbering (Gap 1 fix).
-                            // nativeWordCount: PDFKit word count as quality score ground truth
-                            //   (Gap 2 fix). nil when garbled (PDFKit text untrustworthy).
-                            let nativeCount = !isGarbled ? renderData.plainText?.split(separator: " ").count : nil
-                            let structuredContent = try await parser.parsePageImage(
-                                pageImage,
-                                pageNumber: pageNumber,
-                                customWords: capturedCustomWords,
-                                recognitionLanguages: capturedLanguages,
-                                nativeWordCount: nativeCount,
-                                preferFullResolution: renderData.preferHighResolutionStructure
-                            )
-
-                            var elements: [StructuredElementWrapper] = []
-                            var pageTablesCount = 0
-                            var pageListsCount = 0
-                            var pageHeadersCount = 0
-
-                            // Log figure references if any were found
-                            if !structuredContent.figureReferences.isEmpty {
-                                Log.debug("[DocumentProcessor] Page \(pageNumber) has \(structuredContent.figureReferences.count) figure references: \(structuredContent.figureReferences.prefix(3).joined(separator: ", "))", category: .ingestion)
-                            }
-
-                            // Use effectiveContent which automatically falls back to raw text if quality is low
-                            let elementsToUse = structuredContent.effectiveContent
-
-                            let isMixedMode = capturedComplexity?.isMixedModeScanned ?? false
-                            let pageUsesHybridOverride = isHybridMode && !isMixedMode
-
-                            // HYBRID MODE: Use layout-aware text for paragraphs (correct column order)
-                            // Keep Vision's tables, lists, titles (structural elements)
-                            let layoutText = renderData.layoutText
-                            let trustedPageTextForTitles = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? layoutText ?? structuredContent.rawText))
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-                            let pageHasStructuredTables = elementsToUse.contains { structuredElement in
-                                structuredElement.elementType == "table"
-                            } || !renderData.layoutTables.isEmpty
-                            var usedLayoutForParagraph = false
-
-                            // Convert structured elements to wrappers and count types
-                            for element in elementsToUse {
-                                let isAtomic = element.elementType == "table" || element.elementType == "list"
-
-                                var entities: [(type: String, value: String)] = []
-                                var tableData: TableData?
-                                var listItems: [String]?
-                                if case .table(let parsedTable) = element {
-                                    tableData = parsedTable
-                                    entities = parsedTable.detectedEntities.map { ($0.type.rawValue, $0.value) }
-                                } else if case .list(let items, _) = element {
-                                    listItems = items
-                                }
-                                if case .table(let tableData) = element {
-                                    entities = tableData.detectedEntities.map { ($0.type.rawValue, $0.value) }
-                                }
-
-                                // In hybrid mode: replace Vision paragraphs with layout-aware text
-                                // This fixes multi-column reading order issues
-                                if pageUsesHybridOverride && element.elementType == "paragraph" && !pageHasStructuredTables {
-                                    if !usedLayoutForParagraph, let layout = layoutText, !layout.isEmpty {
-                                        // Use layout-aware text instead of Vision's paragraph
-                                        elements.append(StructuredElementWrapper(
-                                            text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
-                                            elementType: "paragraph",
-                                            pageNumber: pageNumber,
-                                            isAtomicChunk: false,
-                                            detectedEntities: [],
-                                            tableData: nil,
-                                            listItems: nil
-                                        ))
-                                        usedLayoutForParagraph = true
-                                    }
-                                    continue  // Skip Vision's paragraph
-                                }
-
-                                let sanitizedText: String?
-                                switch element {
-                                case .title(let text, _):
-                                    sanitizedText = await MainActor.run {
-                                        guard let cleaned = self.sanitizeStructuredLabel(text) else {
-                                            return nil
-                                        }
-                                        guard self.titleMatchesTrustedPageText(cleaned, pageText: trustedPageTextForTitles) else {
-                                            Log.debug("[DocumentProcessor] Dropping structured title that does not match trusted page text on page \(pageNumber)", category: .ingestion)
-                                            return nil
-                                        }
-                                        return cleaned
-                                    }
-                                case .paragraph(let text, _):
-                                    sanitizedText = await MainActor.run {
-                                        self.sanitizeStructuredNarrativeText(
-                                            text,
-                                            pageHasTables: pageHasStructuredTables
-                                        )
-                                    }
-                                default:
-                                    sanitizedText = OCRConfiguration.normalizeExtractedText(element.textForEmbedding)
-                                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                                }
-
-                                guard let sanitizedText, !sanitizedText.isEmpty else {
-                                    continue
-                                }
-
-                                // Count element types for live metrics only after text survives quality filtering.
-                                switch element.elementType {
-                                case "table": pageTablesCount += 1
-                                case "list": pageListsCount += 1
-                                case "title": pageHeadersCount += 1
-                                default: break
-                                }
-
-                                elements.append(StructuredElementWrapper(
-                                    text: sanitizedText,
-                                    elementType: element.elementType,
-                                    pageNumber: element.pageNumber,
-                                    isAtomicChunk: isAtomic,
-                                    detectedEntities: entities,
-                                    tableData: tableData,
-                                    listItems: listItems,
-                                    extractionSource: tableData == nil ? nil : "vision_document",
-                                    qualityScore: tableData.map(self.tableQualityScore)
-                                ))
-                            }
-
-                            // If hybrid mode but no paragraphs were in structured content, add layout text
-                            if pageUsesHybridOverride && !pageHasStructuredTables && !usedLayoutForParagraph,
-                               let layout = layoutText, !layout.isEmpty {
-                                elements.append(StructuredElementWrapper(
-                                    text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
-                                    elementType: "paragraph",
-                                    pageNumber: pageNumber,
-                                    isAtomicChunk: false,
-                                    detectedEntities: [],
-                                    tableData: nil,
-                                    listItems: nil
-                                ))
-                            }
-
-                            let preferredLayoutElements = self.preferredElementsWithLayoutTables(
-                                existingElements: elements,
-                                layoutTables: renderData.layoutTables,
-                                pageNumber: pageNumber
-                            )
-                            if preferredLayoutElements.didPromote {
-                                elements = preferredLayoutElements.elements
-                                let metrics = self.structuredElementMetrics(in: elements)
-                                pageTablesCount = metrics.tables
-                                pageListsCount = metrics.lists
-                                pageHeadersCount = max(pageHeadersCount, metrics.headers)
-
-                                Log.info(
-                                    "[DocumentProcessor] Page \(pageNumber): promoted \(pageTablesCount) layout-detected table(s) over weaker parser output",
-                                    category: .ingestion
-                                )
-                            }
-
-                            let recoveredPageText = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? structuredContent.rawText))
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-                            let recoveredParallelKeyValueElements = self.preferredElementsWithRecoveredParallelKeyValueTable(
-                                existingElements: elements,
-                                pageText: recoveredPageText,
-                                pageNumber: pageNumber
-                            )
-                            if recoveredParallelKeyValueElements.didPromote {
-                                elements = recoveredParallelKeyValueElements.elements
-                                let metrics = self.structuredElementMetrics(in: elements)
-                                pageTablesCount = metrics.tables
-                                pageListsCount = metrics.lists
-                                pageHeadersCount = max(pageHeadersCount, metrics.headers)
-
-                                Log.info(
-                                    "[DocumentProcessor] Page \(pageNumber): rebuilt parallel key/value table from page text to replace malformed row-column pairing",
-                                    category: .ingestion
-                                )
-                            }
-
-                            if pageTablesCount == 0 && pageListsCount == 0 {
-                                let inferenceSourceText = (isMixedMode ? structuredContent.rawText : (layoutText ?? structuredContent.rawText))
-                                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                                let inferredElements = self.inferredStructuredElementsForPDFPageText(
-                                    inferenceSourceText,
-                                    pageNumber: pageNumber
-                                )
-
-                                if !inferredElements.isEmpty {
-                                    let preservedNonParagraphElements = elements.filter { $0.elementType != "paragraph" }
-                                    elements = preservedNonParagraphElements + inferredElements
-                                    let metrics = self.structuredElementMetrics(in: elements)
-                                    pageTablesCount = metrics.tables
-                                    pageListsCount = metrics.lists
-                                    pageHeadersCount = max(pageHeadersCount, metrics.headers)
-
-                                    Log.info(
-                                        "[DocumentProcessor] Page \(pageNumber): recovered \(pageTablesCount) table(s) from layout/OCR fallback text",
-                                        category: .ingestion
-                                    )
-                                }
-                            }
-
-                            // Add figure references as searchable content
-                            if !structuredContent.figureReferences.isEmpty {
-                                let figureText = "[Visual Content on Page \(pageNumber)]\n" + structuredContent.figureReferences.joined(separator: "\n")
-                                elements.append(StructuredElementWrapper(
-                                    text: figureText,
-                                    elementType: "figure",
-                                    pageNumber: pageNumber,
-                                    isAtomicChunk: true,
-                                    detectedEntities: [],
-                                    tableData: nil,
-                                    listItems: nil
-                                ))
-                            }
-
-                            let rescueSourceText = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? structuredContent.rawText))
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                            if self.shouldAttemptRegionCropRescue(
-                                analysis: capturedComplexity,
-                                structuredContent: structuredContent,
-                                hasRecoveredStructure: pageTablesCount > 0 || pageListsCount > 0 || !structuredContent.figureReferences.isEmpty,
-                                layoutTables: renderData.layoutTables,
-                                pageText: rescueSourceText
-                            ), let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
-                                from: pageImage,
-                                pageNumber: pageNumber,
-                                preferHighAccuracy: renderData.preferHighResolutionStructure
-                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
-                                let promotedRescue = self.preferredElementsWithRegionCropRescue(
-                                    existingElements: elements,
-                                    rescuePayload: rescuePayload,
-                                    existingPageText: rescueSourceText,
-                                    pageNumber: pageNumber
-                                )
-
-                                if promotedRescue.didPromote {
-                                    elements = promotedRescue.elements
-                                    let metrics = self.structuredElementMetrics(in: elements)
-                                    pageTablesCount = metrics.tables
-                                    pageListsCount = metrics.lists
-                                    pageHeadersCount = max(pageHeadersCount, metrics.headers)
-
-                                    Log.info(
-                                        "[DocumentProcessor] Page \(pageNumber): crop rescue promoted \(rescuePayload.tableCount) table(s), \(rescuePayload.listCount) list(s), \(rescuePayload.figureCount) figure region(s)",
-                                        category: .ingestion
-                                    )
-                                }
-                            }
-
-                            // Build structured pageText from elements with proper formatting
-                            // Each element type gets appropriate visual separation
-                            let pageTextOutput: String
-                            if !elements.isEmpty {
-                                var textParts: [String] = []
-                                for elem in elements {
-                                    let trimmed = elem.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    guard !trimmed.isEmpty else { continue }
-                                    switch elem.elementType {
-                                    case "title":
-                                        // Section headers get emphasis
-                                        textParts.append("\n\(trimmed)")
-                                    case "table":
-                                        // Tables get clear boundaries
-                                        textParts.append("\n\(trimmed)\n")
-                                    case "list":
-                                        // Lists get a blank line before
-                                        textParts.append("\n\(trimmed)")
-                                    case "figure":
-                                        // Figures get brackets
-                                        textParts.append("\n\(trimmed)\n")
-                                    default:
-                                        // Paragraphs: standard double-newline separation
-                                        textParts.append(trimmed)
-                                    }
-                                }
-                                pageTextOutput = textParts.joined(separator: "\n\n")
-                            } else if pageUsesHybridOverride, let layout = layoutText, !layout.isEmpty {
-                                pageTextOutput = layout
-                            } else if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
-                                from: pageImage,
-                                pageNumber: pageNumber,
-                                preferHighAccuracy: true
-                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber), !rescuePayload.pageText.isEmpty {
-                                pageTextOutput = rescuePayload.pageText
-                            } else {
-                                pageTextOutput = structuredContent.rawText
-                            }
-
-                            self.traceIngestionOutcome(
-                                pageNumber: pageNumber,
-                                path: isHybridMode ? "structured-hybrid" : "structured-vision",
-                                chars: pageTextOutput.count,
-                                extra: [
-                                    ("tables", "\(pageTablesCount)"),
-                                    ("lists", "\(pageListsCount)"),
-                                    ("headers", "\(pageHeadersCount)")
-                                ]
-                            )
-
-                            // A page used OCR when recognition is the only reason it has any text.
-                            // The structured path renders and recognises a page image whether or not
-                            // the PDF carries a text layer, so "Vision ran" is not the signal; "there
-                            // was no usable native text" is. Hardcoding false here meant a scan that
-                            // `RecognizeDocumentsRequest` read cleanly reported zero OCR pages, while
-                            // one that fell through to the rescue path below reported one — backwards
-                            // from what "OCR: N pages scanned" tells the user in Document Details.
-                            let pageNeededOCR = isGarbled || (bestAvailableText?.isEmpty ?? true)
-
-                            return PageParseResult(
-                                pageIndex: pageIndex,
-                                elements: elements,
-                                pageText: pageTextOutput,
-                                hasStructure: structuredContent.hasStructuredContent || pageTablesCount > 0 || pageListsCount > 0,
-                                usedOCR: pageNeededOCR,
-                                tablesFound: pageTablesCount,
-                                listsFound: pageListsCount,
-                                headersFound: pageHeadersCount
-                            )
-
-                        } catch StructuredParsingError.noDocumentDetected {
-                            if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
-                                from: pageImage,
-                                pageNumber: pageNumber,
-                                preferHighAccuracy: renderData.preferHighResolutionStructure
-                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
-                                let metrics = self.structuredElementMetrics(in: rescuePayload.elements)
-                                self.traceIngestionOutcome(
-                                    pageNumber: pageNumber,
-                                    path: "structured-region-rescue",
-                                    chars: rescuePayload.pageText.count,
-                                    extra: [
-                                        ("tables", "\(rescuePayload.tableCount)"),
-                                        ("lists", "\(rescuePayload.listCount)"),
-                                        ("figures", "\(rescuePayload.figureCount)")
-                                    ]
-                                )
-                                return PageParseResult(
-                                    pageIndex: pageIndex,
-                                    elements: rescuePayload.elements,
-                                    pageText: rescuePayload.pageText,
-                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
-                                    usedOCR: true,
-                                    tablesFound: metrics.tables,
-                                    listsFound: metrics.lists,
-                                    headersFound: metrics.headers
-                                )
-                            }
-
-                            // No document content - try OCR fallback
-                            if let ocrText = try? await self.performOCR(on: pageImage), !ocrText.isEmpty {
-                                let inferredElements = self.inferredStructuredElementsForPDFPageText(ocrText, pageNumber: pageNumber)
-                                let fallbackElements = inferredElements.isEmpty
-                                    ? [StructuredElementWrapper(
-                                        text: ocrText,
-                                        elementType: "paragraph",
-                                        pageNumber: pageNumber,
-                                        isAtomicChunk: false,
-                                        tableData: nil,
-                                        listItems: nil
-                                    )]
-                                    : inferredElements
-                                let metrics = self.structuredElementMetrics(in: fallbackElements)
-                                self.traceIngestionOutcome(
-                                    pageNumber: pageNumber,
-                                    path: "structured-fallback-ocr",
-                                    chars: ocrText.count
-                                )
-                                return PageParseResult(
-                                    pageIndex: pageIndex,
-                                    elements: fallbackElements,
-                                    pageText: ocrText,
-                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
-                                    usedOCR: true,
-                                    tablesFound: metrics.tables,
-                                    listsFound: metrics.lists,
-                                    headersFound: metrics.headers
-                                )
-                            }
-                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
-                                let inferredElements = self.inferredStructuredElementsForPDFPageText(nativeText, pageNumber: pageNumber)
-                                let fallbackElements = inferredElements.isEmpty
-                                    ? [StructuredElementWrapper(
-                                        text: nativeText,
-                                        elementType: "paragraph",
-                                        pageNumber: pageNumber,
-                                        isAtomicChunk: false,
-                                        tableData: nil,
-                                        listItems: nil
-                                    )]
-                                    : inferredElements
-                                let metrics = self.structuredElementMetrics(in: fallbackElements)
-                                self.traceIngestionOutcome(
-                                    pageNumber: pageNumber,
-                                    path: renderData.layoutText != nil ? "structured-no-document-layout" : "structured-no-document-native",
-                                    chars: nativeText.count
-                                )
-                                return PageParseResult(
-                                    pageIndex: pageIndex,
-                                    elements: fallbackElements,
-                                    pageText: nativeText,
-                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
-                                    usedOCR: false,
-                                    tablesFound: metrics.tables,
-                                    listsFound: metrics.lists,
-                                    headersFound: metrics.headers
-                                )
-                            }
-                            self.traceIngestionOutcome(
-                                pageNumber: pageNumber,
-                                path: "structured-no-document-empty",
-                                chars: 0
-                            )
-                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
-
-                        } catch {
-                            Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
-
-                            if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
-                                from: pageImage,
-                                pageNumber: pageNumber,
-                                preferHighAccuracy: renderData.preferHighResolutionStructure
-                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
-                                let metrics = self.structuredElementMetrics(in: rescuePayload.elements)
-                                self.traceIngestionOutcome(
-                                    pageNumber: pageNumber,
-                                    path: "structured-error-region-rescue",
-                                    chars: rescuePayload.pageText.count,
-                                    extra: [
-                                        ("tables", "\(rescuePayload.tableCount)"),
-                                        ("lists", "\(rescuePayload.listCount)"),
-                                        ("figures", "\(rescuePayload.figureCount)")
-                                    ]
-                                )
-                                return PageParseResult(
-                                    pageIndex: pageIndex,
-                                    elements: rescuePayload.elements,
-                                    pageText: rescuePayload.pageText,
-                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
-                                    usedOCR: true,
-                                    tablesFound: metrics.tables,
-                                    listsFound: metrics.lists,
-                                    headersFound: metrics.headers
-                                )
-                            }
-
-                            // Fallback to the best native/layout text — but NOT if text layer is garbled
-                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
-                                let inferredElements = self.inferredStructuredElementsForPDFPageText(nativeText, pageNumber: pageNumber)
-                                let fallbackElements = inferredElements.isEmpty
-                                    ? [StructuredElementWrapper(
-                                        text: nativeText,
-                                        elementType: "paragraph",
-                                        pageNumber: pageNumber,
-                                        isAtomicChunk: false,
-                                        tableData: nil,
-                                        listItems: nil
-                                    )]
-                                    : inferredElements
-                                let metrics = self.structuredElementMetrics(in: fallbackElements)
-                                self.traceIngestionOutcome(
-                                    pageNumber: pageNumber,
-                                    path: renderData.layoutText != nil ? "structured-error-fallback-layout" : "structured-error-fallback-native",
-                                    chars: nativeText.count
-                                )
-                                return PageParseResult(
-                                    pageIndex: pageIndex,
-                                    elements: fallbackElements,
-                                    pageText: nativeText,
-                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
-                                    usedOCR: false,
-                                    tablesFound: metrics.tables,
-                                    listsFound: metrics.lists,
-                                    headersFound: metrics.headers
-                                )
-                            }
-                            self.traceIngestionOutcome(
-                                pageNumber: pageNumber,
-                                path: "structured-error-empty",
-                                chars: 0
-                            )
-                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
-                        }
-                    }
-                }
-
-                var collected: [PageParseResult] = []
-                for await result in group {
-                    if Task.isCancelled {
-                        group.cancelAll()
-                        break
-                    }
-                    collected.append(result)
-                }
-                return collected
-            }
+            let batchResults = await parseSubBatchStructure(batchEnd: batchEnd, batchStart: batchStart, pageCount: pageCount, subBatchIndices: subBatchIndices, batchRenderData: batchRenderData, useHybridMode: useHybridMode, documentTextLayerGarbled: documentTextLayerGarbled, pageComplexity: pageComplexity, parser: parser)
 
             try Task.checkCancellation()
 
@@ -1026,6 +450,590 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A9: reports structure progress and parses every page of a sub-batch concurrently (one task per page), returning each page's elements, text and counts.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func parseSubBatchStructure(batchEnd: Int, batchStart: Int, pageCount: Int, subBatchIndices: Range<Int>, batchRenderData: [DocumentProcessor.PageRenderData], useHybridMode: Bool, documentTextLayerGarbled: Bool, pageComplexity: [Int : PageComplexityAnalysis], parser: StructuredDocumentParser) async -> [DocumentProcessor.PageParseResult] {
+        // Emit structured extraction progress. Vision chooses the hardware it runs on.
+        await MainActor.run {
+            self.emitProgress(
+                stage: "structure",
+                detail: "🔍 Tables/lists \(batchStart + 1)-\(batchEnd)/\(pageCount)",
+                page: batchStart,
+                totalPages: pageCount
+            )
+        }
+
+        let batchResults = await withTaskGroup(of: PageParseResult.self) { group in
+            for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
+                let renderData = batchRenderData[batchOffset]
+                if renderData.layoutText == "[CHECKPOINT_SKIPPED]" {
+                    continue
+                }
+                let isHybridMode = useHybridMode  // Capture for sendable closure
+                let isGarbled = documentTextLayerGarbled  // Capture for sendable closure
+                // Gap 1 fix: capture customWords by value here (not via actor state on shared
+                // parser). If two documents ingest concurrently, setDocumentCustomWords() on
+                // the shared singleton clobbers vocabulary mid-parse for the first document.
+                // Capturing here binds this task to doc1's vocabulary regardless of doc2.
+                let capturedCustomWords = currentDocumentCustomWords
+                // Captured alongside the vocabulary for the same reason: these run concurrently
+                // and must not read actor state that a later document could have replaced.
+                let capturedLanguages = currentDocumentRecognitionLanguages
+                let capturedComplexity = pageComplexity[pageIndex + 1]
+
+                group.addTask {
+                    if Task.isCancelled {
+                        return PageParseResult(
+                            pageIndex: pageIndex,
+                            elements: [],
+                            pageText: "",
+                            hasStructure: false,
+                            usedOCR: false,
+                            tablesFound: 0,
+                            listsFound: 0,
+                            headersFound: 0
+                        )
+                    }
+
+                    let pageNumber = pageIndex + 1
+                    let bestAvailableText = (renderData.layoutText ?? renderData.plainText)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    // No page data available
+                    guard let pageImage = renderData.pageImage else {
+                        // PHASE -1: when text layer is garbled, don't use PDFKit fallback
+                        if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: renderData.layoutText != nil ? "structured-skip-vision-layout" : "structured-skip-vision-native",
+                                chars: nativeText.count
+                            )
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: [StructuredElementWrapper(
+                                    text: nativeText,
+                                    elementType: "paragraph",
+                                    pageNumber: pageNumber,
+                                    isAtomicChunk: false
+                                )],
+                                pageText: nativeText,
+                                hasStructure: false,
+                                usedOCR: false,
+                                tablesFound: 0,
+                                listsFound: 0,
+                                headersFound: 0
+                            )
+                        }
+                        self.traceIngestionOutcome(
+                            pageNumber: pageNumber,
+                            path: "structured-empty-no-image",
+                            chars: 0
+                        )
+                        return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
+                    }
+
+                    do {
+                        // MAXIMUM QUALITY: Run full Vision structured parsing for tables/lists/headers
+                        // customWords: passed explicitly per-task (not actor state) to prevent
+                        //   concurrent-document vocab clobbering (Gap 1 fix).
+                        // nativeWordCount: PDFKit word count as quality score ground truth
+                        //   (Gap 2 fix). nil when garbled (PDFKit text untrustworthy).
+                        let nativeCount = !isGarbled ? renderData.plainText?.split(separator: " ").count : nil
+                        let structuredContent = try await parser.parsePageImage(
+                            pageImage,
+                            pageNumber: pageNumber,
+                            customWords: capturedCustomWords,
+                            recognitionLanguages: capturedLanguages,
+                            nativeWordCount: nativeCount,
+                            preferFullResolution: renderData.preferHighResolutionStructure
+                        )
+
+                        var elements: [StructuredElementWrapper] = []
+                        var pageTablesCount = 0
+                        var pageListsCount = 0
+                        var pageHeadersCount = 0
+
+                        // Log figure references if any were found
+                        if !structuredContent.figureReferences.isEmpty {
+                            Log.debug("[DocumentProcessor] Page \(pageNumber) has \(structuredContent.figureReferences.count) figure references: \(structuredContent.figureReferences.prefix(3).joined(separator: ", "))", category: .ingestion)
+                        }
+
+                        // Use effectiveContent which automatically falls back to raw text if quality is low
+                        let elementsToUse = structuredContent.effectiveContent
+
+                        let isMixedMode = capturedComplexity?.isMixedModeScanned ?? false
+                        let pageUsesHybridOverride = isHybridMode && !isMixedMode
+
+                        // HYBRID MODE: Use layout-aware text for paragraphs (correct column order)
+                        // Keep Vision's tables, lists, titles (structural elements)
+                        let layoutText = renderData.layoutText
+                        let trustedPageTextForTitles = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? layoutText ?? structuredContent.rawText))
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        let pageHasStructuredTables = elementsToUse.contains { structuredElement in
+                            structuredElement.elementType == "table"
+                        } || !renderData.layoutTables.isEmpty
+                        var usedLayoutForParagraph = false
+
+                        // Convert structured elements to wrappers and count types
+                        for element in elementsToUse {
+                            let isAtomic = element.elementType == "table" || element.elementType == "list"
+
+                            var entities: [(type: String, value: String)] = []
+                            var tableData: TableData?
+                            var listItems: [String]?
+                            if case .table(let parsedTable) = element {
+                                tableData = parsedTable
+                                entities = parsedTable.detectedEntities.map { ($0.type.rawValue, $0.value) }
+                            } else if case .list(let items, _) = element {
+                                listItems = items
+                            }
+                            if case .table(let tableData) = element {
+                                entities = tableData.detectedEntities.map { ($0.type.rawValue, $0.value) }
+                            }
+
+                            // In hybrid mode: replace Vision paragraphs with layout-aware text
+                            // This fixes multi-column reading order issues
+                            if pageUsesHybridOverride && element.elementType == "paragraph" && !pageHasStructuredTables {
+                                if !usedLayoutForParagraph, let layout = layoutText, !layout.isEmpty {
+                                    // Use layout-aware text instead of Vision's paragraph
+                                    elements.append(StructuredElementWrapper(
+                                        text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        elementType: "paragraph",
+                                        pageNumber: pageNumber,
+                                        isAtomicChunk: false,
+                                        detectedEntities: [],
+                                        tableData: nil,
+                                        listItems: nil
+                                    ))
+                                    usedLayoutForParagraph = true
+                                }
+                                continue  // Skip Vision's paragraph
+                            }
+
+                            let sanitizedText: String?
+                            switch element {
+                            case .title(let text, _):
+                                sanitizedText = await MainActor.run {
+                                    guard let cleaned = self.sanitizeStructuredLabel(text) else {
+                                        return nil
+                                    }
+                                    guard self.titleMatchesTrustedPageText(cleaned, pageText: trustedPageTextForTitles) else {
+                                        Log.debug("[DocumentProcessor] Dropping structured title that does not match trusted page text on page \(pageNumber)", category: .ingestion)
+                                        return nil
+                                    }
+                                    return cleaned
+                                }
+                            case .paragraph(let text, _):
+                                sanitizedText = await MainActor.run {
+                                    self.sanitizeStructuredNarrativeText(
+                                        text,
+                                        pageHasTables: pageHasStructuredTables
+                                    )
+                                }
+                            default:
+                                sanitizedText = OCRConfiguration.normalizeExtractedText(element.textForEmbedding)
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+
+                            guard let sanitizedText, !sanitizedText.isEmpty else {
+                                continue
+                            }
+
+                            // Count element types for live metrics only after text survives quality filtering.
+                            switch element.elementType {
+                            case "table": pageTablesCount += 1
+                            case "list": pageListsCount += 1
+                            case "title": pageHeadersCount += 1
+                            default: break
+                            }
+
+                            elements.append(StructuredElementWrapper(
+                                text: sanitizedText,
+                                elementType: element.elementType,
+                                pageNumber: element.pageNumber,
+                                isAtomicChunk: isAtomic,
+                                detectedEntities: entities,
+                                tableData: tableData,
+                                listItems: listItems,
+                                extractionSource: tableData == nil ? nil : "vision_document",
+                                qualityScore: tableData.map(self.tableQualityScore)
+                            ))
+                        }
+
+                        // If hybrid mode but no paragraphs were in structured content, add layout text
+                        if pageUsesHybridOverride && !pageHasStructuredTables && !usedLayoutForParagraph,
+                           let layout = layoutText, !layout.isEmpty {
+                            elements.append(StructuredElementWrapper(
+                                text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
+                                elementType: "paragraph",
+                                pageNumber: pageNumber,
+                                isAtomicChunk: false,
+                                detectedEntities: [],
+                                tableData: nil,
+                                listItems: nil
+                            ))
+                        }
+
+                        let preferredLayoutElements = self.preferredElementsWithLayoutTables(
+                            existingElements: elements,
+                            layoutTables: renderData.layoutTables,
+                            pageNumber: pageNumber
+                        )
+                        if preferredLayoutElements.didPromote {
+                            elements = preferredLayoutElements.elements
+                            let metrics = self.structuredElementMetrics(in: elements)
+                            pageTablesCount = metrics.tables
+                            pageListsCount = metrics.lists
+                            pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                            Log.info(
+                                "[DocumentProcessor] Page \(pageNumber): promoted \(pageTablesCount) layout-detected table(s) over weaker parser output",
+                                category: .ingestion
+                            )
+                        }
+
+                        let recoveredPageText = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? structuredContent.rawText))
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        let recoveredParallelKeyValueElements = self.preferredElementsWithRecoveredParallelKeyValueTable(
+                            existingElements: elements,
+                            pageText: recoveredPageText,
+                            pageNumber: pageNumber
+                        )
+                        if recoveredParallelKeyValueElements.didPromote {
+                            elements = recoveredParallelKeyValueElements.elements
+                            let metrics = self.structuredElementMetrics(in: elements)
+                            pageTablesCount = metrics.tables
+                            pageListsCount = metrics.lists
+                            pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                            Log.info(
+                                "[DocumentProcessor] Page \(pageNumber): rebuilt parallel key/value table from page text to replace malformed row-column pairing",
+                                category: .ingestion
+                            )
+                        }
+
+                        if pageTablesCount == 0 && pageListsCount == 0 {
+                            let inferenceSourceText = (isMixedMode ? structuredContent.rawText : (layoutText ?? structuredContent.rawText))
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            let inferredElements = self.inferredStructuredElementsForPDFPageText(
+                                inferenceSourceText,
+                                pageNumber: pageNumber
+                            )
+
+                            if !inferredElements.isEmpty {
+                                let preservedNonParagraphElements = elements.filter { $0.elementType != "paragraph" }
+                                elements = preservedNonParagraphElements + inferredElements
+                                let metrics = self.structuredElementMetrics(in: elements)
+                                pageTablesCount = metrics.tables
+                                pageListsCount = metrics.lists
+                                pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                                Log.info(
+                                    "[DocumentProcessor] Page \(pageNumber): recovered \(pageTablesCount) table(s) from layout/OCR fallback text",
+                                    category: .ingestion
+                                )
+                            }
+                        }
+
+                        // Add figure references as searchable content
+                        if !structuredContent.figureReferences.isEmpty {
+                            let figureText = "[Visual Content on Page \(pageNumber)]\n" + structuredContent.figureReferences.joined(separator: "\n")
+                            elements.append(StructuredElementWrapper(
+                                text: figureText,
+                                elementType: "figure",
+                                pageNumber: pageNumber,
+                                isAtomicChunk: true,
+                                detectedEntities: [],
+                                tableData: nil,
+                                listItems: nil
+                            ))
+                        }
+
+                        let rescueSourceText = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? structuredContent.rawText))
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        if self.shouldAttemptRegionCropRescue(
+                            analysis: capturedComplexity,
+                            structuredContent: structuredContent,
+                            hasRecoveredStructure: pageTablesCount > 0 || pageListsCount > 0 || !structuredContent.figureReferences.isEmpty,
+                            layoutTables: renderData.layoutTables,
+                            pageText: rescueSourceText
+                        ), let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                            from: pageImage,
+                            pageNumber: pageNumber,
+                            preferHighAccuracy: renderData.preferHighResolutionStructure
+                        ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
+                            let promotedRescue = self.preferredElementsWithRegionCropRescue(
+                                existingElements: elements,
+                                rescuePayload: rescuePayload,
+                                existingPageText: rescueSourceText,
+                                pageNumber: pageNumber
+                            )
+
+                            if promotedRescue.didPromote {
+                                elements = promotedRescue.elements
+                                let metrics = self.structuredElementMetrics(in: elements)
+                                pageTablesCount = metrics.tables
+                                pageListsCount = metrics.lists
+                                pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                                Log.info(
+                                    "[DocumentProcessor] Page \(pageNumber): crop rescue promoted \(rescuePayload.tableCount) table(s), \(rescuePayload.listCount) list(s), \(rescuePayload.figureCount) figure region(s)",
+                                    category: .ingestion
+                                )
+                            }
+                        }
+
+                        // Build structured pageText from elements with proper formatting
+                        // Each element type gets appropriate visual separation
+                        let pageTextOutput: String
+                        if !elements.isEmpty {
+                            var textParts: [String] = []
+                            for elem in elements {
+                                let trimmed = elem.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !trimmed.isEmpty else { continue }
+                                switch elem.elementType {
+                                case "title":
+                                    // Section headers get emphasis
+                                    textParts.append("\n\(trimmed)")
+                                case "table":
+                                    // Tables get clear boundaries
+                                    textParts.append("\n\(trimmed)\n")
+                                case "list":
+                                    // Lists get a blank line before
+                                    textParts.append("\n\(trimmed)")
+                                case "figure":
+                                    // Figures get brackets
+                                    textParts.append("\n\(trimmed)\n")
+                                default:
+                                    // Paragraphs: standard double-newline separation
+                                    textParts.append(trimmed)
+                                }
+                            }
+                            pageTextOutput = textParts.joined(separator: "\n\n")
+                        } else if pageUsesHybridOverride, let layout = layoutText, !layout.isEmpty {
+                            pageTextOutput = layout
+                        } else if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                            from: pageImage,
+                            pageNumber: pageNumber,
+                            preferHighAccuracy: true
+                        ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber), !rescuePayload.pageText.isEmpty {
+                            pageTextOutput = rescuePayload.pageText
+                        } else {
+                            pageTextOutput = structuredContent.rawText
+                        }
+
+                        self.traceIngestionOutcome(
+                            pageNumber: pageNumber,
+                            path: isHybridMode ? "structured-hybrid" : "structured-vision",
+                            chars: pageTextOutput.count,
+                            extra: [
+                                ("tables", "\(pageTablesCount)"),
+                                ("lists", "\(pageListsCount)"),
+                                ("headers", "\(pageHeadersCount)")
+                            ]
+                        )
+
+                        // A page used OCR when recognition is the only reason it has any text.
+                        // The structured path renders and recognises a page image whether or not
+                        // the PDF carries a text layer, so "Vision ran" is not the signal; "there
+                        // was no usable native text" is. Hardcoding false here meant a scan that
+                        // `RecognizeDocumentsRequest` read cleanly reported zero OCR pages, while
+                        // one that fell through to the rescue path below reported one — backwards
+                        // from what "OCR: N pages scanned" tells the user in Document Details.
+                        let pageNeededOCR = isGarbled || (bestAvailableText?.isEmpty ?? true)
+
+                        return PageParseResult(
+                            pageIndex: pageIndex,
+                            elements: elements,
+                            pageText: pageTextOutput,
+                            hasStructure: structuredContent.hasStructuredContent || pageTablesCount > 0 || pageListsCount > 0,
+                            usedOCR: pageNeededOCR,
+                            tablesFound: pageTablesCount,
+                            listsFound: pageListsCount,
+                            headersFound: pageHeadersCount
+                        )
+
+                    } catch StructuredParsingError.noDocumentDetected {
+                        if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                            from: pageImage,
+                            pageNumber: pageNumber,
+                            preferHighAccuracy: renderData.preferHighResolutionStructure
+                        ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
+                            let metrics = self.structuredElementMetrics(in: rescuePayload.elements)
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "structured-region-rescue",
+                                chars: rescuePayload.pageText.count,
+                                extra: [
+                                    ("tables", "\(rescuePayload.tableCount)"),
+                                    ("lists", "\(rescuePayload.listCount)"),
+                                    ("figures", "\(rescuePayload.figureCount)")
+                                ]
+                            )
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: rescuePayload.elements,
+                                pageText: rescuePayload.pageText,
+                                hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                usedOCR: true,
+                                tablesFound: metrics.tables,
+                                listsFound: metrics.lists,
+                                headersFound: metrics.headers
+                            )
+                        }
+
+                        // No document content - try OCR fallback
+                        if let ocrText = try? await self.performOCR(on: pageImage), !ocrText.isEmpty {
+                            let inferredElements = self.inferredStructuredElementsForPDFPageText(ocrText, pageNumber: pageNumber)
+                            let fallbackElements = inferredElements.isEmpty
+                                ? [StructuredElementWrapper(
+                                    text: ocrText,
+                                    elementType: "paragraph",
+                                    pageNumber: pageNumber,
+                                    isAtomicChunk: false,
+                                    tableData: nil,
+                                    listItems: nil
+                                )]
+                                : inferredElements
+                            let metrics = self.structuredElementMetrics(in: fallbackElements)
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "structured-fallback-ocr",
+                                chars: ocrText.count
+                            )
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: fallbackElements,
+                                pageText: ocrText,
+                                hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                usedOCR: true,
+                                tablesFound: metrics.tables,
+                                listsFound: metrics.lists,
+                                headersFound: metrics.headers
+                            )
+                        }
+                        if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
+                            let inferredElements = self.inferredStructuredElementsForPDFPageText(nativeText, pageNumber: pageNumber)
+                            let fallbackElements = inferredElements.isEmpty
+                                ? [StructuredElementWrapper(
+                                    text: nativeText,
+                                    elementType: "paragraph",
+                                    pageNumber: pageNumber,
+                                    isAtomicChunk: false,
+                                    tableData: nil,
+                                    listItems: nil
+                                )]
+                                : inferredElements
+                            let metrics = self.structuredElementMetrics(in: fallbackElements)
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: renderData.layoutText != nil ? "structured-no-document-layout" : "structured-no-document-native",
+                                chars: nativeText.count
+                            )
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: fallbackElements,
+                                pageText: nativeText,
+                                hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                usedOCR: false,
+                                tablesFound: metrics.tables,
+                                listsFound: metrics.lists,
+                                headersFound: metrics.headers
+                            )
+                        }
+                        self.traceIngestionOutcome(
+                            pageNumber: pageNumber,
+                            path: "structured-no-document-empty",
+                            chars: 0
+                        )
+                        return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
+
+                    } catch {
+                        Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+
+                        if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                            from: pageImage,
+                            pageNumber: pageNumber,
+                            preferHighAccuracy: renderData.preferHighResolutionStructure
+                        ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
+                            let metrics = self.structuredElementMetrics(in: rescuePayload.elements)
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "structured-error-region-rescue",
+                                chars: rescuePayload.pageText.count,
+                                extra: [
+                                    ("tables", "\(rescuePayload.tableCount)"),
+                                    ("lists", "\(rescuePayload.listCount)"),
+                                    ("figures", "\(rescuePayload.figureCount)")
+                                ]
+                            )
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: rescuePayload.elements,
+                                pageText: rescuePayload.pageText,
+                                hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                usedOCR: true,
+                                tablesFound: metrics.tables,
+                                listsFound: metrics.lists,
+                                headersFound: metrics.headers
+                            )
+                        }
+
+                        // Fallback to the best native/layout text — but NOT if text layer is garbled
+                        if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
+                            let inferredElements = self.inferredStructuredElementsForPDFPageText(nativeText, pageNumber: pageNumber)
+                            let fallbackElements = inferredElements.isEmpty
+                                ? [StructuredElementWrapper(
+                                    text: nativeText,
+                                    elementType: "paragraph",
+                                    pageNumber: pageNumber,
+                                    isAtomicChunk: false,
+                                    tableData: nil,
+                                    listItems: nil
+                                )]
+                                : inferredElements
+                            let metrics = self.structuredElementMetrics(in: fallbackElements)
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: renderData.layoutText != nil ? "structured-error-fallback-layout" : "structured-error-fallback-native",
+                                chars: nativeText.count
+                            )
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: fallbackElements,
+                                pageText: nativeText,
+                                hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                usedOCR: false,
+                                tablesFound: metrics.tables,
+                                listsFound: metrics.lists,
+                                headersFound: metrics.headers
+                            )
+                        }
+                        self.traceIngestionOutcome(
+                            pageNumber: pageNumber,
+                            path: "structured-error-empty",
+                            chars: 0
+                        )
+                        return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
+                    }
+                }
+            }
+
+            var collected: [PageParseResult] = []
+            for await result in group {
+                if Task.isCancelled {
+                    group.cancelAll()
+                    break
+                }
+                collected.append(result)
+            }
+            return collected
+        }
+        return batchResults
     }
 
     /// Step A7 (checkpoint): turns a page saved by an interrupted import back into its parse result and metrics, and appends the placeholder render record that keeps the sub-batch's indexes aligned.
