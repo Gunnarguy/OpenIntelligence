@@ -4,7 +4,7 @@
   "name": "Background Tasks and Spotlight",
   "aliases": ["background task scheduler", "Spotlight indexing", "transcript persistence", "background indexing sweep"],
   "purpose": "Runs maintenance in the background with BGTaskScheduler, adds documents to Spotlight, and saves transcripts.",
-  "revision": "c34ea021",
+  "revision": "57aaf2c6",
   "verified_on": "2026-11-07",
   "entry_points": ["BackgroundTaskService", "SpotlightIndexService", "TranscriptPersistenceService"],
   "files": [

@@ -925,6 +925,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I08 | AC (lists the document in its library, updates the chunk count, library stats and processing summary on the main actor, and emits Document indexed) into `recordIndexedDocument` |
 | I09 | Y (teaches the library's vocabulary every passage and the Vision-detected entities, records the document, and emits Vocabulary learned) into `learnImportVocabulary` |
 | I10 | X (builds the FTS5 rows (with structured table metadata) for every passage and stores them in the chunk-level full-text index) into `storeChunksInFullTextIndex` |
+| I11 | W (indexes every passage in Spotlight when the setting allows it, then emits Chunks stored) into `indexChunksInSpotlight` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

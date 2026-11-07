@@ -104,7 +104,7 @@ one, and one row per passage goes in after the vectors are stored. A single-page
 no page rows, and a file imported in pieces stores its whole text once at the end. `RAGService.addDocument`
 drives both, and `Docs/INGESTION_PIPELINE.md` §1, "The order the code runs", has the steps.
 `[evidence_level: code_verified, confidence: high, evidence_source: DocumentProcessor+Import.swift:337-365, 396,
-RAGService+Import.swift:1760, 1945, RAGService+TextStreaming.swift:320-321]`
+RAGService+Import.swift:1760, 1951, RAGService+TextStreaming.swift:320-321]`
 
 Query → `Services/Query` rewrites and classifies intent → `HybridSearchService` runs dense vector
 search and lexical scoring (concurrently on the FTS5 path), fuses them with reciprocal rank fusion

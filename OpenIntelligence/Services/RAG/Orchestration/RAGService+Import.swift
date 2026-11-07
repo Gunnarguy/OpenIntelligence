@@ -1765,39 +1765,7 @@ extension RAGService {
             // Invalidate visualization cache for this container after data change
             ProjectionCache.shared.invalidate(forContainer: activeContainerId)
 
-            // Step 4.0.0: Index individual document chunks in Spotlight for fine-grained search
-            let chunkSpotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
-            if chunkSpotlightEnabled {
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .indexing,
-                        detail: "Indexing Spotlight search...",
-                        progress: 0.95
-                    )
-                }
-                let cid = activeContainerId
-                let containerName = await MainActor.run {
-                    self.containerService.containers.first(where: { $0.id == cid })?.name ?? "Library"
-                }
-                SpotlightIndexService.shared.indexDocumentChunks(
-                    documentId: document.id,
-                    documentName: document.filename,
-                    chunks: documentChunks,
-                    containerId: activeContainerId,
-                    containerName: containerName
-                )
-            }
-
-            TelemetryCenter.emit(
-                .storage,
-                title: "Chunks stored",
-                metadata: [
-                    "file": filename,
-                    "count": "\(documentChunks.count)",
-                ]
-            )
+            await indexChunksInSpotlight(trackingId: trackingId, filename: filename, activeContainerId: activeContainerId, document: document, documentChunks: documentChunks)
 
             await storeChunksInFullTextIndex(trackingId: trackingId, filename: filename, documentChunks: documentChunks, processedChunks: processedChunks, document: document, activeContainerId: activeContainerId)
 
@@ -1892,6 +1860,44 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step W: indexes every passage in Spotlight when the setting allows it, then emits Chunks stored.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func indexChunksInSpotlight(trackingId: UUID?, filename: String, activeContainerId: UUID, document: Document, documentChunks: [DocumentChunk]) async {
+        // Step 4.0.0: Index individual document chunks in Spotlight for fine-grained search
+        let chunkSpotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
+        if chunkSpotlightEnabled {
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .indexing,
+                    detail: "Indexing Spotlight search...",
+                    progress: 0.95
+                )
+            }
+            let cid = activeContainerId
+            let containerName = await MainActor.run {
+                self.containerService.containers.first(where: { $0.id == cid })?.name ?? "Library"
+            }
+            SpotlightIndexService.shared.indexDocumentChunks(
+                documentId: document.id,
+                documentName: document.filename,
+                chunks: documentChunks,
+                containerId: activeContainerId,
+                containerName: containerName
+            )
+        }
+
+        TelemetryCenter.emit(
+            .storage,
+            title: "Chunks stored",
+            metadata: [
+                "file": filename,
+                "count": "\(documentChunks.count)",
+            ]
+        )
     }
 
     /// Step X: builds the FTS5 rows (with structured table metadata) for every passage and stores them in the chunk-level full-text index.

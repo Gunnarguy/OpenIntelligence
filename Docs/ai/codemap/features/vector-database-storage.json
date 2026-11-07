@@ -4,7 +4,7 @@
   "name": "Vector Database Storage",
   "aliases": ["BNNS vector database", "vector store router", "memory-mapped vectors", "Vectura database", "vector store", "vector database", "vectors stored", "vector index"],
   "purpose": "Stores each library's vectors in a memory-mapped file and searches them with BNNS.",
-  "revision": "c34ea021",
+  "revision": "57aaf2c6",
   "verified_on": "2026-11-07",
   "entry_points": ["BNNSVectorDatabase", "VectorStoreRouter", "VecturaVectorDatabase", "InMemoryVectorDatabase", "BNNSVectorDatabase.storeBatch", "VectorStoreRouter.db"],
   "files": [
