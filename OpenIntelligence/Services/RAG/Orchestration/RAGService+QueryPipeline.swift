@@ -4016,58 +4016,7 @@ extension RAGService {
                     )
                 }
 
-                // EVIDENCE-FIRST GATE: Check retrieval quality BEFORE generation
-                // If evidence is weak, switch to Evidence-First mode instead of generating verbosely
-                // Key insight: P(all claims correct) = p^N where N = number of claims
-                // With weak evidence (p=0.92) and N=50 claims: 0.92^50 ≈ 1.5% chance of being fully correct
-                let bestRetrievalSim = includedRetrievedChunks.first?.similarityScore ?? 0
-                let avgRetrievalSim =
-                    includedRetrievedChunks.isEmpty
-                    ? 0
-                    : includedRetrievedChunks.map { $0.similarityScore }.reduce(0, +)
-                        / Float(includedRetrievedChunks.count)
-                let uniqueSourceDocs = Set(includedRetrievedChunks.map { $0.chunk.documentId }).count
-
-                // Pre-generation confidence estimate
-                let preGenConfidence: Float = {
-                    var score: Float = 0.5
-                    if bestRetrievalSim >= 0.35 { score += 0.15 }
-                    if avgRetrievalSim >= 0.28 { score += 0.10 }
-                    if uniqueSourceDocs >= 2 { score += 0.10 }
-                    if actualChunksUsed >= 5 { score += 0.10 }
-                    return min(1.0, score)
-                }()
-
-                // Evidence-First mode triggers:
-                // 1. Best similarity below threshold
-                // 2. Low pre-generation confidence
-                // 3. Average top-5 similarity below the dynamic minimum (key insight: if avgTop5 < dynamicMin, evidence is weak)
-                let avgTop5BelowThreshold = auditAvgTop5 < auditDynamicMin
-                let topicalMismatch = lexicalRelevance < 0.20
-                let evidenceIsWeak =
-                    bestRetrievalSim < 0.25 || preGenConfidence < 0.70 || avgTop5BelowThreshold || topicalMismatch
-                let useEvidenceFirstMode = evidenceIsWeak && (isProceduralQuery || topicalMismatch)
-
-                if useEvidenceFirstMode {
-                    let triggerReason: String
-                    if topicalMismatch {
-                        triggerReason =
-                            "topical mismatch (lexical relevance \(String(format: "%.0f%%", lexicalRelevance * 100)) < 20%)"
-                    } else if avgTop5BelowThreshold {
-                        triggerReason =
-                            "avgTop5 (\(String(format: "%.2f", auditAvgTop5))) < dynamicMin (\(String(format: "%.2f", auditDynamicMin)))"
-                    } else if bestRetrievalSim < 0.25 {
-                        triggerReason = "bestSim (\(String(format: "%.2f", bestRetrievalSim))) < 0.25"
-                    } else {
-                        triggerReason = "preGenConf (\(String(format: "%.2f", preGenConfidence))) < 0.70"
-                    }
-                    Log.warning("[RAG] Evidence-First mode triggered: \(triggerReason)", category: .retrieval)
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Evidence-First mode",
-                        detail: "Low confidence (\(String(format: "%.0f", preGenConfidence * 100))%) - \(triggerReason)"
-                    )
-                }
+                let (useEvidenceFirstMode, uniqueSourceDocs, bestRetrievalSim) = assessEvidenceBeforeGeneration(includedRetrievedChunks: includedRetrievedChunks, actualChunksUsed: actualChunksUsed, auditAvgTop5: auditAvgTop5, auditDynamicMin: auditDynamicMin, lexicalRelevance: lexicalRelevance, isProceduralQuery: isProceduralQuery)
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // Step 5.9: Extractive Summarization (AppleRAG §6)
@@ -5477,6 +5426,64 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step SV: computes the pre-generation confidence and decides whether the Evidence-First prompt is used.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func assessEvidenceBeforeGeneration(includedRetrievedChunks: [RetrievedChunk], actualChunksUsed: Int, auditAvgTop5: Float, auditDynamicMin: Float, lexicalRelevance: Float, isProceduralQuery: Bool) -> (useEvidenceFirstMode: Bool, uniqueSourceDocs: Int, bestRetrievalSim: Float) {
+        // EVIDENCE-FIRST GATE: Check retrieval quality BEFORE generation
+        // If evidence is weak, switch to Evidence-First mode instead of generating verbosely
+        // Key insight: P(all claims correct) = p^N where N = number of claims
+        // With weak evidence (p=0.92) and N=50 claims: 0.92^50 ≈ 1.5% chance of being fully correct
+        let bestRetrievalSim = includedRetrievedChunks.first?.similarityScore ?? 0
+        let avgRetrievalSim =
+            includedRetrievedChunks.isEmpty
+            ? 0
+            : includedRetrievedChunks.map { $0.similarityScore }.reduce(0, +)
+                / Float(includedRetrievedChunks.count)
+        let uniqueSourceDocs = Set(includedRetrievedChunks.map { $0.chunk.documentId }).count
+
+        // Pre-generation confidence estimate
+        let preGenConfidence: Float = {
+            var score: Float = 0.5
+            if bestRetrievalSim >= 0.35 { score += 0.15 }
+            if avgRetrievalSim >= 0.28 { score += 0.10 }
+            if uniqueSourceDocs >= 2 { score += 0.10 }
+            if actualChunksUsed >= 5 { score += 0.10 }
+            return min(1.0, score)
+        }()
+
+        // Evidence-First mode triggers:
+        // 1. Best similarity below threshold
+        // 2. Low pre-generation confidence
+        // 3. Average top-5 similarity below the dynamic minimum (key insight: if avgTop5 < dynamicMin, evidence is weak)
+        let avgTop5BelowThreshold = auditAvgTop5 < auditDynamicMin
+        let topicalMismatch = lexicalRelevance < 0.20
+        let evidenceIsWeak =
+            bestRetrievalSim < 0.25 || preGenConfidence < 0.70 || avgTop5BelowThreshold || topicalMismatch
+        let useEvidenceFirstMode = evidenceIsWeak && (isProceduralQuery || topicalMismatch)
+
+        if useEvidenceFirstMode {
+            let triggerReason: String
+            if topicalMismatch {
+                triggerReason =
+                    "topical mismatch (lexical relevance \(String(format: "%.0f%%", lexicalRelevance * 100)) < 20%)"
+            } else if avgTop5BelowThreshold {
+                triggerReason =
+                    "avgTop5 (\(String(format: "%.2f", auditAvgTop5))) < dynamicMin (\(String(format: "%.2f", auditDynamicMin)))"
+            } else if bestRetrievalSim < 0.25 {
+                triggerReason = "bestSim (\(String(format: "%.2f", bestRetrievalSim))) < 0.25"
+            } else {
+                triggerReason = "preGenConf (\(String(format: "%.2f", preGenConfidence))) < 0.70"
+            }
+            Log.warning("[RAG] Evidence-First mode triggered: \(triggerReason)", category: .retrieval)
+            emitThinkingEvent(
+                .warning,
+                title: "Evidence-First mode",
+                detail: "Low confidence (\(String(format: "%.0f", preGenConfidence * 100))%) - \(triggerReason)"
+            )
+        }
+        return (useEvidenceFirstMode: useEvidenceFirstMode, uniqueSourceDocs: uniqueSourceDocs, bestRetrievalSim: bestRetrievalSim)
     }
 
     /// Step 6 (prompt): writes the intent-specific system prompt and the temperature caps into the generation config.

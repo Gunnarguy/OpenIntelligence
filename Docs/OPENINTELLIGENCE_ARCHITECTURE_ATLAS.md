@@ -952,3 +952,4 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | Q07 | 6 (history) (adds conversation history or memory to the prompt and decides whether citations are required) into `buildGenerationPrompt` |
 | Q08 | 6 (output budget) (caps maxTokens to the room left after the context and applies the procedural and trivial adjustments) into `capGenerationTokens` |
 | Q09 | 6 (prompt) (writes the intent-specific system prompt and the temperature caps into the generation config) into `composeStandardGenerationConfig` |
+| Q10 | SV (computes the pre-generation confidence and decides whether the Evidence-First prompt is used) into `assessEvidenceBeforeGeneration` |
