@@ -926,6 +926,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I09 | Y (teaches the library's vocabulary every passage and the Vision-detected entities, records the document, and emits Vocabulary learned) into `learnImportVocabulary` |
 | I10 | X (builds the FTS5 rows (with structured table metadata) for every passage and stores them in the chunk-level full-text index) into `storeChunksInFullTextIndex` |
 | I11 | W (indexes every passage in Spotlight when the setting allows it, then emits Chunks stored) into `indexChunksInSpotlight` |
+| I12 | T (shows the indexing and storing stages with the embedding figures and emits Embeddings generated) into `reportEmbeddingStats` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

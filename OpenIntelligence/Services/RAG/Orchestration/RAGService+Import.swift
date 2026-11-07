@@ -1697,41 +1697,7 @@ extension RAGService {
 
             let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
-            // Update with final embedding stats
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .indexing,
-                    detail: "Building vector + BM25 indexes...",
-                    progress: 0.94
-                ) { metrics in
-                    metrics.embeddingTimeMs = Int(embeddingTime * 1000)
-                    metrics.embeddingsGenerated = embeddings.count
-                }
-            }
-
-            TelemetryCenter.emit(
-                .embedding,
-                title: "Embeddings generated",
-                metadata: [
-                    "file": filename,
-                    "chunks": "\(processedChunks.count)",
-                    "dimensions": "\(embeddings.first?.count ?? 0)",
-                    "provider": providerId,
-                ],
-                duration: embeddingTime
-            )
-
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .storing,
-                    detail: "Persisting \(processedChunks.count) chunks to vector database...",
-                    progress: 0.94
-                )
-            }
+            await reportEmbeddingStats(trackingId: trackingId, filename: filename, embeddingTime: embeddingTime, embeddings: embeddings, processedChunks: processedChunks, providerId: providerId)
 
             let (documentChunks, chunkingTime) = buildDocumentChunks(contextualPrefixes: contextualPrefixes, embeddings: embeddings, processedChunks: processedChunks, document: document, filename: filename)
 
@@ -1859,6 +1825,46 @@ extension RAGService {
                 ]
             )
             throw error
+        }
+    }
+
+    /// Step T: shows the indexing and storing stages with the embedding figures and emits Embeddings generated.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func reportEmbeddingStats(trackingId: UUID?, filename: String, embeddingTime: TimeInterval, embeddings: [[Float]], processedChunks: [DocumentProcessor.ProcessedChunk], providerId: String) async {
+        // Update with final embedding stats
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .indexing,
+                detail: "Building vector + BM25 indexes...",
+                progress: 0.94
+            ) { metrics in
+                metrics.embeddingTimeMs = Int(embeddingTime * 1000)
+                metrics.embeddingsGenerated = embeddings.count
+            }
+        }
+
+        TelemetryCenter.emit(
+            .embedding,
+            title: "Embeddings generated",
+            metadata: [
+                "file": filename,
+                "chunks": "\(processedChunks.count)",
+                "dimensions": "\(embeddings.first?.count ?? 0)",
+                "provider": providerId,
+            ],
+            duration: embeddingTime
+        )
+
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .storing,
+                detail: "Persisting \(processedChunks.count) chunks to vector database...",
+                progress: 0.94
+            )
         }
     }
 
