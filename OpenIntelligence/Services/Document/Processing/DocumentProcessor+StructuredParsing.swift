@@ -1402,17 +1402,7 @@ extension DocumentProcessor {
 
         for element in elements {
             // Track section titles for context association
-            if element.elementType == "title" {
-                let titleText = sanitizeStructuredLabel(element.text)
-                if let titleText {
-                    currentSectionTitle = titleText
-                    // Structured parsing currently gives us flat page titles, not true heading levels.
-                    // Reusing the last few page titles as a fake hierarchy pollutes retrieval metadata.
-                    currentSectionPath = [titleText]
-                } else {
-                    Log.debug("[DocumentProcessor] Dropping garbled section title from path context", category: .ingestion)
-                }
-            }
+            trackSectionTitle(element: element, currentSectionTitle: &currentSectionTitle, currentSectionPath: &currentSectionPath)
 
             if element.isAtomicChunk {
                 // Flush any pending paragraphs first
@@ -1462,6 +1452,22 @@ extension DocumentProcessor {
         logStructureBreakdown(chunks: chunks)
 
         return chunks
+    }
+
+    /// Step B6: a title element updates the current section title and path the following chunks carry.
+    /// Moved unchanged from `createStructureAwareChunks` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func trackSectionTitle(element: DocumentProcessor.StructuredElementWrapper, currentSectionTitle: inout String?, currentSectionPath: inout [String]) {
+        if element.elementType == "title" {
+            let titleText = sanitizeStructuredLabel(element.text)
+            if let titleText {
+                currentSectionTitle = titleText
+                // Structured parsing currently gives us flat page titles, not true heading levels.
+                // Reusing the last few page titles as a fake hierarchy pollutes retrieval metadata.
+                currentSectionPath = [titleText]
+            } else {
+                Log.debug("[DocumentProcessor] Dropping garbled section title from path context", category: .ingestion)
+            }
+        }
     }
 
     /// Steps B7 to B9: turns a table element into its structural chunk (split above 380 words), its semantic summary and any compatibility rows, its continue kept in the host.
