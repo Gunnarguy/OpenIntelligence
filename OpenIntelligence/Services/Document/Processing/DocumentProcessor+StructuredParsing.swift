@@ -335,39 +335,7 @@ extension DocumentProcessor {
                    let data = try? Data(contentsOf: checkpointURL),
                    let checkpoint = try? JSONDecoder().decode(IngestionCheckpointPage.self, from: data) {
                     
-                    Log.info("[Checkpoint] Loaded page \(pageIndex + 1) from checkpoint", category: .ingestion)
-                    let parsedElements = checkpoint.elements.map { $0.toWrapper() }
-                    let pageResult = PageParseResult(
-                        pageIndex: checkpoint.pageIndex,
-                        elements: parsedElements,
-                        pageText: checkpoint.pageText,
-                        hasStructure: checkpoint.hasStructure,
-                        usedOCR: checkpoint.usedOCR,
-                        tablesFound: checkpoint.tablesFound,
-                        listsFound: checkpoint.listsFound,
-                        headersFound: checkpoint.headersFound
-                    )
-                    results.append(pageResult)
-                    
-                    // Increment live metrics from checkpoint
-                    let wordCount = checkpoint.pageText.split(separator: " ").count
-                    incrementMetric(
-                        tables: checkpoint.tablesFound,
-                        lists: checkpoint.listsFound,
-                        headers: checkpoint.headersFound,
-                        ocrPages: checkpoint.usedOCR ? 1 : 0,
-                        words: wordCount
-                    )
-                    
-                    // Add dummy render data to preserve index alignment
-                    batchRenderData.append(PageRenderData(
-                        pageIndex: pageIndex,
-                        pageImage: nil,
-                        plainText: nil,
-                        layoutText: "[CHECKPOINT_SKIPPED]",
-                        layoutTables: [],
-                        preferHighResolutionStructure: false
-                    ))
+                    loadCheckpointedPage(pageIndex: pageIndex, checkpoint: checkpoint, results: &results, batchRenderData: &batchRenderData)
                     continue
                 }
 
@@ -1058,6 +1026,45 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A7 (checkpoint): turns a page saved by an interrupted import back into its parse result and metrics, and appends the placeholder render record that keeps the sub-batch's indexes aligned.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func loadCheckpointedPage(pageIndex: Int, checkpoint: DocumentProcessor.IngestionCheckpointPage, results: inout [DocumentProcessor.PageParseResult], batchRenderData: inout [DocumentProcessor.PageRenderData]) {
+        Log.info("[Checkpoint] Loaded page \(pageIndex + 1) from checkpoint", category: .ingestion)
+        let parsedElements = checkpoint.elements.map { $0.toWrapper() }
+        let pageResult = PageParseResult(
+            pageIndex: checkpoint.pageIndex,
+            elements: parsedElements,
+            pageText: checkpoint.pageText,
+            hasStructure: checkpoint.hasStructure,
+            usedOCR: checkpoint.usedOCR,
+            tablesFound: checkpoint.tablesFound,
+            listsFound: checkpoint.listsFound,
+            headersFound: checkpoint.headersFound
+        )
+        results.append(pageResult)
+                    
+        // Increment live metrics from checkpoint
+        let wordCount = checkpoint.pageText.split(separator: " ").count
+        incrementMetric(
+            tables: checkpoint.tablesFound,
+            lists: checkpoint.listsFound,
+            headers: checkpoint.headersFound,
+            ocrPages: checkpoint.usedOCR ? 1 : 0,
+            words: wordCount
+        )
+                    
+        // Add dummy render data to preserve index alignment
+        batchRenderData.append(PageRenderData(
+            pageIndex: pageIndex,
+            pageImage: nil,
+            plainText: nil,
+            layoutText: "[CHECKPOINT_SKIPPED]",
+            layoutTables: [],
+            preferHighResolutionStructure: false
+        ))
     }
 
     /// Step A7 (render): renders one page at its complexity's scale (or keeps its text layer when Vision is not needed) inside an autorelease pool and appends its render record.
