@@ -4,7 +4,7 @@
   "name": "RAG Orchestration Core",
   "aliases": ["RAG service", "core RAG engine", "query runtime coordinator", "query pipeline", "knowledge retrieval engine"],
   "purpose": "Runs a question end to end: retrieval, reranking, the model plan, generation and citations.",
-  "revision": "3e2ba9d7",
+  "revision": "1edb4412",
   "verified_on": "2026-11-07",
   "entry_points": ["RAGService", "RAGService.queryInternal", "RAGEngine", "QueryRuntimeCoordinator", "RAGQuery", "RAGService.query", "RAGService.generateWithFallback", "RAGService.rebuildLLMServicesFromSettings"],
   "files": [
@@ -36,7 +36,7 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Deletion.swift", "role": "primary", "blob": "1108e6b8798448485e229e48b201b1ad8c84c424"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Device.swift", "role": "primary", "blob": "bfd1f74a983af872bcce60c64e56b7f49ab868b3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Generation.swift", "role": "primary", "blob": "c38e45a7c8b5a2cfd50127a28925b4cd9f4c791d"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "role": "primary", "blob": "92018841af0950c0e8af0074651ed747803656bb"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "role": "primary", "blob": "697824c8a7c2fad364b42baa460fd4b7de90fc83"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "role": "primary", "blob": "c2a34b37ccc46f02c6ea7b310702588044a9a136"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SelfTuning.swift", "role": "primary", "blob": "afd94638c2927c42c3ba56ed5c7098ec27b59a55"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+SentenceExtraction.swift", "role": "primary", "blob": "7ab225f32574eea959a94573af238cbfebfd7a5b"},

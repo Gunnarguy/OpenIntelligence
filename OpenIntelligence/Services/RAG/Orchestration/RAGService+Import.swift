@@ -892,23 +892,7 @@ extension RAGService {
             return self.containerService.activeContainerId
         }
 
-        let documentHash: String?
-        do {
-            documentHash = try computeDocumentHash(for: managedURL)
-        } catch {
-            Log.warning(
-                "[RAGService] Failed to compute document hash for \(filename): \(error.localizedDescription)",
-                category: .ingestion)
-            documentHash = nil
-        }
-
-        await MainActor.run {
-            self.updateIngestionItemMetadata(
-                id: trackingId,
-                documentHash: documentHash,
-                storageRelativePath: managedRelativePath
-            )
-        }
+        let documentHash = await hashAndRecordDocument(managedURL: managedURL, filename: filename, trackingId: trackingId, managedRelativePath: managedRelativePath)
 
         // A rebuild's document is the one being replaced (5.8): a sync pass while it ran can have put its record back.
         if reusedDocumentId == nil, let existingDocument = await MainActor.run(
@@ -1303,6 +1287,29 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step C: computes the file's hash (nil when it cannot be read) and records it with the storage path on the tracked item.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func hashAndRecordDocument(managedURL: URL, filename: String, trackingId: UUID?, managedRelativePath: String?) async -> String? {
+        let documentHash: String?
+        do {
+            documentHash = try computeDocumentHash(for: managedURL)
+        } catch {
+            Log.warning(
+                "[RAGService] Failed to compute document hash for \(filename): \(error.localizedDescription)",
+                category: .ingestion)
+            documentHash = nil
+        }
+
+        await MainActor.run {
+            self.updateIngestionItemMetadata(
+                id: trackingId,
+                documentHash: documentHash,
+                storageRelativePath: managedRelativePath
+            )
+        }
+        return documentHash
     }
 
     /// Step G: picks the library and its embedding service and, when the provider resolves to another one or another dimension, saves the corrected settings and clears the library's vectors.
