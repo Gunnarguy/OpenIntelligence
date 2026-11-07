@@ -1648,78 +1648,7 @@ extension RAGService {
             let embeddingDim = container?.embeddingDim ?? 384
             let embeddingProviderName = Self.shortProviderName(for: providerId)
 
-            // Build contextual prefix once (reused for all chunks in this document)
-            let docContext = buildContextualPrefix(filename: filename)
-            Log.info("[Contextual] Document prefix: '\(docContext)'", category: .ingestion)
-
-            // HYPERCHARGE: Build all texts to embed upfront, then batch embed
-            // This uses parallel embedding (TaskGroup) in the provider layer
-            var textsToEmbed: [String] = []
-            textsToEmbed.reserveCapacity(processedChunks.count)
-            let translatedChunkTexts = await translatedTextsForEmbedding(
-                processedChunks.map(\.text),
-                container: container
-            )
-
-            // Get token limits from the embedding service
-            let maxTokens = containerEmbeddingService.maxSafeTokens  // 510 for CoreML
-
-            for (chunk, translatedChunkText) in zip(processedChunks, translatedChunkTexts) {
-                // Build chunk-specific contextual prefix with FULL section hierarchy
-                // Uses sectionPath (e.g. ["SPECIFICATIONS", "Engine Oil"]) for maximum
-                // heading context in the embedding. This is THE key to making embeddings
-                // discriminative — "[CarManual] [SPECIFICATIONS > Engine Oil] SAE 0W-20"
-                // vs "[CarManual] [SPECIFICATIONS > Differential Gear Oil] SAE 75W/85"
-                let sectionContext: String
-                if let path = Self.trustedSectionDisplayPath(chunk.metadata.sectionPath), !path.isEmpty {
-                    // Full hierarchical path: " [SPECIFICATIONS > Engine Oil]"
-                    sectionContext = " [\(path.joined(separator: " > "))]"
-                } else if let title = Self.trustedSectionDisplayLabel(chunk.metadata.sectionTitle) {
-                    // Fallback to just title
-                    sectionContext = " [\(title)]"
-                } else {
-                    sectionContext = ""
-                }
-                let contextualPrefix = docContext + sectionContext + " "
-                contextualPrefixes.append(contextualPrefix)
-
-                // Embed with contextual prefix prepended (Anthropic's key insight)
-                var textForEmbedding = contextualPrefix + translatedChunkText
-
-                // CRITICAL: Validate token count using ACTUAL tokenizer
-                // NLTokenizer word count != BPE/WordPiece token count!
-                let tokenCount = containerEmbeddingService.countTokens(textForEmbedding)
-                if tokenCount > maxTokens {
-                    // Truncate text to fit within token limit
-                    // This should rarely happen if DocumentProcessor limits are set correctly
-                    Log.warning(
-                        "[RAGService] ⚠️ Chunk exceeds token limit: \(tokenCount)/\(maxTokens) tokens. "
-                            + "Truncating to prevent embedding data loss.",
-                        category: .ingestion
-                    )
-
-                    // Binary search for safe truncation point
-                    var low = 0
-                    var high = textForEmbedding.count
-                    while low < high {
-                        let mid = (low + high + 1) / 2
-                        let truncated = String(textForEmbedding.prefix(mid))
-                        if containerEmbeddingService.countTokens(truncated) <= maxTokens {
-                            low = mid
-                        } else {
-                            high = mid - 1
-                        }
-                    }
-                    textForEmbedding = String(textForEmbedding.prefix(low))
-
-                    let newTokenCount = containerEmbeddingService.countTokens(textForEmbedding)
-                    Log.info(
-                        "[RAGService] Truncated to \(newTokenCount) tokens (\(textForEmbedding.count) chars)",
-                        category: .ingestion)
-                }
-
-                textsToEmbed.append(textForEmbedding)
-            }
+            let textsToEmbed = await buildEmbeddingInputs(filename: filename, processedChunks: processedChunks, container: container, containerEmbeddingService: containerEmbeddingService, contextualPrefixes: &contextualPrefixes)
 
             // Show initial progress
             await MainActor.run {
@@ -2148,6 +2077,84 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step S (inputs): builds each passage's contextual prefix and the token-limited text to embed, translating first when the library asks for it.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func buildEmbeddingInputs(filename: String, processedChunks: [DocumentProcessor.ProcessedChunk], container: KnowledgeContainer?, containerEmbeddingService: EmbeddingService, contextualPrefixes: inout [String]) async -> [String] {
+        // Build contextual prefix once (reused for all chunks in this document)
+        let docContext = buildContextualPrefix(filename: filename)
+        Log.info("[Contextual] Document prefix: '\(docContext)'", category: .ingestion)
+
+        // HYPERCHARGE: Build all texts to embed upfront, then batch embed
+        // This uses parallel embedding (TaskGroup) in the provider layer
+        var textsToEmbed: [String] = []
+        textsToEmbed.reserveCapacity(processedChunks.count)
+        let translatedChunkTexts = await translatedTextsForEmbedding(
+            processedChunks.map(\.text),
+            container: container
+        )
+
+        // Get token limits from the embedding service
+        let maxTokens = containerEmbeddingService.maxSafeTokens  // 510 for CoreML
+
+        for (chunk, translatedChunkText) in zip(processedChunks, translatedChunkTexts) {
+            // Build chunk-specific contextual prefix with FULL section hierarchy
+            // Uses sectionPath (e.g. ["SPECIFICATIONS", "Engine Oil"]) for maximum
+            // heading context in the embedding. This is THE key to making embeddings
+            // discriminative — "[CarManual] [SPECIFICATIONS > Engine Oil] SAE 0W-20"
+            // vs "[CarManual] [SPECIFICATIONS > Differential Gear Oil] SAE 75W/85"
+            let sectionContext: String
+            if let path = Self.trustedSectionDisplayPath(chunk.metadata.sectionPath), !path.isEmpty {
+                // Full hierarchical path: " [SPECIFICATIONS > Engine Oil]"
+                sectionContext = " [\(path.joined(separator: " > "))]"
+            } else if let title = Self.trustedSectionDisplayLabel(chunk.metadata.sectionTitle) {
+                // Fallback to just title
+                sectionContext = " [\(title)]"
+            } else {
+                sectionContext = ""
+            }
+            let contextualPrefix = docContext + sectionContext + " "
+            contextualPrefixes.append(contextualPrefix)
+
+            // Embed with contextual prefix prepended (Anthropic's key insight)
+            var textForEmbedding = contextualPrefix + translatedChunkText
+
+            // CRITICAL: Validate token count using ACTUAL tokenizer
+            // NLTokenizer word count != BPE/WordPiece token count!
+            let tokenCount = containerEmbeddingService.countTokens(textForEmbedding)
+            if tokenCount > maxTokens {
+                // Truncate text to fit within token limit
+                // This should rarely happen if DocumentProcessor limits are set correctly
+                Log.warning(
+                    "[RAGService] ⚠️ Chunk exceeds token limit: \(tokenCount)/\(maxTokens) tokens. "
+                        + "Truncating to prevent embedding data loss.",
+                    category: .ingestion
+                )
+
+                // Binary search for safe truncation point
+                var low = 0
+                var high = textForEmbedding.count
+                while low < high {
+                    let mid = (low + high + 1) / 2
+                    let truncated = String(textForEmbedding.prefix(mid))
+                    if containerEmbeddingService.countTokens(truncated) <= maxTokens {
+                        low = mid
+                    } else {
+                        high = mid - 1
+                    }
+                }
+                textForEmbedding = String(textForEmbedding.prefix(low))
+
+                let newTokenCount = containerEmbeddingService.countTokens(textForEmbedding)
+                Log.info(
+                    "[RAGService] Truncated to \(newTokenCount) tokens (\(textForEmbedding.count) chars)",
+                    category: .ingestion)
+            }
+
+            textsToEmbed.append(textForEmbedding)
+        }
+        return textsToEmbed
     }
 
     /// Step U: pairs each passage with its vector and contextual prefix into DocumentChunk records and emits the Chunks prepared event.

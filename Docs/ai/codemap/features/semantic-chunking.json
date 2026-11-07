@@ -4,7 +4,7 @@
   "name": "Semantic Chunking",
   "aliases": ["semantic chunker", "chunk size", "page complexity analyzer", "content tagging service", "chunk metadata", "chunking", "smaller chunks", "larger chunks"],
   "purpose": "Splits extracted text into chunks sized to the kind of file and tags each chunk with its section and metadata.",
-  "revision": "151e1cc8",
+  "revision": "26704aee",
   "verified_on": "2026-11-07",
   "entry_points": ["SemanticChunker", "PageComplexityAnalyzer", "ContentTaggingService", "DocumentChunk", "SemanticChunker.chunkText"],
   "files": [
@@ -75,7 +75,7 @@
     {"from": "ContentTaggingService", "type": "calls", "to": "HardwareTelemetryState.sustain", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 189, "match": "HardwareTelemetryState.shared.sustain(.llmInference, active: true, intensity: 0.7)"}], "by": "build", "note": "named in the body"},
     {"from": "ContentTaggingService", "type": "calls", "to": "DSHaptics.soft", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 201, "match": "DSHaptics.soft()"}], "by": "build", "note": "named in the body"},
     {"from": "ContentTaggingService", "type": "calls", "to": "ContentTags", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 383, "match": "return ContentTags("}], "by": "build", "note": "named in the body"},
-    {"from": "RAGService.addDocument", "type": "depends_on", "to": "ContentTaggingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 2460, "match": "let taggingService = ContentTaggingService.shared"}], "by": "build", "note": "named there"},
+    {"from": "RAGService.addDocument", "type": "depends_on", "to": "ContentTaggingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 2467, "match": "let taggingService = ContentTaggingService.shared"}], "by": "build", "note": "named there"},
     {"from": "RetrievedChunk.chunk", "type": "depends_on", "to": "DocumentChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/RAGQuery.swift", "line": 58, "match": "let chunk: DocumentChunk"}], "by": "build", "note": "named there"},
     {"from": "SpotlightIndexService.indexDocumentChunks", "type": "depends_on", "to": "DocumentChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift", "line": 72, "match": "chunks: [DocumentChunk],"}], "by": "build", "note": "named there"},
     {"from": "AgenticOrchestrator.checkLexicalRelevance", "type": "depends_on", "to": "SemanticChunker.chunkText", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift", "line": 45, "match": "let chunkText = chunks.prefix(5)"}], "by": "build", "note": "named there"},
