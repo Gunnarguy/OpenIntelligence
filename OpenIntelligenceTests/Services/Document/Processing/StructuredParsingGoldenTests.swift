@@ -55,11 +55,10 @@ final class StructuredParsingGoldenTests: XCTestCase {
         let checkpoints = AppSupportPaths.localCacheDir().appendingPathComponent(
             "IngestionCheckpoints", isDirectory: true)
 
-        func pass() async throws -> [String: Any] {
-            var out: [String: Any] = [:]
-            for input in inputs {
-                try? FileManager.default.removeItem(at: checkpoints)
-                let ids = GoldenRecording.Ids()
+        // One read of a document: its record, passages and entities, and the parser's live metrics at the end.
+        func read(_ input: (name: String, url: URL, pages: ClosedRange<Int>?), ids: GoldenRecording.Ids) async throws
+            -> [String: Any]
+        {
                 let processor = DocumentProcessor()
                 let (document, chunks) = try await processor.processDocument(at: input.url, pageRange: input.pages)
                 var passages: [Any] = []
@@ -75,13 +74,40 @@ final class StructuredParsingGoldenTests: XCTestCase {
                     }
                     passages.append(entry)
                 }
-                out[input.name] = [
+                let metrics = await MainActor.run { processor.liveMetrics }
+                return [
+                    "metrics": GoldenRecording.reflect(metrics, dropping: Self.volatileKeys, ids: ids),
                     "document": try GoldenRecording.normalized(document, dropping: Self.volatileKeys, ids: ids),
                     "passages": passages,
                     // A detected date is resolved against the clock: "9:14" on one fixture read as 21:14 at 13:45 and
                     // as 09:14 at 14:05 (2026-11-06), so a date entity is recorded by its type only.
                     "entities": processor.lastDetectedEntities.map { $0.type == "date" ? "date|(clock)" : "\($0.type)|\($0.value)" },
                 ]
+        }
+
+        // The checkpoint files a read leaves, by name, as digests of their bytes.
+        func checkpointFiles() -> [String: String] {
+            var files: [String: String] = [:]
+            let walker = FileManager.default.enumerator(at: checkpoints, includingPropertiesForKeys: nil)
+            while let url = walker?.nextObject() as? URL {
+                guard url.pathExtension == "json", let data = try? Data(contentsOf: url) else { continue }
+                files[url.lastPathComponent] = GoldenRecording.digest(data.base64EncodedString())
+            }
+            return files
+        }
+
+        func pass() async throws -> [String: Any] {
+            var out: [String: Any] = [:]
+            for input in inputs {
+                try? FileManager.default.removeItem(at: checkpoints)
+                let ids = GoldenRecording.Ids()
+                var entry = try await read(input, ids: ids)
+                // The checkpoints the read wrote, then a second read that resumes from them, as an import that was
+                // interrupted does (`loadCheckpointedPage`, the prescan skipping saved pages). Added 2026-11-06 after a
+                // review found the first version never reached that path.
+                entry["checkpointFiles"] = checkpointFiles()
+                entry["resumed"] = try await read(input, ids: GoldenRecording.Ids())
+                out[input.name] = entry
             }
             try? FileManager.default.removeItem(at: checkpoints)
             return out
