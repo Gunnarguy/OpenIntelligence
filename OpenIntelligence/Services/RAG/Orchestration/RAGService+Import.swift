@@ -1804,63 +1804,7 @@ extension RAGService {
                 )
             }
 
-            // Step 3: Create DocumentChunk objects with embeddings and contextual prefixes
-            let chunkingStartTime = Date()
-            let documentChunks = zip(zip(processedChunks, embeddings), contextualPrefixes).enumerated().map {
-                (index: Int, pair: ((DocumentProcessor.ProcessedChunk, [Float]), String)) in
-                let ((chunk, embedding), prefix) = pair
-                let base = chunk.metadata
-                let enrichedMetadata = ChunkMetadata(
-                    chunkIndex: index,
-                    startPosition: base.startPosition,
-                    endPosition: base.endPosition,
-                    pageNumber: base.pageNumber,
-                    sectionTitle: base.sectionTitle,
-                    keywords: base.keywords,
-                    semanticDensity: base.semanticDensity,
-                    hasNumericData: base.hasNumericData,
-                    hasListStructure: base.hasListStructure,
-                    wordCount: base.wordCount,
-                    characterCount: base.characterCount,
-                    createdAt: base.createdAt,
-                    structureType: base.structureType,
-                    siblingGroupId: base.siblingGroupId,
-                    siblingCount: base.siblingCount,
-                    entities: base.entities,
-                    abbreviations: base.abbreviations,
-                    abstractionLevel: base.abstractionLevel,
-                    sectionPath: base.sectionPath,
-                    bboxArray: base.bboxArray,
-                    documentCategory: base.documentCategory,
-                    chunkType: base.chunkType,
-                    tableTitle: base.tableTitle,
-                    imageContentType: base.imageContentType,
-                    imageCaption: base.imageCaption,
-                    imageDescription: base.imageDescription,
-                    imageExtractedText: base.imageExtractedText,
-                    imageClassifications: base.imageClassifications,
-                    hasCrossReferences: base.hasCrossReferences,
-                    resolvedReferences: base.resolvedReferences
-                )
-                return DocumentChunk(
-                    documentId: document.id,
-                    content: chunk.text,
-                    parentContent: chunk.parentText,
-                    contextualPrefix: prefix,
-                    embedding: embedding,
-                    metadata: enrichedMetadata
-                )
-            }
-            let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
-            TelemetryCenter.emit(
-                .storage,
-                title: "Chunks prepared",
-                metadata: [
-                    "file": filename,
-                    "count": "\(documentChunks.count)",
-                ],
-                duration: chunkingTime
-            )
+            let (documentChunks, chunkingTime) = buildDocumentChunks(contextualPrefixes: contextualPrefixes, embeddings: embeddings, processedChunks: processedChunks, document: document, filename: filename)
 
             // Step 4: Store chunks in the vector database for the container this import targets.
             //
@@ -2204,6 +2148,69 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step U: pairs each passage with its vector and contextual prefix into DocumentChunk records and emits the Chunks prepared event.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func buildDocumentChunks(contextualPrefixes: [String], embeddings: [[Float]], processedChunks: [DocumentProcessor.ProcessedChunk], document: Document, filename: String) -> (documentChunks: [DocumentChunk], chunkingTime: TimeInterval) {
+        // Step 3: Create DocumentChunk objects with embeddings and contextual prefixes
+        let chunkingStartTime = Date()
+        let documentChunks = zip(zip(processedChunks, embeddings), contextualPrefixes).enumerated().map {
+            (index: Int, pair: ((DocumentProcessor.ProcessedChunk, [Float]), String)) in
+            let ((chunk, embedding), prefix) = pair
+            let base = chunk.metadata
+            let enrichedMetadata = ChunkMetadata(
+                chunkIndex: index,
+                startPosition: base.startPosition,
+                endPosition: base.endPosition,
+                pageNumber: base.pageNumber,
+                sectionTitle: base.sectionTitle,
+                keywords: base.keywords,
+                semanticDensity: base.semanticDensity,
+                hasNumericData: base.hasNumericData,
+                hasListStructure: base.hasListStructure,
+                wordCount: base.wordCount,
+                characterCount: base.characterCount,
+                createdAt: base.createdAt,
+                structureType: base.structureType,
+                siblingGroupId: base.siblingGroupId,
+                siblingCount: base.siblingCount,
+                entities: base.entities,
+                abbreviations: base.abbreviations,
+                abstractionLevel: base.abstractionLevel,
+                sectionPath: base.sectionPath,
+                bboxArray: base.bboxArray,
+                documentCategory: base.documentCategory,
+                chunkType: base.chunkType,
+                tableTitle: base.tableTitle,
+                imageContentType: base.imageContentType,
+                imageCaption: base.imageCaption,
+                imageDescription: base.imageDescription,
+                imageExtractedText: base.imageExtractedText,
+                imageClassifications: base.imageClassifications,
+                hasCrossReferences: base.hasCrossReferences,
+                resolvedReferences: base.resolvedReferences
+            )
+            return DocumentChunk(
+                documentId: document.id,
+                content: chunk.text,
+                parentContent: chunk.parentText,
+                contextualPrefix: prefix,
+                embedding: embedding,
+                metadata: enrichedMetadata
+            )
+        }
+        let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
+        TelemetryCenter.emit(
+            .storage,
+            title: "Chunks prepared",
+            metadata: [
+                "file": filename,
+                "count": "\(documentChunks.count)",
+            ],
+            duration: chunkingTime
+        )
+        return (documentChunks: documentChunks, chunkingTime: chunkingTime)
     }
 
     /// Step AA (size): formats the file's size in MB as the B, KB or MB string the summary and telemetry show.
