@@ -2035,15 +2035,7 @@ extension RAGService {
             let minChunkSize = chunkSizes.min() ?? 0
             let maxChunkSize = chunkSizes.max() ?? 0
 
-            // Format file size string from existing fileSizeMB
-            let fileSizeStr: String
-            if fileSizeMB < 0.001 {
-                fileSizeStr = String(format: "%.0f B", fileSizeMB * 1_048_576)
-            } else if fileSizeMB < 1.0 {
-                fileSizeStr = String(format: "%.2f KB", fileSizeMB * 1024.0)
-            } else {
-                fileSizeStr = String(format: "%.2f MB", fileSizeMB)
-            }
+            let fileSizeStr = formatImportFileSize(fileSizeMB: fileSizeMB)
 
             let updatedDocument = buildCompletedDocument(document: document, fileSizeMB: fileSizeMB, embeddingTime: embeddingTime, totalTime: totalTime, documentHash: documentHash, activeContainerId: activeContainerId)
 
@@ -2212,6 +2204,21 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step AA (size): formats the file's size in MB as the B, KB or MB string the summary and telemetry show.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func formatImportFileSize(fileSizeMB: Double) -> String {
+        // Format file size string from existing fileSizeMB
+        let fileSizeStr: String
+        if fileSizeMB < 0.001 {
+            fileSizeStr = String(format: "%.0f B", fileSizeMB * 1_048_576)
+        } else if fileSizeMB < 1.0 {
+            fileSizeStr = String(format: "%.2f KB", fileSizeMB * 1024.0)
+        } else {
+            fileSizeStr = String(format: "%.2f MB", fileSizeMB)
+        }
+        return fileSizeStr
     }
 
     /// Step AA (document): rebuilds the imported Document with its complete processing metadata, the file hash and the import's library.
