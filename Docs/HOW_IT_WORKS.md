@@ -16,7 +16,7 @@
 > (Efficiency and Balanced, the default, keep it on the CPU); a citation points at a chunk with its page
 > and a short quote, not at a byte range or an exact sentence; and the extractive answer step's own path
 > is off, but the same extractor answers value questions through five live call sites.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: BNNSVectorDatabase.swift:501-507; DeviceCapabilityService.swift:923-934; StructuredAnswer.swift:65-117,440; RAGService+AgenticQuery.swift:251,280,757,RAGService+QueryPipeline.swift:5151,RAGService+Generation.swift:100]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: BNNSVectorDatabase.swift:501-507; DeviceCapabilityService.swift:923-934; StructuredAnswer.swift:65-117,440; RAGService+AgenticQuery.swift:251,280,757,RAGService+QueryPipeline.swift:5115,RAGService+Generation.swift:100]`
 
 > **Corrected 2026-10-27** against `1e4a718` (the 5.7 code): section 01's layer table (nine feature areas, and the
 > `UI/` layer it left out), step 1's conversation memory, step 5's rank-2 defect (fixed in `fa80e71`, and noted where
@@ -100,7 +100,7 @@ OpenIntelligence is a local-first retrieval-augmented generation system. Documen
 > answer and nothing more (5.7). In 5.6 the nine checks did not run on those answers, though, by the code's own note,
 > Deep Think's Self-RAG check did on every device but an A17 Pro, and so did the source-only check for a lookup. The source-only check can
 > still rewrite a lookup's answer, or refuse it, after the writing (section 04).
-> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen+Sending.swift:435, FoundationModelStructuredGenerator.swift:117-158, RAGService+QueryPipeline.swift:5215-5381 (step 7.5), RAGService+AgenticQuery.swift:801-825, RAGService+AnswerFinishing.swift:1043-1060 (resolvedDisplayResponse), StructuredAnswer.swift:979-1047 (sanitizeForVerification), GroundedAnswerView.swift:71-99, AgenticOrchestrator.swift:40-49, 640-658]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen+Sending.swift:435, FoundationModelStructuredGenerator.swift:117-158, RAGService+QueryPipeline.swift:5179-5345 (step 7.5), RAGService+AgenticQuery.swift:801-825, RAGService+AnswerFinishing.swift:1043-1060 (resolvedDisplayResponse), StructuredAnswer.swift:979-1047 (sanitizeForVerification), GroundedAnswerView.swift:71-99, AgenticOrchestrator.swift:40-49, 640-658]`
 
 The governing constraint is that Apple's on-device foundation model has a small, fixed **context window**: 4,096 tokens in Apple's documentation and 8,192 on a Mac with macOS 27, and the app reads the device's own figure. A document does not fit. Neither does a naive top-20 chunk set once the system prompt, tool schemas and output schema are accounted for. Every packing, compression, ordering and filtering decision in the pipeline traces back to that number.
 The second constraint is that documents stay on the device. So "send the whole corpus to a larger model" is not available either. Retrieval-augmented generation is not a preference here; it is the only architecture that satisfies both constraints at once.
@@ -116,7 +116,7 @@ The second constraint is that documents stay on the device. So "send the whole c
 1. **A dual index.** SQLite FTS5 with BM25 for lexical retrieval, a memory-mapped BNNS vector store for dense retrieval, merged by rank fusion. Neither arm is sufficient alone. The lexical arm stems words with the Porter tokenizer, and the dense arm is one flat file of vectors that a search compares with the question one by one. (Corrected 2026-10-20: the plain-words line above said cards are filed "by the exact words on them".) `[evidence_level: code_verified, confidence: exact, evidence_source: SQLiteFullTextService.swift:242-253, BNNSVectorDatabase.swift:1036-1048, 1104-1201]`
 2. **A hard token budget.** Compression, sibling expansion, positional reordering and tool-schema management are all consequences of a window of a few thousand tokens being the real ceiling. (Corrected 2026-10-20: contextual compression is built and runs in no mode, see step 4.7. `[evidence_level: grep_verified, confidence: exact, evidence_source: usesContextualCompression is read only at RAGService+QueryPipeline.swift:318 in Standard's path, besides a logging dictionary and a Settings screen, grep run 2026-10-20]`)
 3. **Post-retrieval routing.** The decision about whether anything leaves the device is made after evidence exists, and consent is requested for the exact minimized payload rather than in advance.
-4. **Nine verification gates.** Deterministic, local and run once after generation. They label the answer, and in Standard they can also force an abstention, under the rule in section 04. Refusing to answer is a designed outcome, not a failure state. (Corrected 2026-10-20: this said the gates are "able to force an abstention" without saying when. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5307-5353]`)
+4. **Nine verification gates.** Deterministic, local and run once after generation. They label the answer, and in Standard they can also force an abstention, under the rule in section 04. Refusing to answer is a designed outcome, not a failure state. (Corrected 2026-10-20: this said the gates are "able to force an abstention" without saying when. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5271-5317]`)
 
 ## 01. How it is built
 
@@ -356,7 +356,7 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 > (section 07). Summarize, findings and investigate questions get up to three document summaries beside the detail
 > passages. Investigate, compare and findings questions get the graph-style packing of step 4.9. There is no summary
 > hierarchy (step 2.5).
-> `[evidence_level: code_verified, confidence: exact, evidence_source: QueryEnhancementService.swift:64-146, 342-660, RAGService+QueryPipeline.swift:912, 2551-2596, 3224, 5149-5176]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: QueryEnhancementService.swift:64-146, 342-660, RAGService+QueryPipeline.swift:912, 2551-2596, 3224, 5113-5140]`
 
 > **A deliberate default that looks like a bug**
 > In the fast mode, several of these rewriting features are switched **off**. That is intentional. A hypothetical answer invented by a small model can pull an exact-value lookup off target, and an automated rewrite can drift away from a literal question. So the modes that need breadth enable them, and the mode that needs precision keeps the question literal.
@@ -570,7 +570,7 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 
 A locked answer skips the source-only check (`:17293`). The scoring rules, and what an 18-question probe found about them, are in `Docs/RETRIEVAL_PIPELINE.md` item 22. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift at the lines named, read 2026-09-26; the 2026-09-25 device incident]`
 
-The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the shortcut before the orchestrator at `RAGService+AgenticQuery.swift:251` (over the specification-table search's passages) and `:280` (after one full retrieval), the agentic answer replaced at `:757`, Standard at `RAGService+QueryPipeline.swift:5151`, and the reliability fallback at `RAGService+Generation.swift:100`. The commented-out step 5.10 is at `RAGService+QueryPipeline.swift:4156`, and the source-locked skip at `RAGService+AnswerFinishing.swift:452`. From 5.7, Standard keeps the model's answer when it already states the extracted value. The lock is 0.82, or 0.90 when an extractive attempt is forced. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift at the lines named, EvidenceScoringPolicyService.swift:82-84, read 2026-10-20]`
+The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the shortcut before the orchestrator at `RAGService+AgenticQuery.swift:251` (over the specification-table search's passages) and `:280` (after one full retrieval), the agentic answer replaced at `:757`, Standard at `RAGService+QueryPipeline.swift:5115`, and the reliability fallback at `RAGService+Generation.swift:100`. The commented-out step 5.10 is at `RAGService+QueryPipeline.swift:4156`, and the source-locked skip at `RAGService+AnswerFinishing.swift:452`. From 5.7, Standard keeps the model's answer when it already states the extracted value. The lock is 0.82, or 0.90 when an extractive attempt is forced. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift at the lines named, EvidenceScoringPolicyService.swift:82-84, read 2026-10-20]`
 
 **Corrected 2026-09-26.** This section said "every query proceeds to model generation" and "every question now goes through the model". Under "What replaced it" it said that exact-value questions are "served by targeted retrieval at step 4.8 rather than by a generation bypass", and that "the model still writes the answer, so a wrong extraction becomes a wrong *candidate* that the verification checks can catch, instead of a wrong answer that skipped them". That holds for step 5.10's own path only. The claims are withdrawn rather than deleted, so the record shows what was claimed.
 
@@ -588,30 +588,30 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 
 (Corrected 2026-10-27 against `1e4a718`: the temperature sentence in the How line above. Only Standard applies a mode temperature, and it applies it as a ceiling: `min(current, 0.4)`. It caps the temperature at 0.2 instead when it uses the evidence-first prompt for low-confidence retrieval, and at 0.2 for a library whose retrieval style is `.precise` (High Precision in Library Settings). Maximum's 0.3, and Deep Think's 0.4, in `RAGQualityMode.temperature` are never read: the app reads that value once, below the line where Deep Think and Maximum return to `executeAgenticQuery`. Maximum's own loop sets 0.7 for sessions 1 to 3, 0.5 for sessions 4 to 8 and 0.3 after that. `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:3840-3842 (evidence-first, 0.2), 15738-15739 (mode cap), 15741-15745 (.precise, 0.2), 11635 (agentic return), 11686 (the only read of qualityMode.temperature by git grep, besides featureToggles at RAGQualityMode.swift:337, which has no caller); RAGQualityMode.swift:95-101; AgenticOrchestrator+Maximum.swift:876-884]`)
 
-(Corrected 2026-10-27 against `55fea8e`: "or a refusal" in the first note above. In Standard the planner's refusal is not what you see when reliability mode is on, its default: the reliability fallback answers from the same passages instead. Section 05's note under the ladder says what happens, and section 04's last note what it shows. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4073-4092, 5336-5364, 5853-5575; SettingsStore.swift:534-535]`)
+(Corrected 2026-10-27 against `55fea8e`: "or a refusal" in the first note above. In Standard the planner's refusal is not what you see when reliability mode is on, its default: the reliability fallback answers from the same passages instead. Section 05's note under the ladder says what happens, and section 04's last note what it shows. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4073-4092, 5300-5328, 5863-5539; SettingsStore.swift:534-535]`)
 
 #### Step 6.5 / 7. Tidy up and score it
 
 > **In plain words**
 > Fix the formatting, since small models produce broken bullet lists often enough that repairing them is cheaper than asking nicely. Then score how well the answer came out, which feeds the confidence number later.
 
-**How.** Markdown normalisation, list indentation repair and output-structure enforcement, followed by a synthesis quality score that feeds calibration. (Corrected 2026-10-20: the score at step 7 reads the retrieval, not the answer: the top passage's reranked score, how many passages there are and how many sources. That score is the confidence the answer carries, adjusted only when the source-only check runs. For a lookup or a precise-value question, the extracted-value override also runs here, and can replace the model's answer when the answer does not already state the value (5.7, where 5.6 replaced it whenever a value locked). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5149-5192, 5897-5451, RAGEngine.swift:802-836 (assessResponseQuality)]`)
+**How.** Markdown normalisation, list indentation repair and output-structure enforcement, followed by a synthesis quality score that feeds calibration. (Corrected 2026-10-20: the score at step 7 reads the retrieval, not the answer: the top passage's reranked score, how many passages there are and how many sources. That score is the confidence the answer carries, adjusted only when the source-only check runs. For a lookup or a precise-value question, the extracted-value override also runs here, and can replace the model's answer when the answer does not already state the value (5.7, where 5.6 replaced it whenever a value locked). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5113-5156, 5907-5415, RAGEngine.swift:802-836 (assessResponseQuality)]`)
 
 #### Step 7.5. Run the nine checks
 
 > **In plain words**
 > The fact-checker. Nine separate checks, run on the finished answer against the pages on the desk, before you see any of it. Full list in the next section.
-> **Corrected 2026-10-20.** By the time the checks run you've usually watched the answer being written, so they don't come before you see it. They run once, on the finished answer, and put a label on it. Only in Standard, and only when the checks score badly enough, does the app take the answer back and refuse instead. `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen+Sending.swift:435, RAGService+QueryPipeline.swift:5215-5381]`
+> **Corrected 2026-10-20.** By the time the checks run you've usually watched the answer being written, so they don't come before you see it. They run once, on the finished answer, and put a label on it. Only in Standard, and only when the checks score badly enough, does the app take the answer back and refuse instead. `[evidence_level: code_verified, confidence: exact, evidence_source: ChatScreen+Sending.swift:435, RAGService+QueryPipeline.swift:5179-5345]`
 
-**How.** Nine deterministic verification gates, always local. Detailed in the next section. They run once, after generation, and are not run again: a failure never sends the answer back to be written again. In Standard they also decide which claims the Fact Check list under the answer keeps. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5215-5381 (step 7.5), 5532-5540, StructuredAnswer.swift:979-1047]`
+**How.** Nine deterministic verification gates, always local. Detailed in the next section. They run once, after generation, and are not run again: a failure never sends the answer back to be written again. In Standard they also decide which claims the Fact Check list under the answer keeps. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5179-5345 (step 7.5), 5532-5540, StructuredAnswer.swift:979-1047]`
 
 #### Step 8 / 8.1. Package it and calibrate the confidence
 
 > **In plain words**
 > Bundle the answer with its citations, then convert the app's raw internal score into the confidence percentage you actually see. That conversion matters: a raw score of "0.8" doesn't mean "right 80% of the time," and showing it as though it did would be a lie with a number attached.
-> **Corrected 2026-10-20.** The conversion is computed, but the app doesn't put it on the answer. It appears only as one of the steps in the thinking timeline. The confidence the answer carries is still the raw score from step 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5797-5824, 5970]`
+> **Corrected 2026-10-20.** The conversion is computed, but the app doesn't put it on the answer. It appears only as one of the steps in the thinking timeline. The confidence the answer carries is still the raw score from step 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5807-5834, 5980]`
 
-**How.** The answer, citation index map and evidence record are assembled, then Platt scaling maps the raw quality score toward something closer to a probability. Calibration is only ever as good as the data it was fit on. (Corrected 2026-10-20: the calibrated probability is written to the log and shown as a thinking step, and the response is built with step 7's score. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5797-5824 (step 8.1), 5531, 5656]`)
+**How.** The answer, citation index map and evidence record are assembled, then Platt scaling maps the raw quality score toward something closer to a probability. Calibration is only ever as good as the data it was fit on. (Corrected 2026-10-20: the calibrated probability is written to the log and shown as a thinking step, and the response is built with step 7's score. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5807-5834 (step 8.1), 5531, 5656]`)
 
 ### Phase F · Show it
 
@@ -651,12 +651,12 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 >   `SourceOnlyVerdictTests`). On his iPhone on 2026-11-04 one such check ran 46.6 s at 17% coverage and declined;
 >   it was 1 of the 3 checks his traces hold, the other two ended in under half a second.
 >   `[evidence_level: code_verified + measured, confidence: exact, evidence_source: ~/Library/Developer/OpenIntelligence-evidence/2026-11-04_141602]`
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5215-5381 (step 7.5), 5550-5596, RAGService+AgenticQuery.swift:775-825, RAGService+Generation.swift:974-1027 (verifyAgenticAnswer), RAGService+AnswerFinishing.swift:422-554 (sourceOnlyOutcomeIfNeeded), 1043-1060 (resolvedDisplayResponse), StructuredAnswer.swift:979-1047 (sanitizeForVerification), GroundedAnswerView.swift:71-99, ConfidencePolicyService.swift:48-54, SettingsStore.swift:534-535, SourceOnlyAnswerService.swift:361-441, VerificationOutcome.swift:33-60, MessageBubbleV2.swift:715-745]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5179-5345 (step 7.5), 5550-5596, RAGService+AgenticQuery.swift:775-825, RAGService+Generation.swift:974-1027 (verifyAgenticAnswer), RAGService+AnswerFinishing.swift:422-554 (sourceOnlyOutcomeIfNeeded), 1043-1060 (resolvedDisplayResponse), StructuredAnswer.swift:979-1047 (sanitizeForVerification), GroundedAnswerView.swift:71-99, ConfidencePolicyService.swift:48-54, SettingsStore.swift:534-535, SourceOnlyAnswerService.swift:361-441, VerificationOutcome.swift:33-60, MessageBubbleV2.swift:715-745]`
 
 > **In plain words**
 > In plain terms the nine checks ask: *did it find anything good enough to answer with? does every sentence trace back to a page? do the numbers match? do the pages contradict each other? does the answer actually resemble what the pages say? did it mix up two similar-looking things? is it well formed? did it answer the whole question or only half? are these pages even about the same subject?*
 > Fail an important one and the app refuses to answer rather than guessing.
-> **Corrected 2026-10-20.** Not every check reads the answer. Some look at how well the search went, or at the pages alone. And failing doesn't usually mean a refusal: in Standard the app refuses only when the checks score badly overall, and otherwise shows the answer marked Unverified. In Deep Think and Maximum the checks only label the answer. A separate source-only check, run on look-up questions, can still rewrite or refuse an answer after it's written. `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:159-276, RAGService+QueryPipeline.swift:5307-5353, RAGService+AgenticQuery.swift:775-825]`
+> **Corrected 2026-10-20.** Not every check reads the answer. Some look at how well the search went, or at the pages alone. And failing doesn't usually mean a refusal: in Standard the app refuses only when the checks score badly overall, and otherwise shows the answer marked Unverified. In Deep Think and Maximum the checks only label the answer. A separate source-only check, run on look-up questions, can still rewrite or refuse an answer after it's written. `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:159-276, RAGService+QueryPipeline.swift:5271-5317, RAGService+AgenticQuery.swift:775-825]`
 
 | Check | Name | What it verifies |
 |---|---|---|
@@ -680,7 +680,7 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 > least 0.40. With structured claims the bar is 0.55, and at least 80% of the claims must also carry a citation. Only
 > Standard passes structured claims, so Deep Think and Maximum answers are always held to 0.40. Headings and claims
 > worded as questions are left out before counting, and an answer with no claim left to check passes Gate B outright.
-> `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: VerificationGateService.swift:180 (Gate A is runGateA), 294-319 (runGateA; the margin is "info only" at 311), 279-288 (checkRetrievalConfidence; git grep finds no caller, and muMargin is applied only at 285; ConfidencePolicyService.swift:43 reads it only to raise it), 333-359 (headings and question-like claims dropped), 361-371 (no claims: passed), 391 (weighted coverage), 397 (structured: 0.55 and 0.80), 410 (otherwise 0.40); ConfidencePolicyService.swift:43; RAGService+QueryPipeline.swift:5270-5280 (Standard passes structuredClaims) and RAGService+Generation.swift:1002-1011 (Deep Think and Maximum do not)]`
+> `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: VerificationGateService.swift:180 (Gate A is runGateA), 294-319 (runGateA; the margin is "info only" at 311), 279-288 (checkRetrievalConfidence; git grep finds no caller, and muMargin is applied only at 285; ConfidencePolicyService.swift:43 reads it only to raise it), 333-359 (headings and question-like claims dropped), 361-371 (no claims: passed), 391 (weighted coverage), 397 (structured: 0.55 and 0.80), 410 (otherwise 0.40); ConfidencePolicyService.swift:43; RAGService+QueryPipeline.swift:5234-5244 (Standard passes structuredClaims) and RAGService+Generation.swift:1002-1011 (Deep Think and Maximum do not)]`
 
 > **Corrected 2026-10-28** against `a7276983` (the 5.7 code): rows D, G, H and I say more than the gates check.
 > **Gate D** looks only for negation: it flags two passages that share seven or more longer words near "not",
@@ -716,7 +716,7 @@ Thresholds rise with mode: 0.50 in Standard, 0.60 in Deep Think, 0.80 in Maximum
 > and I, from 5.7, engages only for questions that read as lab science. Gate I's row above says it rejects evidence
 > "before an answer is written". It runs with the other eight, after the answer is written, and reads the question
 > and the passages, not the answer.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:159-276, 426-480, 513-536, 887, 979-1050, ConfidencePolicyService.swift:22-58, RAGService+QueryPipeline.swift:5269-5353, StructuredAnswer.swift:974-976, DomainIsolationService.swift:141-146]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: VerificationGateService.swift:159-276, 426-480, 513-536, 887, 979-1050, ConfidencePolicyService.swift:22-58, RAGService+QueryPipeline.swift:5233-5317, StructuredAnswer.swift:974-976, DomainIsolationService.swift:141-146]`
 
 > **Corrected 2026-10-27** against `55fea8e` (the 5.7 code): the list at the top of this section leaves out Standard's
 > reliability fallback. When Standard's path throws after retrieval has found passages, the planner's abstain included
@@ -1267,7 +1267,7 @@ The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `Benchmark
   Saying "that isn't in your documents" instead of guessing.Refusing to answer when evidence is insufficient. A designed outcome, not a failure.
 
 **Verification check**
-  One of nine fact-checks an answer must pass before you see it.A deterministic post-generation gate that can lower confidence or force abstention. Always local. (Corrected 2026-10-20: the checks run once on the finished answer, after it has streamed, and label it. Only Standard can refuse on them, under the rule in section 04, and in Standard they also keep unsupported claims out of the Fact Check list. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5215-5381, StructuredAnswer.swift:979-1047]`)
+  One of nine fact-checks an answer must pass before you see it.A deterministic post-generation gate that can lower confidence or force abstention. Always local. (Corrected 2026-10-20: the checks run once on the finished answer, after it has streamed, and label it. Only Standard can refuse on them, under the rule in section 04, and in Standard they also keep unsupported claims out of the Fact Check list. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5179-5345, StructuredAnswer.swift:979-1047]`)
 
 **Calibration**
   Turning the app's internal score into a percentage that means something.Platt scaling, mapping an uncalibrated score toward a probability.
@@ -1303,7 +1303,7 @@ Nine deterministic verification gates run locally after generation, including a 
 > and a quote of up to 240 characters, not to a sentence or an exact span (the 2026-09-29 correction at the top of this
 > page). The benchmark sentence repeats the figures section 08 withdrew on 2026-08-21, because the run behind them is
 > flagged as one where generation probably never ran. It is left here as written, and section 08 is the current record.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5215-5381, RAGService+AgenticQuery.swift:801-825, RAGService+AgenticQuery.swift:124-300, StructuredAnswer.swift:65-117]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5179-5345, RAGService+AgenticQuery.swift:801-825, RAGService+AgenticQuery.swift:124-300, StructuredAnswer.swift:65-117]`
 
 ### Does anything leave my device?
 
@@ -1330,7 +1330,7 @@ A failed critical verification gate produces a grounded abstention rather than a
 > writing. The source-only check can turn a lookup's answer into a refusal when the question asks for a precise value
 > or a state (in Standard after failed checks, in Deep Think and Maximum for any lookup not locked to a value). And
 > with reliability mode off, an answer whose claims Gate B all marked unsupported is shown as a refusal.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5307-5353, 5405-5451, RAGService+AgenticQuery.swift:775-799, RAGService+AnswerFinishing.swift:422-554 (sourceOnlyOutcomeIfNeeded), ModelExecutionPlanner.swift:37-40, AgenticOrchestrator.swift:231-294, StructuredAnswer.swift:979-1012]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5271-5317, 5369-5415, RAGService+AgenticQuery.swift:775-799, RAGService+AnswerFinishing.swift:422-554 (sourceOnlyOutcomeIfNeeded), ModelExecutionPlanner.swift:37-40, AgenticOrchestrator.swift:231-294, StructuredAnswer.swift:979-1012]`
 >
 > **Corrected 2026-10-28** against `a7276983`: the source-only check's "refusal" does not hide the answer. When it
 > abstains on a precise-value or state question, the answer it puts in place reads "⚠️ **[Needs Verification]** This
@@ -1353,7 +1353,7 @@ A failed critical verification gate produces a grounded abstention rather than a
 > **Corrected 2026-10-27** against `55fea8e`: "when the post-retrieval plan judges the evidence insufficient" refuses
 > in Deep Think and Maximum. In Standard it refuses only with reliability mode off; with it on, the default, the
 > reliability fallback answers from the same passages instead (section 05, under the ladder, and section 04's last
-> note). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4590-4609, 5682-5710, 5735; ChatScreen+Streaming.swift:307-310; RAGService+Agentic.swift:327-362; SettingsStore.swift:534-535]`
+> note). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4590-4609, 5646-5674, 5699; ChatScreen+Streaming.swift:307-310; RAGService+Agentic.swift:327-362; SettingsStore.swift:534-535]`
 
 ### Does it work offline?
 

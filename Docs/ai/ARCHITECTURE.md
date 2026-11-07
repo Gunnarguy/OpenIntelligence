@@ -134,7 +134,7 @@ person picked PCC in the model picker, which reads one retrieved pool (in Maximu
 larger one gathered once) with no new retrieval or rerank per session. From 5.7 their answers go through the nine gates too, as a label, unless the source-only check
 ran (in 5.6 they read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop. Lines today: fusion at HybridSearchService.swift:1328-1334 and RAGEngine.swift:997,
 rerank at RAGEngine.swift:302 called from RAGService+QueryPipeline.swift:1736. `[evidence_level: code_verified,
-confidence: high, evidence_source: RAGService+QueryPipeline.swift:252, RAGService+QueryPipeline.swift:647-774, RAGService+QueryPipeline.swift:5147-5176, RAGService+QueryPipeline.swift:5218-5886, RAGService+QueryPipeline.swift:5412-5436,
+confidence: high, evidence_source: RAGService+QueryPipeline.swift:252, RAGService+QueryPipeline.swift:647-774, RAGService+QueryPipeline.swift:5111-5140, RAGService+QueryPipeline.swift:5182-5896, RAGService+QueryPipeline.swift:5376-5400,
 RAGService+AnswerFinishing.swift:428-453, RAGService+AgenticQuery.swift:802-826, QueryRewriterService.swift:83-110, QueryProfileService.swift:49-52, ConfidencePolicyService.swift:48-54,
 RAGQualityMode.swift:226-233, VerificationGateService.swift:250, AgenticOrchestrator.swift:180, 386-985,
 AgenticOrchestrator+Retrieval.swift:1055-1149, AgenticOrchestrator+ReasoningChain.swift:465-545, AgenticOrchestrator+MultiChain.swift:17-72 (`gatherAllRelevantChunks`, Maximum's larger pool)]`
@@ -200,7 +200,7 @@ The privacy claim is the product, so these are the invariants worth checking on 
   streamed) and an integrity repair of a malformed answer, all on the answer's route. In Deep Think and
   Maximum it is their synthesis calls, and once PCC is picked in the model picker their sessions can go too
   (the routing row above). `[evidence_level: code_verified, confidence: high, evidence_source:
-  CloudConsentPromptView.swift:7, 45-71, 172-196, 204-263, RAGService+StandardRetrieval.swift:873-927, RAGService+QueryPipeline.swift:4960-5078,
+  CloudConsentPromptView.swift:7, 45-71, 172-196, 204-263, RAGService+StandardRetrieval.swift:873-927, RAGService+QueryPipeline.swift:4924-5042,
   ModelExecutionPlanner.swift:36-103, RAGService+Agentic.swift:208-220]`
 - From 5.7 the app makes one other kind of request, and it carries nothing from the library: it downloads
   a web page when the person gives it the address ("Save a Web Page", the Link parameter of "Add to

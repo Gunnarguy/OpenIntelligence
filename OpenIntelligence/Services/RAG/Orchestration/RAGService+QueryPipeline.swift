@@ -4626,46 +4626,10 @@ extension RAGService {
                     )
                 }
 
-                // Track reasoning trace from chained sessions (for UI display)
-                var reasoningTraceForMetadata: [String]? = nil
-
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // REASONING CHAIN: Developer override only in Standard pipeline.
-                // Deep Think/Maximum use the agentic path (returned early at L4022).
-                // This code path is only reachable when forceReasoningChain is ON,
-                // which lets developers test multi-session reasoning from Standard mode.
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                let forceChain = settingsStore?.forceReasoningChain ?? false
-                let standardComplexity = initialQueryProfile.reasoningComplexity
-                let useReasoningChain: Bool = {
-                    // Only use for Apple Foundation Models (reasoning chain uses FM-specific features)
-                    guard llmService is AppleFoundationLLMService else { return false }
-
-                    // Standard stays single-pass unless a developer explicitly forces chaining.
-                    guard forceChain else { return false }
-                    guard qualityMode.canonical == .standard else { return false }
-
-                    Log.info("[RAG] Reasoning chain FORCED via settings", category: .pipeline)
-
-                    // Skip if evidence is weak (Evidence-First mode handles this)
-                    guard !useEvidenceFirstMode else { return false }
-
-                    // Skip trivial queries - they don't benefit from multi-session
-                    guard !isTrivial else { return false }
-
-                    guard standardComplexity.complexity != .simple else { return false }
-
-                    // Need some retrieval quality
-                    guard bestRetrievalSim >= 0.30 else { return false }
-
-                    // Need some context to benefit from chaining
-                    guard contextSize > 900 else { return false }
-
-                    // Need enough evidence to distribute across sessions
-                    guard includedRetrievedChunks.count >= 3 else { return false }
-
-                    return true
-                }()
+                let __decideReasoningChainResult = decideReasoningChain(initialQueryProfile: initialQueryProfile, qualityMode: qualityMode, useEvidenceFirstMode: useEvidenceFirstMode, isTrivial: isTrivial, bestRetrievalSim: bestRetrievalSim, contextSize: contextSize, includedRetrievedChunks: includedRetrievedChunks)
+                let useReasoningChain = __decideReasoningChainResult.useReasoningChain
+                let standardComplexity = __decideReasoningChainResult.standardComplexity
+                var reasoningTraceForMetadata = __decideReasoningChainResult.reasoningTraceForMetadata
 
                 if useReasoningChain {
                     Log.info(
@@ -5734,6 +5698,52 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 6 (chain gate): decides whether the developer-forced reasoning chain runs.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func decideReasoningChain(initialQueryProfile: QueryProfile, qualityMode: RAGQualityMode, useEvidenceFirstMode: Bool, isTrivial: Bool, bestRetrievalSim: Float, contextSize: Int, includedRetrievedChunks: [RetrievedChunk]) -> (useReasoningChain: Bool, standardComplexity: QueryComplexityResult, reasoningTraceForMetadata: [String]?) {
+        // Track reasoning trace from chained sessions (for UI display)
+        var reasoningTraceForMetadata: [String]? = nil
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // REASONING CHAIN: Developer override only in Standard pipeline.
+        // Deep Think/Maximum use the agentic path (returned early at L4022).
+        // This code path is only reachable when forceReasoningChain is ON,
+        // which lets developers test multi-session reasoning from Standard mode.
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let forceChain = settingsStore?.forceReasoningChain ?? false
+        let standardComplexity = initialQueryProfile.reasoningComplexity
+        let useReasoningChain: Bool = {
+            // Only use for Apple Foundation Models (reasoning chain uses FM-specific features)
+            guard llmService is AppleFoundationLLMService else { return false }
+
+            // Standard stays single-pass unless a developer explicitly forces chaining.
+            guard forceChain else { return false }
+            guard qualityMode.canonical == .standard else { return false }
+
+            Log.info("[RAG] Reasoning chain FORCED via settings", category: .pipeline)
+
+            // Skip if evidence is weak (Evidence-First mode handles this)
+            guard !useEvidenceFirstMode else { return false }
+
+            // Skip trivial queries - they don't benefit from multi-session
+            guard !isTrivial else { return false }
+
+            guard standardComplexity.complexity != .simple else { return false }
+
+            // Need some retrieval quality
+            guard bestRetrievalSim >= 0.30 else { return false }
+
+            // Need some context to benefit from chaining
+            guard contextSize > 900 else { return false }
+
+            // Need enough evidence to distribute across sessions
+            guard includedRetrievedChunks.count >= 3 else { return false }
+
+            return true
+        }()
+        return (useReasoningChain: useReasoningChain, standardComplexity: standardComplexity, reasoningTraceForMetadata: reasoningTraceForMetadata)
     }
 
     /// Step 6 (telemetry): measures the generation time and emits the 'Response generated' events.
