@@ -1650,48 +1650,7 @@ extension RAGService {
 
             let textsToEmbed = await buildEmbeddingInputs(filename: filename, processedChunks: processedChunks, container: container, containerEmbeddingService: containerEmbeddingService, contextualPrefixes: &contextualPrefixes)
 
-            // Show initial progress
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .embedding,
-                    detail: "Vectorizing \(processedChunks.count) chunks → \(embeddingDim)D",
-                    progress: 0.0
-                ) { metrics in
-                    metrics.embeddingDimension = embeddingDim
-                    metrics.embeddingProvider = embeddingProviderName
-                }
-            }
-
-            // Capture variables for closure
-            _ = processedChunks.count  // totalChunks used indirectly via embeddings
-            let trackingIdForProgress = trackingId
-            let filenameForProgress = filename
-
-            // Batch embed with progress callback for live UI updates
-            // Kept in the import's checkpoint folder, which is removed when the import finishes (5.7).
-            let embeddingCache = documentProcessor.checkpointDirectoryURL(
-                for: documentProcessor.computeDocumentFingerprint(at: url))
-            embeddings = try await containerEmbeddingService.generateEmbeddings(
-                for: textsToEmbed,
-                cacheDirectory: embeddingCache,
-                progressHandler: { [weak self] (completed: Int, total: Int) in
-                    Task { @MainActor in
-                        let progress = Double(completed) / Double(max(1, total))
-                        self?.updateIngestionItem(
-                            id: trackingIdForProgress,
-                            filename: filenameForProgress,
-                            stage: .embedding,
-                            detail: "Embedding \(completed)/\(total) chunks...",
-                            progress: progress
-                        ) { metrics in
-                            metrics.embeddingsGenerated = completed
-                            metrics.embeddingBatchProgress = progress
-                        }
-                    }
-                }
-            )
+            try await generateChunkEmbeddings(trackingId: trackingId, filename: filename, embeddingDim: embeddingDim, processedChunks: processedChunks, embeddingProviderName: embeddingProviderName, url: url, containerEmbeddingService: containerEmbeddingService, embeddings: &embeddings, textsToEmbed: textsToEmbed)
             try Task.checkCancellation()
             try EmbeddingVectorCheck.requireUsable(embeddings, of: filename)
 
@@ -1826,6 +1785,53 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step S (vectors): shows the embedding stage and generates every passage's vector with live progress, using the import's checkpoint folder as cache.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func generateChunkEmbeddings(trackingId: UUID?, filename: String, embeddingDim: Int, processedChunks: [DocumentProcessor.ProcessedChunk], embeddingProviderName: String, url: URL, containerEmbeddingService: EmbeddingService, embeddings: inout [[Float]], textsToEmbed: [String]) async throws {
+        // Show initial progress
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .embedding,
+                detail: "Vectorizing \(processedChunks.count) chunks → \(embeddingDim)D",
+                progress: 0.0
+            ) { metrics in
+                metrics.embeddingDimension = embeddingDim
+                metrics.embeddingProvider = embeddingProviderName
+            }
+        }
+
+        // Capture variables for closure
+        _ = processedChunks.count  // totalChunks used indirectly via embeddings
+        let trackingIdForProgress = trackingId
+        let filenameForProgress = filename
+
+        // Batch embed with progress callback for live UI updates
+        // Kept in the import's checkpoint folder, which is removed when the import finishes (5.7).
+        let embeddingCache = documentProcessor.checkpointDirectoryURL(
+            for: documentProcessor.computeDocumentFingerprint(at: url))
+        embeddings = try await containerEmbeddingService.generateEmbeddings(
+            for: textsToEmbed,
+            cacheDirectory: embeddingCache,
+            progressHandler: { [weak self] (completed: Int, total: Int) in
+                Task { @MainActor in
+                    let progress = Double(completed) / Double(max(1, total))
+                    self?.updateIngestionItem(
+                        id: trackingIdForProgress,
+                        filename: filenameForProgress,
+                        stage: .embedding,
+                        detail: "Embedding \(completed)/\(total) chunks...",
+                        progress: progress
+                    ) { metrics in
+                        metrics.embeddingsGenerated = completed
+                        metrics.embeddingBatchProgress = progress
+                    }
+                }
+            }
+        )
     }
 
     /// Step T: shows the indexing and storing stages with the embedding figures and emits Embeddings generated.
