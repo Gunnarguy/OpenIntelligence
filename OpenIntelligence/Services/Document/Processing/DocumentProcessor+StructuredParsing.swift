@@ -371,112 +371,7 @@ extension DocumentProcessor {
                     continue
                 }
 
-                autoreleasepool {
-                    guard let page = pdfDocument.page(at: pageIndex) else {
-                        batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil, layoutTables: [], preferHighResolutionStructure: false))
-                        return
-                    }
-
-                    let pageNumber = pageIndex + 1
-                    let complexity = pageComplexity[pageNumber]
-                    let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Safe default
-                    let renderScale = preferredOCRRenderScale(for: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
-                    let fidelityForcesVision = shouldForceVisionForAdaptiveRecovery(
-                        analysis: complexity,
-                        strategy: strategy,
-                        documentTextLayerGarbled: documentTextLayerGarbled
-                    )
-                    let plainText = page.string
-                    let textLayerUnreadableByVision = Self.readsTextLayerVisionCannotRead(
-                        plainText, complexity: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
-                    if textLayerUnreadableByVision {
-                        Log.info("[DocumentProcessor] Page \(pageNumber): read from its text layer, whose script Vision's text recognition does not read", category: .ingestion)
-                    }
-                    // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
-                    let needsVision = !textLayerUnreadableByVision
-                        && (documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR)
-                    let hasText = (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 0
-                    let requiresTableOCR = (complexity?.tablePresence ?? 0) > 0.2 || (complexity?.numericDensity ?? 0) > 0.3
-                    let preferHighResolutionStructure = shouldPreferHighResolutionStructure(
-                        for: complexity,
-                        strategy: strategy,
-                        documentTextLayerGarbled: documentTextLayerGarbled
-                    )
-
-                    traceIngestionDecision(
-                        pageNumber: pageNumber,
-                        strategy: documentTextLayerGarbled
-                            ? "garbled-force-ocr"
-                            : textLayerUnreadableByVision
-                                ? "text-layer, script Vision does not read"
-                                : (fidelityForcesVision && strategy == .spatialText ? "\(strategy.description)+fidelity" : strategy.description),
-                        hasText: hasText,
-                        textQualityOK: textLayerUnreadableByVision
-                            || (!documentTextLayerGarbled && (complexity?.textQuality ?? 0) > 0.65),
-                        requiresTableOCR: requiresTableOCR && !textLayerUnreadableByVision,
-                        mode: documentTextLayerGarbled
-                            ? "structured-garbled-ocr"
-                            : textLayerUnreadableByVision
-                                ? "structured-text-layer"
-                                : (fidelityForcesVision ? "structured-hybrid-fidelity" : "structured-hybrid")
-                    )
-
-                    // ADAPTIVE: Only render image if this page needs Vision layout detection
-                    // Simple pages with good text skip image rendering entirely!
-                    // PHASE -1 override: garbled text → ALWAYS render image for OCR
-                    var pageImage: CIImage? = nil
-                    if needsVision {
-                        if renderScale > 5.0 {
-                            Log.info("[DocumentProcessor] Page \(pageNumber): fine text risk \(Int((complexity?.fineTextRisk ?? 0) * 100))% → rendering at \(Int(72 * renderScale)) DPI", category: .ingestion)
-                        }
-                        pageImage = renderPDFPageAsImage(page: page, scale: renderScale)
-                        if let image = pageImage {
-                            let textQuality = documentTextLayerGarbled ? 0.0 : (complexity?.textQuality ?? 0.7)
-                            let isScanned = documentTextLayerGarbled || strategy == .fullOCR
-                            let plainText = page.string
-                            // Garbled text layer → tell preprocessor there's NO usable native text
-                            let hasText = !documentTextLayerGarbled && (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 10
-                            pageImage = preprocessImageForOCR(
-                                image,
-                                textQuality: textQuality,
-                                hasNativeTextLayer: hasText,
-                                isScanned: isScanned
-                            )
-                        }
-                    }
-
-                    // For simple pages, try spatial extraction right away
-                    // PHASE -1 override: NEVER use PDFKit text when text layer is garbled
-                    var layoutText: String? = nil
-                    if !documentTextLayerGarbled && !needsVision, let text = plainText, !text.isEmpty {
-                        // Use PDFKit spatial extraction (no Vision needed)
-                        // Which of the two outcomes happened is recorded, because `?? text` hides
-                        // it and that is why a two-column extraction defect had to be diagnosed by
-                        // inference rather than read off a trace. `text` here is raw `page.string`,
-                        // which interleaves columns by construction, so the fallback is a materially
-                        // worse result and not an equivalent one.
-                        // A right-to-left page read from its text layer keeps PDFKit's order: the spatial reading
-                        // orders a line's words left to right (`spatialLineBreak`).
-                        let keepsPDFKitOrder = textLayerUnreadableByVision && OCRConfiguration.isMostlyRightToLeft(text)
-                        let spatial = keepsPDFKitOrder ? nil : extractTextWithSpatialOrdering(from: page)
-                        layoutText = spatial ?? text
-                        Log.debug(
-                            "[DocumentProcessor] Page \(pageNumber): strategy=\(strategy.description), "
-                                + "Vision skipped, spatial extraction "
-                                + (spatial == nil ? "FAILED -> raw page text (column order not preserved)" : "ok"),
-                            category: .ingestion
-                        )
-                    }
-
-                    batchRenderData.append(PageRenderData(
-                        pageIndex: pageIndex,
-                        pageImage: pageImage,
-                        plainText: plainText,
-                        layoutText: layoutText,
-                        layoutTables: [],
-                        preferHighResolutionStructure: preferHighResolutionStructure
-                    ))
-                }
+                renderPageForParsing(pageIndex: pageIndex, pdfDocument: pdfDocument, batchRenderData: &batchRenderData, pageComplexity: pageComplexity, documentTextLayerGarbled: documentTextLayerGarbled)
             }
 
             // LAYOUT-AWARE EXTRACTION: Only for pages that need Vision
@@ -1163,6 +1058,118 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A7 (render): renders one page at its complexity's scale (or keeps its text layer when Vision is not needed) inside an autorelease pool and appends its render record.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func renderPageForParsing(pageIndex: Int, pdfDocument: PDFDocument, batchRenderData: inout [DocumentProcessor.PageRenderData], pageComplexity: [Int : PageComplexityAnalysis], documentTextLayerGarbled: Bool) {
+        autoreleasepool {
+            guard let page = pdfDocument.page(at: pageIndex) else {
+                batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil, layoutTables: [], preferHighResolutionStructure: false))
+                return
+            }
+
+            let pageNumber = pageIndex + 1
+            let complexity = pageComplexity[pageNumber]
+            let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Safe default
+            let renderScale = preferredOCRRenderScale(for: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
+            let fidelityForcesVision = shouldForceVisionForAdaptiveRecovery(
+                analysis: complexity,
+                strategy: strategy,
+                documentTextLayerGarbled: documentTextLayerGarbled
+            )
+            let plainText = page.string
+            let textLayerUnreadableByVision = Self.readsTextLayerVisionCannotRead(
+                plainText, complexity: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
+            if textLayerUnreadableByVision {
+                Log.info("[DocumentProcessor] Page \(pageNumber): read from its text layer, whose script Vision's text recognition does not read", category: .ingestion)
+            }
+            // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
+            let needsVision = !textLayerUnreadableByVision
+                && (documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR)
+            let hasText = (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 0
+            let requiresTableOCR = (complexity?.tablePresence ?? 0) > 0.2 || (complexity?.numericDensity ?? 0) > 0.3
+            let preferHighResolutionStructure = shouldPreferHighResolutionStructure(
+                for: complexity,
+                strategy: strategy,
+                documentTextLayerGarbled: documentTextLayerGarbled
+            )
+
+            traceIngestionDecision(
+                pageNumber: pageNumber,
+                strategy: documentTextLayerGarbled
+                    ? "garbled-force-ocr"
+                    : textLayerUnreadableByVision
+                        ? "text-layer, script Vision does not read"
+                        : (fidelityForcesVision && strategy == .spatialText ? "\(strategy.description)+fidelity" : strategy.description),
+                hasText: hasText,
+                textQualityOK: textLayerUnreadableByVision
+                    || (!documentTextLayerGarbled && (complexity?.textQuality ?? 0) > 0.65),
+                requiresTableOCR: requiresTableOCR && !textLayerUnreadableByVision,
+                mode: documentTextLayerGarbled
+                    ? "structured-garbled-ocr"
+                    : textLayerUnreadableByVision
+                        ? "structured-text-layer"
+                        : (fidelityForcesVision ? "structured-hybrid-fidelity" : "structured-hybrid")
+            )
+
+            // ADAPTIVE: Only render image if this page needs Vision layout detection
+            // Simple pages with good text skip image rendering entirely!
+            // PHASE -1 override: garbled text → ALWAYS render image for OCR
+            var pageImage: CIImage? = nil
+            if needsVision {
+                if renderScale > 5.0 {
+                    Log.info("[DocumentProcessor] Page \(pageNumber): fine text risk \(Int((complexity?.fineTextRisk ?? 0) * 100))% → rendering at \(Int(72 * renderScale)) DPI", category: .ingestion)
+                }
+                pageImage = renderPDFPageAsImage(page: page, scale: renderScale)
+                if let image = pageImage {
+                    let textQuality = documentTextLayerGarbled ? 0.0 : (complexity?.textQuality ?? 0.7)
+                    let isScanned = documentTextLayerGarbled || strategy == .fullOCR
+                    let plainText = page.string
+                    // Garbled text layer → tell preprocessor there's NO usable native text
+                    let hasText = !documentTextLayerGarbled && (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 10
+                    pageImage = preprocessImageForOCR(
+                        image,
+                        textQuality: textQuality,
+                        hasNativeTextLayer: hasText,
+                        isScanned: isScanned
+                    )
+                }
+            }
+
+            // For simple pages, try spatial extraction right away
+            // PHASE -1 override: NEVER use PDFKit text when text layer is garbled
+            var layoutText: String? = nil
+            if !documentTextLayerGarbled && !needsVision, let text = plainText, !text.isEmpty {
+                // Use PDFKit spatial extraction (no Vision needed)
+                // Which of the two outcomes happened is recorded, because `?? text` hides
+                // it and that is why a two-column extraction defect had to be diagnosed by
+                // inference rather than read off a trace. `text` here is raw `page.string`,
+                // which interleaves columns by construction, so the fallback is a materially
+                // worse result and not an equivalent one.
+                // A right-to-left page read from its text layer keeps PDFKit's order: the spatial reading
+                // orders a line's words left to right (`spatialLineBreak`).
+                let keepsPDFKitOrder = textLayerUnreadableByVision && OCRConfiguration.isMostlyRightToLeft(text)
+                let spatial = keepsPDFKitOrder ? nil : extractTextWithSpatialOrdering(from: page)
+                layoutText = spatial ?? text
+                Log.debug(
+                    "[DocumentProcessor] Page \(pageNumber): strategy=\(strategy.description), "
+                        + "Vision skipped, spatial extraction "
+                        + (spatial == nil ? "FAILED -> raw page text (column order not preserved)" : "ok"),
+                    category: .ingestion
+                )
+            }
+
+            batchRenderData.append(PageRenderData(
+                pageIndex: pageIndex,
+                pageImage: pageImage,
+                plainText: plainText,
+                layoutText: layoutText,
+                layoutTables: [],
+                preferHighResolutionStructure: preferHighResolutionStructure
+            ))
+        }
     }
 
     /// Step A4: measures each page that has no checkpoint for layout complexity, so simple pages skip Vision, and logs how many need it.
