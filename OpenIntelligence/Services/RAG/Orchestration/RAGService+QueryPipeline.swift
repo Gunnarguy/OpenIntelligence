@@ -5497,47 +5497,7 @@ extension RAGService {
                         duration: pipelineTotalTime
                     )
 
-                    // Step 9: Create response metadata
-                    var gatingSummary: String? =
-                        acceptanceOverride
-                        ? "acceptance_override" : lenient ? "lenient" : nil
-
-                    // Append verification result to gating summary (only if gates were run)
-                    if let vResult = verificationResult {
-                        if vResult.passed {
-                            let verifySummary = "verified:\(String(format: "%.0f", vResult.overallConfidence * 100))%"
-                            gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
-                        } else {
-                            let failedGates = vResult.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(
-                                separator: "+")
-                            let verifySummary = "unverified:\(failedGates)"
-                            gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
-                        }
-                    } else {
-                        // Verification gates were skipped
-                        gatingSummary = gatingSummary.map { "\($0),verification_skipped" } ?? "verification_skipped"
-                    }
-
-                    // Include verification warnings in quality warnings (only if gates were run)
-                    var finalWarnings = qualityWarnings
-                    if let vResult = verificationResult, !vResult.passed {
-                        for gateResult in vResult.gateResults where !gateResult.passed {
-                            finalWarnings.append("Verification \(gateResult.gate.rawValue): \(gateResult.details)")
-                        }
-                    }
-
-                    // Generate structured answer for rich UI rendering (AppleRAG §6)
-                    var finalResponseText = responseText
-                    var finalConfidenceScore = confidenceScore
-                    var structuredAnswer = StructuredAnswer.from(
-                        response: responseText,
-                        retrievedChunks: generationRetrievedChunks,
-                        answerIntent: answerIntent,
-                        verificationResult: verificationResult,
-                        structuredGeneration: llmResponse.structuredRAGGeneration,
-                        loops: reasoningTraceForMetadata?.count ?? 1,
-                        allowUngroundedFallback: allowUngroundedFallback
-                    )
+                    var (finalResponseText, structuredAnswer, gatingSummary, finalWarnings, finalConfidenceScore) = summarizeGatingAndWarnings(acceptanceOverride: acceptanceOverride, lenient: lenient, verificationResult: verificationResult, qualityWarnings: qualityWarnings, responseText: responseText, confidenceScore: confidenceScore, generationRetrievedChunks: generationRetrievedChunks, answerIntent: answerIntent, llmResponse: llmResponse, reasoningTraceForMetadata: reasoningTraceForMetadata, allowUngroundedFallback: allowUngroundedFallback)
 
                     #if canImport(FoundationModels)
                         // Standard checks an extractive answer against its sources only when the
@@ -5879,6 +5839,53 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 9 (gating): builds the gating summary, final warnings and the structured answer.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func summarizeGatingAndWarnings(acceptanceOverride: Bool, lenient: Bool, verificationResult: RAGVerificationResult?, qualityWarnings: [String], responseText: String, confidenceScore: Float, generationRetrievedChunks: [RetrievedChunk], answerIntent: AnswerIntent, llmResponse: LLMResponse, reasoningTraceForMetadata: [String]?, allowUngroundedFallback: Bool) -> (finalResponseText: String, structuredAnswer: StructuredAnswer, gatingSummary: String?, finalWarnings: [String], finalConfidenceScore: Float) {
+        // Step 9: Create response metadata
+        var gatingSummary: String? =
+            acceptanceOverride
+            ? "acceptance_override" : lenient ? "lenient" : nil
+
+        // Append verification result to gating summary (only if gates were run)
+        if let vResult = verificationResult {
+            if vResult.passed {
+                let verifySummary = "verified:\(String(format: "%.0f", vResult.overallConfidence * 100))%"
+                gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
+            } else {
+                let failedGates = vResult.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(
+                    separator: "+")
+                let verifySummary = "unverified:\(failedGates)"
+                gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
+            }
+        } else {
+            // Verification gates were skipped
+            gatingSummary = gatingSummary.map { "\($0),verification_skipped" } ?? "verification_skipped"
+        }
+
+        // Include verification warnings in quality warnings (only if gates were run)
+        var finalWarnings = qualityWarnings
+        if let vResult = verificationResult, !vResult.passed {
+            for gateResult in vResult.gateResults where !gateResult.passed {
+                finalWarnings.append("Verification \(gateResult.gate.rawValue): \(gateResult.details)")
+            }
+        }
+
+        // Generate structured answer for rich UI rendering (AppleRAG §6)
+        var finalResponseText = responseText
+        var finalConfidenceScore = confidenceScore
+        var structuredAnswer = StructuredAnswer.from(
+            response: responseText,
+            retrievedChunks: generationRetrievedChunks,
+            answerIntent: answerIntent,
+            verificationResult: verificationResult,
+            structuredGeneration: llmResponse.structuredRAGGeneration,
+            loops: reasoningTraceForMetadata?.count ?? 1,
+            allowUngroundedFallback: allowUngroundedFallback
+        )
+        return (finalResponseText: finalResponseText, structuredAnswer: structuredAnswer, gatingSummary: gatingSummary, finalWarnings: finalWarnings, finalConfidenceScore: finalConfidenceScore)
     }
 
     /// Step 9 (response): builds the response metadata and the RAGResponse and logs the total time.

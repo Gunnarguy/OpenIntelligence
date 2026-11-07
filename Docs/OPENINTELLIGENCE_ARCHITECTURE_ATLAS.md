@@ -944,3 +944,4 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | Step | What moved |
 |---|---|
 | Q01 | 9 (response) (builds the response metadata and the RAGResponse and logs the total time) into `buildStandardResponse` |
+| Q02 | 9 (gating) (builds the gating summary, final warnings and the structured answer) into `summarizeGatingAndWarnings` |

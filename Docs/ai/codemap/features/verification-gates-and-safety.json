@@ -4,7 +4,7 @@
   "name": "Verification Gates and Safety",
   "aliases": ["verification gates", "verification gate service", "source-only check", "confidence calibration", "domain isolation"],
   "purpose": "Checks a generated answer against the retrieved source text before it is shown, and scores how far to trust it.",
-  "revision": "950c17ff",
+  "revision": "c1d73c1a",
   "verified_on": "2026-11-07",
   "entry_points": ["VerificationGateService", "SourceOnlyAnswerService", "ConfidenceCalibrationService", "DomainIsolationService"],
   "files": [

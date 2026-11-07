@@ -4,7 +4,7 @@
   "name": "Hardware Compute Acceleration",
   "aliases": ["GPU compute service", "Metal buffer pool", "BNNS graph service", "adaptive pipeline optimizer"],
   "purpose": "Runs vector math on the GPU with Metal.",
-  "revision": "950c17ff",
+  "revision": "c1d73c1a",
   "verified_on": "2026-11-07",
   "entry_points": ["GPUComputeService", "AdaptivePipelineOptimizer"],
   "files": [

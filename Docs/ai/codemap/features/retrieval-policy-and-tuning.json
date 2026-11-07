@@ -4,7 +4,7 @@
   "name": "Retrieval Policy and Tuning",
   "aliases": ["retrieval tuning knobs", "agentic policy service", "evidence scoring policy", "confidence policy", "auto tune service"],
   "purpose": "Sets similarity thresholds, confidence filters and candidate limits for each query at run time.",
-  "revision": "950c17ff",
+  "revision": "c1d73c1a",
   "verified_on": "2026-11-07",
   "entry_points": ["AgenticPolicyService", "EvidenceScoringPolicyService", "RetrievalPolicyService", "ConfidencePolicyService"],
   "files": [
