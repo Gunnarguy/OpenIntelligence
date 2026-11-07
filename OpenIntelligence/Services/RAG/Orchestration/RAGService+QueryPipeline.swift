@@ -4370,38 +4370,7 @@ extension RAGService {
 
                 // Provider-aware token budgeting (avoid hard 4K clamps for large-context providers).
                 let contextTokens = estimateTokensConservative(chars: context.count)
-                let availableForOutput = max(
-                    128,
-                    Int(
-                        Double(baseWindowTokens - promptOverheadTokens - questionTokens - contextTokens)
-                            * globalSafetyFactor)
-                )
-                if genConfig.maxTokens > availableForOutput {
-                    genConfig.maxTokens = availableForOutput
-                }
-
-                // For procedural queries, ensure adequate tokens to avoid continuation chains
-                // Continuations increase hallucination risk as second pass "fills gaps" creatively
-                if isProceduralQuery, genConfig.maxTokens < 600 {
-                    let boosted = min(availableForOutput, 600)
-                    if boosted > genConfig.maxTokens {
-                        Log.info(
-                            "[RAG] Procedural query - boosting maxTokens \(genConfig.maxTokens) → \(boosted) to avoid continuations",
-                            category: .llm)
-                        genConfig.maxTokens = boosted
-                    }
-                }
-
-                if isTrivial, !allowLargeContext {
-                    let capped = min(genConfig.maxTokens, 384)
-                    if capped != genConfig.maxTokens {
-                        Log.info(
-                            "[RAG] Trivial query detected - limiting response to \(capped) tokens",
-                            category: .llm
-                        )
-                    }
-                    genConfig.maxTokens = capped
-                }
+                capGenerationTokens(baseWindowTokens: baseWindowTokens, contextTokens: contextTokens, promptOverheadTokens: promptOverheadTokens, questionTokens: questionTokens, globalSafetyFactor: globalSafetyFactor, genConfig: &genConfig, isProceduralQuery: isProceduralQuery, allowLargeContext: allowLargeContext, isTrivial: isTrivial)
 
                 let (promptForGeneration, requiresCitations) = buildGenerationPrompt(selectedId: selectedId, question: question, retrievalConfig: retrievalConfig, qualityModeRequiresCitations: qualityModeRequiresCitations)
 
@@ -5645,6 +5614,43 @@ extension RAGService {
                 throw LLMError.contextWindowExceeded
             }
             throw error
+        }
+    }
+
+    /// Step 6 (output budget): caps maxTokens to the room left after the context and applies the procedural and trivial adjustments.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func capGenerationTokens(baseWindowTokens: Int, contextTokens: Int, promptOverheadTokens: Int, questionTokens: Int, globalSafetyFactor: Double, genConfig: inout InferenceConfig, isProceduralQuery: Bool, allowLargeContext: Bool, isTrivial: Bool) {
+        let availableForOutput = max(
+            128,
+            Int(
+                Double(baseWindowTokens - promptOverheadTokens - questionTokens - contextTokens)
+                    * globalSafetyFactor)
+        )
+        if genConfig.maxTokens > availableForOutput {
+            genConfig.maxTokens = availableForOutput
+        }
+
+        // For procedural queries, ensure adequate tokens to avoid continuation chains
+        // Continuations increase hallucination risk as second pass "fills gaps" creatively
+        if isProceduralQuery, genConfig.maxTokens < 600 {
+            let boosted = min(availableForOutput, 600)
+            if boosted > genConfig.maxTokens {
+                Log.info(
+                    "[RAG] Procedural query - boosting maxTokens \(genConfig.maxTokens) → \(boosted) to avoid continuations",
+                    category: .llm)
+                genConfig.maxTokens = boosted
+            }
+        }
+
+        if isTrivial, !allowLargeContext {
+            let capped = min(genConfig.maxTokens, 384)
+            if capped != genConfig.maxTokens {
+                Log.info(
+                    "[RAG] Trivial query detected - limiting response to \(capped) tokens",
+                    category: .llm
+                )
+            }
+            genConfig.maxTokens = capped
         }
     }
 
