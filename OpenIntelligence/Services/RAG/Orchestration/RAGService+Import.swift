@@ -1292,34 +1292,7 @@ extension RAGService {
                         "chunks": "\(processedChunks.count)"])
             }
             try Task.checkCancellation()
-            let extractionTime = Date().timeIntervalSince(extractionStartTime)
-            // The document's own counts, of its text as it was read (5.7). Summing the passages counted
-            // the words two neighbours share twice (row "Word counts look wrong").
-            let totalChars =
-                document.processingMetadata?.totalCharacters
-                ?? processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
-            let totalWords =
-                document.processingMetadata?.totalWords
-                ?? processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
-
-            // Calculate chunk word stats
-            let chunkWordCounts = processedChunks.map { $0.metadata.wordCount }
-            let avgChunkWords = chunkWordCounts.isEmpty ? 0 : chunkWordCounts.reduce(0, +) / chunkWordCounts.count
-            let minChunkWords = chunkWordCounts.min() ?? 0
-            let maxChunkWords = chunkWordCounts.max() ?? 0
-
-            // Get file metadata (already parsed above)
-
-            TelemetryCenter.emit(
-                .ingestion,
-                title: "Extraction complete",
-                metadata: [
-                    "file": filename,
-                    "chunks": "\(processedChunks.count)",
-                    "words": "\(totalWords)",
-                ],
-                duration: extractionTime
-            )
+            let (avgChunkWords, extractionTime, maxChunkWords, minChunkWords, totalChars, totalWords) = measureExtraction(extractionStartTime: extractionStartTime, document: document, processedChunks: processedChunks, filename: filename)
 
             // Build domain vocabulary from extracted text for improved entity recognition
             let combinedText = processedChunks.map { $0.text }.joined(separator: " ")
@@ -1483,6 +1456,40 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step O: counts the document's characters, words and per-passage word statistics and emits Extraction complete.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func measureExtraction(extractionStartTime: Date, document: Document, processedChunks: [DocumentProcessor.ProcessedChunk], filename: String) -> (avgChunkWords: Int, extractionTime: TimeInterval, maxChunkWords: Int, minChunkWords: Int, totalChars: Int, totalWords: Int) {
+        let extractionTime = Date().timeIntervalSince(extractionStartTime)
+        // The document's own counts, of its text as it was read (5.7). Summing the passages counted
+        // the words two neighbours share twice (row "Word counts look wrong").
+        let totalChars =
+            document.processingMetadata?.totalCharacters
+            ?? processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
+        let totalWords =
+            document.processingMetadata?.totalWords
+            ?? processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
+
+        // Calculate chunk word stats
+        let chunkWordCounts = processedChunks.map { $0.metadata.wordCount }
+        let avgChunkWords = chunkWordCounts.isEmpty ? 0 : chunkWordCounts.reduce(0, +) / chunkWordCounts.count
+        let minChunkWords = chunkWordCounts.min() ?? 0
+        let maxChunkWords = chunkWordCounts.max() ?? 0
+
+        // Get file metadata (already parsed above)
+
+        TelemetryCenter.emit(
+            .ingestion,
+            title: "Extraction complete",
+            metadata: [
+                "file": filename,
+                "chunks": "\(processedChunks.count)",
+                "words": "\(totalWords)",
+            ],
+            duration: extractionTime
+        )
+        return (avgChunkWords: avgChunkWords, extractionTime: extractionTime, maxChunkWords: maxChunkWords, minChunkWords: minChunkWords, totalChars: totalChars, totalWords: totalWords)
     }
 
     /// Step P: lists the document in Spotlight when the setting allows it and records that it did, so a failed import removes the entry.
