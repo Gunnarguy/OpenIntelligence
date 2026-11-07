@@ -4,8 +4,8 @@
   "name": "Verification Gates and Safety",
   "aliases": ["verification gates", "verification gate service", "source-only check", "confidence calibration", "domain isolation"],
   "purpose": "Checks a generated answer against the retrieved source text before it is shown, and scores how far to trust it.",
-  "revision": "dc3cea69",
-  "verified_on": "2026-11-06",
+  "revision": "950c17ff",
+  "verified_on": "2026-11-07",
   "entry_points": ["VerificationGateService", "SourceOnlyAnswerService", "ConfidenceCalibrationService", "DomainIsolationService"],
   "files": [
     {"path": "OpenIntelligence/Core/Models/EvidenceSource.swift", "role": "primary", "blob": "74c20652519c6b5a2d579346415b5509b2456174"},

@@ -4,8 +4,8 @@
   "name": "Hardware Compute Acceleration",
   "aliases": ["GPU compute service", "Metal buffer pool", "BNNS graph service", "adaptive pipeline optimizer"],
   "purpose": "Runs vector math on the GPU with Metal.",
-  "revision": "099c12af",
-  "verified_on": "2026-11-04",
+  "revision": "950c17ff",
+  "verified_on": "2026-11-07",
   "entry_points": ["GPUComputeService", "AdaptivePipelineOptimizer"],
   "files": [
     {"path": "OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift", "role": "primary", "blob": "7a3284a98e691185645345b372f7e1b0a7c98557"},

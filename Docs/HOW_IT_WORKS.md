@@ -588,7 +588,7 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 
 (Corrected 2026-10-27 against `1e4a718`: the temperature sentence in the How line above. Only Standard applies a mode temperature, and it applies it as a ceiling: `min(current, 0.4)`. It caps the temperature at 0.2 instead when it uses the evidence-first prompt for low-confidence retrieval, and at 0.2 for a library whose retrieval style is `.precise` (High Precision in Library Settings). Maximum's 0.3, and Deep Think's 0.4, in `RAGQualityMode.temperature` are never read: the app reads that value once, below the line where Deep Think and Maximum return to `executeAgenticQuery`. Maximum's own loop sets 0.7 for sessions 1 to 3, 0.5 for sessions 4 to 8 and 0.3 after that. `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:3840-3842 (evidence-first, 0.2), 15738-15739 (mode cap), 15741-15745 (.precise, 0.2), 11635 (agentic return), 11686 (the only read of qualityMode.temperature by git grep, besides featureToggles at RAGQualityMode.swift:337, which has no caller); RAGQualityMode.swift:95-101; AgenticOrchestrator+Maximum.swift:876-884]`)
 
-(Corrected 2026-10-27 against `55fea8e`: "or a refusal" in the first note above. In Standard the planner's refusal is not what you see when reliability mode is on, its default: the reliability fallback answers from the same passages instead. Section 05's note under the ladder says what happens, and section 04's last note what it shows. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4073-4092, 5375-5403, 5491-5786; SettingsStore.swift:534-535]`)
+(Corrected 2026-10-27 against `55fea8e`: "or a refusal" in the first note above. In Standard the planner's refusal is not what you see when reliability mode is on, its default: the reliability fallback answers from the same passages instead. Section 05's note under the ladder says what happens, and section 04's last note what it shows. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4073-4092, 5375-5403, 5491-5720; SettingsStore.swift:534-535]`)
 
 #### Step 6.5 / 7. Tidy up and score it
 
@@ -609,7 +609,7 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 
 > **In plain words**
 > Bundle the answer with its citations, then convert the app's raw internal score into the confidence percentage you actually see. That conversion matters: a raw score of "0.8" doesn't mean "right 80% of the time," and showing it as though it did would be a lie with a number attached.
-> **Corrected 2026-10-20.** The conversion is computed, but the app doesn't put it on the answer. It appears only as one of the steps in the thinking timeline. The confidence the answer carries is still the raw score from step 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5435-5462, 5656]`
+> **Corrected 2026-10-20.** The conversion is computed, but the app doesn't put it on the answer. It appears only as one of the steps in the thinking timeline. The confidence the answer carries is still the raw score from step 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5435-5462, 5944]`
 
 **How.** The answer, citation index map and evidence record are assembled, then Platt scaling maps the raw quality score toward something closer to a probability. Calibration is only ever as good as the data it was fit on. (Corrected 2026-10-20: the calibrated probability is written to the log and shown as a thinking step, and the response is built with step 7's score. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5435-5462 (step 8.1), 5531, 5656]`)
 
@@ -1353,7 +1353,7 @@ A failed critical verification gate produces a grounded abstention rather than a
 > **Corrected 2026-10-27** against `55fea8e`: "when the post-retrieval plan judges the evidence insufficient" refuses
 > in Deep Think and Maximum. In Standard it refuses only with reliability mode off; with it on, the default, the
 > reliability fallback answers from the same passages instead (section 05, under the ladder, and section 04's last
-> note). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4590-4609, 5893-5921, 5946; ChatScreen+Streaming.swift:307-310; RAGService+Agentic.swift:327-362; SettingsStore.swift:534-535]`
+> note). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4590-4609, 5827-5855, 5880; ChatScreen+Streaming.swift:307-310; RAGService+Agentic.swift:327-362; SettingsStore.swift:534-535]`
 
 ### Does it work offline?
 

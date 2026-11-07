@@ -4,8 +4,8 @@
   "name": "Retrieval Policy and Tuning",
   "aliases": ["retrieval tuning knobs", "agentic policy service", "evidence scoring policy", "confidence policy", "auto tune service"],
   "purpose": "Sets similarity thresholds, confidence filters and candidate limits for each query at run time.",
-  "revision": "b914298b",
-  "verified_on": "2026-11-06",
+  "revision": "950c17ff",
+  "verified_on": "2026-11-07",
   "entry_points": ["AgenticPolicyService", "EvidenceScoringPolicyService", "RetrievalPolicyService", "ConfidencePolicyService"],
   "files": [
     {"path": "OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift", "role": "primary", "blob": "a69243a13b26fdbcd370aa4362af7815833330f5"},

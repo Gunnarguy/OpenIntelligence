@@ -5596,73 +5596,7 @@ extension RAGService {
                         }
                     #endif
 
-                    let metadata = ResponseMetadata(
-                        timeToFirstToken: llmResponse.timeToFirstToken,
-                        totalGenerationTime: llmResponse.totalTime,
-                        tokensGenerated: llmResponse.tokensGenerated,
-                        tokensPerSecond: llmResponse.tokensPerSecond,
-                        modelUsed: llmResponse.modelName ?? llmService.modelName,
-                        retrievalTime: retrievalTime,
-                        retrievalConfigSummary: retrievalConfig.summary,
-                        gatingDecision: gatingSummary,
-                        toolCallsMade: llmResponse.toolCallsMade,
-                        embeddingProvider: embeddingProviderId,
-                        usedAgenticMode: false,  // Single-pass mode
-                        qualityModeName: qualityMode.displayName,
-                        originalQuery: question,  // For "Go Deeper" re-query
-                        reasoningTrace: reasoningTraceForMetadata,  // Chained session insights
-                        executionRoute: llmResponse.executionReceipt.map { receipt in
-                            ResponseMetadata.ExecutionRoute(
-                                path: receipt.completedTarget == .privateCloudCompute
-                                    ? "Private Cloud Compute"
-                                    : "On-Device",
-                                reason: receipt.summary,
-                                policyApplied: receipt.policyVersion,
-                                emoji: receipt.completedTarget == .privateCloudCompute ? "☁️" : "📱"
-                            )
-                        } ?? runtimeContext.executionRoute,
-                        tokenBudget: ResponseMetadata.TokenBudget(
-                            totalLimit: runtimeContext.tokenBudget.totalLimit,
-                            systemPrompt: runtimeContext.tokenBudget.systemPrompt,
-                            retrievedContext: FoundationModelTokenBudget.estimateTokens(
-                                for: generationContext,
-                                isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly),
-                            generation: llmResponse.tokensGenerated,
-                            remaining: runtimeContext.tokenBudget.totalLimit - runtimeContext.tokenBudget.systemPrompt
-                                - FoundationModelTokenBudget.estimateTokens(
-                                    for: generationContext,
-                                    isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly)
-                                - llmResponse.tokensGenerated
-                        ),
-                        executionReceipt: llmResponse.executionReceipt
-                    )
-
-                    let displayResponseText = resolvedDisplayResponse(
-                        fallback: finalResponseText,
-                        structuredAnswer: structuredAnswer
-                    )
-
-                    // Log structured answer summary
-                    Log.debug(
-                        "[StructuredAnswer] type=\(structuredAnswer.answerType.rawValue), claims=\(structuredAnswer.claims.count), evidence=\(structuredAnswer.evidence.count), gaps=\(structuredAnswer.missing.count)",
-                        category: .pipeline
-                    )
-
-                    let response = RAGResponse(
-                        queryId: ragQueryValue.id,
-                        retrievedChunks: generationRetrievedChunks,
-                        generatedResponse: displayResponseText,
-                        metadata: metadata,
-                        confidenceScore: finalConfidenceScore,
-                        qualityWarnings: finalWarnings,
-                        structuredAnswer: structuredAnswer
-                    )
-
-                    let totalTime = Date().timeIntervalSince(pipelineStartTime)
-                    Log.info(
-                        "✅ Enhanced RAG pipeline complete in \(String(format: "%.2f", totalTime))s",
-                        category: .pipeline
-                    )
+                    let response = buildStandardResponse(llmResponse: llmResponse, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, gatingSummary: gatingSummary, embeddingProviderId: embeddingProviderId, qualityMode: qualityMode, question: question, reasoningTraceForMetadata: reasoningTraceForMetadata, runtimeContext: runtimeContext, generationContext: generationContext, finalResponseText: finalResponseText, structuredAnswer: structuredAnswer, ragQueryValue: ragQueryValue, generationRetrievedChunks: generationRetrievedChunks, finalConfidenceScore: finalConfidenceScore, finalWarnings: finalWarnings, pipelineStartTime: pipelineStartTime)
 
                     return await finalizeResponse(
                         query: question,
@@ -5945,6 +5879,79 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 9 (response): builds the response metadata and the RAGResponse and logs the total time.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func buildStandardResponse(llmResponse: LLMResponse, retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, gatingSummary: String?, embeddingProviderId: String, qualityMode: RAGQualityMode, question: String, reasoningTraceForMetadata: [String]?, runtimeContext: QueryRuntimeContext, generationContext: String, finalResponseText: String, structuredAnswer: StructuredAnswer, ragQueryValue: RAGQuery, generationRetrievedChunks: [RetrievedChunk], finalConfidenceScore: Float, finalWarnings: [String], pipelineStartTime: Date) -> RAGResponse {
+        let metadata = ResponseMetadata(
+            timeToFirstToken: llmResponse.timeToFirstToken,
+            totalGenerationTime: llmResponse.totalTime,
+            tokensGenerated: llmResponse.tokensGenerated,
+            tokensPerSecond: llmResponse.tokensPerSecond,
+            modelUsed: llmResponse.modelName ?? llmService.modelName,
+            retrievalTime: retrievalTime,
+            retrievalConfigSummary: retrievalConfig.summary,
+            gatingDecision: gatingSummary,
+            toolCallsMade: llmResponse.toolCallsMade,
+            embeddingProvider: embeddingProviderId,
+            usedAgenticMode: false,  // Single-pass mode
+            qualityModeName: qualityMode.displayName,
+            originalQuery: question,  // For "Go Deeper" re-query
+            reasoningTrace: reasoningTraceForMetadata,  // Chained session insights
+            executionRoute: llmResponse.executionReceipt.map { receipt in
+                ResponseMetadata.ExecutionRoute(
+                    path: receipt.completedTarget == .privateCloudCompute
+                        ? "Private Cloud Compute"
+                        : "On-Device",
+                    reason: receipt.summary,
+                    policyApplied: receipt.policyVersion,
+                    emoji: receipt.completedTarget == .privateCloudCompute ? "☁️" : "📱"
+                )
+            } ?? runtimeContext.executionRoute,
+            tokenBudget: ResponseMetadata.TokenBudget(
+                totalLimit: runtimeContext.tokenBudget.totalLimit,
+                systemPrompt: runtimeContext.tokenBudget.systemPrompt,
+                retrievedContext: FoundationModelTokenBudget.estimateTokens(
+                    for: generationContext,
+                    isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly),
+                generation: llmResponse.tokensGenerated,
+                remaining: runtimeContext.tokenBudget.totalLimit - runtimeContext.tokenBudget.systemPrompt
+                    - FoundationModelTokenBudget.estimateTokens(
+                        for: generationContext,
+                        isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly)
+                    - llmResponse.tokensGenerated
+            ),
+            executionReceipt: llmResponse.executionReceipt
+        )
+
+        let displayResponseText = resolvedDisplayResponse(
+            fallback: finalResponseText,
+            structuredAnswer: structuredAnswer
+        )
+
+        // Log structured answer summary
+        Log.debug(
+            "[StructuredAnswer] type=\(structuredAnswer.answerType.rawValue), claims=\(structuredAnswer.claims.count), evidence=\(structuredAnswer.evidence.count), gaps=\(structuredAnswer.missing.count)",
+            category: .pipeline
+        )
+
+        let response = RAGResponse(
+            queryId: ragQueryValue.id,
+            retrievedChunks: generationRetrievedChunks,
+            generatedResponse: displayResponseText,
+            metadata: metadata,
+            confidenceScore: finalConfidenceScore,
+            qualityWarnings: finalWarnings,
+            structuredAnswer: structuredAnswer
+        )
+
+        let totalTime = Date().timeIntervalSince(pipelineStartTime)
+        Log.info(
+            "✅ Enhanced RAG pipeline complete in \(String(format: "%.2f", totalTime))s",
+            category: .pipeline
+        )
+        return response
     }
 
 }
