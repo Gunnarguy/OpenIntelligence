@@ -2158,168 +2158,7 @@ extension RAGService {
                 let useContextualCompression = __gateContextualCompressionResult.useContextualCompression
                 var compressionSavings = __gateContextualCompressionResult.compressionSavings
 
-                if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
-                    auditUsedContextualCompression = true
-                    // SMART COMPRESSION BUDGET: Estimate how many chunks will fit in context
-                    // before wasting time compressing all candidates. Context budget typically
-                    // fits 3-5 chunks, so compressing 18 at ~3s each = 54s wasted.
-                    // Only compress top-N where N = estimated fit + small buffer.
-                    // Use conservative inline estimates (exact budget is computed later):
-                    //   4096 window - ~1500 overhead/prompt - ~50 question - 300 output = ~2246 tokens
-                    let estQuestionTokens = max(20, question.count / 4)
-                    let estimatedAvailableTokens = 4096 - 1500 - estQuestionTokens - 300
-                    let estimatedCharsAvailable = Int(
-                        Double(estimatedAvailableTokens) * FoundationModelTokenBudget.onDeviceCharsPerToken * 0.88)
-                    var totalChars = 0
-                    var estimatedFit = 0
-                    for candidate in contextCandidates {
-                        totalChars += candidate.chunk.text.count
-                        if totalChars <= max(estimatedCharsAvailable, 3500) {
-                            estimatedFit += 1
-                        }
-                    }
-                    // Add buffer of 2 so compression can potentially include slightly more
-                    let compressionLimit = min(contextCandidates.count, max(estimatedFit + 2, 5))
-
-                    // Cap compression to max 5 chunks (~15s) to preserve LLM rate-limit
-                    // budget for the actual generation step. Without this cap, 10+ chunks
-                    // at ~3s each = 30s+ of sequential LLM calls that exhaust Apple FM
-                    // rate limits before the main generation even starts.
-                    let maxCompressionChunks = 5
-                    let cappedCompressionLimit = min(compressionLimit, maxCompressionChunks)
-
-                    // Skip compression entirely if only 3 or fewer chunks fit — ROI is negative
-                    // (3 chunks × 3s = 9s for negligible token savings)
-                    if cappedCompressionLimit <= 3 {
-                        Log.info(
-                            "[RAG] Skipping compression - only \(estimatedFit) chunks fit in context budget (ROI negative)",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .compression, title: "Compression skipped",
-                            detail: "Only \(estimatedFit) chunks fit — ROI negative")
-                    } else if compressionLimit > maxCompressionChunks {
-                        Log.info(
-                            "[RAG] Capping compression from \(compressionLimit) to \(maxCompressionChunks) chunks to preserve LLM rate budget for generation",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .compression, title: "Compression capped",
-                            detail: "\(compressionLimit)→\(maxCompressionChunks) chunks — protecting generation budget")
-                    }
-
-                    let chunksToCompress =
-                        cappedCompressionLimit <= 3 ? [] : Array(contextCandidates.prefix(cappedCompressionLimit))
-                    let compressionService = ContextualCompressionService()
-                    let chunkTexts = chunksToCompress.map { $0.chunk.text }
-                    // Pass section titles so compression LLM understands chunk topics.
-                    // Without this, abbreviation queries like "HRV" get 319→2 token compression
-                    // because the chunk body has only raw stats without the full metric name.
-                    let sectionTitles = chunksToCompress.map { $0.chunk.metadata.sectionTitle }
-
-                    // Select compression config based on query type
-                    // "exactly", "detail", "comprehensive", "all about" → verbose (minimal compression)
-                    // Simple factual lookups → default (moderate compression)
-                    let queryLower = question.lowercased()
-                    let wantsComprehensiveAnswer =
-                        queryLower.contains("exactly") || queryLower.contains("detail")
-                        || queryLower.contains("comprehensive") || queryLower.contains("everything about")
-                        || queryLower.contains("all about") || queryLower.contains("explain")
-                        || queryLower.contains("tell me about") || answerIntent == .investigate
-                        || answerIntent == .compare
-
-                    let compressionConfig: ContextualCompressionService.Config =
-                        wantsComprehensiveAnswer ? .verbose : .default
-
-                    if wantsComprehensiveAnswer {
-                        Log.info("[RAG] Using verbose compression for comprehensive query", category: .retrieval)
-                    }
-
-                    do {
-                        let compressionStartTime = Date()
-                        let compressionResults = try await compressionService.compressChunks(
-                            chunkTexts,
-                            forQuery: question,
-                            sectionTitles: sectionTitles,
-                            config: compressionConfig
-                        )
-                        let compressionTime = Date().timeIntervalSince(compressionStartTime)
-
-                        // Update only the compressed chunks; leave remaining candidates untouched
-                        var updatedCandidates: [RetrievedChunk] = []
-                        var droppedIrrelevantCount = 0
-                        for (index, result) in compressionResults.enumerated() where index < chunksToCompress.count {
-                            let original = chunksToCompress[index]
-
-                            // CRITICAL: If compression LLM says NO_RELEVANT_CONTENT, REMOVE the chunk entirely.
-                            // Keeping 400-char stubs wastes precious context budget (only 3 chunks fit!)
-                            // and those stubs compete with actually relevant chunks in spec sort.
-                            // The compression LLM already proved it can distinguish topics accurately.
-                            if result.wasMarkedIrrelevant {
-                                droppedIrrelevantCount += 1
-                                Log.debug(
-                                    "[Compression] Dropping irrelevant chunk: \(original.chunk.text.prefix(50))...",
-                                    category: .retrieval)
-                                continue  // Skip — don't add to candidates
-                            }
-
-                            let effectiveText = result.effectiveContent
-
-                            // Create updated chunk with compressed text
-                            var compressedChunk = original.chunk
-                            compressedChunk.text = effectiveText
-                            updatedCandidates.append(
-                                RetrievedChunk(
-                                    chunk: compressedChunk,
-                                    similarityScore: original.similarityScore,
-                                    rank: original.rank,
-                                    sourceDocument: original.sourceDocument,
-                                    pageNumber: original.pageNumber
-                                ))
-                        }
-                        if droppedIrrelevantCount > 0 {
-                            Log.info(
-                                "[Compression] Removed \(droppedIrrelevantCount) irrelevant chunks — freeing context space",
-                                category: .retrieval)
-                        }
-
-                        let originalTokens = compressionResults.reduce(0) { $0 + $1.originalTokens }
-                        let compressedTokens = compressionResults.reduce(0) { $0 + $1.compressedTokens }
-                        let lowRelevanceCount = compressionResults.filter { $0.wasMarkedIrrelevant }.count
-                        compressionSavings = originalTokens - compressedTokens
-
-                        if updatedCandidates.count > 0 {
-                            // Merge: compressed chunks replace front, uncompressed remain at tail
-                            let remaining = Array(contextCandidates.dropFirst(updatedCandidates.count))
-                            contextCandidates = updatedCandidates + remaining
-                            let lowRelNote = lowRelevanceCount > 0 ? " (\(lowRelevanceCount) fallback)" : ""
-                            Log.info(
-                                "[Compression] \(originalTokens)→\(compressedTokens) tokens saved \(compressionSavings) in \(String(format: "%.0f", compressionTime * 1000))ms\(lowRelNote)",
-                                category: .retrieval)
-                            emitThinkingEvent(
-                                .compression,
-                                title: "Context compressed",
-                                detail: "Saved \(compressionSavings) tokens • \(contextCandidates.count) chunks"
-                            )
-                        }
-                    } catch {
-                        // Safety filter or other compression failures - keep ALL original chunks intact
-                        // This is critical for procedural content that may trigger false positives
-                        Log.warning(
-                            "[Compression] Failed, using original chunks: \(error.localizedDescription)",
-                            category: .retrieval)
-                        Log.info(
-                            "[Compression] Preserving all \(contextCandidates.count) original chunks for procedural safety",
-                            category: .retrieval)
-                    }
-
-                    // Cooldown: let Apple FM rate limits recover after sequential compression
-                    // calls before the main generation step. Without this pause, generation
-                    // frequently hits .rateLimited immediately after 5 compression calls.
-                    if compressionSavings > 0 {
-                        Log.debug(
-                            "[RAG] Post-compression cooldown (1s) to recover FM rate budget", category: .retrieval)
-                        try? await Task.sleep(for: .seconds(1))
-                    }
-                }
+                await compressContextCandidates(contextCandidates: &contextCandidates, useContextualCompression: useContextualCompression, auditUsedContextualCompression: &auditUsedContextualCompression, question: question, answerIntent: answerIntent, compressionSavings: &compressionSavings)
 
                 // Context planning remains local. Consent is requested only after the
                 // post-retrieval planner selects PCC and constructs the minimized payload.
@@ -2349,224 +2188,9 @@ extension RAGService {
                 // Consent does not occur until the selected cloud envelope is final.
                 let allowLargeContext = pccEligible && cloudConsentState != .denied
 
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // Step 4.9: Graph-Based Context Packing (AppleRAG §5)
-                // pack(R + parents(R) + neighbors(R,±1) + graphHops(R,1))
-                // Expands retrieved chunks with graph context for richer LLM input
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                await packContextWithGraph(contextCandidates: &contextCandidates, question: question, answerIntent: answerIntent, cachedAllChunks: cachedAllChunks, allowLargeContext: allowLargeContext, isAppleFMOnDevice: isAppleFMOnDevice, auditUsedGraphPacking: &auditUsedGraphPacking)
 
-                // Universal pipeline trace: log chunk content before graph packing
-                if Log.pipelineTraceEnabled {
-                    logChunkTrace(contextCandidates, stage: "Pre-GraphPack", query: question)
-                }
-
-                if answerIntent.benefitsFromMultiHop, let allChunks = cachedAllChunks {
-                    let graphPackingStart = Date()
-
-                    // Build graph edges for document traversal
-                    let graphEdges = graphIndexService.buildDocumentGraph(chunks: allChunks)
-
-                    // Build lookup table
-                    var chunkLookup: [UUID: DocumentChunk] = [:]
-                    for chunk in allChunks {
-                        chunkLookup[chunk.id] = chunk
-                    }
-
-                    // Extract core chunks from candidates
-                    let coreChunks = contextCandidates.map { $0.chunk }
-
-                    // Sized to the window the device reports (5.7): see `graphPackingTokenBudget(windowTokens:)`.
-                    let graphTokenBudget = allowLargeContext
-                        ? 24000
-                        : Self.graphPackingTokenBudget(
-                            windowTokens: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))
-
-                    // Pack with graph context
-                    let packedContext = await contextPackingService.pack(
-                        retrievedChunks: coreChunks,
-                        graphEdges: graphEdges,
-                        allChunks: chunkLookup,
-                        tokenBudget: graphTokenBudget,
-                        neighborDistance: answerIntent.benefitsFromMultiHop ? 1 : 0,
-                        graphHopDistance: answerIntent.benefitsFromMultiHop ? 1 : 0,
-                        query: question
-                    )
-
-                    let graphPackingTime = Date().timeIntervalSince(graphPackingStart)
-
-                    // Update candidates with packed chunks (convert back to RetrievedChunk)
-                    if packedContext.contextChunkCount > 0 {
-                        auditUsedGraphPacking = true
-                        var packedCandidates: [RetrievedChunk] = []
-                        for (index, chunk) in packedContext.chunks.enumerated() {
-                            // Find original score if this was a core chunk, else assign lower score
-                            let originalScore =
-                                contextCandidates.first { $0.chunk.id == chunk.id }?.similarityScore ?? 0.3
-                            let resolvedSourceDocument = contextCandidates.first { $0.chunk.id == chunk.id }?
-                                .sourceDocument
-                            let sourceDocument = {
-                                let existing =
-                                    resolvedSourceDocument?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                                return existing.isEmpty ? getDocumentName(for: chunk.documentId) : existing
-                            }()
-                            packedCandidates.append(
-                                RetrievedChunk(
-                                    chunk: chunk,
-                                    similarityScore: originalScore,
-                                    rank: index,
-                                    sourceDocument: sourceDocument,
-                                    pageNumber: chunk.metadata.pageNumber
-                                ))
-                        }
-                        contextCandidates = packedCandidates
-
-                        VerificationJournal.record(
-                            "retrieval.graphPack",
-                            ["tokens": "\(packedContext.estimatedTokens)", "budget": "\(graphTokenBudget)",
-                                "window": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))",
-                                "withinBudget": "\(packedContext.estimatedTokens <= graphTokenBudget)",
-                                "truncated": "\(packedContext.wasTruncated)", "core": "\(packedContext.coreChunkCount)",
-                                "context": "\(packedContext.contextChunkCount)"])
-                        Log.info(
-                            "[GraphPack] \(packedContext.coreChunkCount) core + \(packedContext.contextChunkCount) context chunks (\(packedContext.estimatedTokens) tokens) in \(String(format: "%.0f", graphPackingTime * 1000))ms\(packedContext.wasTruncated ? " [truncated]" : "")",
-                            category: .retrieval
-                        )
-
-                        // Universal pipeline trace: log chunks after graph packing
-                        if Log.pipelineTraceEnabled {
-                            logChunkTrace(packedCandidates, stage: "Post-GraphPack", query: question)
-                        }
-
-                        emitThinkingEvent(
-                            .graphPack,
-                            title: "Graph context packed",
-                            detail: "+\(packedContext.contextChunkCount) neighbors/refs"
-                        )
-                    }
-                }
-
-                let shouldAttemptCorrective = shouldAttemptCorrectiveRetrieval(
-                    query: effectiveQuery,
-                    candidates: contextCandidates,
-                    answerIntentIsExtractive: answerIntentIsExtractive,
-                    targetCount: effectiveTopK
-                )
-
-                if shouldAttemptCorrective {
-                    let correctiveStartTime = Date()
-                    let preCorrectiveLexical = checkLexicalRelevance(
-                        query: effectiveQuery,
-                        chunks: Array(contextCandidates.prefix(5))
-                    )
-                    let preCorrectiveTopSim = contextCandidates.first?.similarityScore ?? 0
-                    let hadStructuredEvidence = contextCandidates.prefix(5).contains { candidate in
-                        looksTableLike(
-                            text: candidate.chunk.contextText,
-                            structureType: candidate.chunk.metadata.structureType
-                        )
-                    }
-
-                    let correctiveCandidates = await performCorrectiveRetrieval(
-                        query: effectiveQuery,
-                        containerId: selectedId,
-                        allChunks: cachedAllChunks,
-                        existingCandidates: contextCandidates,
-                        answerIntent: answerIntent,
-                        targetCount: max(effectiveTopK, 4)
-                    )
-
-                    if !correctiveCandidates.isEmpty {
-                        let mergedCandidates = mergeUniqueChunks(contextCandidates, correctiveCandidates)
-                        if mergedCandidates.count > contextCandidates.count {
-                            let rerankLimit = min(max(effectiveTopK * 3, 10), mergedCandidates.count)
-                            let correctiveRerankStart = Date()
-                            let correctedCandidates: [RetrievedChunk]
-
-                            if qualityModeUsesReRanking {
-                                correctedCandidates = await engine.rerank(
-                                    chunks: mergedCandidates,
-                                    query: question,
-                                    topK: rerankLimit
-                                )
-                                rerankTime += Date().timeIntervalSince(correctiveRerankStart)
-                            } else {
-                                correctedCandidates = Array(
-                                    mergedCandidates
-                                        .sorted { $0.similarityScore > $1.similarityScore }
-                                        .prefix(rerankLimit)
-                                )
-                            }
-
-                            let postCorrectiveLexical = checkLexicalRelevance(
-                                query: effectiveQuery,
-                                chunks: Array(correctedCandidates.prefix(5))
-                            )
-                            let postCorrectiveTopSim = correctedCandidates.first?.similarityScore ?? 0
-                            let hasStructuredEvidence = correctedCandidates.prefix(5).contains { candidate in
-                                looksTableLike(
-                                    text: candidate.chunk.contextText,
-                                    structureType: candidate.chunk.metadata.structureType
-                                )
-                            }
-
-                            let shouldAdoptCorrective =
-                                postCorrectiveLexical > preCorrectiveLexical + 0.08
-                                || postCorrectiveTopSim > preCorrectiveTopSim + 0.04
-                                || (answerIntentIsExtractive
-                                    && postCorrectiveLexical >= preCorrectiveLexical
-                                    && hasStructuredEvidence
-                                    && !hadStructuredEvidence)
-                                || (answerIntentIsExtractive
-                                    && preCorrectiveLexical < 0.55
-                                    && postCorrectiveLexical >= preCorrectiveLexical)
-
-                            if shouldAdoptCorrective {
-                                contextCandidates = correctedCandidates
-                                contextStrategy = "corrective_fts"
-                                auditUsedCorrectiveRetrieval = true
-
-                                let correctiveTime = Date().timeIntervalSince(correctiveStartTime)
-                                retrievalTime += correctiveTime
-                                recoveryRetrievalTime = retrievalTime
-                                let preLexicalPercent = String(format: "%.0f%%", preCorrectiveLexical * 100)
-                                let postLexicalPercent = String(format: "%.0f%%", postCorrectiveLexical * 100)
-
-                                Log.info(
-                                    "[Corrective] Adopted lexical corrective retrieval: +\(correctiveCandidates.count) hits, lexical \(preLexicalPercent)->\(postLexicalPercent)",
-                                    category: .retrieval
-                                )
-                                TelemetryCenter.emit(
-                                    .retrieval,
-                                    title: "Corrective retrieval",
-                                    metadata: [
-                                        "added": "\(correctiveCandidates.count)",
-                                        "preLexical": String(format: "%.2f", preCorrectiveLexical),
-                                        "postLexical": String(format: "%.2f", postCorrectiveLexical),
-                                        "preTop": String(format: "%.2f", preCorrectiveTopSim),
-                                        "postTop": String(format: "%.2f", postCorrectiveTopSim),
-                                    ],
-                                    duration: correctiveTime
-                                )
-                                emitThinkingEvent(
-                                    .retrieval,
-                                    title: "Corrective retrieval",
-                                    detail: "+\(correctiveCandidates.count) lexical/page hits"
-                                )
-
-                                if Log.pipelineTraceEnabled {
-                                    logChunkTrace(contextCandidates, stage: "Post-CorrectiveRetrieval", query: question)
-                                }
-                            } else {
-                                let preLexicalPercent = String(format: "%.0f%%", preCorrectiveLexical * 100)
-                                let postLexicalPercent = String(format: "%.0f%%", postCorrectiveLexical * 100)
-                                Log.info(
-                                    "[Corrective] Rejected corrective retrieval: lexical \(preLexicalPercent)->\(postLexicalPercent)",
-                                    category: .retrieval
-                                )
-                            }
-                        }
-                    }
-                }
+                await runCorrectiveRetrieval(effectiveQuery: effectiveQuery, contextCandidates: &contextCandidates, answerIntentIsExtractive: answerIntentIsExtractive, effectiveTopK: effectiveTopK, selectedId: selectedId, cachedAllChunks: cachedAllChunks, answerIntent: answerIntent, qualityModeUsesReRanking: qualityModeUsesReRanking, engine: engine, question: question, rerankTime: &rerankTime, contextStrategy: &contextStrategy, auditUsedCorrectiveRetrieval: &auditUsedCorrectiveRetrieval, retrievalTime: &retrievalTime, recoveryRetrievalTime: &recoveryRetrievalTime)
 
                 let applyTrivialCaps = disableToolsForAssembledContext(allowLargeContext: allowLargeContext, isTrivial: isTrivial, contextCandidates: contextCandidates, inferenceConfig: &inferenceConfig)
 
@@ -2601,261 +2225,11 @@ extension RAGService {
 
                 let (orderedCandidates, useLostInMiddleMitigation) = orderContextCandidates(isProceduralQuery: isProceduralQuery, contextCandidates: contextCandidates, answerIntentIsExtractive: answerIntentIsExtractive, question: question)
 
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // SENTENCE-LEVEL EXTRACTION (lookup intent only)
-                // Instead of packing 3 whole chunks into 4475 chars, extract
-                // only query-relevant sentences from ALL candidates.
-                // This fits targeted data from 10-15+ chunks vs 3 whole ones —
-                // the difference between finding "Engine oil: 5.1 qt" and missing it.
-                // Universal across all domains: medical, legal, automotive, etc.
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                let context: String
-                let actualChunksUsed: Int
-                // Chunks whose sentences reached the prompt via needle rescue but which are not in
-                // the packed prefix. They must be attached to the response, because the prompt
-                // gives them citation labels and a label the response cannot resolve is a dead
-                // reference in front of the user.
-                var rescuedChunks: [RetrievedChunk] = []
-                // The chunks the prompt actually labelled, in label order. Every branch below sets
-                // this rather than letting the caller recompute `prefix(actualChunksUsed)`, which
-                // is what silently mismatched labels against sources.
-                var promptSources: [RetrievedChunk] = []
-                // Whether the whole-chunk assembler placed the passages for attention, which it does only when it
-                // packs four or more; the "Position reorder" event reports that and nothing else.
-                var placedForAttention = false
-
-                if answerIntentIsExtractive && !isProceduralQuery {
-                    let extractionResult = await extractRelevantSentences(
-                        from: orderedCandidates,
-                        query: question,
-                        maxChars: maxContextChars,
-                        compact: useCompactMode,
-                        isExtractiveFirst: answerIntentIsExtractive,
-                        leadingCandidateWhole: true,
-                        // The answer keeps only the sources used (`promptSources` below), so the labels number those.
-                        numberByUse: true
-                    )
-
-                    // Sentence extraction is a narrowing filter, and a filter that matches nothing
-                    // must not be allowed to discard the evidence retrieval just found.
-                    //
-                    // Measured on 2026-08-08, case `exact_capex` ("What was the FY2018 capital
-                    // expenditure amount?"): retrieval was the strongest in the whole run —
-                    // topSim 1.317, the correct document at rank 1 in all five slots, MMR selecting
-                    // 5 of 5 with nothing dropped. Extraction then matched zero sentences, returned
-                    // 0 chars from 4 chunks, and the pipeline logged "Empty context after assembly"
-                    // and fell back to *direct LLM chat with no RAG at all*. The model, correctly,
-                    // said the information was not in the provided context, because by then there
-                    // was no context.
-                    //
-                    // That fallback is also the more dangerous failure than the wrong answer it
-                    // produced here: answering from model priors while the user believes the app is
-                    // reading their documents is exactly the ungrounded behaviour the verification
-                    // gates exist to prevent. Whole-chunk assembly is always available and always
-                    // better than nothing, so use it.
-                    if extractionResult.context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                        !orderedCandidates.isEmpty
-                    {
-                        let assembled = await engine.assembleContext(
-                            chunks: orderedCandidates,
-                            maxChars: maxContextChars,
-                            compact: useCompactMode,
-                            useLostInMiddleMitigation: useLostInMiddleMitigation
-                        )
-                        context = assembled.context
-                        actualChunksUsed = assembled.used
-                        promptSources = assembled.sources
-                        placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
-                        Log.info(
-                            "[RAG] Whole-passage context keeps candidates \(Self.candidatePlaces(of: assembled.sources, in: orderedCandidates)) "
-                                + "of \(orderedCandidates.count), in label order",
-                            category: .retrieval)
-                        Log.warning(
-                            "[RAG] Sentence extraction matched nothing across \(orderedCandidates.count) candidate(s); "
-                                + "falling back to whole-chunk assembly (\(assembled.used) chunks, \(assembled.context.count) chars) "
-                                + "rather than returning an empty context",
-                            category: .retrieval
-                        )
-                    } else {
-                        context = extractionResult.context
-                        actualChunksUsed = extractionResult.sourcesUsed
-                        promptSources = extractionResult.usedSourceIndices.compactMap {
-                            orderedCandidates.indices.contains($0) ? orderedCandidates[$0] : nil
-                        }
-                        Log.info(
-                            "[RAG] Sentence extraction: \(extractionResult.sentencesIncluded) sentences from \(extractionResult.sourcesUsed) sources (\(context.count) chars)",
-                            category: .retrieval)
-                    }
-                } else {
-                    let assembled = await engine.assembleContext(
-                        chunks: orderedCandidates,
-                        maxChars: maxContextChars,
-                        compact: useCompactMode,
-                        useLostInMiddleMitigation: useLostInMiddleMitigation
-                    )
-                    var assembledContext = assembled.context
-                    actualChunksUsed = assembled.used
-                    promptSources = assembled.sources
-                    placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
-                    Log.info(
-                        "[RAG] Whole-passage context keeps candidates \(Self.candidatePlaces(of: assembled.sources, in: orderedCandidates)) "
-                            + "of \(orderedCandidates.count), in label order",
-                        category: .retrieval)
-
-                    // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
-                    // When assembleContext runs out of budget, chunks at positions 4+ are dropped
-                    // entirely. But a keyword-matching needle sentence in chunk #7 is now invisible
-                    // to the LLM. Fix: run sentence extraction on the DROPPED chunks only,
-                    // appending high-value sentences into any remaining budget.
-                    // This catches needles across ALL intents (summarize, procedure, compare, etc.)
-                    // without replacing whole-chunk packing for the primary chunks.
-                    let droppedChunks = Self.candidatesPastThePacked(orderedCandidates, packed: assembled.sources)
-                    let remainingBudget = maxContextChars - assembledContext.count
-                    let rescueBudgetFloor = (answerIntentIsExtractive || isPrecisionValueQuery(question)) ? 80 : 160
-
-                    if !droppedChunks.isEmpty && remainingBudget > rescueBudgetFloor {
-                        let rescueResult = await extractRelevantSentences(
-                            from: droppedChunks,
-                            query: question,
-                            maxChars: remainingBudget,
-                            compact: true,  // Always compact for rescue sentences to maximize density
-                            isExtractiveFirst: answerIntentIsExtractive,
-                            // Continue the packed block's numbering instead of restarting at [S1].
-                            // Both blocks land in one prompt, so restarting produced two different
-                            // chunks both labelled [S1]. A device trace on 2026-08-14 shows the
-                            // consequence: four packed sources followed by rescue sources numbered
-                            // from one again, and an answer citing [S5] and [S6], which are the
-                            // fifth and sixth sources the model was shown and which resolved to
-                            // nothing downstream.
-                            labelOffset: assembled.used,
-                            // Only the rescued sources join the answer (`rescuedChunks`), so the labels number those.
-                            numberByUse: true
-                        )
-                        if rescueResult.sentencesIncluded > 0 {
-                            rescuedChunks = rescueResult.usedSourceIndices.compactMap {
-                                droppedChunks.indices.contains($0) ? droppedChunks[$0] : nil
-                            }
-                            assembledContext += "\n---\n" + rescueResult.context
-                            Log.info(
-                                "[RAG] Needle rescue: +\(rescueResult.sentencesIncluded) sentences from \(rescueResult.sourcesUsed) dropped chunks (\(rescueResult.context.count) chars)",
-                                category: .retrieval)
-                        }
-                    }
-
-                    context = assembledContext
-                }
+                let (actualChunksUsed, context, placedForAttention, promptSources, rescuedChunks) = await assembleStandardContext(answerIntentIsExtractive: answerIntentIsExtractive, isProceduralQuery: isProceduralQuery, orderedCandidates: orderedCandidates, question: question, maxContextChars: maxContextChars, useCompactMode: useCompactMode, engine: engine, useLostInMiddleMitigation: useLostInMiddleMitigation)
 
                 let (contextWords, contextSize, includedRetrievedChunks, includedChunks) = finishIncludedPassages(actualChunksUsed: actualChunksUsed, context: context, question: question, placedForAttention: placedForAttention, contextCandidates: contextCandidates, contextStrategy: contextStrategy, useCompactMode: useCompactMode, promptSources: promptSources, rescuedChunks: rescuedChunks, recoveryRetrievedChunks: &recoveryRetrievedChunks)
 
-                Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
-
-                // Pipeline Trace: Step 5
-                Log.pipelineStep(
-                    "5", title: "Context Assembly",
-                    details: [
-                        ("chunks", "\(actualChunksUsed)"),
-                        ("words", "\(contextWords)"),
-                        ("chars", "\(contextSize)"),
-                    ])
-
-                Log.info(
-                    "✓ Final context: \(contextSize) chars, \(contextWords) words from \(actualChunksUsed) chunks",
-                    category: .pipeline
-                )
-                TelemetryCenter.emit(
-                    .retrieval,
-                    title: "Context assembled",
-                    metadata: [
-                        "chunks": "\(actualChunksUsed)",
-                        "chars": "\(contextSize)",
-                        "container": selectedName,
-                        "containerId": selectedId.uuidString,
-                    ]
-                )
-
-                emitThinkingEvent(
-                    .context,
-                    title: "Context ready",
-                    detail: "\(actualChunksUsed) chunks • \(contextWords) words"
-                )
-
-                let chunkingTarget =
-                    selectedContainer?.chunkingDirective?.targetWordWindow
-                    ?? documentProcessor.targetChunkSize
-                let chunkingOverlap =
-                    selectedContainer?.chunkingDirective?.overlapWords
-                    ?? documentProcessor.chunkOverlap
-                let chunkingSource =
-                    selectedContainer?.chunkingDirective?.source.rawValue
-                    ?? "baseline"
-                let vectorDBKind = selectedContainer?.vectorDBKind ?? .persistentJSON
-
-                let auditSnapshot = RAGAuditSnapshot(
-                    timestamp: Date(),
-                    query: question,
-                    containerId: selectedId,
-                    containerName: selectedName,
-                    embeddingProviderId: embeddingProviderId,
-                    embeddingDim: selectedDim,
-                    vectorDBKind: vectorDBKind,
-                    chunkingTargetWords: chunkingTarget,
-                    chunkingOverlapWords: chunkingOverlap,
-                    chunkingSource: chunkingSource,
-                    qualityModeName: qualityModeDisplayName,
-                    retrievalConfig: retrievalConfig,
-                    lenientRetrieval: auditLenient,
-                    dynamicMin: auditDynamicMin,
-                    topSim: auditTopSim,
-                    secondSim: auditSecondSim,
-                    avgTop5: auditAvgTop5,
-                    acceptanceOverride: auditAcceptanceOverride,
-                    totalStoredChunks: totalStored,
-                    candidatesCount: auditCandidatesCount,
-                    rerankedCount: auditRerankedCount,
-                    filteredCount: auditFilteredCount,
-                    droppedCount: auditDroppedCount,
-                    mmrSelectedCount: auditMMRSelectedCount,
-                    uniqueDocCount: auditUniqueDocCount,
-                    contextStrategy: contextStrategy,
-                    contextChars: contextSize,
-                    contextWords: contextWords,
-                    contextChunksUsed: actualChunksUsed,
-                    maxContextChars: maxContextChars,
-                    baseWindowTokens: baseWindowTokens,
-                    safetyTokens: 0,  // Unified into globalSafetyFactor (no separate flat buffer)
-                    promptOverheadTokens: promptOverheadTokens,
-                    questionTokens: questionTokens,
-                    reservedOutputTokens: reservedOutputTokens,
-                    availableContextTokens: availableForContextTokens,
-                    executionContext: inferenceConfig.executionContext,
-                    allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute,
-                    networkConnected: networkAvailable,
-                    wantsCloudContext: allowLargeContext,
-                    reliabilityModeEnabled: reliabilityModeEnabled,
-                    allowUngroundedFallback: allowUngroundedFallback,
-                    modelName: llmService.modelName,
-                    featureFlags: RAGAuditFeatureFlags(
-                        answerIntent: auditAnswerIntent,
-                        queryWasRewritten: auditQueryWasRewritten,
-                        queryExpansionCount: auditQueryExpansionCount,
-                        usedHyDE: auditUsedHyDE,
-                        usedIterativeRetrieval: auditUsedIterativeRetrieval,
-                        iterativePassCount: auditIterativePassCount,
-                        usedQueryRouting: auditUsedQueryRouting,
-                        usedSummaryRouting: auditUsedSummaryRouting,
-                        usedParentDocumentRetrieval: auditUsedParentDocumentRetrieval,
-                        usedCorrectiveRetrieval: auditUsedCorrectiveRetrieval,
-                        usedContextualCompression: auditUsedContextualCompression,
-                        usedGraphPacking: auditUsedGraphPacking,
-                        usedRetrievalCascade: usedRetrievalCascade,
-                        usedSupplementaryVectorSearch: auditUsedSupplementaryVectorSearch,
-                        usedFullUnlimitedReasoning: false
-                    )
-                )
-
-                await MainActor.run {
-                    self.lastAuditSnapshot = auditSnapshot
-                }
+                await recordContextAuditSnapshot(actualChunksUsed: actualChunksUsed, contextWords: contextWords, contextSize: contextSize, selectedName: selectedName, selectedId: selectedId, selectedContainer: selectedContainer, question: question, embeddingProviderId: embeddingProviderId, selectedDim: selectedDim, qualityModeDisplayName: qualityModeDisplayName, retrievalConfig: retrievalConfig, auditLenient: auditLenient, auditDynamicMin: auditDynamicMin, auditTopSim: auditTopSim, auditSecondSim: auditSecondSim, auditAvgTop5: auditAvgTop5, auditAcceptanceOverride: auditAcceptanceOverride, totalStored: totalStored, auditCandidatesCount: auditCandidatesCount, auditRerankedCount: auditRerankedCount, auditFilteredCount: auditFilteredCount, auditDroppedCount: auditDroppedCount, auditMMRSelectedCount: auditMMRSelectedCount, auditUniqueDocCount: auditUniqueDocCount, contextStrategy: contextStrategy, maxContextChars: maxContextChars, baseWindowTokens: baseWindowTokens, promptOverheadTokens: promptOverheadTokens, questionTokens: questionTokens, reservedOutputTokens: reservedOutputTokens, availableForContextTokens: availableForContextTokens, inferenceConfig: inferenceConfig, networkAvailable: networkAvailable, allowLargeContext: allowLargeContext, reliabilityModeEnabled: reliabilityModeEnabled, allowUngroundedFallback: allowUngroundedFallback, auditAnswerIntent: auditAnswerIntent, auditQueryWasRewritten: auditQueryWasRewritten, auditQueryExpansionCount: auditQueryExpansionCount, auditUsedHyDE: auditUsedHyDE, auditUsedIterativeRetrieval: auditUsedIterativeRetrieval, auditIterativePassCount: auditIterativePassCount, auditUsedQueryRouting: auditUsedQueryRouting, auditUsedSummaryRouting: auditUsedSummaryRouting, auditUsedParentDocumentRetrieval: auditUsedParentDocumentRetrieval, auditUsedCorrectiveRetrieval: auditUsedCorrectiveRetrieval, auditUsedContextualCompression: auditUsedContextualCompression, auditUsedGraphPacking: auditUsedGraphPacking, usedRetrievalCascade: usedRetrievalCascade, auditUsedSupplementaryVectorSearch: auditUsedSupplementaryVectorSearch)
 
                 // If context is empty, fallback to direct chat to avoid downstream failures
                 if actualChunksUsed == 0 || context.isEmpty {
@@ -3101,23 +2475,7 @@ extension RAGService {
 #endif
                 */
 
-                // Step 6: Generate response using LLM with augmented context
-                Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
-
-                // Pipeline Trace: Step 6
-                let llmModelName = llmService.modelName
-                Log.pipelineStep(
-                    "6", title: "LLM Generation",
-                    details: [
-                        ("model", llmModelName),
-                        ("context", "\(contextWords)w"),
-                    ])
-
-                // Apply thermal cooldown before heavy LLM generation if device is under pressure
-                // This prevents throttling and improves generation quality on hot devices
-                await AdaptivePipelineOptimizer.shared.applyCooldown()
-
-                let generationStartTime = Date()
+                let generationStartTime = await beginGenerationStep(contextWords: contextWords)
 
                 var genConfig = composeStandardGenerationConfig(inferenceConfig: inferenceConfig, includedChunks: includedChunks, question: question, answerIntent: answerIntent, contextualDefinitionLookup: contextualDefinitionLookup, useEvidenceFirstMode: useEvidenceFirstMode, qualityModeTemperature: qualityModeTemperature, retrievalConfig: retrievalConfig)
 
@@ -3578,56 +2936,9 @@ extension RAGService {
                     }
                 }  // End of else (non-reasoning-chain path)
 
-                var responseText = llmResponse.text
-
-                let preserveStreamingResponse = LLMStreamingContext.handler != nil
-                if requiresCitations, !responseHasCitations(responseText) {
-                    let missingCitationDetail =
-                        (preserveStreamingResponse || allowUngroundedFallback)
-                        ? "Using best available answer"
-                        : "Retrying with strict citation requirement"
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Missing citations",
-                        detail: missingCitationDetail
-                    )
-                    TelemetryCenter.emit(
-                        .generation,
-                        severity: .warning,
-                        title: "Missing citations",
-                        metadata: [
-                            "model": llmService.modelName,
-                            "container": selectedName,
-                        ]
-                    )
-                    if preserveStreamingResponse || allowUngroundedFallback {
-                        Log.warning(
-                            "Missing citations; preserving streamed response",
-                            category: .llm
-                        )
-                    } else {
-                        let retryPrompt =
-                            question
-                            + "\n\nYou must cite sources using bracket ids like [S1], [S2]. "
-                            + "If you cannot support the answer with citations, respond exactly: "
-                            + "\"Insufficient evidence in provided sources.\" "
-                            + "Answer directly with no preamble."
-                        var retryConfig = genConfig
-                        retryConfig.temperature = min(retryConfig.temperature, 0.2)
-                        if usedOverflowRetry {
-                            retryConfig.maxTokens = min(retryConfig.maxTokens, 1024)
-                        }
-                        if let retryResponse = try? await generateWithFallback(
-                            prompt: retryPrompt,
-                            context: generationContext,
-                            config: retryConfig,
-                            sourceChunks: generationChunks
-                        ) {
-                            llmResponse = retryResponse
-                            responseText = retryResponse.text
-                        }
-                    }
-                }
+                let __retryForMissingCitationsResult = await retryForMissingCitations(llmResponse: &llmResponse, requiresCitations: requiresCitations, allowUngroundedFallback: allowUngroundedFallback, selectedName: selectedName, question: question, genConfig: genConfig, usedOverflowRetry: usedOverflowRetry, generationContext: generationContext, generationChunks: generationChunks)
+                var responseText = __retryForMissingCitationsResult.responseText
+                let preserveStreamingResponse = __retryForMissingCitationsResult.preserveStreamingResponse
 
                 if requiresCitations,
                     !responseHasCitations(responseText),
@@ -3652,100 +2963,7 @@ extension RAGService {
                     )
                 }
 
-                // Universal output integrity gate:
-                // Detect malformed generation artifacts (placeholder lists, repetition loops,
-                // dangling markdown) and attempt one grounded repair pass.
-                var integrityIssues = responseIntegrityIssues(responseText)
-                if !integrityIssues.isEmpty {
-                    Log.warning(
-                        "[RAG] Output integrity issues detected: \(integrityIssues.joined(separator: ", "))",
-                        category: .llm
-                    )
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Output integrity repair",
-                        detail: "Detected malformed answer shape; repairing"
-                    )
-
-                    // Deterministic cleanup first (cheap, no extra model call)
-                    var cleanedResponse = normalizeMalformedResponseArtifacts(responseText)
-                    cleanedResponse = compactDegenerateResponse(
-                        cleanedResponse,
-                        question: question,
-                        answerIntent: answerIntent
-                    )
-                    let cleanedIssues = responseIntegrityIssues(cleanedResponse)
-
-                    // If still malformed, perform a grounded one-shot repair ONLY for non-repetition issues.
-                    // Repetition loops are handled better by deterministic compaction than another model pass.
-                    let shouldTryModelRepair =
-                        !cleanedIssues.isEmpty
-                        && cleanedIssues.contains { $0 != "dominant_repetition" }
-
-                    if shouldTryModelRepair {
-                        var repairConfig = genConfig
-                        repairConfig.temperature = min(repairConfig.temperature, 0.15)
-                        repairConfig.skipContinuation = true
-                        repairConfig.maxTokens = min(max(repairConfig.maxTokens, 192), 420)
-
-                        let repairPrompt = buildIntegrityRepairPrompt(
-                            question: question,
-                            issueLabels: cleanedIssues,
-                            answerIntent: answerIntent,
-                            requiresCitations: requiresCitations
-                        )
-
-                        if let repaired = try? await generateWithFallback(
-                            prompt: repairPrompt,
-                            context: generationContext,
-                            config: repairConfig,
-                            sourceChunks: generationChunks
-                        ) {
-                            let candidate = compactDegenerateResponse(
-                                normalizeMalformedResponseArtifacts(repaired.text),
-                                question: question,
-                                answerIntent: answerIntent
-                            )
-                            if isResponseIntegrityImproved(original: responseText, candidate: candidate) {
-                                llmResponse = repaired
-                                responseText = candidate
-                                integrityIssues = responseIntegrityIssues(responseText)
-                                Log.info("[RAG] Integrity repair succeeded", category: .llm)
-                            } else {
-                                Log.warning(
-                                    "[RAG] Integrity repair candidate rejected (no improvement)", category: .llm)
-                                responseText = cleanedResponse
-                                integrityIssues = cleanedIssues
-                            }
-                        } else {
-                            responseText = cleanedResponse
-                            integrityIssues = cleanedIssues
-                        }
-                    } else {
-                        responseText = cleanedResponse
-                        integrityIssues = cleanedIssues
-                    }
-
-                    // Hard stop: if repetition still remains, deterministically compact once more
-                    // and accept that output rather than spinning another expensive model pass.
-                    if integrityIssues.contains("dominant_repetition") {
-                        let compacted = compactDegenerateResponse(
-                            responseText,
-                            question: question,
-                            answerIntent: answerIntent
-                        )
-                        if isResponseIntegrityImproved(original: responseText, candidate: compacted) {
-                            responseText = compacted
-                            integrityIssues = responseIntegrityIssues(responseText)
-                        }
-                    }
-
-                    if !integrityIssues.isEmpty {
-                        Log.warning(
-                            "[RAG] Residual integrity issues after repair: \(integrityIssues.joined(separator: ", "))",
-                            category: .llm)
-                    }
-                }
+                await repairResponseIntegrity(responseText: &responseText, question: question, answerIntent: answerIntent, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks, llmResponse: &llmResponse)
 
                 let (generationTime, responseWordCount) = emitGenerationTelemetry(generationStartTime: generationStartTime, responseText: responseText, llmResponse: llmResponse, selectedName: selectedName, selectedId: selectedId)
 
@@ -3780,71 +2998,9 @@ extension RAGService {
                         throw RAGServiceError.modelNotAvailable
                     }
 
-                    var sourceLockedFinalResponse = false
-                    if answerIntentIsExtractive || isPrecisionValueQuery(question),
-                        let extractiveOverride = await highPrecisionLookupOverride(
-                            question: question,
-                            answerIntent: answerIntent,
-                            retrievedChunks: generationRetrievedChunks
-                        )
-                    {
-                        let normalizedLLM = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let normalizedOverride = extractiveOverride.answer.trimmingCharacters(in: .whitespacesAndNewlines)
-                        // The model's answer stands when it already states the value the extractor found (5.7):
-                        // it can answer the rest of the question, and the gates check it. On 2026-10-19 "What is
-                        // the harbor lantern code, and where is it kept?" had its answer replaced by the
-                        // extractor's text, which began mid-word and left out where the code is kept.
-                        if Self.answerStates(value: extractiveOverride.value, in: normalizedLLM) {
-                            Log.info(
-                                "[ExtractiveQA] Kept the model's answer: it states the extracted value \"\(extractiveOverride.value)\"",
-                                category: .retrieval)
-                        } else {
-                            sourceLockedFinalResponse = true
-                            if normalizedLLM != normalizedOverride {
-                                Log.info(
-                                    "[ExtractiveQA] Overriding lookup response with direct source extraction",
-                                    category: .retrieval)
-                                responseText = normalizedOverride
-                            }
-                        }
-                    }
+                    let sourceLockedFinalResponse = await applyPrecisionLookupOverride(answerIntentIsExtractive: answerIntentIsExtractive, question: question, answerIntent: answerIntent, generationRetrievedChunks: generationRetrievedChunks, responseText: &responseText)
 
-                    // Step 7: Calculate confidence score and quality warnings
-                    Log.section("Step 7: Quality Assessment", level: .info, category: .pipeline)
-                    HardwareTelemetryState.shared.reportRAGPipeline(stage: "Quality Assessment")
-
-                    // Pipeline Trace: Step 7
-                    Log.pipelineStep(
-                        "7", title: "Quality Assessment",
-                        details: [
-                            ("sources", "\(generationRetrievedChunks.count)")
-                        ])
-                    let totalDocsCount = await snapshotDocumentsCount()
-                    let (confidenceScore, qualityWarnings) = await engine.assessResponseQuality(
-                        chunks: generationRetrievedChunks,
-                        query: question,
-                        totalDocs: totalDocsCount,
-                        topScoreOverride: auditTopSim > 0 ? auditTopSim : nil  // Use actual reranked score
-                    )
-
-                    if !qualityWarnings.isEmpty {
-                        Log.warning("⚠️  Quality Warnings:", category: .pipeline)
-                        for warning in qualityWarnings {
-                            Log.warning("   • \(warning)", category: .pipeline)
-                        }
-                    }
-
-                    Log.info(
-                        "📊 Confidence Score: \(String(format: "%.1f", confidenceScore * 100))%",
-                        category: .pipeline
-                    )
-                    TelemetryCenter.emit(
-                        .system,
-                        title: "Response evaluated",
-                        metadata: [
-                            "confidence": String(format: "%.2f", confidenceScore)
-                        ]
-                    )
+                    let (confidenceScore, qualityWarnings) = await assessAnswerQuality(generationRetrievedChunks: generationRetrievedChunks, engine: engine, question: question, auditTopSim: auditTopSim)
 
                     // Step 7.5: Verification Gates (AppleRAG Anti-Hallucination)
                     // Run Gates A-G to validate response against source evidence
@@ -4256,6 +3412,917 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 4.7: compresses the leading candidates with the contextual compression model.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func compressContextCandidates(contextCandidates: inout [RetrievedChunk], useContextualCompression: Bool, auditUsedContextualCompression: inout Bool, question: String, answerIntent: AnswerIntent, compressionSavings: inout Int) async {
+        if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
+            auditUsedContextualCompression = true
+            // SMART COMPRESSION BUDGET: Estimate how many chunks will fit in context
+            // before wasting time compressing all candidates. Context budget typically
+            // fits 3-5 chunks, so compressing 18 at ~3s each = 54s wasted.
+            // Only compress top-N where N = estimated fit + small buffer.
+            // Use conservative inline estimates (exact budget is computed later):
+            //   4096 window - ~1500 overhead/prompt - ~50 question - 300 output = ~2246 tokens
+            let estQuestionTokens = max(20, question.count / 4)
+            let estimatedAvailableTokens = 4096 - 1500 - estQuestionTokens - 300
+            let estimatedCharsAvailable = Int(
+                Double(estimatedAvailableTokens) * FoundationModelTokenBudget.onDeviceCharsPerToken * 0.88)
+            var totalChars = 0
+            var estimatedFit = 0
+            for candidate in contextCandidates {
+                totalChars += candidate.chunk.text.count
+                if totalChars <= max(estimatedCharsAvailable, 3500) {
+                    estimatedFit += 1
+                }
+            }
+            // Add buffer of 2 so compression can potentially include slightly more
+            let compressionLimit = min(contextCandidates.count, max(estimatedFit + 2, 5))
+
+            // Cap compression to max 5 chunks (~15s) to preserve LLM rate-limit
+            // budget for the actual generation step. Without this cap, 10+ chunks
+            // at ~3s each = 30s+ of sequential LLM calls that exhaust Apple FM
+            // rate limits before the main generation even starts.
+            let maxCompressionChunks = 5
+            let cappedCompressionLimit = min(compressionLimit, maxCompressionChunks)
+
+            // Skip compression entirely if only 3 or fewer chunks fit — ROI is negative
+            // (3 chunks × 3s = 9s for negligible token savings)
+            if cappedCompressionLimit <= 3 {
+                Log.info(
+                    "[RAG] Skipping compression - only \(estimatedFit) chunks fit in context budget (ROI negative)",
+                    category: .retrieval)
+                emitThinkingEvent(
+                    .compression, title: "Compression skipped",
+                    detail: "Only \(estimatedFit) chunks fit — ROI negative")
+            } else if compressionLimit > maxCompressionChunks {
+                Log.info(
+                    "[RAG] Capping compression from \(compressionLimit) to \(maxCompressionChunks) chunks to preserve LLM rate budget for generation",
+                    category: .retrieval)
+                emitThinkingEvent(
+                    .compression, title: "Compression capped",
+                    detail: "\(compressionLimit)→\(maxCompressionChunks) chunks — protecting generation budget")
+            }
+
+            let chunksToCompress =
+                cappedCompressionLimit <= 3 ? [] : Array(contextCandidates.prefix(cappedCompressionLimit))
+            let compressionService = ContextualCompressionService()
+            let chunkTexts = chunksToCompress.map { $0.chunk.text }
+            // Pass section titles so compression LLM understands chunk topics.
+            // Without this, abbreviation queries like "HRV" get 319→2 token compression
+            // because the chunk body has only raw stats without the full metric name.
+            let sectionTitles = chunksToCompress.map { $0.chunk.metadata.sectionTitle }
+
+            // Select compression config based on query type
+            // "exactly", "detail", "comprehensive", "all about" → verbose (minimal compression)
+            // Simple factual lookups → default (moderate compression)
+            let queryLower = question.lowercased()
+            let wantsComprehensiveAnswer =
+                queryLower.contains("exactly") || queryLower.contains("detail")
+                || queryLower.contains("comprehensive") || queryLower.contains("everything about")
+                || queryLower.contains("all about") || queryLower.contains("explain")
+                || queryLower.contains("tell me about") || answerIntent == .investigate
+                || answerIntent == .compare
+
+            let compressionConfig: ContextualCompressionService.Config =
+                wantsComprehensiveAnswer ? .verbose : .default
+
+            if wantsComprehensiveAnswer {
+                Log.info("[RAG] Using verbose compression for comprehensive query", category: .retrieval)
+            }
+
+            do {
+                let compressionStartTime = Date()
+                let compressionResults = try await compressionService.compressChunks(
+                    chunkTexts,
+                    forQuery: question,
+                    sectionTitles: sectionTitles,
+                    config: compressionConfig
+                )
+                let compressionTime = Date().timeIntervalSince(compressionStartTime)
+
+                // Update only the compressed chunks; leave remaining candidates untouched
+                var updatedCandidates: [RetrievedChunk] = []
+                var droppedIrrelevantCount = 0
+                for (index, result) in compressionResults.enumerated() where index < chunksToCompress.count {
+                    let original = chunksToCompress[index]
+
+                    // CRITICAL: If compression LLM says NO_RELEVANT_CONTENT, REMOVE the chunk entirely.
+                    // Keeping 400-char stubs wastes precious context budget (only 3 chunks fit!)
+                    // and those stubs compete with actually relevant chunks in spec sort.
+                    // The compression LLM already proved it can distinguish topics accurately.
+                    if result.wasMarkedIrrelevant {
+                        droppedIrrelevantCount += 1
+                        Log.debug(
+                            "[Compression] Dropping irrelevant chunk: \(original.chunk.text.prefix(50))...",
+                            category: .retrieval)
+                        continue  // Skip — don't add to candidates
+                    }
+
+                    let effectiveText = result.effectiveContent
+
+                    // Create updated chunk with compressed text
+                    var compressedChunk = original.chunk
+                    compressedChunk.text = effectiveText
+                    updatedCandidates.append(
+                        RetrievedChunk(
+                            chunk: compressedChunk,
+                            similarityScore: original.similarityScore,
+                            rank: original.rank,
+                            sourceDocument: original.sourceDocument,
+                            pageNumber: original.pageNumber
+                        ))
+                }
+                if droppedIrrelevantCount > 0 {
+                    Log.info(
+                        "[Compression] Removed \(droppedIrrelevantCount) irrelevant chunks — freeing context space",
+                        category: .retrieval)
+                }
+
+                let originalTokens = compressionResults.reduce(0) { $0 + $1.originalTokens }
+                let compressedTokens = compressionResults.reduce(0) { $0 + $1.compressedTokens }
+                let lowRelevanceCount = compressionResults.filter { $0.wasMarkedIrrelevant }.count
+                compressionSavings = originalTokens - compressedTokens
+
+                if updatedCandidates.count > 0 {
+                    // Merge: compressed chunks replace front, uncompressed remain at tail
+                    let remaining = Array(contextCandidates.dropFirst(updatedCandidates.count))
+                    contextCandidates = updatedCandidates + remaining
+                    let lowRelNote = lowRelevanceCount > 0 ? " (\(lowRelevanceCount) fallback)" : ""
+                    Log.info(
+                        "[Compression] \(originalTokens)→\(compressedTokens) tokens saved \(compressionSavings) in \(String(format: "%.0f", compressionTime * 1000))ms\(lowRelNote)",
+                        category: .retrieval)
+                    emitThinkingEvent(
+                        .compression,
+                        title: "Context compressed",
+                        detail: "Saved \(compressionSavings) tokens • \(contextCandidates.count) chunks"
+                    )
+                }
+            } catch {
+                // Safety filter or other compression failures - keep ALL original chunks intact
+                // This is critical for procedural content that may trigger false positives
+                Log.warning(
+                    "[Compression] Failed, using original chunks: \(error.localizedDescription)",
+                    category: .retrieval)
+                Log.info(
+                    "[Compression] Preserving all \(contextCandidates.count) original chunks for procedural safety",
+                    category: .retrieval)
+            }
+
+            // Cooldown: let Apple FM rate limits recover after sequential compression
+            // calls before the main generation step. Without this pause, generation
+            // frequently hits .rateLimited immediately after 5 compression calls.
+            if compressionSavings > 0 {
+                Log.debug(
+                    "[RAG] Post-compression cooldown (1s) to recover FM rate budget", category: .retrieval)
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    /// Step 4.9: packs graph neighbors and references around the candidates for multi-hop intents.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func packContextWithGraph(contextCandidates: inout [RetrievedChunk], question: String, answerIntent: AnswerIntent, cachedAllChunks: [DocumentChunk]?, allowLargeContext: Bool, isAppleFMOnDevice: Bool, auditUsedGraphPacking: inout Bool) async {
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Step 4.9: Graph-Based Context Packing (AppleRAG §5)
+        // pack(R + parents(R) + neighbors(R,±1) + graphHops(R,1))
+        // Expands retrieved chunks with graph context for richer LLM input
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // Universal pipeline trace: log chunk content before graph packing
+        if Log.pipelineTraceEnabled {
+            logChunkTrace(contextCandidates, stage: "Pre-GraphPack", query: question)
+        }
+
+        if answerIntent.benefitsFromMultiHop, let allChunks = cachedAllChunks {
+            let graphPackingStart = Date()
+
+            // Build graph edges for document traversal
+            let graphEdges = graphIndexService.buildDocumentGraph(chunks: allChunks)
+
+            // Build lookup table
+            var chunkLookup: [UUID: DocumentChunk] = [:]
+            for chunk in allChunks {
+                chunkLookup[chunk.id] = chunk
+            }
+
+            // Extract core chunks from candidates
+            let coreChunks = contextCandidates.map { $0.chunk }
+
+            // Sized to the window the device reports (5.7): see `graphPackingTokenBudget(windowTokens:)`.
+            let graphTokenBudget = allowLargeContext
+                ? 24000
+                : Self.graphPackingTokenBudget(
+                    windowTokens: FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))
+
+            // Pack with graph context
+            let packedContext = await contextPackingService.pack(
+                retrievedChunks: coreChunks,
+                graphEdges: graphEdges,
+                allChunks: chunkLookup,
+                tokenBudget: graphTokenBudget,
+                neighborDistance: answerIntent.benefitsFromMultiHop ? 1 : 0,
+                graphHopDistance: answerIntent.benefitsFromMultiHop ? 1 : 0,
+                query: question
+            )
+
+            let graphPackingTime = Date().timeIntervalSince(graphPackingStart)
+
+            // Update candidates with packed chunks (convert back to RetrievedChunk)
+            if packedContext.contextChunkCount > 0 {
+                auditUsedGraphPacking = true
+                var packedCandidates: [RetrievedChunk] = []
+                for (index, chunk) in packedContext.chunks.enumerated() {
+                    // Find original score if this was a core chunk, else assign lower score
+                    let originalScore =
+                        contextCandidates.first { $0.chunk.id == chunk.id }?.similarityScore ?? 0.3
+                    let resolvedSourceDocument = contextCandidates.first { $0.chunk.id == chunk.id }?
+                        .sourceDocument
+                    let sourceDocument = {
+                        let existing =
+                            resolvedSourceDocument?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        return existing.isEmpty ? getDocumentName(for: chunk.documentId) : existing
+                    }()
+                    packedCandidates.append(
+                        RetrievedChunk(
+                            chunk: chunk,
+                            similarityScore: originalScore,
+                            rank: index,
+                            sourceDocument: sourceDocument,
+                            pageNumber: chunk.metadata.pageNumber
+                        ))
+                }
+                contextCandidates = packedCandidates
+
+                VerificationJournal.record(
+                    "retrieval.graphPack",
+                    ["tokens": "\(packedContext.estimatedTokens)", "budget": "\(graphTokenBudget)",
+                        "window": "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: isAppleFMOnDevice))",
+                        "withinBudget": "\(packedContext.estimatedTokens <= graphTokenBudget)",
+                        "truncated": "\(packedContext.wasTruncated)", "core": "\(packedContext.coreChunkCount)",
+                        "context": "\(packedContext.contextChunkCount)"])
+                Log.info(
+                    "[GraphPack] \(packedContext.coreChunkCount) core + \(packedContext.contextChunkCount) context chunks (\(packedContext.estimatedTokens) tokens) in \(String(format: "%.0f", graphPackingTime * 1000))ms\(packedContext.wasTruncated ? " [truncated]" : "")",
+                    category: .retrieval
+                )
+
+                // Universal pipeline trace: log chunks after graph packing
+                if Log.pipelineTraceEnabled {
+                    logChunkTrace(packedCandidates, stage: "Post-GraphPack", query: question)
+                }
+
+                emitThinkingEvent(
+                    .graphPack,
+                    title: "Graph context packed",
+                    detail: "+\(packedContext.contextChunkCount) neighbors/refs"
+                )
+            }
+        }
+    }
+
+    /// Step SR: runs corrective lexical retrieval and adopts or rejects its candidates.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func runCorrectiveRetrieval(effectiveQuery: String, contextCandidates: inout [RetrievedChunk], answerIntentIsExtractive: Bool, effectiveTopK: Int, selectedId: UUID, cachedAllChunks: [DocumentChunk]?, answerIntent: AnswerIntent, qualityModeUsesReRanking: Bool, engine: RAGEngine, question: String, rerankTime: inout TimeInterval, contextStrategy: inout String, auditUsedCorrectiveRetrieval: inout Bool, retrievalTime: inout TimeInterval, recoveryRetrievalTime: inout TimeInterval) async {
+        let shouldAttemptCorrective = shouldAttemptCorrectiveRetrieval(
+            query: effectiveQuery,
+            candidates: contextCandidates,
+            answerIntentIsExtractive: answerIntentIsExtractive,
+            targetCount: effectiveTopK
+        )
+
+        if shouldAttemptCorrective {
+            let correctiveStartTime = Date()
+            let preCorrectiveLexical = checkLexicalRelevance(
+                query: effectiveQuery,
+                chunks: Array(contextCandidates.prefix(5))
+            )
+            let preCorrectiveTopSim = contextCandidates.first?.similarityScore ?? 0
+            let hadStructuredEvidence = contextCandidates.prefix(5).contains { candidate in
+                looksTableLike(
+                    text: candidate.chunk.contextText,
+                    structureType: candidate.chunk.metadata.structureType
+                )
+            }
+
+            let correctiveCandidates = await performCorrectiveRetrieval(
+                query: effectiveQuery,
+                containerId: selectedId,
+                allChunks: cachedAllChunks,
+                existingCandidates: contextCandidates,
+                answerIntent: answerIntent,
+                targetCount: max(effectiveTopK, 4)
+            )
+
+            if !correctiveCandidates.isEmpty {
+                let mergedCandidates = mergeUniqueChunks(contextCandidates, correctiveCandidates)
+                if mergedCandidates.count > contextCandidates.count {
+                    let rerankLimit = min(max(effectiveTopK * 3, 10), mergedCandidates.count)
+                    let correctiveRerankStart = Date()
+                    let correctedCandidates: [RetrievedChunk]
+
+                    if qualityModeUsesReRanking {
+                        correctedCandidates = await engine.rerank(
+                            chunks: mergedCandidates,
+                            query: question,
+                            topK: rerankLimit
+                        )
+                        rerankTime += Date().timeIntervalSince(correctiveRerankStart)
+                    } else {
+                        correctedCandidates = Array(
+                            mergedCandidates
+                                .sorted { $0.similarityScore > $1.similarityScore }
+                                .prefix(rerankLimit)
+                        )
+                    }
+
+                    let postCorrectiveLexical = checkLexicalRelevance(
+                        query: effectiveQuery,
+                        chunks: Array(correctedCandidates.prefix(5))
+                    )
+                    let postCorrectiveTopSim = correctedCandidates.first?.similarityScore ?? 0
+                    let hasStructuredEvidence = correctedCandidates.prefix(5).contains { candidate in
+                        looksTableLike(
+                            text: candidate.chunk.contextText,
+                            structureType: candidate.chunk.metadata.structureType
+                        )
+                    }
+
+                    let shouldAdoptCorrective =
+                        postCorrectiveLexical > preCorrectiveLexical + 0.08
+                        || postCorrectiveTopSim > preCorrectiveTopSim + 0.04
+                        || (answerIntentIsExtractive
+                            && postCorrectiveLexical >= preCorrectiveLexical
+                            && hasStructuredEvidence
+                            && !hadStructuredEvidence)
+                        || (answerIntentIsExtractive
+                            && preCorrectiveLexical < 0.55
+                            && postCorrectiveLexical >= preCorrectiveLexical)
+
+                    if shouldAdoptCorrective {
+                        contextCandidates = correctedCandidates
+                        contextStrategy = "corrective_fts"
+                        auditUsedCorrectiveRetrieval = true
+
+                        let correctiveTime = Date().timeIntervalSince(correctiveStartTime)
+                        retrievalTime += correctiveTime
+                        recoveryRetrievalTime = retrievalTime
+                        let preLexicalPercent = String(format: "%.0f%%", preCorrectiveLexical * 100)
+                        let postLexicalPercent = String(format: "%.0f%%", postCorrectiveLexical * 100)
+
+                        Log.info(
+                            "[Corrective] Adopted lexical corrective retrieval: +\(correctiveCandidates.count) hits, lexical \(preLexicalPercent)->\(postLexicalPercent)",
+                            category: .retrieval
+                        )
+                        TelemetryCenter.emit(
+                            .retrieval,
+                            title: "Corrective retrieval",
+                            metadata: [
+                                "added": "\(correctiveCandidates.count)",
+                                "preLexical": String(format: "%.2f", preCorrectiveLexical),
+                                "postLexical": String(format: "%.2f", postCorrectiveLexical),
+                                "preTop": String(format: "%.2f", preCorrectiveTopSim),
+                                "postTop": String(format: "%.2f", postCorrectiveTopSim),
+                            ],
+                            duration: correctiveTime
+                        )
+                        emitThinkingEvent(
+                            .retrieval,
+                            title: "Corrective retrieval",
+                            detail: "+\(correctiveCandidates.count) lexical/page hits"
+                        )
+
+                        if Log.pipelineTraceEnabled {
+                            logChunkTrace(contextCandidates, stage: "Post-CorrectiveRetrieval", query: question)
+                        }
+                    } else {
+                        let preLexicalPercent = String(format: "%.0f%%", preCorrectiveLexical * 100)
+                        let postLexicalPercent = String(format: "%.0f%%", postCorrectiveLexical * 100)
+                        Log.info(
+                            "[Corrective] Rejected corrective retrieval: lexical \(preLexicalPercent)->\(postLexicalPercent)",
+                            category: .retrieval
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// Step 5 (assembly): builds the context by sentence extraction or whole-passage packing with needle rescue.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func assembleStandardContext(answerIntentIsExtractive: Bool, isProceduralQuery: Bool, orderedCandidates: [RetrievedChunk], question: String, maxContextChars: Int, useCompactMode: Bool, engine: RAGEngine, useLostInMiddleMitigation: Bool) async -> (actualChunksUsed: Int, context: String, placedForAttention: Bool, promptSources: [RetrievedChunk], rescuedChunks: [RetrievedChunk]) {
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // SENTENCE-LEVEL EXTRACTION (lookup intent only)
+        // Instead of packing 3 whole chunks into 4475 chars, extract
+        // only query-relevant sentences from ALL candidates.
+        // This fits targeted data from 10-15+ chunks vs 3 whole ones —
+        // the difference between finding "Engine oil: 5.1 qt" and missing it.
+        // Universal across all domains: medical, legal, automotive, etc.
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let context: String
+        let actualChunksUsed: Int
+        // Chunks whose sentences reached the prompt via needle rescue but which are not in
+        // the packed prefix. They must be attached to the response, because the prompt
+        // gives them citation labels and a label the response cannot resolve is a dead
+        // reference in front of the user.
+        var rescuedChunks: [RetrievedChunk] = []
+        // The chunks the prompt actually labelled, in label order. Every branch below sets
+        // this rather than letting the caller recompute `prefix(actualChunksUsed)`, which
+        // is what silently mismatched labels against sources.
+        var promptSources: [RetrievedChunk] = []
+        // Whether the whole-chunk assembler placed the passages for attention, which it does only when it
+        // packs four or more; the "Position reorder" event reports that and nothing else.
+        var placedForAttention = false
+
+        if answerIntentIsExtractive && !isProceduralQuery {
+            let extractionResult = await extractRelevantSentences(
+                from: orderedCandidates,
+                query: question,
+                maxChars: maxContextChars,
+                compact: useCompactMode,
+                isExtractiveFirst: answerIntentIsExtractive,
+                leadingCandidateWhole: true,
+                // The answer keeps only the sources used (`promptSources` below), so the labels number those.
+                numberByUse: true
+            )
+
+            // Sentence extraction is a narrowing filter, and a filter that matches nothing
+            // must not be allowed to discard the evidence retrieval just found.
+            //
+            // Measured on 2026-08-08, case `exact_capex` ("What was the FY2018 capital
+            // expenditure amount?"): retrieval was the strongest in the whole run —
+            // topSim 1.317, the correct document at rank 1 in all five slots, MMR selecting
+            // 5 of 5 with nothing dropped. Extraction then matched zero sentences, returned
+            // 0 chars from 4 chunks, and the pipeline logged "Empty context after assembly"
+            // and fell back to *direct LLM chat with no RAG at all*. The model, correctly,
+            // said the information was not in the provided context, because by then there
+            // was no context.
+            //
+            // That fallback is also the more dangerous failure than the wrong answer it
+            // produced here: answering from model priors while the user believes the app is
+            // reading their documents is exactly the ungrounded behaviour the verification
+            // gates exist to prevent. Whole-chunk assembly is always available and always
+            // better than nothing, so use it.
+            if extractionResult.context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                !orderedCandidates.isEmpty
+            {
+                let assembled = await engine.assembleContext(
+                    chunks: orderedCandidates,
+                    maxChars: maxContextChars,
+                    compact: useCompactMode,
+                    useLostInMiddleMitigation: useLostInMiddleMitigation
+                )
+                context = assembled.context
+                actualChunksUsed = assembled.used
+                promptSources = assembled.sources
+                placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
+                Log.info(
+                    "[RAG] Whole-passage context keeps candidates \(Self.candidatePlaces(of: assembled.sources, in: orderedCandidates)) "
+                        + "of \(orderedCandidates.count), in label order",
+                    category: .retrieval)
+                Log.warning(
+                    "[RAG] Sentence extraction matched nothing across \(orderedCandidates.count) candidate(s); "
+                        + "falling back to whole-chunk assembly (\(assembled.used) chunks, \(assembled.context.count) chars) "
+                        + "rather than returning an empty context",
+                    category: .retrieval
+                )
+            } else {
+                context = extractionResult.context
+                actualChunksUsed = extractionResult.sourcesUsed
+                promptSources = extractionResult.usedSourceIndices.compactMap {
+                    orderedCandidates.indices.contains($0) ? orderedCandidates[$0] : nil
+                }
+                Log.info(
+                    "[RAG] Sentence extraction: \(extractionResult.sentencesIncluded) sentences from \(extractionResult.sourcesUsed) sources (\(context.count) chars)",
+                    category: .retrieval)
+            }
+        } else {
+            let assembled = await engine.assembleContext(
+                chunks: orderedCandidates,
+                maxChars: maxContextChars,
+                compact: useCompactMode,
+                useLostInMiddleMitigation: useLostInMiddleMitigation
+            )
+            var assembledContext = assembled.context
+            actualChunksUsed = assembled.used
+            promptSources = assembled.sources
+            placedForAttention = useLostInMiddleMitigation && assembled.used >= 4
+            Log.info(
+                "[RAG] Whole-passage context keeps candidates \(Self.candidatePlaces(of: assembled.sources, in: orderedCandidates)) "
+                    + "of \(orderedCandidates.count), in label order",
+                category: .retrieval)
+
+            // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
+            // When assembleContext runs out of budget, chunks at positions 4+ are dropped
+            // entirely. But a keyword-matching needle sentence in chunk #7 is now invisible
+            // to the LLM. Fix: run sentence extraction on the DROPPED chunks only,
+            // appending high-value sentences into any remaining budget.
+            // This catches needles across ALL intents (summarize, procedure, compare, etc.)
+            // without replacing whole-chunk packing for the primary chunks.
+            let droppedChunks = Self.candidatesPastThePacked(orderedCandidates, packed: assembled.sources)
+            let remainingBudget = maxContextChars - assembledContext.count
+            let rescueBudgetFloor = (answerIntentIsExtractive || isPrecisionValueQuery(question)) ? 80 : 160
+
+            if !droppedChunks.isEmpty && remainingBudget > rescueBudgetFloor {
+                let rescueResult = await extractRelevantSentences(
+                    from: droppedChunks,
+                    query: question,
+                    maxChars: remainingBudget,
+                    compact: true,  // Always compact for rescue sentences to maximize density
+                    isExtractiveFirst: answerIntentIsExtractive,
+                    // Continue the packed block's numbering instead of restarting at [S1].
+                    // Both blocks land in one prompt, so restarting produced two different
+                    // chunks both labelled [S1]. A device trace on 2026-08-14 shows the
+                    // consequence: four packed sources followed by rescue sources numbered
+                    // from one again, and an answer citing [S5] and [S6], which are the
+                    // fifth and sixth sources the model was shown and which resolved to
+                    // nothing downstream.
+                    labelOffset: assembled.used,
+                    // Only the rescued sources join the answer (`rescuedChunks`), so the labels number those.
+                    numberByUse: true
+                )
+                if rescueResult.sentencesIncluded > 0 {
+                    rescuedChunks = rescueResult.usedSourceIndices.compactMap {
+                        droppedChunks.indices.contains($0) ? droppedChunks[$0] : nil
+                    }
+                    assembledContext += "\n---\n" + rescueResult.context
+                    Log.info(
+                        "[RAG] Needle rescue: +\(rescueResult.sentencesIncluded) sentences from \(rescueResult.sourcesUsed) dropped chunks (\(rescueResult.context.count) chars)",
+                        category: .retrieval)
+                }
+            }
+
+            context = assembledContext
+        }
+        return (actualChunksUsed: actualChunksUsed, context: context, placedForAttention: placedForAttention, promptSources: promptSources, rescuedChunks: rescuedChunks)
+    }
+
+    /// Step 5 (audit): emits the context telemetry and stores the RAGAuditSnapshot.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func recordContextAuditSnapshot(actualChunksUsed: Int, contextWords: Int, contextSize: Int, selectedName: String, selectedId: UUID, selectedContainer: KnowledgeContainer?, question: String, embeddingProviderId: String, selectedDim: Int, qualityModeDisplayName: String, retrievalConfig: RetrievalConfig, auditLenient: Bool, auditDynamicMin: Float, auditTopSim: Float, auditSecondSim: Float, auditAvgTop5: Float, auditAcceptanceOverride: Bool, totalStored: Int, auditCandidatesCount: Int, auditRerankedCount: Int, auditFilteredCount: Int, auditDroppedCount: Int, auditMMRSelectedCount: Int, auditUniqueDocCount: Int, contextStrategy: String, maxContextChars: Int, baseWindowTokens: Int, promptOverheadTokens: Int, questionTokens: Int, reservedOutputTokens: Int, availableForContextTokens: Int, inferenceConfig: InferenceConfig, networkAvailable: Bool, allowLargeContext: Bool, reliabilityModeEnabled: Bool, allowUngroundedFallback: Bool, auditAnswerIntent: String, auditQueryWasRewritten: Bool, auditQueryExpansionCount: Int, auditUsedHyDE: Bool, auditUsedIterativeRetrieval: Bool, auditIterativePassCount: Int, auditUsedQueryRouting: Bool, auditUsedSummaryRouting: Bool, auditUsedParentDocumentRetrieval: Bool, auditUsedCorrectiveRetrieval: Bool, auditUsedContextualCompression: Bool, auditUsedGraphPacking: Bool, usedRetrievalCascade: Bool, auditUsedSupplementaryVectorSearch: Bool) async {
+        Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
+
+        // Pipeline Trace: Step 5
+        Log.pipelineStep(
+            "5", title: "Context Assembly",
+            details: [
+                ("chunks", "\(actualChunksUsed)"),
+                ("words", "\(contextWords)"),
+                ("chars", "\(contextSize)"),
+            ])
+
+        Log.info(
+            "✓ Final context: \(contextSize) chars, \(contextWords) words from \(actualChunksUsed) chunks",
+            category: .pipeline
+        )
+        TelemetryCenter.emit(
+            .retrieval,
+            title: "Context assembled",
+            metadata: [
+                "chunks": "\(actualChunksUsed)",
+                "chars": "\(contextSize)",
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+            ]
+        )
+
+        emitThinkingEvent(
+            .context,
+            title: "Context ready",
+            detail: "\(actualChunksUsed) chunks • \(contextWords) words"
+        )
+
+        let chunkingTarget =
+            selectedContainer?.chunkingDirective?.targetWordWindow
+            ?? documentProcessor.targetChunkSize
+        let chunkingOverlap =
+            selectedContainer?.chunkingDirective?.overlapWords
+            ?? documentProcessor.chunkOverlap
+        let chunkingSource =
+            selectedContainer?.chunkingDirective?.source.rawValue
+            ?? "baseline"
+        let vectorDBKind = selectedContainer?.vectorDBKind ?? .persistentJSON
+
+        let auditSnapshot = RAGAuditSnapshot(
+            timestamp: Date(),
+            query: question,
+            containerId: selectedId,
+            containerName: selectedName,
+            embeddingProviderId: embeddingProviderId,
+            embeddingDim: selectedDim,
+            vectorDBKind: vectorDBKind,
+            chunkingTargetWords: chunkingTarget,
+            chunkingOverlapWords: chunkingOverlap,
+            chunkingSource: chunkingSource,
+            qualityModeName: qualityModeDisplayName,
+            retrievalConfig: retrievalConfig,
+            lenientRetrieval: auditLenient,
+            dynamicMin: auditDynamicMin,
+            topSim: auditTopSim,
+            secondSim: auditSecondSim,
+            avgTop5: auditAvgTop5,
+            acceptanceOverride: auditAcceptanceOverride,
+            totalStoredChunks: totalStored,
+            candidatesCount: auditCandidatesCount,
+            rerankedCount: auditRerankedCount,
+            filteredCount: auditFilteredCount,
+            droppedCount: auditDroppedCount,
+            mmrSelectedCount: auditMMRSelectedCount,
+            uniqueDocCount: auditUniqueDocCount,
+            contextStrategy: contextStrategy,
+            contextChars: contextSize,
+            contextWords: contextWords,
+            contextChunksUsed: actualChunksUsed,
+            maxContextChars: maxContextChars,
+            baseWindowTokens: baseWindowTokens,
+            safetyTokens: 0,  // Unified into globalSafetyFactor (no separate flat buffer)
+            promptOverheadTokens: promptOverheadTokens,
+            questionTokens: questionTokens,
+            reservedOutputTokens: reservedOutputTokens,
+            availableContextTokens: availableForContextTokens,
+            executionContext: inferenceConfig.executionContext,
+            allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute,
+            networkConnected: networkAvailable,
+            wantsCloudContext: allowLargeContext,
+            reliabilityModeEnabled: reliabilityModeEnabled,
+            allowUngroundedFallback: allowUngroundedFallback,
+            modelName: llmService.modelName,
+            featureFlags: RAGAuditFeatureFlags(
+                answerIntent: auditAnswerIntent,
+                queryWasRewritten: auditQueryWasRewritten,
+                queryExpansionCount: auditQueryExpansionCount,
+                usedHyDE: auditUsedHyDE,
+                usedIterativeRetrieval: auditUsedIterativeRetrieval,
+                iterativePassCount: auditIterativePassCount,
+                usedQueryRouting: auditUsedQueryRouting,
+                usedSummaryRouting: auditUsedSummaryRouting,
+                usedParentDocumentRetrieval: auditUsedParentDocumentRetrieval,
+                usedCorrectiveRetrieval: auditUsedCorrectiveRetrieval,
+                usedContextualCompression: auditUsedContextualCompression,
+                usedGraphPacking: auditUsedGraphPacking,
+                usedRetrievalCascade: usedRetrievalCascade,
+                usedSupplementaryVectorSearch: auditUsedSupplementaryVectorSearch,
+                usedFullUnlimitedReasoning: false
+            )
+        )
+
+        await MainActor.run {
+            self.lastAuditSnapshot = auditSnapshot
+        }
+    }
+
+    /// Step 6 (start): logs the generation step, applies the adaptive cooldown and starts the generation clock.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func beginGenerationStep(contextWords: Int) async -> Date {
+        // Step 6: Generate response using LLM with augmented context
+        Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
+
+        // Pipeline Trace: Step 6
+        let llmModelName = llmService.modelName
+        Log.pipelineStep(
+            "6", title: "LLM Generation",
+            details: [
+                ("model", llmModelName),
+                ("context", "\(contextWords)w"),
+            ])
+
+        // Apply thermal cooldown before heavy LLM generation if device is under pressure
+        // This prevents throttling and improves generation quality on hot devices
+        await AdaptivePipelineOptimizer.shared.applyCooldown()
+
+        let generationStartTime = Date()
+        return generationStartTime
+    }
+
+    /// Step 6 (citations): retries once for a cited answer when citations are required and missing.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func retryForMissingCitations(llmResponse: inout LLMResponse, requiresCitations: Bool, allowUngroundedFallback: Bool, selectedName: String, question: String, genConfig: InferenceConfig, usedOverflowRetry: Bool, generationContext: String, generationChunks: [DocumentChunk]) async -> (responseText: String, preserveStreamingResponse: Bool) {
+        var responseText = llmResponse.text
+
+        let preserveStreamingResponse = LLMStreamingContext.handler != nil
+        if requiresCitations, !responseHasCitations(responseText) {
+            let missingCitationDetail =
+                (preserveStreamingResponse || allowUngroundedFallback)
+                ? "Using best available answer"
+                : "Retrying with strict citation requirement"
+            emitThinkingEvent(
+                .warning,
+                title: "Missing citations",
+                detail: missingCitationDetail
+            )
+            TelemetryCenter.emit(
+                .generation,
+                severity: .warning,
+                title: "Missing citations",
+                metadata: [
+                    "model": llmService.modelName,
+                    "container": selectedName,
+                ]
+            )
+            if preserveStreamingResponse || allowUngroundedFallback {
+                Log.warning(
+                    "Missing citations; preserving streamed response",
+                    category: .llm
+                )
+            } else {
+                let retryPrompt =
+                    question
+                    + "\n\nYou must cite sources using bracket ids like [S1], [S2]. "
+                    + "If you cannot support the answer with citations, respond exactly: "
+                    + "\"Insufficient evidence in provided sources.\" "
+                    + "Answer directly with no preamble."
+                var retryConfig = genConfig
+                retryConfig.temperature = min(retryConfig.temperature, 0.2)
+                if usedOverflowRetry {
+                    retryConfig.maxTokens = min(retryConfig.maxTokens, 1024)
+                }
+                if let retryResponse = try? await generateWithFallback(
+                    prompt: retryPrompt,
+                    context: generationContext,
+                    config: retryConfig,
+                    sourceChunks: generationChunks
+                ) {
+                    llmResponse = retryResponse
+                    responseText = retryResponse.text
+                }
+            }
+        }
+        return (responseText: responseText, preserveStreamingResponse: preserveStreamingResponse)
+    }
+
+    /// Step 6 (integrity): normalizes malformed output and runs one grounded repair pass when needed.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func repairResponseIntegrity(responseText: inout String, question: String, answerIntent: AnswerIntent, genConfig: InferenceConfig, requiresCitations: Bool, generationContext: String, generationChunks: [DocumentChunk], llmResponse: inout LLMResponse) async {
+        // Universal output integrity gate:
+        // Detect malformed generation artifacts (placeholder lists, repetition loops,
+        // dangling markdown) and attempt one grounded repair pass.
+        var integrityIssues = responseIntegrityIssues(responseText)
+        if !integrityIssues.isEmpty {
+            Log.warning(
+                "[RAG] Output integrity issues detected: \(integrityIssues.joined(separator: ", "))",
+                category: .llm
+            )
+            emitThinkingEvent(
+                .warning,
+                title: "Output integrity repair",
+                detail: "Detected malformed answer shape; repairing"
+            )
+
+            // Deterministic cleanup first (cheap, no extra model call)
+            var cleanedResponse = normalizeMalformedResponseArtifacts(responseText)
+            cleanedResponse = compactDegenerateResponse(
+                cleanedResponse,
+                question: question,
+                answerIntent: answerIntent
+            )
+            let cleanedIssues = responseIntegrityIssues(cleanedResponse)
+
+            // If still malformed, perform a grounded one-shot repair ONLY for non-repetition issues.
+            // Repetition loops are handled better by deterministic compaction than another model pass.
+            let shouldTryModelRepair =
+                !cleanedIssues.isEmpty
+                && cleanedIssues.contains { $0 != "dominant_repetition" }
+
+            if shouldTryModelRepair {
+                var repairConfig = genConfig
+                repairConfig.temperature = min(repairConfig.temperature, 0.15)
+                repairConfig.skipContinuation = true
+                repairConfig.maxTokens = min(max(repairConfig.maxTokens, 192), 420)
+
+                let repairPrompt = buildIntegrityRepairPrompt(
+                    question: question,
+                    issueLabels: cleanedIssues,
+                    answerIntent: answerIntent,
+                    requiresCitations: requiresCitations
+                )
+
+                if let repaired = try? await generateWithFallback(
+                    prompt: repairPrompt,
+                    context: generationContext,
+                    config: repairConfig,
+                    sourceChunks: generationChunks
+                ) {
+                    let candidate = compactDegenerateResponse(
+                        normalizeMalformedResponseArtifacts(repaired.text),
+                        question: question,
+                        answerIntent: answerIntent
+                    )
+                    if isResponseIntegrityImproved(original: responseText, candidate: candidate) {
+                        llmResponse = repaired
+                        responseText = candidate
+                        integrityIssues = responseIntegrityIssues(responseText)
+                        Log.info("[RAG] Integrity repair succeeded", category: .llm)
+                    } else {
+                        Log.warning(
+                            "[RAG] Integrity repair candidate rejected (no improvement)", category: .llm)
+                        responseText = cleanedResponse
+                        integrityIssues = cleanedIssues
+                    }
+                } else {
+                    responseText = cleanedResponse
+                    integrityIssues = cleanedIssues
+                }
+            } else {
+                responseText = cleanedResponse
+                integrityIssues = cleanedIssues
+            }
+
+            // Hard stop: if repetition still remains, deterministically compact once more
+            // and accept that output rather than spinning another expensive model pass.
+            if integrityIssues.contains("dominant_repetition") {
+                let compacted = compactDegenerateResponse(
+                    responseText,
+                    question: question,
+                    answerIntent: answerIntent
+                )
+                if isResponseIntegrityImproved(original: responseText, candidate: compacted) {
+                    responseText = compacted
+                    integrityIssues = responseIntegrityIssues(responseText)
+                }
+            }
+
+            if !integrityIssues.isEmpty {
+                Log.warning(
+                    "[RAG] Residual integrity issues after repair: \(integrityIssues.joined(separator: ", "))",
+                    category: .llm)
+            }
+        }
+    }
+
+    /// Step 6g (override): replaces the answer with the source-locked precision-lookup value when the model did not state it.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applyPrecisionLookupOverride(answerIntentIsExtractive: Bool, question: String, answerIntent: AnswerIntent, generationRetrievedChunks: [RetrievedChunk], responseText: inout String) async -> Bool {
+        var sourceLockedFinalResponse = false
+        if answerIntentIsExtractive || isPrecisionValueQuery(question),
+            let extractiveOverride = await highPrecisionLookupOverride(
+                question: question,
+                answerIntent: answerIntent,
+                retrievedChunks: generationRetrievedChunks
+            )
+        {
+            let normalizedLLM = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedOverride = extractiveOverride.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+            // The model's answer stands when it already states the value the extractor found (5.7):
+            // it can answer the rest of the question, and the gates check it. On 2026-10-19 "What is
+            // the harbor lantern code, and where is it kept?" had its answer replaced by the
+            // extractor's text, which began mid-word and left out where the code is kept.
+            if Self.answerStates(value: extractiveOverride.value, in: normalizedLLM) {
+                Log.info(
+                    "[ExtractiveQA] Kept the model's answer: it states the extracted value \"\(extractiveOverride.value)\"",
+                    category: .retrieval)
+            } else {
+                sourceLockedFinalResponse = true
+                if normalizedLLM != normalizedOverride {
+                    Log.info(
+                        "[ExtractiveQA] Overriding lookup response with direct source extraction",
+                        category: .retrieval)
+                    responseText = normalizedOverride
+                }
+            }
+        }
+        return sourceLockedFinalResponse
+    }
+
+    /// Step 7: scores answer confidence and quality warnings.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func assessAnswerQuality(generationRetrievedChunks: [RetrievedChunk], engine: RAGEngine, question: String, auditTopSim: Float) async -> (confidenceScore: Float, qualityWarnings: [String]) {
+        // Step 7: Calculate confidence score and quality warnings
+        Log.section("Step 7: Quality Assessment", level: .info, category: .pipeline)
+        HardwareTelemetryState.shared.reportRAGPipeline(stage: "Quality Assessment")
+
+        // Pipeline Trace: Step 7
+        Log.pipelineStep(
+            "7", title: "Quality Assessment",
+            details: [
+                ("sources", "\(generationRetrievedChunks.count)")
+            ])
+        let totalDocsCount = await snapshotDocumentsCount()
+        let (confidenceScore, qualityWarnings) = await engine.assessResponseQuality(
+            chunks: generationRetrievedChunks,
+            query: question,
+            totalDocs: totalDocsCount,
+            topScoreOverride: auditTopSim > 0 ? auditTopSim : nil  // Use actual reranked score
+        )
+
+        if !qualityWarnings.isEmpty {
+            Log.warning("⚠️  Quality Warnings:", category: .pipeline)
+            for warning in qualityWarnings {
+                Log.warning("   • \(warning)", category: .pipeline)
+            }
+        }
+
+        Log.info(
+            "📊 Confidence Score: \(String(format: "%.1f", confidenceScore * 100))%",
+            category: .pipeline
+        )
+        TelemetryCenter.emit(
+            .system,
+            title: "Response evaluated",
+            metadata: [
+                "confidence": String(format: "%.2f", confidenceScore)
+            ]
+        )
+        return (confidenceScore: confidenceScore, qualityWarnings: qualityWarnings)
     }
 
     /// Step 7.5 (run): runs verification gates A-G against the answer and the evidence embeddings.

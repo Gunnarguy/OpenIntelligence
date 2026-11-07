@@ -63,7 +63,7 @@ developers, and product copy is read by people who will not check the source.
   picker, before a final synthesis, with no tools in any session. They run the gates from 5.7, as a label only
   (in 5.6 those answers read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop and its stop rules.
   `[evidence_level: code_verified, confidence: high, evidence_source: SettingsStore.swift:617-624,
-  RAGService+QueryPipeline.swift:252, RAGService+AgenticQuery.swift:802-826, RAGService+QueryPipeline.swift:3594-3712, RAGService+QueryPipeline.swift:3852-6071, RAGService+QueryPipeline.swift:4343-4367, RAGService+AnswerFinishing.swift:428-453,
+  RAGService+QueryPipeline.swift:252, RAGService+AgenticQuery.swift:802-826, RAGService+QueryPipeline.swift:4113-4213, RAGService+QueryPipeline.swift:3008-6138, RAGService+QueryPipeline.swift:4410-4434, RAGService+AnswerFinishing.swift:428-453,
   AgenticOrchestrator.swift:180, 386-985, AgenticOrchestrator+ReasoningChain.swift:623, RAGService+Agentic.swift:208-220]`
 - iCloud sync of the document library across a user's own devices.
 - Siri Shortcuts and App Intents.
