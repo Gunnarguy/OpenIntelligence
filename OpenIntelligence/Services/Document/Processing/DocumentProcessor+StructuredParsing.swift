@@ -114,135 +114,7 @@ extension DocumentProcessor {
         // If < 0.15, text layer is unusable → force ALL pages through Vision OCR.
         // Runs ONCE per document (~200-500ms).
         // ═══════════════════════════════════════════════════════════════════════
-        let documentTextLayerGarbled: Bool
-        textLayerValidation: do {
-            let sliceCount = (endPageIdx - startPageIdx) + 1
-            let sampleIndices = sliceCount <= 3
-                ? Array(startPageIdx...endPageIdx)
-                : [startPageIdx, startPageIdx + sliceCount / 3, startPageIdx + 2 * sliceCount / 3]
-
-            var bestSampleText = ""
-            var bestSamplePage: PDFPage?
-            var unreadableSampleSeen = false
-
-            for idx in sampleIndices {
-                guard let page = pdfDocument.page(at: idx) else { continue }
-                let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                // OCR can check a text layer only in a script it reads. Vision has no model for Greek, Hebrew and
-                // many other scripts, so on such a page it returns other letters, the two share no word, and through
-                // 5.6 a correct text layer was judged a cipher: every page went to OCR and the garbage filter emptied
-                // what OCR gave (measured 2026-10-19, a Greek page imported with no text). Such a page is not a
-                // sample; a page of the same document in a script Vision reads still is (review, 2026-10-19).
-                guard OCRConfiguration.visionCanReadMostOf(text) else {
-                    if text.count >= 50 { unreadableSampleSeen = true }
-                    continue
-                }
-                if text.count > bestSampleText.count {
-                    bestSampleText = text
-                    bestSamplePage = page
-                }
-            }
-
-            // No text layer at all → not garbled, just needs OCR
-            guard bestSampleText.count >= 50, let samplePage = bestSamplePage else {
-                documentTextLayerGarbled = false
-                if unreadableSampleSeen {
-                    Log.info("[DocumentProcessor] [iOS26] Text layer kept without an OCR check: the sampled pages' letters are mostly in a script Vision's text recognition does not read", category: .ingestion)
-                } else {
-                    Log.debug("[DocumentProcessor] [iOS26] Text layer validation: no/minimal text layer, skipping", category: .ingestion)
-                }
-                break textLayerValidation
-            }
-
-            emitProgress(stage: "validating", detail: "🔍 Validating text layer...", page: nil, totalPages: pageCount)
-            guard let sampleImage = renderPDFPageAsImage(page: samplePage) else {
-                documentTextLayerGarbled = false
-                Log.warning("[DocumentProcessor] [iOS26] Text layer validation: failed to render sample page", category: .ingestion)
-                break textLayerValidation
-            }
-
-            let ocrObservations: [VNRecognizedTextObservation]
-            do {
-                ocrObservations = try await performOCRWithObservationsAsync(on: sampleImage)
-            } catch {
-                documentTextLayerGarbled = false
-                Log.warning("[DocumentProcessor] [iOS26] Text layer validation: OCR failed (\(error.localizedDescription)), assuming OK", category: .ingestion)
-                break textLayerValidation
-            }
-
-            let ocrWords: Set<String> = Set(
-                ocrObservations
-                    .compactMap { $0.topCandidates(1).first?.string }
-                    .flatMap { $0.lowercased().split(whereSeparator: { !$0.isLetter }) }
-                    .map { String($0) }
-                    .filter { $0.count >= 3 }
-            )
-
-            let pdfKitWords: Set<String> = Set(
-                bestSampleText.lowercased()
-                    .split(whereSeparator: { !$0.isLetter })
-                    .map { String($0) }
-                    .filter { $0.count >= 3 }
-            )
-
-            guard !ocrWords.isEmpty && !pdfKitWords.isEmpty else {
-                documentTextLayerGarbled = false
-                Log.debug("[DocumentProcessor] [iOS26] Text layer validation: insufficient words (OCR: \(ocrWords.count), PDFKit: \(pdfKitWords.count))", category: .ingestion)
-                break textLayerValidation
-            }
-
-            let intersection = ocrWords.intersection(pdfKitWords).count
-            let union = ocrWords.union(pdfKitWords).count
-            let jaccard = Double(intersection) / Double(union)
-
-            Log.info("[DocumentProcessor] [iOS26] Text layer Jaccard = \(String(format: "%.3f", jaccard)) (OCR: \(ocrWords.count) words, PDFKit: \(pdfKitWords.count) words, shared: \(intersection))", category: .ingestion)
-
-            if jaccard < 0.15 {
-                documentTextLayerGarbled = true
-                Log.warning("[DocumentProcessor] ⚠️ [iOS26] GARBLED TEXT LAYER (Jaccard=\(String(format: "%.3f", jaccard))). Font substitution cipher. ALL pages → Vision OCR.", category: .ingestion)
-                let ocrSample = Array(ocrWords.prefix(5)).joined(separator: ", ")
-                let pdfSample = Array(pdfKitWords.prefix(5)).joined(separator: ", ")
-                Log.info("[DocumentProcessor] [iOS26] OCR sample: [\(ocrSample)] vs PDFKit sample: [\(pdfSample)]", category: .ingestion)
-            } else {
-                // Main Jaccard passed. For marginal scores (0.15–0.45), run a secondary
-                // check for AutoCAD SHX / CAD font encoding (Gap 3 fix).
-                // SHX fonts score Jaccard 0.20–0.40 because ASCII digits survive, but
-                // dimension symbols and special chars are remapped to garbage.
-                // Numeric tokens (part numbers, dimensions) don't survive SHX — they're
-                // the most reliable signal for this encoding class.
-                var shxGarbled = false
-                if jaccard < 0.45 {
-                    let numericPattern = #"\b\d+\.?\d*\s*[A-Za-z]{0,4}\b"#
-                    if let numericRegex = try? NSRegularExpression(pattern: numericPattern) {
-                        let extractNumerics = { (text: String) -> Set<String> in
-                            let range = NSRange(text.startIndex..., in: text)
-                            return Set(
-                                numericRegex.matches(in: text, range: range)
-                                    .compactMap { Range($0.range, in: text).map { String(text[$0]).lowercased().trimmingCharacters(in: .whitespaces) } }
-                                    .filter { $0.count >= 2 }
-                            )
-                        }
-                        let ocrText = ocrObservations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
-                        let ocrNumerics = extractNumerics(ocrText)
-                        let pdfNumerics = extractNumerics(bestSampleText)
-                        if pdfNumerics.count >= 5 {
-                            let numIntersection = ocrNumerics.intersection(pdfNumerics).count
-                            let numUnion = ocrNumerics.union(pdfNumerics).count
-                            let numericJaccard = numUnion > 0 ? Double(numIntersection) / Double(numUnion) : 1.0
-                            Log.info("[DocumentProcessor] [iOS26] SHX secondary check: \(pdfNumerics.count) PDF numerics, \(ocrNumerics.count) OCR numerics, numeric Jaccard=\(String(format: "%.3f", numericJaccard))", category: .ingestion)
-                            if numericJaccard < 0.25 {
-                                shxGarbled = true
-                                Log.warning("[DocumentProcessor] ⚠️ [iOS26] SHX FONT ENCODING DETECTED (numeric Jaccard=\(String(format: "%.3f", numericJaccard)), text Jaccard=\(String(format: "%.3f", jaccard))). Likely AutoCAD/CAD/SHX PDF. ALL pages → Vision OCR.", category: .ingestion)
-                            }
-                        }
-                    }
-                }
-                documentTextLayerGarbled = shxGarbled
-                if !shxGarbled {
-                    Log.debug("[DocumentProcessor] [iOS26] ✓ Text layer validated (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
-                }
-            }
-        }
+        let documentTextLayerGarbled = await validateDocumentTextLayer(endPageIdx: endPageIdx, startPageIdx: startPageIdx, pdfDocument: pdfDocument, pageCount: pageCount)
 
         // Check if this is a digital PDF with good native text
         // PHASE -1 override: if text layer is garbled, NEVER use hybrid mode
@@ -372,6 +244,142 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A1: decides once per document whether its text layer is garbled (a font-substitution cipher) by reading a sample page with OCR and comparing the two.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func validateDocumentTextLayer(endPageIdx: Int, startPageIdx: Int, pdfDocument: PDFDocument, pageCount: Int) async -> Bool {
+        let documentTextLayerGarbled: Bool
+        textLayerValidation: do {
+            let sliceCount = (endPageIdx - startPageIdx) + 1
+            let sampleIndices = sliceCount <= 3
+                ? Array(startPageIdx...endPageIdx)
+                : [startPageIdx, startPageIdx + sliceCount / 3, startPageIdx + 2 * sliceCount / 3]
+
+            var bestSampleText = ""
+            var bestSamplePage: PDFPage?
+            var unreadableSampleSeen = false
+
+            for idx in sampleIndices {
+                guard let page = pdfDocument.page(at: idx) else { continue }
+                let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                // OCR can check a text layer only in a script it reads. Vision has no model for Greek, Hebrew and
+                // many other scripts, so on such a page it returns other letters, the two share no word, and through
+                // 5.6 a correct text layer was judged a cipher: every page went to OCR and the garbage filter emptied
+                // what OCR gave (measured 2026-10-19, a Greek page imported with no text). Such a page is not a
+                // sample; a page of the same document in a script Vision reads still is (review, 2026-10-19).
+                guard OCRConfiguration.visionCanReadMostOf(text) else {
+                    if text.count >= 50 { unreadableSampleSeen = true }
+                    continue
+                }
+                if text.count > bestSampleText.count {
+                    bestSampleText = text
+                    bestSamplePage = page
+                }
+            }
+
+            // No text layer at all → not garbled, just needs OCR
+            guard bestSampleText.count >= 50, let samplePage = bestSamplePage else {
+                documentTextLayerGarbled = false
+                if unreadableSampleSeen {
+                    Log.info("[DocumentProcessor] [iOS26] Text layer kept without an OCR check: the sampled pages' letters are mostly in a script Vision's text recognition does not read", category: .ingestion)
+                } else {
+                    Log.debug("[DocumentProcessor] [iOS26] Text layer validation: no/minimal text layer, skipping", category: .ingestion)
+                }
+                break textLayerValidation
+            }
+
+            emitProgress(stage: "validating", detail: "🔍 Validating text layer...", page: nil, totalPages: pageCount)
+            guard let sampleImage = renderPDFPageAsImage(page: samplePage) else {
+                documentTextLayerGarbled = false
+                Log.warning("[DocumentProcessor] [iOS26] Text layer validation: failed to render sample page", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let ocrObservations: [VNRecognizedTextObservation]
+            do {
+                ocrObservations = try await performOCRWithObservationsAsync(on: sampleImage)
+            } catch {
+                documentTextLayerGarbled = false
+                Log.warning("[DocumentProcessor] [iOS26] Text layer validation: OCR failed (\(error.localizedDescription)), assuming OK", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let ocrWords: Set<String> = Set(
+                ocrObservations
+                    .compactMap { $0.topCandidates(1).first?.string }
+                    .flatMap { $0.lowercased().split(whereSeparator: { !$0.isLetter }) }
+                    .map { String($0) }
+                    .filter { $0.count >= 3 }
+            )
+
+            let pdfKitWords: Set<String> = Set(
+                bestSampleText.lowercased()
+                    .split(whereSeparator: { !$0.isLetter })
+                    .map { String($0) }
+                    .filter { $0.count >= 3 }
+            )
+
+            guard !ocrWords.isEmpty && !pdfKitWords.isEmpty else {
+                documentTextLayerGarbled = false
+                Log.debug("[DocumentProcessor] [iOS26] Text layer validation: insufficient words (OCR: \(ocrWords.count), PDFKit: \(pdfKitWords.count))", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let intersection = ocrWords.intersection(pdfKitWords).count
+            let union = ocrWords.union(pdfKitWords).count
+            let jaccard = Double(intersection) / Double(union)
+
+            Log.info("[DocumentProcessor] [iOS26] Text layer Jaccard = \(String(format: "%.3f", jaccard)) (OCR: \(ocrWords.count) words, PDFKit: \(pdfKitWords.count) words, shared: \(intersection))", category: .ingestion)
+
+            if jaccard < 0.15 {
+                documentTextLayerGarbled = true
+                Log.warning("[DocumentProcessor] ⚠️ [iOS26] GARBLED TEXT LAYER (Jaccard=\(String(format: "%.3f", jaccard))). Font substitution cipher. ALL pages → Vision OCR.", category: .ingestion)
+                let ocrSample = Array(ocrWords.prefix(5)).joined(separator: ", ")
+                let pdfSample = Array(pdfKitWords.prefix(5)).joined(separator: ", ")
+                Log.info("[DocumentProcessor] [iOS26] OCR sample: [\(ocrSample)] vs PDFKit sample: [\(pdfSample)]", category: .ingestion)
+            } else {
+                // Main Jaccard passed. For marginal scores (0.15–0.45), run a secondary
+                // check for AutoCAD SHX / CAD font encoding (Gap 3 fix).
+                // SHX fonts score Jaccard 0.20–0.40 because ASCII digits survive, but
+                // dimension symbols and special chars are remapped to garbage.
+                // Numeric tokens (part numbers, dimensions) don't survive SHX — they're
+                // the most reliable signal for this encoding class.
+                var shxGarbled = false
+                if jaccard < 0.45 {
+                    let numericPattern = #"\b\d+\.?\d*\s*[A-Za-z]{0,4}\b"#
+                    if let numericRegex = try? NSRegularExpression(pattern: numericPattern) {
+                        let extractNumerics = { (text: String) -> Set<String> in
+                            let range = NSRange(text.startIndex..., in: text)
+                            return Set(
+                                numericRegex.matches(in: text, range: range)
+                                    .compactMap { Range($0.range, in: text).map { String(text[$0]).lowercased().trimmingCharacters(in: .whitespaces) } }
+                                    .filter { $0.count >= 2 }
+                            )
+                        }
+                        let ocrText = ocrObservations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
+                        let ocrNumerics = extractNumerics(ocrText)
+                        let pdfNumerics = extractNumerics(bestSampleText)
+                        if pdfNumerics.count >= 5 {
+                            let numIntersection = ocrNumerics.intersection(pdfNumerics).count
+                            let numUnion = ocrNumerics.union(pdfNumerics).count
+                            let numericJaccard = numUnion > 0 ? Double(numIntersection) / Double(numUnion) : 1.0
+                            Log.info("[DocumentProcessor] [iOS26] SHX secondary check: \(pdfNumerics.count) PDF numerics, \(ocrNumerics.count) OCR numerics, numeric Jaccard=\(String(format: "%.3f", numericJaccard))", category: .ingestion)
+                            if numericJaccard < 0.25 {
+                                shxGarbled = true
+                                Log.warning("[DocumentProcessor] ⚠️ [iOS26] SHX FONT ENCODING DETECTED (numeric Jaccard=\(String(format: "%.3f", numericJaccard)), text Jaccard=\(String(format: "%.3f", jaccard))). Likely AutoCAD/CAD/SHX PDF. ALL pages → Vision OCR.", category: .ingestion)
+                            }
+                        }
+                    }
+                }
+                documentTextLayerGarbled = shxGarbled
+                if !shxGarbled {
+                    Log.debug("[DocumentProcessor] [iOS26] ✓ Text layer validated (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
+                }
+            }
+        }
+        return documentTextLayerGarbled
     }
 
     /// Step A8: in hybrid mode, detects columns and tables on the sub-batch's pages that need Vision, concurrently, and merges the reading-order text into their render records.
