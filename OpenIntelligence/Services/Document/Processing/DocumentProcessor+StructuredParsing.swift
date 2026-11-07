@@ -1419,138 +1419,7 @@ extension DocumentProcessor {
                 flushStructureParagraphs(paragraphBuffer: &paragraphBuffer, chunks: &chunks, chunkIndex: &chunkIndex, documentId: documentId, config: config, documentCategory: documentCategory)
 
                 if element.elementType == "table", let tableData = element.tableData {
-                    let tableTitle = resolveTableTitle(tableData: tableData, sectionTitle: currentSectionTitle)
-                    let structuredTable = structuredTablePayload(
-                        from: tableData,
-                        tableTitle: tableTitle,
-                        extractionQuality: element.qualityScore,
-                        extractionSource: element.extractionSource
-                    )
-                    let siblingGroupId = siblingGroupIdentifier(
-                        prefix: "table",
-                        pageNumber: element.pageNumber,
-                        title: tableTitle
-                    )
-
-                    let structuralText = buildStructuralTableText(
-                        tableData: tableData,
-                        tableTitle: tableTitle,
-                        filename: filename,
-                        sectionPath: currentSectionPath
-                    )
-
-                    let structuralWords = countWords(structuralText)
-                    let maxAtomicWords = 380
-                    if structuralWords > maxAtomicWords {
-                        let baseMetadata = makeChunkMetadata(
-                            chunkIndex: chunkIndex,
-                            text: structuralText,
-                            pageNumber: element.pageNumber,
-                            sectionTitle: currentSectionTitle,
-                            structureType: "table",
-                            chunkType: .tableStructural,
-                            documentCategory: documentCategory,
-                            sectionPath: currentSectionPath,
-                            semanticDensity: 0.90,
-                            hasNumericData: true,
-                            hasListStructure: false,
-                            entities: element.detectedEntities.map(\ .value),
-                            tableTitle: tableTitle,
-                            siblingGroupId: siblingGroupId
-                        )
-                        let splitChunks = splitOversizedAtomicChunk(
-                            text: structuralText,
-                            contextPrefix: "",
-                            element: element,
-                            baseMetadata: baseMetadata,
-                            parentText: currentSectionTitle,
-                            structuredTable: structuredTable,
-                            maxWords: maxAtomicWords
-                        )
-                        chunks.append(contentsOf: splitChunks)
-                        chunkIndex += splitChunks.count
-                    } else {
-                        appendStructureChunk(
-                            chunks: &chunks,
-                            chunkIndex: &chunkIndex,
-                            documentCategory: documentCategory,
-                            text: structuralText,
-                            parentText: currentSectionTitle,
-                            pageNumber: element.pageNumber,
-                            sectionTitle: currentSectionTitle,
-                            structureType: "table",
-                            chunkType: .tableStructural,
-                            semanticDensity: 0.90,
-                            hasNumericData: true,
-                            hasListStructure: false,
-                            sectionPath: currentSectionPath,
-                            entities: element.detectedEntities.map(\ .value),
-                            tableTitle: tableTitle,
-                            siblingGroupId: siblingGroupId,
-                            structuredTable: structuredTable
-                        )
-                    }
-
-                    let semanticText = buildSemanticTableSummary(
-                        tableData: tableData,
-                        tableTitle: tableTitle,
-                        filename: filename,
-                        sectionPath: currentSectionPath,
-                        documentCategory: documentCategory
-                    )
-                    appendStructureChunk(
-                        chunks: &chunks,
-                        chunkIndex: &chunkIndex,
-                        documentCategory: documentCategory,
-                        text: semanticText,
-                        parentText: currentSectionTitle,
-                        pageNumber: element.pageNumber,
-                        sectionTitle: currentSectionTitle,
-                        structureType: "table",
-                        chunkType: .tableSemantic,
-                        semanticDensity: 0.82,
-                        hasNumericData: semanticText.rangeOfCharacter(from: .decimalDigits) != nil,
-                        hasListStructure: false,
-                        sectionPath: currentSectionPath,
-                        entities: element.detectedEntities.map(\ .value),
-                        tableTitle: tableTitle,
-                        siblingGroupId: siblingGroupId
-                    )
-
-                    if shouldEmitCompatibilityRowChunks(
-                        tableData: tableData,
-                        tableTitle: tableTitle,
-                        extractionSource: element.extractionSource
-                    ) {
-                        let rowTexts = buildCompatibilityRowTexts(
-                            tableData: tableData,
-                            tableTitle: tableTitle,
-                            filename: filename,
-                            sectionPath: currentSectionPath
-                        )
-                        for rowText in rowTexts {
-                            appendStructureChunk(
-                                chunks: &chunks,
-                                chunkIndex: &chunkIndex,
-                                documentCategory: documentCategory,
-                                text: rowText,
-                                parentText: currentSectionTitle,
-                                pageNumber: element.pageNumber,
-                                sectionTitle: currentSectionTitle,
-                                structureType: "table",
-                                chunkType: .tableStructural,
-                                semanticDensity: 0.88,
-                                hasNumericData: rowText.rangeOfCharacter(from: .decimalDigits) != nil,
-                                hasListStructure: false,
-                                sectionPath: currentSectionPath,
-                                entities: element.detectedEntities.map(\ .value),
-                                tableTitle: tableTitle,
-                                siblingGroupId: siblingGroupId
-                            )
-                        }
-                    }
-
-                    Log.debug("[DocumentProcessor] Created companion table chunks for page \(element.pageNumber), section: \(currentSectionTitle ?? "none")", category: .ingestion)
+                    appendTableChunks(currentSectionTitle: currentSectionTitle, tableData: tableData, element: element, filename: filename, currentSectionPath: currentSectionPath, chunkIndex: &chunkIndex, documentCategory: documentCategory, chunks: &chunks)
                     continue
                 }
 
@@ -1593,6 +1462,143 @@ extension DocumentProcessor {
         logStructureBreakdown(chunks: chunks)
 
         return chunks
+    }
+
+    /// Steps B7 to B9: turns a table element into its structural chunk (split above 380 words), its semantic summary and any compatibility rows, its continue kept in the host.
+    /// Moved unchanged from `createStructureAwareChunks` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func appendTableChunks(currentSectionTitle: String?, tableData: TableData, element: DocumentProcessor.StructuredElementWrapper, filename: String, currentSectionPath: [String], chunkIndex: inout Int, documentCategory: DocumentSemanticCategory, chunks: inout [DocumentProcessor.ProcessedChunk]) {
+        let tableTitle = resolveTableTitle(tableData: tableData, sectionTitle: currentSectionTitle)
+        let structuredTable = structuredTablePayload(
+            from: tableData,
+            tableTitle: tableTitle,
+            extractionQuality: element.qualityScore,
+            extractionSource: element.extractionSource
+        )
+        let siblingGroupId = siblingGroupIdentifier(
+            prefix: "table",
+            pageNumber: element.pageNumber,
+            title: tableTitle
+        )
+
+        let structuralText = buildStructuralTableText(
+            tableData: tableData,
+            tableTitle: tableTitle,
+            filename: filename,
+            sectionPath: currentSectionPath
+        )
+
+        let structuralWords = countWords(structuralText)
+        let maxAtomicWords = 380
+        if structuralWords > maxAtomicWords {
+            let baseMetadata = makeChunkMetadata(
+                chunkIndex: chunkIndex,
+                text: structuralText,
+                pageNumber: element.pageNumber,
+                sectionTitle: currentSectionTitle,
+                structureType: "table",
+                chunkType: .tableStructural,
+                documentCategory: documentCategory,
+                sectionPath: currentSectionPath,
+                semanticDensity: 0.90,
+                hasNumericData: true,
+                hasListStructure: false,
+                entities: element.detectedEntities.map(\ .value),
+                tableTitle: tableTitle,
+                siblingGroupId: siblingGroupId
+            )
+            let splitChunks = splitOversizedAtomicChunk(
+                text: structuralText,
+                contextPrefix: "",
+                element: element,
+                baseMetadata: baseMetadata,
+                parentText: currentSectionTitle,
+                structuredTable: structuredTable,
+                maxWords: maxAtomicWords
+            )
+            chunks.append(contentsOf: splitChunks)
+            chunkIndex += splitChunks.count
+        } else {
+            appendStructureChunk(
+                chunks: &chunks,
+                chunkIndex: &chunkIndex,
+                documentCategory: documentCategory,
+                text: structuralText,
+                parentText: currentSectionTitle,
+                pageNumber: element.pageNumber,
+                sectionTitle: currentSectionTitle,
+                structureType: "table",
+                chunkType: .tableStructural,
+                semanticDensity: 0.90,
+                hasNumericData: true,
+                hasListStructure: false,
+                sectionPath: currentSectionPath,
+                entities: element.detectedEntities.map(\ .value),
+                tableTitle: tableTitle,
+                siblingGroupId: siblingGroupId,
+                structuredTable: structuredTable
+            )
+        }
+
+        let semanticText = buildSemanticTableSummary(
+            tableData: tableData,
+            tableTitle: tableTitle,
+            filename: filename,
+            sectionPath: currentSectionPath,
+            documentCategory: documentCategory
+        )
+        appendStructureChunk(
+            chunks: &chunks,
+            chunkIndex: &chunkIndex,
+            documentCategory: documentCategory,
+            text: semanticText,
+            parentText: currentSectionTitle,
+            pageNumber: element.pageNumber,
+            sectionTitle: currentSectionTitle,
+            structureType: "table",
+            chunkType: .tableSemantic,
+            semanticDensity: 0.82,
+            hasNumericData: semanticText.rangeOfCharacter(from: .decimalDigits) != nil,
+            hasListStructure: false,
+            sectionPath: currentSectionPath,
+            entities: element.detectedEntities.map(\ .value),
+            tableTitle: tableTitle,
+            siblingGroupId: siblingGroupId
+        )
+
+        if shouldEmitCompatibilityRowChunks(
+            tableData: tableData,
+            tableTitle: tableTitle,
+            extractionSource: element.extractionSource
+        ) {
+            let rowTexts = buildCompatibilityRowTexts(
+                tableData: tableData,
+                tableTitle: tableTitle,
+                filename: filename,
+                sectionPath: currentSectionPath
+            )
+            for rowText in rowTexts {
+                appendStructureChunk(
+                    chunks: &chunks,
+                    chunkIndex: &chunkIndex,
+                    documentCategory: documentCategory,
+                    text: rowText,
+                    parentText: currentSectionTitle,
+                    pageNumber: element.pageNumber,
+                    sectionTitle: currentSectionTitle,
+                    structureType: "table",
+                    chunkType: .tableStructural,
+                    semanticDensity: 0.88,
+                    hasNumericData: rowText.rangeOfCharacter(from: .decimalDigits) != nil,
+                    hasListStructure: false,
+                    sectionPath: currentSectionPath,
+                    entities: element.detectedEntities.map(\ .value),
+                    tableTitle: tableTitle,
+                    siblingGroupId: siblingGroupId
+                )
+            }
+        }
+
+        Log.debug("[DocumentProcessor] Created companion table chunks for page \(element.pageNumber), section: \(currentSectionTitle ?? "none")", category: .ingestion)
     }
 
     /// Step B11: turns a list element into one chunk per normalised item, its continue kept in the host.
