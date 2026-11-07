@@ -935,6 +935,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I18 | N (reads and cuts the document into passages and journals how long the main thread went unanswered meanwhile) into `parseDocumentForImport` |
 | I19 | L (when the library adapts itself, pre-scans the document's text and stores the chunking plan it recommends before the import uses it) into `prescanChunkingPlan` |
 | I20 | J (installs the document processor's text and rich progress handlers, which move the tracked item through its extraction stages) into `installProgressHandlers` |
+| I21 | G (picks the library and its embedding service and, when the provider resolves to another one or another dimension, saves the corrected settings and clears the library's vectors) into `resolveEmbeddingService` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

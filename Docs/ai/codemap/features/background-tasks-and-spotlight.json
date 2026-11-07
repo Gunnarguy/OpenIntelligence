@@ -4,7 +4,7 @@
   "name": "Background Tasks and Spotlight",
   "aliases": ["background task scheduler", "Spotlight indexing", "transcript persistence", "background indexing sweep"],
   "purpose": "Runs maintenance in the background with BGTaskScheduler, adds documents to Spotlight, and saves transcripts.",
-  "revision": "c10d9515",
+  "revision": "3e2ba9d7",
   "verified_on": "2026-11-07",
   "entry_points": ["BackgroundTaskService", "SpotlightIndexService", "TranscriptPersistenceService"],
   "files": [
@@ -43,7 +43,7 @@
     {"from": "SpotlightIndexService", "type": "calls", "to": "DSHaptics.soft", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift", "line": 96, "match": "Task { @MainActor in DSHaptics.soft() }"}], "by": "build", "note": "named in the body"},
     {"from": "ContentView.refreshSharedWorkspaceIfNeeded", "type": "depends_on", "to": "SpotlightIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/App/ContentView.swift", "line": 772, "match": "SpotlightIndexService.shared.deindexAllDocuments(in: containerId)"}], "by": "build", "note": "named there"},
     {"from": "ContainerService.createContainer", "type": "depends_on", "to": "SpotlightIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift", "line": 150, "match": "SpotlightIndexService.shared.indexContainer(container)"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.addDocument", "type": "depends_on", "to": "SpotlightIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 1525, "match": "SpotlightIndexService.shared.indexDocument("}], "by": "build", "note": "named there"},
+    {"from": "RAGService.addDocument", "type": "depends_on", "to": "SpotlightIndexService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 1537, "match": "SpotlightIndexService.shared.indexDocument("}], "by": "build", "note": "named there"},
     {"from": "RAGService.clearChatHistory", "type": "depends_on", "to": "TranscriptPersistenceService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ChatHistory.swift", "line": 150, "match": "TranscriptPersistenceService.shared.deleteTranscript(for: resolvedId)"}], "by": "build", "note": "named there"}
   ],
   "docs": [],

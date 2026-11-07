@@ -1043,56 +1043,12 @@ extension RAGService {
             self.documentsForContainer(activeContainerId).count
         }
 
-        // Get the active container to determine which embedding provider to use
-        var container = await MainActor.run {
-            self.containerService.containers.first { $0.id == activeContainerId }
-        }
-        // FIXED: Default to CoreML sentence embedding (better accuracy) instead of deprecated NLEmbedding
-        var providerId = container?.embeddingProviderId ?? "coreml_sentence_embedding"
-        var initialDimension = container?.embeddingDim ?? 384
-        let chunkOverride = chunkingOverride(for: container)
-
-        // Create container-specific embedding service
-        var containerEmbeddingService = EmbeddingService.forProvider(
-            id: providerId,
-            targetDimension: initialDimension
-        )
-
-        // Check if we got a fallback provider and update providerId accordingly
-        let actualProvider = containerEmbeddingService.actualProviderId
-        let actualDimension = containerEmbeddingService.outputDimension
-
-        if actualProvider != providerId || actualDimension != initialDimension {
-            Log.warning(
-                "[RAGService] Requested embedding context '\(providerId)' \(initialDimension)D resolved to '\(actualProvider)' \(actualDimension)D. Updating container + clearing index.",
-                category: .ingestion
-            )
-
-            // Persist corrected config so subsequent queries/ingestion use the real dimension.
-            if var current = container {
-                current.embeddingProviderId = actualProvider
-                current.embeddingDim = actualDimension
-                await MainActor.run {
-                    self.containerService.updateContainer(current)
-                    self.invalidateVectorStore(for: activeContainerId, clearStorage: true)
-                }
-                container = current
-            } else {
-                await MainActor.run {
-                    self.invalidateVectorStore(for: activeContainerId, clearStorage: true)
-                }
-            }
-
-            providerId = actualProvider
-            initialDimension = actualDimension
-
-            // Recreate the embedding service with the reconciled dimension to keep downstream logging consistent.
-            containerEmbeddingService = EmbeddingService.forProvider(
-                id: providerId,
-                targetDimension: initialDimension,
-                allowFallback: true
-            )
-        }
+        let __resolveEmbeddingServiceResult = await resolveEmbeddingService(activeContainerId: activeContainerId)
+        var containerEmbeddingService = __resolveEmbeddingServiceResult.containerEmbeddingService
+        var providerId = __resolveEmbeddingServiceResult.providerId
+        let chunkOverride = __resolveEmbeddingServiceResult.chunkOverride
+        var container = __resolveEmbeddingServiceResult.container
+        let initialDimension = __resolveEmbeddingServiceResult.initialDimension
 
         let pipelineStartTime = Date()
 
@@ -1347,6 +1303,62 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step G: picks the library and its embedding service and, when the provider resolves to another one or another dimension, saves the corrected settings and clears the library's vectors.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func resolveEmbeddingService(activeContainerId: UUID) async -> (containerEmbeddingService: EmbeddingService, providerId: String, chunkOverride: DocumentProcessor.ChunkingOverride?, container: KnowledgeContainer?, initialDimension: Int) {
+        // Get the active container to determine which embedding provider to use
+        var container = await MainActor.run {
+            self.containerService.containers.first { $0.id == activeContainerId }
+        }
+        // FIXED: Default to CoreML sentence embedding (better accuracy) instead of deprecated NLEmbedding
+        var providerId = container?.embeddingProviderId ?? "coreml_sentence_embedding"
+        var initialDimension = container?.embeddingDim ?? 384
+        let chunkOverride = chunkingOverride(for: container)
+
+        // Create container-specific embedding service
+        var containerEmbeddingService = EmbeddingService.forProvider(
+            id: providerId,
+            targetDimension: initialDimension
+        )
+
+        // Check if we got a fallback provider and update providerId accordingly
+        let actualProvider = containerEmbeddingService.actualProviderId
+        let actualDimension = containerEmbeddingService.outputDimension
+
+        if actualProvider != providerId || actualDimension != initialDimension {
+            Log.warning(
+                "[RAGService] Requested embedding context '\(providerId)' \(initialDimension)D resolved to '\(actualProvider)' \(actualDimension)D. Updating container + clearing index.",
+                category: .ingestion
+            )
+
+            // Persist corrected config so subsequent queries/ingestion use the real dimension.
+            if var current = container {
+                current.embeddingProviderId = actualProvider
+                current.embeddingDim = actualDimension
+                await MainActor.run {
+                    self.containerService.updateContainer(current)
+                    self.invalidateVectorStore(for: activeContainerId, clearStorage: true)
+                }
+                container = current
+            } else {
+                await MainActor.run {
+                    self.invalidateVectorStore(for: activeContainerId, clearStorage: true)
+                }
+            }
+
+            providerId = actualProvider
+            initialDimension = actualDimension
+
+            // Recreate the embedding service with the reconciled dimension to keep downstream logging consistent.
+            containerEmbeddingService = EmbeddingService.forProvider(
+                id: providerId,
+                targetDimension: initialDimension,
+                allowFallback: true
+            )
+        }
+        return (containerEmbeddingService: containerEmbeddingService, providerId: providerId, chunkOverride: chunkOverride, container: container, initialDimension: initialDimension)
     }
 
     /// Step J: installs the document processor's text and rich progress handlers, which move the tracked item through its extraction stages.

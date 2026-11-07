@@ -47,7 +47,7 @@ group, so the app picks those pages up on its next launch (`Features/Camera/Lock
 | Area | Source | Owning document |
 |---|---|---|
 | Process-wide stores and the engine | `OpenIntelligence/App/AppServices.swift`: `AppServices.shared` (5.8, 2026-11-03) builds once per launch the app's `RAGService`, `WorkspaceSyncService`, `ContainerService`, `EntitlementStore`, `SettingsStore` and `ModelResolutionService`, and every window's `ContentView` observes them; before, each window built its own set and each set started its own launch work. `[evidence_level: code_verified, confidence: exact, evidence_source: AppServices.swift:14-55]` | Atlas §9 |
-| Ingestion, chunking, OCR | `OpenIntelligence/Services/Document/` reads, cleans and cuts the text. Corrected 2026-10-20: the queue and the import itself (copy, duplicate check, embedding, both stores, the overview passage) are `RAGService.enqueueDocuments` and `RAGService.addDocument` in `Services/RAG/Orchestration/RAGService.swift`, with `RAGService+Streaming.swift` and `RAGService+TextStreaming.swift` for very large files. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService+Import.swift:35, RAGService+Import.swift:862, RAGService+Import.swift:1141-1182]` | `Docs/INGESTION_PIPELINE.md`, §1 "The order the code runs" |
+| Ingestion, chunking, OCR | `OpenIntelligence/Services/Document/` reads, cleans and cuts the text. Corrected 2026-10-20: the queue and the import itself (copy, duplicate check, embedding, both stores, the overview passage) are `RAGService.enqueueDocuments` and `RAGService.addDocument` in `Services/RAG/Orchestration/RAGService.swift`, with `RAGService+Streaming.swift` and `RAGService+TextStreaming.swift` for very large files. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService+Import.swift:35, RAGService+Import.swift:862, RAGService+Import.swift:1097-1138]` | `Docs/INGESTION_PIPELINE.md`, §1 "The order the code runs" |
 | Embedding and providers | `OpenIntelligence/Services/Embedding/` | Atlas §17 |
 | Vector storage | `OpenIntelligence/Services/VectorStore/`. Corrected 2026-10-20: `BNNSVectorDatabase`, one flat Float32 file per library searched by brute force, not an HNSW index (see Persistence). `[evidence_level: code_verified, confidence: high, evidence_source: BNNSVectorDatabase.swift:26-41, 1104-1201, VectorStoreRouter.swift:154-172, Package.resolved]` | Atlas §9 |
 | Keyword index (SQLite FTS5) | `OpenIntelligence/Services/Storage/` | Atlas §9 |
@@ -104,7 +104,7 @@ one, and one row per passage goes in after the vectors are stored. A single-page
 no page rows, and a file imported in pieces stores its whole text once at the end. `RAGService.addDocument`
 drives both, and `Docs/INGESTION_PIPELINE.md` §1, "The order the code runs", has the steps.
 `[evidence_level: code_verified, confidence: high, evidence_source: DocumentProcessor+Import.swift:337-365, 396,
-RAGService+Import.swift:1247, 2008, RAGService+TextStreaming.swift:320-321]`
+RAGService+Import.swift:1203, 2020, RAGService+TextStreaming.swift:320-321]`
 
 Query → `Services/Query` rewrites and classifies intent → `HybridSearchService` runs dense vector
 search and lexical scoring (concurrently on the FTS5 path), fuses them with reciprocal rank fusion
@@ -170,7 +170,7 @@ stand-in is used, the library is switched to the stand-in and its vectors are cl
 on. `[evidence_level: code_verified,
 confidence: high, evidence_source: BNNSVectorDatabase.swift:26-41, 1036-1091, 1104-1201,
 VectorStoreRouter.swift:154-172, Package.resolved, SQLiteFullTextService.swift:87-94, 242-255, SQLiteFullTextService+Chunks.swift:714-735,
-RAGService+Import.swift:1047-1095, 1247-1248]`
+RAGService+Import.swift:1312-1360, 1203-1204]`
 
 ## Security and privacy boundaries
 
