@@ -4,7 +4,7 @@
   "name": "Hybrid Retrieval and Fusion",
   "aliases": ["hybrid retrieval", "hybrid search", "BM25 scoring", "reciprocal rank fusion", "reranking", "cross-encoder reranker", "context packing", "iterative retrieval", "retrieval trace", "reranker", "rerank"],
   "purpose": "Finds the chunks for a question by running vector and keyword search together, fusing them with reciprocal rank fusion, reranking, and packing the context.",
-  "revision": "e5efc3c2",
+  "revision": "e147f2c6",
   "verified_on": "2026-11-07",
   "entry_points": ["HybridSearchService", "RAGEngine.reciprocalRankFusion", "RAGEngine.rerank", "RAGEngine.rerankWithCrossEncoder", "ContextPackingService", "IterativeRetrievalService", "RetrievalTraceCollector.Stage"],
   "files": [

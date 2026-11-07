@@ -4403,59 +4403,7 @@ extension RAGService {
                     genConfig.maxTokens = capped
                 }
 
-                // Inject conversational history to support follow-up questions
-                // e.g. "What is it?" uses history to resolve "it"
-                let history = chatHistory(for: selectedId)
-
-                // Only drop the last message if it matches the current question (avoid duplicating)
-                // or if we know for sure ChatScreen persisted it. Safest is to check content match.
-                let lastMsg = history.last
-                let dropsCurrent =
-                    lastMsg?.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                    == question.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                let previousMessages =
-                    history
-                    .filter { $0.role != .system }
-                    .dropLast(dropsCurrent ? 1 : 0)
-                    .suffix(4)  // Keep last 4 turns (2 User, 2 Assistant)
-
-                // Use ConversationMemoryService for enhanced context if enabled
-                let useConversationMemory = settingsStore?.enableConversationMemory ?? true
-                var historyContext = ""
-
-                if #available(iOS 26.0, *), useConversationMemory {
-                    // Get intelligent memory context with summarization
-                    // DYNAMIC: Pass question for semantic relevance scoring and adaptive budgeting
-                    let memoryContext = ConversationMemoryService.shared.contextInjection(
-                        for: selectedId, query: question)
-                    if !memoryContext.isEmpty {
-                        historyContext = memoryContext + "\nCURRENT QUESTION: "
-                        Log.debug(
-                            "[ConversationMemory] Injected memory context (\(memoryContext.count) chars)",
-                            category: .retrieval)
-                    }
-                }
-
-                // Fallback to simple history if memory service didn't provide context
-                if historyContext.isEmpty, !previousMessages.isEmpty {
-                    historyContext =
-                        "PREVIOUS CONVERSATION:\n"
-                        + previousMessages.map {
-                            let role = $0.role == .user ? "User" : "Assistant"
-                            // Truncate long history items to preserve token budget for RAG context
-                            let content = $0.content.replacingOccurrences(of: "\n", with: " ")
-                            let truncated = content.count > 300 ? String(content.prefix(300)) + "..." : content
-                            return "\(role): \(truncated)"
-                        }.joined(separator: "\n") + "\n\nCURRENT QUESTION: "
-                }
-
-                let requiresCitations =
-                    retrievalConfig.requireExplicitCitations
-                    || qualityModeRequiresCitations
-                // System prompt already contains citation and format instructions
-                // Don't add conflicting instructions that cause overly brief responses
-                let promptForGeneration: String = historyContext + question
+                let (promptForGeneration, requiresCitations) = buildGenerationPrompt(selectedId: selectedId, question: question, retrievalConfig: retrievalConfig, qualityModeRequiresCitations: qualityModeRequiresCitations)
 
                 // Attempt generation with retry on context-overflow
                 var llmResponse: LLMResponse
@@ -5698,6 +5646,65 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 6 (history): adds conversation history or memory to the prompt and decides whether citations are required.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func buildGenerationPrompt(selectedId: UUID, question: String, retrievalConfig: RetrievalConfig, qualityModeRequiresCitations: Bool) -> (promptForGeneration: String, requiresCitations: Bool) {
+        // Inject conversational history to support follow-up questions
+        // e.g. "What is it?" uses history to resolve "it"
+        let history = chatHistory(for: selectedId)
+
+        // Only drop the last message if it matches the current question (avoid duplicating)
+        // or if we know for sure ChatScreen persisted it. Safest is to check content match.
+        let lastMsg = history.last
+        let dropsCurrent =
+            lastMsg?.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            == question.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let previousMessages =
+            history
+            .filter { $0.role != .system }
+            .dropLast(dropsCurrent ? 1 : 0)
+            .suffix(4)  // Keep last 4 turns (2 User, 2 Assistant)
+
+        // Use ConversationMemoryService for enhanced context if enabled
+        let useConversationMemory = settingsStore?.enableConversationMemory ?? true
+        var historyContext = ""
+
+        if #available(iOS 26.0, *), useConversationMemory {
+            // Get intelligent memory context with summarization
+            // DYNAMIC: Pass question for semantic relevance scoring and adaptive budgeting
+            let memoryContext = ConversationMemoryService.shared.contextInjection(
+                for: selectedId, query: question)
+            if !memoryContext.isEmpty {
+                historyContext = memoryContext + "\nCURRENT QUESTION: "
+                Log.debug(
+                    "[ConversationMemory] Injected memory context (\(memoryContext.count) chars)",
+                    category: .retrieval)
+            }
+        }
+
+        // Fallback to simple history if memory service didn't provide context
+        if historyContext.isEmpty, !previousMessages.isEmpty {
+            historyContext =
+                "PREVIOUS CONVERSATION:\n"
+                + previousMessages.map {
+                    let role = $0.role == .user ? "User" : "Assistant"
+                    // Truncate long history items to preserve token budget for RAG context
+                    let content = $0.content.replacingOccurrences(of: "\n", with: " ")
+                    let truncated = content.count > 300 ? String(content.prefix(300)) + "..." : content
+                    return "\(role): \(truncated)"
+                }.joined(separator: "\n") + "\n\nCURRENT QUESTION: "
+        }
+
+        let requiresCitations =
+            retrievalConfig.requireExplicitCitations
+            || qualityModeRequiresCitations
+        // System prompt already contains citation and format instructions
+        // Don't add conflicting instructions that cause overly brief responses
+        let promptForGeneration: String = historyContext + question
+        return (promptForGeneration: promptForGeneration, requiresCitations: requiresCitations)
     }
 
     /// Step 6 (chain gate): decides whether the developer-forced reasoning chain runs.
