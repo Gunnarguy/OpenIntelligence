@@ -1941,42 +1941,7 @@ extension RAGService {
             // Save documents metadata to disk
             await saveDocumentsToDisk()
 
-            // The document is saved and can be searched. What follows is model work that improves it
-            // and is not needed to answer from it (5.7). In the background it waits for the app to be
-            // in front: on 2026-10-15 iOS ended a background import 53 s in, during this work, and the Lock
-            // Screen said "Task failed"; the overview and the tags then came before the save, so an earlier
-            // end would have stopped the import before its document was recorded.
-            //
-            // From 5.8 it also waits while more files are queued, so the queue moves to the next file at once and
-            // the work runs when it empties (`runDeferredEnrichmentsIfNeeded`, called at the end of the loop). The
-            // work is the same and so is what it writes; through 5.7 each file held the next one for it, up to 20 s
-            // a document on an A18 Pro (the note in `enrichImportedDocument`). The last file of an import, or a
-            // single file, is still enriched here.
-            let (inBackground, filesWaiting) = await MainActor.run {
-                (
-                    Self.appIsInBackground,
-                    self.ingestionItems.contains { $0.stage == .queued && $0.id != trackingId }
-                )
-            }
-            if Self.shouldDeferEnrichment(
-                appIsInBackground: inBackground, otherFilesQueued: filesWaiting, isOnboarding: context == .onboarding)
-            {
-                Self.deferEnrichment(of: updatedDocument.id, in: activeContainerId)
-                VerificationJournal.record(
-                    "import.enrichmentDeferred",
-                    ["document": VerificationJournal.anon(updatedDocument.id),
-                        "reason": inBackground ? "background" : "queue", "context": "\(context)"])
-                Log.info(
-                    inBackground
-                        ? "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the app is in front"
-                        : "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the queue's other files are in",
-                    category: .ingestion)
-            } else {
-                await enrichImportedDocument(
-                    updatedDocument, chunks: documentChunks, container: container,
-                    embeddingService: containerEmbeddingService, db: db, context: context,
-                    trackingId: trackingId, containerId: activeContainerId)
-            }
+            await enrichOrDeferImportedDocument(trackingId: trackingId, context: context, activeContainerId: activeContainerId, updatedDocument: updatedDocument, filename: filename, container: container, documentChunks: documentChunks, containerEmbeddingService: containerEmbeddingService, db: db)
 
             await finishImport(trackingId: trackingId, filename: filename, manageProcessingState: manageProcessingState, activeContainerId: activeContainerId, context: context, managedURL: managedURL, pendingSelfTuneReasons: pendingSelfTuneReasons)
 
@@ -2039,6 +2004,47 @@ extension RAGService {
                 ]
             )
             throw error
+        }
+    }
+
+    /// Step AE: defers the document's overview, tags and suggested questions when the app is in the background or more files are queued, and otherwise runs them now.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func enrichOrDeferImportedDocument(trackingId: UUID?, context: IngestionContext, activeContainerId: UUID, updatedDocument: Document, filename: String, container: KnowledgeContainer?, documentChunks: [DocumentChunk], containerEmbeddingService: EmbeddingService, db: any VectorDatabase) async {
+        // The document is saved and can be searched. What follows is model work that improves it
+        // and is not needed to answer from it (5.7). In the background it waits for the app to be
+        // in front: on 2026-10-15 iOS ended a background import 53 s in, during this work, and the Lock
+        // Screen said "Task failed"; the overview and the tags then came before the save, so an earlier
+        // end would have stopped the import before its document was recorded.
+        //
+        // From 5.8 it also waits while more files are queued, so the queue moves to the next file at once and
+        // the work runs when it empties (`runDeferredEnrichmentsIfNeeded`, called at the end of the loop). The
+        // work is the same and so is what it writes; through 5.7 each file held the next one for it, up to 20 s
+        // a document on an A18 Pro (the note in `enrichImportedDocument`). The last file of an import, or a
+        // single file, is still enriched here.
+        let (inBackground, filesWaiting) = await MainActor.run {
+            (
+                Self.appIsInBackground,
+                self.ingestionItems.contains { $0.stage == .queued && $0.id != trackingId }
+            )
+        }
+        if Self.shouldDeferEnrichment(
+            appIsInBackground: inBackground, otherFilesQueued: filesWaiting, isOnboarding: context == .onboarding)
+        {
+            Self.deferEnrichment(of: updatedDocument.id, in: activeContainerId)
+            VerificationJournal.record(
+                "import.enrichmentDeferred",
+                ["document": VerificationJournal.anon(updatedDocument.id),
+                    "reason": inBackground ? "background" : "queue", "context": "\(context)"])
+            Log.info(
+                inBackground
+                    ? "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the app is in front"
+                    : "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the queue's other files are in",
+                category: .ingestion)
+        } else {
+            await enrichImportedDocument(
+                updatedDocument, chunks: documentChunks, container: container,
+                embeddingService: containerEmbeddingService, db: db, context: context,
+                trackingId: trackingId, containerId: activeContainerId)
         }
     }
 
