@@ -4,7 +4,7 @@
   "name": "Semantic Chunking",
   "aliases": ["semantic chunker", "chunk size", "page complexity analyzer", "content tagging service", "chunk metadata", "chunking", "smaller chunks", "larger chunks"],
   "purpose": "Splits extracted text into chunks sized to the kind of file and tags each chunk with its section and metadata.",
-  "revision": "3f2601fc",
+  "revision": "95cfe7ae",
   "verified_on": "2026-11-07",
   "entry_points": ["SemanticChunker", "PageComplexityAnalyzer", "ContentTaggingService", "DocumentChunk", "SemanticChunker.chunkText"],
   "files": [
@@ -27,7 +27,8 @@
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+Import.swift", "role": "shared", "blob": "cd0c6e706789c1c49b317d0fbdfca841a73cc3df"},
     {"path": "OpenIntelligence/Services/Document/Processing/DocumentProcessor+PDFText.swift", "role": "shared", "blob": "b13fa29684025950c2e527646e3f7eddd30b248f"},
     {"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "role": "shared", "blob": "d9f1686486ff1e63113f74b084f403ee8d6d6943"},
-    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Chunking.swift", "role": "shared", "blob": "06bd983146a329b83565d56ce11c411f3752c2cd"}
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Chunking.swift", "role": "shared", "blob": "06bd983146a329b83565d56ce11c411f3752c2cd"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportEnrichment.swift", "role": "shared", "blob": "abcaaf3e4bd995e31ffb44721ce31f459392fff3"}
   ],
   "nodes": [
     {"id": "SemanticChunker", "kind": "model", "path": "OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift", "line": 52, "match": "class SemanticChunker {", "status": "VERIFIED", "by": "build"},
@@ -41,7 +42,7 @@
     {"id": "HardwareTelemetryState.sustain", "kind": "function", "path": "OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift", "line": 471, "match": "func sustain(", "status": "VERIFIED", "by": "build"},
     {"id": "DSHaptics.soft", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 551, "match": "public static func soft() {", "status": "VERIFIED", "by": "build"},
     {"id": "ContentTags", "kind": "model", "path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 34, "match": "struct ContentTags: Sendable, Codable {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.addDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 862, "match": "func addDocument(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.addDocument", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 33, "match": "func addDocument(", "status": "VERIFIED", "by": "build"},
     {"id": "DocumentChunk", "kind": "model", "path": "OpenIntelligence/Core/Models/DocumentChunk.swift", "line": 12, "match": "struct DocumentChunk: Identifiable, Codable, Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "ChatMessage.sanitizedRetrievedChunks", "kind": "function", "path": "OpenIntelligence/Core/Models/ChatMessage.swift", "line": 134, "match": "nonisolated private func sanitizedRetrievedChunks() -> [RetrievedChunk]? {", "status": "VERIFIED", "by": "build"},
     {"id": "RetrievedChunk.chunk", "kind": "model", "path": "OpenIntelligence/Core/Models/RAGQuery.swift", "line": 58, "match": "let chunk: DocumentChunk", "status": "VERIFIED", "by": "build"},
@@ -75,7 +76,7 @@
     {"from": "ContentTaggingService", "type": "calls", "to": "HardwareTelemetryState.sustain", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 189, "match": "HardwareTelemetryState.shared.sustain(.llmInference, active: true, intensity: 0.7)"}], "by": "build", "note": "named in the body"},
     {"from": "ContentTaggingService", "type": "calls", "to": "DSHaptics.soft", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 201, "match": "DSHaptics.soft()"}], "by": "build", "note": "named in the body"},
     {"from": "ContentTaggingService", "type": "calls", "to": "ContentTags", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift", "line": 383, "match": "return ContentTags("}], "by": "build", "note": "named in the body"},
-    {"from": "RAGService.addDocument", "type": "depends_on", "to": "ContentTaggingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 2586, "match": "let taggingService = ContentTaggingService.shared"}], "by": "build", "note": "named there"},
+    {"from": "RAGService.addDocument", "type": "depends_on", "to": "ContentTaggingService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportEnrichment.swift", "line": 158, "match": "let taggingService = ContentTaggingService.shared"}], "by": "build", "note": "named there"},
     {"from": "RetrievedChunk.chunk", "type": "depends_on", "to": "DocumentChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Models/RAGQuery.swift", "line": 58, "match": "let chunk: DocumentChunk"}], "by": "build", "note": "named there"},
     {"from": "SpotlightIndexService.indexDocumentChunks", "type": "depends_on", "to": "DocumentChunk", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift", "line": 72, "match": "chunks: [DocumentChunk],"}], "by": "build", "note": "named there"},
     {"from": "AgenticOrchestrator.checkLexicalRelevance", "type": "depends_on", "to": "SemanticChunker.chunkText", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Agentic/AgenticOrchestrator+Retrieval.swift", "line": 45, "match": "let chunkText = chunks.prefix(5)"}], "by": "build", "note": "named there"},

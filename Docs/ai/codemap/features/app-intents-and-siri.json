@@ -4,7 +4,7 @@
   "name": "App Intents and Siri",
   "aliases": ["Shortcuts", "Siri", "App Shortcuts", "App Intents", "screen awareness intents", "visual intelligence intents"],
   "purpose": "Lets Siri and Shortcuts search, import into and ask the library, and works with what is on screen.",
-  "revision": "3f2601fc",
+  "revision": "95cfe7ae",
   "verified_on": "2026-11-07",
   "entry_points": ["RAGAppShortcutsProvider", "QueryDocumentsIntent", "SearchLibraryIntent", "IngestDocumentIntent", "AnalyzeImageIntent"],
   "files": [
@@ -49,7 +49,8 @@
     {"path": "OpenIntelligenceTests/Services/Agentic/ShortcutsActionTests.swift", "role": "test", "blob": "616aa2ad78251d24a4e1ac326c11c82691dcd8ab"},
     {"path": "OpenIntelligenceTests/Services/Agentic/HandedOutItemsTests.swift", "role": "test", "blob": "2c794d80e0d3347fdcdd119ad42ff3fe228a5bf5"},
     {"path": "OpenIntelligence/Features/Chat/Pipeline/OISettingsEntity.swift", "role": "primary", "blob": "a38d4986c4ba02a7224b3d6de78e79c27ba2120a"},
-    {"path": "OpenIntelligenceTests/Services/Agentic/SettingsEntityTests.swift", "role": "test", "blob": "f29a0bc8d2a92ed3b913540ff09c5338555ebdbc"}
+    {"path": "OpenIntelligenceTests/Services/Agentic/SettingsEntityTests.swift", "role": "test", "blob": "f29a0bc8d2a92ed3b913540ff09c5338555ebdbc"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "50e4541037ccd12d0484f9787a02d5f9fb3d6ead"}
   ],
   "nodes": [
     {"id": "RAGAppShortcutsProvider", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 666, "match": "struct RAGAppShortcutsProvider: AppShortcutsProvider {", "status": "VERIFIED", "by": "build"},
@@ -67,7 +68,7 @@
     {"id": "InferenceConfig", "kind": "model", "path": "OpenIntelligence/Core/Models/LLMModel.swift", "line": 121, "match": "struct InferenceConfig {", "status": "VERIFIED", "by": "build"},
     {"id": "AnswerCardSnippetIntent", "kind": "view", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 893, "match": "struct AnswerCardSnippetIntent: SnippetIntent {", "status": "VERIFIED", "by": "build"},
     {"id": "ScreenAwarenessSnippetView", "kind": "view", "path": "OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift", "line": 11, "match": "struct ScreenAwarenessSnippetView: View {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.enqueueDocuments", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 35, "match": "func enqueueDocuments(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.enqueueDocuments", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "line": 33, "match": "func enqueueDocuments(", "status": "VERIFIED", "by": "build"},
     {"id": "RAGAppShortcutsProvider.appShortcuts", "kind": "model", "path": "OpenIntelligence/Services/Agentic/RAGAppIntents.swift", "line": 667, "match": "static var appShortcuts: [AppShortcut] {", "status": "VERIFIED", "by": "build"},
     {"id": "AnalyzeImageIntent", "kind": "model", "path": "OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift", "line": 22, "match": "struct AnalyzeImageIntent: AppIntent {", "status": "VERIFIED", "by": "build"},
     {"id": "VisualEvidenceMetadata", "kind": "model", "path": "OpenIntelligence/Services/RAG/Evidence/VisualEvidenceSource.swift", "line": 12, "match": "struct VisualEvidenceMetadata: Codable, Sendable {", "status": "VERIFIED", "by": "build"},

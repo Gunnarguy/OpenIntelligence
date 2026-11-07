@@ -4,7 +4,7 @@
   "name": "Camera Document Capture",
   "aliases": ["camera scanner", "document capture view", "vision overlay", "smart capture manager", "scan a page"],
   "purpose": "Captures paper documents with the camera and reads their text on device with Vision.",
-  "revision": "3f2601fc",
+  "revision": "95cfe7ae",
   "verified_on": "2026-11-07",
   "entry_points": ["CameraManager", "CameraVisionOverlayView", "CaptureToRAGBridge"],
   "files": [
@@ -18,13 +18,14 @@
     {"path": "OpenIntelligence/App/ScanIntoLibraryIntent.swift", "role": "primary", "blob": "87d5e8d16be2d4e71043eedd68211f8433682632"},
     {"path": "OpenIntelligence/Features/Camera/LockedCaptureImport.swift", "role": "primary", "blob": "3564c5e4e3d0f71119c17eaabdc8d442687111d6"},
     {"path": "OpenIntelligenceTests/Features/Camera/LockedCaptureImportTests.swift", "role": "test", "blob": "a3fc9ec71710aaee9558281817df13e8c81260a4"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "role": "shared", "blob": "50e4541037ccd12d0484f9787a02d5f9fb3d6ead"}
   ],
   "nodes": [
     {"id": "CameraManager", "kind": "model", "path": "OpenIntelligence/Features/Camera/CameraManager.swift", "line": 25, "match": "class CameraManager: NSObject, ObservableObject {", "status": "VERIFIED", "by": "build"},
     {"id": "CameraVisionOverlayView.cameraManager", "kind": "model", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 26, "match": "@StateObject private var cameraManager = CameraManager()", "status": "VERIFIED", "by": "build"},
     {"id": "View.navigationBarTitleDisplayMode", "kind": "function", "path": "OpenIntelligence/UI/DesignSystem/Theme.swift", "line": 430, "match": "func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.ingestDocuments", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 92, "match": "func ingestDocuments(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.ingestDocuments", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "line": 90, "match": "func ingestDocuments(", "status": "VERIFIED", "by": "build"},
     {"id": "CameraVisionOverlayView", "kind": "view", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 21, "match": "struct CameraVisionOverlayView: View {", "status": "VERIFIED", "by": "build"},
     {"id": "DetectionOverlayView", "kind": "view", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 1023, "match": "struct DetectionOverlayView: View {", "status": "VERIFIED", "by": "build"},
     {"id": "PoseWireframeOverlay", "kind": "view", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 1253, "match": "struct PoseWireframeOverlay: View {", "status": "VERIFIED", "by": "build"},
@@ -32,7 +33,7 @@
     {"id": "MetricPill", "kind": "view", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 1714, "match": "struct MetricPill: View {", "status": "VERIFIED", "by": "build"},
     {"id": "ChatScreen.chatLifecycleLayer", "kind": "model", "path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "line": 195, "match": "private var chatLifecycleLayer: some View {", "status": "VERIFIED", "by": "build"},
     {"id": "CaptureToRAGBridge", "kind": "model", "path": "OpenIntelligence/Features/Camera/CaptureToRAGBridge.swift", "line": 20, "match": "actor CaptureToRAGBridge {", "status": "VERIFIED", "by": "build"},
-    {"id": "RAGService.enqueueDocuments", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 35, "match": "func enqueueDocuments(", "status": "VERIFIED", "by": "build"},
+    {"id": "RAGService.enqueueDocuments", "kind": "function", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ImportQueue.swift", "line": 33, "match": "func enqueueDocuments(", "status": "VERIFIED", "by": "build"},
     {"id": "CameraVisionOverlayView.handleCapture", "kind": "function", "path": "OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift", "line": 736, "match": "private func handleCapture(_ result: CaptureResult) {", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
