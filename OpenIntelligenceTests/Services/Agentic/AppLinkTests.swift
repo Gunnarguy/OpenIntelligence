@@ -39,24 +39,26 @@ final class AppLinkTests: XCTestCase {
         for destination in destinations {
             let url = AppLink.webURL(for: destination)
             XCTAssertEqual(url.scheme, "https")
-            XCTAssertEqual(url.host, "gunzino.me")
+            XCTAssertEqual(url.host, "gunndamental.com")
             XCTAssertEqual(url.path, "/openintelligence/open")
             XCTAssertEqual(AppLink.destination(for: url), destination, url.absoluteString)
         }
         XCTAssertEqual(
             AppLink.webURL(for: .document(id)).absoluteString,
-            "https://gunzino.me/openintelligence/open?to=document/0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0")
+            "https://gunndamental.com/openintelligence/open?to=document/0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0")
 
-        let slash = try XCTUnwrap(URL(string: "https://gunzino.me/openintelligence/open/?to=settings"))
+        let slash = try XCTUnwrap(URL(string: "https://gunndamental.com/openintelligence/open/?to=settings"))
         XCTAssertEqual(AppLink.destination(for: slash), .settings)
         for other in [
-            // The entitlement names gunzino.me alone, so a www link never opens the app (review of 2026-10-17).
-            "https://www.gunzino.me/openintelligence/open?to=settings",
-            "http://gunzino.me/openintelligence/open?to=settings",
-            "https://gunzino.me/openintelligence?to=settings",
+            // The entitlement names gunndamental.com alone, so a www link never opens the app (review of 2026-10-17),
+            // and 5.7's gunzino.me links reach the web page instead (5.8, 2026-11-06).
+            "https://gunzino.me/openintelligence/open?to=settings",
+            "https://www.gunndamental.com/openintelligence/open?to=settings",
+            "http://gunndamental.com/openintelligence/open?to=settings",
+            "https://gunndamental.com/openintelligence?to=settings",
             "https://example.com/openintelligence/open?to=settings",
-            "https://gunzino.me/openintelligence/open",
-            "https://gunzino.me/openintelligence/open?to=https://example.com",
+            "https://gunndamental.com/openintelligence/open",
+            "https://gunndamental.com/openintelligence/open?to=https://example.com",
         ] {
             XCTAssertNil(AppLink.destination(for: try XCTUnwrap(URL(string: other))), other)
         }

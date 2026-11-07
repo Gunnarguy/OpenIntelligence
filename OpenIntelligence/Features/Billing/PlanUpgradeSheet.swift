@@ -448,7 +448,7 @@ extension PlanUpgradeSheet {
                     destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
                 )
                 .font(.caption.weight(.semibold))
-                Link("Privacy Policy", destination: URL(string: "https://gunzino.me/openintelligence/privacy")!)
+                Link("Privacy Policy", destination: URL(string: "https://gunndamental.com/openintelligence/privacy/")!)
                     .font(.caption.weight(.semibold))
             }
         }

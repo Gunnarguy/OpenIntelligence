@@ -19,7 +19,7 @@ struct PrivacyPolicyView: View {
 
                     Divider()
 
-                    // The same text as gunzino.me/openintelligence/privacy, from one source (5.7). Through
+                    // The same text as gunndamental.com/openintelligence/privacy, from one source (5.7). Through
                     // 5.6 this view had its own text: dated May 2026, naming third-party providers the app
                     // does not have and a Settings → Privacy that does not exist, with one sentence cut off.
                     Group {

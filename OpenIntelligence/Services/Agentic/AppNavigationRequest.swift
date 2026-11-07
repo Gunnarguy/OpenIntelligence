@@ -104,12 +104,14 @@ nonisolated enum AppLink {
 
     /// The site whose association file (`/.well-known/apple-app-site-association`, in the Gunzino repository) names
     /// this app, so a web link there opens the app where it is installed. The app's entitlements carry
-    /// `applinks:gunzino.me`.
-    static let webHost = "gunzino.me"
+    /// `applinks:gunndamental.com` (5.8). Through 5.7 it was gunzino.me; that domain now 301-forwards to
+    /// gunndamental.com (2026-11-06), and Apple fetches an association file only with no redirect, so 5.7's links open
+    /// the web page, which offers Open in OpenIntelligence through the `openintelligence://` scheme.
+    static let webHost = "gunndamental.com"
     /// The one page the links point at. Where the app isn't installed it opens in the browser and offers the App Store.
     static let webPath = "/openintelligence/open"
 
-    /// The web form of a destination's link (5.7): `https://gunzino.me/openintelligence/open?to=document/<id>`, the
+    /// The web form of a destination's link (5.7): `https://gunndamental.com/openintelligence/open?to=document/<id>`, the
     /// app link's host, path and query in `to`. SwiftUI hands a web link that opens the app to `onOpenURL` as the URL
     /// itself (developer.apple.com, `onOpenURL(perform:)`, read 2026-10-17), where `destination(for:)` reads it.
     static func webURL(for destination: AppDestination) -> URL {

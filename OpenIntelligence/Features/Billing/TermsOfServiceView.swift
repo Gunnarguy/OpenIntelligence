@@ -81,7 +81,7 @@ These Terms are governed by the laws of the United States. Disputes shall be res
                         section(title: "12. Contact", content: """
 For questions about these Terms, please contact us:
 • Email: Gunnarguy@me.com
-• Website: https://gunzino.me/openintelligence
+• Website: https://gunndamental.com/openintelligence/
 """)
                     }
                 }

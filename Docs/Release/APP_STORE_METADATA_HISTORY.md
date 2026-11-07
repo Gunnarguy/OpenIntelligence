@@ -189,6 +189,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 ### 5.8
 
 - **Platforms:** iOS, macOS
+- **Description, 2026-11-06:** the closing privacy line is `Privacy Policy: gunndamental.com/openintelligence/privacy/` (was `https://gunzino.me/...`; the scheme dropped to stay under 4,000 characters, since store text is not a link; which now 301-forwards after the domain move). App Store Connect's privacy URL field already reads gunndamental.com.
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION (created 2026-11-02, release AFTER_APPROVAL), build 488 (`fb225053`) VALID on both and attached to neither
 - **Final release notes commit:** the 2026-11-03 `[ci skip]` commit that adds this entry
 - **Notes:** the first copy written for 5.8, built from `Docs/USER_CHANGELOG.md`'s 5.8 section and following "The pieces that carry over": the "This one's about" opening, the closing device line, reused section names (`GETTING STARTED` is new, for the tour and the guide library), and the promotional text's "New in X.Y:" form. The two platforms differ in two places: the watched folder's line (the Mac checks every few minutes while open, iPhone and iPad when the app opens) and the iPhone and iPad line about the Lock Screen and Watch card, which the Mac doesn't have. 2,535 characters for the Mac and 2,616 for iPhone and iPad, after the launch-freeze, rebuild, Atlas and two-window lines were added the same day; promotional text 159. Not pushed to App Store Connect.

@@ -384,13 +384,13 @@
     {
       "row": "Web links open the app, or the App Store",
       "url": "https://app.notion.com/p/3f449a74d54f813899bec982779cbdd7",
-      "needs": "Tap a document's Copy Link web link (gunzino.me/openintelligence/open?...) in Notes or Messages on the iPhone. The store half needs a device without the app, checked by eye.",
+      "needs": "Tap a document's Copy Link web link (gunndamental.com/openintelligence/open?...; gunzino.me through 5.7) in Notes or Messages on the iPhone. The store half needs a device without the app, checked by eye.",
       "all": [
         {
           "e": "open.url",
           "f": {
             "scheme": "https",
-            "host": "gunzino.me",
+            "host": "gunndamental.com",
             "path": "openintelligence"
           }
         },

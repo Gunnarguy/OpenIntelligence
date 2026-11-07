@@ -3,6 +3,13 @@ import uuid
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 
+# Guard (2026-11-06): this script predates the 2026-11-06 Google Ads restructure ($0.10/day budget, no broad match,
+# OpenIntelligence claim rules, ct=Google_Ads, business name OpenIntelligence; ~/ASC/CHANGES-2026-11-06.md). Run as
+# written it would undo that, so it refuses to run without an explicit flag.
+if "--i-read-changes-2026-11-06" not in sys.argv:
+    sys.exit("Refusing to run: read ~/ASC/CHANGES-2026-11-06.md first (the account was restructured on 2026-11-06), "
+             "then rerun with --i-read-changes-2026-11-06.")
+
 CUSTOMER_ID = "4509379845"
 BUDGET_AMOUNT_MICROS = 2000000 # $2.00 per day
 YOUTUBE_VIDEO_IDS = ["FfhbrBuB68s", "SUxEpnLDY8A", "6EmJymIMOR4", "HQGIkXVI0pw"]
@@ -84,7 +91,7 @@ def main(client, customer_id):
         ad_group_ad.status = client.enums.AdGroupAdStatusEnum.PAUSED
         
         ad = ad_group_ad.ad
-        ad.final_urls.append("https://fascinaiting.me")
+        ad.final_urls.append("https://openintelligence.me")
         
         # Build Video Responsive Ad
         video_ad = ad.video_responsive_ad
@@ -114,7 +121,7 @@ def main(client, customer_id):
         
         # Business Name
         ad_text_biz = client.get_type("AdTextAsset")
-        ad_text_biz.text = "Fascinaiting"
+        ad_text_biz.text = "OpenIntelligence"
         video_ad.business_names.append(ad_text_biz)
 
         ad_operations.append(ad_group_ad_operation)

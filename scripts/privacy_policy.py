@@ -1,5 +1,5 @@
 # One source for OpenIntelligence's privacy policy. Writes three files from the text below:
-#   - the gunzino.me page, src/content/pages/openintelligence.privacy.md in the Gunzino repo;
+#   - the gunndamental.com page (was gunzino.me until 2026-11-06), src/content/pages/openintelligence.privacy.md in the Gunzino repo;
 #   - the hand-written page in the Gunzino repo, openintelligence/privacy/index.html, which is not served but which
 #     Gunzino's deploy compares the built page with (scripts/verify_content.py; its README says a paragraph is changed
 #     in both, or the deploy stops with LOST, which it did for 631e537);
@@ -125,7 +125,7 @@ for number, (title, paragraphs) in enumerate(SECTIONS, start=1):
         page.append("")
 open(os.path.join(GZ, "src/content/pages/openintelligence.privacy.md"), "w", encoding="utf-8").write(
     "\n".join(page).rstrip("\n") + "\n")
-print("wrote the gunzino.me page")
+print("wrote the gunndamental.com page")
 
 
 # 2. The hand-written page the deploy compares with: the same text in the shapes that page already used.
@@ -194,7 +194,7 @@ new_block = (f'                    Text("Last updated: {DATE}")\n'
              '                        .font(.caption)\n'
              '                        .foregroundStyle(.secondary)\n\n'
              '                    Divider()\n\n'
-             '                    // The same text as gunzino.me/openintelligence/privacy, from one source (5.7). Through\n'
+             '                    // The same text as gunndamental.com/openintelligence/privacy, from one source (5.7). Through\n'
              '                    // 5.6 this view had its own text: dated May 2026, naming third-party providers the app\n'
              '                    // does not have and a Settings → Privacy that does not exist, with one sentence cut off.\n'
              '                    Group {\n' + "".join(swift_sections) + "                    }\n")

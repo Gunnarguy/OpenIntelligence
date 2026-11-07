@@ -4,9 +4,16 @@ import os
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 
+# Guard (2026-11-06): this script predates the 2026-11-06 Google Ads restructure ($0.10/day budget, no broad match,
+# OpenIntelligence claim rules, ct=Google_Ads, business name OpenIntelligence; ~/ASC/CHANGES-2026-11-06.md). Run as
+# written it would undo that, so it refuses to run without an explicit flag.
+if "--i-read-changes-2026-11-06" not in sys.argv:
+    sys.exit("Refusing to run: read ~/ASC/CHANGES-2026-11-06.md first (the account was restructured on 2026-11-06), "
+             "then rerun with --i-read-changes-2026-11-06.")
+
 CUSTOMER_ID = "4509379845"
 CAMPAIGN_ID = "23970700798"
-FINAL_URL = "https://fascinaiting.me/"
+FINAL_URL = "https://openintelligence.me/"
 
 def create_ad_group(client, customer_id, campaign_id):
     ad_group_service = client.get_service("AdGroupService")
