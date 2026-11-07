@@ -1272,25 +1272,7 @@ extension RAGService {
                 return  // It handles the whole import, like the streamed PDF above.
             }
 
-            let extractionStartTime = Date()
-            let (document, processedChunks) = try await documentProcessor.processDocument(
-                at: managedURL,
-                chunkOverride: activeChunkOverride,
-                containerId: activeContainerId,  // FTS5 storage with container isolation
-                documentId: reusedDocumentId
-            )
-            // How long the main thread went unanswered while the document was read and cut into passages (5.8), from
-            // the development build's watchdog: row "Import still runs whole-document passes on the main thread".
-            if VerificationJournal.isEnabled, MainThreadWatchdog.shared.isRunning {
-                let lagMs = MainThreadWatchdog.shared.longestStall(since: extractionStartTime)
-                VerificationJournal.record(
-                    "import.mainThreadLag", .ok,
-                    durationMs: Date().timeIntervalSince(extractionStartTime) * 1000,
-                    ["type": managedURL.pathExtension.lowercased(),
-                        "bytes": "\(VerificationJournal.fileBytes(managedURL))",
-                        "maxLagMs": "\(Int(lagMs))", "responsive": "\(lagMs < MainThreadWatchdog.stallThresholdMs)",
-                        "chunks": "\(processedChunks.count)"])
-            }
+            let (document, extractionStartTime, processedChunks) = try await parseDocumentForImport(managedURL: managedURL, activeChunkOverride: activeChunkOverride, activeContainerId: activeContainerId, reusedDocumentId: reusedDocumentId)
             try Task.checkCancellation()
             let (avgChunkWords, extractionTime, maxChunkWords, minChunkWords, totalChars, totalWords) = measureExtraction(extractionStartTime: extractionStartTime, document: document, processedChunks: processedChunks, filename: filename)
 
@@ -1456,6 +1438,31 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step N: reads and cuts the document into passages and journals how long the main thread went unanswered meanwhile.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func parseDocumentForImport(managedURL: URL, activeChunkOverride: DocumentProcessor.ChunkingOverride?, activeContainerId: UUID, reusedDocumentId: UUID?) async throws -> (document: Document, extractionStartTime: Date, processedChunks: [DocumentProcessor.ProcessedChunk]) {
+        let extractionStartTime = Date()
+        let (document, processedChunks) = try await documentProcessor.processDocument(
+            at: managedURL,
+            chunkOverride: activeChunkOverride,
+            containerId: activeContainerId,  // FTS5 storage with container isolation
+            documentId: reusedDocumentId
+        )
+        // How long the main thread went unanswered while the document was read and cut into passages (5.8), from
+        // the development build's watchdog: row "Import still runs whole-document passes on the main thread".
+        if VerificationJournal.isEnabled, MainThreadWatchdog.shared.isRunning {
+            let lagMs = MainThreadWatchdog.shared.longestStall(since: extractionStartTime)
+            VerificationJournal.record(
+                "import.mainThreadLag", .ok,
+                durationMs: Date().timeIntervalSince(extractionStartTime) * 1000,
+                ["type": managedURL.pathExtension.lowercased(),
+                    "bytes": "\(VerificationJournal.fileBytes(managedURL))",
+                    "maxLagMs": "\(Int(lagMs))", "responsive": "\(lagMs < MainThreadWatchdog.stallThresholdMs)",
+                    "chunks": "\(processedChunks.count)"])
+        }
+        return (document: document, extractionStartTime: extractionStartTime, processedChunks: processedChunks)
     }
 
     /// Step O: counts the document's characters, words and per-passage word statistics and emits Extraction complete.
