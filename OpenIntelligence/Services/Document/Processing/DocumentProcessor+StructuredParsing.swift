@@ -1669,13 +1669,19 @@ extension DocumentProcessor {
         flushStructureParagraphs(paragraphBuffer: &paragraphBuffer, chunks: &chunks, chunkIndex: &chunkIndex, documentId: documentId, config: config, documentCategory: documentCategory)
 
         // Log structure breakdown
+        logStructureBreakdown(chunks: chunks)
+
+        return chunks
+    }
+
+    /// Step B14: logs how many table, list and paragraph chunks the document produced.
+    /// Moved unchanged from `createStructureAwareChunks` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func logStructureBreakdown(chunks: [DocumentProcessor.ProcessedChunk]) {
         let tableChunks = chunks.filter { $0.metadata.structureType == "table" }.count
         let listChunks = chunks.filter { $0.metadata.structureType == "list" }.count
         let paragraphChunks = chunks.filter { $0.metadata.structureType == "paragraph" }.count
 
         Log.info("[DocumentProcessor] Structure-aware chunking: \(tableChunks) tables, \(listChunks) lists, \(paragraphChunks) paragraphs", category: .ingestion)
-
-        return chunks
     }
 
     /// The nested `appendChunk` of `createStructureAwareChunks`, lifted 2026-11-06 (step C1); its body is unchanged.
