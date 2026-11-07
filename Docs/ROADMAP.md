@@ -2,7 +2,7 @@
 
 > **The roadmap lives in Notion, not in this file.** The public view is the
 > [OpenIntelligence public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075),
-> and fascinaiting.me draws its board from the same database. Agents reach the database with the
+> and openintelligence.me draws its board from the same database. Agents reach the database with the
 > `notion-roadmap` skill. This page only says where things stand, so it cannot drift the way a copy of the
 > roadmap did: until 2026-09-29 this file still described Private Cloud Compute as pending weeks after it
 > shipped in 5.2.

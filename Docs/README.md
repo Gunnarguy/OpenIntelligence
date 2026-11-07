@@ -88,7 +88,7 @@ and nothing caught it. Update the marker before the copy, never after.
 
 | Marker | What it answers | Read by |
 | :--- | :--- | :--- |
-| [SHIPPED_VERSION.json](SHIPPED_VERSION.json) | What is live on the App Store, as opposed to what is being prepared. `CHANGELOG.md`'s first heading is the release being *built*, which is not the same thing. | gunzino.me, the portfolio and Fascinaiting, each on a daily cron. Written after this site advertised 5.0 while 4.9 was the newest anyone could install. |
+| [SHIPPED_VERSION.json](SHIPPED_VERSION.json) | What is live on the App Store, as opposed to what is being prepared. `CHANGELOG.md`'s first heading is the release being *built*, which is not the same thing. | gunndamental.com, the portfolio and openintelligence.me, each on a daily cron. Written after this site advertised 5.0 while 4.9 was the newest anyone could install. |
 | [SHIPPED_CAPABILITIES.json](SHIPPED_CAPABILITIES.json) | Which advertised capabilities actually exist in a shipping build. A capability marked `built_not_enabled` must be written in the future tense everywhere; PCC flipped to `shipping` on 2026-09-10 with 5.2 and is now written in the present. | `scripts/verify_capabilities.py`, in CI. Written after 19 places across three sites described PCC as live before it was. |
 
 | Document | Lifecycle State | Purpose & Code Subsystems |

@@ -1,6 +1,6 @@
 # OpenIntelligence privacy
 
-The privacy policy is at **https://gunzino.me/openintelligence/privacy**. It is the one the App Store
+The privacy policy is at **https://gunndamental.com/openintelligence/privacy/**. It is the one the App Store
 listing links to, and from 5.7 (in preparation, not yet on the App Store) the same text is in the app, in Settings,
 About, Privacy Policy. How the app decides where an answer is written, and what can leave the device, is
 documented against the code in [Docs/PRIVACY_AND_ROUTING.md](Docs/PRIVACY_AND_ROUTING.md).

@@ -1702,7 +1702,7 @@ into 5.2 unless it loses data.
 
 ## Changing the privacy policy (added 2026-10-15)
 
-The policy at gunzino.me/openintelligence/privacy and the app's (`PrivacyPolicyView`, opened from Settings, About,
+The policy at gunndamental.com/openintelligence/privacy/ and the app's (`PrivacyPolicyView`, opened from Settings, About,
 Privacy Policy) are one text, kept in `scripts/privacy_policy.py`. Change the text there, check every changed
 statement against the code (`Docs/BILLING_AND_LIMITS.md`, section 6, lists the checks behind the current text), and
 make each statement true of the version on the App Store as well as the next one, saying which version a line is
