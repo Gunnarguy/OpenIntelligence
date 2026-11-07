@@ -922,6 +922,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I05 | S (inputs) (builds each passage's contextual prefix and the token-limited text to embed, translating first when the library asks for it) into `buildEmbeddingInputs` |
 | I06 | AF (marks the item complete, records the completion time, kicks pending re-embeds and retrieval auto-tune, refreshes the library's intelligence, cleans checkpoints and schedules a self-tune rebuild if one was asked for) into `finishImport` |
 | I07 | AE (defers the document's overview, tags and suggested questions when the app is in the background or more files are queued, and otherwise runs them now) into `enrichOrDeferImportedDocument` |
+| I08 | AC (lists the document in its library, updates the chunk count, library stats and processing summary on the main actor, and emits Document indexed) into `recordIndexedDocument` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

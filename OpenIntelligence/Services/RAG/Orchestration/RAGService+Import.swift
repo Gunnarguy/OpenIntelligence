@@ -1914,29 +1914,7 @@ extension RAGService {
 
             let summary = makeProcessingSummary(activeContainerId: activeContainerId, filename: filename, fileSizeStr: fileSizeStr, document: document, totalChars: totalChars, totalWords: totalWords, processedChunks: processedChunks, extractionTime: extractionTime, chunkingTime: chunkingTime, embeddingTime: embeddingTime, totalTime: totalTime, avgChunkSize: avgChunkSize, minChunkSize: minChunkSize, maxChunkSize: maxChunkSize)
 
-            // Step 5: Update state
-            await MainActor.run {
-                let replacedChunks = listImportedDocument(updatedDocument)
-                totalChunksStored += documentChunks.count - replacedChunks
-                syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
-                if !suppressProcessingSummary {
-                    lastProcessingSummary = summary
-                }
-                if manageProcessingState, trackingId == nil {
-                    processingStatus = ""
-                }
-            }
-
-            TelemetryCenter.emit(
-                .ingestion,
-                title: "Document indexed",
-                metadata: [
-                    "file": filename,
-                    "chunks": "\(documentChunks.count)",
-                    "size": fileSizeStr,
-                ],
-                duration: totalTime
-            )
+            await recordIndexedDocument(updatedDocument: updatedDocument, documentChunks: documentChunks, activeContainerId: activeContainerId, summary: summary, manageProcessingState: manageProcessingState, trackingId: trackingId, filename: filename, fileSizeStr: fileSizeStr, totalTime: totalTime)
 
             // Save documents metadata to disk
             await saveDocumentsToDisk()
@@ -2005,6 +1983,34 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step AC: lists the document in its library, updates the chunk count, library stats and processing summary on the main actor, and emits Document indexed.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func recordIndexedDocument(updatedDocument: Document, documentChunks: [DocumentChunk], activeContainerId: UUID, summary: ProcessingSummary, manageProcessingState: Bool, trackingId: UUID?, filename: String, fileSizeStr: String, totalTime: TimeInterval) async {
+        // Step 5: Update state
+        await MainActor.run {
+            let replacedChunks = listImportedDocument(updatedDocument)
+            totalChunksStored += documentChunks.count - replacedChunks
+            syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
+            if !suppressProcessingSummary {
+                lastProcessingSummary = summary
+            }
+            if manageProcessingState, trackingId == nil {
+                processingStatus = ""
+            }
+        }
+
+        TelemetryCenter.emit(
+            .ingestion,
+            title: "Document indexed",
+            metadata: [
+                "file": filename,
+                "chunks": "\(documentChunks.count)",
+                "size": fileSizeStr,
+            ],
+            duration: totalTime
+        )
     }
 
     /// Step AE: defers the document's overview, tags and suggested questions when the app is in the background or more files are queued, and otherwise runs them now.
