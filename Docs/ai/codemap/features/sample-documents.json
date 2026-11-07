@@ -4,7 +4,7 @@
   "name": "Sample Documents",
   "aliases": ["sample documents", "sample workspace", "built-in sample files", "import the sample workspace"],
   "purpose": "Writes the bundled sample documents into a sample workspace so a new user can ask questions at once.",
-  "revision": "05b705d2",
+  "revision": "e4cccc6c",
   "verified_on": "2026-11-07",
   "entry_points": ["SampleDocumentManager", "SampleDocumentManager.importSamples", "SampleDocumentManager.refreshStaleSamples", "DocumentLibraryView.importSampleWorkspace", "SampleDocumentDescriptor"],
   "files": [

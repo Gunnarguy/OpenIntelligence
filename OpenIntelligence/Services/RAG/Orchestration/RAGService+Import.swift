@@ -1326,23 +1326,7 @@ extension RAGService {
             await GazetteerService.shared.extractAndAddTerms(from: combinedText, source: filename)
             try Task.checkCancellation()
 
-            // Index document in Spotlight for system-wide search
-            let spotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
-            if spotlightEnabled {
-                let cid = activeContainerId
-                let containerName = await MainActor.run {
-                    self.containerService.containers.first(where: { $0.id == cid })?.name ?? "Library"
-                }
-                SpotlightIndexService.shared.indexDocument(
-                    id: document.id,
-                    filename: document.filename,
-                    containerId: activeContainerId,
-                    containerName: containerName,
-                    textPreview: String(combinedText.prefix(500)),
-                    chunkCount: processedChunks.count
-                )
-                listedInSpotlight = document.id
-            }
+            await indexDocumentInSpotlight(activeContainerId: activeContainerId, document: document, combinedText: combinedText, processedChunks: processedChunks, listedInSpotlight: &listedInSpotlight)
             try Task.checkCancellation()
 
             await showChunkingStage(trackingId: trackingId, filename: filename, avgChunkWords: avgChunkWords, processedChunks: processedChunks, totalWords: totalWords, fileSizeMB: fileSizeMB, totalChars: totalChars, document: document, minChunkWords: minChunkWords, maxChunkWords: maxChunkWords, extractionTime: extractionTime)
@@ -1498,6 +1482,28 @@ extension RAGService {
                 ]
             )
             throw error
+        }
+    }
+
+    /// Step P: lists the document in Spotlight when the setting allows it and records that it did, so a failed import removes the entry.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func indexDocumentInSpotlight(activeContainerId: UUID, document: Document, combinedText: String, processedChunks: [DocumentProcessor.ProcessedChunk], listedInSpotlight: inout UUID?) async {
+        // Index document in Spotlight for system-wide search
+        let spotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
+        if spotlightEnabled {
+            let cid = activeContainerId
+            let containerName = await MainActor.run {
+                self.containerService.containers.first(where: { $0.id == cid })?.name ?? "Library"
+            }
+            SpotlightIndexService.shared.indexDocument(
+                id: document.id,
+                filename: document.filename,
+                containerId: activeContainerId,
+                containerName: containerName,
+                textPreview: String(combinedText.prefix(500)),
+                chunkCount: processedChunks.count
+            )
+            listedInSpotlight = document.id
         }
     }
 
