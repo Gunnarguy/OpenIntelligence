@@ -1223,6 +1223,13 @@ extension DocumentProcessor {
             }
         } // end outer batch (progress reporting)
 
+        return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Steps A11 to A13: sorts the parsed pages, flattens them into elements and page texts, adds the embedded-image analysis, and assembles the result.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func assembleStructuredExtractionResult(results: inout [DocumentProcessor.PageParseResult], pageCount: Int, pdfDocument: PDFDocument) async -> StructuredExtractionResult {
         // Sort by page index and aggregate results
         results.sort { $0.pageIndex < $1.pageIndex }
 
