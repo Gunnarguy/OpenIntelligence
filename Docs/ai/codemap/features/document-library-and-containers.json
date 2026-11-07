@@ -4,8 +4,8 @@
   "name": "Document Library and Containers",
   "aliases": ["document library", "libraries", "knowledge containers", "deleting a library", "container picker", "document details view", "semantic document search"],
   "purpose": "Lists the libraries and their documents, shows each document's details and search, and deletes a library with everything in it.",
-  "revision": "7c5ccaaf",
-  "verified_on": "2026-11-05",
+  "revision": "dc3cea69",
+  "verified_on": "2026-11-06",
   "entry_points": ["DocumentLibraryView", "LibraryDeletion.delete", "RAGService.removeDocument", "WorkspaceSyncService.deleteSharedLibrary", "ContainerService", "KnowledgeContainer", "DocumentDetailsView", "SemanticSearchView"],
   "files": [
     {"path": "OpenIntelligence/Features/Documents/Components/OpenedFilesSheet.swift", "role": "primary", "blob": "aac62cd0ce3e309cfd8878101db9a6bb96cee393"},
@@ -63,7 +63,7 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift", "role": "shared", "blob": "706a46bc936b951d314bbe130389550ed449fad3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift", "role": "shared", "blob": "de98218afe9aa6487faeb2b4b564ffe8d9131702"},
     {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "shared", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
-    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"},
+    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "44f5f50877bbbae142989c922e02b22975fa9d66"},
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "role": "shared", "blob": "0238f065e864fa4f14cdb6756b1e13254af04ded"},
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"}
   ],

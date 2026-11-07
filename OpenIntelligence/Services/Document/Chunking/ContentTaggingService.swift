@@ -99,6 +99,7 @@ import NaturalLanguage
 
         /// Whether the service is available
         var isAvailable: Bool {
+            if DirectModelCallsForTesting.isOn { return false }
             guard let model = model else { return false }
             switch model.availability {
             case .available:

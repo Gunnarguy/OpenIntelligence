@@ -84,7 +84,7 @@ extension SuggestedQuestionsService {
     @MainActor
     var isSystemLLMAvailable: Bool {
         if #available(iOS 26.0, *) {
-            return SystemLanguageModel.default.isAvailable
+            return !DirectModelCallsForTesting.isOn && SystemLanguageModel.default.isAvailable
         }
         return false
     }

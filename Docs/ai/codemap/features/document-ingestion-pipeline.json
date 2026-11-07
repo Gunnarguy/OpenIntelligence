@@ -4,8 +4,8 @@
   "name": "Document Ingestion Pipeline",
   "aliases": ["document ingestion", "ingestion pipeline", "import documents", "importing documents", "import PDFs", "choose documents to import", "document processor", "Vision OCR fallback", "OCR configuration", "stage ledger", "ingestion queue", "the import", "an import", "importing a", "OCR", "scanned pages"],
   "purpose": "Turns an imported file into text, pages and chunks through staged extraction, with Vision OCR as the fallback, and shows the import queue's progress.",
-  "revision": "7c5ccaaf",
-  "verified_on": "2026-11-05",
+  "revision": "dc3cea69",
+  "verified_on": "2026-11-06",
   "entry_points": ["DocumentLibraryView.enqueueDocumentIngestion", "RAGService.enqueueDocuments", "RAGService.runIngestionLoop", "RAGService.addDocument", "RAGService.importLargePDFStreamed", "DocumentProcessor.processDocument", "DocumentProcessor.extractStructuredPDFContent", "DocumentProcessor.performOCR", "IngestionQueueOverlay"],
   "files": [
     {"path": "OpenIntelligence/Core/Models/IngestionItem.swift", "role": "primary", "blob": "4967018371ee1f165c2fa89f2e5b0e4ff91729ed"},
@@ -85,10 +85,12 @@
     {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "shared", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
     {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Sending.swift", "role": "shared", "blob": "c34ad91804ef3bf3372186d1fd2c4d906496c221"},
-    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "0d5f452baccdabd528aacb21f803933dda20956a"},
+    {"path": "OpenIntelligence/Services/Query/UX/SuggestedQuestionsService+Bank.swift", "role": "shared", "blob": "44f5f50877bbbae142989c922e02b22975fa9d66"},
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Documents.swift", "role": "shared", "blob": "0238f065e864fa4f14cdb6756b1e13254af04ded"},
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"},
-    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "role": "shared", "blob": "ac11bc245dda36a00e6c0fee4f64caf087e48bf8"}
+    {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "role": "shared", "blob": "ac11bc245dda36a00e6c0fee4f64caf087e48bf8"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ImportGoldenTests.swift", "role": "test", "blob": "15a135004710c5610a96fca53d874535c5d53382"},
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/StructuredParsingGoldenTests.swift", "role": "test", "blob": "f7caff74d9b87d5f06f998fb6c5c6967c55f6ead"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 125, "match": "private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {", "status": "VERIFIED", "by": "build"},

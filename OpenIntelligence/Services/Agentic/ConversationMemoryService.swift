@@ -556,7 +556,7 @@ final class ConversationMemoryService {
         #if canImport(FoundationModels)
             do {
                 let model = SystemLanguageModel.default
-                guard model.isAvailable else {
+                guard !DirectModelCallsForTesting.isOn, model.isAvailable else {
                     return extractiveSummary(from: text)
                 }
 

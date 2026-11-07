@@ -327,7 +327,7 @@ final class IterativeRetrievalService: @unchecked Sendable {
                 throw IterativeRetrievalError.refinementUnavailable
             }
 
-            guard SystemLanguageModel.default.isAvailable else {
+            guard !DirectModelCallsForTesting.isOn, SystemLanguageModel.default.isAvailable else {
                 throw IterativeRetrievalError.refinementUnavailable
             }
 

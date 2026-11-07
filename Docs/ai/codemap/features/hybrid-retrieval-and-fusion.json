@@ -4,7 +4,7 @@
   "name": "Hybrid Retrieval and Fusion",
   "aliases": ["hybrid retrieval", "hybrid search", "BM25 scoring", "reciprocal rank fusion", "reranking", "cross-encoder reranker", "context packing", "iterative retrieval", "retrieval trace", "reranker", "rerank"],
   "purpose": "Finds the chunks for a question by running vector and keyword search together, fusing them with reciprocal rank fusion, reranking, and packing the context.",
-  "revision": "b914298b",
+  "revision": "dc3cea69",
   "verified_on": "2026-11-06",
   "entry_points": ["HybridSearchService", "RAGEngine.reciprocalRankFusion", "RAGEngine.rerank", "RAGEngine.rerankWithCrossEncoder", "ContextPackingService", "IterativeRetrievalService", "RetrievalTraceCollector.Stage"],
   "files": [
@@ -13,7 +13,7 @@
     {"path": "OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift", "role": "primary", "blob": "be522a7e9e6d9d37e3828646b8ecce32e3cf2ce5"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/GraphIndexService.swift", "role": "primary", "blob": "63dd3b953f67fec5c374bbdc3238694e4c7da04a"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift", "role": "primary", "blob": "cd301ac9682446cfcd835331a556f3ef7768b810"},
-    {"path": "OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift", "role": "primary", "blob": "e2f5c8b239e7675c2dd1f6bd4848c0066659aab3"},
+    {"path": "OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift", "role": "primary", "blob": "a44ab42efe8ea35800bb6278398367ce7db7f66c"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift", "role": "primary", "blob": "2689571bed718ca0471b69894843f620e1f9b056"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/RAPTORSummaryRouter.swift", "role": "primary", "blob": "7a5911cd27d4d99f19a7454f4f876bfef792b815"},
     {"path": "OpenIntelligence/Services/RAG/Retrieval/RetrievalTraceCollector.swift", "role": "primary", "blob": "d2ea9d4c8b0cf906b0a057c36f1912e2296b5bdc"},
@@ -24,7 +24,9 @@
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/HybridSearchServiceTests.swift", "role": "test", "blob": "6a7f6fd8976768170687a4a3a580a077338bb112"},
     {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/ParentDocumentServiceTests.swift", "role": "test", "blob": "06a358abbe1ffc67c59858a4b8bb004caf2e9b39"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/MMRStoredVectorsTests.swift", "role": "test", "blob": "480c62ec7158d4b35bd840e508198ddfd96f75d2"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/StandardPipelineGoldenTests.swift", "role": "test", "blob": "13373c0444885704695b892e427021d3a5caf6c5"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/GoldenRecording.swift", "role": "test", "blob": "1202b8cf94d34809ee8f0ef33b39b52026f44c51"}
   ],
   "nodes": [
     {"id": "HybridSearchService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift", "line": 161, "match": "class HybridSearchService {", "status": "VERIFIED", "by": "build"},

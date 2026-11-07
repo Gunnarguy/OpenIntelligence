@@ -370,7 +370,7 @@ private extension QueryExecutionPlannerService {
         requestedQualityMode: RAGQualityMode,
         allowToolCalling: Bool
     ) async -> QueryExecutionPlan? {
-        guard SystemLanguageModel.default.availability == .available else {
+        guard !DirectModelCallsForTesting.isOn, SystemLanguageModel.default.availability == .available else {
             return nil
         }
 

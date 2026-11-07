@@ -232,6 +232,7 @@ final class QueryRewriterService: @unchecked Sendable {
     ) async throws -> String {
         #if canImport(FoundationModels)
             guard #available(iOS 26.0, *),
+                  !DirectModelCallsForTesting.isOn,
                   SystemLanguageModel.default.isAvailable
             else {
                 throw QueryRewriterError.unavailable

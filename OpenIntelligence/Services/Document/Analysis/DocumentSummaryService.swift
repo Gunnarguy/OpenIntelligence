@@ -269,7 +269,7 @@ actor DocumentSummaryService {
         """
 
         #if canImport(FoundationModels)
-            if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
+            if #available(iOS 26.0, *), !DirectModelCallsForTesting.isOn, SystemLanguageModel.default.isAvailable {
                 do {
                     let responseText = try await generateSummaryWithFoundationModels(prompt: prompt)
                     return enforceWordLimit(responseText, maxWords: 150)

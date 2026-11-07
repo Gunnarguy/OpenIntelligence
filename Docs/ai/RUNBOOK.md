@@ -590,6 +590,38 @@ store (`setDebugTier`) after the launch's StoreKit check, which writes the free 
 `RAGService.deferredEnrichments()` to empty, because the overviews are stored as passages and 69 of them landed during
 the searches the first time.
 
+## Proving a Standard, import or parsing change changes nothing (added 2026-11-06)
+
+Three recorders, built like the golden harness above: `StandardPipelineGoldenTests` (Standard answers end to end, with a
+stand-in model), `ImportGoldenTests` (what an import stores) and `StructuredParsingGoldenTests` (what the PDF parser
+produces). Each runs its work twice and fails if the passes differ, and writes `<kind>-<label>.json`; two recordings
+are compared with `scripts/golden_compare.py`. They skip unless `TEST_RUNNER_OI_GOLDEN_DIR` is set.
+
+```bash
+python3 scripts/golden_compare.py prepare /private/tmp/oi-decomp-golden
+```
+
+Then, from a build copy synced with `rsync --delete` (a copy synced without it keeps deleted files and builds green),
+once per recorder and label, with the hash seed fixed:
+
+```bash
+TEST_RUNNER_SWIFT_DETERMINISTIC_HASHING=1 TEST_RUNNER_OI_GOLDEN_DIR=/private/tmp/oi-decomp-golden TEST_RUNNER_OI_GOLDEN_LABEL=before xcodebuild test-without-building -project OpenIntelligence.xcodeproj -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath <dd> -only-testing:OpenIntelligenceTests/StandardPipelineGoldenTests
+```
+
+```bash
+python3 scripts/golden_compare.py compare /private/tmp/oi-decomp-golden/standard-before.json /private/tmp/oi-decomp-golden/standard-after.json
+```
+
+`TEST_RUNNER_OI_GOLDEN_PASSES=1` records one pass (for runs after a baseline has shown the passes agree);
+`TEST_RUNNER_OI_GOLDEN_REBUILD=1` rebuilds the Standard library. *Recorded 2026-11-06:* Standard about 5 minutes a
+pass, import about 4, parsing about 6. What each one had to hold still, every item found by a failed comparison: the
+hash seed (`SWIFT_DETERMINISTIC_HASHING`; the app turns sets into ordered lists), the on-device window (4,096), the
+network (held disconnected: connected sends a question to the Private Cloud Compute window, which the Simulator reports
+as 0), the services that call Apple's model directly (`DirectModelCallsForTesting`), the overviews left for later, the
+keyword index the app rebuilds at every launch, the conversation-memory turn saved after an answer, and ids and clock
+fields in the recording. The scripts the decomposition uses are in `BenchmarkRuns/2026-11-06-decomposition/`
+(`build.sh`, `record.sh`, `baseline.sh`).
+
 ## Measuring the wait after an answer's last word
 
 *Verified 2026-09-23.* `--rag-validation-stream-probe` gives the harness a stream handler and logs

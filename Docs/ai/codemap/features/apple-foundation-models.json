@@ -4,8 +4,8 @@
   "name": "Apple Foundation Models",
   "aliases": ["Apple Foundation Models", "SystemLanguageModel", "PrivateCloudComputeLanguageModel", "foundation model session factory", "entitlement checker"],
   "purpose": "Builds the Apple Foundation Models sessions, tools and structured generation that answer on device or on Private Cloud Compute.",
-  "revision": "a64feedd",
-  "verified_on": "2026-11-05",
+  "revision": "dc3cea69",
+  "verified_on": "2026-11-06",
   "entry_points": ["FoundationModelSessionFactory", "FoundationModelRoutePolicy", "FoundationModelToolRegistry", "FoundationModelStructuredGenerator", "FoundationModelPromptCompiler", "EntitlementChecker"],
   "files": [
     {"path": "OpenIntelligence/Core/Support/EngineSDKCompatibility.swift", "role": "primary", "blob": "c5d125680c714c74860b4a476830e6f4cb562d5d"},
@@ -24,7 +24,8 @@
     {"path": "OpenIntelligenceTests/Services/AIPlatform/CustomReasoningProfileTests.swift", "role": "test", "blob": "b0385d58152ef95e8cf26c96d5ebf3f1e4f3475c"},
     {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/AnswerModelPriority.swift", "role": "primary", "blob": "e4ba20eb02998897e679f2a9b22e95fd4663d16c"},
     {"path": "OpenIntelligence/Services/LLM/AppleFoundationLLMService.swift", "role": "shared", "blob": "d9f1686486ff1e63113f74b084f403ee8d6d6943"},
-    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+NerdStats.swift", "role": "shared", "blob": "38703f02a01b496680b07aca0f93ae3d6ca17036"}
+    {"path": "OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+NerdStats.swift", "role": "shared", "blob": "38703f02a01b496680b07aca0f93ae3d6ca17036"},
+    {"path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/DirectModelCallsForTesting.swift", "role": "primary", "blob": "36d7ae24720e01ff74ae55b0c3bc85230b9bbc81"}
   ],
   "nodes": [
     {"id": "FoundationModelSessionFactory", "kind": "model", "path": "OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift", "line": 14, "match": "struct FoundationModelSessionFactory {", "status": "VERIFIED", "by": "build"},

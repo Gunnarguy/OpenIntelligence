@@ -178,6 +178,7 @@ final class SourceOnlyAnswerService {
     private init() {}
 
     var isAvailable: Bool {
+        if DirectModelCallsForTesting.isOn { return false }
         switch model.availability {
         case .available:
             return true
