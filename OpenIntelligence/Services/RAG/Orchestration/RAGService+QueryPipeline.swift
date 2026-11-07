@@ -398,61 +398,7 @@ extension RAGService {
 
                 await dropPassagesOfUnknownDocuments(retrievedChunks: &retrievedChunks)
 
-                // Edge case: No relevant chunks found
-                if retrievedChunks.isEmpty {
-                    Log.warning(
-                        "⚠️  [RAGService] No chunks retrieved (database may be empty)",
-                        category: .retrieval
-                    )
-                    TelemetryCenter.emit(
-                        .retrieval,
-                        severity: .warning,
-                        title: "No chunks retrieved",
-                        metadata: [
-                            "question": String(question.prefix(60))
-                        ],
-                        duration: retrievalTime
-                    )
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Insufficient evidence",
-                        detail: "No relevant chunks found"
-                    )
-                    if allowUngroundedFallback {
-                        // Fallback to direct LLM chat mode
-                        let response = try await generateDirectChatResponse(
-                            question: question,
-                            ragQuery: ragQueryValue,
-                            inferenceConfig: inferenceConfig,
-                            pipelineStartTime: pipelineStartTime,
-                            retrievalTime: retrievalTime,
-                            fallbackNote:
-                                "No relevant document context found; replied without RAG context."
-                        )
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: response
-                        )
-                    }
-                    let response = await makeGroundedAbstainResponse(
-                        question: question,
-                        ragQuery: ragQueryValue,
-                        retrievedChunks: [],
-                        retrievalTime: retrievalTime,
-                        retrievalConfig: retrievalConfig,
-                        embeddingProviderId: embeddingProviderId,
-                        reason: "I couldn't find relevant sources in your library for that question.",
-                        gatingDecision: "no_sources"
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
+                if let exitResponse = try await handleNoRetrievedPassages(retrievedChunks: retrievedChunks, question: question, retrievalTime: retrievalTime, allowUngroundedFallback: allowUngroundedFallback, ragQueryValue: ragQueryValue, inferenceConfig: inferenceConfig, pipelineStartTime: pipelineStartTime, selectedId: selectedId, selectedName: selectedName, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId) { return exitResponse }
 
                 let __attachSourcesAndDemoteQuestionsResult = await attachSourcesAndDemoteQuestions(retrievedChunks: retrievedChunks, question: question, auditCandidatesCount: &auditCandidatesCount, recoveryRetrievedChunks: &recoveryRetrievedChunks, effectiveTopK: effectiveTopK, selectedName: selectedName, selectedId: selectedId, retrievalTime: retrievalTime, adjustedVectorWeight: adjustedVectorWeight, adjustedKeywordWeight: adjustedKeywordWeight)
                 var chunksWithSources = __attachSourcesAndDemoteQuestionsResult.chunksWithSources
@@ -471,49 +417,7 @@ extension RAGService {
 
                 await retryWithCleanKeywordQuery(rerankedChunks: &rerankedChunks, question: question, queryEmbeddingService: queryEmbeddingService, vdb: vdb, effectiveTopK: effectiveTopK, filteredCachedChunks: filteredCachedChunks, selectedId: selectedId, docsSnapshot: docsSnapshot, qualityModeUsesReRanking: qualityModeUsesReRanking, engine: engine)
 
-                if rerankedChunks.isEmpty {
-                    Log.warning(
-                        "⚠️  [RAGService] Re-ranking yielded no candidates",
-                        category: .retrieval
-                    )
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Re-ranking exhausted",
-                        detail: "No viable candidates"
-                    )
-                    if allowUngroundedFallback {
-                        let response = try await generateDirectChatResponse(
-                            question: question,
-                            ragQuery: ragQueryValue,
-                            inferenceConfig: inferenceConfig,
-                            pipelineStartTime: pipelineStartTime,
-                            retrievalTime: retrievalTime,
-                            fallbackNote: "No re-ranked candidates; replied without RAG context."
-                        )
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: response
-                        )
-                    }
-                    let response = await makeGroundedAbstainResponse(
-                        question: question,
-                        ragQuery: ragQueryValue,
-                        retrievedChunks: [],
-                        retrievalTime: retrievalTime,
-                        retrievalConfig: retrievalConfig,
-                        embeddingProviderId: embeddingProviderId,
-                        reason: "I couldn't identify reliable sources after re-ranking.",
-                        gatingDecision: "rerank_empty"
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
+                if let exitResponse = try await handleEmptyRerank(rerankedChunks: rerankedChunks, allowUngroundedFallback: allowUngroundedFallback, question: question, ragQueryValue: ragQueryValue, inferenceConfig: inferenceConfig, pipelineStartTime: pipelineStartTime, retrievalTime: retrievalTime, selectedId: selectedId, selectedName: selectedName, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId) { return exitResponse }
 
                 let __filterLowConfidenceChunksResult = await filterLowConfidenceChunks(auditLenient: &auditLenient, rerankedChunks: rerankedChunks, auditTopSim: &auditTopSim, auditSecondSim: &auditSecondSim, auditAvgTop5: &auditAvgTop5, effectiveQueryProfile: effectiveQueryProfile, qualityMode: qualityMode, retrievalConfig: retrievalConfig, auditDynamicMin: &auditDynamicMin, engine: engine, auditAcceptanceOverride: &auditAcceptanceOverride)
                 let dynamicMin = __filterLowConfidenceChunksResult.dynamicMin
@@ -527,183 +431,16 @@ extension RAGService {
 
                 rescueDroppedSpecChunks(filteredChunks: &filteredChunks, rerankedChunks: rerankedChunks, auditDroppedCount: &auditDroppedCount, dynamicMin: dynamicMin, answerIntentIsExtractive: answerIntentIsExtractive, answerIntent: answerIntent)
 
-                // Edge case: No high-confidence chunks
-                if filteredChunks.isEmpty {
-                    if acceptanceOverride || lenient {
-                        // Use top reranked results directly under override/lenient conditions
-                        filteredChunks = Array(rerankedChunks.prefix(effectiveTopK * 2))
-                        Log.info(
-                            "   ✅ Acceptance override applied; proceeding with top reranked results",
-                            category: .retrieval
-                        )
-                        TelemetryCenter.emit(
-                            .retrieval,
-                            title: "Acceptance override",
-                            metadata: [
-                                "topSim": String(format: "%.3f", topSim),
-                                "secondSim": String(format: "%.3f", secondSim),
-                                "avgTop5": String(format: "%.3f", avgTop5),
-                            ]
-                        )
-                    } else if allowUngroundedFallback {
-                        // Low-confidence retrieval: proceed with best-available reranked chunks under
-                        // explicit fallback allowances.
-                        Log.warning(
-                            "   ⚠️  No chunks met the confidence threshold; proceeding with best-available context",
-                            category: .retrieval
-                        )
-                        emitThinkingEvent(
-                            .fallback,
-                            title: "Low-confidence context",
-                            detail: "Proceeding with best-available chunks"
-                        )
-                        TelemetryCenter.emit(
-                            .retrieval,
-                            severity: .warning,
-                            title: "Low-confidence context (proceeding)",
-                            metadata: [
-                                "threshold": String(format: "%.2f", dynamicMin),
-                                "topSim": String(format: "%.3f", topSim),
-                            ]
-                        )
-
-                        filteredChunks = Array(rerankedChunks.prefix(max(effectiveTopK, 3)))
-                    } else {
-                        let response = await makeGroundedAbstainResponse(
-                            question: question,
-                            ragQuery: ragQueryValue,
-                            retrievedChunks: rerankedChunks,
-                            retrievalTime: retrievalTime,
-                            retrievalConfig: retrievalConfig,
-                            embeddingProviderId: embeddingProviderId,
-                            reason: "I couldn't find high-confidence evidence in your library for this query.",
-                            gatingDecision: "low_confidence"
-                        )
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: response
-                        )
-                    }
-                }
+                if let exitResponse = await handleNoConfidentPassages(filteredChunks: &filteredChunks, acceptanceOverride: acceptanceOverride, lenient: lenient, effectiveTopK: effectiveTopK, rerankedChunks: rerankedChunks, topSim: topSim, secondSim: secondSim, avgTop5: avgTop5, allowUngroundedFallback: allowUngroundedFallback, dynamicMin: dynamicMin, question: question, ragQueryValue: ragQueryValue, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
                 auditFilteredCount = filteredChunks.count
 
                 let uniqueDocCount = ensureMultiDocumentCoverage(rerankedChunks: rerankedChunks, auditUniqueDocCount: &auditUniqueDocCount, effectiveTopK: effectiveTopK, filteredChunks: &filteredChunks, retryCandidates: &retryCandidates)
 
                 let (diverseChunks, mmrTime) = await diversifyWithMMR(retrievalConfig: retrievalConfig, qualityModeUsesMMR: qualityModeUsesMMR, qualityModeDisplayName: qualityModeDisplayName, effectiveTopK: effectiveTopK, filteredChunks: filteredChunks, auditMMRSelectedCount: &auditMMRSelectedCount, isProceduralQuery: isProceduralQuery, engine: engine, queryEmbedding: queryEmbedding, selectedId: selectedId)
 
-                if diverseChunks.isEmpty {
-                    Log.warning(
-                        "⚠️  [RAGService] MMR returned no candidates",
-                        category: .retrieval
-                    )
-                    emitThinkingEvent(
-                        .warning,
-                        title: "MMR exhausted",
-                        detail: "No diverse candidates"
-                    )
-                    if allowUngroundedFallback {
-                        let response = try await generateDirectChatResponse(
-                            question: question,
-                            ragQuery: ragQueryValue,
-                            inferenceConfig: inferenceConfig,
-                            pipelineStartTime: pipelineStartTime,
-                            retrievalTime: retrievalTime,
-                            fallbackNote:
-                                "No diverse candidates after MMR; replied without RAG context."
-                        )
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: response
-                        )
-                    }
-                    let response = await makeGroundedAbstainResponse(
-                        question: question,
-                        ragQuery: ragQueryValue,
-                        retrievedChunks: [],
-                        retrievalTime: retrievalTime,
-                        retrievalConfig: retrievalConfig,
-                        embeddingProviderId: embeddingProviderId,
-                        reason: "I couldn't build a diverse evidence set to answer reliably.",
-                        gatingDecision: "mmr_empty"
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
+                if let exitResponse = try await handleEmptyDiverseSet(diverseChunks: diverseChunks, allowUngroundedFallback: allowUngroundedFallback, question: question, ragQueryValue: ragQueryValue, inferenceConfig: inferenceConfig, pipelineStartTime: pipelineStartTime, retrievalTime: retrievalTime, selectedId: selectedId, selectedName: selectedName, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId) { return exitResponse }
 
-                // The passages-needed rule of Library Settings (5.7, `RetrievalPolicyService.strongPassageShortfall`):
-                // with two or more required, too few passages at the library's minimum score get the closest
-                // sources instead of an answer. Each passage counts at the score the re-ranker gave it: a rescued table
-                // passage is raised to just under the best score so it reaches the answer, and that is not a close
-                // match (review, 2026-10-20). "high_accuracy_blocked" is the rule's older name, which
-                // `VerificationOutcome` reads.
-                let rerankedScores = Dictionary(
-                    rerankedChunks.map { ($0.chunk.id, $0.similarityScore) }, uniquingKeysWith: { first, _ in first })
-                if let shortfall = RetrievalPolicyService.strongPassageShortfall(
-                    diverseChunks, config: retrievalConfig,
-                    score: { rerankedScores[$0.chunk.id] ?? $0.similarityScore })
-                {
-                    let topSources = diverseChunks.prefix(3).enumerated().map { idx, r in
-                        let src = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
-                        let page = r.pageNumber.map { " (p.\($0))" } ?? ""
-                        let score = rerankedScores[r.chunk.id] ?? r.similarityScore
-                        return "- [\(idx + 1)] \(src)\(page), \(String(format: "%.0f%%", score * 100))"
-                    }.joined(separator: "\n")
-                    let cleared = shortfall.found == 0 ? "none did" : "only \(shortfall.found) did"
-                    let minimum = String(format: "%.0f%%", retrievalConfig.minSimilarity * 100)
-                    let caution =
-                        "This library is set to answer only when at least \(shortfall.needed) of the passages found score \(minimum) or more for your question, and \(cleared). The closest passages:\n\(topSources)\n\nTo answer from fewer, lower Passages Needed in Library Settings, under Search."
-
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Too few passages at the minimum score",
-                        detail: "\(shortfall.found) of \(shortfall.needed) scored \(minimum) or more"
-                    )
-
-                    let metadata = ResponseMetadata(
-                        timeToFirstToken: nil,
-                        totalGenerationTime: 0,
-                        tokensGenerated: 0,
-                        tokensPerSecond: nil,
-                        modelUsed: llmService.modelName,
-                        retrievalTime: retrievalTime,
-                        retrievalConfigSummary: retrievalConfig.summary,
-                        gatingDecision: "high_accuracy_blocked",
-                        toolCallsMade: 0,
-                        embeddingProvider: embeddingProviderId
-                    )
-
-                    let response = RAGResponse(
-                        queryId: ragQueryValue.id,
-                        retrievedChunks: diverseChunks,
-                        generatedResponse: caution,
-                        metadata: metadata,
-                        confidenceScore: 0.0,
-                        qualityWarnings: ["Passages needed: \(shortfall.found) of \(shortfall.needed) scored \(minimum) or more"],
-                        structuredAnswer: StructuredAnswer.refusal(
-                            reason: caution,
-                            missing: [
-                                "At least \(shortfall.needed) passages scoring \(String(format: "%.0f%%", retrievalConfig.minSimilarity * 100)) or more, which Library Settings asks for."
-                            ],
-                            topScore: diverseChunks.first?.similarityScore ?? 0,
-                            loops: 1,
-                            retrievedChunks: diverseChunks
-                        )
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
+                if let exitResponse = await enforcePassagesNeeded(rerankedChunks: rerankedChunks, diverseChunks: diverseChunks, retrievalConfig: retrievalConfig, retrievalTime: retrievalTime, embeddingProviderId: embeddingProviderId, ragQueryValue: ragQueryValue, question: question, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
 
                 let __prepareContextCandidatesResult = prepareContextCandidates(diverseChunks: diverseChunks, question: question)
                 var contextCandidates = __prepareContextCandidatesResult.contextCandidates
@@ -800,50 +537,7 @@ extension RAGService {
 
                 await recordContextAuditSnapshot(actualChunksUsed: actualChunksUsed, contextWords: contextWords, contextSize: contextSize, selectedName: selectedName, selectedId: selectedId, selectedContainer: selectedContainer, question: question, embeddingProviderId: embeddingProviderId, selectedDim: selectedDim, qualityModeDisplayName: qualityModeDisplayName, retrievalConfig: retrievalConfig, auditLenient: auditLenient, auditDynamicMin: auditDynamicMin, auditTopSim: auditTopSim, auditSecondSim: auditSecondSim, auditAvgTop5: auditAvgTop5, auditAcceptanceOverride: auditAcceptanceOverride, totalStored: totalStored, auditCandidatesCount: auditCandidatesCount, auditRerankedCount: auditRerankedCount, auditFilteredCount: auditFilteredCount, auditDroppedCount: auditDroppedCount, auditMMRSelectedCount: auditMMRSelectedCount, auditUniqueDocCount: auditUniqueDocCount, contextStrategy: contextStrategy, maxContextChars: maxContextChars, baseWindowTokens: baseWindowTokens, promptOverheadTokens: promptOverheadTokens, questionTokens: questionTokens, reservedOutputTokens: reservedOutputTokens, availableForContextTokens: availableForContextTokens, inferenceConfig: inferenceConfig, networkAvailable: networkAvailable, allowLargeContext: allowLargeContext, reliabilityModeEnabled: reliabilityModeEnabled, allowUngroundedFallback: allowUngroundedFallback, auditAnswerIntent: auditAnswerIntent, auditQueryWasRewritten: auditQueryWasRewritten, auditQueryExpansionCount: auditQueryExpansionCount, auditUsedHyDE: auditUsedHyDE, auditUsedIterativeRetrieval: auditUsedIterativeRetrieval, auditIterativePassCount: auditIterativePassCount, auditUsedQueryRouting: auditUsedQueryRouting, auditUsedSummaryRouting: auditUsedSummaryRouting, auditUsedParentDocumentRetrieval: auditUsedParentDocumentRetrieval, auditUsedCorrectiveRetrieval: auditUsedCorrectiveRetrieval, auditUsedContextualCompression: auditUsedContextualCompression, auditUsedGraphPacking: auditUsedGraphPacking, usedRetrievalCascade: usedRetrievalCascade, auditUsedSupplementaryVectorSearch: auditUsedSupplementaryVectorSearch)
 
-                // If context is empty, fallback to direct chat to avoid downstream failures
-                if actualChunksUsed == 0 || context.isEmpty {
-                    Log.warning(
-                        "⚠️  [RAGService] Empty context after assembly",
-                        category: .retrieval
-                    )
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Context empty",
-                        detail: "Insufficient evidence"
-                    )
-                    if allowUngroundedFallback {
-                        let response = try await generateDirectChatResponse(
-                            question: question,
-                            ragQuery: ragQueryValue,
-                            inferenceConfig: inferenceConfig,
-                            pipelineStartTime: pipelineStartTime,
-                            retrievalTime: retrievalTime,
-                            fallbackNote: "Empty assembled context; replied without RAG context."
-                        )
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: response
-                        )
-                    }
-                    let response = await makeGroundedAbstainResponse(
-                        question: question,
-                        ragQuery: ragQueryValue,
-                        retrievedChunks: [],
-                        retrievalTime: retrievalTime,
-                        retrievalConfig: retrievalConfig,
-                        embeddingProviderId: embeddingProviderId,
-                        reason: "I couldn't assemble enough context to answer reliably.",
-                        gatingDecision: "context_empty"
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
+                if let exitResponse = try await handleEmptyAssembledContext(actualChunksUsed: actualChunksUsed, context: context, allowUngroundedFallback: allowUngroundedFallback, question: question, ragQueryValue: ragQueryValue, inferenceConfig: inferenceConfig, pipelineStartTime: pipelineStartTime, retrievalTime: retrievalTime, selectedId: selectedId, selectedName: selectedName, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId) { return exitResponse }
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // HARD RELEVANCE GATE: Check if retrieved content is actually relevant
@@ -852,54 +546,7 @@ extension RAGService {
                 let lexicalRelevance = checkLexicalRelevance(query: effectiveQuery, chunks: includedRetrievedChunks)
                 let bestSimilarity = includedRetrievedChunks.first?.similarityScore ?? 0
 
-                if lexicalRelevance < 0.1 && bestSimilarity < 0.3 {
-                    Log.warning(
-                        "[RAG] Hard exit: Retrieved content is irrelevant (lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), similarity=\(String(format: "%.2f", bestSimilarity)))",
-                        category: .retrieval)
-
-                    emitThinkingEvent(
-                        .warning,
-                        title: "Content not found",
-                        detail: "Retrieved content doesn't match query"
-                    )
-
-                    let notFoundMetadata = ResponseMetadata(
-                        timeToFirstToken: nil,
-                        totalGenerationTime: 0,
-                        tokensGenerated: 0,
-                        tokensPerSecond: nil,
-                        modelUsed: "none",
-                        retrievalTime: retrievalTime,
-                        retrievalConfigSummary: retrievalConfig.summary,
-                        gatingDecision: "relevance_gate_failed",
-                        toolCallsMade: 0,
-                        embeddingProvider: embeddingProviderId
-                    )
-
-                    let notFoundResponse = RAGResponse(
-                        queryId: ragQueryValue.id,
-                        retrievedChunks: [],
-                        generatedResponse:
-                            "I couldn't find relevant information about this topic in your documents. The retrieved content was about different subjects.",
-                        metadata: notFoundMetadata,
-                        confidenceScore: 0.0,
-                        qualityWarnings: ["Relevance gate failed: retrieved content doesn't match query"],
-                        structuredAnswer: StructuredAnswer.refusal(
-                            reason:
-                                "I couldn't find relevant information about this topic in your documents. The retrieved content was about different subjects.",
-                            missing: ["No relevant information matched the query in the selected library."],
-                            topScore: bestSimilarity,
-                            loops: 1
-                        )
-                    )
-
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: notFoundResponse
-                    )
-                }
+                if let exitResponse = await applyHardRelevanceGate(bestSimilarity: bestSimilarity, lexicalRelevance: lexicalRelevance, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, ragQueryValue: ragQueryValue, question: question, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
 
                 let (useEvidenceFirstMode, uniqueSourceDocs, bestRetrievalSim) = assessEvidenceBeforeGeneration(includedRetrievedChunks: includedRetrievedChunks, actualChunksUsed: actualChunksUsed, auditAvgTop5: auditAvgTop5, auditDynamicMin: auditDynamicMin, lexicalRelevance: lexicalRelevance, isProceduralQuery: isProceduralQuery)
 
@@ -1347,6 +994,408 @@ extension RAGService {
         } catch {
             return try await recoverFromQueryFailure(error: error, reliabilityModeEnabled: reliabilityModeEnabled, recoveryRetrievedChunks: recoveryRetrievedChunks, question: question, effectiveTopK: effectiveTopK, ragQuery: ragQuery, inferenceConfig: inferenceConfig, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, recoveryRetrievalTime: recoveryRetrievalTime, selectedId: selectedId, selectedName: selectedName)
         }
+    }
+
+    /// Step 3 (empty): answers by direct chat or abstains when retrieval found no passages.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func handleNoRetrievedPassages(retrievedChunks: [RetrievedChunk], question: String, retrievalTime: TimeInterval, allowUngroundedFallback: Bool, ragQueryValue: RAGQuery, inferenceConfig: InferenceConfig, pipelineStartTime: Date, selectedId: UUID, selectedName: String, retrievalConfig: RetrievalConfig, embeddingProviderId: String) async throws -> RAGResponse? {
+        // Edge case: No relevant chunks found
+        if retrievedChunks.isEmpty {
+            Log.warning(
+                "⚠️  [RAGService] No chunks retrieved (database may be empty)",
+                category: .retrieval
+            )
+            TelemetryCenter.emit(
+                .retrieval,
+                severity: .warning,
+                title: "No chunks retrieved",
+                metadata: [
+                    "question": String(question.prefix(60))
+                ],
+                duration: retrievalTime
+            )
+            emitThinkingEvent(
+                .warning,
+                title: "Insufficient evidence",
+                detail: "No relevant chunks found"
+            )
+            if allowUngroundedFallback {
+                // Fallback to direct LLM chat mode
+                let response = try await generateDirectChatResponse(
+                    question: question,
+                    ragQuery: ragQueryValue,
+                    inferenceConfig: inferenceConfig,
+                    pipelineStartTime: pipelineStartTime,
+                    retrievalTime: retrievalTime,
+                    fallbackNote:
+                        "No relevant document context found; replied without RAG context."
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: response
+                )
+            }
+            let response = await makeGroundedAbstainResponse(
+                question: question,
+                ragQuery: ragQueryValue,
+                retrievedChunks: [],
+                retrievalTime: retrievalTime,
+                retrievalConfig: retrievalConfig,
+                embeddingProviderId: embeddingProviderId,
+                reason: "I couldn't find relevant sources in your library for that question.",
+                gatingDecision: "no_sources"
+            )
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: response
+            )
+        }
+        return nil
+    }
+
+    /// Step 4 (empty): answers by direct chat or abstains when re-ranking left no candidates.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func handleEmptyRerank(rerankedChunks: [RetrievedChunk], allowUngroundedFallback: Bool, question: String, ragQueryValue: RAGQuery, inferenceConfig: InferenceConfig, pipelineStartTime: Date, retrievalTime: TimeInterval, selectedId: UUID, selectedName: String, retrievalConfig: RetrievalConfig, embeddingProviderId: String) async throws -> RAGResponse? {
+        if rerankedChunks.isEmpty {
+            Log.warning(
+                "⚠️  [RAGService] Re-ranking yielded no candidates",
+                category: .retrieval
+            )
+            emitThinkingEvent(
+                .warning,
+                title: "Re-ranking exhausted",
+                detail: "No viable candidates"
+            )
+            if allowUngroundedFallback {
+                let response = try await generateDirectChatResponse(
+                    question: question,
+                    ragQuery: ragQueryValue,
+                    inferenceConfig: inferenceConfig,
+                    pipelineStartTime: pipelineStartTime,
+                    retrievalTime: retrievalTime,
+                    fallbackNote: "No re-ranked candidates; replied without RAG context."
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: response
+                )
+            }
+            let response = await makeGroundedAbstainResponse(
+                question: question,
+                ragQuery: ragQueryValue,
+                retrievedChunks: [],
+                retrievalTime: retrievalTime,
+                retrievalConfig: retrievalConfig,
+                embeddingProviderId: embeddingProviderId,
+                reason: "I couldn't identify reliable sources after re-ranking.",
+                gatingDecision: "rerank_empty"
+            )
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: response
+            )
+        }
+        return nil
+    }
+
+    /// Step 4.3 (gate): when no passage clears the similarity floor, takes the top re-ranked passages under override, lenient or fallback rules, else abstains.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func handleNoConfidentPassages(filteredChunks: inout [RetrievedChunk], acceptanceOverride: Bool, lenient: Bool, effectiveTopK: Int, rerankedChunks: [RetrievedChunk], topSim: Float, secondSim: Float, avgTop5: Float, allowUngroundedFallback: Bool, dynamicMin: Float, question: String, ragQueryValue: RAGQuery, retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, embeddingProviderId: String, selectedId: UUID, selectedName: String) async -> RAGResponse? {
+        // Edge case: No high-confidence chunks
+        if filteredChunks.isEmpty {
+            if acceptanceOverride || lenient {
+                // Use top reranked results directly under override/lenient conditions
+                filteredChunks = Array(rerankedChunks.prefix(effectiveTopK * 2))
+                Log.info(
+                    "   ✅ Acceptance override applied; proceeding with top reranked results",
+                    category: .retrieval
+                )
+                TelemetryCenter.emit(
+                    .retrieval,
+                    title: "Acceptance override",
+                    metadata: [
+                        "topSim": String(format: "%.3f", topSim),
+                        "secondSim": String(format: "%.3f", secondSim),
+                        "avgTop5": String(format: "%.3f", avgTop5),
+                    ]
+                )
+            } else if allowUngroundedFallback {
+                // Low-confidence retrieval: proceed with best-available reranked chunks under
+                // explicit fallback allowances.
+                Log.warning(
+                    "   ⚠️  No chunks met the confidence threshold; proceeding with best-available context",
+                    category: .retrieval
+                )
+                emitThinkingEvent(
+                    .fallback,
+                    title: "Low-confidence context",
+                    detail: "Proceeding with best-available chunks"
+                )
+                TelemetryCenter.emit(
+                    .retrieval,
+                    severity: .warning,
+                    title: "Low-confidence context (proceeding)",
+                    metadata: [
+                        "threshold": String(format: "%.2f", dynamicMin),
+                        "topSim": String(format: "%.3f", topSim),
+                    ]
+                )
+
+                filteredChunks = Array(rerankedChunks.prefix(max(effectiveTopK, 3)))
+            } else {
+                let response = await makeGroundedAbstainResponse(
+                    question: question,
+                    ragQuery: ragQueryValue,
+                    retrievedChunks: rerankedChunks,
+                    retrievalTime: retrievalTime,
+                    retrievalConfig: retrievalConfig,
+                    embeddingProviderId: embeddingProviderId,
+                    reason: "I couldn't find high-confidence evidence in your library for this query.",
+                    gatingDecision: "low_confidence"
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: response
+                )
+            }
+        }
+        return nil
+    }
+
+    /// Step 4.5 (empty): answers by direct chat or abstains when MMR returned no passages.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func handleEmptyDiverseSet(diverseChunks: [RetrievedChunk], allowUngroundedFallback: Bool, question: String, ragQueryValue: RAGQuery, inferenceConfig: InferenceConfig, pipelineStartTime: Date, retrievalTime: TimeInterval, selectedId: UUID, selectedName: String, retrievalConfig: RetrievalConfig, embeddingProviderId: String) async throws -> RAGResponse? {
+        if diverseChunks.isEmpty {
+            Log.warning(
+                "⚠️  [RAGService] MMR returned no candidates",
+                category: .retrieval
+            )
+            emitThinkingEvent(
+                .warning,
+                title: "MMR exhausted",
+                detail: "No diverse candidates"
+            )
+            if allowUngroundedFallback {
+                let response = try await generateDirectChatResponse(
+                    question: question,
+                    ragQuery: ragQueryValue,
+                    inferenceConfig: inferenceConfig,
+                    pipelineStartTime: pipelineStartTime,
+                    retrievalTime: retrievalTime,
+                    fallbackNote:
+                        "No diverse candidates after MMR; replied without RAG context."
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: response
+                )
+            }
+            let response = await makeGroundedAbstainResponse(
+                question: question,
+                ragQuery: ragQueryValue,
+                retrievedChunks: [],
+                retrievalTime: retrievalTime,
+                retrievalConfig: retrievalConfig,
+                embeddingProviderId: embeddingProviderId,
+                reason: "I couldn't build a diverse evidence set to answer reliably.",
+                gatingDecision: "mmr_empty"
+            )
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: response
+            )
+        }
+        return nil
+    }
+
+    /// Step SH: returns the closest sources instead of an answer when fewer passages than Library Settings requires reach its minimum score.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func enforcePassagesNeeded(rerankedChunks: [RetrievedChunk], diverseChunks: [RetrievedChunk], retrievalConfig: RetrievalConfig, retrievalTime: TimeInterval, embeddingProviderId: String, ragQueryValue: RAGQuery, question: String, selectedId: UUID, selectedName: String) async -> RAGResponse? {
+        // The passages-needed rule of Library Settings (5.7, `RetrievalPolicyService.strongPassageShortfall`):
+        // with two or more required, too few passages at the library's minimum score get the closest
+        // sources instead of an answer. Each passage counts at the score the re-ranker gave it: a rescued table
+        // passage is raised to just under the best score so it reaches the answer, and that is not a close
+        // match (review, 2026-10-20). "high_accuracy_blocked" is the rule's older name, which
+        // `VerificationOutcome` reads.
+        let rerankedScores = Dictionary(
+            rerankedChunks.map { ($0.chunk.id, $0.similarityScore) }, uniquingKeysWith: { first, _ in first })
+        if let shortfall = RetrievalPolicyService.strongPassageShortfall(
+            diverseChunks, config: retrievalConfig,
+            score: { rerankedScores[$0.chunk.id] ?? $0.similarityScore })
+        {
+            let topSources = diverseChunks.prefix(3).enumerated().map { idx, r in
+                let src = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
+                let page = r.pageNumber.map { " (p.\($0))" } ?? ""
+                let score = rerankedScores[r.chunk.id] ?? r.similarityScore
+                return "- [\(idx + 1)] \(src)\(page), \(String(format: "%.0f%%", score * 100))"
+            }.joined(separator: "\n")
+            let cleared = shortfall.found == 0 ? "none did" : "only \(shortfall.found) did"
+            let minimum = String(format: "%.0f%%", retrievalConfig.minSimilarity * 100)
+            let caution =
+                "This library is set to answer only when at least \(shortfall.needed) of the passages found score \(minimum) or more for your question, and \(cleared). The closest passages:\n\(topSources)\n\nTo answer from fewer, lower Passages Needed in Library Settings, under Search."
+
+            emitThinkingEvent(
+                .warning,
+                title: "Too few passages at the minimum score",
+                detail: "\(shortfall.found) of \(shortfall.needed) scored \(minimum) or more"
+            )
+
+            let metadata = ResponseMetadata(
+                timeToFirstToken: nil,
+                totalGenerationTime: 0,
+                tokensGenerated: 0,
+                tokensPerSecond: nil,
+                modelUsed: llmService.modelName,
+                retrievalTime: retrievalTime,
+                retrievalConfigSummary: retrievalConfig.summary,
+                gatingDecision: "high_accuracy_blocked",
+                toolCallsMade: 0,
+                embeddingProvider: embeddingProviderId
+            )
+
+            let response = RAGResponse(
+                queryId: ragQueryValue.id,
+                retrievedChunks: diverseChunks,
+                generatedResponse: caution,
+                metadata: metadata,
+                confidenceScore: 0.0,
+                qualityWarnings: ["Passages needed: \(shortfall.found) of \(shortfall.needed) scored \(minimum) or more"],
+                structuredAnswer: StructuredAnswer.refusal(
+                    reason: caution,
+                    missing: [
+                        "At least \(shortfall.needed) passages scoring \(String(format: "%.0f%%", retrievalConfig.minSimilarity * 100)) or more, which Library Settings asks for."
+                    ],
+                    topScore: diverseChunks.first?.similarityScore ?? 0,
+                    loops: 1,
+                    retrievedChunks: diverseChunks
+                )
+            )
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: response
+            )
+        }
+        return nil
+    }
+
+    /// Step 5 (empty): answers by direct chat or abstains when context assembly produced no passages.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func handleEmptyAssembledContext(actualChunksUsed: Int, context: String, allowUngroundedFallback: Bool, question: String, ragQueryValue: RAGQuery, inferenceConfig: InferenceConfig, pipelineStartTime: Date, retrievalTime: TimeInterval, selectedId: UUID, selectedName: String, retrievalConfig: RetrievalConfig, embeddingProviderId: String) async throws -> RAGResponse? {
+        // If context is empty, fallback to direct chat to avoid downstream failures
+        if actualChunksUsed == 0 || context.isEmpty {
+            Log.warning(
+                "⚠️  [RAGService] Empty context after assembly",
+                category: .retrieval
+            )
+            emitThinkingEvent(
+                .warning,
+                title: "Context empty",
+                detail: "Insufficient evidence"
+            )
+            if allowUngroundedFallback {
+                let response = try await generateDirectChatResponse(
+                    question: question,
+                    ragQuery: ragQueryValue,
+                    inferenceConfig: inferenceConfig,
+                    pipelineStartTime: pipelineStartTime,
+                    retrievalTime: retrievalTime,
+                    fallbackNote: "Empty assembled context; replied without RAG context."
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: response
+                )
+            }
+            let response = await makeGroundedAbstainResponse(
+                question: question,
+                ragQuery: ragQueryValue,
+                retrievedChunks: [],
+                retrievalTime: retrievalTime,
+                retrievalConfig: retrievalConfig,
+                embeddingProviderId: embeddingProviderId,
+                reason: "I couldn't assemble enough context to answer reliably.",
+                gatingDecision: "context_empty"
+            )
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: response
+            )
+        }
+        return nil
+    }
+
+    /// Step SG: returns a not-found answer when the included passages are lexically and semantically irrelevant to the question.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func applyHardRelevanceGate(bestSimilarity: Float, lexicalRelevance: Float, retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, embeddingProviderId: String, ragQueryValue: RAGQuery, question: String, selectedId: UUID, selectedName: String) async -> RAGResponse? {
+        if lexicalRelevance < 0.1 && bestSimilarity < 0.3 {
+            Log.warning(
+                "[RAG] Hard exit: Retrieved content is irrelevant (lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), similarity=\(String(format: "%.2f", bestSimilarity)))",
+                category: .retrieval)
+
+            emitThinkingEvent(
+                .warning,
+                title: "Content not found",
+                detail: "Retrieved content doesn't match query"
+            )
+
+            let notFoundMetadata = ResponseMetadata(
+                timeToFirstToken: nil,
+                totalGenerationTime: 0,
+                tokensGenerated: 0,
+                tokensPerSecond: nil,
+                modelUsed: "none",
+                retrievalTime: retrievalTime,
+                retrievalConfigSummary: retrievalConfig.summary,
+                gatingDecision: "relevance_gate_failed",
+                toolCallsMade: 0,
+                embeddingProvider: embeddingProviderId
+            )
+
+            let notFoundResponse = RAGResponse(
+                queryId: ragQueryValue.id,
+                retrievedChunks: [],
+                generatedResponse:
+                    "I couldn't find relevant information about this topic in your documents. The retrieved content was about different subjects.",
+                metadata: notFoundMetadata,
+                confidenceScore: 0.0,
+                qualityWarnings: ["Relevance gate failed: retrieved content doesn't match query"],
+                structuredAnswer: StructuredAnswer.refusal(
+                    reason:
+                        "I couldn't find relevant information about this topic in your documents. The retrieved content was about different subjects.",
+                    missing: ["No relevant information matched the query in the selected library."],
+                    topScore: bestSimilarity,
+                    loops: 1
+                )
+            )
+
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: notFoundResponse
+            )
+        }
+        return nil
     }
 
     /// Step 5.9: answers a summarize question from an extractive summary of the included passages, falling through to generation when it fails.
