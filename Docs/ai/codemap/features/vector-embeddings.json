@@ -4,7 +4,7 @@
   "name": "Vector Embeddings",
   "aliases": ["embedding service", "embedding provider", "Core ML sentence embeddings", "contextual embeddings", "adaptive embedding optimizer", "embedding model", "embeddings"],
   "purpose": "Turns chunks and queries into vectors with the library's embedding provider (Core ML, Apple Foundation Models or NaturalLanguage).",
-  "revision": "227ae573",
+  "revision": "c34ea021",
   "verified_on": "2026-11-07",
   "entry_points": ["EmbeddingService", "LibraryIntelligenceCenter", "CoreAISentenceEmbeddingProvider", "CoreMLSentenceEmbeddingProvider", "EmbeddingService.generateEmbeddings"],
   "files": [

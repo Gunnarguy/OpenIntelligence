@@ -924,6 +924,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I07 | AE (defers the document's overview, tags and suggested questions when the app is in the background or more files are queued, and otherwise runs them now) into `enrichOrDeferImportedDocument` |
 | I08 | AC (lists the document in its library, updates the chunk count, library stats and processing summary on the main actor, and emits Document indexed) into `recordIndexedDocument` |
 | I09 | Y (teaches the library's vocabulary every passage and the Vision-detected entities, records the document, and emits Vocabulary learned) into `learnImportVocabulary` |
+| I10 | X (builds the FTS5 rows (with structured table metadata) for every passage and stores them in the chunk-level full-text index) into `storeChunksInFullTextIndex` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

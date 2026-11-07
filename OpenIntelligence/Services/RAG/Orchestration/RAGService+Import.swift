@@ -1799,57 +1799,7 @@ extension RAGService {
                 ]
             )
 
-            // Step 4.0.1: Store chunks in chunk-level FTS5 for section-aware BM25 search
-            // This enables chunk-level BM25 scoring with section heading boosts:
-            // "oil" matching in sectionTitle="Engine Oil" gets 10x the score of body text
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: .indexing,
-                    detail: "Indexing text search...",
-                    progress: 0.96
-                )
-            }
-            let fts5ChunkData:
-                [(
-                    chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
-                    sectionPath: String?, structureType: String?, chunkType: String?,
-                    tableTitle: String?, content: String,
-                    structuredMetadata: SQLiteFullTextService.StructuredChunkMetadata?
-                )] =
-                    zip(documentChunks, processedChunks).map { chunk, processedChunk in
-                        let pathStr = chunk.metadata.sectionPath?.joined(separator: " > ")
-                        let structuredMetadata = processedChunk.structuredTable.map { table in
-                            SQLiteFullTextService.StructuredChunkMetadata(
-                                chunkType: chunk.metadata.chunkType?.rawValue,
-                                tableTitle: table.title,
-                                headers: table.headers,
-                                rows: table.rows,
-                                searchText: table.searchText,
-                                extractionQuality: table.extractionQuality,
-                                extractionSource: table.extractionSource,
-                                lowQualityRowIndices: table.lowQualityRowIndices
-                            )
-                        }
-                        return (
-                            chunkIndex: chunk.metadata.chunkIndex,
-                            pageNumber: chunk.metadata.pageNumber,
-                            sectionTitle: chunk.metadata.sectionTitle,
-                            sectionPath: pathStr,
-                            structureType: chunk.metadata.structureType,
-                            chunkType: chunk.metadata.chunkType?.rawValue,
-                            tableTitle: chunk.metadata.tableTitle,
-                            content: chunk.content,
-                            structuredMetadata: structuredMetadata
-                        )
-                    }
-            await SQLiteFullTextService.shared.storeChunks(
-                documentId: document.id,
-                containerId: activeContainerId,
-                chunks: fts5ChunkData
-            )
-            Log.info("[RAGService] Stored \(documentChunks.count) chunks in FTS5 chunk index", category: .ingestion)
+            await storeChunksInFullTextIndex(trackingId: trackingId, filename: filename, documentChunks: documentChunks, processedChunks: processedChunks, document: document, activeContainerId: activeContainerId)
 
             await learnImportVocabulary(trackingId: trackingId, filename: filename, documentChunks: documentChunks, activeContainerId: activeContainerId)
 
@@ -1942,6 +1892,62 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step X: builds the FTS5 rows (with structured table metadata) for every passage and stores them in the chunk-level full-text index.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func storeChunksInFullTextIndex(trackingId: UUID?, filename: String, documentChunks: [DocumentChunk], processedChunks: [DocumentProcessor.ProcessedChunk], document: Document, activeContainerId: UUID) async {
+        // Step 4.0.1: Store chunks in chunk-level FTS5 for section-aware BM25 search
+        // This enables chunk-level BM25 scoring with section heading boosts:
+        // "oil" matching in sectionTitle="Engine Oil" gets 10x the score of body text
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .indexing,
+                detail: "Indexing text search...",
+                progress: 0.96
+            )
+        }
+        let fts5ChunkData:
+            [(
+                chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
+                sectionPath: String?, structureType: String?, chunkType: String?,
+                tableTitle: String?, content: String,
+                structuredMetadata: SQLiteFullTextService.StructuredChunkMetadata?
+            )] =
+                zip(documentChunks, processedChunks).map { chunk, processedChunk in
+                    let pathStr = chunk.metadata.sectionPath?.joined(separator: " > ")
+                    let structuredMetadata = processedChunk.structuredTable.map { table in
+                        SQLiteFullTextService.StructuredChunkMetadata(
+                            chunkType: chunk.metadata.chunkType?.rawValue,
+                            tableTitle: table.title,
+                            headers: table.headers,
+                            rows: table.rows,
+                            searchText: table.searchText,
+                            extractionQuality: table.extractionQuality,
+                            extractionSource: table.extractionSource,
+                            lowQualityRowIndices: table.lowQualityRowIndices
+                        )
+                    }
+                    return (
+                        chunkIndex: chunk.metadata.chunkIndex,
+                        pageNumber: chunk.metadata.pageNumber,
+                        sectionTitle: chunk.metadata.sectionTitle,
+                        sectionPath: pathStr,
+                        structureType: chunk.metadata.structureType,
+                        chunkType: chunk.metadata.chunkType?.rawValue,
+                        tableTitle: chunk.metadata.tableTitle,
+                        content: chunk.content,
+                        structuredMetadata: structuredMetadata
+                    )
+                }
+        await SQLiteFullTextService.shared.storeChunks(
+            documentId: document.id,
+            containerId: activeContainerId,
+            chunks: fts5ChunkData
+        )
+        Log.info("[RAGService] Stored \(documentChunks.count) chunks in FTS5 chunk index", category: .ingestion)
     }
 
     /// Step Y: teaches the library's vocabulary every passage and the Vision-detected entities, records the document, and emits Vocabulary learned.
