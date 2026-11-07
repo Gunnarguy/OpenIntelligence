@@ -937,6 +937,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I20 | J (installs the document processor's text and rich progress handlers, which move the tracked item through its extraction stages) into `installProgressHandlers` |
 | I21 | G (picks the library and its embedding service and, when the provider resolves to another one or another dimension, saves the corrected settings and clears the library's vectors) into `resolveEmbeddingService` |
 | I22 | C (computes the file's hash (nil when it cannot be read) and records it with the storage path on the tracked item) into `hashAndRecordDocument` |
+| I23 | B (resolves the library this import goes to: the one it was queued for if it still exists, redirected to the person's own library unless it is onboarding or a rebuild) into `resolveImportLibrary` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

@@ -871,26 +871,7 @@ extension RAGService {
         try await WorkspaceSyncService.ensureItemAvailableLocally(at: managedURL)
         let filename = managedURL.lastPathComponent
         let managedRelativePath = AppSupportPaths.relativePath(for: managedURL)
-        // The library the file was queued for (5.7). Through 5.6 every import went to the library that
-        // was active when the queue reached it, so "Add to Library" naming another library, or a file
-        // queued before the person switched libraries, landed in the open one. The name stays: the
-        // rest of this function and the large-file paths take it as the import's library.
-        let activeContainerId = await MainActor.run { () -> UUID in
-            if let containerId, self.containerService.containers.contains(where: { $0.id == containerId }) {
-                // The guide library takes the app's guides only (5.8): anything else goes to the person's own. A rebuild
-                // puts each document back where it was, the guides included.
-                if context != .onboarding, context != .autoRebuild, let own = self.containerService.libraryForOwnFiles(requested: containerId) {
-                    return own
-                }
-                return containerId
-            }
-            if context != .onboarding, context != .autoRebuild,
-                let own = self.containerService.libraryForOwnFiles(requested: self.containerService.activeContainerId)
-            {
-                return own
-            }
-            return self.containerService.activeContainerId
-        }
+        let activeContainerId = await resolveImportLibrary(containerId: containerId, context: context)
 
         let documentHash = await hashAndRecordDocument(managedURL: managedURL, filename: filename, trackingId: trackingId, managedRelativePath: managedRelativePath)
 
@@ -1287,6 +1268,32 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step B: resolves the library this import goes to: the one it was queued for if it still exists, redirected to the person's own library unless it is onboarding or a rebuild.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func resolveImportLibrary(containerId: UUID?, context: IngestionContext) async -> UUID {
+        // The library the file was queued for (5.7). Through 5.6 every import went to the library that
+        // was active when the queue reached it, so "Add to Library" naming another library, or a file
+        // queued before the person switched libraries, landed in the open one. The name stays: the
+        // rest of this function and the large-file paths take it as the import's library.
+        let activeContainerId = await MainActor.run { () -> UUID in
+            if let containerId, self.containerService.containers.contains(where: { $0.id == containerId }) {
+                // The guide library takes the app's guides only (5.8): anything else goes to the person's own. A rebuild
+                // puts each document back where it was, the guides included.
+                if context != .onboarding, context != .autoRebuild, let own = self.containerService.libraryForOwnFiles(requested: containerId) {
+                    return own
+                }
+                return containerId
+            }
+            if context != .onboarding, context != .autoRebuild,
+                let own = self.containerService.libraryForOwnFiles(requested: self.containerService.activeContainerId)
+            {
+                return own
+            }
+            return self.containerService.activeContainerId
+        }
+        return activeContainerId
     }
 
     /// Step C: computes the file's hash (nil when it cannot be read) and records it with the storage path on the tracked item.

@@ -4,7 +4,7 @@
   "name": "Vector Database Storage",
   "aliases": ["BNNS vector database", "vector store router", "memory-mapped vectors", "Vectura database", "vector store", "vector database", "vectors stored", "vector index"],
   "purpose": "Stores each library's vectors in a memory-mapped file and searches them with BNNS.",
-  "revision": "1edb4412",
+  "revision": "3f2601fc",
   "verified_on": "2026-11-07",
   "entry_points": ["BNNSVectorDatabase", "VectorStoreRouter", "VecturaVectorDatabase", "InMemoryVectorDatabase", "BNNSVectorDatabase.storeBatch", "VectorStoreRouter.db"],
   "files": [
@@ -71,7 +71,7 @@
     {"from": "VectorStoreRouter.describeKind", "type": "depends_on", "to": "InMemoryVectorDatabase", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift", "line": 191, "match": "} else if db is InMemoryVectorDatabase {"}], "by": "build", "note": "named there"},
     {"from": "WorkspaceSyncService.mergeVectorStoresIfNeeded", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Artifacts.swift", "line": 453, "match": "try await database.storeBatch(chunks: chunks)"}], "by": "build", "note": "through persistVectorChunks (5.7)"},
     {"from": "RAGService.importLargePDFStreamed", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Streaming.swift", "line": 181, "match": "try await db.storeBatch(chunks: dbChunks)"}], "by": "build", "note": "named there"},
-    {"from": "RAGService.addDocument", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 1187, "match": "try await db.storeBatch(chunks: documentChunks)"}], "by": "build", "note": "named there"},
+    {"from": "RAGService.addDocument", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Import.swift", "line": 1168, "match": "try await db.storeBatch(chunks: documentChunks)"}], "by": "build", "note": "named there"},
     {"from": "VectorDatabase.storeBatch", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VectorDatabase.swift", "line": 21, "match": "func storeBatch(chunks: [DocumentChunk]) async throws"}], "by": "build", "note": "named there"},
     {"from": "VecturaVectorDatabase.storeBatch", "type": "calls", "to": "BNNSVectorDatabase.storeBatch", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/VectorStore/VecturaVectorDatabase.swift", "line": 53, "match": "func storeBatch(chunks: [DocumentChunk]) async throws {"}], "by": "build", "note": "named there"},
     {"from": "BNNSVectorDatabase.storeBatch", "type": "tested_by", "to": "test:HybridSearchServiceTests.swift", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Retrieval/HybridSearchServiceTests.swift", "line": 8, "match": "func storeBatch(chunks: [DocumentChunk]) async throws {}"}], "by": "build", "note": "the test names it"},
