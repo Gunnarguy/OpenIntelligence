@@ -5429,73 +5429,7 @@ extension RAGService {
                         )
                     }
 
-                    // Step 8: Package results
-                    let pipelineTotalTime = Date().timeIntervalSince(pipelineStartTime)
-
-                    // Step 8.1: Calibrated Confidence (AppleRAG §7)
-                    // P(correct) = σ(α*s_max + β*m + γ*log(1+n_evidence) - δ)
-                    let confidencePolicy = ConfidencePolicyService.policy(
-                        for: question,
-                        answerIntent: answerIntent,
-                        qualityMode: qualityMode
-                    )
-                    let calibrationService = ConfidenceCalibrationService(
-                        params: confidencePolicy.calibrationParameters,
-                        abstentionThreshold: confidencePolicy.calibrationAbstentionThreshold,
-                        touchyThreshold: confidencePolicy.calibrationTouchyThreshold
-                    )
-                    let calibratedConfidence = calibrationService.calibrate(
-                        chunks: generationRetrievedChunks,
-                        verification: verificationResult,
-                        isTouchyQuery: confidencePolicy.isTouchyQuery
-                    )
-                    Log.info(
-                        "📊 Calibrated confidence: \(String(format: "%.1f", calibratedConfidence.probability * 100))% (\(calibratedConfidence.level.rawValue))",
-                        category: .pipeline
-                    )
-
-                    // Emit calibrated confidence thinking event
-                    emitThinkingEvent(
-                        .confidence,
-                        title: "Confidence: \(calibratedConfidence.level.rawValue)",
-                        detail: "\(String(format: "%.0f", calibratedConfidence.probability * 100))% P(correct)"
-                    )
-
-                    // Pipeline Trace: Completion summary
-                    Log.pipelineComplete(
-                        totalDuration: pipelineTotalTime,
-                        chunksRetrieved: generationRetrievedChunks.count,
-                        tokensUsed: nil,
-                        confidence: Double(confidenceScore)
-                    )
-
-                    Log.box(
-                        "ENHANCED PIPELINE COMPLETE ✓",
-                        level: .info,
-                        category: .pipeline,
-                        content: [
-                            "Total time: \(String(format: "%.2f", pipelineTotalTime))s",
-                            "  - Query Expansion: \(String(format: "%.0f", expansionTime * 1000))ms",
-                            "  - Embedding: \(String(format: "%.0f", embeddingTime * 1000))ms",
-                            "  - Hybrid Retrieval: \(String(format: "%.0f", retrievalTime * 1000))ms",
-                            "  - Re-ranking: \(String(format: "%.0f", rerankTime * 1000))ms",
-                            "  - MMR Diversification: \(String(format: "%.0f", mmrTime * 1000))ms",
-                            "  - Quality Assessment: <1ms",
-                            "  - Verification Gates: \(String(format: "%.0f", verificationTime * 1000))ms",
-                            "  - Generation: \(String(format: "%.2f", generationTime))s",
-                        ]
-                    )
-                    TelemetryCenter.emit(
-                        .system,
-                        title: "Query complete",
-                        metadata: [
-                            "duration": String(format: "%.2f", pipelineTotalTime),
-                            "chunks": "\(generationRetrievedChunks.count)",
-                            "container": selectedName,
-                            "containerId": selectedId.uuidString,
-                        ],
-                        duration: pipelineTotalTime
-                    )
+                    calibrateConfidenceAndLogCompletion(pipelineStartTime: pipelineStartTime, question: question, answerIntent: answerIntent, qualityMode: qualityMode, generationRetrievedChunks: generationRetrievedChunks, verificationResult: verificationResult, confidenceScore: confidenceScore, expansionTime: expansionTime, embeddingTime: embeddingTime, retrievalTime: retrievalTime, rerankTime: rerankTime, mmrTime: mmrTime, verificationTime: verificationTime, generationTime: generationTime, selectedName: selectedName, selectedId: selectedId)
 
                     var (finalResponseText, structuredAnswer, gatingSummary, finalWarnings, finalConfidenceScore) = summarizeGatingAndWarnings(acceptanceOverride: acceptanceOverride, lenient: lenient, verificationResult: verificationResult, qualityWarnings: qualityWarnings, responseText: responseText, confidenceScore: confidenceScore, generationRetrievedChunks: generationRetrievedChunks, answerIntent: answerIntent, llmResponse: llmResponse, reasoningTraceForMetadata: reasoningTraceForMetadata, allowUngroundedFallback: allowUngroundedFallback)
 
@@ -5839,6 +5773,78 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 8: calibrates confidence and logs and emits the pipeline completion.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func calibrateConfidenceAndLogCompletion(pipelineStartTime: Date, question: String, answerIntent: AnswerIntent, qualityMode: RAGQualityMode, generationRetrievedChunks: [RetrievedChunk], verificationResult: RAGVerificationResult?, confidenceScore: Float, expansionTime: TimeInterval, embeddingTime: TimeInterval, retrievalTime: TimeInterval, rerankTime: TimeInterval, mmrTime: TimeInterval, verificationTime: TimeInterval, generationTime: TimeInterval, selectedName: String, selectedId: UUID) {
+        // Step 8: Package results
+        let pipelineTotalTime = Date().timeIntervalSince(pipelineStartTime)
+
+        // Step 8.1: Calibrated Confidence (AppleRAG §7)
+        // P(correct) = σ(α*s_max + β*m + γ*log(1+n_evidence) - δ)
+        let confidencePolicy = ConfidencePolicyService.policy(
+            for: question,
+            answerIntent: answerIntent,
+            qualityMode: qualityMode
+        )
+        let calibrationService = ConfidenceCalibrationService(
+            params: confidencePolicy.calibrationParameters,
+            abstentionThreshold: confidencePolicy.calibrationAbstentionThreshold,
+            touchyThreshold: confidencePolicy.calibrationTouchyThreshold
+        )
+        let calibratedConfidence = calibrationService.calibrate(
+            chunks: generationRetrievedChunks,
+            verification: verificationResult,
+            isTouchyQuery: confidencePolicy.isTouchyQuery
+        )
+        Log.info(
+            "📊 Calibrated confidence: \(String(format: "%.1f", calibratedConfidence.probability * 100))% (\(calibratedConfidence.level.rawValue))",
+            category: .pipeline
+        )
+
+        // Emit calibrated confidence thinking event
+        emitThinkingEvent(
+            .confidence,
+            title: "Confidence: \(calibratedConfidence.level.rawValue)",
+            detail: "\(String(format: "%.0f", calibratedConfidence.probability * 100))% P(correct)"
+        )
+
+        // Pipeline Trace: Completion summary
+        Log.pipelineComplete(
+            totalDuration: pipelineTotalTime,
+            chunksRetrieved: generationRetrievedChunks.count,
+            tokensUsed: nil,
+            confidence: Double(confidenceScore)
+        )
+
+        Log.box(
+            "ENHANCED PIPELINE COMPLETE ✓",
+            level: .info,
+            category: .pipeline,
+            content: [
+                "Total time: \(String(format: "%.2f", pipelineTotalTime))s",
+                "  - Query Expansion: \(String(format: "%.0f", expansionTime * 1000))ms",
+                "  - Embedding: \(String(format: "%.0f", embeddingTime * 1000))ms",
+                "  - Hybrid Retrieval: \(String(format: "%.0f", retrievalTime * 1000))ms",
+                "  - Re-ranking: \(String(format: "%.0f", rerankTime * 1000))ms",
+                "  - MMR Diversification: \(String(format: "%.0f", mmrTime * 1000))ms",
+                "  - Quality Assessment: <1ms",
+                "  - Verification Gates: \(String(format: "%.0f", verificationTime * 1000))ms",
+                "  - Generation: \(String(format: "%.2f", generationTime))s",
+            ]
+        )
+        TelemetryCenter.emit(
+            .system,
+            title: "Query complete",
+            metadata: [
+                "duration": String(format: "%.2f", pipelineTotalTime),
+                "chunks": "\(generationRetrievedChunks.count)",
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+            ],
+            duration: pipelineTotalTime
+        )
     }
 
     /// Step 9 (gating): builds the gating summary, final warnings and the structured answer.

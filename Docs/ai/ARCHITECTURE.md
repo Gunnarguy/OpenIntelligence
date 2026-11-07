@@ -134,7 +134,7 @@ person picked PCC in the model picker, which reads one retrieved pool (in Maximu
 larger one gathered once) with no new retrieval or rerank per session. From 5.7 their answers go through the nine gates too, as a label, unless the source-only check
 ran (in 5.6 they read Not Checked). `Docs/HOW_IT_WORKS.md` section 07 has the loop. Lines today: fusion at HybridSearchService.swift:1328-1334 and RAGEngine.swift:997,
 rerank at RAGEngine.swift:302 called from RAGService+QueryPipeline.swift:1736. `[evidence_level: code_verified,
-confidence: high, evidence_source: RAGService+QueryPipeline.swift:252, RAGService+QueryPipeline.swift:647-774, RAGService+QueryPipeline.swift:5186-5215, RAGService+QueryPipeline.swift:5257-5867, RAGService+QueryPipeline.swift:5517-5541,
+confidence: high, evidence_source: RAGService+QueryPipeline.swift:252, RAGService+QueryPipeline.swift:647-774, RAGService+QueryPipeline.swift:5186-5215, RAGService+QueryPipeline.swift:5257-5873, RAGService+QueryPipeline.swift:5451-5475,
 RAGService+AnswerFinishing.swift:428-453, RAGService+AgenticQuery.swift:802-826, QueryRewriterService.swift:83-110, QueryProfileService.swift:49-52, ConfidencePolicyService.swift:48-54,
 RAGQualityMode.swift:226-233, VerificationGateService.swift:250, AgenticOrchestrator.swift:180, 386-985,
 AgenticOrchestrator+Retrieval.swift:1055-1149, AgenticOrchestrator+ReasoningChain.swift:465-545, AgenticOrchestrator+MultiChain.swift:17-72 (`gatherAllRelevantChunks`, Maximum's larger pool)]`

@@ -588,14 +588,14 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 
 (Corrected 2026-10-27 against `1e4a718`: the temperature sentence in the How line above. Only Standard applies a mode temperature, and it applies it as a ceiling: `min(current, 0.4)`. It caps the temperature at 0.2 instead when it uses the evidence-first prompt for low-confidence retrieval, and at 0.2 for a library whose retrieval style is `.precise` (High Precision in Library Settings). Maximum's 0.3, and Deep Think's 0.4, in `RAGQualityMode.temperature` are never read: the app reads that value once, below the line where Deep Think and Maximum return to `executeAgenticQuery`. Maximum's own loop sets 0.7 for sessions 1 to 3, 0.5 for sessions 4 to 8 and 0.3 after that. `[evidence_level: code_verified+grep_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:3840-3842 (evidence-first, 0.2), 15738-15739 (mode cap), 15741-15745 (.precise, 0.2), 11635 (agentic return), 11686 (the only read of qualityMode.temperature by git grep, besides featureToggles at RAGQualityMode.swift:337, which has no caller); RAGQualityMode.swift:95-101; AgenticOrchestrator+Maximum.swift:876-884]`)
 
-(Corrected 2026-10-27 against `55fea8e`: "or a refusal" in the first note above. In Standard the planner's refusal is not what you see when reliability mode is on, its default: the reliability fallback answers from the same passages instead. Section 05's note under the ladder says what happens, and section 04's last note what it shows. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4073-4092, 5375-5403, 5491-5680; SettingsStore.swift:534-535]`)
+(Corrected 2026-10-27 against `55fea8e`: "or a refusal" in the first note above. In Standard the planner's refusal is not what you see when reliability mode is on, its default: the reliability fallback answers from the same passages instead. Section 05's note under the ladder says what happens, and section 04's last note what it shows. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4073-4092, 5375-5403, 5840-5614; SettingsStore.swift:534-535]`)
 
 #### Step 6.5 / 7. Tidy up and score it
 
 > **In plain words**
 > Fix the formatting, since small models produce broken bullet lists often enough that repairing them is cheaper than asking nicely. Then score how well the answer came out, which feeds the confidence number later.
 
-**How.** Markdown normalisation, list indentation repair and output-structure enforcement, followed by a synthesis quality score that feeds calibration. (Corrected 2026-10-20: the score at step 7 reads the retrieval, not the answer: the top passage's reranked score, how many passages there are and how many sources. That score is the confidence the answer carries, adjusted only when the source-only check runs. For a lookup or a precise-value question, the extracted-value override also runs here, and can replace the model's answer when the answer does not already state the value (5.7, where 5.6 replaced it whenever a value locked). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5188-5231, 5878-5556, RAGEngine.swift:802-836 (assessResponseQuality)]`)
+**How.** Markdown normalisation, list indentation repair and output-structure enforcement, followed by a synthesis quality score that feeds calibration. (Corrected 2026-10-20: the score at step 7 reads the retrieval, not the answer: the top passage's reranked score, how many passages there are and how many sources. That score is the confidence the answer carries, adjusted only when the source-only check runs. For a lookup or a precise-value question, the extracted-value override also runs here, and can replace the model's answer when the answer does not already state the value (5.7, where 5.6 replaced it whenever a value locked). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5188-5231, 5884-5490, RAGEngine.swift:802-836 (assessResponseQuality)]`)
 
 #### Step 7.5. Run the nine checks
 
@@ -609,9 +609,9 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 
 > **In plain words**
 > Bundle the answer with its citations, then convert the app's raw internal score into the confidence percentage you actually see. That conversion matters: a raw score of "0.8" doesn't mean "right 80% of the time," and showing it as though it did would be a lie with a number attached.
-> **Corrected 2026-10-20.** The conversion is computed, but the app doesn't put it on the answer. It appears only as one of the steps in the thinking timeline. The confidence the answer carries is still the raw score from step 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5435-5462, 5951]`
+> **Corrected 2026-10-20.** The conversion is computed, but the app doesn't put it on the answer. It appears only as one of the steps in the thinking timeline. The confidence the answer carries is still the raw score from step 7. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5784-5811, 5957]`
 
-**How.** The answer, citation index map and evidence record are assembled, then Platt scaling maps the raw quality score toward something closer to a probability. Calibration is only ever as good as the data it was fit on. (Corrected 2026-10-20: the calibrated probability is written to the log and shown as a thinking step, and the response is built with step 7's score. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5435-5462 (step 8.1), 5531, 5656]`)
+**How.** The answer, citation index map and evidence record are assembled, then Platt scaling maps the raw quality score toward something closer to a probability. Calibration is only ever as good as the data it was fit on. (Corrected 2026-10-20: the calibrated probability is written to the log and shown as a thinking step, and the response is built with step 7's score. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5784-5811 (step 8.1), 5531, 5656]`)
 
 ### Phase F · Show it
 
@@ -1330,7 +1330,7 @@ A failed critical verification gate produces a grounded abstention rather than a
 > writing. The source-only check can turn a lookup's answer into a refusal when the question asks for a precise value
 > or a state (in Standard after failed checks, in Deep Think and Maximum for any lookup not locked to a value). And
 > with reliability mode off, an answer whose claims Gate B all marked unsupported is shown as a refusal.
-> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5346-5392, 5510-5556, RAGService+AgenticQuery.swift:775-799, RAGService+AnswerFinishing.swift:422-554 (sourceOnlyOutcomeIfNeeded), ModelExecutionPlanner.swift:37-40, AgenticOrchestrator.swift:231-294, StructuredAnswer.swift:979-1012]`
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:5346-5392, 5444-5490, RAGService+AgenticQuery.swift:775-799, RAGService+AnswerFinishing.swift:422-554 (sourceOnlyOutcomeIfNeeded), ModelExecutionPlanner.swift:37-40, AgenticOrchestrator.swift:231-294, StructuredAnswer.swift:979-1012]`
 >
 > **Corrected 2026-10-28** against `a7276983`: the source-only check's "refusal" does not hide the answer. When it
 > abstains on a precise-value or state question, the answer it puts in place reads "⚠️ **[Needs Verification]** This
@@ -1353,7 +1353,7 @@ A failed critical verification gate produces a grounded abstention rather than a
 > **Corrected 2026-10-27** against `55fea8e`: "when the post-retrieval plan judges the evidence insufficient" refuses
 > in Deep Think and Maximum. In Standard it refuses only with reliability mode off; with it on, the default, the
 > reliability fallback answers from the same passages instead (section 05, under the ladder, and section 04's last
-> note). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4590-4609, 5787-5815, 5840; ChatScreen+Streaming.swift:307-310; RAGService+Agentic.swift:327-362; SettingsStore.swift:534-535]`
+> note). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService+QueryPipeline.swift:4590-4609, 5721-5749, 5774; ChatScreen+Streaming.swift:307-310; RAGService+Agentic.swift:327-362; SettingsStore.swift:534-535]`
 
 ### Does it work offline?
 

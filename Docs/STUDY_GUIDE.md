@@ -26,7 +26,7 @@
 > StructuredAnswer.swift:65-117; CloudConsentPromptView.swift:7, 45-48, 162-184, 199-203 and
 > 220-222 with RAGService+Consent.swift:144-154 and RAGService+StandardRetrieval.swift:1026-1030; DeviceCapabilityService.swift:749-766;
 > RAGService+QueryPipeline.swift:285 with ModelConfigurationSheet.swift:35; SourceOnlyAnswerService.swift:364
-> and 432-445 with RAGService+QueryPipeline.swift:5527-5540]`
+> and 432-445 with RAGService+QueryPipeline.swift:5461-5474]`
 >
 > **Corrected 2026-10-20 against the working tree (`b868fc0` plus the 5.7 work in progress)**, where
 > this guide described the agentic loop, tools, routing, packing or checks differently from the code.
