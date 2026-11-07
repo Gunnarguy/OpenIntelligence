@@ -903,88 +903,7 @@ extension RAGService {
 
                 let (useEvidenceFirstMode, uniqueSourceDocs, bestRetrievalSim) = assessEvidenceBeforeGeneration(includedRetrievedChunks: includedRetrievedChunks, actualChunksUsed: actualChunksUsed, auditAvgTop5: auditAvgTop5, auditDynamicMin: auditDynamicMin, lexicalRelevance: lexicalRelevance, isProceduralQuery: isProceduralQuery)
 
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // Step 5.9: Extractive Summarization (AppleRAG §6)
-                // For .summarize intent, use extractive selection to minimize hallucination
-                // This bypasses LLM generation entirely for pure summarization queries
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if answerIntent == .summarize && answerIntent.isExtractiveFirst {
-                    Log.section("Step 5.9: Extractive Summarization", level: .info, category: .pipeline)
-                    let extractiveStart = Date()
-
-                    do {
-                        let summary = try await extractiveSummarizationService.summarize(
-                            query: effectiveQuery,
-                            chunks: includedRetrievedChunks,
-                            maxWords: 300
-                        )
-
-                        let extractiveTime = Date().timeIntervalSince(extractiveStart)
-
-                        Log.info(
-                            "[Extractive] \(summary.sentences.count) sentences, \(summary.wordCount) words, coverage: \(String(format: "%.0f", summary.coverageScore * 100))% in \(String(format: "%.0f", extractiveTime * 1000))ms",
-                            category: .retrieval
-                        )
-
-                        emitThinkingEvent(
-                            .extractive,
-                            title: "Extractive summary",
-                            detail: "\(summary.sentences.count) sentences • \(summary.wordCount) words"
-                        )
-
-                        // Build response directly from extractive summary
-                        let extractiveMetadata = ResponseMetadata(
-                            timeToFirstToken: nil,
-                            totalGenerationTime: extractiveTime,
-                            tokensGenerated: summary.wordCount,
-                            tokensPerSecond: nil,
-                            modelUsed: "extractive",
-                            retrievalTime: retrievalTime,
-                            retrievalConfigSummary: "extractive_summarization",
-                            gatingDecision: "extractive_intent",
-                            toolCallsMade: nil
-                        )
-
-                        let extractiveResponse = RAGResponse(
-                            queryId: ragQueryValue.id,
-                            retrievedChunks: includedRetrievedChunks,
-                            generatedResponse: resolvedDisplayResponse(
-                                fallback: summary.summaryText,
-                                structuredAnswer: StructuredAnswer.from(
-                                    response: summary.summaryText,
-                                    retrievedChunks: includedRetrievedChunks,
-                                    answerIntent: answerIntent,
-                                    verificationResult: nil,
-                                    loops: 1
-                                )
-                            ),
-                            metadata: extractiveMetadata,
-                            confidenceScore: summary.coverageScore,
-                            qualityWarnings: [],
-                            structuredAnswer: StructuredAnswer.from(
-                                response: summary.summaryText,
-                                retrievedChunks: includedRetrievedChunks,
-                                answerIntent: answerIntent,
-                                verificationResult: nil,
-                                loops: 1
-                            )
-                        )
-
-                        Log.info("✓ Extractive summary complete (\(summary.wordCount) words)", category: .pipeline)
-
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: extractiveResponse
-                        )
-                    } catch {
-                        Log.warning(
-                            "[Extractive] Summarization failed, falling back to LLM: \(error.localizedDescription)",
-                            category: .retrieval)
-                        // Fall through to LLM generation
-                    }
-                }
+                if let exitResponse = await answerWithExtractiveSummary(answerIntent: answerIntent, effectiveQuery: effectiveQuery, includedRetrievedChunks: includedRetrievedChunks, retrievalTime: retrievalTime, ragQueryValue: ragQueryValue, question: question, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // Step 5.10: Extractive QA disabled — always use LLM generation.
@@ -1349,28 +1268,7 @@ extension RAGService {
                 var responseText = __retryForMissingCitationsResult.responseText
                 let preserveStreamingResponse = __retryForMissingCitationsResult.preserveStreamingResponse
 
-                if requiresCitations,
-                    !responseHasCitations(responseText),
-                    !allowUngroundedFallback,
-                    !preserveStreamingResponse
-                {
-                    let response = await makeGroundedAbstainResponse(
-                        question: question,
-                        ragQuery: ragQueryValue,
-                        retrievedChunks: generationRetrievedChunks,
-                        retrievalTime: retrievalTime,
-                        retrievalConfig: retrievalConfig,
-                        embeddingProviderId: embeddingProviderId,
-                        reason: "I couldn't produce a cited answer from the provided sources.",
-                        gatingDecision: "missing_citations"
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
+                if let exitResponse = await abstainForMissingCitations(requiresCitations: requiresCitations, responseText: responseText, allowUngroundedFallback: allowUngroundedFallback, preserveStreamingResponse: preserveStreamingResponse, question: question, ragQueryValue: ragQueryValue, generationRetrievedChunks: generationRetrievedChunks, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
 
                 await repairResponseIntegrity(responseText: &responseText, question: question, answerIntent: answerIntent, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks, llmResponse: &llmResponse)
 
@@ -1380,32 +1278,7 @@ extension RAGService {
                 do {
                     logGeneratedResponse(generationTime: generationTime, responseText: responseText, responseWordCount: responseWordCount, llmResponse: llmResponse)
 
-                    // Verify we got a response — if empty, route to reliability fallback
-                    // instead of throwing modelNotAvailable (which skips fallback entirely)
-                    if responseText.isEmpty {
-                        Log.warning(
-                            "⚠️  LLM returned empty response (0 tokens) — routing to reliability fallback",
-                            category: .llm)
-                        if !recoveryRetrievedChunks.isEmpty {
-                            let emptyFallback = await buildReliabilityFallbackResponse(
-                                question: question,
-                                ragQuery: ragQuery ?? RAGQuery(query: question, topK: effectiveTopK),
-                                inferenceConfig: inferenceConfig,
-                                retrievalConfig: retrievalConfig,
-                                embeddingProviderId: embeddingProviderId,
-                                retrievedChunks: recoveryRetrievedChunks,
-                                retrievalTime: recoveryRetrievalTime,
-                                reason: "LLM returned empty response"
-                            )
-                            return await finalizeResponse(
-                                query: question,
-                                containerId: selectedId,
-                                containerName: selectedName,
-                                response: emptyFallback
-                            )
-                        }
-                        throw RAGServiceError.modelNotAvailable
-                    }
+                    if let exitResponse = try await fallBackFromEmptyAnswer(responseText: responseText, recoveryRetrievedChunks: recoveryRetrievedChunks, question: question, effectiveTopK: effectiveTopK, ragQuery: ragQuery, inferenceConfig: inferenceConfig, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, recoveryRetrievalTime: recoveryRetrievalTime, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
 
                     let sourceLockedFinalResponse = await applyPrecisionLookupOverride(answerIntentIsExtractive: answerIntentIsExtractive, question: question, answerIntent: answerIntent, generationRetrievedChunks: generationRetrievedChunks, responseText: &responseText)
 
@@ -1422,90 +1295,7 @@ extension RAGService {
                     if runVerificationGates {
                         let (confidencePolicy, verificationService) = await verifyAnswerAgainstEvidence(question: question, answerIntent: answerIntent, qualityMode: qualityMode, auditAvgTop5: auditAvgTop5, auditSecondSim: auditSecondSim, auditTopSim: auditTopSim, responseText: responseText, queryEmbeddingService: queryEmbeddingService, generationRetrievedChunks: generationRetrievedChunks, vdb: vdb, verificationResult: &verificationResult, contextCandidates: contextCandidates, queryEmbedding: queryEmbedding, llmResponse: llmResponse, verificationTime: &verificationTime)
 
-                        if let vr = verificationResult {
-                            Log.pipelineStep(
-                                "7.5", title: "Verification Gates",
-                                details: [
-                                    ("passed", vr.passed ? "✓" : "✗"),
-                                    ("confidence", String(format: "%.2f", vr.overallConfidence)),
-                                    (
-                                        "gates",
-                                        vr.gateResults.map { "\($0.gate.rawValue):\($0.passed ? "✓" : "✗")" }.joined(
-                                            separator: " ")
-                                    ),
-                                ])
-
-                            // Emit verification thinking event
-                            // A failure names its gates (5.7): the Details panel showed every step green while
-                            // Gate I had failed, because nothing it reads said which.
-                            let failedGateNames = vr.gateResults.filter { !$0.passed }.map(\.gate.rawValue)
-                            emitThinkingEvent(
-                                .verification,
-                                title: vr.passed ? "Gates passed ✓" : "Gates failed ✗",
-                                detail: (failedGateNames.isEmpty ? "" : "Failed: \(failedGateNames.joined(separator: ", ")). ")
-                                    + "Confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%"
-                            )
-
-                            if !vr.passed {
-                                Log.warning(
-                                    "⚠️ Verification gates failed - response may contain unsupported claims",
-                                    category: .pipeline)
-                                for gateResult in vr.gateResults where !gateResult.passed {
-                                    Log.warning(
-                                        "   • Gate \(gateResult.gate.rawValue): \(gateResult.details)",
-                                        category: .pipeline)
-                                }
-
-                                let effectiveThreshold = confidencePolicy.verificationPassThreshold
-                                if answerIntentIsExtractive {
-                                    Log.debug(
-                                        "[Verification] Extractive intent '\(answerIntent.rawValue)' - using relaxed threshold \(String(format: "%.0f", effectiveThreshold * 100))%",
-                                        category: .pipeline)
-                                }
-
-                                // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
-                                let belowConfidenceThreshold = vr.overallConfidence < effectiveThreshold
-
-                                // If grounded-only mode and verification fails, abstain
-                                if !allowUngroundedFallback || belowConfidenceThreshold {
-                                    let thresholdDisplay =
-                                        answerIntentIsExtractive
-                                        ? "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))% (relaxed for extractive)"
-                                        : "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))%"
-                                    let reason =
-                                        belowConfidenceThreshold
-                                        ? "confidence \(String(format: "%.0f", vr.overallConfidence * 100))% below \(thresholdDisplay)"
-                                        : "grounded-only mode"
-                                    Log.info("🛑 Abstaining: \(reason)", category: .pipeline)
-                                    let abstainResponse = verificationService.generateAbstentionResponse(
-                                        query: question,
-                                        verificationResult: vr,
-                                        retrievedChunks: generationRetrievedChunks
-                                    )
-                                    let response = await makeGroundedAbstainResponse(
-                                        question: question,
-                                        ragQuery: ragQueryValue,
-                                        retrievedChunks: generationRetrievedChunks,
-                                        retrievalTime: retrievalTime,
-                                        retrievalConfig: retrievalConfig,
-                                        embeddingProviderId: embeddingProviderId,
-                                        reason: abstainResponse,
-                                        gatingDecision:
-                                            "verification_gates_failed:\(vr.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))"
-                                    )
-                                    return await finalizeResponse(
-                                        query: question,
-                                        containerId: selectedId,
-                                        containerName: selectedName,
-                                        response: response
-                                    )
-                                }
-                            } else {
-                                Log.info(
-                                    "✓ All verification gates passed (confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%)",
-                                    category: .pipeline)
-                            }
-                        }  // end if let vr
+                        if let exitResponse = await abstainOnFailedVerification(verificationResult: verificationResult, confidencePolicy: confidencePolicy, answerIntentIsExtractive: answerIntentIsExtractive, answerIntent: answerIntent, allowUngroundedFallback: allowUngroundedFallback, qualityModeDisplayName: qualityModeDisplayName, verificationService: verificationService, question: question, generationRetrievedChunks: generationRetrievedChunks, ragQueryValue: ragQueryValue, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
                     } else {
                         Log.info(
                             "[RAG] Verification gates skipped (quality mode: \(qualityModeDisplayName))",
@@ -1548,55 +1338,238 @@ extension RAGService {
                     )
 
                 } catch {
-                    Log.error(" Error during response processing: \(error)")
-                    let recoveredText = llmResponse.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let recoveredResponse = recoveredText.isEmpty ? "Error processing response" : recoveredText
-                    let recoveredStructuredAnswer: StructuredAnswer
-                    if recoveredText.isEmpty {
-                        recoveredStructuredAnswer = StructuredAnswer.refusal(
-                            reason: "Error processing response",
-                            missing: ["The response could not be processed safely."],
-                            topScore: generationRetrievedChunks.first?.similarityScore ?? 0,
-                            loops: 1,
-                            retrievedChunks: generationRetrievedChunks
-                        )
-                    } else {
-                        recoveredStructuredAnswer = StructuredAnswer.from(
-                            response: recoveredResponse,
-                            retrievedChunks: generationRetrievedChunks,
+                    return await recoverFromResponseProcessingError(error: error, llmResponse: llmResponse, generationRetrievedChunks: generationRetrievedChunks, answerIntent: answerIntent, reasoningTraceForMetadata: reasoningTraceForMetadata, generationTime: generationTime, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, ragQueryValue: ragQueryValue, question: question, selectedId: selectedId, selectedName: selectedName)
+                }
+            } else {
+                return try await answerWithoutDocuments(allowUngroundedFallback: allowUngroundedFallback, asksForAnAction: asksForAnAction, question: question, ragQueryValue: ragQueryValue, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, selectedId: selectedId, selectedName: selectedName, inferenceConfig: inferenceConfig, pipelineStartTime: pipelineStartTime)
+            }
+
+        } catch {
+            return try await recoverFromQueryFailure(error: error, reliabilityModeEnabled: reliabilityModeEnabled, recoveryRetrievedChunks: recoveryRetrievedChunks, question: question, effectiveTopK: effectiveTopK, ragQuery: ragQuery, inferenceConfig: inferenceConfig, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, recoveryRetrievalTime: recoveryRetrievalTime, selectedId: selectedId, selectedName: selectedName)
+        }
+    }
+
+    /// Step 5.9: answers a summarize question from an extractive summary of the included passages, falling through to generation when it fails.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func answerWithExtractiveSummary(answerIntent: AnswerIntent, effectiveQuery: String, includedRetrievedChunks: [RetrievedChunk], retrievalTime: TimeInterval, ragQueryValue: RAGQuery, question: String, selectedId: UUID, selectedName: String) async -> RAGResponse? {
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Step 5.9: Extractive Summarization (AppleRAG §6)
+        // For .summarize intent, use extractive selection to minimize hallucination
+        // This bypasses LLM generation entirely for pure summarization queries
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if answerIntent == .summarize && answerIntent.isExtractiveFirst {
+            Log.section("Step 5.9: Extractive Summarization", level: .info, category: .pipeline)
+            let extractiveStart = Date()
+
+            do {
+                let summary = try await extractiveSummarizationService.summarize(
+                    query: effectiveQuery,
+                    chunks: includedRetrievedChunks,
+                    maxWords: 300
+                )
+
+                let extractiveTime = Date().timeIntervalSince(extractiveStart)
+
+                Log.info(
+                    "[Extractive] \(summary.sentences.count) sentences, \(summary.wordCount) words, coverage: \(String(format: "%.0f", summary.coverageScore * 100))% in \(String(format: "%.0f", extractiveTime * 1000))ms",
+                    category: .retrieval
+                )
+
+                emitThinkingEvent(
+                    .extractive,
+                    title: "Extractive summary",
+                    detail: "\(summary.sentences.count) sentences • \(summary.wordCount) words"
+                )
+
+                // Build response directly from extractive summary
+                let extractiveMetadata = ResponseMetadata(
+                    timeToFirstToken: nil,
+                    totalGenerationTime: extractiveTime,
+                    tokensGenerated: summary.wordCount,
+                    tokensPerSecond: nil,
+                    modelUsed: "extractive",
+                    retrievalTime: retrievalTime,
+                    retrievalConfigSummary: "extractive_summarization",
+                    gatingDecision: "extractive_intent",
+                    toolCallsMade: nil
+                )
+
+                let extractiveResponse = RAGResponse(
+                    queryId: ragQueryValue.id,
+                    retrievedChunks: includedRetrievedChunks,
+                    generatedResponse: resolvedDisplayResponse(
+                        fallback: summary.summaryText,
+                        structuredAnswer: StructuredAnswer.from(
+                            response: summary.summaryText,
+                            retrievedChunks: includedRetrievedChunks,
                             answerIntent: answerIntent,
                             verificationResult: nil,
-                            structuredGeneration: llmResponse.structuredRAGGeneration,
-                            loops: reasoningTraceForMetadata?.count ?? 1
+                            loops: 1
                         )
-                    }
-
-                    let recoveredDisplayText = resolvedDisplayResponse(
-                        fallback: recoveredResponse,
-                        structuredAnswer: recoveredStructuredAnswer
+                    ),
+                    metadata: extractiveMetadata,
+                    confidenceScore: summary.coverageScore,
+                    qualityWarnings: [],
+                    structuredAnswer: StructuredAnswer.from(
+                        response: summary.summaryText,
+                        retrievedChunks: includedRetrievedChunks,
+                        answerIntent: answerIntent,
+                        verificationResult: nil,
+                        loops: 1
                     )
+                )
 
-                    let metadata = ResponseMetadata(
-                        timeToFirstToken: nil,
-                        totalGenerationTime: generationTime,
-                        tokensGenerated: 0,
-                        tokensPerSecond: nil,
-                        modelUsed: llmResponse.modelName ?? llmService.modelName,
-                        retrievalTime: retrievalTime,
-                        retrievalConfigSummary: retrievalConfig.summary,
-                        toolCallsMade: 0,
-                        embeddingProvider: embeddingProviderId,
-                        executionReceipt: llmResponse.executionReceipt
+                Log.info("✓ Extractive summary complete (\(summary.wordCount) words)", category: .pipeline)
+
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: extractiveResponse
+                )
+            } catch {
+                Log.warning(
+                    "[Extractive] Summarization failed, falling back to LLM: \(error.localizedDescription)",
+                    category: .retrieval)
+                // Fall through to LLM generation
+            }
+        }
+        return nil
+    }
+
+    /// Step 6d (abstain): abstains when citations are required, missing after the retry, and ungrounded fallback is off.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func abstainForMissingCitations(requiresCitations: Bool, responseText: String, allowUngroundedFallback: Bool, preserveStreamingResponse: Bool, question: String, ragQueryValue: RAGQuery, generationRetrievedChunks: [RetrievedChunk], retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, embeddingProviderId: String, selectedId: UUID, selectedName: String) async -> RAGResponse? {
+        if requiresCitations,
+            !responseHasCitations(responseText),
+            !allowUngroundedFallback,
+            !preserveStreamingResponse
+        {
+            let response = await makeGroundedAbstainResponse(
+                question: question,
+                ragQuery: ragQueryValue,
+                retrievedChunks: generationRetrievedChunks,
+                retrievalTime: retrievalTime,
+                retrievalConfig: retrievalConfig,
+                embeddingProviderId: embeddingProviderId,
+                reason: "I couldn't produce a cited answer from the provided sources.",
+                gatingDecision: "missing_citations"
+            )
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: response
+            )
+        }
+        return nil
+    }
+
+    /// Step 6g (empty): answers from the recovered passages when the model returned nothing, else throws modelNotAvailable.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func fallBackFromEmptyAnswer(responseText: String, recoveryRetrievedChunks: [RetrievedChunk], question: String, effectiveTopK: Int, ragQuery: RAGQuery?, inferenceConfig: InferenceConfig, retrievalConfig: RetrievalConfig, embeddingProviderId: String, recoveryRetrievalTime: TimeInterval, selectedId: UUID, selectedName: String) async throws -> RAGResponse? {
+        // Verify we got a response — if empty, route to reliability fallback
+        // instead of throwing modelNotAvailable (which skips fallback entirely)
+        if responseText.isEmpty {
+            Log.warning(
+                "⚠️  LLM returned empty response (0 tokens) — routing to reliability fallback",
+                category: .llm)
+            if !recoveryRetrievedChunks.isEmpty {
+                let emptyFallback = await buildReliabilityFallbackResponse(
+                    question: question,
+                    ragQuery: ragQuery ?? RAGQuery(query: question, topK: effectiveTopK),
+                    inferenceConfig: inferenceConfig,
+                    retrievalConfig: retrievalConfig,
+                    embeddingProviderId: embeddingProviderId,
+                    retrievedChunks: recoveryRetrievedChunks,
+                    retrievalTime: recoveryRetrievalTime,
+                    reason: "LLM returned empty response"
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: emptyFallback
+                )
+            }
+            throw RAGServiceError.modelNotAvailable
+        }
+        return nil
+    }
+
+    /// Step 7.5 (abstain): logs the verification gates and abstains when they failed in grounded-only mode or below the quality mode's threshold.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func abstainOnFailedVerification(verificationResult: RAGVerificationResult?, confidencePolicy: QueryConfidencePolicy, answerIntentIsExtractive: Bool, answerIntent: AnswerIntent, allowUngroundedFallback: Bool, qualityModeDisplayName: String, verificationService: VerificationGateService, question: String, generationRetrievedChunks: [RetrievedChunk], ragQueryValue: RAGQuery, retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, embeddingProviderId: String, selectedId: UUID, selectedName: String) async -> RAGResponse? {
+        if let vr = verificationResult {
+            Log.pipelineStep(
+                "7.5", title: "Verification Gates",
+                details: [
+                    ("passed", vr.passed ? "✓" : "✗"),
+                    ("confidence", String(format: "%.2f", vr.overallConfidence)),
+                    (
+                        "gates",
+                        vr.gateResults.map { "\($0.gate.rawValue):\($0.passed ? "✓" : "✗")" }.joined(
+                            separator: " ")
+                    ),
+                ])
+
+            // Emit verification thinking event
+            // A failure names its gates (5.7): the Details panel showed every step green while
+            // Gate I had failed, because nothing it reads said which.
+            let failedGateNames = vr.gateResults.filter { !$0.passed }.map(\.gate.rawValue)
+            emitThinkingEvent(
+                .verification,
+                title: vr.passed ? "Gates passed ✓" : "Gates failed ✗",
+                detail: (failedGateNames.isEmpty ? "" : "Failed: \(failedGateNames.joined(separator: ", ")). ")
+                    + "Confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%"
+            )
+
+            if !vr.passed {
+                Log.warning(
+                    "⚠️ Verification gates failed - response may contain unsupported claims",
+                    category: .pipeline)
+                for gateResult in vr.gateResults where !gateResult.passed {
+                    Log.warning(
+                        "   • Gate \(gateResult.gate.rawValue): \(gateResult.details)",
+                        category: .pipeline)
+                }
+
+                let effectiveThreshold = confidencePolicy.verificationPassThreshold
+                if answerIntentIsExtractive {
+                    Log.debug(
+                        "[Verification] Extractive intent '\(answerIntent.rawValue)' - using relaxed threshold \(String(format: "%.0f", effectiveThreshold * 100))%",
+                        category: .pipeline)
+                }
+
+                // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
+                let belowConfidenceThreshold = vr.overallConfidence < effectiveThreshold
+
+                // If grounded-only mode and verification fails, abstain
+                if !allowUngroundedFallback || belowConfidenceThreshold {
+                    let thresholdDisplay =
+                        answerIntentIsExtractive
+                        ? "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))% (relaxed for extractive)"
+                        : "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))%"
+                    let reason =
+                        belowConfidenceThreshold
+                        ? "confidence \(String(format: "%.0f", vr.overallConfidence * 100))% below \(thresholdDisplay)"
+                        : "grounded-only mode"
+                    Log.info("🛑 Abstaining: \(reason)", category: .pipeline)
+                    let abstainResponse = verificationService.generateAbstentionResponse(
+                        query: question,
+                        verificationResult: vr,
+                        retrievedChunks: generationRetrievedChunks
                     )
-
-                    let response = RAGResponse(
-                        queryId: ragQueryValue.id,
+                    let response = await makeGroundedAbstainResponse(
+                        question: question,
+                        ragQuery: ragQueryValue,
                         retrievedChunks: generationRetrievedChunks,
-                        generatedResponse: recoveredDisplayText,
-                        metadata: metadata,
-                        confidenceScore: 0.0,
-                        qualityWarnings: ["Response processing recovery: \(error.localizedDescription)"],
-                        structuredAnswer: recoveredStructuredAnswer
+                        retrievalTime: retrievalTime,
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        reason: abstainResponse,
+                        gatingDecision:
+                            "verification_gates_failed:\(vr.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))"
                     )
                     return await finalizeResponse(
                         query: question,
@@ -1606,221 +1579,294 @@ extension RAGService {
                     )
                 }
             } else {
-                // No documents case. An action's question never gets the direct chat below (5.7): its answer goes back
-                // as "Ask My Documents" or "Ask a Library", and one written by the model alone would read as if it came
-                // from the library. `reliabilityModeEnabled` is on by default, so through the first 5.7 builds an
-                // action asking an empty library got the model's own answer; `ShortcutsActionTests` found it on
-                // 2026-10-19 ("Direct chat mode" in the trace).
-                if !allowUngroundedFallback || asksForAnAction {
-                    let response = await makeGroundedAbstainResponse(
-                        question: question,
-                        ragQuery: ragQueryValue,
-                        retrievedChunks: [],
-                        retrievalTime: 0,
-                        retrievalConfig: retrievalConfig,
-                        embeddingProviderId: embeddingProviderId,
-                        reason: "This library has no documents yet.",
-                        gatingDecision: "no_documents"
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
-
-                // Direct LLM chat without documents
-                Log.info("ℹ️  No documents loaded - using direct LLM chat mode", category: .pipeline)
-                let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
-                TelemetryCenter.emit(
-                    .system,
-                    title: "Direct chat mode",
-                    metadata: [
-                        "model": llmService.modelName,
-                        "container": selectedName,
-                        "containerId": selectedId.uuidString,
-                    ]
-                )
-
-                emitThinkingEvent(
-                    .planning,
-                    title: "Direct chat",
-                    detail: "No documents in \(selectedName)"
-                )
-
-                Log.section("Direct LLM Generation (No RAG)", level: .info, category: .pipeline)
-
-                // Pipeline Trace: No documents - direct LLM
-                Log.pipelineStep(
-                    "D", title: "Direct LLM (No Docs)",
-                    details: [
-                        ("reason", "empty library"),
-                        ("container", selectedName),
-                    ])
-
-                let generationStartTime = Date()
-
-                emitThinkingEvent(
-                    .generation,
-                    title: "Generating answer",
-                    detail: llmService.modelName
-                )
-                // A library with no documents gives the library's tools nothing to find, so they are not handed to
-                // the model here (5.7): their descriptions took part of the window, and a call could only come back
-                // empty (found by the PostDesk session's code trace, 2026-10-21).
-                var noDocumentsConfig = inferenceConfig
-                noDocumentsConfig.disableTools = true
-                let llmResponse = try await generateWithFallback(
-                    prompt: question,
-                    context: nil,  // No document context
-                    config: noDocumentsConfig,
-                    sourceChunks: []
-                )
-
-                let generationTime = Date().timeIntervalSince(generationStartTime)
-                TelemetryCenter.emit(
-                    .generation,
-                    title: "Response generated",
-                    metadata: [
-                        "model": llmService.modelName,
-                        "tokens": "\(llmResponse.tokensGenerated)",
-                        "container": selectedName,
-                        "containerId": selectedId.uuidString,
-                    ],
-                    duration: generationTime
-                )
-
-                emitThinkingEvent(
-                    .generation,
-                    title: "Answer composed",
-                    detail: "\(llmResponse.tokensGenerated) tokens in \(String(format: "%.2f", generationTime))s"
-                )
-
-                Log.info("✓ Response generated", category: .llm)
-                Log.info("  Model: \(llmService.modelName)", category: .llm)
                 Log.info(
-                    "  Generation time: \(String(format: "%.2f", generationTime))s",
-                    category: .performance
-                )
-                Log.debug("  Tokens: \(llmResponse.tokensGenerated)", category: .llm)
-                Log.debug(
-                    "  Speed: \(String(format: "%.1f", llmResponse.tokensPerSecond ?? 0)) tokens/sec",
-                    category: .performance
-                )
+                    "✓ All verification gates passed (confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%)",
+                    category: .pipeline)
+            }
+        }  // end if let vr
+        return nil
+    }
 
-                let metadata = ResponseMetadata(
-                    timeToFirstToken: llmResponse.timeToFirstToken,
-                    totalGenerationTime: llmResponse.totalTime,
-                    tokensGenerated: llmResponse.tokensGenerated,
-                    tokensPerSecond: llmResponse.tokensPerSecond,
-                    modelUsed: llmResponse.modelName ?? llmService.modelName,  // Use actual execution location if available
-                    retrievalTime: 0,  // No retrieval in direct chat mode
-                    retrievalConfigSummary: retrievalConfig.summary,
-                    toolCallsMade: llmResponse.toolCallsMade,
-                    embeddingProvider: embeddingProviderId,
-                    executionReceipt: llmResponse.executionReceipt
-                )
+    /// Step IC: builds a recovery response from the generated text when processing the answer threw (the inner catch body).
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func recoverFromResponseProcessingError(error: any Error, llmResponse: LLMResponse, generationRetrievedChunks: [RetrievedChunk], answerIntent: AnswerIntent, reasoningTraceForMetadata: [String]?, generationTime: TimeInterval, retrievalTime: TimeInterval, retrievalConfig: RetrievalConfig, embeddingProviderId: String, ragQueryValue: RAGQuery, question: String, selectedId: UUID, selectedName: String) async -> RAGResponse {
+        Log.error(" Error during response processing: \(error)")
+        let recoveredText = llmResponse.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let recoveredResponse = recoveredText.isEmpty ? "Error processing response" : recoveredText
+        let recoveredStructuredAnswer: StructuredAnswer
+        if recoveredText.isEmpty {
+            recoveredStructuredAnswer = StructuredAnswer.refusal(
+                reason: "Error processing response",
+                missing: ["The response could not be processed safely."],
+                topScore: generationRetrievedChunks.first?.similarityScore ?? 0,
+                loops: 1,
+                retrievedChunks: generationRetrievedChunks
+            )
+        } else {
+            recoveredStructuredAnswer = StructuredAnswer.from(
+                response: recoveredResponse,
+                retrievedChunks: generationRetrievedChunks,
+                answerIntent: answerIntent,
+                verificationResult: nil,
+                structuredGeneration: llmResponse.structuredRAGGeneration,
+                loops: reasoningTraceForMetadata?.count ?? 1
+            )
+        }
 
-                let structuredAnswer = StructuredAnswer.from(
-                    response: llmResponse.text,
-                    retrievedChunks: [],
-                    answerIntent: answerIntent,
-                    verificationResult: nil,
-                    structuredGeneration: llmResponse.structuredRAGGeneration,
-                    loops: 1
-                )
-                let response = RAGResponse(
-                    queryId: ragQueryValue.id,
-                    retrievedChunks: [],  // No chunks in direct chat mode
-                    generatedResponse: resolvedDisplayResponse(
-                        fallback: llmResponse.text,
-                        structuredAnswer: structuredAnswer
-                    ),
-                    metadata: metadata,
-                    structuredAnswer: structuredAnswer
-                )
+        let recoveredDisplayText = resolvedDisplayResponse(
+            fallback: recoveredResponse,
+            structuredAnswer: recoveredStructuredAnswer
+        )
 
-                let totalTime = Date().timeIntervalSince(pipelineStartTime)
-                Log.info(
-                    "✅ [RAGService] Direct chat complete in \(String(format: "%.2f", totalTime))s",
-                    category: .pipeline
-                )
-                TelemetryCenter.emit(
-                    .system,
-                    title: "Query complete",
-                    metadata: [
-                        "duration": String(format: "%.2f", totalTime),
-                        "mode": "direct",
-                        "container": selectedName,
-                        "containerId": selectedId.uuidString,
-                    ],
-                    duration: totalTime
+        let metadata = ResponseMetadata(
+            timeToFirstToken: nil,
+            totalGenerationTime: generationTime,
+            tokensGenerated: 0,
+            tokensPerSecond: nil,
+            modelUsed: llmResponse.modelName ?? llmService.modelName,
+            retrievalTime: retrievalTime,
+            retrievalConfigSummary: retrievalConfig.summary,
+            toolCallsMade: 0,
+            embeddingProvider: embeddingProviderId,
+            executionReceipt: llmResponse.executionReceipt
+        )
+
+        let response = RAGResponse(
+            queryId: ragQueryValue.id,
+            retrievedChunks: generationRetrievedChunks,
+            generatedResponse: recoveredDisplayText,
+            metadata: metadata,
+            confidenceScore: 0.0,
+            qualityWarnings: ["Response processing recovery: \(error.localizedDescription)"],
+            structuredAnswer: recoveredStructuredAnswer
+        )
+        return await finalizeResponse(
+            query: question,
+            containerId: selectedId,
+            containerName: selectedName,
+            response: response
+        )
+    }
+
+    /// Step ND: answers a question to a library with no documents, abstaining for actions and grounded-only mode and otherwise by direct chat.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func answerWithoutDocuments(allowUngroundedFallback: Bool, asksForAnAction: Bool, question: String, ragQueryValue: RAGQuery, retrievalConfig: RetrievalConfig, embeddingProviderId: String, selectedId: UUID, selectedName: String, inferenceConfig: InferenceConfig, pipelineStartTime: Date) async throws -> RAGResponse {
+        // No documents case. An action's question never gets the direct chat below (5.7): its answer goes back
+        // as "Ask My Documents" or "Ask a Library", and one written by the model alone would read as if it came
+        // from the library. `reliabilityModeEnabled` is on by default, so through the first 5.7 builds an
+        // action asking an empty library got the model's own answer; `ShortcutsActionTests` found it on
+        // 2026-10-19 ("Direct chat mode" in the trace).
+        if !allowUngroundedFallback || asksForAnAction {
+            let response = await makeGroundedAbstainResponse(
+                question: question,
+                ragQuery: ragQueryValue,
+                retrievedChunks: [],
+                retrievalTime: 0,
+                retrievalConfig: retrievalConfig,
+                embeddingProviderId: embeddingProviderId,
+                reason: "This library has no documents yet.",
+                gatingDecision: "no_documents"
+            )
+            return await finalizeResponse(
+                query: question,
+                containerId: selectedId,
+                containerName: selectedName,
+                response: response
+            )
+        }
+
+        // Direct LLM chat without documents
+        Log.info("ℹ️  No documents loaded - using direct LLM chat mode", category: .pipeline)
+        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
+        TelemetryCenter.emit(
+            .system,
+            title: "Direct chat mode",
+            metadata: [
+                "model": llmService.modelName,
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+            ]
+        )
+
+        emitThinkingEvent(
+            .planning,
+            title: "Direct chat",
+            detail: "No documents in \(selectedName)"
+        )
+
+        Log.section("Direct LLM Generation (No RAG)", level: .info, category: .pipeline)
+
+        // Pipeline Trace: No documents - direct LLM
+        Log.pipelineStep(
+            "D", title: "Direct LLM (No Docs)",
+            details: [
+                ("reason", "empty library"),
+                ("container", selectedName),
+            ])
+
+        let generationStartTime = Date()
+
+        emitThinkingEvent(
+            .generation,
+            title: "Generating answer",
+            detail: llmService.modelName
+        )
+        // A library with no documents gives the library's tools nothing to find, so they are not handed to
+        // the model here (5.7): their descriptions took part of the window, and a call could only come back
+        // empty (found by the PostDesk session's code trace, 2026-10-21).
+        var noDocumentsConfig = inferenceConfig
+        noDocumentsConfig.disableTools = true
+        let llmResponse = try await generateWithFallback(
+            prompt: question,
+            context: nil,  // No document context
+            config: noDocumentsConfig,
+            sourceChunks: []
+        )
+
+        let generationTime = Date().timeIntervalSince(generationStartTime)
+        TelemetryCenter.emit(
+            .generation,
+            title: "Response generated",
+            metadata: [
+                "model": llmService.modelName,
+                "tokens": "\(llmResponse.tokensGenerated)",
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+            ],
+            duration: generationTime
+        )
+
+        emitThinkingEvent(
+            .generation,
+            title: "Answer composed",
+            detail: "\(llmResponse.tokensGenerated) tokens in \(String(format: "%.2f", generationTime))s"
+        )
+
+        Log.info("✓ Response generated", category: .llm)
+        Log.info("  Model: \(llmService.modelName)", category: .llm)
+        Log.info(
+            "  Generation time: \(String(format: "%.2f", generationTime))s",
+            category: .performance
+        )
+        Log.debug("  Tokens: \(llmResponse.tokensGenerated)", category: .llm)
+        Log.debug(
+            "  Speed: \(String(format: "%.1f", llmResponse.tokensPerSecond ?? 0)) tokens/sec",
+            category: .performance
+        )
+
+        let metadata = ResponseMetadata(
+            timeToFirstToken: llmResponse.timeToFirstToken,
+            totalGenerationTime: llmResponse.totalTime,
+            tokensGenerated: llmResponse.tokensGenerated,
+            tokensPerSecond: llmResponse.tokensPerSecond,
+            modelUsed: llmResponse.modelName ?? llmService.modelName,  // Use actual execution location if available
+            retrievalTime: 0,  // No retrieval in direct chat mode
+            retrievalConfigSummary: retrievalConfig.summary,
+            toolCallsMade: llmResponse.toolCallsMade,
+            embeddingProvider: embeddingProviderId,
+            executionReceipt: llmResponse.executionReceipt
+        )
+
+        let structuredAnswer = StructuredAnswer.from(
+            response: llmResponse.text,
+            retrievedChunks: [],
+            answerIntent: answerIntent,
+            verificationResult: nil,
+            structuredGeneration: llmResponse.structuredRAGGeneration,
+            loops: 1
+        )
+        let response = RAGResponse(
+            queryId: ragQueryValue.id,
+            retrievedChunks: [],  // No chunks in direct chat mode
+            generatedResponse: resolvedDisplayResponse(
+                fallback: llmResponse.text,
+                structuredAnswer: structuredAnswer
+            ),
+            metadata: metadata,
+            structuredAnswer: structuredAnswer
+        )
+
+        let totalTime = Date().timeIntervalSince(pipelineStartTime)
+        Log.info(
+            "✅ [RAGService] Direct chat complete in \(String(format: "%.2f", totalTime))s",
+            category: .pipeline
+        )
+        TelemetryCenter.emit(
+            .system,
+            title: "Query complete",
+            metadata: [
+                "duration": String(format: "%.2f", totalTime),
+                "mode": "direct",
+                "container": selectedName,
+                "containerId": selectedId.uuidString,
+            ],
+            duration: totalTime
+        )
+
+        return await finalizeResponse(
+            query: question,
+            containerId: selectedId,
+            containerName: selectedName,
+            response: response
+        )
+    }
+
+    /// Step OC: runs the reliability fallback from the recovered passages when it applies, else logs the failure and rethrows (the outer catch body).
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func recoverFromQueryFailure(error: any Error, reliabilityModeEnabled: Bool, recoveryRetrievedChunks: [RetrievedChunk], question: String, effectiveTopK: Int, ragQuery: RAGQuery?, inferenceConfig: InferenceConfig, retrievalConfig: RetrievalConfig, embeddingProviderId: String, recoveryRetrievalTime: TimeInterval, selectedId: UUID, selectedName: String) async throws -> RAGResponse {
+        let isContextOverflow = isContextOverflowError(error)
+        let errorMessage = error.localizedDescription
+
+        // NEW: Catch false-positive language detection errors
+        let isLanguageError =
+            errorMessage.contains("Apple Intelligence couldn't process this query")
+            || errorMessage.contains("Unsupported language") || errorMessage.contains("context window")  // Catch overflow here too
+
+        // Trigger Reliability Mode if enabled OR if we hit a language/context error
+        if reliabilityModeEnabled || isLanguageError {
+            await MainActor.run { lastError = nil }
+
+            let reason = isLanguageError ? "Language detection/Context limit triggered fallback" : errorMessage
+            Log.warning("[RAGService] 🛡️ Reliability fallback engaged: \(reason)", category: .pipeline)
+
+            // If we have retrieved chunks, use them to generate a safe answer
+            if !recoveryRetrievedChunks.isEmpty {
+                let fallbackResponse = await buildReliabilityFallbackResponse(
+                    question: question,
+                    ragQuery: ragQuery ?? RAGQuery(query: question, topK: effectiveTopK),
+                    inferenceConfig: inferenceConfig,
+                    retrievalConfig: retrievalConfig,
+                    embeddingProviderId: embeddingProviderId,
+                    retrievedChunks: recoveryRetrievedChunks,
+                    retrievalTime: recoveryRetrievalTime,
+                    reason: "AI System Limit: Switching to Safe Mode"
                 )
 
                 return await finalizeResponse(
                     query: question,
                     containerId: selectedId,
                     containerName: selectedName,
-                    response: response
+                    response: fallbackResponse
                 )
             }
-
-        } catch {
-            let isContextOverflow = isContextOverflowError(error)
-            let errorMessage = error.localizedDescription
-
-            // NEW: Catch false-positive language detection errors
-            let isLanguageError =
-                errorMessage.contains("Apple Intelligence couldn't process this query")
-                || errorMessage.contains("Unsupported language") || errorMessage.contains("context window")  // Catch overflow here too
-
-            // Trigger Reliability Mode if enabled OR if we hit a language/context error
-            if reliabilityModeEnabled || isLanguageError {
-                await MainActor.run { lastError = nil }
-
-                let reason = isLanguageError ? "Language detection/Context limit triggered fallback" : errorMessage
-                Log.warning("[RAGService] 🛡️ Reliability fallback engaged: \(reason)", category: .pipeline)
-
-                // If we have retrieved chunks, use them to generate a safe answer
-                if !recoveryRetrievedChunks.isEmpty {
-                    let fallbackResponse = await buildReliabilityFallbackResponse(
-                        question: question,
-                        ragQuery: ragQuery ?? RAGQuery(query: question, topK: effectiveTopK),
-                        inferenceConfig: inferenceConfig,
-                        retrievalConfig: retrievalConfig,
-                        embeddingProviderId: embeddingProviderId,
-                        retrievedChunks: recoveryRetrievedChunks,
-                        retrievalTime: recoveryRetrievalTime,
-                        reason: "AI System Limit: Switching to Safe Mode"
-                    )
-
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: fallbackResponse
-                    )
-                }
-            }
-
-            Log.error(" [RAGService] Query execution failed: \(error.localizedDescription)", category: .pipeline)
-            TelemetryCenter.emit(
-                .system,
-                severity: .error,
-                title: "Query failed",
-                metadata: [
-                    "error": error.localizedDescription,
-                    "model": activeModelName,
-                ]
-            )
-
-            // Re-throw specific errors for UI handling
-            if isContextOverflow {
-                throw LLMError.contextWindowExceeded
-            }
-            throw error
         }
+
+        Log.error(" [RAGService] Query execution failed: \(error.localizedDescription)", category: .pipeline)
+        TelemetryCenter.emit(
+            .system,
+            severity: .error,
+            title: "Query failed",
+            metadata: [
+                "error": error.localizedDescription,
+                "model": activeModelName,
+            ]
+        )
+
+        // Re-throw specific errors for UI handling
+        if isContextOverflow {
+            throw LLMError.contextWindowExceeded
+        }
+        throw error
     }
 
     /// Step P1b: unpacks the coordinator's QueryRuntimeContext into the pipeline's locals, records the query on self, logs the header and refreshes cloud consent.

@@ -4,7 +4,7 @@
   "name": "Verification Gates and Safety",
   "aliases": ["verification gates", "verification gate service", "source-only check", "confidence calibration", "domain isolation"],
   "purpose": "Checks a generated answer against the retrieved source text before it is shown, and scores how far to trust it.",
-  "revision": "0a3ffe48",
+  "revision": "2ac1afeb",
   "verified_on": "2026-11-07",
   "entry_points": ["VerificationGateService", "SourceOnlyAnswerService", "ConfidenceCalibrationService", "DomainIsolationService"],
   "files": [
@@ -44,9 +44,9 @@
     {"id": "VerificationGateService.runGateI", "kind": "function", "path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 1053, "match": "private func runGateI(", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
-    {"from": "RAGService.queryInternal", "type": "calls", "to": "VerificationGateService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 4538, "match": "let verificationService = VerificationGateService(config: confidencePolicy.verificationConfig)"}], "by": "build", "note": "constructs it"},
+    {"from": "RAGService.queryInternal", "type": "calls", "to": "VerificationGateService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 4584, "match": "let verificationService = VerificationGateService(config: confidencePolicy.verificationConfig)"}], "by": "build", "note": "constructs it"},
     {"from": "ConfidenceCalibrationService", "type": "depends_on", "to": "CalibratedConfidence", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift", "line": 186, "match": "return CalibratedConfidence("}], "by": "build", "note": "constructs it"},
-    {"from": "RAGService.queryInternal", "type": "calls", "to": "ConfidenceCalibrationService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 6256, "match": "let calibrationService = ConfidenceCalibrationService("}], "by": "build", "note": "constructs it"},
+    {"from": "RAGService.queryInternal", "type": "calls", "to": "ConfidenceCalibrationService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryPipeline.swift", "line": 6302, "match": "let calibrationService = ConfidenceCalibrationService("}], "by": "build", "note": "constructs it"},
     {"from": "DomainIsolationService", "type": "depends_on", "to": "DomainIsolationService.ClassifiedChunk", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift", "line": 139, "match": "let classifiedChunks = chunks.map { ClassifiedChunk(chunk: $0, classification: classifyChunk($0)) }"}], "by": "build", "note": "constructs it"},
     {"from": "DomainIsolationService", "type": "depends_on", "to": "DomainIsolationService.Assessment", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift", "line": 178, "match": "return Assessment("}], "by": "build", "note": "constructs it"},
     {"from": "DomainIsolationService", "type": "depends_on", "to": "DomainIsolationService.Classification", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift", "line": 304, "match": "return Classification(domain: .generalReference, confidence: 0.2, matchedKeywords: [], score: 0)"}], "by": "build", "note": "constructs it"},

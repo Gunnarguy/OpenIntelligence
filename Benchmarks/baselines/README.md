@@ -66,7 +66,7 @@ cp -a /private/tmp/oi-library-backup ~/Library/"Application Support"/OpenIntelli
 **To describe the product**, pass no `--temperature`. The app clamps `ragOptimized`'s 0.7 down to
 0.4 via `min(config, qualityMode.temperature)` (in `RAGService.queryInternal`, the line
 `genConfig.temperature = min(genConfig.temperature, qualityModeTemperature)`; the anchor
-`RAGService+QueryPipeline.swift:2552` it cited drifted and was replaced on 2026-09-29), and to 0.2 on the
+`RAGService+QueryPipeline.swift:2598` it cited drifted and was replaced on 2026-09-29), and to 0.2 on the
 cautious and high-accuracy paths. `--temperature` is applied downstream of every clamp, so passing
 0.7 forces the model *hotter than the app ever runs it*.
 
