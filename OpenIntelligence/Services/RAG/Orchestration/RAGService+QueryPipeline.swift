@@ -450,552 +450,33 @@ extension RAGService {
             if hasDocuments {
                 // ENHANCED RAG pipeline with LLM query understanding + iterative retrieval
 
-                // ── Semantic Query Cache ─────────────────────────────────────────────────────
-                // Check the persistent SQLite semantic query cache before any LLM/embedding work.
-                // Exact hit: bypass Steps 1, 1.5, 2, and 3 entirely.
-                var cachedQueryEmbedding: [Float]? = nil
-                var retrievedChunks: [RetrievedChunk] = []
-                var exactCacheHit = false
+                let __lookUpSemanticQueryCacheResult = await lookUpSemanticQueryCache(question: question, embeddingProviderId: embeddingProviderId, selectedDim: selectedDim, selectedId: selectedId)
+                let exactCacheHit = __lookUpSemanticQueryCacheResult.exactCacheHit
+                let cachedQueryEmbedding = __lookUpSemanticQueryCacheResult.cachedQueryEmbedding
+                var retrievedChunks = __lookUpSemanticQueryCacheResult.retrievedChunks
+                let cacheKey = __lookUpSemanticQueryCacheResult.cacheKey
+                let isDocumentScoped = __lookUpSemanticQueryCacheResult.isDocumentScoped
+                let normalizedQueryText = __lookUpSemanticQueryCacheResult.normalizedQueryText
 
-                let normalizedQueryText = SQLiteFullTextService.normalizeQuery(question)
-                // The cache's key is the question with every library's documents and the embedding
-                // model (5.7), so a cached search is reused only while none of them changed. Through
-                // 5.6 the key was the question alone and nothing ever cleared it: a question asked
-                // again after an import or a deletion got the old passages back, none from the new
-                // document and the deleted document's text with them.
-                let cacheKey = await MainActor.run {
-                    Self.queryCacheKey(
-                        normalizedQueryText, documents: self.documents.map { (id: $0.id, passages: $0.totalChunks) },
-                        embeddingProviderId: embeddingProviderId, dimension: selectedDim)
-                }
-                // A question limited to named documents is searched inside them, so its result is
-                // not the library's result for the same words: it skips the cache both ways.
-                let isDocumentScoped = !(RAGQueryScope.documentIds ?? []).isEmpty
-                if !isDocumentScoped, let cached = await SQLiteFullTextService.shared.getCachedQuery(
-                    normalizedQuery: cacheKey,
-                    containerId: selectedId
-                ) {
-                    let knownDocuments = await MainActor.run { Set(self.documents.map(\.id)) }
-                    if Self.cachedResultsAreCurrent(cached.results, documentIds: knownDocuments) {
-                        cachedQueryEmbedding = cached.embedding
-                        retrievedChunks = cached.results
-                        exactCacheHit = true
-                        Log.info("[RAGService] ✅ Exact cache hit for query: '\(normalizedQueryText)'", category: .pipeline)
-                        emitThinkingEvent(
-                            .retrieval, title: "Exact Cache Hit",
-                            detail: "Bypassed rewriting, embedding, and database search")
-                    } else {
-                        Log.info(
-                            "[RAGService] A cached search names a document no longer in the libraries; searching again",
-                            category: .pipeline)
-                    }
-                }
-                // ────────────────────────────────────────────────────────────────────────────
+                let __loadCorpusVocabularyResult = try await loadCorpusVocabulary(totalStored: totalStored, selectedName: selectedName, selectedId: selectedId, vdb: vdb, question: question, initialQueryPlan: initialQueryPlan, selectedContainer: selectedContainer, qualityModeUsesQueryRewriting: qualityModeUsesQueryRewriting)
+                let finalCorpusVocabulary = __loadCorpusVocabularyResult.finalCorpusVocabulary
+                let rewriteEnabledBySettings = __loadCorpusVocabularyResult.rewriteEnabledBySettings
+                let simpleGroundedLookup = __loadCorpusVocabularyResult.simpleGroundedLookup
+                let translatedInitialQuery = __loadCorpusVocabularyResult.translatedInitialQuery
+                let useQueryRewriting = __loadCorpusVocabularyResult.useQueryRewriting
+                let queryEnhancer = __loadCorpusVocabularyResult.queryEnhancer
+                var cachedAllChunks = __loadCorpusVocabularyResult.cachedAllChunks
+                let originalKeywordQuery = __loadCorpusVocabularyResult.originalKeywordQuery
 
-                // Step 0: Build or retrieve cached Corpus Vocabulary (for context-aware understanding)
-                Log.section("Step 0: Corpus Analysis", level: .info, category: .pipeline)
-                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Corpus Analysis")
-                let corpusStartTime = Date()
+                let effectiveQuery = await rewriteQueryWithModel(translatedInitialQuery: translatedInitialQuery, exactCacheHit: exactCacheHit, useQueryRewriting: useQueryRewriting, finalCorpusVocabulary: finalCorpusVocabulary, qualityModeUsesConversationMemory: qualityModeUsesConversationMemory, selectedId: selectedId, qualityModeMaxConversationTurns: qualityModeMaxConversationTurns, auditQueryWasRewritten: &auditQueryWasRewritten, question: question, rewriteEnabledBySettings: rewriteEnabledBySettings, simpleGroundedLookup: simpleGroundedLookup)
 
-                // Pipeline Trace: Step 0
-                Log.pipelineStep(
-                    "0", title: "Corpus Analysis",
-                    details: [
-                        ("chunks", "\(totalStored)"),
-                        ("container", selectedName),
-                    ])
+                let (expandedQueries, expansionTime) = await expandQueryForRetrieval(exactCacheHit: exactCacheHit, qualityModeUsesQueryExpansion: qualityModeUsesQueryExpansion, effectiveQuery: effectiveQuery, queryEnhancer: queryEnhancer, qualityMode: qualityMode, qualityModeMaxQueryExpansions: qualityModeMaxQueryExpansions, qualityModeDisplayName: qualityModeDisplayName, qualityModeUsesContainerVocabulary: qualityModeUsesContainerVocabulary, selectedId: selectedId, auditQueryExpansionCount: &auditQueryExpansionCount)
 
-                // Use cached vocabulary if available to avoid expensive rebuilds
-                let corpusVocabulary: CorpusVocabulary = await MainActor.run {
-                    if let cached = self.corpusVocabularyCache[selectedId] {
-                        Log.debug(
-                            "[RAGService] Using cached corpus vocabulary for container \(selectedId)",
-                            category: .pipeline)
-                        return cached
-                    }
-                    return CorpusVocabulary.empty
-                }
+                let (answerIntent, answerIntentIsExtractive, contextualDefinitionLookup, effectiveQueryProfile, hasSummaryChunks, queryRoutingEnabled, isProceduralQuery, answerNeedsDocumentSummary) = await resolveStandardAnswerIntent(effectiveQuery: effectiveQuery, queryEnhancer: queryEnhancer, cachedAllChunks: cachedAllChunks, qualityMode: qualityMode, auditAnswerIntent: &auditAnswerIntent)
 
-                // Only build if not cached; also cache allChunks for lexical recall
-                let finalCorpusVocabulary: CorpusVocabulary
-                var cachedAllChunks: [DocumentChunk]?
-                if corpusVocabulary.keywords.isEmpty {
-                    let allChunks = try await vdb.readableChunks()
-                    cachedAllChunks = await chunksOfListedDocuments(allChunks)  // Store for HybridSearchService lexical recall
+                let (embeddingStartTime, hydeEmbeddingText, hydeText) = await gateAndGenerateHyDE(qualityModeUsesHyDE: qualityModeUsesHyDE, answerIntentIsExtractive: answerIntentIsExtractive, answerIntent: answerIntent, embeddingProviderId: embeddingProviderId, selectedDim: selectedDim, effectiveQuery: effectiveQuery, selectedId: selectedId, auditUsedHyDE: &auditUsedHyDE)
 
-                    // Run viscosity scan when building vocabulary (first query)
-                    await runViscosityScan(allChunks, query: question)
-
-                    // Every passage of the library, whatever documents the question names. The
-                    // function holds the vocabulary for later questions when it is still the
-                    // library's.
-                    let built = await libraryVocabulary(for: selectedId, from: allChunks, isWholeLibrary: true)
-                    finalCorpusVocabulary = built
-                    let corpusTime = Date().timeIntervalSince(corpusStartTime)
-                    Log.debug(
-                        "Built corpus vocabulary in \(String(format: "%.0f", corpusTime * 1000))ms", category: .pipeline
-                    )
-                } else {
-                    finalCorpusVocabulary = corpusVocabulary
-                    Log.debug("Using cached corpus vocabulary (0ms)", category: .pipeline)
-
-                    // Always load allChunks — needed for parent doc expansion, lexical recall,
-                    // document summary, and multi-hop even when vocabulary is cached.
-                    // Previously only loaded when pipelineTraceEnabled, which silently broke
-                    // parent doc expansion on repeat queries to the same container.
-                    let allChunks = try await vdb.readableChunks()
-                    cachedAllChunks = await chunksOfListedDocuments(allChunks)
-                    if Log.pipelineTraceEnabled {
-                        await runViscosityScan(allChunks, query: question)
-                    }
-                }
-
-                let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
-                let simpleGroundedLookup = initialQueryPlan.preferLiteralQuery
-                let translatedInitialQuery = await translatedQueryForEmbedding(question, container: selectedContainer)
-                let originalKeywordQuery = translatedInitialQuery.wasTranslated ? question : nil
-
-                // Check advanced RAG settings
-                let rewriteEnabledBySettings = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
-                let useQueryRewriting = rewriteEnabledBySettings && !simpleGroundedLookup
-                // Note: Iterative retrieval is auto-enabled for multi-hop intents (investigate/compare/findings)
-                // and can be force-enabled via settings toggle. See Step 3 below.
-
-                // Step 1: LLM-Powered Query Understanding (if enabled)
-                // CACHE: Skip if exact cache hit
-                var effectiveQuery = translatedInitialQuery.text
-                var queryWasRewritten = false
-                var rewriteTime: TimeInterval = 0
-
-                if !exactCacheHit && useQueryRewriting {
-                    Log.section("Step 1: Query Understanding", level: .info, category: .pipeline)
-                    HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Understanding")
-                    let rewriteStartTime = Date()
-
-                    // Pipeline Trace: Step 1
-                    Log.pipelineStep(
-                        "1", title: "Query Understanding",
-                        details: [
-                            ("rewriting", "enabled")
-                        ])
-                    let documentNames = await snapshotDocuments().map { $0.filename }
-                    let queryRewriter = QueryRewriterService(
-                        corpusVocabulary: finalCorpusVocabulary,
-                        documentSummaries: nil
-                    )
-
-                    // Build conversation context for pronoun resolution
-                    // Use ConversationMemoryService for enhanced entity-aware context if available
-                    // Respect both quality mode toggle and user settings
-                    let conversationMemoryEnabled =
-                        qualityModeUsesConversationMemory && (settingsStore?.enableConversationMemory ?? true)
-                    var recentTurns: [ConversationTurn] = []
-
-                    if #available(iOS 26.0, *), conversationMemoryEnabled {
-                        // Get memory-enhanced context with tracked entities
-                        // ONLY use actual conversation turns - NOT synthetic context from memory entities
-                        // Synthetic context causes false-positive rewrites (e.g., "this button" → "the button you mentioned")
-                        let memory = ConversationMemoryService.shared.memory(for: selectedId)
-                        let maxTurns = min(qualityModeMaxConversationTurns, 3)  // Use quality mode limit for rewriting
-                        recentTurns = memory.recentTurns.suffix(maxTurns).map { turn in
-                            ConversationTurn(
-                                role: "user",
-                                content: turn.userQuery,
-                                entities: turn.extractedFacts.prefix(3).map { String($0.prefix(50)) }
-                            )
-                        }
-                        // Note: Intentionally NOT creating synthetic turns from memory.entities
-                        // Memory entities persist across sessions and don't provide reliable pronoun referents
-                        Log.debug(
-                            "[ConversationMemory] Using memory for query rewriting (\(recentTurns.count) turns, \(memory.entities.count) entities)",
-                            category: .retrieval)
-                    }
-
-                    // Fallback to raw chat history if memory didn't provide context
-                    if recentTurns.isEmpty {
-                        let conversationHistory = chatHistory(for: selectedId)
-                        recentTurns =
-                            conversationHistory
-                            .filter { $0.role != .system }
-                            .suffix(4)  // Last 4 messages
-                            .map { msg in
-                                ConversationTurn(
-                                    role: msg.role == .user ? "user" : "assistant",
-                                    content: String(msg.content.prefix(300)),
-                                    entities: []  // Will be extracted by the service
-                                )
-                            }
-                    }
-
-                    do {
-                        let rewriteResult = try await queryRewriter.rewrite(
-                            query: effectiveQuery,
-                            documentNames: documentNames,
-                            conversationContext: recentTurns
-                        )
-                        effectiveQuery = rewriteResult.rewritten
-                        queryWasRewritten = rewriteResult.wasRewritten
-                        auditQueryWasRewritten = rewriteResult.wasRewritten
-
-                        if rewriteResult.wasRewritten {
-                            var detail = "Intent: \(rewriteResult.intent.rawValue)"
-                            if !rewriteResult.resolvedEntities.isEmpty {
-                                detail +=
-                                    " • Resolved: \(rewriteResult.resolvedEntities.prefix(2).joined(separator: ", "))"
-                            } else {
-                                detail += " • \(rewriteResult.entities.prefix(3).joined(separator: ", "))"
-                            }
-                            Log.info(
-                                "✓ Query rewritten: \"\(question.prefix(40))...\" → \"\(rewriteResult.rewritten.prefix(60))...\"",
-                                category: .retrieval
-                            )
-                            emitThinkingEvent(
-                                .planning,
-                                title: "Query understood",
-                                detail: detail
-                            )
-                        }
-                    } catch {
-                        Log.warning(
-                            "[RAGService] Query rewriting failed, using original: \(error)", category: .retrieval)
-                    }
-
-                    rewriteTime = Date().timeIntervalSince(rewriteStartTime)
-                    TelemetryCenter.emit(
-                        .retrieval,
-                        title: "Query understanding",
-                        metadata: [
-                            "rewritten": queryWasRewritten ? "true" : "false",
-                            "originalLength": "\(question.count)",
-                            "rewrittenLength": "\(effectiveQuery.count)",
-                        ],
-                        duration: rewriteTime
-                    )
-                } else {
-                    if rewriteEnabledBySettings && simpleGroundedLookup {
-                        Log.info(
-                            "[RAGService] Query rewriting bypassed for simple grounded lookup", category: .retrieval)
-                        emitThinkingEvent(
-                            .planning,
-                            title: "Keeping query literal",
-                            detail: "Simple grounded lookup — skipping rewrite"
-                        )
-                    } else {
-                        Log.debug("[RAGService] Query rewriting disabled, using original query", category: .pipeline)
-                    }
-                }
-
-                // Step 1.5: Corpus-Aware Query Expansion
-                // QUALITY MODE: Check if query expansion is enabled
-                var expandedQueries: [String] = []
-                var expansionTime: TimeInterval = 0
-
-                if !exactCacheHit && qualityModeUsesQueryExpansion {
-                    Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
-                    let expansionStartTime = Date()
-
-                    let effectivePlanningProfile = await QueryProfileService.shared.buildProfile(
-                        for: effectiveQuery,
-                        queryEnhancer: queryEnhancer,
-                        routingEnabled: false
-                    )
-                    let effectiveQueryPlan = await QueryExecutionPlannerService.shared.buildPlan(
-                        for: effectiveQuery,
-                        profile: effectivePlanningProfile,
-                        requestedQualityMode: qualityMode,
-                        allowToolCalling: false
-                    )
-
-                    expandedQueries = effectiveQueryPlan.searchQueries.filter {
-                        $0.caseInsensitiveCompare(effectiveQuery) != .orderedSame
-                    }
-
-                    let heuristicExpansions = queryEnhancer.expandQuery(effectiveQuery)
-                    for candidate in heuristicExpansions {
-                        guard expandedQueries.count < qualityModeMaxQueryExpansions else { break }
-                        guard !expandedQueries.contains(where: { $0.caseInsensitiveCompare(candidate) == .orderedSame })
-                        else { continue }
-                        expandedQueries.append(candidate)
-                    }
-
-                    // Limit to quality mode maximum
-                    if expandedQueries.count > qualityModeMaxQueryExpansions {
-                        expandedQueries = Array(expandedQueries.prefix(qualityModeMaxQueryExpansions))
-                        Log.debug(
-                            "[RAGService] Capped query expansions to \(qualityModeMaxQueryExpansions) (quality mode: \(qualityModeDisplayName))",
-                            category: .retrieval)
-                    }
-
-                    // Step 1.5b: Per-Container Vocabulary Expansion (if enabled)
-                    if qualityModeUsesContainerVocabulary {
-                        let vocabExpansions = await ContainerVocabularyService.shared.expandQuery(
-                            effectiveQuery,
-                            containerId: selectedId
-                        )
-                        if !vocabExpansions.isEmpty {
-                            let uniqueVocabTerms = vocabExpansions.filter { !expandedQueries.contains($0) }
-                            // Respect max expansions limit
-                            let spaceRemaining = qualityModeMaxQueryExpansions - expandedQueries.count
-                            let termsToAdd = Array(uniqueVocabTerms.prefix(max(0, spaceRemaining)))
-                            expandedQueries.append(contentsOf: termsToAdd)
-                            Log.debug(
-                                "[RAGService] Container vocabulary added \(termsToAdd.count) terms",
-                                category: .retrieval
-                            )
-                        }
-                    } else {
-                        Log.debug(
-                            "[RAGService] Container vocabulary expansion skipped (quality mode: \(qualityModeDisplayName))",
-                            category: .pipeline)
-                    }
-
-                    // Step 1.5c: Gazetteer Domain Vocabulary Enrichment
-                    // Adds domain-specific terms learned during ingestion (NLGazetteer)
-                    let gazetteerMatches = await GazetteerService.shared.matchingTerms(for: effectiveQuery)
-                    if !gazetteerMatches.isEmpty {
-                        let gazetteerTerms = gazetteerMatches.map { $0.term }
-                        let uniqueGazetteerTerms = gazetteerTerms.filter { term in
-                            !expandedQueries.contains { $0.caseInsensitiveCompare(term) == .orderedSame }
-                        }
-                        let gazetteerSpace = qualityModeMaxQueryExpansions - expandedQueries.count
-                        let gazetteerToAdd = Array(uniqueGazetteerTerms.prefix(max(0, gazetteerSpace)))
-                        expandedQueries.append(contentsOf: gazetteerToAdd)
-                        if !gazetteerToAdd.isEmpty {
-                            Log.debug(
-                                "[RAGService] Gazetteer added \(gazetteerToAdd.count) domain terms",
-                                category: .retrieval)
-                        }
-                    }
-
-                    expansionTime = Date().timeIntervalSince(expansionStartTime)
-                    Log.info(
-                        "✓ Expanded to \(expandedQueries.count) query variations in \(String(format: "%.0f", expansionTime * 1000))ms",
-                        category: .pipeline
-                    )
-                    TelemetryCenter.emit(
-                        .retrieval,
-                        title: "Query expanded",
-                        metadata: [
-                            "variants": "\(expandedQueries.count)",
-                            "maxAllowed": "\(qualityModeMaxQueryExpansions)",
-                        ],
-                        duration: expansionTime
-                    )
-
-                    if !expandedQueries.isEmpty {
-                        auditQueryExpansionCount = expandedQueries.count
-                        emitThinkingEvent(
-                            .queryRewrite,
-                            title: "Query expansion",
-                            detail: "\(expandedQueries.count) variants generated"
-                        )
-                    }
-                } else {
-                    Log.info(
-                        "[RAG] Query expansion skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
-                    emitThinkingEvent(
-                        .queryRewrite,
-                        title: "Query expansion skipped",
-                        detail: "Quality mode: \(qualityModeDisplayName)"
-                    )
-                }
-
-                let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
-                let effectiveQueryProfile = await QueryProfileService.shared.buildProfile(
-                    for: effectiveQuery,
-                    queryEnhancer: queryEnhancer,
-                    queryRouter: queryRouter,
-                    routingEnabled: queryRoutingEnabled
-                )
-
-                // Step 1.6: Answer Intent Classification (AppleRAG §6)
-                // Classify query intent to optimize retrieval and answering strategy
-                let answerIntent = effectiveQueryProfile.answerIntent
-                let isProceduralQuery = answerIntent == .procedure
-                let hasSummaryChunks =
-                    cachedAllChunks?.contains { $0.metadata.abstractionLevel == .documentSummary } ?? false
-                let contextualDefinitionLookup = shouldUseContextualDefinitionLookupMode(
-                    query: effectiveQuery,
-                    answerIntent: answerIntent,
-                    qualityMode: qualityMode,
-                    hasSummaryChunks: hasSummaryChunks
-                )
-                let answerIntentIsExtractive = answerIntent.isExtractiveFirst && !contextualDefinitionLookup
-                let answerNeedsDocumentSummary = answerIntent.requiresDocumentSummary || contextualDefinitionLookup
-                auditAnswerIntent = answerIntent.rawValue
-                Log.info(
-                    "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntentIsExtractive), multi-hop: \(answerIntent.benefitsFromMultiHop)\(contextualDefinitionLookup ? ", contextual-definition: true" : ""))",
-                    category: .pipeline
-                )
-                emitThinkingEvent(
-                    .intentRoute,
-                    title: "Intent: \(answerIntent.rawValue)",
-                    detail: contextualDefinitionLookup
-                        ? "Contextual definition lookup"
-                        : (answerIntentIsExtractive
-                            ? "Extractive-first"
-                            : (answerIntent.benefitsFromMultiHop ? "Multi-hop enabled" : "Standard"))
-                )
-                if contextualDefinitionLookup {
-                    Log.info(
-                        "[RAG] Standard contextual lookup: definition-style query will use summary + detail evidence",
-                        category: .pipeline
-                    )
-                    emitThinkingEvent(
-                        .planning,
-                        title: "Contextual lookup",
-                        detail: "Definition-style query → summary + detail grounding"
-                    )
-                }
-
-                // Step 2: Embed the user's query
-                Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
-                let embeddingStartTime = Date()
-
-                // HyDE: Combine quality mode toggle with user settings and service availability
-                let hydeEnabledBySettings = settingsStore?.enableHyDE ?? true
-                let hydeIsAvailable = HyDEService.isAvailable
-                let hydeEnabledForMode = qualityModeUsesHyDE && hydeEnabledBySettings && hydeIsAvailable
-                // ALWAYS log HyDE gate status so we can diagnose silent failures
-                Log.info(
-                    "[HyDE] Gates: qualityMode=\(qualityModeUsesHyDE), settings=\(hydeEnabledBySettings), available=\(hydeIsAvailable) → enabled=\(hydeEnabledForMode)",
-                    category: .retrieval)
-
-                // CRITICAL: Disable HyDE for extractive/lookup queries to avoid hallucinated specifics biasing retrieval
-                // HyDE can guess wrong values (e.g., "5W-40" when answer is "0W-20") and pull wrong chunks
-                // Extractive-first intents (lookup, tableLookup) work better with keyword matching
-                // Procedure intents need HyDE for semantic behavioral matching ("what does the button do?")
-                let hydeDisabledForIntent = answerIntentIsExtractive
-                if hydeDisabledForIntent && hydeEnabledForMode {
-                    Log.debug(
-                        "[HyDE] Disabled for extractive intent '\(answerIntent.rawValue)' - keyword matching preferred",
-                        category: .retrieval)
-                }
-
-                // Pipeline Trace: Step 2
-                Log.pipelineStep(
-                    "2", title: "Query Embedding",
-                    details: [
-                        ("provider", embeddingProviderId),
-                        ("dim", "\(selectedDim)"),
-                        ("HyDE", (hydeEnabledForMode && !hydeDisabledForIntent) ? "enabled" : "off"),
-                    ])
-
-                // HyDE (Hypothetical Document Embeddings) - Gao et al. 2022
-                // Generates a hypothetical answer for better retrieval when question vocab differs from answer vocab
-                // Only used for factual queries where this vocabulary gap is significant
-                // DISABLED for extractive/lookup intents where specific values matter
-                let useHyDE =
-                    hydeEnabledForMode && !hydeDisabledForIntent && HyDEService.shouldUseHyDE(for: effectiveQuery)
-                var hydeText: String?
-                var hydeEmbeddingText: String?
-
-                if hydeDisabledForIntent && hydeEnabledForMode {
-                    // HyDE was enabled but skipped due to extractive intent
-                    emitThinkingEvent(
-                        .hyde,
-                        title: "HyDE skipped",
-                        detail: "Extractive intent '\(answerIntent.rawValue)' - using direct keyword matching"
-                    )
-                }
-
-                if useHyDE {
-                    let hydeService = HyDEService()
-                    do {
-                        let hydeResult = try await hydeService.generateHyDEQuery(
-                            for: effectiveQuery,
-                            containerId: selectedId
-                        )
-                        hydeText = hydeResult.hypotheticalDocument
-                        hydeEmbeddingText = hydeResult.combinedForEmbedding
-                        auditUsedHyDE = true
-                        Log.info(
-                            "[HyDE] Generated hypothetical doc: \"\(hydeText?.prefix(80) ?? "")...\"",
-                            category: .retrieval)
-                        emitThinkingEvent(
-                            .hyde,
-                            title: "HyDE generation",
-                            detail: "Hypothetical doc for vocabulary bridging"
-                        )
-                    } catch {
-                        Log.warning(
-                            "[HyDE] Failed to generate hypothetical doc: \(error.localizedDescription)",
-                            category: .retrieval)
-                        // Fall back to regular query embedding
-                    }
-                }
-
-                // Use HyDE text if available, otherwise use the rewritten query
-                let textToEmbed = hydeEmbeddingText ?? effectiveQuery
-
-                // Step 2 (embedding) is skipped on exact cache hit; we reuse the cached vector.
-                let queryEmbedding: [Float]
-                var embeddingTime: TimeInterval = 0
-                if exactCacheHit, let cachedEmb = cachedQueryEmbedding {
-                    queryEmbedding = cachedEmb
-                    Log.info(
-                        "[RAGService] ✅ Reusing cached \(queryEmbedding.count)-dim embedding (exact cache hit)",
-                        category: .embedding)
-                } else {
-                    // ─ Fresh embedding generation ─────────────────────────────────────────
-                    queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: textToEmbed)
-                    embeddingTime = Date().timeIntervalSince(embeddingStartTime)
-
-                    let embeddingMagnitude = sqrt(queryEmbedding.map { $0 * $0 }.reduce(0, +))
-                    let hydeStatus = hydeText != nil ? " [HyDE]" : ""
-                    Log.info(
-                        "✓ Generated \(queryEmbedding.count)-dimensional embedding\(hydeStatus)",
-                        category: .embedding
-                    )
-                    Log.debug(
-                        "  Vector magnitude: \(String(format: "%.4f", embeddingMagnitude))",
-                        category: .embedding
-                    )
-                    Log.debug(
-                        "  Time: \(String(format: "%.0f", embeddingTime * 1000))ms",
-                        category: .performance
-                    )
-                    TelemetryCenter.emit(
-                        .embedding,
-                        title: "Query embedding",
-                        metadata: [
-                            "dimensions": "\(queryEmbedding.count)",
-                            "provider": embeddingProviderId,
-                        ],
-                        duration: embeddingTime
-                    )
-
-                    // Show provider in thinking timeline (contextual = high accuracy badge)
-                    let providerLabel =
-                        embeddingProviderId == "nl_contextual_embedding" ? "⚡ Contextual" : embeddingProviderId
-                    emitThinkingEvent(
-                        .embedding,
-                        title: "Embedding ready",
-                        detail:
-                            "\(providerLabel) • \(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
-                    )
-
-                    // Warn if embedding dimension doesn't match the selected library's index dimension
-                    if queryEmbedding.count != selectedDim {
-                        TelemetryCenter.emit(
-                            .system,
-                            severity: .warning,
-                            title: "Embedding dimension mismatch",
-                            metadata: [
-                                "expected": "\(selectedDim)",
-                                "got": "\(queryEmbedding.count)",
-                                "container": selectedName,
-                                "containerId": selectedId.uuidString,
-                            ]
-                        )
-                    }
-
-                    // No lookup by similarity (5.7). Through 5.6 a question whose embedding was within
-                    // 0.95 cosine of any cached one got that question's passages, from whatever the
-                    // library held when it was asked, and finding one decoded every cached question's
-                    // embedding for the library, on every question. Those rows carry no library state
-                    // this code can check (`SQLiteFullTextService.getCachedQueryBySimilarity`).
-                }  // end of fresh-embedding else branch
+                let (queryEmbedding, textToEmbed, embeddingTime) = try await embedQuery(effectiveQuery: effectiveQuery, hydeEmbeddingText: hydeEmbeddingText, cachedQueryEmbedding: cachedQueryEmbedding, exactCacheHit: exactCacheHit, queryEmbeddingService: queryEmbeddingService, embeddingStartTime: embeddingStartTime, hydeText: hydeText, embeddingProviderId: embeddingProviderId, selectedDim: selectedDim, selectedName: selectedName, selectedId: selectedId)
 
                 let __planSearchRoutingResult = planSearchRouting(effectiveQueryProfile: effectiveQueryProfile, retrievalConfig: retrievalConfig, auditUsedQueryRouting: &auditUsedQueryRouting, queryRoutingEnabled: queryRoutingEnabled, contextualDefinitionLookup: contextualDefinitionLookup, cachedAllChunks: cachedAllChunks, hasSummaryChunks: hasSummaryChunks, auditUsedSummaryRouting: &auditUsedSummaryRouting)
                 let adjustedVectorWeight = __planSearchRoutingResult.adjustedVectorWeight
@@ -1085,126 +566,14 @@ extension RAGService {
                                 "\(iterativeResult.iterations) passes → \(retrievedChunks.count) chunks (\(Int(iterativeResult.confidence * 100))% confidence)"
                         )
                     } else {
-                        // Single-pass hybrid search (original behavior)
-                        Log.section(
-                            "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
-                        )
+                        try await runHybridSearch(adjustedVectorWeight: adjustedVectorWeight, adjustedKeywordWeight: adjustedKeywordWeight, effectiveTopK: effectiveTopK, queryIntent: queryIntent, vdb: vdb, retrievedChunks: &retrievedChunks, expandedQueries: expandedQueries, effectiveQuery: effectiveQuery, originalKeywordQuery: originalKeywordQuery, queryEmbedding: queryEmbedding, filteredCachedChunks: filteredCachedChunks, selectedId: selectedId, answerIntent: answerIntent, trace: trace)
 
-                        // Pipeline Trace: Step 3 (Single-pass)
-                        Log.pipelineStep(
-                            "3", title: "Hybrid Search",
-                            details: [
-                                ("vector", String(format: "%.0f%%", adjustedVectorWeight * 100)),
-                                ("BM25", String(format: "%.0f%%", adjustedKeywordWeight * 100)),
-                                ("topK", "\(effectiveTopK * 3)"),
-                            ])
-
-                        Log.debug(
-                            "[RAGService] Query intent: \(queryIntent.rawValue) → weights adjusted to vector=\(String(format: "%.2f", adjustedVectorWeight)), keyword=\(String(format: "%.2f", adjustedKeywordWeight))",
-                            category: .retrieval
-                        )
-
-                        let hybridSearch = HybridSearchService(
-                            vectorDatabase: vdb,
-                            vectorWeight: adjustedVectorWeight,
-                            keywordWeight: adjustedKeywordWeight
-                        )
-                        // Use expanded queries for keyword search (original for vector)
-                        // Pass cached chunks to avoid redundant allChunks() call in lexical recall
-                        // For RAPTOR-lite: filteredCachedChunks may be limited to summaries for overview queries
-                        // Pass containerId to enable FTS5-accelerated BM25 (10-100X faster than in-memory)
-                        retrievedChunks = try await hybridSearch.search(
-                            query: expandedQueries.joined(separator: " "),
-                            originalQuery: originalKeywordQuery ?? effectiveQuery,
-                            embedding: queryEmbedding,
-                            topK: effectiveTopK * 3,
-                            cachedChunks: filteredCachedChunks,
-                            containerId: selectedId,
-                            isOverviewQuery: answerIntent == .summarize,
-                            trace: trace
-                        )
-
-                        // UNIVERSAL FIX 9: Multi-vector supplementary retrieval.
-                        // The primary search uses ONE embedding (HyDE or rewritten query).
-                        // Query expansion generates ~12 variations but only uses them for BM25 text.
-                        // Problem: if the primary embedding misses a needle due to vocabulary mismatch,
-                        // it's invisible forever. Fix: embed top-2 unique expansion variations, run
-                        // supplementary vector-only searches, merge any NEW chunks into results.
-                        // This catches needles that exist in a different embedding neighborhood.
-                        //
-                        // CRITICAL: Only use APPENDED expansions (contain original query as substring),
-                        // NOT replacement expansions. Synonym replacement queries like
-                        // "What vehicle of oil does this automobile takes" embed into a completely
-                        // different semantic neighborhood and pull in irrelevant chunks.
-                        // Appended queries like "oil type specification SAE" stay on-topic.
-                        let allowSupplementaryVectorSearch = !answerIntentIsExtractive && !isTrivial
-                        if allowSupplementaryVectorSearch && expandedQueries.count > 1 {
-                            let existingChunkIds = Set(retrievedChunks.map { $0.chunk.id })
-                            let effectiveQueryLower = effectiveQuery.lowercased()
-                            // Pick up to 2 expansions that:
-                            // 1. Differ from the primary embedding text
-                            // 2. Are sufficiently long
-                            // 3. CONTAIN the original query (appended terms, not replacements)
-                            //    OR are corpus phrase expansions (short focused phrases)
-                            let supplementaryQueries =
-                                expandedQueries
-                                .filter { expansion in
-                                    expansion != textToEmbed && expansion != effectiveQuery && expansion.count >= 10
-                                        && (expansion.lowercased().hasPrefix(effectiveQueryLower)
-                                            || expansion.count < effectiveQuery.count)  // Corpus phrases are shorter
-                                }
-                                .prefix(2)
-
-                            if !supplementaryQueries.isEmpty {
-                                Log.debug(
-                                    "[MultiVector] Running \(supplementaryQueries.count) supplementary vector searches",
-                                    category: .retrieval)
-                                for suppQuery in supplementaryQueries {
-                                    do {
-                                        let translatedSupplementaryQuery = await translatedQueryForEmbedding(
-                                            suppQuery, container: selectedContainer)
-                                        let suppEmbedding = try await queryEmbeddingService.generateEmbedding(
-                                            for: translatedSupplementaryQuery.text)
-                                        let suppResults = try await vdb.search(
-                                            embedding: suppEmbedding, topK: effectiveTopK)
-                                        let newChunks = suppResults.filter { !existingChunkIds.contains($0.chunk.id) }
-                                        if !newChunks.isEmpty {
-                                            auditUsedSupplementaryVectorSearch = true
-                                            retrievedChunks.append(contentsOf: newChunks)
-                                            Log.debug(
-                                                "[MultiVector] +\(newChunks.count) new chunks from expansion: \"\(suppQuery.prefix(50))...\"",
-                                                category: .retrieval)
-                                        }
-                                    } catch {
-                                        Log.debug(
-                                            "[MultiVector] Supplementary search failed: \(error.localizedDescription)",
-                                            category: .retrieval)
-                                    }
-                                }
-                            }
-                        } else if answerIntentIsExtractive && expandedQueries.count > 1 {
-                            Log.debug(
-                                "[MultiVector] Supplementary vector search skipped for extractive intent '\(answerIntent.rawValue)'",
-                                category: .retrieval)
-                        }
+                        await runSupplementaryVectorSearch(answerIntentIsExtractive: answerIntentIsExtractive, isTrivial: isTrivial, expandedQueries: expandedQueries, retrievedChunks: &retrievedChunks, effectiveQuery: effectiveQuery, textToEmbed: textToEmbed, selectedContainer: selectedContainer, queryEmbeddingService: queryEmbeddingService, vdb: vdb, effectiveTopK: effectiveTopK, auditUsedSupplementaryVectorSearch: &auditUsedSupplementaryVectorSearch, answerIntent: answerIntent)
                     }
                 }
                 // end if !exactCacheHit (Step 3)
 
-                // ─ Write to Semantic Cache ─────────────────────────────────────────────────────
-                // Only persist when we actually ran the live search (not on cache hits)
-                if !exactCacheHit && !retrievedChunks.isEmpty && !isDocumentScoped {
-                    await SQLiteFullTextService.shared.cacheQuery(
-                        normalizedQuery: cacheKey,
-                        containerId: selectedId,
-                        embedding: queryEmbedding,
-                        results: retrievedChunks
-                    )
-                    Log.debug(
-                        "[RAGService] Wrote \(retrievedChunks.count) chunks to semantic cache for query: '\(normalizedQueryText)'",
-                        category: .pipeline)
-                }
-                // ────────────────────────────────────────────────────────────────────────────
+                await writeSemanticQueryCache(exactCacheHit: exactCacheHit, isDocumentScoped: isDocumentScoped, retrievedChunks: retrievedChunks, cacheKey: cacheKey, selectedId: selectedId, queryEmbedding: queryEmbedding, normalizedQueryText: normalizedQueryText)
 
                 try applyDocumentScope(retrievedChunks: &retrievedChunks, cachedAllChunks: &cachedAllChunks, filteredCachedChunks: &filteredCachedChunks)
 
@@ -2807,6 +2176,718 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step SC: looks the question up in the persistent semantic query cache and takes an exact, still-current hit.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func lookUpSemanticQueryCache(question: String, embeddingProviderId: String, selectedDim: Int, selectedId: UUID) async -> (exactCacheHit: Bool, cachedQueryEmbedding: [Float]?, retrievedChunks: [RetrievedChunk], cacheKey: String, isDocumentScoped: Bool, normalizedQueryText: String) {
+        // ── Semantic Query Cache ─────────────────────────────────────────────────────
+        // Check the persistent SQLite semantic query cache before any LLM/embedding work.
+        // Exact hit: bypass Steps 1, 1.5, 2, and 3 entirely.
+        var cachedQueryEmbedding: [Float]? = nil
+        var retrievedChunks: [RetrievedChunk] = []
+        var exactCacheHit = false
+
+        let normalizedQueryText = SQLiteFullTextService.normalizeQuery(question)
+        // The cache's key is the question with every library's documents and the embedding
+        // model (5.7), so a cached search is reused only while none of them changed. Through
+        // 5.6 the key was the question alone and nothing ever cleared it: a question asked
+        // again after an import or a deletion got the old passages back, none from the new
+        // document and the deleted document's text with them.
+        let cacheKey = await MainActor.run {
+            Self.queryCacheKey(
+                normalizedQueryText, documents: self.documents.map { (id: $0.id, passages: $0.totalChunks) },
+                embeddingProviderId: embeddingProviderId, dimension: selectedDim)
+        }
+        // A question limited to named documents is searched inside them, so its result is
+        // not the library's result for the same words: it skips the cache both ways.
+        let isDocumentScoped = !(RAGQueryScope.documentIds ?? []).isEmpty
+        if !isDocumentScoped, let cached = await SQLiteFullTextService.shared.getCachedQuery(
+            normalizedQuery: cacheKey,
+            containerId: selectedId
+        ) {
+            let knownDocuments = await MainActor.run { Set(self.documents.map(\.id)) }
+            if Self.cachedResultsAreCurrent(cached.results, documentIds: knownDocuments) {
+                cachedQueryEmbedding = cached.embedding
+                retrievedChunks = cached.results
+                exactCacheHit = true
+                Log.info("[RAGService] ✅ Exact cache hit for query: '\(normalizedQueryText)'", category: .pipeline)
+                emitThinkingEvent(
+                    .retrieval, title: "Exact Cache Hit",
+                    detail: "Bypassed rewriting, embedding, and database search")
+            } else {
+                Log.info(
+                    "[RAGService] A cached search names a document no longer in the libraries; searching again",
+                    category: .pipeline)
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────────────
+        return (exactCacheHit: exactCacheHit, cachedQueryEmbedding: cachedQueryEmbedding, retrievedChunks: retrievedChunks, cacheKey: cacheKey, isDocumentScoped: isDocumentScoped, normalizedQueryText: normalizedQueryText)
+    }
+
+    /// Step 0: loads the cached or newly built corpus vocabulary and every readable passage, translates the query and decides whether to rewrite it.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func loadCorpusVocabulary(totalStored: Int, selectedName: String, selectedId: UUID, vdb: any VectorDatabase, question: String, initialQueryPlan: QueryExecutionPlan, selectedContainer: KnowledgeContainer?, qualityModeUsesQueryRewriting: Bool) async throws -> (finalCorpusVocabulary: CorpusVocabulary, rewriteEnabledBySettings: Bool, simpleGroundedLookup: Bool, translatedInitialQuery: (text: String, wasTranslated: Bool), useQueryRewriting: Bool, queryEnhancer: QueryEnhancementService, cachedAllChunks: [DocumentChunk]?, originalKeywordQuery: String?) {
+        // Step 0: Build or retrieve cached Corpus Vocabulary (for context-aware understanding)
+        Log.section("Step 0: Corpus Analysis", level: .info, category: .pipeline)
+        HardwareTelemetryState.shared.reportRAGPipeline(stage: "Corpus Analysis")
+        let corpusStartTime = Date()
+
+        // Pipeline Trace: Step 0
+        Log.pipelineStep(
+            "0", title: "Corpus Analysis",
+            details: [
+                ("chunks", "\(totalStored)"),
+                ("container", selectedName),
+            ])
+
+        // Use cached vocabulary if available to avoid expensive rebuilds
+        let corpusVocabulary: CorpusVocabulary = await MainActor.run {
+            if let cached = self.corpusVocabularyCache[selectedId] {
+                Log.debug(
+                    "[RAGService] Using cached corpus vocabulary for container \(selectedId)",
+                    category: .pipeline)
+                return cached
+            }
+            return CorpusVocabulary.empty
+        }
+
+        // Only build if not cached; also cache allChunks for lexical recall
+        let finalCorpusVocabulary: CorpusVocabulary
+        var cachedAllChunks: [DocumentChunk]?
+        if corpusVocabulary.keywords.isEmpty {
+            let allChunks = try await vdb.readableChunks()
+            cachedAllChunks = await chunksOfListedDocuments(allChunks)  // Store for HybridSearchService lexical recall
+
+            // Run viscosity scan when building vocabulary (first query)
+            await runViscosityScan(allChunks, query: question)
+
+            // Every passage of the library, whatever documents the question names. The
+            // function holds the vocabulary for later questions when it is still the
+            // library's.
+            let built = await libraryVocabulary(for: selectedId, from: allChunks, isWholeLibrary: true)
+            finalCorpusVocabulary = built
+            let corpusTime = Date().timeIntervalSince(corpusStartTime)
+            Log.debug(
+                "Built corpus vocabulary in \(String(format: "%.0f", corpusTime * 1000))ms", category: .pipeline
+            )
+        } else {
+            finalCorpusVocabulary = corpusVocabulary
+            Log.debug("Using cached corpus vocabulary (0ms)", category: .pipeline)
+
+            // Always load allChunks — needed for parent doc expansion, lexical recall,
+            // document summary, and multi-hop even when vocabulary is cached.
+            // Previously only loaded when pipelineTraceEnabled, which silently broke
+            // parent doc expansion on repeat queries to the same container.
+            let allChunks = try await vdb.readableChunks()
+            cachedAllChunks = await chunksOfListedDocuments(allChunks)
+            if Log.pipelineTraceEnabled {
+                await runViscosityScan(allChunks, query: question)
+            }
+        }
+
+        let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
+        let simpleGroundedLookup = initialQueryPlan.preferLiteralQuery
+        let translatedInitialQuery = await translatedQueryForEmbedding(question, container: selectedContainer)
+        let originalKeywordQuery = translatedInitialQuery.wasTranslated ? question : nil
+
+        // Check advanced RAG settings
+        let rewriteEnabledBySettings = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
+        let useQueryRewriting = rewriteEnabledBySettings && !simpleGroundedLookup
+        // Note: Iterative retrieval is auto-enabled for multi-hop intents (investigate/compare/findings)
+        // and can be force-enabled via settings toggle. See Step 3 below.
+        return (finalCorpusVocabulary: finalCorpusVocabulary, rewriteEnabledBySettings: rewriteEnabledBySettings, simpleGroundedLookup: simpleGroundedLookup, translatedInitialQuery: translatedInitialQuery, useQueryRewriting: useQueryRewriting, queryEnhancer: queryEnhancer, cachedAllChunks: cachedAllChunks, originalKeywordQuery: originalKeywordQuery)
+    }
+
+    /// Step 1: rewrites the query with the model and conversation context when enabled and not an exact cache hit.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func rewriteQueryWithModel(translatedInitialQuery: (text: String, wasTranslated: Bool), exactCacheHit: Bool, useQueryRewriting: Bool, finalCorpusVocabulary: CorpusVocabulary, qualityModeUsesConversationMemory: Bool, selectedId: UUID, qualityModeMaxConversationTurns: Int, auditQueryWasRewritten: inout Bool, question: String, rewriteEnabledBySettings: Bool, simpleGroundedLookup: Bool) async -> String {
+        // Step 1: LLM-Powered Query Understanding (if enabled)
+        // CACHE: Skip if exact cache hit
+        var effectiveQuery = translatedInitialQuery.text
+        var queryWasRewritten = false
+        var rewriteTime: TimeInterval = 0
+
+        if !exactCacheHit && useQueryRewriting {
+            Log.section("Step 1: Query Understanding", level: .info, category: .pipeline)
+            HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Understanding")
+            let rewriteStartTime = Date()
+
+            // Pipeline Trace: Step 1
+            Log.pipelineStep(
+                "1", title: "Query Understanding",
+                details: [
+                    ("rewriting", "enabled")
+                ])
+            let documentNames = await snapshotDocuments().map { $0.filename }
+            let queryRewriter = QueryRewriterService(
+                corpusVocabulary: finalCorpusVocabulary,
+                documentSummaries: nil
+            )
+
+            // Build conversation context for pronoun resolution
+            // Use ConversationMemoryService for enhanced entity-aware context if available
+            // Respect both quality mode toggle and user settings
+            let conversationMemoryEnabled =
+                qualityModeUsesConversationMemory && (settingsStore?.enableConversationMemory ?? true)
+            var recentTurns: [ConversationTurn] = []
+
+            if #available(iOS 26.0, *), conversationMemoryEnabled {
+                // Get memory-enhanced context with tracked entities
+                // ONLY use actual conversation turns - NOT synthetic context from memory entities
+                // Synthetic context causes false-positive rewrites (e.g., "this button" → "the button you mentioned")
+                let memory = ConversationMemoryService.shared.memory(for: selectedId)
+                let maxTurns = min(qualityModeMaxConversationTurns, 3)  // Use quality mode limit for rewriting
+                recentTurns = memory.recentTurns.suffix(maxTurns).map { turn in
+                    ConversationTurn(
+                        role: "user",
+                        content: turn.userQuery,
+                        entities: turn.extractedFacts.prefix(3).map { String($0.prefix(50)) }
+                    )
+                }
+                // Note: Intentionally NOT creating synthetic turns from memory.entities
+                // Memory entities persist across sessions and don't provide reliable pronoun referents
+                Log.debug(
+                    "[ConversationMemory] Using memory for query rewriting (\(recentTurns.count) turns, \(memory.entities.count) entities)",
+                    category: .retrieval)
+            }
+
+            // Fallback to raw chat history if memory didn't provide context
+            if recentTurns.isEmpty {
+                let conversationHistory = chatHistory(for: selectedId)
+                recentTurns =
+                    conversationHistory
+                    .filter { $0.role != .system }
+                    .suffix(4)  // Last 4 messages
+                    .map { msg in
+                        ConversationTurn(
+                            role: msg.role == .user ? "user" : "assistant",
+                            content: String(msg.content.prefix(300)),
+                            entities: []  // Will be extracted by the service
+                        )
+                    }
+            }
+
+            do {
+                let rewriteResult = try await queryRewriter.rewrite(
+                    query: effectiveQuery,
+                    documentNames: documentNames,
+                    conversationContext: recentTurns
+                )
+                effectiveQuery = rewriteResult.rewritten
+                queryWasRewritten = rewriteResult.wasRewritten
+                auditQueryWasRewritten = rewriteResult.wasRewritten
+
+                if rewriteResult.wasRewritten {
+                    var detail = "Intent: \(rewriteResult.intent.rawValue)"
+                    if !rewriteResult.resolvedEntities.isEmpty {
+                        detail +=
+                            " • Resolved: \(rewriteResult.resolvedEntities.prefix(2).joined(separator: ", "))"
+                    } else {
+                        detail += " • \(rewriteResult.entities.prefix(3).joined(separator: ", "))"
+                    }
+                    Log.info(
+                        "✓ Query rewritten: \"\(question.prefix(40))...\" → \"\(rewriteResult.rewritten.prefix(60))...\"",
+                        category: .retrieval
+                    )
+                    emitThinkingEvent(
+                        .planning,
+                        title: "Query understood",
+                        detail: detail
+                    )
+                }
+            } catch {
+                Log.warning(
+                    "[RAGService] Query rewriting failed, using original: \(error)", category: .retrieval)
+            }
+
+            rewriteTime = Date().timeIntervalSince(rewriteStartTime)
+            TelemetryCenter.emit(
+                .retrieval,
+                title: "Query understanding",
+                metadata: [
+                    "rewritten": queryWasRewritten ? "true" : "false",
+                    "originalLength": "\(question.count)",
+                    "rewrittenLength": "\(effectiveQuery.count)",
+                ],
+                duration: rewriteTime
+            )
+        } else {
+            if rewriteEnabledBySettings && simpleGroundedLookup {
+                Log.info(
+                    "[RAGService] Query rewriting bypassed for simple grounded lookup", category: .retrieval)
+                emitThinkingEvent(
+                    .planning,
+                    title: "Keeping query literal",
+                    detail: "Simple grounded lookup — skipping rewrite"
+                )
+            } else {
+                Log.debug("[RAGService] Query rewriting disabled, using original query", category: .pipeline)
+            }
+        }
+        return effectiveQuery
+    }
+
+    /// Step 1.5: expands the query from the planner, heuristics, container vocabulary and gazetteer.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func expandQueryForRetrieval(exactCacheHit: Bool, qualityModeUsesQueryExpansion: Bool, effectiveQuery: String, queryEnhancer: QueryEnhancementService, qualityMode: RAGQualityMode, qualityModeMaxQueryExpansions: Int, qualityModeDisplayName: String, qualityModeUsesContainerVocabulary: Bool, selectedId: UUID, auditQueryExpansionCount: inout Int) async -> (expandedQueries: [String], expansionTime: TimeInterval) {
+        // Step 1.5: Corpus-Aware Query Expansion
+        // QUALITY MODE: Check if query expansion is enabled
+        var expandedQueries: [String] = []
+        var expansionTime: TimeInterval = 0
+
+        if !exactCacheHit && qualityModeUsesQueryExpansion {
+            Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
+            let expansionStartTime = Date()
+
+            let effectivePlanningProfile = await QueryProfileService.shared.buildProfile(
+                for: effectiveQuery,
+                queryEnhancer: queryEnhancer,
+                routingEnabled: false
+            )
+            let effectiveQueryPlan = await QueryExecutionPlannerService.shared.buildPlan(
+                for: effectiveQuery,
+                profile: effectivePlanningProfile,
+                requestedQualityMode: qualityMode,
+                allowToolCalling: false
+            )
+
+            expandedQueries = effectiveQueryPlan.searchQueries.filter {
+                $0.caseInsensitiveCompare(effectiveQuery) != .orderedSame
+            }
+
+            let heuristicExpansions = queryEnhancer.expandQuery(effectiveQuery)
+            for candidate in heuristicExpansions {
+                guard expandedQueries.count < qualityModeMaxQueryExpansions else { break }
+                guard !expandedQueries.contains(where: { $0.caseInsensitiveCompare(candidate) == .orderedSame })
+                else { continue }
+                expandedQueries.append(candidate)
+            }
+
+            // Limit to quality mode maximum
+            if expandedQueries.count > qualityModeMaxQueryExpansions {
+                expandedQueries = Array(expandedQueries.prefix(qualityModeMaxQueryExpansions))
+                Log.debug(
+                    "[RAGService] Capped query expansions to \(qualityModeMaxQueryExpansions) (quality mode: \(qualityModeDisplayName))",
+                    category: .retrieval)
+            }
+
+            // Step 1.5b: Per-Container Vocabulary Expansion (if enabled)
+            if qualityModeUsesContainerVocabulary {
+                let vocabExpansions = await ContainerVocabularyService.shared.expandQuery(
+                    effectiveQuery,
+                    containerId: selectedId
+                )
+                if !vocabExpansions.isEmpty {
+                    let uniqueVocabTerms = vocabExpansions.filter { !expandedQueries.contains($0) }
+                    // Respect max expansions limit
+                    let spaceRemaining = qualityModeMaxQueryExpansions - expandedQueries.count
+                    let termsToAdd = Array(uniqueVocabTerms.prefix(max(0, spaceRemaining)))
+                    expandedQueries.append(contentsOf: termsToAdd)
+                    Log.debug(
+                        "[RAGService] Container vocabulary added \(termsToAdd.count) terms",
+                        category: .retrieval
+                    )
+                }
+            } else {
+                Log.debug(
+                    "[RAGService] Container vocabulary expansion skipped (quality mode: \(qualityModeDisplayName))",
+                    category: .pipeline)
+            }
+
+            // Step 1.5c: Gazetteer Domain Vocabulary Enrichment
+            // Adds domain-specific terms learned during ingestion (NLGazetteer)
+            let gazetteerMatches = await GazetteerService.shared.matchingTerms(for: effectiveQuery)
+            if !gazetteerMatches.isEmpty {
+                let gazetteerTerms = gazetteerMatches.map { $0.term }
+                let uniqueGazetteerTerms = gazetteerTerms.filter { term in
+                    !expandedQueries.contains { $0.caseInsensitiveCompare(term) == .orderedSame }
+                }
+                let gazetteerSpace = qualityModeMaxQueryExpansions - expandedQueries.count
+                let gazetteerToAdd = Array(uniqueGazetteerTerms.prefix(max(0, gazetteerSpace)))
+                expandedQueries.append(contentsOf: gazetteerToAdd)
+                if !gazetteerToAdd.isEmpty {
+                    Log.debug(
+                        "[RAGService] Gazetteer added \(gazetteerToAdd.count) domain terms",
+                        category: .retrieval)
+                }
+            }
+
+            expansionTime = Date().timeIntervalSince(expansionStartTime)
+            Log.info(
+                "✓ Expanded to \(expandedQueries.count) query variations in \(String(format: "%.0f", expansionTime * 1000))ms",
+                category: .pipeline
+            )
+            TelemetryCenter.emit(
+                .retrieval,
+                title: "Query expanded",
+                metadata: [
+                    "variants": "\(expandedQueries.count)",
+                    "maxAllowed": "\(qualityModeMaxQueryExpansions)",
+                ],
+                duration: expansionTime
+            )
+
+            if !expandedQueries.isEmpty {
+                auditQueryExpansionCount = expandedQueries.count
+                emitThinkingEvent(
+                    .queryRewrite,
+                    title: "Query expansion",
+                    detail: "\(expandedQueries.count) variants generated"
+                )
+            }
+        } else {
+            Log.info(
+                "[RAG] Query expansion skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
+            emitThinkingEvent(
+                .queryRewrite,
+                title: "Query expansion skipped",
+                detail: "Quality mode: \(qualityModeDisplayName)"
+            )
+        }
+        return (expandedQueries: expandedQueries, expansionTime: expansionTime)
+    }
+
+    /// Step 1.6: builds the effective query profile and derives the answer intent and its flags.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func resolveStandardAnswerIntent(effectiveQuery: String, queryEnhancer: QueryEnhancementService, cachedAllChunks: [DocumentChunk]?, qualityMode: RAGQualityMode, auditAnswerIntent: inout String) async -> (answerIntent: AnswerIntent, answerIntentIsExtractive: Bool, contextualDefinitionLookup: Bool, effectiveQueryProfile: QueryProfile, hasSummaryChunks: Bool, queryRoutingEnabled: Bool, isProceduralQuery: Bool, answerNeedsDocumentSummary: Bool) {
+        let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
+        let effectiveQueryProfile = await QueryProfileService.shared.buildProfile(
+            for: effectiveQuery,
+            queryEnhancer: queryEnhancer,
+            queryRouter: queryRouter,
+            routingEnabled: queryRoutingEnabled
+        )
+
+        // Step 1.6: Answer Intent Classification (AppleRAG §6)
+        // Classify query intent to optimize retrieval and answering strategy
+        let answerIntent = effectiveQueryProfile.answerIntent
+        let isProceduralQuery = answerIntent == .procedure
+        let hasSummaryChunks =
+            cachedAllChunks?.contains { $0.metadata.abstractionLevel == .documentSummary } ?? false
+        let contextualDefinitionLookup = shouldUseContextualDefinitionLookupMode(
+            query: effectiveQuery,
+            answerIntent: answerIntent,
+            qualityMode: qualityMode,
+            hasSummaryChunks: hasSummaryChunks
+        )
+        let answerIntentIsExtractive = answerIntent.isExtractiveFirst && !contextualDefinitionLookup
+        let answerNeedsDocumentSummary = answerIntent.requiresDocumentSummary || contextualDefinitionLookup
+        auditAnswerIntent = answerIntent.rawValue
+        Log.info(
+            "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntentIsExtractive), multi-hop: \(answerIntent.benefitsFromMultiHop)\(contextualDefinitionLookup ? ", contextual-definition: true" : ""))",
+            category: .pipeline
+        )
+        emitThinkingEvent(
+            .intentRoute,
+            title: "Intent: \(answerIntent.rawValue)",
+            detail: contextualDefinitionLookup
+                ? "Contextual definition lookup"
+                : (answerIntentIsExtractive
+                    ? "Extractive-first"
+                    : (answerIntent.benefitsFromMultiHop ? "Multi-hop enabled" : "Standard"))
+        )
+        if contextualDefinitionLookup {
+            Log.info(
+                "[RAG] Standard contextual lookup: definition-style query will use summary + detail evidence",
+                category: .pipeline
+            )
+            emitThinkingEvent(
+                .planning,
+                title: "Contextual lookup",
+                detail: "Definition-style query → summary + detail grounding"
+            )
+        }
+        return (answerIntent: answerIntent, answerIntentIsExtractive: answerIntentIsExtractive, contextualDefinitionLookup: contextualDefinitionLookup, effectiveQueryProfile: effectiveQueryProfile, hasSummaryChunks: hasSummaryChunks, queryRoutingEnabled: queryRoutingEnabled, isProceduralQuery: isProceduralQuery, answerNeedsDocumentSummary: answerNeedsDocumentSummary)
+    }
+
+    /// Step 2 (HyDE): starts the embedding clock, logs the HyDE gates and generates a hypothetical document when HyDE applies.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func gateAndGenerateHyDE(qualityModeUsesHyDE: Bool, answerIntentIsExtractive: Bool, answerIntent: AnswerIntent, embeddingProviderId: String, selectedDim: Int, effectiveQuery: String, selectedId: UUID, auditUsedHyDE: inout Bool) async -> (embeddingStartTime: Date, hydeEmbeddingText: String?, hydeText: String?) {
+        // Step 2: Embed the user's query
+        Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
+        let embeddingStartTime = Date()
+
+        // HyDE: Combine quality mode toggle with user settings and service availability
+        let hydeEnabledBySettings = settingsStore?.enableHyDE ?? true
+        let hydeIsAvailable = HyDEService.isAvailable
+        let hydeEnabledForMode = qualityModeUsesHyDE && hydeEnabledBySettings && hydeIsAvailable
+        // ALWAYS log HyDE gate status so we can diagnose silent failures
+        Log.info(
+            "[HyDE] Gates: qualityMode=\(qualityModeUsesHyDE), settings=\(hydeEnabledBySettings), available=\(hydeIsAvailable) → enabled=\(hydeEnabledForMode)",
+            category: .retrieval)
+
+        // CRITICAL: Disable HyDE for extractive/lookup queries to avoid hallucinated specifics biasing retrieval
+        // HyDE can guess wrong values (e.g., "5W-40" when answer is "0W-20") and pull wrong chunks
+        // Extractive-first intents (lookup, tableLookup) work better with keyword matching
+        // Procedure intents need HyDE for semantic behavioral matching ("what does the button do?")
+        let hydeDisabledForIntent = answerIntentIsExtractive
+        if hydeDisabledForIntent && hydeEnabledForMode {
+            Log.debug(
+                "[HyDE] Disabled for extractive intent '\(answerIntent.rawValue)' - keyword matching preferred",
+                category: .retrieval)
+        }
+
+        // Pipeline Trace: Step 2
+        Log.pipelineStep(
+            "2", title: "Query Embedding",
+            details: [
+                ("provider", embeddingProviderId),
+                ("dim", "\(selectedDim)"),
+                ("HyDE", (hydeEnabledForMode && !hydeDisabledForIntent) ? "enabled" : "off"),
+            ])
+
+        // HyDE (Hypothetical Document Embeddings) - Gao et al. 2022
+        // Generates a hypothetical answer for better retrieval when question vocab differs from answer vocab
+        // Only used for factual queries where this vocabulary gap is significant
+        // DISABLED for extractive/lookup intents where specific values matter
+        let useHyDE =
+            hydeEnabledForMode && !hydeDisabledForIntent && HyDEService.shouldUseHyDE(for: effectiveQuery)
+        var hydeText: String?
+        var hydeEmbeddingText: String?
+
+        if hydeDisabledForIntent && hydeEnabledForMode {
+            // HyDE was enabled but skipped due to extractive intent
+            emitThinkingEvent(
+                .hyde,
+                title: "HyDE skipped",
+                detail: "Extractive intent '\(answerIntent.rawValue)' - using direct keyword matching"
+            )
+        }
+
+        if useHyDE {
+            let hydeService = HyDEService()
+            do {
+                let hydeResult = try await hydeService.generateHyDEQuery(
+                    for: effectiveQuery,
+                    containerId: selectedId
+                )
+                hydeText = hydeResult.hypotheticalDocument
+                hydeEmbeddingText = hydeResult.combinedForEmbedding
+                auditUsedHyDE = true
+                Log.info(
+                    "[HyDE] Generated hypothetical doc: \"\(hydeText?.prefix(80) ?? "")...\"",
+                    category: .retrieval)
+                emitThinkingEvent(
+                    .hyde,
+                    title: "HyDE generation",
+                    detail: "Hypothetical doc for vocabulary bridging"
+                )
+            } catch {
+                Log.warning(
+                    "[HyDE] Failed to generate hypothetical doc: \(error.localizedDescription)",
+                    category: .retrieval)
+                // Fall back to regular query embedding
+            }
+        }
+        return (embeddingStartTime: embeddingStartTime, hydeEmbeddingText: hydeEmbeddingText, hydeText: hydeText)
+    }
+
+    /// Step 2 (embedding): embeds the query, or reuses the cached vector on an exact cache hit, and checks its dimension.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func embedQuery(effectiveQuery: String, hydeEmbeddingText: String?, cachedQueryEmbedding: [Float]?, exactCacheHit: Bool, queryEmbeddingService: EmbeddingService, embeddingStartTime: Date, hydeText: String?, embeddingProviderId: String, selectedDim: Int, selectedName: String, selectedId: UUID) async throws -> (queryEmbedding: [Float], textToEmbed: String, embeddingTime: TimeInterval) {
+        // Use HyDE text if available, otherwise use the rewritten query
+        let textToEmbed = hydeEmbeddingText ?? effectiveQuery
+
+        // Step 2 (embedding) is skipped on exact cache hit; we reuse the cached vector.
+        let queryEmbedding: [Float]
+        var embeddingTime: TimeInterval = 0
+        if exactCacheHit, let cachedEmb = cachedQueryEmbedding {
+            queryEmbedding = cachedEmb
+            Log.info(
+                "[RAGService] ✅ Reusing cached \(queryEmbedding.count)-dim embedding (exact cache hit)",
+                category: .embedding)
+        } else {
+            // ─ Fresh embedding generation ─────────────────────────────────────────
+            queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: textToEmbed)
+            embeddingTime = Date().timeIntervalSince(embeddingStartTime)
+
+            let embeddingMagnitude = sqrt(queryEmbedding.map { $0 * $0 }.reduce(0, +))
+            let hydeStatus = hydeText != nil ? " [HyDE]" : ""
+            Log.info(
+                "✓ Generated \(queryEmbedding.count)-dimensional embedding\(hydeStatus)",
+                category: .embedding
+            )
+            Log.debug(
+                "  Vector magnitude: \(String(format: "%.4f", embeddingMagnitude))",
+                category: .embedding
+            )
+            Log.debug(
+                "  Time: \(String(format: "%.0f", embeddingTime * 1000))ms",
+                category: .performance
+            )
+            TelemetryCenter.emit(
+                .embedding,
+                title: "Query embedding",
+                metadata: [
+                    "dimensions": "\(queryEmbedding.count)",
+                    "provider": embeddingProviderId,
+                ],
+                duration: embeddingTime
+            )
+
+            // Show provider in thinking timeline (contextual = high accuracy badge)
+            let providerLabel =
+                embeddingProviderId == "nl_contextual_embedding" ? "⚡ Contextual" : embeddingProviderId
+            emitThinkingEvent(
+                .embedding,
+                title: "Embedding ready",
+                detail:
+                    "\(providerLabel) • \(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
+            )
+
+            // Warn if embedding dimension doesn't match the selected library's index dimension
+            if queryEmbedding.count != selectedDim {
+                TelemetryCenter.emit(
+                    .system,
+                    severity: .warning,
+                    title: "Embedding dimension mismatch",
+                    metadata: [
+                        "expected": "\(selectedDim)",
+                        "got": "\(queryEmbedding.count)",
+                        "container": selectedName,
+                        "containerId": selectedId.uuidString,
+                    ]
+                )
+            }
+
+            // No lookup by similarity (5.7). Through 5.6 a question whose embedding was within
+            // 0.95 cosine of any cached one got that question's passages, from whatever the
+            // library held when it was asked, and finding one decoded every cached question's
+            // embedding for the library, on every question. Those rows carry no library state
+            // this code can check (`SQLiteFullTextService.getCachedQueryBySimilarity`).
+        }  // end of fresh-embedding else branch
+        return (queryEmbedding: queryEmbedding, textToEmbed: textToEmbed, embeddingTime: embeddingTime)
+    }
+
+    /// Step 3 (single pass): runs the hybrid vector and BM25 search.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func runHybridSearch(adjustedVectorWeight: Float, adjustedKeywordWeight: Float, effectiveTopK: Int, queryIntent: QueryIntent, vdb: any VectorDatabase, retrievedChunks: inout [RetrievedChunk], expandedQueries: [String], effectiveQuery: String, originalKeywordQuery: String?, queryEmbedding: [Float], filteredCachedChunks: [DocumentChunk]?, selectedId: UUID, answerIntent: AnswerIntent, trace: RetrievalTraceCollector?) async throws {
+        // Single-pass hybrid search (original behavior)
+        Log.section(
+            "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
+        )
+
+        // Pipeline Trace: Step 3 (Single-pass)
+        Log.pipelineStep(
+            "3", title: "Hybrid Search",
+            details: [
+                ("vector", String(format: "%.0f%%", adjustedVectorWeight * 100)),
+                ("BM25", String(format: "%.0f%%", adjustedKeywordWeight * 100)),
+                ("topK", "\(effectiveTopK * 3)"),
+            ])
+
+        Log.debug(
+            "[RAGService] Query intent: \(queryIntent.rawValue) → weights adjusted to vector=\(String(format: "%.2f", adjustedVectorWeight)), keyword=\(String(format: "%.2f", adjustedKeywordWeight))",
+            category: .retrieval
+        )
+
+        let hybridSearch = HybridSearchService(
+            vectorDatabase: vdb,
+            vectorWeight: adjustedVectorWeight,
+            keywordWeight: adjustedKeywordWeight
+        )
+        // Use expanded queries for keyword search (original for vector)
+        // Pass cached chunks to avoid redundant allChunks() call in lexical recall
+        // For RAPTOR-lite: filteredCachedChunks may be limited to summaries for overview queries
+        // Pass containerId to enable FTS5-accelerated BM25 (10-100X faster than in-memory)
+        retrievedChunks = try await hybridSearch.search(
+            query: expandedQueries.joined(separator: " "),
+            originalQuery: originalKeywordQuery ?? effectiveQuery,
+            embedding: queryEmbedding,
+            topK: effectiveTopK * 3,
+            cachedChunks: filteredCachedChunks,
+            containerId: selectedId,
+            isOverviewQuery: answerIntent == .summarize,
+            trace: trace
+        )
+    }
+
+    /// Step 3 (multi-vector): adds passages from vector searches on up to two appended query expansions.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func runSupplementaryVectorSearch(answerIntentIsExtractive: Bool, isTrivial: Bool, expandedQueries: [String], retrievedChunks: inout [RetrievedChunk], effectiveQuery: String, textToEmbed: String, selectedContainer: KnowledgeContainer?, queryEmbeddingService: EmbeddingService, vdb: any VectorDatabase, effectiveTopK: Int, auditUsedSupplementaryVectorSearch: inout Bool, answerIntent: AnswerIntent) async {
+        // UNIVERSAL FIX 9: Multi-vector supplementary retrieval.
+        // The primary search uses ONE embedding (HyDE or rewritten query).
+        // Query expansion generates ~12 variations but only uses them for BM25 text.
+        // Problem: if the primary embedding misses a needle due to vocabulary mismatch,
+        // it's invisible forever. Fix: embed top-2 unique expansion variations, run
+        // supplementary vector-only searches, merge any NEW chunks into results.
+        // This catches needles that exist in a different embedding neighborhood.
+        //
+        // CRITICAL: Only use APPENDED expansions (contain original query as substring),
+        // NOT replacement expansions. Synonym replacement queries like
+        // "What vehicle of oil does this automobile takes" embed into a completely
+        // different semantic neighborhood and pull in irrelevant chunks.
+        // Appended queries like "oil type specification SAE" stay on-topic.
+        let allowSupplementaryVectorSearch = !answerIntentIsExtractive && !isTrivial
+        if allowSupplementaryVectorSearch && expandedQueries.count > 1 {
+            let existingChunkIds = Set(retrievedChunks.map { $0.chunk.id })
+            let effectiveQueryLower = effectiveQuery.lowercased()
+            // Pick up to 2 expansions that:
+            // 1. Differ from the primary embedding text
+            // 2. Are sufficiently long
+            // 3. CONTAIN the original query (appended terms, not replacements)
+            //    OR are corpus phrase expansions (short focused phrases)
+            let supplementaryQueries =
+                expandedQueries
+                .filter { expansion in
+                    expansion != textToEmbed && expansion != effectiveQuery && expansion.count >= 10
+                        && (expansion.lowercased().hasPrefix(effectiveQueryLower)
+                            || expansion.count < effectiveQuery.count)  // Corpus phrases are shorter
+                }
+                .prefix(2)
+
+            if !supplementaryQueries.isEmpty {
+                Log.debug(
+                    "[MultiVector] Running \(supplementaryQueries.count) supplementary vector searches",
+                    category: .retrieval)
+                for suppQuery in supplementaryQueries {
+                    do {
+                        let translatedSupplementaryQuery = await translatedQueryForEmbedding(
+                            suppQuery, container: selectedContainer)
+                        let suppEmbedding = try await queryEmbeddingService.generateEmbedding(
+                            for: translatedSupplementaryQuery.text)
+                        let suppResults = try await vdb.search(
+                            embedding: suppEmbedding, topK: effectiveTopK)
+                        let newChunks = suppResults.filter { !existingChunkIds.contains($0.chunk.id) }
+                        if !newChunks.isEmpty {
+                            auditUsedSupplementaryVectorSearch = true
+                            retrievedChunks.append(contentsOf: newChunks)
+                            Log.debug(
+                                "[MultiVector] +\(newChunks.count) new chunks from expansion: \"\(suppQuery.prefix(50))...\"",
+                                category: .retrieval)
+                        }
+                    } catch {
+                        Log.debug(
+                            "[MultiVector] Supplementary search failed: \(error.localizedDescription)",
+                            category: .retrieval)
+                    }
+                }
+            }
+        } else if answerIntentIsExtractive && expandedQueries.count > 1 {
+            Log.debug(
+                "[MultiVector] Supplementary vector search skipped for extractive intent '\(answerIntent.rawValue)'",
+                category: .retrieval)
+        }
+    }
+
+    /// Step SC (write): stores a live search's passages in the semantic query cache.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func writeSemanticQueryCache(exactCacheHit: Bool, isDocumentScoped: Bool, retrievedChunks: [RetrievedChunk], cacheKey: String, selectedId: UUID, queryEmbedding: [Float], normalizedQueryText: String) async {
+        // ─ Write to Semantic Cache ─────────────────────────────────────────────────────
+        // Only persist when we actually ran the live search (not on cache hits)
+        if !exactCacheHit && !retrievedChunks.isEmpty && !isDocumentScoped {
+            await SQLiteFullTextService.shared.cacheQuery(
+                normalizedQuery: cacheKey,
+                containerId: selectedId,
+                embedding: queryEmbedding,
+                results: retrievedChunks
+            )
+            Log.debug(
+                "[RAGService] Wrote \(retrievedChunks.count) chunks to semantic cache for query: '\(normalizedQueryText)'",
+                category: .pipeline)
+        }
+        // ────────────────────────────────────────────────────────────────────────────
     }
 
     /// Step S3s: narrows the retrieved and cached pools to the documents a Shortcuts action named.
