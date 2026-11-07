@@ -289,8 +289,8 @@ Line numbers are in `RAGService.swift` unless a path is given.
 | 4.7 | Contextual compression | Optional extractive sentence filtering (`RAGService+QueryPipeline.swift:2976`, reader `:2985`), followed by a one-second cooldown to protect the Foundation Models rate budget (`:3179-3182`) | FoundationModels when enabled | | code_verified / exact |
 | 4.9 | Graph-based packing | `ContextPackingService` (`RAGService+QueryPipeline.swift:3214`; `Services/RAG/Retrieval/ContextPackingService.swift`) | CPU | | code_verified / exact |
 | 5 | Context assembly | Off-main string build (`:12066`); extractive summarisation (`:12650`); step 5.10's extractive QA block is commented out (`:12731`) (corrected 2026-09-29: this said "extractive QA is disabled, generation always runs"; the same extractor answers value questions without generation through `highPrecisionLookupOverrideAnswer`, live at `RAGService.swift@8be003a:8705, 8734, 9199, 14383, 15192` at `8be003a`) | CPU | Chunks that do not fit the token budget are trimmed and their IDs recorded (`ContextPackingService.swift:208-218`) | code_verified / exact |
-| Plan | Post-retrieval model plan | `makePostRetrievalModelPlan` (`RAGService+QueryPipeline.swift:4207`, defined `RAGService+Generation.swift:1138`) → `ModelExecutionPlanner.makePlan` (§4.4) | CPU | | code_verified / exact |
-| 6 | Generation | `switch plan.synthesisTarget` (`RAGService+QueryPipeline.swift:4219`): `.privateCloudCompute` (`:4492`), `.onDevice` and `.deterministic` (`:4563`), `.abstain` (`:4590`). Local generation goes through `LLMService` (§4.5) | FoundationModels, framework-decided; or PCC | | code_verified / exact |
+| Plan | Post-retrieval model plan | `makePostRetrievalModelPlan` (`RAGService+QueryPipeline.swift:4166`, defined `RAGService+Generation.swift:1138`) → `ModelExecutionPlanner.makePlan` (§4.4) | CPU | | code_verified / exact |
+| 6 | Generation | `switch plan.synthesisTarget` (`RAGService+QueryPipeline.swift:4178`): `.privateCloudCompute` (`:4492`), `.onDevice` and `.deterministic` (`:4563`), `.abstain` (`:4590`). Local generation goes through `LLMService` (§4.5) | FoundationModels, framework-decided; or PCC | | code_verified / exact |
 | Gates | Verification | `VerificationGateService` (§4.6) | CPU, plus one embedding call for Gate E | Claims in, supported and unsupported claims out | code_verified / exact |
 | Render | Structured answer | `StructuredAnswer` and citations mapped back to chunk IDs, each with page, a quote of at most 240 characters, document name and section path (corrected 2026-09-29: this said "chunk offsets"; no citation type carries an offset, `StructuredAnswer.swift:65-117, 436-440` at `8be003a`); route badge in `ResponseDetailsView` reads the completed route label (`Features/Chat/Response/ResponseDetailsView.swift:314-322`) | CPU | | code_verified / exact |
 
@@ -368,7 +368,7 @@ evidence, On-Device chosen, PCC chosen, an exact extracted value, a privacy sett
 (`ModelExecutionPlanner.swift:24-130`). No plan is `.deterministic` today, because the only code that
 builds the planner's evidence passes `requiresExactExtraction: false` (`RAGService+Generation.swift:1185-1186`),
 and one would not skip the model: `RAGService` runs it on the same branch as `.onDevice`
-(`RAGService+QueryPipeline.swift:4291`), and the extracted-value override may then replace the answer (`:5187-5214`). A new install is on Hybrid (`fmPreference = .automatic`) with
+(`RAGService+QueryPipeline.swift:4250`), and the extracted-value override may then replace the answer (`:5187-5214`). A new install is on Hybrid (`fmPreference = .automatic`) with
 PCC permission "Ask when needed", which the chat sends as `executionContext = .preferCloud` with
 `allowPrivateCloudCompute = true` (`SettingsStore.swift:50`, `:454-461`, `ChatScreen+Sending.swift:321-325`).
 When that route is eligible, Standard sizes its first evidence pass for 32,768 tokens at 2.5
@@ -441,7 +441,7 @@ the others, after the answer is written: it compares the question's domain with 
 to an abstention only when reliability mode is off (on by default) or the gates' overall confidence is
 under the bar, halved for a lookup with a floor of 0.25, and otherwise the answer is shown marked
 Unverified, with its text unchanged and nothing regenerated, though the claims Gate B could not
-support leave the structured answer's claim list and are listed as gaps (`RAGService+QueryPipeline.swift:4991-5048`,
+support leave the structured answer's claim list and are listed as gaps (`RAGService+QueryPipeline.swift:4950-5007`,
 `:332`, `RAGService+AnswerFinishing.swift:1043-1060`, `StructuredAnswer.swift:955-1048`, `ConfidencePolicyService.swift:48-54`). The
 critical gates' abstain flag (`VerificationGateService.swift:250-260`) decides nothing and only adds
 its reason to that list of gaps. Deep Think and Maximum answers get no gates in 5.6, and from 5.7 the
@@ -587,7 +587,7 @@ Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path i
    Mode. `isConstrained`, which counts a low battery on iOS, is read only by the interface, the battery
    lowers no work anywhere, and Low Power Mode only keeps background work off the GPU
    (`AdaptivePipelineOptimizer.swift:56-71`, `BackgroundTaskService.swift:1084-1087`). The optimizer's
-   `stepCooldownMs` delays only Standard's generation (`RAGService+QueryPipeline.swift:4176`). The loops wait only
+   `stepCooldownMs` delays only Standard's generation (`RAGService+QueryPipeline.swift:4135`). The loops wait only
    1.5 s after a failed session (`AgenticOrchestrator+ReasoningChain.swift:748`, `AgenticOrchestrator+Maximum.swift:970`) and, from 5.7, 1 s before each session from the
    second while iOS 27 asks apps to use less (`AgenticOrchestrator+ReasoningChain.swift:484`, `AgenticOrchestrator+Maximum.swift:661`, `SystemResourceAdvice.swift:28-32`).
 10. **After the run.** The extractor's locked value replaces the answer, the source-only check runs for
@@ -610,7 +610,7 @@ Line numbers are in `Services/Agentic/AgenticOrchestrator.swift` unless a path i
 | `Services/Document/Classification/YOLODetectionService.swift:80` | `.all` | Object detection on images | Any | |
 | `Services/Document/Classification/CoreMLRegionDetector.swift:177` | `.all` | Region detection | Any | |
 | `Services/Document/Classification/CoreMLDocumentClassifier.swift:223` | `.cpuAndNeuralEngine` | Document classification | CPU or ANE | |
-| `Services/RAG/Extraction/ExtractiveQAService.swift:139` (removed in 5.7 on 2026-10-20: nothing referenced it) | `.cpuAndNeuralEngine` | Span model, **dormant**: the placeholder returns nil, and step 5.10's extractive block is commented out (`RAGService+QueryPipeline.swift:4105`) (corrected 2026-09-29: this said "generation always runs"; the heuristic extractor still answers value questions without generation, §4.2 step 5) | | |
+| `Services/RAG/Extraction/ExtractiveQAService.swift:139` (removed in 5.7 on 2026-10-20: nothing referenced it) | `.cpuAndNeuralEngine` | Span model, **dormant**: the placeholder returns nil, and step 5.10's extractive block is commented out (`RAGService+QueryPipeline.swift:4064`) (corrected 2026-09-29: this said "generation always runs"; the heuristic extractor still answers value questions without generation, §4.2 step 5) | | |
 | `Services/Infrastructure/Compute/GPUComputeService.swift:258-280, 701, 764` | Metal kernels `batchCosineSimilarity`, `…SIMD`, `…Threadgroup`, `batchNormalize`, `mmrDiversityMatrix` | Vector similarity, normalisation, MMR matrix | GPU | CPU `vDSP` (`:26` in `batchCosineSimilarity`) |
 | `Services/VectorStore/BNNSVectorDatabase.swift:365, 536` | `vDSP_dotpr`, `vDSP_mmul` | Similarity below 1,000 vectors | CPU SIMD | |
 | `Services/Infrastructure/Compute/BNNSGraphService.swift` (removed in 5.7 on 2026-10-20: nothing referenced it) | Accelerate BNNS and vDSP | Batch normalisation, cosine matrices, softmax, fusion arithmetic | CPU SIMD | |
@@ -746,9 +746,9 @@ the source disagrees or adds a condition.
 | OI-0551 Core ML compute units "derived from GPU execution profile and provider policy" | Correct (§3.4). |
 | OI-0570 Neural Engine, status "Core" | The status is a category claim. No line in the app places work on the Neural Engine; five lines permit it (§6.1). "Core" is defensible only as "requested on the default path". |
 | OI-0601 live Neural Engine utilisation, "Future" | Correct; the HUD pulse is synthetic. |
-| OI-0605 neural extractive QA, "Dormant" | Correct (`RAGService+QueryPipeline.swift:4105`). |
+| OI-0605 neural extractive QA, "Dormant" | Correct (`RAGService+QueryPipeline.swift:4064`). |
 | OI-0185 Metal residency set | Exists (`GPUComputeService.swift:345`). |
-| Pipeline recitation, Standard Query step 10 "post-retrieval ModelExecutionPlan" | Matches the source order (`RAGService+QueryPipeline.swift:4207` after Step 5 at `:3432`). |
+| Pipeline recitation, Standard Query step 10 "post-retrieval ModelExecutionPlan" | Matches the source order (`RAGService+QueryPipeline.swift:4166` after Step 5 at `:3432`). |
 | Step 6 "Cross-encode the shortlist with TinyBERT" | The model is `ReRankerModel.mlpackage`; the architecture name is not stated in code and was not verified here. |
 | Equations: RRF `k ≈ 60` | Exactly 60 (`HybridSearchService.swift:297`). |
 

@@ -953,3 +953,4 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | Q08 | 6 (output budget) (caps maxTokens to the room left after the context and applies the procedural and trivial adjustments) into `capGenerationTokens` |
 | Q09 | 6 (prompt) (writes the intent-specific system prompt and the temperature caps into the generation config) into `composeStandardGenerationConfig` |
 | Q10 | SV (computes the pre-generation confidence and decides whether the Evidence-First prompt is used) into `assessEvidenceBeforeGeneration` |
+| Q11 | 5 (citations) (logs the assembled context, lists the passages the prompt labelled and records them for recovery) into `finishIncludedPassages` |

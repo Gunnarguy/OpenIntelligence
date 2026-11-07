@@ -4,7 +4,7 @@
   "name": "RAG Evaluation and Benchmarks",
   "aliases": ["evaluation harness", "RAG evaluation", "benchmarks", "retrieval stage metrics", "route invariant evaluation", "Apple evaluations bridge"],
   "purpose": "Runs ground-truth question sets through the pipeline and scores retrieval and routing.",
-  "revision": "3da5380a",
+  "revision": "8da8ad91",
   "verified_on": "2026-11-07",
   "entry_points": ["RAGEvalRunner", "RetrievalStageMetrics", "RouteEvalMetrics"],
   "files": [

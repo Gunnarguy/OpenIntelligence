@@ -3762,48 +3762,7 @@ extension RAGService {
                     context = assembledContext
                 }
 
-                // Universal pipeline trace: log final assembled context
-                if Log.pipelineTraceEnabled {
-                    logFinalContext(context, actualChunksUsed: actualChunksUsed, query: question)
-                }
-
-                // Emit lost-in-middle event if it was applied
-                if placedForAttention {
-                    emitThinkingEvent(
-                        .lostInMiddle,
-                        title: "Position reorder",
-                        detail: "Attention-optimal placement"
-                    )
-                }
-
-                Log.info(
-                    "   ✓ Using \(actualChunksUsed)/\(contextCandidates.count) chunks (\(context.count) chars)\(useCompactMode ? " [compact]" : "") • \(contextStrategy)",
-                    category: .pipeline
-                )
-
-                let contextSize = context.count
-                let contextWords = context.split(separator: " ").count
-                // BUGFIX: Use orderedCandidates (post-sort) not contextCandidates (pre-sort).
-                // Previously, spec prioritization sorted candidates but the slicing used the
-                // original unsorted array, so fuse-box tables could be selected over oil specs.
-                // The packed prefix plus anything needle rescue contributed. Appending in this
-                // order is what makes the labels correct: rescue labels start at `assembled.used`,
-                // which is exactly where the prefix ends.
-                let includedRetrievedChunks = promptSources + rescuedChunks
-
-                // The citation map: which document each [Sn] the model was shown actually resolves
-                // to. Nothing printed this, which is why labels could point at the wrong document
-                // for an unknown length of time while every guard passed: the indices were in
-                // range, the chunks were real, and only the mapping was wrong. With this line a
-                // cited answer can be checked against its sources by reading one log entry.
-                logCitationMap(includedRetrievedChunks, rescued: rescuedChunks.count, route: "standard")
-                // let precisionLookupCandidates = buildPrecisionLookupCandidates(
-                //     included: includedRetrievedChunks,
-                //     ordered: orderedCandidates,
-                //     desiredCount: max(actualChunksUsed + 6, 16)
-                // )
-                let includedChunks = includedRetrievedChunks.map { $0.chunk }
-                recoveryRetrievedChunks = includedRetrievedChunks
+                let (contextWords, contextSize, includedRetrievedChunks, includedChunks) = finishIncludedPassages(actualChunksUsed: actualChunksUsed, context: context, question: question, placedForAttention: placedForAttention, contextCandidates: contextCandidates, contextStrategy: contextStrategy, useCompactMode: useCompactMode, promptSources: promptSources, rescuedChunks: rescuedChunks, recoveryRetrievedChunks: &recoveryRetrievedChunks)
 
                 Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
 
@@ -5426,6 +5385,54 @@ extension RAGService {
             }
             throw error
         }
+    }
+
+    /// Step 5 (citations): logs the assembled context, lists the passages the prompt labelled and records them for recovery.
+    /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func finishIncludedPassages(actualChunksUsed: Int, context: String, question: String, placedForAttention: Bool, contextCandidates: [RetrievedChunk], contextStrategy: String, useCompactMode: Bool, promptSources: [RetrievedChunk], rescuedChunks: [RetrievedChunk], recoveryRetrievedChunks: inout [RetrievedChunk]) -> (contextWords: Int, contextSize: Int, includedRetrievedChunks: [RetrievedChunk], includedChunks: [DocumentChunk]) {
+        // Universal pipeline trace: log final assembled context
+        if Log.pipelineTraceEnabled {
+            logFinalContext(context, actualChunksUsed: actualChunksUsed, query: question)
+        }
+
+        // Emit lost-in-middle event if it was applied
+        if placedForAttention {
+            emitThinkingEvent(
+                .lostInMiddle,
+                title: "Position reorder",
+                detail: "Attention-optimal placement"
+            )
+        }
+
+        Log.info(
+            "   ✓ Using \(actualChunksUsed)/\(contextCandidates.count) chunks (\(context.count) chars)\(useCompactMode ? " [compact]" : "") • \(contextStrategy)",
+            category: .pipeline
+        )
+
+        let contextSize = context.count
+        let contextWords = context.split(separator: " ").count
+        // BUGFIX: Use orderedCandidates (post-sort) not contextCandidates (pre-sort).
+        // Previously, spec prioritization sorted candidates but the slicing used the
+        // original unsorted array, so fuse-box tables could be selected over oil specs.
+        // The packed prefix plus anything needle rescue contributed. Appending in this
+        // order is what makes the labels correct: rescue labels start at `assembled.used`,
+        // which is exactly where the prefix ends.
+        let includedRetrievedChunks = promptSources + rescuedChunks
+
+        // The citation map: which document each [Sn] the model was shown actually resolves
+        // to. Nothing printed this, which is why labels could point at the wrong document
+        // for an unknown length of time while every guard passed: the indices were in
+        // range, the chunks were real, and only the mapping was wrong. With this line a
+        // cited answer can be checked against its sources by reading one log entry.
+        logCitationMap(includedRetrievedChunks, rescued: rescuedChunks.count, route: "standard")
+        // let precisionLookupCandidates = buildPrecisionLookupCandidates(
+        //     included: includedRetrievedChunks,
+        //     ordered: orderedCandidates,
+        //     desiredCount: max(actualChunksUsed + 6, 16)
+        // )
+        let includedChunks = includedRetrievedChunks.map { $0.chunk }
+        recoveryRetrievedChunks = includedRetrievedChunks
+        return (contextWords: contextWords, contextSize: contextSize, includedRetrievedChunks: includedRetrievedChunks, includedChunks: includedChunks)
     }
 
     /// Step SV: computes the pre-generation confidence and decides whether the Evidence-First prompt is used.
