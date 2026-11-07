@@ -934,6 +934,7 @@ host keeps every `defer`, `do`/`catch` and exit that must stay where it is; the 
 | I17 | O (counts the document's characters, words and per-passage word statistics and emits Extraction complete) into `measureExtraction` |
 | I18 | N (reads and cuts the document into passages and journals how long the main thread went unanswered meanwhile) into `parseDocumentForImport` |
 | I19 | L (when the library adapts itself, pre-scans the document's text and stores the chunking plan it recommends before the import uses it) into `prescanChunkingPlan` |
+| I20 | J (installs the document processor's text and rich progress handlers, which move the tracked item through its extraction stages) into `installProgressHandlers` |
 
 ### `RAGService.queryInternal`, broken into steps (2026-11-06)
 

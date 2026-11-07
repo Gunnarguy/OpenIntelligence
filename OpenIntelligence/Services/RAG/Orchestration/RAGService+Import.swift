@@ -1127,67 +1127,7 @@ extension RAGService {
         // Yield to let SwiftUI render the overlay (@Published updates propagate on next run loop)
         await Task.yield()
 
-        // Set up progress handler for real-time updates (legacy string-based)
-        documentProcessor.progressHandler = { [weak self] progress in
-            Task { @MainActor in
-                // Use transcribing stage for audio/video files
-                let stage: IngestionStage = progress.contains("transcribing") ? .transcribing : .extracting
-                let detail = progress.contains("transcribing") ? "Transcribing audio" : "Extracting (\(progress))"
-                self?.updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: stage,
-                    detail: detail
-                )
-            }
-        }
-
-        // Set up RICH progress handler for live metrics during extraction
-        documentProcessor.richProgressHandler = { [weak self] progress in
-            Task { @MainActor in
-                let stage: IngestionStage
-                switch progress.stage {
-                case "transcribing":
-                    stage = .transcribing
-                case "chunking":
-                    stage = .chunking
-                case "analyzing":
-                    stage = .analyzing
-                default:
-                    stage = .extracting
-                }
-
-                var progressFraction: Double? = nil
-                if let base = stage.pipelineBaseFraction {
-                    let weight = stage.pipelineWeightFraction ?? 0.0
-                    if let current = progress.currentPage, let total = progress.totalPages, total > 0 {
-                        let stageProgress = Double(current) / Double(total)
-                        progressFraction = base + (stageProgress * weight)
-                    } else {
-                        progressFraction = base
-                    }
-                }
-
-                self?.updateIngestionItem(
-                    id: trackingId,
-                    filename: filename,
-                    stage: stage,
-                    detail: progress.detail,
-                    progress: progressFraction
-                ) { metrics in
-                    // Update live metrics from extraction progress
-                    metrics.usedStructuredParsing = progress.usingVision
-                    metrics.tablesExtracted = progress.tablesFound
-                    metrics.listsExtracted = progress.listsFound
-                    metrics.titlesDetected = progress.headersFound
-                    metrics.ocrPagesCount = progress.ocrPagesUsed
-                    if let totalPages = progress.totalPages {
-                        metrics.pageCount = totalPages
-                    }
-                }
-            }
-        }
-
+        installProgressHandlers(trackingId: trackingId, filename: filename)
         // The document's Spotlight entry, once written, so an import that fails or is cancelled
         // after it removes it (5.7: entries no longer expire).
         var listedInSpotlight: UUID?
@@ -1407,6 +1347,72 @@ extension RAGService {
             )
             throw error
         }
+    }
+
+    /// Step J: installs the document processor's text and rich progress handlers, which move the tracked item through its extraction stages.
+    /// Moved unchanged from `addDocument` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    private func installProgressHandlers(trackingId: UUID?, filename: String) {
+        // Set up progress handler for real-time updates (legacy string-based)
+        documentProcessor.progressHandler = { [weak self] progress in
+            Task { @MainActor in
+                // Use transcribing stage for audio/video files
+                let stage: IngestionStage = progress.contains("transcribing") ? .transcribing : .extracting
+                let detail = progress.contains("transcribing") ? "Transcribing audio" : "Extracting (\(progress))"
+                self?.updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: stage,
+                    detail: detail
+                )
+            }
+        }
+
+        // Set up RICH progress handler for live metrics during extraction
+        documentProcessor.richProgressHandler = { [weak self] progress in
+            Task { @MainActor in
+                let stage: IngestionStage
+                switch progress.stage {
+                case "transcribing":
+                    stage = .transcribing
+                case "chunking":
+                    stage = .chunking
+                case "analyzing":
+                    stage = .analyzing
+                default:
+                    stage = .extracting
+                }
+
+                var progressFraction: Double? = nil
+                if let base = stage.pipelineBaseFraction {
+                    let weight = stage.pipelineWeightFraction ?? 0.0
+                    if let current = progress.currentPage, let total = progress.totalPages, total > 0 {
+                        let stageProgress = Double(current) / Double(total)
+                        progressFraction = base + (stageProgress * weight)
+                    } else {
+                        progressFraction = base
+                    }
+                }
+
+                self?.updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: stage,
+                    detail: progress.detail,
+                    progress: progressFraction
+                ) { metrics in
+                    // Update live metrics from extraction progress
+                    metrics.usedStructuredParsing = progress.usingVision
+                    metrics.tablesExtracted = progress.tablesFound
+                    metrics.listsExtracted = progress.listsFound
+                    metrics.titlesDetected = progress.headersFound
+                    metrics.ocrPagesCount = progress.ocrPagesUsed
+                    if let totalPages = progress.totalPages {
+                        metrics.pageCount = totalPages
+                    }
+                }
+            }
+        }
+
     }
 
     /// Step L: when the library adapts itself, pre-scans the document's text and stores the chunking plan it recommends before the import uses it.
