@@ -190,39 +190,7 @@ extension DocumentProcessor {
             // setting was on and "[ANE]" for the Vision steps below, as fixed text: neither was a
             // measurement of where the work ran (row "PDF page renders are logged as GPU-accelerated on
             // a macOS path whose expensive stages run on CPU"), so the lines name the step only (5.7).
-            await MainActor.run {
-                self.emitProgress(
-                    stage: "render",
-                    detail: "🎨 Rendering pages \(renderStart + 1)-\(renderEnd)/\(pageCount)",
-                    page: renderStart,
-                    totalPages: pageCount
-                )
-            }
-
-            var batchRenderData: [PageRenderData] = []
-            for pageIndex in subBatchIndices {
-                // 1. Check if checkpoint exists on disk
-                let checkpointURL = checkpointDir.appendingPathComponent("page_\(pageIndex).json")
-                if FileManager.default.fileExists(atPath: checkpointURL.path),
-                   let data = try? Data(contentsOf: checkpointURL),
-                   let checkpoint = try? JSONDecoder().decode(IngestionCheckpointPage.self, from: data) {
-                    
-                    loadCheckpointedPage(pageIndex: pageIndex, checkpoint: checkpoint, results: &results, batchRenderData: &batchRenderData)
-                    continue
-                }
-
-                renderPageForParsing(pageIndex: pageIndex, pdfDocument: pdfDocument, batchRenderData: &batchRenderData, pageComplexity: pageComplexity, documentTextLayerGarbled: documentTextLayerGarbled)
-            }
-
-            await detectSubBatchLayouts(batchRenderData: &batchRenderData, useHybridMode: useHybridMode, batchStart: batchStart, pageCount: pageCount, subBatchIndices: subBatchIndices, layoutExtractor: layoutExtractor, batchEnd: batchEnd)
-
-            let batchResults = await parseSubBatchStructure(batchEnd: batchEnd, batchStart: batchStart, pageCount: pageCount, subBatchIndices: subBatchIndices, batchRenderData: batchRenderData, useHybridMode: useHybridMode, documentTextLayerGarbled: documentTextLayerGarbled, pageComplexity: pageComplexity, parser: parser)
-
-            try Task.checkCancellation()
-
-            recordParsedBatch(batchResults: batchResults, checkpointDir: checkpointDir)
-
-            results.append(contentsOf: batchResults)
+            try await parseSubBatch(pageCount: pageCount, renderEnd: renderEnd, renderStart: renderStart, subBatchIndices: subBatchIndices, checkpointDir: checkpointDir, results: &results, documentTextLayerGarbled: documentTextLayerGarbled, pageComplexity: pageComplexity, pdfDocument: pdfDocument, batchEnd: batchEnd, batchStart: batchStart, layoutExtractor: layoutExtractor, useHybridMode: useHybridMode, parser: parser)
             // MEMORY-SAFE: batchRenderData goes out of scope here, releasing CIImages
             // Only maxRenderConcurrency (3) page images were alive at once
             } // end inner sub-batch (render-safe)
@@ -244,6 +212,45 @@ extension DocumentProcessor {
         } // end outer batch (progress reporting)
 
         return await assembleStructuredExtractionResult(results: &results, pageCount: pageCount, pdfDocument: pdfDocument)
+    }
+
+    /// Step A6: takes one sub-batch of pages through render (or checkpoint load), layout detection, structured parsing and its checkpoints, and adds its results.
+    /// Moved unchanged from `extractWithStructuredParsing` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    @available(iOS 26.0, *)
+    private func parseSubBatch(pageCount: Int, renderEnd: Int, renderStart: Int, subBatchIndices: Range<Int>, checkpointDir: URL, results: inout [DocumentProcessor.PageParseResult], documentTextLayerGarbled: Bool, pageComplexity: [Int : PageComplexityAnalysis], pdfDocument: PDFDocument, batchEnd: Int, batchStart: Int, layoutExtractor: LayoutAwareExtractor, useHybridMode: Bool, parser: StructuredDocumentParser) async throws {
+        await MainActor.run {
+            self.emitProgress(
+                stage: "render",
+                detail: "🎨 Rendering pages \(renderStart + 1)-\(renderEnd)/\(pageCount)",
+                page: renderStart,
+                totalPages: pageCount
+            )
+        }
+
+        var batchRenderData: [PageRenderData] = []
+        for pageIndex in subBatchIndices {
+            // 1. Check if checkpoint exists on disk
+            let checkpointURL = checkpointDir.appendingPathComponent("page_\(pageIndex).json")
+            if FileManager.default.fileExists(atPath: checkpointURL.path),
+               let data = try? Data(contentsOf: checkpointURL),
+               let checkpoint = try? JSONDecoder().decode(IngestionCheckpointPage.self, from: data) {
+                    
+                loadCheckpointedPage(pageIndex: pageIndex, checkpoint: checkpoint, results: &results, batchRenderData: &batchRenderData)
+                continue
+            }
+
+            renderPageForParsing(pageIndex: pageIndex, pdfDocument: pdfDocument, batchRenderData: &batchRenderData, pageComplexity: pageComplexity, documentTextLayerGarbled: documentTextLayerGarbled)
+        }
+
+        await detectSubBatchLayouts(batchRenderData: &batchRenderData, useHybridMode: useHybridMode, batchStart: batchStart, pageCount: pageCount, subBatchIndices: subBatchIndices, layoutExtractor: layoutExtractor, batchEnd: batchEnd)
+
+        let batchResults = await parseSubBatchStructure(batchEnd: batchEnd, batchStart: batchStart, pageCount: pageCount, subBatchIndices: subBatchIndices, batchRenderData: batchRenderData, useHybridMode: useHybridMode, documentTextLayerGarbled: documentTextLayerGarbled, pageComplexity: pageComplexity, parser: parser)
+
+        try Task.checkCancellation()
+
+        recordParsedBatch(batchResults: batchResults, checkpointDir: checkpointDir)
+
+        results.append(contentsOf: batchResults)
     }
 
     /// Step A1: decides once per document whether its text layer is garbled (a font-substitution cipher) by reading a sample page with OCR and comparing the two.
