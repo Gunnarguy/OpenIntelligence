@@ -45,11 +45,11 @@ and that an answer is more trustworthy when you can see what it was built from.
 | :-- | :-- |
 | **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, JSON and JSON Lines (as records), images, audio, and video. A PDF of any size imports. Vision handles OCR when a PDF's text layer is unreliable. Pages, Numbers and Keynote files must be exported first. |
 | **Searches two ways at once** | Meaning-based vector search and keyword BM25 run together, then fuse and re-rank, so hunting a part number and asking a conceptual question both work. |
-| **Shows its work** | A live pipeline view names each stage as it runs. A citation opens its passage highlighted in the document for every kind of file and says whether it was found word for word (for Word, Excel and the like, that is the text the app read, not the original page). |
+| **Shows its work** | A live pipeline view names each stage as it runs, and every claim links back to the excerpt behind it. From 5.8, a citation opens its passage highlighted in the document for every kind of file and says whether it was found word for word (for Word, Excel and the like, that is the text the app read, not the original page). |
 | **Explains its own vocabulary** | Every figure defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and that it is a per-chip rating rather than a measurement. |
 | **Answers offline** | Airplane mode included. |
 | **Works with Siri, Shortcuts and Spotlight** | Shortcuts actions ask a library in any answer mode and hand the answer and its sources on; others find passages, check a claim, add a file, link or text, and manage libraries. A Siri question that needs Private Cloud Compute brings the app forward to ask first. Spotlight and Visual Intelligence find the documents that match. |
-| **Keeps up with a folder** | On Pro and Lifetime, a library can watch a folder: new files import by themselves and a changed file replaces the version it imported. |
+| **Keeps up with a folder** | From 5.8, on Pro and Lifetime, a library can watch a folder: new files import by themselves and a changed file replaces the version it imported. |
 | **Follows you between devices** | An interrupted import picks up where it was, Handoff carries what's open, conversations in an iCloud library sync with it, and the Mac has a menu bar item, Services menu entries and keyboard shortcuts. |
 
 ### Quality modes
@@ -75,11 +75,12 @@ Question  →  expand → hybrid search → fuse → re-rank → diversify
 Dense vector similarity and BM25 keyword matching run in parallel, merge through Reciprocal Rank Fusion, get
 re-ranked by a cross-encoder, then pass through MMR so the context is diverse rather than five phrasings of one
 paragraph. The answer streams into the chat as it is written; verification gates then check the finished answer
-against the retrieved text and label it Verified or Unverified, and under the rule in
-[How OpenIntelligence Works, section 04](Docs/HOW_IT_WORKS.md) they replace it with a refusal.
+against the retrieved text and label it Verified or Unverified; in Standard, under the rule in
+[How OpenIntelligence Works, section 04](Docs/HOW_IT_WORKS.md), they replace it with a refusal. In Deep Think and
+Maximum they only label it, and a lookup there gets the source-only check instead.
 
 Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on Private Cloud Compute**, time to
-first token 2.2 to 3.2 s.
+first token 2.2 to 3.2 s. The PCC figure was measured from an Xcode 27 build, which is what App Store builds have been since 5.2.
 
 **Routing is a policy, not a hint.** On-Device never uses Private Cloud Compute, not for planning and not for
 synthesis. PCC requests it, with a declared local fallback when an entitlement, availability, quota, network or
@@ -97,11 +98,11 @@ The claims above are checked, not asserted:
 - **Golden recorders pin exact behavior.** `StandardPipelineGoldenTests` (35 Standard questions; every passage,
   score bit pattern and prompt), `ImportGoldenTests` (every passage, vector and index row of a fresh import),
   `StructuredParsingGoldenTests` (the PDF parser's output and checkpoints) and `DeepThinkRetrievalGoldenTests`
-  (760 Deep Think searches). Each records twice per run and fails if the two passes differ.
+  (760 Deep Think searches). By default each records twice per run and fails if the two passes differ.
 - **Refactors are moves, proven by those recorders.** In November 2026 the three largest functions (the Standard
-  pipeline, document import and the PDF parser, about 8,500 lines) were cut into about 120 named steps and their
+  pipeline, document import and the PDF parser, about 8,900 lines) were cut into about 120 named steps and their
   files split by stage. Every step built for the Simulator, a device and macOS and recorded identically before
-  and after, and four independent reviews found no behavior change. The record is in the
+  and after, and refuting reviews by separate review agents found no behavior change. The record is in the
   [Atlas, section 22](Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md).
 - **The release gate checks the binary.** Every archive is checked with `nm -u` for Private Cloud Compute
   symbols against a live `SystemLanguageModel` count as a control, so a build cannot silently contradict this page.
@@ -136,8 +137,9 @@ Which file of a split type holds what is in [the file map](Docs/ai/FILE_MAP.md);
 
 ## Building
 
-Xcode 27 (Swift 6.4) on an Apple silicon Mac; the deployment target is iOS 26.0. The iOS and macOS 27 paths,
-Core AI embeddings and native Private Cloud Compute, compile out below that SDK.
+Releases are built with Xcode 27 (Swift 6.4) on Apple silicon; the deployment target is iOS 26.0. With an older SDK
+the iOS and macOS 27 paths, Core AI embeddings and native Private Cloud Compute, compile out. Usable Neural Engine
+throughput needs Apple silicon (M1 or later, A17 Pro or later).
 
 ```bash
 ./scripts/build_simulator_smoke.sh

@@ -25,7 +25,7 @@ The active source of truth for architecture, modules, and namespaces.
 | [ROADMAP.md](ROADMAP.md) | *Pointer to Notion since 2026-09-29* | **Notion is authoritative for the roadmap.** This file says only where releases stand; its pre-5.0 body is kept at `Archive/ROADMAP_record_through_2026-09-29.md`. Reach the database with the `notion-roadmap` skill. |
 | [LIMITATIONS.md](LIMITATIONS.md) | **Active Reference** | Product, safety, and technical boundaries, including which quality modes have a measured accuracy baseline and which do not. |
 | [RELEASE_NOTES.md](RELEASE_NOTES.md) | **Active Changelog** | Version release summaries and breaking dependency changes. |
-| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.7. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
+| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Shipped entries through v5.7; a 5.8 section is in preparation. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
 | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) | **Active Reference** | The step-by-step walkthrough of how a document is read and a question answered; `README.md` sends readers here. The short root overview that shared its name moved to `Archive/HOW_IT_WORKS_root_overview_v2.0.md` on 2026-09-29. |
 | [AppleIntelligenceTransitionPlan.md](AppleIntelligenceTransitionPlan.md) | *Historical plan, still on `AGENTS.md` rule 14's update list* | Its own banner says the phase plan is finished. App code comments in `ContainerSettingsSheet.swift` cite it by line, so it stays in place until an app release can update them. |
 | [DEMO.md](DEMO.md) | *Historical reference* | The demo walkthrough and the list of material never to use on camera. |
@@ -136,8 +136,8 @@ Inventories and maps compiled during audit checkpoints. Per the RepoOS Command C
 Six dated audits used to sit at the top of `Docs/` beside the reference documents, looking authoritative while
 describing a tree that had moved. On 2026-11-07, at the owner's word, they moved to `Archive/`. They were kept,
 not deleted, and their 112 relative links and the 6 inbound links from this index were rewritten in the same
-change. The two earlier refusals (2026-08-17 and 2026-09-29) were about links that would break; none did this
-time. They remain point-in-time records of what was believed on a date. None is a source of truth.
+change. The two earlier refusals (2026-08-17 and 2026-09-29) were about links that would break; no link broke this
+time. The dated inventories under `AuditArtifacts/` (15 files) still name the old paths, as records of their time. They remain point-in-time records of what was believed on a date. None is a source of truth.
 
 | Document | Lifecycle State | Note |
 | :--- | :--- | :--- |
