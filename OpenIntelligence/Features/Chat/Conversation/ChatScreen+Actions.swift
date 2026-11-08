@@ -138,7 +138,10 @@ extension ChatScreen {
                     documents: documents,
                     sampleChunks: sampleChunks,
                     count: 10,
-                    forceRefresh: force
+                    forceRefresh: force,
+                    passagesForDocument: { [ragService] documentId in
+                        await ragService.passagesForSuggestedQuestions(documentId: documentId, in: containerId)
+                    }
                 )
 
                 guard !Task.isCancelled else { return }

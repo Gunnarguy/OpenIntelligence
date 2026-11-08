@@ -846,6 +846,22 @@ extension RAGService {
         return positions
     }
 
+    /// One document's passages for its suggested questions (5.8): up to `limit` of them spread evenly through the
+    /// document, plus its overview. Chat's fill of a file with no questions (`SuggestedQuestionsService
+    /// .fillMissingQuestions`) read the file's passages out of the library's sample of about 50, and on the owner's
+    /// iPhone on 2026-11-07 that left a file whose 187 passages are 129 reference list with none to write from.
+    func passagesForSuggestedQuestions(documentId: UUID, in containerId: UUID, limit: Int = 80) async -> [DocumentChunk] {
+        guard let container = containerService.containers.first(where: { $0.id == containerId }) else { return [] }
+        let db = vectorRouter.db(for: container)
+        guard let records = try? await db.passageRecords() else { return [] }
+        let own = records.filter { $0.documentId == documentId }.sorted { $0.chunkIndex < $1.chunkIndex }
+        guard !own.isEmpty else { return [] }
+        var picked = Self.evenSampleIndices(count: own.count, limit: limit).map { own[$0] }
+        let pickedIds = Set(picked.map(\.id))
+        picked += own.filter { $0.abstractionLevel == .documentSummary && !pickedIds.contains($0.id) }
+        return (try? await db.chunks(withIDs: picked.map(\.id))) ?? []
+    }
+
     /// Return a sample of chunks for content analysis (used by SuggestedQuestionsService)
     /// - Parameters:
     ///   - containerId: The container to sample from

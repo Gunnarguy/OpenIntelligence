@@ -1010,14 +1010,35 @@ enum NavigationProbe {
 
         static func somethingIsPresented() -> Bool { root?.presentedViewController != nil }
 
-        /// For example `depths=1,1,2,1,1 back=0,0,1,0,0 presented=none`.
+        private static func tabBarController(under controller: UIViewController) -> UITabBarController? {
+            if let tabs = controller as? UITabBarController { return tabs }
+            for child in controller.children {
+                if let tabs = tabBarController(under: child) { return tabs }
+            }
+            return nil
+        }
+
+        /// The tabs in `ContentView.tabViewContent`'s order, to name each tab's navigation depth.
+        private static let tabNames = ["chat", "documents", "atlas", "database", "settings"]
+
+        /// For example `depths=1,1,2,1,1 back=0,0,1,0,0 presented=none tabs=chat:1,documents:2,atlas:-,database:-,settings:-
+        /// selected=0`, where `-` is a tab whose navigation has not been made yet.
         static func summary() -> String {
             guard let root else { return "noWindow" }
             let navigations = navigationControllers(under: root)
             let depths = navigations.map { "\($0.viewControllers.count)" }.joined(separator: ",")
             let backs = navigations.map { $0.navigationBar.backItem == nil ? "0" : "1" }.joined(separator: ",")
             let presented = root.presentedViewController.map { String(describing: type(of: $0)) } ?? "none"
-            return "depths=\(depths) back=\(backs) presented=\(presented)"
+            var tabsPart = ""
+            if let tabs = tabBarController(under: root) {
+                let named = (tabs.viewControllers ?? []).enumerated().map { index, controller in
+                    let name = index < tabNames.count ? tabNames[index] : "tab\(index)"
+                    let depth = navigationControllers(under: controller).first.map { "\($0.viewControllers.count)" } ?? "-"
+                    return "\(name):\(depth)"
+                }
+                tabsPart = " tabs=\(named.joined(separator: ",")) selected=\(tabs.selectedIndex)"
+            }
+            return "depths=\(depths) back=\(backs) presented=\(presented)\(tabsPart)"
         }
     #else
         static func summary() -> String { "n/a" }

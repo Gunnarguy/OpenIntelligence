@@ -112,7 +112,12 @@ extension SuggestedQuestionsService {
         chunks: [DocumentChunk]
     ) async -> [SuggestedQuestion]? {
         let diverseChunks = selectDiverseChunks(from: chunks, documents: [document], targetCount: 12)
-        guard !diverseChunks.isEmpty else { return [] }
+        guard !diverseChunks.isEmpty else {
+            Log.info(
+                "[SuggestedQuestions] None of the \(chunks.count) passage(s) given for '\(document.filename)' is usable for a question; none written"
+            )
+            return []
+        }
 
         var questions: [SuggestedQuestion] = []
         var interrupted = false
@@ -212,7 +217,8 @@ extension SuggestedQuestionsService {
         in bank: [SuggestedQuestion],
         for containerId: UUID,
         documents: [Document],
-        sampleChunks: [DocumentChunk]
+        sampleChunks: [DocumentChunk],
+        passagesForDocument: (@Sendable (UUID) async -> [DocumentChunk])?
     ) async -> [SuggestedQuestion] {
         // A full bank has no room: a library of more files than it holds questions keeps some files without any.
         guard bank.count < Self.maxBankSize else { return bank }
@@ -235,10 +241,21 @@ extension SuggestedQuestionsService {
 
         var written: [SuggestedQuestion] = []
         for document in missing {
-            guard !Task.isCancelled else { break }
-            let documentChunks = sampleChunks.filter { $0.documentId == document.id }
-            guard !documentChunks.isEmpty else { continue }
+            guard !Task.isCancelled else {
+                Log.info("[SuggestedQuestions] Fill cancelled before '\(document.filename)'; nothing saved for it")
+                break
+            }
+            // The file's own passages, read from the store (`passagesForDocument`); the library's sample only when
+            // there is no reader or it found none (5.8).
             questionFillInFlight.insert(document.id)
+            var documentChunks: [DocumentChunk] = []
+            if let passagesForDocument { documentChunks = await passagesForDocument(document.id) }
+            if documentChunks.isEmpty { documentChunks = sampleChunks.filter { $0.documentId == document.id } }
+            guard !documentChunks.isEmpty else {
+                questionFillInFlight.remove(document.id)
+                Log.info("[SuggestedQuestions] No passage of '\(document.filename)' was found to write questions from")
+                continue
+            }
             let questions = await generateQuestionsForDocumentOnly(document, chunks: documentChunks)
             questionFillInFlight.remove(document.id)
             guard let questions else {
@@ -247,6 +264,9 @@ extension SuggestedQuestionsService {
                 continue
             }
             questionFillSettled.insert(document.id)
+            Log.info(
+                "[SuggestedQuestions] Wrote \(questions.count) question(s) for '\(document.filename)' from \(documentChunks.count) of its passages"
+            )
             written.append(contentsOf: questions)
         }
         guard !written.isEmpty else { return bank }
@@ -338,12 +358,14 @@ extension SuggestedQuestionsService {
     ///   - sampleChunks: Representative chunks (up to 50)
     ///   - count: Number of questions to return
     ///   - forceRefresh: Shuffle and pick different questions from the bank
+    ///   - passagesForDocument: Reads one document's passages for a file with no questions yet (5.8)
     func generateQuestions(
         for containerId: UUID,
         documents: [Document],
         sampleChunks: [DocumentChunk],
         count: Int = 4,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        passagesForDocument: (@Sendable (UUID) async -> [DocumentChunk])? = nil
     ) async -> [SuggestedQuestion] {
 
         let existingCached = cachedQuestions[containerId]
@@ -393,7 +415,8 @@ extension SuggestedQuestionsService {
         // Write questions for each file that has none yet (5.8; until then only for an empty bank).
         if !documents.isEmpty && !sampleChunks.isEmpty {
             bank = await fillMissingQuestions(
-                in: bank, for: containerId, documents: documents, sampleChunks: sampleChunks)
+                in: bank, for: containerId, documents: documents, sampleChunks: sampleChunks,
+                passagesForDocument: passagesForDocument)
         }
 
         // A bank generated while the model was unavailable is all templates, and until 2026-09-14
