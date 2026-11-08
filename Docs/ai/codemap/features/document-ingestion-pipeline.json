@@ -93,7 +93,12 @@
     {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Chunks.swift", "role": "shared", "blob": "3b15e48ce4d1b3871b80e49d609f55fb534ee2d6"},
     {"path": "OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService+Bootstrap.swift", "role": "shared", "blob": "ac11bc245dda36a00e6c0fee4f64caf087e48bf8"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/ImportGoldenTests.swift", "role": "test", "blob": "15a135004710c5610a96fca53d874535c5d53382"},
-    {"path": "OpenIntelligenceTests/Services/Document/Processing/StructuredParsingGoldenTests.swift", "role": "test", "blob": "8344328c0fb74b6d258e4757306a9c9dc84cec1d"}
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/StructuredParsingGoldenTests.swift", "role": "test", "blob": "8344328c0fb74b6d258e4757306a9c9dc84cec1d"},
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/TablePassageFidelityTests.swift", "role": "test", "blob": "e499c97ad0730fe93b6edc9b42ee647739fd508a"},
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/TableFidelityTests.swift", "role": "test", "blob": "3618604ed52f662f8bfbb75cf873eb101f15889c"},
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/StructuredKeywordOrderTests.swift", "role": "test", "blob": "cdc7ca17f25a56059fdd1e1e8b655e448e028e17"},
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/OfficeTextFidelityTests.swift", "role": "test", "blob": "58b38cbf5dd73e9e2d08fb66d33b9dddf298895b"},
+    {"path": "OpenIntelligenceTests/Services/Document/Processing/ExtractionFidelityRecorder.swift", "role": "test", "blob": "1b3fced057bbe2f058fc9971d65b374fbfe8c2af"}
   ],
   "nodes": [
     {"id": "DocumentLibraryView.enqueueDocumentIngestion", "kind": "function", "path": "OpenIntelligence/Features/Documents/Library/DocumentLibraryView+Actions.swift", "line": 125, "match": "private func enqueueDocumentIngestion(_ urls: [URL], into library: UUID? = nil) {", "status": "VERIFIED", "by": "build"},

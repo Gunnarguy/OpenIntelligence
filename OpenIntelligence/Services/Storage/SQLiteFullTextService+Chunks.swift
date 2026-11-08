@@ -732,7 +732,7 @@ extension SQLiteFullTextService {
                            bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
                     FROM chunks
                     WHERE chunks MATCH ? AND container_id = ?
-                    ORDER BY bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                    ORDER BY bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0), chunk_id
                     LIMIT ?
                 """
             } else {
@@ -742,7 +742,7 @@ extension SQLiteFullTextService {
                            bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
                     FROM chunks
                     WHERE chunks MATCH ?
-                    ORDER BY bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                    ORDER BY bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0), chunk_id
                     LIMIT ?
                 """
             }

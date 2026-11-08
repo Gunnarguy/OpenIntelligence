@@ -53,7 +53,9 @@
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+ToolHandler.swift", "role": "primary", "blob": "706a46bc936b951d314bbe130389550ed449fad3"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+Types.swift", "role": "primary", "blob": "de98218afe9aa6487faeb2b4b564ffe8d9131702"},
     {"path": "OpenIntelligence/Services/Agentic/RAGService+Agentic.swift", "role": "primary", "blob": "0a9a41450a98325d76164c2c1bac56cb7ffb1b9a"},
-    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "role": "shared", "blob": "0c54edee5b924994ad1ac5c44fa3c09253d2fbdb"}
+    {"path": "OpenIntelligence/Services/Storage/SQLiteFullTextService+Search.swift", "role": "shared", "blob": "0c54edee5b924994ad1ac5c44fa3c09253d2fbdb"},
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+TablePassages.swift", "role": "primary", "blob": "8b86955861519a977a7424c2e868116f8347cf71"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/SummaryContextTests.swift", "role": "test", "blob": "323864304343bef15f7d730db1bbda0192836c35"}
   ],
   "nodes": [
     {"id": "RAGService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Orchestration/RAGService.swift", "line": 31, "match": "class RAGService: ObservableObject {", "status": "VERIFIED", "by": "build"},

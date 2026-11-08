@@ -9,7 +9,11 @@
 //  Gate B: Evidence Coverage - all claims must cite evidence_ids
 //  Gate C: Numeric Sanity - numbers in response must match source
 //  Gate D: Contradiction Sweep - detect conflicting evidence
-//  Gate H: Answer Completeness - detect under-supported multi-hop or comparison answers
+//  Gate E: Semantic Grounding - the answer's embedding must be near the evidence's
+//  Gate F: Quote Faithfulness - quoted text must appear in the evidence
+//  Gate G: Generation Quality - malformed or degenerate output
+//  Gate H: Answer Completeness - detect under-supported multi-hop or comparison answers (Standard's call passes no
+//          answer intent, so on Standard this gate and Gate I pass as "intent unavailable"; 2026-11-08)
 //  Gate I: Domain Isolation - reject mixed-domain evidence before synthesis
 //
 
@@ -191,7 +195,7 @@ actor VerificationGateService {
 
         // Gate C: Numeric Sanity — uses ALL candidate chunks for wider verification scope
         let gateCChunks = allCandidateChunks ?? retrievedChunks
-        let gateC = await runGateC(response: response, chunks: gateCChunks)
+        let gateC = await runGateC(response: response, query: query, chunks: gateCChunks)
         gateResults.append(gateC)
 
         // Gate D: Contradiction Sweep
@@ -440,7 +444,58 @@ actor VerificationGateService {
     /// Gate C: Numeric Sanity
     /// If response contains numbers, verify they appear in source documents
     /// This gate catches HALLUCINATED numbers - keep it strict!
-    private func runGateC(response: String, chunks: [RetrievedChunk]) async -> RAGVerificationResult.GateResult {
+    /// The answer's values that the passages state only in table rows about something other than what the question
+    /// asks, while another row is about it (5.8). A value counted as grounded wherever its digits appear: on 2026-11-07
+    /// "How much DHA is recommended?" was answered "100-200 mg/15-30 g", which is in the table, on the
+    /// PhyCB/Spirulina row; the DHA row reads 1-2 g. A row is about the question when its label (its first cell)
+    /// shares a word with the question's subject (`RAGService.lookupWords` without `genericValueWords`). Values also
+    /// stated outside a table row, and questions no row is about, are left alone.
+    nonisolated static func valuesFromOtherRows(
+        question: String, answerValues: [NumericValueExtractor.Mention], passages: [String]
+    ) -> [String] {
+        let subject = RAGService.lookupWords(in: question).subtracting(RAGService.genericValueWords)
+        guard !subject.isEmpty, !answerValues.isEmpty else { return [] }
+
+        var rows: [(label: Set<String>, evidence: NumericValueExtractor.Evidence)] = []
+        var otherLines: [String] = []
+        for passage in passages {
+            // A long table's parts are split again by words, which can run rows together on one line
+            // ("ROW 1: ... ROW 2: ..."); each row is read on its own.
+            let rowLines = passage.components(separatedBy: .newlines).flatMap { line in
+                line.replacingOccurrences(of: #"\s+(?=ROW \d+:)"#, with: "\n", options: .regularExpression)
+                    .components(separatedBy: "\n")
+            }
+            for rawLine in rowLines {
+                let line = rawLine.trimmingCharacters(in: .whitespaces)
+                guard !line.isEmpty else { continue }
+                var body = line
+                if let prefix = body.range(of: #"^ROW \d+:\s*"#, options: .regularExpression) {
+                    body.removeSubrange(prefix)
+                } else if !body.contains(" | ") || body.hasPrefix("HEADERS:") {
+                    otherLines.append(line)
+                    continue
+                }
+                let label = body.components(separatedBy: " | ").first ?? body
+                // The row's own cells only: "ROW 3:" would make every row number a value of the row.
+                rows.append((RAGService.lookupWords(in: label), NumericValueExtractor.evidence(from: [body])[0]))
+            }
+        }
+        guard rows.contains(where: { !$0.label.isDisjoint(with: subject) }) else { return [] }
+        let otherEvidence = NumericValueExtractor.evidence(from: otherLines)
+
+        var misplaced: [String] = []
+        for value in answerValues where value.identifier == nil {
+            if NumericValueExtractor.isSupported(value, by: otherEvidence) { continue }
+            let holding = rows.filter { NumericValueExtractor.isSupported(value, by: [$0.evidence]) }
+            guard !holding.isEmpty else { continue }
+            if holding.allSatisfy({ $0.label.isDisjoint(with: subject) }) {
+                misplaced.append(value.written)
+            }
+        }
+        return misplaced
+    }
+
+    private func runGateC(response: String, query: String = "", chunks: [RetrievedChunk]) async -> RAGVerificationResult.GateResult {
         // The numbers the answer states, read as values (NumericValueExtractor): "2.5 billion" is
         // compared as 2,500,000,000, and a number inside a name ("Qwen-2.5-3B") is matched as that
         // name. Through 5.6 a number passed when its digits appeared anywhere in the evidence.
@@ -461,7 +516,14 @@ actor VerificationGateService {
         var verifiedCount = 0
         var unverifiedNumbers: [String] = []
 
+        let fromOtherRows = Set(
+            Self.valuesFromOtherRows(
+                question: query, answerValues: responseNumbers, passages: chunks.map { $0.chunk.contextText }))
         for number in responseNumbers {
+            if fromOtherRows.contains(number.written) {
+                unverifiedNumbers.append("\(number.written) (another table row's value)")
+                continue
+            }
             // Years (2024, 2025) are not penalized: they are commonly taken from document metadata.
             if NumericValueExtractor.isSupported(number, by: evidence) || Self.isYear(number) {
                 verifiedCount += 1

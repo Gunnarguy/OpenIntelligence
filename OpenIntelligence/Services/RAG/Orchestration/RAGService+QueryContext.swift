@@ -707,6 +707,27 @@ extension RAGService {
 
     /// Step SX: blends document summaries with detail passages for questions that need a document summary.
     /// Moved unchanged from `queryInternal` on 2026-11-06 (`BenchmarkRuns/2026-11-06-decomposition`).
+    /// The document summaries the summary-detail step may put at the front of the context: only those of documents
+    /// among the top five candidates, in the order those documents first appear (5.8). Until then every summary in the
+    /// library was eligible, sorted relevant-first, and the first one was always taken: "Summarize my
+    /// lease" put another document's flight table first in its context at a made-up score of 0.98 when the lease had no
+    /// summary passage.
+    nonisolated static func documentSummariesForContext(
+        allChunks: [DocumentChunk], candidates: [RetrievedChunk]
+    ) -> [DocumentChunk] {
+        let existingIds = Set(candidates.map { $0.chunk.id })
+        var relevantOrder: [UUID: Int] = [:]
+        for candidate in candidates.prefix(5) where relevantOrder[candidate.chunk.documentId] == nil {
+            relevantOrder[candidate.chunk.documentId] = relevantOrder.count
+        }
+        return allChunks
+            .filter {
+                $0.metadata.abstractionLevel == .documentSummary && !existingIds.contains($0.id)
+                    && relevantOrder[$0.documentId] != nil
+            }
+            .sorted { (relevantOrder[$0.documentId] ?? .max) < (relevantOrder[$1.documentId] ?? .max) }
+    }
+
     func addSummaryDetailHybrid(answerNeedsDocumentSummary: Bool, cachedAllChunks: [DocumentChunk]?, isEnumerationQuery: Bool, contextCandidates: inout [RetrievedChunk], question: String, contextStrategy: inout String) {
         // ═══════════════════════════════════════════════════════════════════════════════
         // Summary-detail hybrid context for research/findings queries
@@ -722,21 +743,8 @@ extension RAGService {
         // - Dynamic chunk count based on available tokens
         // ═══════════════════════════════════════════════════════════════════════════════
         if answerNeedsDocumentSummary && !isEnumerationQuery, let allChunks = cachedAllChunks {
-            let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
-            let existingIds = Set(contextCandidates.map { $0.chunk.id })
-
-            // Get relevant document IDs from top candidates
-            let relevantDocIds = Set(contextCandidates.prefix(5).map { $0.chunk.documentId })
-
-            // Prioritize summaries from documents that appear in top results
-            let prioritizedSummaries =
-                summaryChunks
-                .filter { !existingIds.contains($0.id) }
-                .sorted { chunk1, chunk2 in
-                    let score1 = relevantDocIds.contains(chunk1.documentId) ? 1 : 0
-                    let score2 = relevantDocIds.contains(chunk2.documentId) ? 1 : 0
-                    return score1 > score2
-                }
+            let prioritizedSummaries = Self.documentSummariesForContext(
+                allChunks: allChunks, candidates: contextCandidates)
 
             if !prioritizedSummaries.isEmpty {
                 // Calculate token budget for summaries (~25% of total context)
@@ -855,9 +863,9 @@ extension RAGService {
                     Log.debug(
                         "[Hybrid Context] Avg detail chunk: \(avgDetailChunkChars) chars", category: .retrieval)
                 }
-            } else if !summaryChunks.isEmpty {
+            } else if allChunks.contains(where: { $0.metadata.abstractionLevel == .documentSummary }) {
                 Log.debug(
-                    "[Hybrid Context] Summary chunks already in candidates - no injection needed",
+                    "[Hybrid Context] No summary of a retrieved document to add (already in candidates, or the documents retrieved have none)",
                     category: .retrieval)
             } else {
                 Log.info(

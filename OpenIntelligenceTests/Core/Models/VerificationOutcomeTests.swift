@@ -37,6 +37,52 @@ final class VerificationOutcomeTests: XCTestCase {
         )
     }
 
+    /// An answer is verified only when it is in the sources and answers the question (5.8). On 2026-11-07 the answer
+    /// "1-28. [S3]" to "How much DHA is recommended?" was a page range the source-only check called supported.
+    func testAnAnswerThatDoesNotAnswerIsNotSupportedHoweverGrounded() {
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:92%,answers:none"), .notSupported)
+        XCTAssertEqual(
+            VerificationOutcome.from(
+                gatingDecision: "acceptance_override,unverified:Gate E: Semantic Grounding,source_only_refined,answers:none"),
+            .notSupported)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "source_only_refined,answers:none"), .notSupported)
+        // A partial reading adds a warning and leaves the badge.
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:92%,answers:partial"), .supported)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:92%,answers:full"), .supported)
+        // No judgment (model unavailable) leaves the grounding outcome as it was.
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verified:92%"), .supported)
+        // The judge cannot raise a failed or unchecked answer on its own.
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "unverified:semantic_grounding,answers:full"), .notSupported)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "answers:full"), .notChecked)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "verification_skipped,answers:full"), .notChecked)
+        XCTAssertEqual(VerificationOutcome.from(gatingDecision: "no_sources,answers:none"), .noSources)
+    }
+
+    /// Standard runs the source-only check after its gates fail, so a rewrite it kept follows the gates' `unverified:`
+    /// for the answer it replaced. The rewrite decides only when the judge read it as a full answer.
+    func testAKeptSourceOnlyRewriteThatAnswersIsSupportedAfterFailedGates() {
+        XCTAssertEqual(
+            VerificationOutcome.from(
+                gatingDecision: "acceptance_override,unverified:Gate E: Semantic Grounding,source_only_refined,answers:full"),
+            .supported)
+        XCTAssertEqual(
+            VerificationOutcome.from(gatingDecision: "unverified:semantic_grounding,source_only_refined"), .notSupported)
+        XCTAssertEqual(
+            VerificationOutcome.from(gatingDecision: "unverified:semantic_grounding,source_only_refined,answers:partial"),
+            .notSupported)
+        XCTAssertEqual(
+            VerificationOutcome.from(gatingDecision: "unverified:semantic_grounding,source_only_abstained,answers:full"),
+            .notSupported)
+        XCTAssertEqual(
+            VerificationOutcome.from(gatingDecision: "missing_citations,source_only_refined,answers:full"), .notSupported)
+        // The rewrite's own checked claims still lower it when none is supported.
+        XCTAssertEqual(
+            VerificationOutcome.from(
+                gatingDecision: "unverified:semantic_grounding,source_only_refined,answers:full",
+                claims: [Self.claim(.unsupported)]),
+            .notSupported)
+    }
+
     func testACheckThatNeverRanIsNotChecked() {
         XCTAssertEqual(VerificationOutcome.from(gatingDecision: nil), .notChecked)
         XCTAssertEqual(VerificationOutcome.from(gatingDecision: ""), .notChecked)

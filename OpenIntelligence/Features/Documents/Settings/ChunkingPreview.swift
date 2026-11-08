@@ -92,12 +92,12 @@ struct ChunkingPreview: View {
             let estimatedChunks = max(1, 2000 / max(1, targetWords - overlap))
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text("A 2,000-word document → ~\(estimatedChunks) semantic chunks")
+                Text("A 2,000-word document → about \(estimatedChunks) chunks (estimate)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: DSSpacing.sm) {
-                    featureTag(icon: "text.line.first.and.arrowtriangle.forward", label: "Topic boundaries")
+                    featureTag(icon: "text.line.first.and.arrowtriangle.forward", label: "Transition phrases")
                     featureTag(icon: "list.bullet.indent", label: "Section snapping")
                 }
             }

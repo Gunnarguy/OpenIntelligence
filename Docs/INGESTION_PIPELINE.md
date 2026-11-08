@@ -1301,6 +1301,59 @@ An import's overview (`DocumentSummaryService`) and content tags (`ContentTaggin
 
 **A PDF's import reports each page it finishes, and the system's background task sees it (2026-11-07).** On the owner's iPhone a 10-page PDF imported with the app in the background stayed at 4% for 71 s while nine of its pages were read (text recognition 9.4 s for the first four pages and structure 5 to 12.6 s a page, against 6 s for the whole file in front), and iOS ended the import's `BGContinuedProcessingTask` at 18:58:06 PT with the battery at 5%; Apple's "Performing long-running tasks on iOS and iPadOS" says the system ends first the tasks that show little progress. Every progress report during a batch of the structured parser named the batch's first page (`page: batchStart` with one batch for a short PDF), and the one at the batch's start named its last (`page: batchEnd`), so the queue item's fraction sat at the extraction stage's base. Now the batch-start report gives the pages finished, the layout and structure reports give the sub-batch's first page, and `parseSubBatchStructure` reports each page as its parse returns (rich handler only, `legacy: false`). Each whole-percent change of what the background task is told is journaled as `import.progress` (percent, stage, background). Background text recognition is still slower; iOS decides that. `[evidence_level: device_log_proven for the stall (pipeline_trace and journal, ~/Library/Developer/OpenIntelligence-evidence/2026-11-07_190219), code_verified for the page arithmetic, test_verified (ExtractionPageProgressTests), confidence: high that the reported progress stayed put; inferred that it is why iOS ended the task, with the battery at 5%]`
 
+## A table's summary lists every row, and page furniture is never a title (added 2026-11-07, for 5.8)
+
+`buildSemanticTableSummary` (`DocumentProcessor+StructureText.swift`) wrote "Representative rows" from the first two
+rows of a table; it now lists every row, one per line, label first, when the rows fit in
+`semanticSummaryRowWordLimit` (260 words), and otherwise says "It has N rows, listed in the table passage." Key-value
+tables follow the same rule. `isLikelyStructuredHeading` rejects `DocumentProcessor.isPageFurnitureLabel` lines: page
+counters ("10 of 27", "Page 3"), running journal citations ("Int. J. Mol. Sci. 2020, 21, 3624"), DOI, copyright and
+"Downloaded from" lines, and lines ending in a function word ("International Journal of"), so none becomes a section
+title or, through `resolveTableTitle`, a table title. `createStructureAwareChunks` also leaves out any paragraph or title
+element whose every line is a running header or footer (`runningLineKeys`: a line with a number in it, on at least two
+pages and at least half of them, found from the structured elements themselves, which `removeRepeatedHeadersFooters`
+never cleaned) or a page counter, running citation, DOI or copyright line (`isRunningElement`). A table of three or more columns keys each later cell by its
+row and column (`TableData.keyValuePairs`, "DHA Daily Dose: 1-2 g"; by column alone the "[Specifications]" lines lost
+their row). A table's rows name each
+later cell's column (`namedRowCells`: "ROW 3: DHA | Daily Dose: 1-2 g | Upper Limit: 3 g"), and the citation highlighter
+strips those names, read from the passage's own HEADERS line, before it looks for the row in the page
+(`PassageLocator.withoutImportLabels`). Only new imports change; question-time handling of existing
+tables is in `Docs/RETRIEVAL_PIPELINE.md`, "A retrieved table summary brings its table". A table's caption is its own "Table N"
+line when Vision finds one near it (`StructuredDocumentParser.tableCaption`: nearest above within a fifth of the page,
+else below), titled by its number and first sentence (`numberedTableCaption`); Vision's page title is the fallback. On a
+page Vision reads that has a good text layer, each table cell is read from the PDF's own
+characters inside Vision's cell box (`DocumentProcessor.textLayerWords`, `StructuredDocumentParser.textLayerText`) when
+they agree with Vision's reading within half by edit distance, or Vision read nothing (`textLayerAgrees`); Vision misread
+a fixture's "3624" as "3024". Rotated, garbled and Vision-unreadable pages keep Vision's cells.
+`[evidence_level: test_verified (TablePassageFidelityTests), confidence: high]`
+
+## Text is stored as the file says it (added 2026-11-08, for 5.8)
+
+- `StructuredDocumentParser.cleanOCRText` is case-sensitive and turns only a lone lowercase "l" before a digit into "1"
+  ("L4-L5" stays).
+- `OCRConfiguration.normalizeExtractedText` writes superscript and subscript runs as "^" and "_" before NFKC
+  (`markingScriptsAndFractions`: "10³" is "10^3"), maps the fraction slash to "/", and joins a word split by a soft
+  hyphen at a line end. Page numbers and cross-reference clusters are removed only at a page's edge
+  (`pageEdgeLineIndexes`), not wherever a line is only a number.
+- Word: `wordXMLWithInlineText` writes non-breaking hyphens, tabs, Symbol-font characters and superscript runs as text;
+  `decodingXMLEntities` decodes entities in runs and table cells.
+- PowerPoint: a slide's table placeholder sits inside an `<a:p>`, so tables are kept; space-only runs are kept.
+- HTML files are read as text (`WebPageFetchService.readableText(fromHTML:)`), not kept as markup.
+- Images load upright by their orientation metadata (`.applyOrientationProperty`).
+- Measuring it: `ExtractionFidelityRecorder` (run with `TEST_RUNNER_OI_FIDELITY_DIR`) writes the stored passages of every
+  PDF in a folder, and `scripts/extraction_fidelity.py <folder> <label>` scores them against `pdftotext -layout`
+  (number recall, word recall, invented numbers and words per 1,000).
+`[evidence_level: test_verified (OfficeTextFidelityTests, TablePassageFidelityTests), confidence: high]`
+
+## A table passage keeps the same keywords on every import (added 2026-11-07, for 5.8)
+
+`DocumentProcessor.extractKeywordsFromStructuredElement` keeps at most 20 keywords for a table or list passage. Through
+5.7 it returned `Array(Set(keywords)).prefix(20)`, so each import kept a different 20 (a Set's order is seeded per
+process). It now keeps the first 20 in the order they appear. Keyword search also breaks equal `bm25` scores by id
+(`document_id`, `chunk_id`, `page_id`) in the query files `SQLiteFullTextService+Search.swift`, `+Chunks.swift` and
+`+Documents.swift`; the schema is unchanged, so nothing is reindexed.
+`[evidence_level: test_verified (StructuredKeywordOrderTests), code_verified; confidence: high]`
+
 ## Proving an import or parsing change changes nothing (added 2026-11-06, for 5.8)
 
 `ImportGoldenTests` imports 31 fixtures into a new library per pass and records each document record, every stored passage with its vector (bit for bit, as a digest), the keyword index's rows and the vocabulary, with ids numbered by first appearance and clock fields left out; overviews and Spotlight are off and `DirectModelCallsForTesting` turns off the content tags' model call. `StructuredParsingGoldenTests` runs `DocumentProcessor.processDocument` on seven committed PDFs (the first 40 pages of the Sportage manual among them) and six drawn at test time (text layer, scan, figures only, partly legible, Greek, Hebrew), with the interrupted-import checkpoints cleared first; each document is then read a second time from the checkpoints the first read left, as a resumed import is, and the checkpoint files and the parser's live metrics are recorded too (added 2026-11-06 after a refuting review found the resume path unrecorded; the parser before its first step, `739dbaf2`, and after step P5a recorded identically). Both match exactly between two runs of the same build (32 and 13 recorded items, 2026-11-06). They exist for the decomposition of `RAGService.addDocument` and the structured PDF parser into steps (`BenchmarkRuns/2026-11-06-decomposition/PLAN.md`); the procedure is in `Docs/ai/RUNBOOK.md`. `[evidence_level: measured, confidence: exact, evidence_source: runs base-a and base-b, 2026-11-06, iOS 27 Simulator]`

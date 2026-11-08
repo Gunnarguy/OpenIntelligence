@@ -50,7 +50,18 @@ extension DocumentProcessor {
         var currentSectionTitle: String? = nil
         var currentSectionPath: [String] = []
 
+        // Running headers and footers never become a passage, a title or a section (5.8).
+        let runningKeys = Self.runningLineKeys(
+            in: elements.filter { $0.elementType == "paragraph" || $0.elementType == "title" }.map { ($0.pageNumber, $0.text) })
+        var runningElementsDropped = 0
+
         for element in elements {
+            if element.elementType == "paragraph" || element.elementType == "title",
+                Self.isRunningElement(element.text, runningKeys: runningKeys)
+            {
+                runningElementsDropped += 1
+                continue
+            }
             // Track section titles for context association
             trackSectionTitle(element: element, currentSectionTitle: &currentSectionTitle, currentSectionPath: &currentSectionPath)
 
@@ -75,8 +86,10 @@ extension DocumentProcessor {
                 }
 
             } else if element.elementType == "paragraph" || element.elementType == "title" {
-                // Buffer paragraphs for semantic chunking
-                let normalized = OCRConfiguration.normalizeExtractedText(element.text)
+                // Buffer paragraphs for semantic chunking. A page read from its text layer arrives as one long element,
+                // so its running header and footer lines are taken out line by line (5.8).
+                let normalized = Self.withoutRunningLines(
+                    OCRConfiguration.normalizeExtractedText(element.text), runningKeys: runningKeys)
                 let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
                     // Do not feed garbled title text into paragraph chunking path
@@ -97,6 +110,10 @@ extension DocumentProcessor {
 
         // Flush any remaining paragraphs
         flushStructureParagraphs(paragraphBuffer: &paragraphBuffer, chunks: &chunks, chunkIndex: &chunkIndex, documentId: documentId, config: config, documentCategory: documentCategory)
+
+        if runningElementsDropped > 0 {
+            Log.info("[DocumentProcessor] Left out \(runningElementsDropped) running header or footer element(s)", category: .ingestion)
+        }
 
         // Log structure breakdown
         logStructureBreakdown(chunks: chunks)
@@ -527,12 +544,24 @@ extension DocumentProcessor {
         let contentText = text.hasPrefix(contextPrefix) ? String(text.dropFirst(contextPrefix.count)) : text
 
         // Split by rows for tables (line-based), or by items for lists
-        let lines = contentText.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let allLines = contentText.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        // A table written by `buildStructuralTableText` opens with its Section Path, TABLE and HEADERS lines and ends with
+        // its SOURCE line. Every part repeats them (5.8): the first-line header below took only "Section Path:" or
+        // "TABLE:", part 1 then lost it, later parts had no TABLE or HEADERS, and SOURCE was in the last part only.
+        let structuralHeader: [String] =
+            element.elementType == "table"
+            ? Array(allLines.prefix { $0.hasPrefix("Section Path:") || $0.hasPrefix("TABLE:") || $0.hasPrefix("HEADERS:") })
+            : []
+        let sourceLine: String? = structuralHeader.isEmpty ? nil : allLines.last(where: { $0.hasPrefix("SOURCE:") })
+        let lines: [String] =
+            structuralHeader.isEmpty
+            ? allLines
+            : Array(allLines.dropFirst(structuralHeader.count)).filter { $0 != sourceLine }
 
         // For tables: detect and preserve header row for repetition in continuation chunks
         // A header row is typically the first non-separator row (no pipes-only or dashes-only)
         let tableHeaderLine: String? = {
-            guard element.elementType == "table", lines.count > 2 else { return nil }
+            guard element.elementType == "table", structuralHeader.isEmpty, lines.count > 2 else { return nil }
             // Check if first line looks like a header (not a separator like "|---|---|")
             if let first = lines.first {
                 let stripped = first.replacingOccurrences(of: "|", with: "")
@@ -549,7 +578,7 @@ extension DocumentProcessor {
 
         // Also detect markdown table separator (e.g., "|---|---|")
         let tableSeparatorLine: String? = {
-            guard element.elementType == "table", lines.count > 2 else { return nil }
+            guard element.elementType == "table", structuralHeader.isEmpty, lines.count > 2 else { return nil }
             if lines.count > 1 {
                 let second = lines[1]
                 let stripped = second.replacingOccurrences(of: "|", with: "")
@@ -566,7 +595,8 @@ extension DocumentProcessor {
 
         // Calculate header overhead for word budget
         let headerWords = (tableHeaderLine?.split(separator: " ").count ?? 0) +
-                          (tableSeparatorLine?.split(separator: " ").count ?? 0)
+                          (tableSeparatorLine?.split(separator: " ").count ?? 0) +
+                          (structuralHeader + [sourceLine].compactMap { $0 }).reduce(0) { $0 + $1.split(separator: " ").count }
         let effectiveMaxWords = maxWords - headerWords
 
         var currentChunkLines: [String] = []
@@ -590,7 +620,7 @@ extension DocumentProcessor {
             // If adding this line would exceed limit, flush current chunk
             if currentWordCount + lineWords > effectiveMaxWords && !currentChunkLines.isEmpty {
                 // Build chunk with header repetition for tables
-                var chunkLines: [String] = []
+                var chunkLines: [String] = structuralHeader
                 if chunkNumber > 0, let header = tableHeaderLine {
                     // Continuation chunk — prepend header for context
                     chunkLines.append(header)
@@ -599,6 +629,7 @@ extension DocumentProcessor {
                     }
                 }
                 chunkLines.append(contentsOf: currentChunkLines)
+                if let sourceLine { chunkLines.append(sourceLine) }
 
                 let chunkContent = contextPrefix + "[Part \(chunkNumber + 1)]\n" + chunkLines.joined(separator: "\n")
                 let metadata = ChunkMetadata(
@@ -651,7 +682,7 @@ extension DocumentProcessor {
         // Flush remaining lines
         if !currentChunkLines.isEmpty {
             // Build chunk with header repetition for continuation chunks
-            var chunkLines: [String] = []
+            var chunkLines: [String] = structuralHeader
             if chunkNumber > 0, let header = tableHeaderLine {
                 chunkLines.append(header)
                 if let separator = tableSeparatorLine {
@@ -659,6 +690,7 @@ extension DocumentProcessor {
                 }
             }
             chunkLines.append(contentsOf: currentChunkLines)
+            if let sourceLine { chunkLines.append(sourceLine) }
 
             let chunkContent = contextPrefix + (chunkNumber > 0 ? "[Part \(chunkNumber + 1)]\n" : "") + chunkLines.joined(separator: "\n")
             let metadata = ChunkMetadata(

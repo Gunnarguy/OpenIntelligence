@@ -13,22 +13,19 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var chunkingSection: some View {
-        Section(header: Text("Semantic chunking — topic-aware splitting")) {
-            // Dropped the "(Late Chunking)" label. That names a specific technique the
-            // app does not implement: late chunking embeds the whole document with a
-            // long-context model and mean-pools token vectors per chunk, so each chunk
-            // vector carries full-document context. `SemanticChunker` embeds individual
-            // sentences to locate boundaries and returns positions, then chunks are
-            // embedded independently. The rest of this sentence describes what actually
-            // runs and is unchanged. Real late chunking is tracked on the roadmap.
-            Text("Documents are split using embedding-based boundary detection. Topic shifts are detected via cosine similarity drops between adjacent sentences, producing semantically coherent chunks.")
+        Section(header: Text("Chunking: split by structure")) {
+            // Corrected 2026-11-08 (claim audit): import splits with `SemanticChunker.chunkText`, at headings, tables,
+            // sentence ends and ten English transition phrases. The embedding-boundary path (`chunkTextAsync`,
+            // `detectEmbeddingBoundaries`) has no caller outside tests, so "embedding-based boundary detection" and
+            // "cosine similarity drops" described code that never runs. Late chunking is not implemented either.
+            Text("Documents are split at section headings, tables and sentence ends, close to a target size. Prose is also split before a short list of English transition phrases, such as \"However,\".")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             Toggle(isOn: $autoAdaptDimension) {
                 VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Auto Intelligence")
-                    Text("Automatically optimizes chunking based on your content")
+                    Text("Picks a splitting style from the start of each file you add. Chunks stay at most 260 words.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -40,7 +37,7 @@ extension ContainerSettingsSheet {
                         .font(.caption2)
                         .foregroundStyle(.green)
                 } else {
-                    Label("Will analyze your documents and tune automatically", systemImage: "wand.and.stars")
+                    Label("Picks a style from each file you add. It never rebuilds the library on its own.", systemImage: "wand.and.stars")
                         .font(.caption2)
                         .foregroundStyle(Color.accentColor)
                 }
@@ -59,7 +56,7 @@ extension ContainerSettingsSheet {
                 SettingHelpCallout(
                     icon: "wand.and.stars",
                     title: "Auto-tuning active",
-                    description: "Chunking is managed by Auto Intelligence based on your document content. Disable auto-tuning to manually configure.",
+                    description: "Auto Intelligence picks the splitting style. Chunk size stays at most 260 words. Turn it off to set the values yourself.",
                     bullets: activeIntelligenceReport?.chunking.rationales ?? [
                         "Current: \(chunkingStrategy.capitalized) strategy",
                         "Window: \(targetWordWindow) words, Overlap: \(overlapWords) words",
@@ -93,7 +90,7 @@ extension ContainerSettingsSheet {
                     }
                     .foregroundStyle(.orange)
 
-                    Text("Left alone, the app already picks a chunk size from the kind of file you imported: smaller for code, larger for reports and transcripts, and it skips prose based splitting on source files entirely. Setting a value here replaces that with one size for every file type in this library, which usually makes results worse rather than better. Changing it also re-chunks and re-indexes every document in the library.")
+                    Text("Left alone, the app already picks a chunk size from the kind of file you imported: smaller for code, larger for reports and transcripts, and it skips prose based splitting on source files entirely. Setting a value here replaces that with one size for every file type in this library, which usually makes results worse rather than better. Changing it offers to re-chunk and re-index every document in the library.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -199,7 +196,7 @@ extension ContainerSettingsSheet {
     private var chunkingStrategyDescription: String {
         switch chunkingStrategy {
         case "densePrecision":
-            return "150-200 word chunks for code, formulas, or dense technical content. Higher precision, more granular retrieval."
+            return "A smaller minimum chunk, with topic splitting on and structure kept, for code, formulas or dense technical content. Size comes from the slider."
         case "elastic":
             return "Sizes chunks to paragraph and section boundaries, using Apple's sentence detection plus a fixed list of ten English transition phrases. It does not compare meaning between sentences, so the boundaries it finds are structural rather than semantic, and the phrase list is English only."
         default:

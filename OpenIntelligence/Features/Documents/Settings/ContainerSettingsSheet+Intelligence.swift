@@ -91,8 +91,8 @@ extension ContainerSettingsSheet {
                 )
                 siliconFeatureRow(
                     icon: "text.line.first.and.arrowtriangle.forward",
-                    label: "Semantic Boundaries",
-                    detail: "Topic detection via embeddings"
+                    label: "Section Boundaries",
+                    detail: "Headings, tables, sentence ends"
                 )
                 siliconFeatureRow(
                     icon: "lock.fill",

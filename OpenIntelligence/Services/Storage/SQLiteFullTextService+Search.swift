@@ -35,7 +35,7 @@ extension SQLiteFullTextService {
                        snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
                 FROM documents
                 WHERE documents MATCH ? AND container_id = ?
-                ORDER BY bm25(documents)
+                ORDER BY bm25(documents), document_id
                 LIMIT ?
             """
         } else {
@@ -44,7 +44,7 @@ extension SQLiteFullTextService {
                        snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
                 FROM documents
                 WHERE documents MATCH ?
-                ORDER BY bm25(documents)
+                ORDER BY bm25(documents), document_id
                 LIMIT ?
             """
         }
@@ -106,7 +106,7 @@ extension SQLiteFullTextService {
                        snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
                 FROM documents
                 WHERE documents MATCH ? AND container_id = ?
-                ORDER BY bm25(documents)
+                ORDER BY bm25(documents), document_id
                 LIMIT ?
             """
         } else {
@@ -115,7 +115,7 @@ extension SQLiteFullTextService {
                        snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
                 FROM documents
                 WHERE documents MATCH ?
-                ORDER BY bm25(documents)
+                ORDER BY bm25(documents), document_id
                 LIMIT ?
             """
         }
@@ -254,7 +254,7 @@ extension SQLiteFullTextService {
                        snippet(documents, 2, '>>>>', '<<<<', '...', \(contextChars / 6)) as snip
                 FROM documents
                 WHERE documents MATCH ? AND container_id = ?
-                ORDER BY bm25(documents)
+                ORDER BY bm25(documents), document_id
                 LIMIT ?
             """
         } else {
@@ -263,7 +263,7 @@ extension SQLiteFullTextService {
                        snippet(documents, 2, '>>>>', '<<<<', '...', \(contextChars / 6)) as snip
                 FROM documents
                 WHERE documents MATCH ?
-                ORDER BY bm25(documents)
+                ORDER BY bm25(documents), document_id
                 LIMIT ?
             """
         }

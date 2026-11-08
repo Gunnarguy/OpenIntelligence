@@ -1,7 +1,7 @@
 # Current State
 
-Updated: 2026-11-07 about 15:20 PT (5.8 open. The three giant functions are decomposed and their files split, the docs
-re-checked against the code, Deep Think's sub-searches made concurrent; all committed and pushed.)
+Updated: 2026-11-08 about 01:00 PT (5.8 open. Overnight "go 10x" pass: answers must answer the question, tables reach the
+model whole, sync never deletes a document file, Library Settings copy corrected, determinism fixes; see the first Status row.)
 Branch/worktree: `main`, primary checkout
 Last verified commit: e90120f6
 
@@ -14,6 +14,7 @@ Backlog only. What remains is his checks on the iPhone and Mac (the device pass)
 
 | What | Where it stands |
 |---|---|
+| Overnight 2026-11-07/08 (his "PROCEED: IMPLEMENT", "go 10x", "universal, not siloed"; he named `WorkspaceSyncService+LibrarySync.swift`) | Probe: "How much DHA is recommended?" (Library 8, paper `ijms-21-03624-2.pdf`, Table 1, DHA row "1-2 g") answered "1-28" / another row's "100-200 mg/15-30 g". Fixed at the general layer, each with tests (CHANGELOG `## 5.8`, 2026-11-07/08 entries): (1) `AnswerResponsivenessJudge` (on-device guided generation: full/partial/none, measured over 160 cases on the Mac in `BenchmarkRuns/2026-11-07-responsiveness/README.md`), Standard rewrites a non-full answer once (`RAGService+AnswerResponsiveness.swift`), extracted values judged none are set aside at all five lock sites, `answers:<verdict>` in the gating string, `VerificationOutcome` reads it; (2) tables: `RAGService.withTablesForSummaries` swaps a retrieved table summary for its table in Standard and every Deep Think search (fixes existing libraries), summaries list every row, rows name their columns (`namedRowCells`; highlighter strips them, `PassageLocator.withoutImportLabels`), `isPageFurnitureLabel` and `runningLineKeys`/`isRunningElement` keep page furniture out of titles and passages, `StructuredDocumentParser.tableCaption`/`numberedTableCaption` take the table's own caption; (3) Gate C counts a value held only by another table row as unverified (`valuesFromOtherRows`); (4) details card reads the badge's outcome (`SourceFidelityStatus.FidelityLevel.from`), no-passage answers carry `no_documents`; (5) summary-detail step uses only retrieved documents' summaries; (6) determinism: ordered keyword and expansion lists, FTS ties broken by id; (7) sync moves unreferenced files to `OrphanedDocuments/` for 30 days and skips the sweep while an import runs; (8) Library Settings claims corrected after a claim audit; (9) source chips keep identity; several comments corrected. A first badge-only fix showed "1-28" Verified on his phone and was reverted the same night. (10) table cells read from the PDF text layer when it agrees with Vision (`textLayerAgrees`); (11) wide tables' key-value pairs keep their row. **Not done:** "Quotes only" really model-free (his decision, row `40049a74d54f811ea077ef82be46545e`); Deep Think's uncited 0.5 score; the 5 Hz Chat clock |
 | Decomposition of the three giant functions (2026-11-06 to 07, his "PROCEED: IMPLEMENT", "surgically") | **Done and pushed.** `queryInternal` 5,826 → 872 lines (80 steps), `addDocument` 1,438 → 410 (23), the PDF parser 1,652 → 17 steps; then their files split by job: `RAGService+QueryPipeline` → 6 files, `RAGService+Import` → 4, `DocumentProcessor+StructuredParsing` → 3 (`95cfe7ae`, `4b042ad6`, `227fae68`). Every step: verbatim move check, iOS Simulator + iOS device + macOS builds, golden recording identical before and after (`StandardPipelineGoldenTests` 35 items, `ImportGoldenTests` 32, `StructuredParsingGoldenTests` 13). Four Fable refuting reviews of all 80 Standard steps and the import review: no behavior change. The generation block (S6c) stays in `queryInternal` on purpose: its `#else` half is the device path no Simulator recorder can prove. Record: `BenchmarkRuns/2026-11-06-decomposition/PLAN.md`; Atlas section 22; `Docs/ai/FILE_MAP.md` |
 | Cloud test suite | #492 on `650af9ba`: 1,456 / 14 / 6 on all three devices, the baseline exactly. Xcode Cloud workflow `Tests (manual)` (id `77b13ba4-2ea7-4742-94ab-424586ef6ab5`, no push trigger) created 2026-11-07: iPhone 15 Pro, iPhone 17 Pro Max, iPad mini (A17 Pro), iOS 27.0. Run #491 on `227fae68`: 1,456 passed / 14 skipped / 6 failed on both iPhones, the same 6 environment failures as before the refactor (#489, #490); the iPad had one more, a live Wikipedia download that failed TLS on the cloud machine. The macOS action was removed: the test target is `SDKROOT = iphoneos`; `XCODE_XCCONFIG_FILE` pointing at an xcconfig with `SDKROOT = macosx` fixes it (measured locally), not yet set up. Memory `xcode-cloud-is-test-compute` |
 | Docs (2026-11-07) | `b20d80a8`: seven Fable auditors checked every citation, symbol and behavior claim in the reference docs; three reviewers read every fix's target (22 wrong: 17 corrected, 5 left out; 3 unsure left out); 432 applied. `verify_doc_claims` 2,091 claims, 0 failures; codemap 0 errors. Six dated audits moved to `Docs/Archive/` (118 links rewritten); `DOCUMENTATION_CONSISTENCY_AUDIT.md` and `AppleIntelligenceTransitionPlan.md` stay because the RepoOS router reads them by path. README and `Docs/README.md` rewritten as a front door. Chapter 10's false "no-documents chat keeps its tools" claim corrected with a dated note |
@@ -42,6 +43,15 @@ Backlog only. What remains is his checks on the iPhone and Mac (the device pass)
 - Tooling (gitignored): `BenchmarkRuns/2026-11-06-decomposition/` (`extract_step.py` with exit/tail modes and `force_params`, `fast_batch.py`,
   `step_check.sh`, `commit_step.py`, `phase4_split.sh`), `BenchmarkRuns/2026-11-05-file-split/` (split tools; `split_type.py` now stamps the real date).
 
+## Verification (output read, 2026-11-08)
+
+- iOS 27 Simulator, selected classes for tonight's work (`/private/tmp/oi-final.sh` list: VerificationOutcome, AnswerResponsivenessJudge,
+  TablePassageFidelity, TableFidelity (end-to-end PDF import), OfficeTextFidelity, SummaryContext, StructuredKeywordOrder,
+  OrphanedDocumentHolding, SourceFidelityLevel, VocabularyMerge, DeferredEnrichment, ContextPacking, HybridSearch, SourceTextView,
+  PlanlessRoute and others) → 01:27 run: 199 tests, 0 failures. iOS device build and macOS build: BUILD SUCCEEDED.
+- `python3 scripts/verify_doc_claims.py` → 2,110 claims, all match. `secret_scan.py` → clean. `check_icloud_conflicts.sh` → OK.
+- Judge measured on the Mac: `BenchmarkRuns/2026-11-07-responsiveness/README.md` (4 versions over 160 cases).
+
 ## Verification (output read, 2026-11-07)
 
 - `step_check.sh` per batch → "STEP OK" for every Standard batch Q12-Q66 and E01-E14; per file split → parse-b6 == parse-f1, import-i23 == import-f2, standard-e14 == standard-f3.
@@ -61,6 +71,17 @@ Backlog only. What remains is his checks on the iPhone and Mac (the device pass)
 
 ## Exact Next Action
 
-Ask him for one Standard question and one import on his iPhone (closes the decomposition row `41049a74d54f81f195f6e7ffd1944b9c`);
-the Deep Think timing and Fact Check are done. Row `41049a74d54f8175a849d1f6c19f3d37` (self-check runs research once) needs the trace of his
-2026-11-07 runs read for one `Starting recursive research loop` then `research already ran for this answer`. Then pull the evidence with `python3 scripts/phone_evidence.py --since "2026-11-07 16:49"` (his 2:18 Deep Think run is in it), and check a Deep Think answer's Fact Check shows a verdict per claim.
+1. Measure tonight's ingestion changes on real PDFs: build `/private/tmp/oi-head-src` (HEAD before tonight, with
+   `ExtractionFidelityRecorder.swift` copied in) and the working tree, run `ExtractionFidelityRecorder` on each with
+   `TEST_RUNNER_OI_FIDELITY_DIR=/private/tmp/oi-fidelity/pdfs` and labels `before` / `after`, then
+   `python3 scripts/extraction_fidelity.py /private/tmp/oi-fidelity/pdfs after --compare before --show 8`. The 11 PDFs and their
+   `pdftotext -layout` files are already there (copied from the Mac app's ImportedDocuments). Any file whose number recall drops
+   is a regression to fix before shipping.
+2. Ask him to re-import `ijms-21-03624-2.pdf` in Library 8 on the latest build and ask "How much DHA is recommended?"; then
+   `phone_evidence.py --since <import time>` and read for "cells read from the text layer", the stored ROW 3 (expect "DHA |
+   Suggested Daily Intake: 1-2 g"), the answer, and `answers:` in `answer.done`.
+3. Next ingestion items not done (audit list in this session; CHANGELOG 5.8 entries say what landed): Vision paragraphs on
+   table pages from the text layer (`textLayerText` for paragraphs, lists, titles); the PDFKit layout path for two-column pages
+   (`LayoutAwareExtractor.extractWithLayout(from: PDFPage)`); xlsx cell placement and entities; the ll-ligature repair; the
+   garbage filter on text-layer pages. Retrieval: reranker model (TinyBERT-L2 vs MiniLM-L6), small-to-big embedding, the
+   Standard planner off the critical path (3.5-6.4 s per answer).

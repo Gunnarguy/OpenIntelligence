@@ -340,9 +340,9 @@ extension ContainerSettingsSheet {
                 SettingHelpCallout(
                     icon: "sparkles",
                     title: "Awaiting first ingest",
-                    description: "Drop a few documents into this library and the dynamic engine will profile everything, set chunking windows, and be ready to re-index the rest whenever the strategy shifts.",
+                    description: "Drop a few documents into this library and the dynamic engine will profile everything, set chunking windows, and pick a splitting style for each new file.",
                     bullets: [
-                        "We'll automatically re-chunk + re-embed when new docs change the optimal strategy",
+                        "New files get a style picked from their text. Rebuilding is always your choice",
                         "You'll get recommendations before anything hits the cloud (and only with your consent)",
                         "Pause auto mode anytime to freeze the current profile",
                     ],
@@ -493,7 +493,7 @@ extension ContainerSettingsSheet {
 
         if autoAdaptDimension {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                Text("OpenIntelligence watches the entire corpus. When a fresh upload shifts the optimal chunking windows or embedding space, we'll automatically re-chunk and re-embed the whole library for you.")
+                Text("New files get a splitting style picked from their text. The app never re-chunks or re-embeds the whole library on its own; rebuilding is always your choice.")
                 if let summary = lastSelfTuneSummary {
                     Text("Last tune \(summary). Next one kicks in as soon as the intelligence profile drifts again.")
                 } else {

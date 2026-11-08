@@ -618,7 +618,7 @@ extension RAGService {
                         category: .pipeline)
                 }
 
-                // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
+                // Check if confidence is below the policy's pass threshold (`confidencePolicy.verificationPassThreshold`)
                 let belowConfidenceThreshold = vr.overallConfidence < effectiveThreshold
 
                 // If grounded-only mode and verification fails, abstain
@@ -839,6 +839,7 @@ extension RAGService {
             modelUsed: llmResponse.modelName ?? llmService.modelName,  // Use actual execution location if available
             retrievalTime: 0,  // No retrieval in direct chat mode
             retrievalConfigSummary: retrievalConfig.summary,
+            gatingDecision: "no_documents",  // answered without passages (5.8): the badge reads No Sources
             toolCallsMade: llmResponse.toolCallsMade,
             embeddingProvider: embeddingProviderId,
             executionReceipt: llmResponse.executionReceipt

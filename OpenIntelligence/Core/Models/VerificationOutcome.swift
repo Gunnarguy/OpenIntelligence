@@ -37,6 +37,31 @@ nonisolated enum VerificationOutcome: Equatable, Sendable {
         if ["no_sources", "no_documents", "context_empty"].contains(where: { decision.contains($0) }) {
             return .noSources
         }
+        // An answer is verified only when it is in the sources and it answers the question (5.8,
+        // `AnswerResponsivenessJudge`). The grounding checks below cannot see the second: on 2026-11-07 "1-28. [S3]",
+        // a page range copied from the paper, was the source-only check's supported answer to "How much DHA is
+        // recommended?". The judge's `answers:` token is appended last and describes the text shown.
+        if decision.contains("answers:none") {
+            return .notSupported
+        }
+        var outcome = groundingOutcome(decision)
+        // Standard runs the source-only check after its gates fail, so its string holds the gates' `unverified:` for
+        // the answer the check replaced. A rewrite the check kept and the judge read as a full answer is the checked
+        // answer shown. Without the judge's word it stays as the gates left it, which is how "1-28" read Verified
+        // when this rule stood alone (reverted the same night).
+        if outcome == .notSupported, decision.contains("source_only_refined"), decision.contains("answers:full"),
+            !decision.contains("missing_citations")
+        {
+            outcome = .supported
+        }
+        // `answers:partial` does not lower the badge; it adds a warning where the answer is built. Measured on the
+        // Mac on 2026-11-07, the judge called a third of correct terse answers partial ("220 human-human dialogs" for
+        // how big a dataset is), so only its `none` is firm enough to label an answer.
+        return outcome
+    }
+
+    /// What the grounding checks in the string say, before the judge's `answers:` token is read.
+    private static func groundingOutcome(_ decision: String) -> VerificationOutcome {
         // "unverified" before "verified": the first contains the second. A source-only check that
         // made the answer abstain is a check that did not support it.
         let failed = ["unverified", "verification_gates_failed", "missing_citations", "source_only_abstained"]

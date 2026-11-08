@@ -97,11 +97,21 @@ extension RAGService {
         var warnings = ["Reliability fallback: \(reason)"]
         let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
 
-        if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+        // An extracted value stands in for the answer only when it answers the question (5.8, `AnswerResponsivenessJudge`).
+        var extractedJudgment: ResponsivenessJudgment?
+        var extractedValue = await highPrecisionLookupOverrideAnswer(
             question: question,
             answerIntent: answerIntent,
             retrievedChunks: retrievedChunks
-        ) {
+        )
+        if let value = extractedValue {
+            extractedJudgment = await judgeResponsiveness(question: question, answer: value, stage: "extracted")
+            if extractedJudgment?.verdict == AnswerResponsiveness.none {
+                Log.info("[Responsiveness] The extracted value does not answer the question; using the passages instead", category: .llm)
+                extractedValue = nil
+            }
+        }
+        if let extractiveOverride = extractedValue {
             let structuredAnswer = StructuredAnswer.from(
                 response: extractiveOverride,
                 retrievedChunks: retrievedChunks,
@@ -125,7 +135,9 @@ extension RAGService {
                     modelUsed: "Direct Source Extraction",
                     retrievalTime: retrievalTime,
                     retrievalConfigSummary: retrievalConfig.summary,
-                    gatingDecision: "reliability_extractive_override",
+                    gatingDecision: appendedGatingDecision(
+                        "reliability_extractive_override", extractedJudgment?.gatingToken ?? ""
+                    ).trimmingCharacters(in: CharacterSet(charactersIn: ",")),
                     toolCallsMade: 0,
                     embeddingProvider: embeddingProviderId
                 ),
@@ -447,6 +459,7 @@ extension RAGService {
             modelUsed: llmResponse.modelName ?? llmService.modelName,
             retrievalTime: retrievalTime,
             retrievalConfigSummary: retrievalConfig.summary,
+            gatingDecision: "no_documents",  // answered without passages (5.8): the badge reads No Sources
             toolCallsMade: llmResponse.toolCallsMade,
             embeddingProvider: nil,  // No embedding used in direct chat fallback
             executionReceipt: llmResponse.executionReceipt

@@ -60,6 +60,13 @@ final class DeferredEnrichmentTests: XCTestCase {
 
     func testTheLastOrOnlyFile_inFront_isEnrichedAtOnce() {
         XCTAssertFalse(RAGService.shouldDeferEnrichment(appIsInBackground: false, otherFilesQueued: false, isOnboarding: false))
+        // A file the queue manages waits for the queue to empty, so it reads Complete once it is searchable (5.8).
+        XCTAssertTrue(
+            RAGService.shouldDeferEnrichment(
+                appIsInBackground: false, otherFilesQueued: false, isOnboarding: false, managedByQueue: true))
+        XCTAssertFalse(
+            RAGService.shouldDeferEnrichment(
+                appIsInBackground: false, otherFilesQueued: false, isOnboarding: true, managedByQueue: true))
     }
 
     func testAnOnboardingSample_neverWaits() {

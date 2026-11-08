@@ -174,6 +174,12 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - The floating iOS Silicon HUD owns a dedicated `UIWindow` and derives all frame bounds from that window's non-optional `UIWindowScene.screen`; it does not use the deprecated process-global `UIScreen.main`. `[evidence_level: build_verified+code_verified, confidence: exact_for_build, evidence_source: MotherboardHUDView.swift and generic iOS 27 simulator build 2026-07-16]`
 
 ## 9. Sync Boundaries
+
+- **5.8, 2026-11-07: unreferenced document files are held, not deleted.** The local file sweep in
+  `WorkspaceSyncService+LibrarySync.swift` skips everything while an import or rebuild is unfinished, and otherwise
+  moves a file no record or queue item names into `OrphanedDocuments/` for 30 days (`moveOrphanedDocumentFile`,
+  `purgeOrphanedDocumentFiles`). On 2026-11-03 it deleted the only local copy of a PDF a rebuild was reading.
+  `[evidence_level: test_verified (OrphanedDocumentHoldingTests), confidence: high]`
 - **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
@@ -687,6 +693,16 @@ supposed to be agentic.
   agentic. `[evidence: code_verified, exact, device trace 2026-08-14 message D74F98E4; RAGService useAgentic gate]`
 - **Deep Think and Maximum are where the agentic loop is supposed to fire.** The rest of this section
   is about those two modes only.
+- **A retrieved table summary brings its table, in every mode (5.8, 2026-11-07).** `RAGService.withTablesForSummaries`
+  replaces a `tableSemantic` candidate with its `tableStructural` siblings in Standard's context candidates and in every
+  Deep Think and Maximum search result (`RAGService+ToolHandler.swift`). Details in `Docs/RETRIEVAL_PIPELINE.md`.
+  `[evidence_level: test_verified, confidence: high]`
+- **Every mode checks the answer answers the question (5.8, 2026-11-07).** `AnswerResponsivenessJudge` (on-device,
+  guided generation) judges the answer full, partial or none; `RAGService.ensureAnswerResponds` rewrites a Standard
+  answer once when it is not full, an extracted value judged none neither replaces an answer nor skips Deep Think, and
+  every mode appends `answers:<verdict>` to the gating string that `VerificationOutcome` reads. Details in
+  `Docs/RETRIEVAL_PIPELINE.md`, "An answer has to answer its question".
+  `[evidence_level: test_verified, measured (Mac probe), confidence: medium]`
 - **Fact Check in Deep Think and Maximum (5.8, 2026-11-07).** After the displayed text is fixed, `RAGService.factCheckedAgenticAnswer`
   checks each claim the structured answer lists with `VerificationGateService.claimVerdicts` (Gate B's per-claim check) and
   `StructuredAnswer.withClaimVerdicts` fills in only the verdicts; until then every claim read Not Checked.

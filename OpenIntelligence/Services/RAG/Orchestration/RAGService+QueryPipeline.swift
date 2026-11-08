@@ -406,7 +406,10 @@ extension RAGService {
 
                 applySectionMetadataBoost(chunksWithSources: &chunksWithSources, question: question, retrievalTime: retrievalTime)
 
-                let __rerankCandidatesResult = await rerankCandidates(qualityModeUsesReRanking: qualityModeUsesReRanking, chunksWithSources: chunksWithSources, question: question, effectiveTopK: effectiveTopK, auditRerankedCount: &auditRerankedCount, qualityModeDisplayName: qualityModeDisplayName, trace: trace)
+                // A follow-up is ranked by the question retrieval searched with (5.8): "how long does it last?" was found with
+                // the rewritten question and then ranked and extracted with "it". The gates still read the question asked.
+                let rankingQuestion = auditQueryWasRewritten ? effectiveQuery : question
+                let __rerankCandidatesResult = await rerankCandidates(qualityModeUsesReRanking: qualityModeUsesReRanking, chunksWithSources: chunksWithSources, question: rankingQuestion, effectiveTopK: effectiveTopK, auditRerankedCount: &auditRerankedCount, qualityModeDisplayName: qualityModeDisplayName, trace: trace)
                 let engine = __rerankCandidatesResult.engine
                 var rerankTime = __rerankCandidatesResult.rerankTime
                 var rerankedChunks = __rerankCandidatesResult.rerankedChunks
@@ -529,9 +532,12 @@ extension RAGService {
 
                 let (maxContextChars, useCompactMode, reservedOutputTokens, availableForContextTokens, globalSafetyFactor) = computeContextCharBudget(inferenceConfig: inferenceConfig, baseWindowTokens: baseWindowTokens, promptOverheadTokens: promptOverheadTokens, questionTokens: questionTokens, allowLargeContext: allowLargeContext, isAppleFMOnDevice: isAppleFMOnDevice, applyTrivialCaps: applyTrivialCaps, conservativeCharsPerToken: conservativeCharsPerToken)
 
+                // A table summary lists two rows; the table itself takes its place (5.8, `withTablesForSummaries`).
+                contextCandidates = Self.withTablesForSummaries(contextCandidates, allChunks: cachedAllChunks ?? [])
+
                 let (orderedCandidates, useLostInMiddleMitigation) = orderContextCandidates(isProceduralQuery: isProceduralQuery, contextCandidates: contextCandidates, answerIntentIsExtractive: answerIntentIsExtractive, question: question)
 
-                let (actualChunksUsed, context, placedForAttention, promptSources, rescuedChunks) = await assembleStandardContext(answerIntentIsExtractive: answerIntentIsExtractive, isProceduralQuery: isProceduralQuery, orderedCandidates: orderedCandidates, question: question, maxContextChars: maxContextChars, useCompactMode: useCompactMode, engine: engine, useLostInMiddleMitigation: useLostInMiddleMitigation)
+                let (actualChunksUsed, context, placedForAttention, promptSources, rescuedChunks) = await assembleStandardContext(answerIntentIsExtractive: answerIntentIsExtractive, isProceduralQuery: isProceduralQuery, orderedCandidates: orderedCandidates, question: rankingQuestion, maxContextChars: maxContextChars, useCompactMode: useCompactMode, engine: engine, useLostInMiddleMitigation: useLostInMiddleMitigation)
 
                 let (contextWords, contextSize, includedRetrievedChunks, includedChunks) = finishIncludedPassages(actualChunksUsed: actualChunksUsed, context: context, question: question, placedForAttention: placedForAttention, contextCandidates: contextCandidates, contextStrategy: contextStrategy, useCompactMode: useCompactMode, promptSources: promptSources, rescuedChunks: rescuedChunks, recoveryRetrievedChunks: &recoveryRetrievedChunks)
 
@@ -919,6 +925,9 @@ extension RAGService {
 
                 await repairResponseIntegrity(responseText: &responseText, question: question, answerIntent: answerIntent, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks, llmResponse: &llmResponse)
 
+                var responsiveness = await ensureAnswerResponds(responseText: &responseText, llmResponse: &llmResponse, question: promptForGeneration, genConfig: genConfig, requiresCitations: requiresCitations, generationContext: generationContext, generationChunks: generationChunks)
+                let responsivenessJudgedText = responseText
+
                 let (generationTime, responseWordCount) = emitGenerationTelemetry(generationStartTime: generationStartTime, responseText: responseText, llmResponse: llmResponse, selectedName: selectedName, selectedId: selectedId)
 
                 // Wrap all printing in error handling to prevent crashes
@@ -927,12 +936,23 @@ extension RAGService {
 
                     if let exitResponse = try await fallBackFromEmptyAnswer(responseText: responseText, recoveryRetrievedChunks: recoveryRetrievedChunks, question: question, effectiveTopK: effectiveTopK, ragQuery: ragQuery, inferenceConfig: inferenceConfig, retrievalConfig: retrievalConfig, embeddingProviderId: embeddingProviderId, recoveryRetrievalTime: recoveryRetrievalTime, selectedId: selectedId, selectedName: selectedName) { return exitResponse }
 
-                    let sourceLockedFinalResponse = await applyPrecisionLookupOverride(answerIntentIsExtractive: answerIntentIsExtractive, question: question, answerIntent: answerIntent, generationRetrievedChunks: generationRetrievedChunks, responseText: &responseText)
+                    var sourceLockedFinalResponse = await applyPrecisionLookupOverride(answerIntentIsExtractive: answerIntentIsExtractive, question: question, answerIntent: answerIntent, generationRetrievedChunks: generationRetrievedChunks, responseText: &responseText)
+                    // The extractor's value replaces an answer only when it answers too: a value lifted from a source can
+                    // be a page range or a table cell that says nothing on its own.
+                    if sourceLockedFinalResponse, responseText != responsivenessJudgedText,
+                        let judged = responsiveness, judged.verdict != .none,
+                        let lockedJudgment = await judgeResponsiveness(question: promptForGeneration, answer: responseText, stage: "extracted"),
+                        lockedJudgment.verdict == .none
+                    {
+                        Log.info("[Responsiveness] The extracted value does not answer the question; keeping the model's answer", category: .llm)
+                        responseText = responsivenessJudgedText
+                        sourceLockedFinalResponse = false
+                    }
 
                     let (confidenceScore, qualityWarnings) = await assessAnswerQuality(generationRetrievedChunks: generationRetrievedChunks, engine: engine, question: question, auditTopSim: auditTopSim)
 
                     // Step 7.5: Verification Gates (AppleRAG Anti-Hallucination)
-                    // Run Gates A-G to validate response against source evidence
+                    // Run the verification gates (A to I) against the evidence
                     // Respect quality mode toggle for verification
                     let runVerificationGates = qualityModeUsesVerificationGates
 
@@ -974,6 +994,18 @@ extension RAGService {
                     var (finalResponseText, structuredAnswer, gatingSummary, finalWarnings, finalConfidenceScore) = summarizeGatingAndWarnings(acceptanceOverride: acceptanceOverride, lenient: lenient, verificationResult: verificationResult, qualityWarnings: qualityWarnings, responseText: responseText, confidenceScore: confidenceScore, generationRetrievedChunks: generationRetrievedChunks, answerIntent: answerIntent, llmResponse: llmResponse, reasoningTraceForMetadata: reasoningTraceForMetadata, allowUngroundedFallback: allowUngroundedFallback)
 
                     await applySourceOnlyCheck(answerIntentIsExtractive: answerIntentIsExtractive, question: question, qualityMode: qualityMode, verificationResult: verificationResult, answerIntent: answerIntent, responseText: responseText, generationRetrievedChunks: generationRetrievedChunks, sourceLockedFinalResponse: sourceLockedFinalResponse, finalResponseText: &finalResponseText, structuredAnswer: &structuredAnswer, gatingSummary: &gatingSummary, finalWarnings: &finalWarnings, finalConfidenceScore: &finalConfidenceScore, confidenceScore: confidenceScore)
+
+                    // The shown text was replaced after the judge read it (precision override or source-only rewrite): judge
+                    // the text the reader gets, so the verdict is about that answer.
+                    if responsiveness != nil, finalResponseText != responsivenessJudgedText {
+                        responsiveness = await judgeResponsiveness(question: promptForGeneration, answer: finalResponseText, stage: "final")
+                    }
+                    if let responsiveness {
+                        gatingSummary = appendedGatingDecision(gatingSummary, responsiveness.gatingToken)
+                        if responsiveness.verdict != .full, !responsiveness.missing.isEmpty {
+                            finalWarnings.append("May not fully answer the question: \(responsiveness.missing)")
+                        }
+                    }
 
                     let response = buildStandardResponse(llmResponse: llmResponse, retrievalTime: retrievalTime, retrievalConfig: retrievalConfig, gatingSummary: gatingSummary, embeddingProviderId: embeddingProviderId, qualityMode: qualityMode, question: question, reasoningTraceForMetadata: reasoningTraceForMetadata, runtimeContext: runtimeContext, generationContext: generationContext, finalResponseText: finalResponseText, structuredAnswer: structuredAnswer, ragQueryValue: ragQueryValue, generationRetrievedChunks: generationRetrievedChunks, finalConfidenceScore: finalConfidenceScore, finalWarnings: finalWarnings, pipelineStartTime: pipelineStartTime)
 

@@ -250,7 +250,29 @@ extension DocumentProcessor {
         return lines.joined(separator: "\n")
     }
 
+    /// A caption that starts "Table N", shortened to its number and first sentence (at most 16 words), or nil.
+    nonisolated static func numberedTableCaption(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let text = raw.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let numberRange = text.range(of: #"^(?:Table|TABLE|Tab\.)\s*(?:[0-9]+|[IVXLC]+)[A-Za-z]?[.:]?"#, options: .regularExpression)
+        else { return nil }
+        let rest = text[numberRange.upperBound...].trimmingCharacters(in: .whitespaces)
+        var firstSentence = rest
+        if let end = rest.range(of: #"[.;](\s|$)"#, options: .regularExpression) {
+            firstSentence = String(rest[..<end.lowerBound])
+        }
+        let words = firstSentence.split(separator: " ").prefix(16).joined(separator: " ")
+        let label = String(text[numberRange]).trimmingCharacters(in: CharacterSet(charactersIn: ".: "))
+        return words.isEmpty ? label : "\(label): \(words)"
+    }
+
     func resolveTableTitle(tableData: TableData, sectionTitle: String?) -> String {
+        // A "Table N. ..." caption is the table's own title however long it runs (5.8): the heading test caps a label at
+        // 12 words, which a paper's caption usually passes. Its first sentence after the number, at most 16 words.
+        if let caption = Self.numberedTableCaption(tableData.caption) {
+            return caption
+        }
         if let caption = sanitizeStructuredLabel(tableData.caption ?? "") {
             return caption
         }
@@ -317,6 +339,26 @@ extension DocumentProcessor {
         return warningTerms.contains(where: { combined.contains($0) })
     }
 
+    /// A row's cells as one line: the first cell (the row's label) as it is, each later cell named by its column,
+    /// "DHA | Daily Dose: 1-2 g | Upper Limit: 3 g" (5.8). A bare "1-2 g | 3 g" left the model to work out which
+    /// column a value came from. A column with no header of its own ("Column 2") and an empty cell are left unnamed or
+    /// out.
+    nonisolated static func namedRowCells(_ cells: [String], headers: [String]) -> String {
+        var parts: [String] = []
+        for (index, cell) in cells.enumerated() {
+            let value = cell.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { continue }
+            let header = index < headers.count ? headers[index].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let isPlaceholder = header.isEmpty || header.range(of: #"^Column \d+$"#, options: .regularExpression) != nil
+            if index == 0 || isPlaceholder || header.caseInsensitiveCompare(value) == .orderedSame {
+                parts.append(value)
+            } else {
+                parts.append("\(header): \(value)")
+            }
+        }
+        return parts.joined(separator: " | ")
+    }
+
     func buildStructuralTableText(
         tableData: TableData,
         tableTitle: String,
@@ -335,8 +377,7 @@ extension DocumentProcessor {
         lines.append("HEADERS: \(headers.joined(separator: " | "))")
 
         for (index, row) in rows.enumerated() {
-            let normalizedRow = normalizedRow(row, columnCount: headers.count)
-            lines.append("ROW \(index + 1): \(normalizedRow.joined(separator: " | "))")
+            lines.append("ROW \(index + 1): \(Self.namedRowCells(normalizedRow(row, columnCount: headers.count), headers: headers))")
         }
 
         if let keyValuePairs = tableData.keyValuePairs, !keyValuePairs.isEmpty {
@@ -349,6 +390,9 @@ extension DocumentProcessor {
         lines.append("SOURCE: \(filename), page \(tableData.pageNumber)")
         return lines.joined(separator: "\n")
     }
+
+    /// How many words of rows a table summary lists whole (5.8).
+    nonisolated static let semanticSummaryRowWordLimit = 260
 
     func buildSemanticTableSummary(
         tableData: TableData,
@@ -383,16 +427,25 @@ extension DocumentProcessor {
         }
 
         if let keyValuePairs = tableData.keyValuePairs, !keyValuePairs.isEmpty {
-            let preview = keyValuePairs.prefix(4).map { "\($0.key): \($0.value)" }.joined(separator: "; ")
-            sentences.append("Key values include \(preview).")
-        } else if !rows.isEmpty {
-            let preview = rows.prefix(2)
-                .map { normalizedRow($0, columnCount: headers.count).filter { !$0.isEmpty }.joined(separator: " | ") }
-                .filter { !$0.isEmpty }
-                .joined(separator: " || ")
-            if !preview.isEmpty {
-                sentences.append("Representative rows: \(preview).")
+            // Every pair or a count, as for rows (5.8): "include" over the first four left the rest out of the passage.
+            let pairs = keyValuePairs.map { "\($0.key): \($0.value)" }
+            if pairs.reduce(0, { $0 + countWords($1) }) <= Self.semanticSummaryRowWordLimit {
+                return (sentences + ["Values:"] + pairs).joined(separator: "\n")
             }
+            sentences.append("It has \(pairs.count) values, listed in the table passage.")
+        } else if !rows.isEmpty {
+            // Every row or none (5.8). The summary listed the first two rows as "Representative rows", and a question
+            // about the third row retrieved the summary and answered from the first: on 2026-11-07 "How much DHA is
+            // recommended?" got another supplement's dose. A table whose rows fit lists them all, one per line with
+            // its label first; a longer one says how many rows its table passage holds.
+            let lines = rows
+                .map { Self.namedRowCells(normalizedRow($0, columnCount: headers.count), headers: headers) }
+                .filter { !$0.isEmpty }
+            let words = lines.reduce(0) { $0 + countWords($1) }
+            if words <= Self.semanticSummaryRowWordLimit {
+                return (sentences + ["Rows:"] + lines).joined(separator: "\n")
+            }
+            sentences.append("It has \(lines.count) rows, listed in the table passage.")
         }
 
         return sentences.joined(separator: " ")
@@ -602,9 +655,95 @@ extension DocumentProcessor {
     }
 
     /// Keep retrieval metadata conservative: a bad heading hurts ranking more than a missing one.
+    /// A line's key for finding lines that repeat page after page: lowercased, digits as "#", spacing squeezed.
+    nonisolated static func runningLineKey(_ line: String) -> String {
+        line.lowercased()
+            .replacingOccurrences(of: #"[0-9]"#, with: "#", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The keys of short lines with a number in them that repeat on at least two pages and on at least half of them, as
+    /// a running header or footer does (5.8). `removeRepeatedHeadersFooters` cleans only the page texts behind the full text and skips
+    /// documents under three pages; the structured elements that become passages kept the header, so a passage opened
+    /// with "Int. J. Mol. Sci. 2020, 21, 3624 10 of 27".
+    nonisolated static func runningLineKeys(in pages: [(page: Int, text: String)]) -> Set<String> {
+        let pageCount = Set(pages.map(\.page)).count
+        guard pageCount >= 2 else { return [] }
+        var pagesByKey: [String: Set<Int>] = [:]
+        for element in pages {
+            for line in element.text.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.count >= 3, trimmed.count <= 120 else { continue }
+                pagesByKey[runningLineKey(trimmed), default: []].insert(element.page)
+            }
+        }
+        let needed = max(2, (pageCount + 1) / 2)
+        // Only lines that carry a number (a page number, a volume or year): a heading such as "WARNING" printed on every
+        // page of a manual is content, and it repeats too.
+        return Set(pagesByKey.filter { $0.value.count >= needed && $0.key.contains("#") }.map(\.key))
+    }
+
+    /// The text without its running header and footer lines (a repeating key, or a page counter, running citation,
+    /// DOI or copyright line); other lines unchanged.
+    nonisolated static func withoutRunningLines(_ text: String, runningKeys: Set<String>) -> String {
+        let lines = text.components(separatedBy: .newlines)
+        let kept = lines.filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { return true }
+            return !(runningKeys.contains(runningLineKey(trimmed))
+                || isPageFurnitureLabel(trimmed, includingCutOffMastheads: false))
+        }
+        return kept.count == lines.count ? text : kept.joined(separator: "\n")
+    }
+
+    /// Whether every line of an element is page furniture: a repeating line, or a page counter, running citation,
+    /// DOI or copyright line. A cut-off masthead is left to the heading test, since a wrapped sentence can end in "and".
+    nonisolated static func isRunningElement(_ text: String, runningKeys: Set<String>) -> Bool {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return false }
+        return lines.allSatisfy {
+            runningKeys.contains(runningLineKey($0)) || isPageFurnitureLabel($0, includingCutOffMastheads: false)
+        }
+    }
+
+    /// Whether a line is page furniture rather than a heading (5.8): a page counter ("10 of 27", "Page 3"), a journal's
+    /// running citation ("Int. J. Mol. Sci. 2020, 21, 3624"), a DOI or copyright line, or a masthead cut at a line break,
+    /// which ends in a word a heading never ends in ("International Journal of"). Such a line became a section title
+    /// and then the title of every table after it: on 2026-11-07 a paper's page-1 masthead "International Journal of"
+    /// was the title of its Table 1 on page 10, and of the passage the model was given for it.
+    nonisolated static func isPageFurnitureLabel(_ text: String, includingCutOffMastheads: Bool = true) -> Bool {
+        let line = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else { return false }
+        let patterns = [
+            #"(?i)^(page\s*)?\d+\s*(of|/)\s*\d+$"#,
+            #"(?i)^page\s+\d+$"#,
+            // A running journal citation, as printed or as OCR reads it ("Int. J. lest. ocl. 2020, 21. 3024").
+            #"^[A-Z][A-Za-z]*\.?\s([A-Za-z]+\.?\s){0,5}(19|20)\d{2}[,;.]\s*\d+"#,
+            #"(?i)^(doi:|https?://(dx\.)?doi\.org/)"#,
+            #"(?i)^(©|copyright\b|downloaded from\b)"#,
+        ]
+        for pattern in patterns where line.range(of: pattern, options: .regularExpression) != nil {
+            return true
+        }
+        // Only words a heading cannot end in. "Vitamin A", "Appendix A", "Sign In", "Power On" and "What to Look For" are
+        // headings, so single letters and particles are not listed (refuting review, 2026-11-07).
+        guard includingCutOffMastheads else { return false }
+        let danglingEnds: Set<String> = ["of", "and", "the"]
+        if let last = line.split(whereSeparator: { $0.isWhitespace }).last.map({ String($0).lowercased() }),
+            danglingEnds.contains(last)
+        {
+            return true
+        }
+        return false
+    }
+
     private func isLikelyStructuredHeading(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
+        guard !Self.isPageFurnitureLabel(trimmed) else { return false }
         guard !trimmed.contains("_"), !trimmed.contains("|") else { return false }
         guard trimmed.range(of: #"(?i)^row\s+\d+$"#, options: .regularExpression) == nil else { return false }
 

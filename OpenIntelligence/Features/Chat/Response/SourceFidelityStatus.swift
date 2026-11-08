@@ -12,12 +12,15 @@ struct SourceFidelityStatus: View {
         case sourceLocked
         case partiallySupported
         case insufficientEvidence
+        /// No check ran on the answer: it was written without passages, or its checks were skipped.
+        case notChecked
         
         var title: String {
             switch self {
             case .sourceLocked: return "Source-Locked"
             case .partiallySupported: return "Partially Supported"
             case .insufficientEvidence: return "Not Enough Evidence"
+            case .notChecked: return "Not Checked"
             }
         }
         
@@ -26,6 +29,7 @@ struct SourceFidelityStatus: View {
             case .sourceLocked: return "All claims are fully verified and grounded in cited sources."
             case .partiallySupported: return "Most claims are grounded, but some details could not be fully verified."
             case .insufficientEvidence: return "Retrieved evidence was insufficient to safely verify the answer."
+            case .notChecked: return "No check ran against your documents for this answer."
             }
         }
         
@@ -34,6 +38,7 @@ struct SourceFidelityStatus: View {
             case .sourceLocked: return "lock.shield.fill"
             case .partiallySupported: return "shield.lefthalf.filled"
             case .insufficientEvidence: return "exclamationmark.shield.fill"
+            case .notChecked: return "shield"
             }
         }
         
@@ -42,6 +47,21 @@ struct SourceFidelityStatus: View {
             case .sourceLocked: return .green
             case .partiallySupported: return .orange
             case .insufficientEvidence: return .red
+            case .notChecked: return .secondary
+            }
+        }
+
+        /// The card's level for an answer, read from the same outcome as the chat badge (5.8). Until then the card read
+        /// the gating string on its own and called everything Source-Locked unless the string held "failed",
+        /// "missing_citations", "abstain", "low_confidence" or "fallback": an answer whose gates failed
+        /// (`unverified:<gates>`) and an answer written with no passages (no string) both read "All claims are fully
+        /// verified".
+        static func from(_ outcome: VerificationOutcome) -> FidelityLevel {
+            switch outcome {
+            case .supported: return .sourceLocked
+            case .partial, .lowConfidence: return .partiallySupported
+            case .notSupported, .noSources: return .insufficientEvidence
+            case .notChecked: return .notChecked
             }
         }
     }

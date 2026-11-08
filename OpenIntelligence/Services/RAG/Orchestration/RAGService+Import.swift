@@ -1306,17 +1306,18 @@ extension RAGService {
             )
         }
         if Self.shouldDeferEnrichment(
-            appIsInBackground: inBackground, otherFilesQueued: filesWaiting, isOnboarding: context == .onboarding)
+            appIsInBackground: inBackground, otherFilesQueued: filesWaiting, isOnboarding: context == .onboarding,
+            managedByQueue: trackingId != nil)
         {
             Self.deferEnrichment(of: updatedDocument.id, in: activeContainerId)
             VerificationJournal.record(
                 "import.enrichmentDeferred",
                 ["document": VerificationJournal.anon(updatedDocument.id),
-                    "reason": inBackground ? "background" : "queue", "context": "\(context)"])
+                    "reason": inBackground ? "background" : (filesWaiting ? "queue" : "afterComplete"), "context": "\(context)"])
             Log.info(
                 inBackground
                     ? "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the app is in front"
-                    : "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions wait until the queue's other files are in",
+                    : "[RAGService] Saved '\(filename)'; its overview, tags and suggested questions run when the import queue empties",
                 category: .ingestion)
         } else {
             await enrichImportedDocument(

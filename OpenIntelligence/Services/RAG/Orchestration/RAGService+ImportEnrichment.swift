@@ -253,10 +253,15 @@ extension RAGService {
     /// Whether a saved document's overview, tags and suggested questions wait instead of running before the next
     /// file (5.7 in the background; 5.8 also while other files are queued). An onboarding sample never waits: its
     /// overview is skipped altogether.
+    ///
+    /// A file the import queue manages always waits too (5.8, 2026-11-08): the queue runs the waiting work as soon as it
+    /// empties (`runDeferredEnrichmentsIfNeeded`), so the file reads Complete when it can be searched rather than after
+    /// the model work. On the owner's iPhone a 27-page PDF was searchable 46.5 s before its card said Complete; the
+    /// overview, tags and questions are the same either way.
     nonisolated static func shouldDeferEnrichment(
-        appIsInBackground: Bool, otherFilesQueued: Bool, isOnboarding: Bool
+        appIsInBackground: Bool, otherFilesQueued: Bool, isOnboarding: Bool, managedByQueue: Bool = false
     ) -> Bool {
-        !isOnboarding && (appIsInBackground || otherFilesQueued)
+        !isOnboarding && (appIsInBackground || otherFilesQueued || managedByQueue)
     }
 
     /// Waits while the app is in the background, and returns how long it waited (5.8). A model call that

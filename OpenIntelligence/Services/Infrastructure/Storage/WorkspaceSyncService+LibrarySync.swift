@@ -371,22 +371,39 @@ extension WorkspaceSyncService {
                 }
             }
             
-            for fileURL in localContents {
-                if let relativePath = relativePath(from: localRoot, to: fileURL) {
-                    if !referencedLocalPaths.contains(relativePath) {
-                        // Protect recently created/modified files to prevent race conditions during ingestion
-                        let attrs = try? fileManager.attributesOfItem(atPath: fileURL.path)
-                        if let modDate = attrs?[.modificationDate] as? Date,
-                           Date().timeIntervalSince(modDate) < 900 { // 15 minutes
-                            Log.info("[WorkspaceSyncService] Skipping deletion of recently modified potential ingest file: \(fileURL.lastPathComponent)")
-                            continue
+            // An unreferenced file is moved aside, never deleted on the spot, and none is touched while an import or a
+            // rebuild is unfinished (5.8). On 2026-11-03 a 5.7-style rebuild removed a document's record, and this pass
+            // ran 23 seconds later, found the file no record named, and deleted the only local copy of the PDF the
+            // rebuild was reading. The record is kept through a rebuild since 77aeedfa; this is the second guard.
+            if !localInventory.librariesWithUnfinishedImports.isEmpty {
+                Log.info(
+                    "[WorkspaceSyncService] Unreferenced document files left in place: an import or rebuild is unfinished in \(localInventory.librariesWithUnfinishedImports.count) library(ies)")
+            } else {
+                var moved = 0
+                for fileURL in localContents {
+                    if let relativePath = relativePath(from: localRoot, to: fileURL) {
+                        if !referencedLocalPaths.contains(relativePath) {
+                            // Protect recently created/modified files to prevent race conditions during ingestion
+                            let attrs = try? fileManager.attributesOfItem(atPath: fileURL.path)
+                            if let modDate = attrs?[.modificationDate] as? Date,
+                               Date().timeIntervalSince(modDate) < 900 { // 15 minutes
+                                Log.info("[WorkspaceSyncService] Skipping deletion of recently modified potential ingest file: \(fileURL.lastPathComponent)")
+                                continue
+                            }
+                            if let destination = Self.moveOrphanedDocumentFile(fileURL, localRoot: localRoot) {
+                                moved += 1
+                                Log.info(
+                                    "[WorkspaceSyncService] Moved unreferenced document file aside: \(fileURL.lastPathComponent) -> \(destination.deletingLastPathComponent().lastPathComponent)/")
+                            }
                         }
-                        try? Self.coordinatedRemoveItem(at: fileURL)
-                        Log.info("[WorkspaceSyncService] Deleted local orphaned document file: \(fileURL.lastPathComponent)")
                     }
+                }
+                if moved > 0 {
+                    VerificationJournal.record("sync.orphanFilesMoved", ["moved": "\(moved)"])
                 }
             }
         }
+        Self.purgeOrphanedDocumentFiles(localRoot: localRoot)
 
         let removedContainerIDs = Set(localInventory.containers.map(\.id)).subtracting(finalLocalContainers.map(\.id))
         for containerId in removedContainerIDs {
@@ -564,4 +581,53 @@ extension WorkspaceSyncService {
         }
     }
 
+    /// Where an unreferenced document file waits before it is deleted (5.8).
+    nonisolated static let orphanedDocumentsFolderName = "OrphanedDocuments"
+    /// How long a file waits there.
+    nonisolated static let orphanedDocumentRetention: TimeInterval = 30 * 24 * 60 * 60
+
+    /// Moves an unreferenced file from `ImportedDocuments` into the holding folder, under a name that never overwrites
+    /// another, and stamps it with the time it was moved so the retention counts from then. Returns where it went, or nil
+    /// when the move failed (the file then stays where it was).
+    @discardableResult
+    nonisolated static func moveOrphanedDocumentFile(_ fileURL: URL, localRoot: URL, now: Date = Date()) -> URL? {
+        let fileManager = FileManager.default
+        let holding = localRoot.appendingPathComponent(orphanedDocumentsFolderName, isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: holding, withIntermediateDirectories: true)
+            var destination = holding.appendingPathComponent(fileURL.lastPathComponent)
+            if fileManager.fileExists(atPath: destination.path) {
+                destination = holding.appendingPathComponent(
+                    "\(Int(now.timeIntervalSince1970))-\(fileURL.lastPathComponent)")
+            }
+            try fileManager.moveItem(at: fileURL, to: destination)
+            try? fileManager.setAttributes([.modificationDate: now], ofItemAtPath: destination.path)
+            return destination
+        } catch {
+            Log.warning(
+                "[WorkspaceSyncService] Could not move unreferenced file \(fileURL.lastPathComponent) aside: \(error.localizedDescription); left in place")
+            return nil
+        }
+    }
+
+    /// Deletes held files older than the retention. Returns how many were deleted.
+    @discardableResult
+    nonisolated static func purgeOrphanedDocumentFiles(localRoot: URL, now: Date = Date()) -> Int {
+        let fileManager = FileManager.default
+        let holding = localRoot.appendingPathComponent(orphanedDocumentsFolderName, isDirectory: true)
+        guard
+            let contents = try? fileManager.contentsOfDirectory(
+                at: holding, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles])
+        else { return 0 }
+        var deleted = 0
+        for url in contents {
+            let moved = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? now
+            guard now.timeIntervalSince(moved) > orphanedDocumentRetention else { continue }
+            if (try? coordinatedRemoveItem(at: url)) != nil { deleted += 1 }
+        }
+        if deleted > 0 {
+            Log.info("[WorkspaceSyncService] Deleted \(deleted) held document file(s) older than 30 days")
+        }
+        return deleted
+    }
 }

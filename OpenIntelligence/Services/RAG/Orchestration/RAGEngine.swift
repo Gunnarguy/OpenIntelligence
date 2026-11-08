@@ -589,7 +589,12 @@ actor RAGEngine {
 
             // Sanitize content to help Apple FM's language detector
             // URLs and special Unicode can confuse it into detecting wrong languages
-            let rawContent = r.chunk.contextText
+            //
+            // The parent window is the passage plus about 250 characters each side. When it does not fit the share each
+            // passage gets, the margins go before the passage does (5.8): the trim below keeps the start and cuts the end,
+            // so with the window it kept the margin before the passage and cut the passage's own last part.
+            let rawContent =
+                r.chunk.contextText.count > targetCharsPerChunk ? r.chunk.content : r.chunk.contextText
 
             // Include contextual prefix (document title/author) in final context
             // This ensures author-based queries like "What did X find?" work correctly

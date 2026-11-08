@@ -230,17 +230,8 @@ struct ChatResponseDetailsView: View {
     }
 
     private var fidelityLevel: SourceFidelityStatus.FidelityLevel {
-        guard let decision = metadata.gatingDecision else {
-            return .sourceLocked
-        }
-        let lower = decision.lowercased()
-        if lower.contains("failed") || lower.contains("missing_citations") || lower.contains("abstain") {
-            return .insufficientEvidence
-        }
-        if lower.contains("low_confidence") || lower.contains("fallback") {
-            return .partiallySupported
-        }
-        return .sourceLocked
+        SourceFidelityStatus.FidelityLevel.from(
+            VerificationOutcome.from(gatingDecision: metadata.gatingDecision, claims: structuredAnswer?.claims ?? []))
     }
 
 

@@ -470,7 +470,9 @@ extension DocumentProcessor {
 
         let startTime = Date()
 
-        guard let image = CIImage(contentsOf: url) else {
+        // Turned upright by the photo's own orientation (5.8): without `.applyOrientationProperty` a portrait iPhone photo is
+        // read as the sensor stored it, on its side, and Vision reads sideways text badly or not at all.
+        guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]) else {
             Log.error("[DocumentProcessor] Failed to load image: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.imageLoadFailed
         }

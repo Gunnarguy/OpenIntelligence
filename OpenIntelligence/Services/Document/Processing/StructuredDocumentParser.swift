@@ -424,7 +424,7 @@ struct TableData: Sendable {
     ///                           → [("Material", "Grade A2-70")]
     ///   - Multi-column with headers: Headers: [Component, Type, Rating]
     ///                                Row: [Motor, Brushless, 500W]
-    ///                                → [("Component", "Motor"), ("Type", "Brushless"), ("Rating", "500W")]
+    ///                                → [("Motor Type", "Brushless"), ("Motor Rating", "500W")]
     nonisolated var keyValuePairs: [(key: String, value: String)]? {
         guard !rows.isEmpty else { return nil }
 
@@ -462,11 +462,15 @@ struct TableData: Sendable {
             return nil
         }
 
-        // Use headers as keys for each cell value
+        // Each later cell keyed by its row's label and its column (5.8): ("DHA Daily Dose", "1-2 g"). Keyed by the
+        // column alone, every row's "Daily Dose" came out as its own pair with no row, so a table passage's
+        // "[Specifications]" lines and its summary gave values without saying which row they belong to.
         for row in dataRows {
-            for (colIndex, header) in headers.enumerated() {
+            let label = row.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            for (colIndex, header) in headers.enumerated() where colIndex > 0 {
                 guard colIndex < row.count else { continue }
-                let key = header.trimmingCharacters(in: .whitespacesAndNewlines)
+                let column = header.trimmingCharacters(in: .whitespacesAndNewlines)
+                let key = [label, column].filter { !$0.isEmpty }.joined(separator: " ")
                 let value = row[colIndex].trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !key.isEmpty && !value.isEmpty else { continue }
                 pairs.append((key: key, value: value))
@@ -559,6 +563,13 @@ struct StructuredPageContent: Sendable {
 }
 
 /// Service for structure-aware document parsing using iOS 26+ Vision APIs
+/// A word of a PDF page's text layer with its box in Vision's normalized coordinates (origin bottom left, 0 to 1 over
+/// the page's crop box), so a table cell Vision found can be read from the page's own characters (5.8).
+struct TextLayerWord: Sendable, Equatable {
+    let text: String
+    let box: CGRect
+}
+
 @available(iOS 26.0, *)
 actor StructuredDocumentParser {
 
@@ -633,7 +644,8 @@ actor StructuredDocumentParser {
         customWords: [String],
         recognitionLanguages: [String]? = nil,
         nativeWordCount: Int? = nil,
-        preferFullResolution: Bool = false
+        preferFullResolution: Bool = false,
+        textLayerWords: [TextLayerWord]? = nil
     ) async throws -> StructuredPageContent {
         let startTime = Date()
 
@@ -718,7 +730,7 @@ actor StructuredDocumentParser {
                 return nil
             }
 
-            return await self.makeStructuredDocumentSnapshot(from: document, pageNumber: pageNumber, sourceImage: preferFullResolution ? image : structureImage)
+            return await self.makeStructuredDocumentSnapshot(from: document, pageNumber: pageNumber, sourceImage: preferFullResolution ? image : structureImage, textLayerWords: textLayerWords)
         }
 
         guard let structuredSnapshot else {
@@ -805,7 +817,7 @@ actor StructuredDocumentParser {
         )
     }
 
-    private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int, sourceImage: CIImage) async -> StructuredDocumentSnapshot {
+    private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int, sourceImage: CIImage, textLayerWords: [TextLayerWord]? = nil) async -> StructuredDocumentSnapshot {
         var elements: [StructuredElement] = []
         var figureReferences: [String] = []
         let figureCount = 0
@@ -830,8 +842,15 @@ actor StructuredDocumentParser {
             #"(?i)refer\s+to\s+(?:the\s+)?(?:figure|diagram|image)"#
         ]
 
+        // A table's caption is its own "Table N." line when the page has one (5.8): the page title Vision reports is
+        // the page's, and a paper's tables took the journal's masthead or a section heading as their title.
+        let captionCandidates: [(text: String, box: CGRect)] = document.paragraphs.map {
+            ($0.transcript, $0.boundingRegion.normalizedPath.boundingBox)
+        }
         for table in document.tables {
-            let tableData = parseTable(table, pageNumber: pageNumber, caption: pageTitle)
+            let ownCaption = Self.tableCaption(
+                tableBox: table.boundingRegion.normalizedPath.boundingBox, paragraphs: captionCandidates)
+            let tableData = parseTable(table, pageNumber: pageNumber, caption: ownCaption ?? pageTitle, textLayerWords: textLayerWords)
             elements.append(.table(tableData))
             Log.debug("[StructuredDocumentParser] Found table with \(tableData.rows.count) rows on page \(pageNumber)", category: .ingestion)
         }
@@ -925,20 +944,94 @@ actor StructuredDocumentParser {
         return false
     }
 
+    /// The text-layer words whose centre lies in `box` (Vision's normalized coordinates, origin bottom left), in reading
+    /// order: top line first, left to right. Nil when none does.
+    nonisolated static func textLayerText(in box: CGRect, words: [TextLayerWord]) -> String? {
+        let inside = words.filter { box.contains(CGPoint(x: $0.box.midX, y: $0.box.midY)) }
+        guard !inside.isEmpty else { return nil }
+        let lineTolerance = (inside.map(\.box.height).max() ?? 0) * 0.5
+        let ordered = inside.sorted { a, b in
+            if abs(a.box.midY - b.box.midY) > lineTolerance { return a.box.midY > b.box.midY }
+            return a.box.minX < b.box.minX
+        }
+        return ordered.map(\.text).joined(separator: " ")
+    }
+
+    /// Whether a cell's text-layer reading and Vision's reading are the same cell: their characters, case, spacing and
+    /// dash forms ignored, at most half different by edit distance ("1-2g" against "1-28", "3624" against "3024").
+    /// Vision's empty reading always yields to the text layer.
+    nonisolated static func textLayerAgrees(_ layer: String, withVision vision: String) -> Bool {
+        func folded(_ text: String) -> [Character] {
+            Array(
+                text.lowercased()
+                    .replacingOccurrences(of: "\u{2013}", with: "-").replacingOccurrences(of: "\u{2014}", with: "-")
+                    .filter { !$0.isWhitespace })
+        }
+        let a = folded(layer), b = folded(vision)
+        guard !a.isEmpty else { return false }
+        guard !b.isEmpty else { return true }
+        if a == b { return true }
+        var previous = Array(0...b.count)
+        for i in 1...a.count {
+            var current = [i] + Array(repeating: 0, count: b.count)
+            for j in 1...b.count {
+                current[j] = min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1))
+            }
+            previous = current
+        }
+        return Double(previous[b.count]) / Double(max(a.count, b.count)) <= 0.5
+    }
+
+    /// The paragraph that captions a table: a line that starts "Table N" (or "Tab. N", "TABLE IV"), the nearest one above
+    /// the table, else the nearest one below, within a fifth of the page. Boxes are Vision's normalized ones, origin at the
+    /// bottom left. Nil when no such line is near (5.8).
+    nonisolated static func tableCaption(tableBox: CGRect, paragraphs: [(text: String, box: CGRect)]) -> String? {
+        let pattern = #"^(?:Table|TABLE|Tab\.)\s*(?:[0-9]+|[IVXLC]+)[A-Za-z]?\b"#
+        let maxGap: CGFloat = 0.2
+        var above: (gap: CGFloat, text: String)?
+        var below: (gap: CGFloat, text: String)?
+        for paragraph in paragraphs {
+            let text = paragraph.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text.range(of: pattern, options: .regularExpression) != nil else { continue }
+            let horizontalOverlap = min(paragraph.box.maxX, tableBox.maxX) - max(paragraph.box.minX, tableBox.minX)
+            guard horizontalOverlap > 0 else { continue }
+            let gapAbove = paragraph.box.minY - tableBox.maxY
+            let gapBelow = tableBox.minY - paragraph.box.maxY
+            if gapAbove >= -0.01, gapAbove <= maxGap, above.map({ gapAbove < $0.gap }) ?? true {
+                above = (gapAbove, text)
+            } else if gapBelow >= -0.01, gapBelow <= maxGap, below.map({ gapBelow < $0.gap }) ?? true {
+                below = (gapBelow, text)
+            }
+        }
+        let caption = (above ?? below)?.text.replacingOccurrences(of: "\n", with: " ")
+        return caption.map { String($0.prefix(200)) }
+    }
+
     // MARK: - Private Helpers
 
-    private func parseTable(_ table: DocumentObservation.Container.Table, pageNumber: Int, caption: String? = nil) -> TableData {
+    private func parseTable(_ table: DocumentObservation.Container.Table, pageNumber: Int, caption: String? = nil, textLayerWords: [TextLayerWord]? = nil) -> TableData {
         var rows: [[String]] = []
         var detectedEntities: [DetectedEntity] = []
 
         var garbledCellCount = 0
         var totalCellCount = 0
+        var cellsFromTextLayer = 0
 
         for row in table.rows {
             var cellTexts: [String] = []
             for cell in row {
                 var text = normalizeTableCellText(cell.content.text.transcript)
                 totalCellCount += 1
+                // A page with a good text layer gives the cell's exact characters (5.8): Vision reads them off the
+                // rendered page and misreads digits ("3624" as "3024"). The text layer is used when it agrees with
+                // what Vision read, or when Vision read nothing; a disagreeing read keeps Vision's.
+                if let words = textLayerWords, !words.isEmpty,
+                    let layerText = Self.textLayerText(in: cell.content.boundingRegion.normalizedPath.boundingBox, words: words),
+                    Self.textLayerAgrees(layerText, withVision: text)
+                {
+                    text = normalizeTableCellText(layerText)
+                    cellsFromTextLayer += 1
+                }
 
                 if !text.isEmpty {
                     // Step 1: Fix Cyrillic→Latin substitutions (common Vision OCR error)
@@ -965,6 +1058,10 @@ actor StructuredDocumentParser {
                 detectedEntities.append(contentsOf: cellEntities)
             }
             rows.append(cellTexts)
+        }
+
+        if cellsFromTextLayer > 0 {
+            Log.info("[StructuredDocumentParser] Table on page \(pageNumber): \(cellsFromTextLayer) of \(totalCellCount) cells read from the text layer", category: .ingestion)
         }
 
         rows = mergeWrappedContinuationRows(in: rows, pageNumber: pageNumber)
@@ -1860,21 +1957,23 @@ actor StructuredDocumentParser {
     }
 
     /// Clean up common OCR errors in text
-    nonisolated private func cleanOCRText(_ text: String) -> String {
+    nonisolated func cleanOCRText(_ text: String) -> String {
         var cleaned = text
 
-        // Common OCR substitutions - fix obvious errors
-        let substitutions: [(pattern: String, replacement: String)] = [
+        // Common OCR substitutions - fix obvious errors. Case-sensitive, and a lone lowercase "l" only (5.8): with
+        // `.caseInsensitive` the first rule also rewrote a capital L, so "L4-L5" became "14-15" and "Lot L1234" became
+        // "Lot 11234", and "ml5" became "m15".
+        let substitutions: [(pattern: String, replacement: String, options: NSRegularExpression.Options)] = [
             // Letter-number confusion
-            (#"(?<![A-Z])l(?=\d)"#, "1"),           // 'l' before digit → '1'
-            (#"(?<=\d)O(?=\d)"#, "0"),              // 'O' between digits → '0'
-            (#"(?<=\d)l(?=\d)"#, "1"),              // 'l' between digits → '1'
+            (#"(?<![A-Za-z])l(?=\d)"#, "1", []),           // a lone 'l' before a digit → '1'
+            (#"(?<=\d)O(?=\d)"#, "0", []),                 // 'O' between digits → '0'
+            (#"(?<=\d)l(?=\d)"#, "1", []),                 // 'l' between digits → '1'
             // Common word fixes (conservative)
-            (#"\bthe\s+the\b"#, "the"),             // doubled "the"
+            (#"\bthe\s+the\b"#, "the", [.caseInsensitive]),  // doubled "the"
         ]
 
-        for (pattern, replacement) in substitutions {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+        for (pattern, replacement, options) in substitutions {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: options) {
                 let range = NSRange(cleaned.startIndex..., in: cleaned)
                 cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: replacement)
             }

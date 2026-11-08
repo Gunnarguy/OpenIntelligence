@@ -233,7 +233,60 @@ extension DocumentProcessor {
     /// Extract text from Word XML with table, list, and run-spacing support.
     /// Parses `<w:tbl>` → `<w:tr>` → `<w:tc>` hierarchy for tables.
     /// Joins `<w:t>` runs within a paragraph with proper whitespace.
-    private func extractTextFromWordXML(_ xml: String) -> String {
+    /// The XML's five named entities and numeric character references as characters (5.8): "&amp;" and "&lt;" were stored
+    /// as written.
+    nonisolated static func decodingXMLEntities(_ text: String) -> String {
+        guard text.contains("&") else { return text }
+        var result = text
+        if let regex = try? NSRegularExpression(pattern: "&#(x[0-9A-Fa-f]+|[0-9]+);") {
+            for match in regex.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
+                guard let range = Range(match.range, in: result), let codeRange = Range(match.range(at: 1), in: result)
+                else { continue }
+                let code = String(result[codeRange])
+                let value = code.hasPrefix("x") ? UInt32(code.dropFirst(), radix: 16) : UInt32(code)
+                if let value, let scalar = Unicode.Scalar(value) { result.replaceSubrange(range, with: String(Character(scalar))) }
+            }
+        }
+        for (entity, character) in [("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&apos;", "'"), ("&amp;", "&")] {
+            result = result.replacingOccurrences(of: entity, with: character)
+        }
+        return result
+    }
+
+    /// Word run elements that stand for text, rewritten as `<w:t>` runs so the text readers below see them.
+    nonisolated static func wordXMLWithInlineText(_ xml: String) -> String {
+        var result = xml
+        result = result.replacingOccurrences(of: #"<w:noBreakHyphen\s*/>"#, with: "<w:t>-</w:t>", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"<w:softHyphen\s*/>"#, with: "", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"<w:tab\s*/>"#, with: "<w:t xml:space=\"preserve\"> </w:t>", options: .regularExpression)
+        // Symbol-font characters, by their Symbol encoding (the PUA code minus 0xF000).
+        let symbolFont: [String: String] = [
+            "B1": "±", "B3": "≥", "A3": "≤", "B0": "°", "D7": "×", "B8": "÷", "6D": "µ", "61": "α", "62": "β", "67": "γ",
+            "64": "δ", "6C": "λ", "73": "σ", "70": "π", "57": "Ω", "AE": "→", "DE": "⇒", "BB": "≈", "B9": "≠", "A5": "∞",
+        ]
+        if let symbol = try? NSRegularExpression(pattern: #"<w:sym\b[^>]*w:char="(?:F0)?([0-9A-Fa-f]{2})"[^>]*/>"#) {
+            for match in symbol.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
+                guard let range = Range(match.range, in: result), let codeRange = Range(match.range(at: 1), in: result)
+                else { continue }
+                let character = symbolFont[result[codeRange].uppercased()] ?? ""
+                result.replaceSubrange(range, with: character.isEmpty ? "" : "<w:t>\(character)</w:t>")
+            }
+        }
+        // A superscript run's text is marked "^" so "10<sup>3</sup>" reads "10^3", not "103".
+        if let superscript = try? NSRegularExpression(
+            pattern: #"(<w:r\b(?:(?!</w:r>).)*?<w:vertAlign w:val="superscript"\s*/>(?:(?!</w:r>).)*?<w:t\b[^>]*>)"#,
+            options: [.dotMatchesLineSeparators])
+        {
+            result = superscript.stringByReplacingMatches(
+                in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "$1^")
+        }
+        return result
+    }
+
+    func extractTextFromWordXML(_ rawXML: String) -> String {
+        // Run elements other than <w:t> that carry text, written as text first (5.8): a non-breaking hyphen
+        // ("1‑2" became "12"), a tab (words fused), a Symbol-font character (± ≥ µ were lost) and superscript runs.
+        let xml = Self.wordXMLWithInlineText(rawXML)
         var result = ""
 
         // STEP 1: Extract tables separately and replace them with placeholders
@@ -308,7 +361,7 @@ extension DocumentProcessor {
                 var runs: [String] = []
                 runRegex.enumerateMatches(in: processed, options: [], range: runRange) { runMatch, _, _ in
                     if let runMatch = runMatch, let textRange = Range(runMatch.range(at: 1), in: processed) {
-                        runs.append(String(processed[textRange]))
+                        runs.append(Self.decodingXMLEntities(String(processed[textRange])))
                     }
                 }
 
@@ -362,7 +415,7 @@ extension DocumentProcessor {
                 let textRange = NSRange(cellStr.startIndex..., in: cellStr)
                 textRegex.enumerateMatches(in: cellStr, options: [], range: textRange) { textMatch, _, _ in
                     if let textMatch = textMatch, let tRange = Range(textMatch.range(at: 1), in: cellStr) {
-                        cellText.append(String(cellStr[tRange]))
+                        cellText.append(Self.decodingXMLEntities(String(cellStr[tRange])))
                     }
                 }
                 cells.append(cellText.joined().trimmingCharacters(in: .whitespaces))
@@ -528,7 +581,7 @@ extension DocumentProcessor {
 
     /// Extract text from PowerPoint slide XML with paragraph and table awareness
     /// Preserves `<a:p>` paragraph boundaries, extracts `<a:tbl>` tables as pipe-separated
-    private func extractTextFromPowerPointSlide(_ xml: String) -> String {
+    func extractTextFromPowerPointSlide(_ xml: String) -> String {
         var result = ""
 
         // STEP 1: Extract tables and replace with placeholders
@@ -545,7 +598,9 @@ extension DocumentProcessor {
                 if let matchRange = Range(match.range, in: processedXML) {
                     let tableXML = String(processedXML[matchRange])
                     let tableText = extractTableFromPowerPointXML(tableXML)
-                    let placeholder = "\n[[PPTTABLE_\(tableTexts.count)]]\n"
+                    // Inside a paragraph, as for Word (5.8): a bare placeholder sat outside every <a:p> that STEP 2
+                    // reads, so every table on every slide was extracted and then dropped.
+                    let placeholder = "\n<a:p><a:r><a:t>[[PPTTABLE_\(tableTexts.count)]]</a:t></a:r></a:p>\n"
                     tableTexts.append(tableText)
                     processedXML.replaceSubrange(matchRange, with: placeholder)
                 }
@@ -569,15 +624,14 @@ extension DocumentProcessor {
                 let tRange = NSRange(paraContent.startIndex..., in: paraContent)
                 textRegex.enumerateMatches(in: paraContent, options: [], range: tRange) { tMatch, _, _ in
                     if let tMatch = tMatch, let textRange = Range(tMatch.range(at: 1), in: paraContent) {
-                        let content = String(paraContent[textRange])
-                        if !content.trimmingCharacters(in: .whitespaces).isEmpty {
-                            runs.append(content)
-                        }
+                        // A run of only spaces is kept: it is the space between two words in different runs.
+                        runs.append(Self.decodingXMLEntities(String(paraContent[textRange])))
                     }
                 }
 
-                if !runs.isEmpty {
-                    result += runs.joined() + "\n"
+                let joined = runs.joined()
+                if !joined.trimmingCharacters(in: .whitespaces).isEmpty {
+                    result += joined + "\n"
                 }
             }
         }

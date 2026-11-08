@@ -729,6 +729,11 @@ extension RAGService {
 
         // Access response text safely
         Log.debug("  Response length: \(responseText.count) chars", category: .llm)
+        #if DEBUG
+            // Development builds record the answer's opening so a run can be reviewed from the trace; the question is
+            // already in "Query received". Release builds never write it.
+            Log.debug("  Response text: \(String(responseText.prefix(400)).replacingOccurrences(of: "\n", with: " ⏎ "))", category: .llm)
+        #endif
         Log.debug("  Words: \(responseWordCount)", category: .llm)
 
         if llmResponse.tokensGenerated > 0 {

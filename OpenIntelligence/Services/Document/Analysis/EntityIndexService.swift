@@ -28,8 +28,10 @@
 //  ## Integration
 //
 //  - `SemanticChunker.extractEntities()` populates `ChunkMetadata.entities`
-//  - `RAGService.ingestDocument()` calls `EntityIndexService.indexChunk()`
-//  - `AgenticOrchestrator.executeGraphExpansion()` uses `chunksForEntity()` for 2-hop retrieval
+//  - Nothing calls `indexChunk()` or `indexChunks()` outside this file (checked 2026-11-08), so the import never fills
+//    this index and `chunksForEntity()` finds nothing; the header used to say `RAGService.ingestDocument()` called it,
+//    and no such call exists. Filling it, or removing it, is roadmap row "Ingestion and index comments contradict the
+//    code, and the entity index is never filled".
 //
 //  See also:
 //  - SemanticChunker.swift (entity extraction)

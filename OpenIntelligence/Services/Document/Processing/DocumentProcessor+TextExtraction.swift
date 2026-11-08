@@ -72,8 +72,17 @@ extension DocumentProcessor {
         // Code files - Preserve as-is with syntax
         // NOTE: .xml is handled separately above for large files (streaming path)
         // Small XML files (<50 MB) still go through extractTextFromCode here.
+        // A web page saved as a file is read as its text, as a fetched page is (5.8): through 5.7 it was kept as markup,
+        // tags and undecoded entities included, so a search for its words met "&amp;" and "<td>".
+        case .html:
+            let html = try extractTextFromCode(url: url)
+            let readable = WebPageFetchService.readableText(fromHTML: html)
+            let pageText = [readable.title, readable.text].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+            text = pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? html : pageText
+            pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
+
         case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
-             .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
+             .go, .rust, .ruby, .php, .css, .json, .xml, .yaml, .sql, .shell, .code:
             Log.debug("[DocumentProcessor] Code file detected; preserving syntax", category: .ingestion)
             text = try extractTextFromCode(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])

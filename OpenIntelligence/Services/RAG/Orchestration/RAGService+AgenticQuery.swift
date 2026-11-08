@@ -145,7 +145,19 @@ extension RAGService {
             precisionChunks: [RetrievedChunk],
             retrievalTime: TimeInterval,
             strategy: String
-        ) async -> RAGResponse {
+        ) async -> RAGResponse? {
+            // A value lifted from a source skips the whole reasoning run, so it has to answer the question: a page
+            // range or a table cell can match "how much" and say nothing (`AnswerResponsivenessJudge`). One that does
+            // not answer falls through to the full run.
+            let directJudgment = await judgeResponsiveness(question: question, answer: directAnswer, stage: "extracted")
+            if directJudgment?.verdict == AnswerResponsiveness.none {
+                emitThinkingEvent(
+                    .retrieval,
+                    title: "Exact value set aside",
+                    detail: "It doesn't answer the question; reasoning it out instead"
+                )
+                return nil
+            }
             emitThinkingEvent(
                 .generation,
                 title: "Direct answer locked",
@@ -199,6 +211,14 @@ extension RAGService {
                         : min(precisionConfidence, max(sourceOnlyOutcome.fidelityScore, 0.75))
                 }
             #endif
+
+            let precisionJudgment =
+                precisionAnswer == directAnswer
+                ? directJudgment
+                : await judgeResponsiveness(question: question, answer: precisionAnswer, stage: "final")
+            if let precisionJudgment {
+                gatingDecision = appendedGatingDecision(gatingDecision, precisionJudgment.gatingToken)
+            }
 
             let metadata = ResponseMetadata(
                 timeToFirstToken: retrievalTime,
@@ -754,11 +774,20 @@ extension RAGService {
 
             let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
             let generatedAgenticAnswer = repairMalformedURLs(cleanupResponseText(result.finalAnswer))
-            let extractiveAgenticAnswer = await highPrecisionLookupOverrideAnswer(
+            var extractiveAgenticAnswer = await highPrecisionLookupOverrideAnswer(
                 question: question,
                 answerIntent: agenticAnswerIntent,
                 retrievedChunks: result.retrievedChunks
             )
+            // The run's own answer stands when the extracted value does not answer the question (5.8): a value lifted
+            // from a source can be a page range or a table cell of another row.
+            if let extracted = extractiveAgenticAnswer,
+                await judgeResponsiveness(question: question, answer: extracted, stage: "extracted")?.verdict
+                    == AnswerResponsiveness.none
+            {
+                Log.info("[Responsiveness] The extracted value does not answer the question; keeping the run's answer", category: .llm)
+                extractiveAgenticAnswer = nil
+            }
             let baseAgenticAnswer = extractiveAgenticAnswer ?? generatedAgenticAnswer
             var agenticAnswer = baseAgenticAnswer
             var agenticWarnings: [String] = []
@@ -830,6 +859,18 @@ extension RAGService {
                 fallback: agenticAnswer,
                 structuredAnswer: structuredAnswer
             )
+            // Whether the answer shown answers the question (5.8, `AnswerResponsivenessJudge`). Deep Think and Maximum
+            // are labelled and not rewritten: their answer took minutes, and the verdict goes on the badge and warnings.
+            if let judgment = await judgeResponsiveness(question: question, answer: displayResponseText, stage: "final") {
+                // With no check behind the answer, only a "none" is written: "answers:full" alone would turn an
+                // answer that `ReviewPromptService` counts as verified (no string, sources found) into Not Checked.
+                if gatingDecision != nil || judgment.verdict == .none {
+                    gatingDecision = appendedGatingDecision(gatingDecision, judgment.gatingToken)
+                }
+                if judgment.verdict != .full, !judgment.missing.isEmpty {
+                    agenticWarnings.append("May not fully answer the question: \(judgment.missing)")
+                }
+            }
             // Fact Check for the claims the answer lists (5.8, 2026-11-07), after the displayed text is fixed so the
             // answer the user reads is unchanged. Only where the gates ran: the source-only check builds its own.
             if ranAgenticGates {

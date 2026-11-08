@@ -188,7 +188,9 @@ private struct MoreChip: View {
 // MARK: - Data Model
 
 private struct ChipData: Identifiable {
-    let id = UUID()
+    /// The source's position in the answer, stable from one draw to the next (5.8). A `UUID()` made here gave every
+    /// chip a new identity on each redraw, so SwiftUI rebuilt every chip whenever the bubble redrew.
+    var id: Int { index }
     let index: Int
     let percent: Double
     let tint: Color

@@ -45,7 +45,8 @@
     {"path": "OpenIntelligenceTests/Features/Chat/SourcePageViewTests.swift", "role": "test", "blob": "fe95d865275782557a687f52658181390347ee4e"},
     {"path": "OpenIntelligenceTests/Features/Chat/SourceTextViewTests.swift", "role": "test", "blob": "6334537443852311e317b0e718155ca79273bed2"},
     {"path": "OpenIntelligenceTests/Services/RAG/Orchestration/CitationLabelNumberingTests.swift", "role": "test", "blob": "e21a09215311ca413c4ab7f015ffe3c8573f23b9"},
-    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"}
+    {"path": "OpenIntelligence/Features/Chat/Conversation/ChatScreen+Body.swift", "role": "shared", "blob": "c69e14b83b8591ed7d19db2a3b2dfd89b727673c"},
+    {"path": "OpenIntelligenceTests/Features/Chat/SourceFidelityLevelTests.swift", "role": "test", "blob": "106ed7723d385b7c7a48f1b0efe4932c6a6d9785"}
   ],
   "nodes": [
     {"id": "GroundedAnswerView", "kind": "view", "path": "OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift", "line": 8, "match": "struct GroundedAnswerView: View {", "status": "VERIFIED", "by": "build"},

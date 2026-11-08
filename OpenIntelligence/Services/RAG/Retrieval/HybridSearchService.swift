@@ -7,7 +7,8 @@
 //  ## Architecture
 //
 //  Two fully independent ranked result lists run in parallel:
-//  1. Vector search (HNSW index) → ranked by cosine similarity
+//  1. Vector search (every stored vector scored, `BNNSVectorDatabase.search`: Metal on large libraries, Accelerate
+//     otherwise; there is no HNSW or other approximate index) → ranked by cosine similarity
 //  2. FTS5 search (SQLite native bm25()) → ranked at chunk granularity
 //
 //  Reciprocal Rank Fusion merges the UNION of both sets — a chunk found
@@ -1195,7 +1196,7 @@ class HybridSearchService {
     /// vector search missed entirely were invisible unless they happened to land in FTS5 results.
     ///
     /// New approach runs two fully independent searches in parallel:
-    /// 1. **Vector search** — semantic similarity via HNSW index
+    /// 1. **Vector search** — semantic similarity, every stored vector scored (no approximate index)
     /// 2. **FTS5 search** — native SQLite `bm25()` at chunk granularity
     ///
     /// Both produce independently ranked result lists. `reciprocalRankFusion()` merges the

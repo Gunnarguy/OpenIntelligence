@@ -657,6 +657,36 @@ enum OCRConfiguration {
     /// chunking/embedding pipeline. OCR/PDF-derived content uses the full
     /// repair pipeline; authored text files use a conservative profile that
     /// avoids content-mutating OCR repairs.
+    /// Superscript runs as "^" and subscript runs as "_" followed by their plain characters ("10³" → "10^3",
+    /// "H₂O" → "H_2O"), so compatibility normalization cannot fuse them into the number before them (5.8).
+    nonisolated static func markingScriptsAndFractions(_ text: String) -> String {
+        let superscripts: [Character: Character] = [
+            "\u{2070}": "0", "\u{00B9}": "1", "\u{00B2}": "2", "\u{00B3}": "3", "\u{2074}": "4", "\u{2075}": "5",
+            "\u{2076}": "6", "\u{2077}": "7", "\u{2078}": "8", "\u{2079}": "9", "\u{207A}": "+", "\u{207B}": "-",
+            "\u{207F}": "n",
+        ]
+        let subscripts: [Character: Character] = [
+            "\u{2080}": "0", "\u{2081}": "1", "\u{2082}": "2", "\u{2083}": "3", "\u{2084}": "4", "\u{2085}": "5",
+            "\u{2086}": "6", "\u{2087}": "7", "\u{2088}": "8", "\u{2089}": "9", "\u{208A}": "+", "\u{208B}": "-",
+        ]
+        guard text.contains(where: { superscripts[$0] != nil || subscripts[$0] != nil }) else { return text }
+        var out = ""
+        var mode: Character? = nil
+        for character in text {
+            if let plain = superscripts[character] {
+                if mode != "^" { out.append("^"); mode = "^" }
+                out.append(plain)
+            } else if let plain = subscripts[character] {
+                if mode != "_" { out.append("_"); mode = "_" }
+                out.append(plain)
+            } else {
+                mode = nil
+                out.append(character)
+            }
+        }
+        return out
+    }
+
     nonisolated static func normalizeExtractedText(
         _ text: String,
         profile: TextNormalizationProfile = .extractedDocument
@@ -678,8 +708,12 @@ enum OCRConfiguration {
         }
 
         // 1. Unicode NFKC: decomposes compatibility forms + recomposes canonical.
-        //    Fixes ligatures (ﬁ→fi), fullwidth chars (Ａ→A), superscripts, etc.
-        var result = text.precomposedStringWithCompatibilityMapping  // NFKC
+        //    Fixes ligatures (ﬁ→fi), fullwidth chars (Ａ→A), etc. Superscripts and subscripts are written as "^" and "_"
+        //    first (5.8): NFKC turns "10³" into "103", "x10⁹/L" into "x109/L" and a footnote marker "250¹" into "2501",
+        //    each a different number. A soft hyphen at a line end joins the word before it is removed.
+        var result = Self.markingScriptsAndFractions(text).precomposedStringWithCompatibilityMapping  // NFKC
+        result = result.replacingOccurrences(of: "\u{2044}", with: "/")
+        result = result.replacingOccurrences(of: #"\u00AD[ \t]*\n[ \t]*"#, with: "", options: .regularExpression)
 
         // 2. Remove zero-width characters that break BertTokenizer
         let zeroWidthChars: [Character] = [
@@ -1122,9 +1156,34 @@ enum OCRConfiguration {
     ///
     /// Only removes entire lines — never modifies partial lines. This ensures
     /// no real content is accidentally stripped.
+    /// The indexes of lines at a page's edge: the first and last two non-empty lines of the text and of each page
+    /// marked inside it ("--- Page N ---" or a form feed), where page numbers and running references are printed.
+    nonisolated static func pageEdgeLineIndexes(_ lines: [String]) -> Set<Int> {
+        var edges = Set<Int>()
+        var segment: [Int] = []
+        func close() {
+            edges.formUnion(segment.prefix(2))
+            edges.formUnion(segment.suffix(2))
+            segment.removeAll()
+        }
+        for (index, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.contains("\u{000C}") || trimmed.range(of: #"^-{2,}\s*Page \d+\s*-{2,}$"#, options: .regularExpression) != nil {
+                close()
+                continue
+            }
+            if !trimmed.isEmpty { segment.append(index) }
+        }
+        close()
+        return edges
+    }
+
     private nonisolated static func stripDocumentNoise(_ text: String) -> String {
         let lines = text.components(separatedBy: "\n")
-        let cleaned = lines.compactMap { line -> String? in
+        // Page numbers and running references are only removed at a page's edge (5.8): anywhere else a line that is
+        // only "120", "120 80", "1-2" or "4-38" is usually a table cell PDFKit printed on its own line.
+        let edges = pageEdgeLineIndexes(lines)
+        let cleaned = lines.enumerated().compactMap { index, line -> String? in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             // Preserve blank lines (paragraph structure matters for chunking)
@@ -1134,13 +1193,13 @@ enum OCRConfiguration {
             //    ONQ5011001N, OCV031071, ONQ5021120N_2, etc.
             if isStandaloneAssetCode(trimmed) { return nil }
 
-            // 2. Remove orphan compound page number annotations
+            // 2. Remove orphan compound page number annotations at a page's edge
             //    "2 2", "3 - 5", "2-", "2 — 7", standalone "42"
-            if isOrphanPageAnnotation(trimmed) { return nil }
+            if edges.contains(index), isOrphanPageAnnotation(trimmed) { return nil }
 
-            // 3. Remove standalone cross-reference page clusters
+            // 3. Remove standalone cross-reference page clusters at a page's edge
             //    "4-38", "4-93, 8-54", "8-29, 9-6"
-            if isCrossReferenceCluster(trimmed) { return nil }
+            if edges.contains(index), isCrossReferenceCluster(trimmed) { return nil }
 
             // 4. Clean TOC leader dots (reformat, don't remove)
             //    "Fuel requirements .........  1-2" → "Fuel requirements 1-2"

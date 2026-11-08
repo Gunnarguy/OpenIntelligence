@@ -75,6 +75,8 @@ final class SourceOnlyVerdictTests: XCTestCase {
                 similarityScore: 0.8, rank: i + 1, sourceDocument: "flat-\(i).md", pageNumber: nil)
         }
         let service = SourceOnlyAnswerService.shared
+        // The coverage needs the model's window; without Apple Intelligence (a fresh Simulator) it is nil by design.
+        guard service.isAvailable else { throw XCTSkip("Apple Intelligence is not available on this device") }
         let long = String(repeating: "The boiler is serviced every March by the building's own engineer, who signs the log. ", count: 80)
         let short = "The boiler is serviced every March."
         let longCoverage = try XCTUnwrap(

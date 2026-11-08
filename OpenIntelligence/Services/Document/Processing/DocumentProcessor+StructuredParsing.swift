@@ -571,7 +571,8 @@ extension DocumentProcessor {
                             customWords: capturedCustomWords,
                             recognitionLanguages: capturedLanguages,
                             nativeWordCount: nativeCount,
-                            preferFullResolution: renderData.preferHighResolutionStructure
+                            preferFullResolution: renderData.preferHighResolutionStructure,
+                            textLayerWords: isGarbled ? nil : renderData.textLayerWords
                         )
 
                         var elements: [StructuredElementWrapper] = []
@@ -1214,14 +1215,22 @@ extension DocumentProcessor {
                 )
             }
 
-            batchRenderData.append(PageRenderData(
+            var renderData = PageRenderData(
                 pageIndex: pageIndex,
                 pageImage: pageImage,
                 plainText: plainText,
                 layoutText: layoutText,
                 layoutTables: [],
                 preferHighResolutionStructure: preferHighResolutionStructure
-            ))
+            )
+            // Every Vision page whose text layer is good keeps its words, so the cells of any table Vision finds are read
+            // from the page's own characters (5.8, `StructuredDocumentParser.textLayerText`). Limited at first to pages
+            // the complexity scan marked as tables; on the owner's iPhone on 2026-11-08 that scan missed the paper's
+            // Table 1, Vision found it anyway, and its "1-2 g" was stored as OCR read it, "1-28".
+            if pageImage != nil, !documentTextLayerGarbled, !textLayerUnreadableByVision, hasText {
+                renderData.textLayerWords = textLayerWords(of: page)
+            }
+            batchRenderData.append(renderData)
         }
     }
 
@@ -1395,6 +1404,9 @@ extension DocumentProcessor {
         let layoutText: String?  // Layout-aware extracted text
         let layoutTables: [TableRegion]
         let preferHighResolutionStructure: Bool
+        /// The text layer's words, for reading table cells from the page's own characters (5.8); empty when the layer is
+        /// garbled, unreadable to Vision, rotated, or the page shows no table.
+        var textLayerWords: [TextLayerWord] = []
     }
 
     // Result container for parallel processing

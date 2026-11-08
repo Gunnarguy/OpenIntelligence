@@ -518,7 +518,8 @@ extension RAGService: RAGToolHandler {
         // Final retrieval summary
         await onDetailedEvent?(.retrieval, "Retrieval complete", "\(enrichedChunks.count) chunks ready for synthesis")
 
-        return enrichedChunks
+        // A table summary lists two rows; the table itself takes its place (5.8, `withTablesForSummaries`).
+        return Self.withTablesForSummaries(enrichedChunks, allChunks: allChunks)
     }
 
     /// Search and return raw chunks for agentic orchestrator (not just formatted string)
@@ -607,7 +608,8 @@ extension RAGService: RAGToolHandler {
                 ))
         }
 
-        return enrichedChunks
+        // A table summary lists two rows; the table itself takes its place (5.8, `withTablesForSummaries`).
+        return Self.withTablesForSummaries(enrichedChunks, allChunks: allChunks)
     }
 
     /// Agentic search with optional topK and minSimilarity (called by Function Calling)

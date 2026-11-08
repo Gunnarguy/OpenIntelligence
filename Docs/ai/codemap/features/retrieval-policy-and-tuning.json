@@ -20,7 +20,8 @@
     {"path": "OpenIntelligence/Services/RAG/Tuning/EvidenceLineSplitter.swift", "role": "primary", "blob": "fa2ae353c40d7b2bfb339c474a5ad03ee5e4d083"},
     {"path": "OpenIntelligenceTests/Services/RAG/Tuning/EvidenceLineSplitterTests.swift", "role": "test", "blob": "29bc67244f85b1162d50da3d517c1ef131715ce4"},
     {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryRetrieval.swift", "role": "shared", "blob": "d4790d2ff4fcd6fd198ef9a1669be3964674c5e8"},
-    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "role": "shared", "blob": "15d063d5429595b4923629acd8c7867d8a5be6c8"}
+    {"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "role": "shared", "blob": "15d063d5429595b4923629acd8c7867d8a5be6c8"},
+    {"path": "OpenIntelligenceTests/Services/RAG/Retrieval/VocabularyMergeTests.swift", "role": "test", "blob": "1b22c24594f1076486e5f66b5ff143cabbb02d4f"}
   ],
   "nodes": [
     {"id": "AgenticPolicyService", "kind": "service", "path": "OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift", "line": 98, "match": "enum AgenticPolicyService {", "status": "VERIFIED", "by": "build"},

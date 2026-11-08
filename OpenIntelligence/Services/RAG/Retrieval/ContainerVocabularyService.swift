@@ -78,6 +78,13 @@ actor ContainerVocabularyService {
 
     private var vocabularies: [UUID: ContainerVocabulary] = [:]
     private let storageURL: URL
+    /// One tagger per scheme and one compiled pattern for the whole service (5.8). Each passage built two `NLTagger`s
+    /// and compiled the phrase pattern again: learning a 595-passage PDF took 8.9 s on the owner's iPhone. Setting
+    /// `string` on a tagger resets it, so what it finds is the same.
+    private let lexicalTagger = NLTagger(tagSchemes: [.lexicalClass])
+    private let nameTagger = NLTagger(tagSchemes: [.nameType])
+    private static let technicalPhrasePattern = try? NSRegularExpression(
+        pattern: #"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b"#, options: [])
 
     private init() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -231,7 +238,11 @@ actor ContainerVocabularyService {
             }
         }
 
-        return Array(Set(expansions)).prefix(15).map { $0 }  // Increased limit for entities
+        // Deduplicate in order of first appearance and keep the first 15 (5.8). `Array(Set(...)).prefix(15)` kept a
+        // different 15 expansions on every launch, because a Set's order is seeded per process, so one question could
+        // search different words from one launch to the next.
+        var seen = Set<String>()
+        return Array(expansions.filter { seen.insert($0).inserted }.prefix(15))
     }
 
     /// Get boost factor for a term in this container
@@ -271,7 +282,7 @@ actor ContainerVocabularyService {
     private func extractTerms(from text: String) -> [String] {
         var terms: [String] = []
 
-        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        let tagger = lexicalTagger
         tagger.string = text
 
         tagger.enumerateTags(
@@ -301,7 +312,7 @@ actor ContainerVocabularyService {
     private func extractNamedEntities(from text: String) -> [String] {
         var entities: [String] = []
 
-        let tagger = NLTagger(tagSchemes: [.nameType])
+        let tagger = nameTagger
         tagger.string = text
 
         tagger.enumerateTags(
@@ -331,8 +342,7 @@ actor ContainerVocabularyService {
         var phrases: [String] = []
 
         // Capitalized multi-word phrases (e.g., "Engine Oil", "Brake Fluid")
-        let pattern = #"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b"#
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+        if let regex = Self.technicalPhrasePattern {
             let range = NSRange(text.startIndex..., in: text)
             let matches = regex.matches(in: text, options: [], range: range)
 
@@ -349,6 +359,21 @@ actor ContainerVocabularyService {
         return phrases
     }
 
+    /// A saved vocabulary with what was learned before it loaded added in.
+    static func merged(saved: ContainerVocabulary, learnedMeanwhile: ContainerVocabulary) -> ContainerVocabulary {
+        var result = saved
+        for (term, count) in learnedMeanwhile.termFrequencies {
+            result.termFrequencies[term, default: 0] += count
+        }
+        result.specificationCodes.formUnion(learnedMeanwhile.specificationCodes)
+        result.namedEntities.formUnion(learnedMeanwhile.namedEntities)
+        result.technicalPhrases.formUnion(learnedMeanwhile.technicalPhrases)
+        result.documentCount += learnedMeanwhile.documentCount
+        result.chunkCount += learnedMeanwhile.chunkCount
+        result.lastUpdated = max(saved.lastUpdated, learnedMeanwhile.lastUpdated)
+        return result
+    }
+
     // MARK: - Persistence
 
     private func loadAllVocabularies() async {
@@ -359,7 +384,14 @@ actor ContainerVocabularyService {
         for file in files where file.pathExtension == "json" {
             if let data = try? Data(contentsOf: file),
                let vocab = decodeVocabulary(from: data) {
-                vocabularies[vocab.containerId] = vocab
+                // The load runs in a task started by `init`, and an import can learn into a library before it
+                // finishes (5.8: on 2026-11-07 "Loaded 17 container vocabularies" came after learning had begun).
+                // What was learned meanwhile is added to the saved vocabulary, not replaced by it.
+                if let learnedMeanwhile = vocabularies[vocab.containerId] {
+                    vocabularies[vocab.containerId] = Self.merged(saved: vocab, learnedMeanwhile: learnedMeanwhile)
+                } else {
+                    vocabularies[vocab.containerId] = vocab
+                }
             }
         }
 

@@ -179,7 +179,7 @@ extension SQLiteFullTextService {
                    snippet(document_pages, 4, '<b>', '</b>', '...', 32) as snip
             FROM document_pages
             WHERE document_pages MATCH ? AND container_id = ?
-            ORDER BY bm25(document_pages)
+            ORDER BY bm25(document_pages), page_id
             LIMIT ?
         """
         var statement: OpaquePointer?

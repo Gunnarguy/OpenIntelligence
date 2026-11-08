@@ -416,7 +416,10 @@ extension DocumentProcessor {
             }
         }
 
-        return Array(Set(keywords)).prefix(20).map { $0 }  // Deduplicate, limit to top 20
+        // Deduplicate in order of first appearance and keep the first 20 (5.8). `Array(Set(...)).prefix(20)` kept a
+        // different 20 of a table passage's keywords on every import, because a Set's order is seeded per process.
+        var seen = Set<String>()
+        return Array(keywords.filter { seen.insert($0).inserted }.prefix(20))
     }
 
     /// Extract text from PDF using PDFKit (native iOS framework) - Legacy method

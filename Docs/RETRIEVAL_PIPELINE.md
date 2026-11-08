@@ -380,6 +380,54 @@ Debug builds only (`VerificationJournal`). `retrieval.graphPack` records each gr
 
 On the owner's iPhone on 2026-11-07 a two-file import showed "No grounded suggestions are ready yet" for a minute, and one file would never have had any: its import-time run was cancelled when iOS ended the import's background task, six runs Chat started were cancelled by library and tab switches or timed out behind the other file's deferred enrichment, and each was logged as "Model produced no grounded question" and saved as an empty result. Now a `CancellationError`, a timeout or a cancelled task marks the run interrupted (`SuggestedQuestionsService.isInterruption`, the `interrupted:` argument of `generateDirectlyWithLLM` and `generateWithLLM`), and `generateQuestionsForDocumentOnly` returns nil for an interrupted run that wrote nothing. Nil is never saved: the import path returns, and a rebuild of a template-only bank keeps the saved bank and is tried again. `generateQuestions` calls `fillMissingQuestions`, which writes questions for the documents with none in the bank (`documentsNeedingQuestions`) and merges them in: never one whose import is still adding its own (`RAGService.deferredEnrichments`, `ingestionQuestionsInFlight`), one Chat is already writing (`questionFillInFlight`), one with a finished run this launch (`questionFillSettled`), or one interrupted three times this launch; at most three per refresh, and only while the bank holds fewer than its 25 questions (`maxBankSize`). A finished run that wrote none still saves none, so the fail-closed rule above holds. Each file is read from its own passages (`RAGService.passagesForSuggestedQuestions`, up to 80 spread through it plus its overview, passed as `passagesForDocument`), not the library's sample of about 50, which on 2026-11-07 held none usable of a file whose passages are mostly reference list. `[evidence_level: device_log_proven for the failure (pipeline_trace and journal, ~/Library/Developer/OpenIntelligence-evidence/2026-11-07_180251), test_verified for the selection (SuggestedQuestionsFillTests), confidence: high; device check pending]`
 
+## A value from another table row is not grounded (added 2026-11-08, for 5.8)
+
+Gate C counted an answer's number as grounded when the passages held it anywhere. `VerificationGateService.valuesFromOtherRows`
+reads the passages' table rows ("ROW n:" lines and cell lines joined by " | ") and their labels (first cell); when some
+row's label shares a word with the question's subject, an answer value held only by rows about something else, and by no
+line outside a table, is counted as unverified. Questions no row is about, and values also stated in prose, are judged as
+before. `[evidence_level: test_verified, confidence: medium: the rate on correct answers is not measured]`
+
+## A retrieved table summary brings its table (added 2026-11-07, for 5.8)
+
+A table is stored as its full passage (`tableStructural`, split into parts when long), a summary (`tableSemantic`) and,
+for some tables, one passage per row, all sharing a `siblingGroupId`. Before this, a summary that ranked first went to
+the model alone, and summaries written before 5.8 list two rows. `RAGService.withTablesForSummaries`
+(`RAGService+TablePassages.swift`) replaces each summary candidate with its table (the `tableStructural` siblings before
+it in the document), at the summary's place and score; a table already among the candidates is not added twice, and a
+summary whose table is not found stays. Standard runs it on the context candidates before `orderContextCandidates`;
+Deep Think and Maximum run it on every search's result (`performFullRetrievalPipeline` and the raw search in
+`RAGService+ToolHandler.swift`).
+`[evidence_level: test_verified (TablePassageFidelityTests), confidence: high; device answer not yet re-asked]`
+
+## An answer has to answer its question (added 2026-11-07, for 5.8)
+
+The grounding checks ask whether an answer is in the sources; `AnswerResponsivenessJudge`
+(`Services/RAG/Safety/AnswerResponsivenessJudge.swift`) asks whether it gives what the question asks for. One guided
+generation on the on-device model (`ResponsivenessReview`: what the question asks for, whether the answer says the
+sources do not have it, `full`/`partial`/`none`, what is missing). An answer with no letter or digit is `none` without
+the model; a failed or unavailable call returns no judgment and changes nothing.
+
+- Standard, step 6r (`RAGService+AnswerResponsiveness.swift`, `ensureAnswerResponds`, called right after the integrity
+  repair in `queryInternal`): a `partial` or `none` answer is written once more with the judge's note
+  (`ResponsivenessJudgment.regenerationNote`), not streamed, and the rewrite is kept only when the judge rates it higher
+  (`responsivenessRank`). The gates and the source-only check then run on whichever text is kept.
+- Standard's precision override (step 6g): an extracted value the judge reads as `none` is set aside and the model's
+  answer stands, when that answer was not itself `none`.
+- Deep Think and Maximum: the precision lookup's extracted value is judged before it skips the run; `none` falls through
+  to the full run. The final answer is judged and labelled, not rewritten.
+- Every mode appends `answers:<verdict>` to the gating string; `VerificationOutcome.from(gatingDecision:)` reads
+  `answers:none` as not supported, lets a Standard source-only rewrite judged `full` stand as supported after failed
+  gates, and leaves the badge for `partial` (a warning names what is missing).
+
+Measured on the Mac, four wordings over 160 cases, in `BenchmarkRuns/2026-11-07-responsiveness/README.md`. This is the
+answer-type check that the 2026-10-15 section above says was not built. All five places an extracted value can lock
+the answer judge it first and set it aside when it is `none`: Standard's override (the model's answer stands), the
+precision lookup's two (the full run happens), the end of a Deep Think or Maximum run (the run's own answer stands,
+`RAGService+AgenticQuery.swift`), and the reliability fallback (the passages answer instead,
+`buildReliabilityFallbackResponse`, whose gating string now carries the verdict).
+`[evidence_level: measured (Mac probe), test_verified (AnswerResponsivenessJudgeTests, VerificationOutcomeTests), confidence: medium; the iPhone's verdicts not yet read]`
+
 ## Suggested questions wait for an answer (added 2026-11-04, for 5.8)
 
 `SuggestedQuestionsService` calls `AnswerModelPriority.waitWhileAnswering` before each model call, outside its 10 and 12 s timeouts, so suggestions are written after an answer, not during it. On the owner's iPhone on 2026-11-04 six suggestion requests ran during one Deep Think answer and its calls waited 3.7 to 13.3 s for their first word. Which questions are suggested does not change. `[evidence_level: code_verified, confidence: high, evidence_source: SuggestedQuestionsService.swift; his iPhone trace 2026-11-04]`

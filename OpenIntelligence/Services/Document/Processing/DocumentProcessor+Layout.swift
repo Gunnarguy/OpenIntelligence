@@ -97,6 +97,26 @@ extension DocumentProcessor {
         return .none
     }
 
+    /// The page's text-layer words with their boxes normalized to the crop box (origin bottom left), the frame Vision's
+    /// table cells use when the page is rendered by `renderPDFPageAsImage` (5.8). Empty for a rotated page, whose
+    /// rendering turns the frame. Ranges come from the Substring itself, as in `extractTextWithSpatialOrdering`.
+    func textLayerWords(of page: PDFPage) -> [TextLayerWord] {
+        guard page.rotation == 0, let pageString = page.string, !pageString.isEmpty else { return [] }
+        let crop = page.bounds(for: .cropBox)
+        guard crop.width > 0, crop.height > 0 else { return [] }
+        var words: [TextLayerWord] = []
+        for word in pageString.split(whereSeparator: { $0.isWhitespace || $0.isNewline }) {
+            guard let selection = page.selection(for: NSRange(word.startIndex..<word.endIndex, in: pageString)) else { continue }
+            let bounds = selection.bounds(for: page)
+            guard bounds.width > 0, bounds.height > 0 else { continue }
+            let box = CGRect(
+                x: (bounds.minX - crop.minX) / crop.width, y: (bounds.minY - crop.minY) / crop.height,
+                width: bounds.width / crop.width, height: bounds.height / crop.height)
+            words.append(TextLayerWord(text: String(word), box: box))
+        }
+        return words
+    }
+
     func extractTextWithSpatialOrdering(from page: PDFPage) -> String? {
         // Get all selections for lines on this page
         // We'll enumerate through the page character by character to find line boundaries
