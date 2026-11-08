@@ -1063,12 +1063,15 @@ extension AgenticOrchestrator {
 
         var allResults: [[RetrievedChunk]] = []
 
-        // Up to three searches at a time instead of one after another (5.8, 2026-11-07). The five searches took 17.1 s on
-        // average one after another on the owner's iPhone (2026-11-04, about 3.6 s each), and no search reads another's
-        // result. The results are put back in query order before the fusion below, so its ranks and its first-seen
-        // tie-break see exactly the lists the loop used to append; only the order of the progress events changes. Three,
-        // not five: each search's reranker already runs up to four Core ML predictions at once (`RAGEngine`).
-        let maxConcurrentSearches = 3
+        // The first search alone, then the rest two at a time, instead of all five one after another (5.8, 2026-11-07).
+        // The five searches took 17.1 s on average one after another on the owner's iPhone (2026-11-04, about 3.6 s
+        // each), and no search reads another's result. The results are put back in query order before the fusion below,
+        // so its ranks and its first-seen tie-break see exactly the lists the loop used to append; only the order of the
+        // progress events changes. The first runs alone because a search builds the library's vocabulary when it is not
+        // cached yet, and searches started together would each build it. Two at a time, not five: each search's
+        // reranker already runs up to four Core ML predictions at once (`RAGEngine`), and four remaining searches take
+        // two rounds at two or at three (review, 2026-11-07).
+        let maxConcurrentSearches = 2
         let mode = qualityMode
         let search: @Sendable (Int, String) async throws -> (Int, [RetrievedChunk]) = { index, query in
             await onDetailedEvent?(.retrieval, "Query \(index + 1)/\(queries.count)", "\"\(query.prefix(40))...\"")
@@ -1088,9 +1091,13 @@ extension AgenticOrchestrator {
             return (index, chunks)
         }
         var resultsByQuery: [Int: [RetrievedChunk]] = [:]
+        if !queries.isEmpty, !Task.isCancelled {
+            let (index, chunks) = try await search(0, queries[0])
+            resultsByQuery[index] = chunks
+        }
         try await withThrowingTaskGroup(of: (Int, [RetrievedChunk]).self) { group in
-            var nextQuery = 0
-            while nextQuery < queries.count, nextQuery < maxConcurrentSearches, !Task.isCancelled {
+            var nextQuery = resultsByQuery.isEmpty ? queries.count : 1
+            while nextQuery < queries.count, nextQuery < 1 + maxConcurrentSearches, !Task.isCancelled {
                 let index = nextQuery, query = queries[index]
                 group.addTask { try await search(index, query) }
                 nextQuery += 1
