@@ -4,7 +4,7 @@
   "name": "Verification Gates and Safety",
   "aliases": ["verification gates", "verification gate service", "source-only check", "confidence calibration", "domain isolation"],
   "purpose": "Checks a generated answer against the retrieved source text before it is shown, and scores how far to trust it.",
-  "revision": "227fae68",
+  "revision": "759a8c83",
   "verified_on": "2026-11-07",
   "entry_points": ["VerificationGateService", "SourceOnlyAnswerService", "ConfidenceCalibrationService", "DomainIsolationService"],
   "files": [
@@ -15,7 +15,7 @@
     {"path": "OpenIntelligence/Services/RAG/Safety/QualityAssuranceService.swift", "role": "primary", "blob": "bb69426a9d16aa8b9753a1a0976cc7cbfbb03e3d"},
     {"path": "OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift", "role": "primary", "blob": "c9ce707664cebdbc258657576d8efe96e4d76c1d"},
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/SourceOnlyVerdictTests.swift", "role": "test", "blob": "e1dccf7e4d8cf36c941ca9183ce024ebc7301e98"},
-    {"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "role": "primary", "blob": "2a29562c7fd171c00a779c2c9b3ba4bba7bcb2e7"},
+    {"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "role": "primary", "blob": "4a5ff735436c62461b9bf31a4b1b490e5ec1b1ea"},
     {"path": "OpenIntelligence/Core/Models/VerificationOutcome.swift", "role": "primary", "blob": "095b35c23e73b03e3dd057c4d727b69e4dc8913f"},
     {"path": "OpenIntelligenceTests/Core/Models/VerificationOutcomeTests.swift", "role": "test", "blob": "4a11b8efd77b5d9416e5005cc1b63e65dc57d0ec"},
     {"path": "OpenIntelligenceTests/Services/RAG/Safety/SemanticGroundingClaimTests.swift", "role": "test", "blob": "73ec8f0d18af8c1e14525d3e0f5e52b7f65618ff"},
@@ -42,7 +42,7 @@
     {"id": "DomainIsolationService.Assessment", "kind": "service", "path": "OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift", "line": 110, "match": "struct Assessment: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "DomainIsolationService.Classification", "kind": "service", "path": "OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift", "line": 98, "match": "struct Classification: Sendable {", "status": "VERIFIED", "by": "build"},
     {"id": "SourceOnlyAnswerService.verifyAndRender", "kind": "function", "path": "OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift", "line": 190, "match": "func verifyAndRender(", "status": "VERIFIED", "by": "build"},
-    {"id": "VerificationGateService.runGateI", "kind": "function", "path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 1053, "match": "private func runGateI(", "status": "VERIFIED", "by": "build"}
+    {"id": "VerificationGateService.runGateI", "kind": "function", "path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 1070, "match": "private func runGateI(", "status": "VERIFIED", "by": "build"}
   ],
   "edges": [
     {"from": "RAGService.queryInternal", "type": "calls", "to": "VerificationGateService", "status": "VERIFIED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+QueryAnswer.swift", "line": 291, "match": "let verificationService = VerificationGateService(config: confidencePolicy.verificationConfig)"}], "by": "build", "note": "constructs it"},
@@ -54,7 +54,7 @@
     {"from": "RAGService.sourceOnlyOutcomeIfNeeded", "type": "depends_on", "to": "SourceOnlyAnswerService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Orchestration/RAGService+AnswerFinishing.swift", "line": 487, "match": "await SourceOnlyAnswerService.shared.verifyAndRender("}], "by": "build", "note": "named there"},
     {"from": "ConfidenceCalibrationService", "type": "calls", "to": "CalibratedConfidence.ConfidenceComponents", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift", "line": 190, "match": "components: CalibratedConfidence.ConfidenceComponents("}], "by": "build", "note": "named in the body"},
     {"from": "SourceOnlyAnswerService.verifyAndRender", "type": "depends_on", "to": "DomainIsolationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift", "line": 504, "match": "let domainAssessment = DomainIsolationService.assess("}], "by": "build", "note": "named there"},
-    {"from": "VerificationGateService.runGateI", "type": "depends_on", "to": "DomainIsolationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 1058, "match": "let assessment = DomainIsolationService.assess(query: query, chunks: chunks, answerIntent: answerIntent)"}], "by": "build", "note": "named there"}
+    {"from": "VerificationGateService.runGateI", "type": "depends_on", "to": "DomainIsolationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 1075, "match": "let assessment = DomainIsolationService.assess(query: query, chunks: chunks, answerIntent: answerIntent)"}], "by": "build", "note": "named there"}
   ],
   "docs": [],
   "unknowns": [],
@@ -94,9 +94,9 @@
       {"from": "SourceOnlyAnswerService", "type": "depends_on", "to": "VerificationGateService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift", "line": 409, "match": "let draftHeadings = VerificationGateService.headingLines(in: candidateAnswer)"}]},
       {"from": "SourceOnlyAnswerService", "type": "depends_on", "to": "NumericValueExtractor", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift", "line": 965, "match": "let unstated = NumericValueExtractor.firstUnsupportedMention("}]},
       {"from": "EvidenceRecord", "type": "depends_on", "to": "DomainIsolationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift", "line": 1428, "match": "let classification: DomainIsolationService.Classification"}]},
-      {"from": "VerificationGateService", "type": "depends_on", "to": "DetectedValueCheck", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 376, "match": "let detectedEvidence = await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.contextText })"}]},
-      {"from": "VerificationGateService", "type": "depends_on", "to": "NumericValueExtractor", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 430, "match": "let responseNumbers = NumericValueExtractor.mentions(inAnswer: response).filter(NumericValueExtractor.isCountedByGate)"}]},
-      {"from": "VerificationGateService", "type": "depends_on", "to": "DomainIsolationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 1058, "match": "let assessment = DomainIsolationService.assess(query: query, chunks: chunks, answerIntent: answerIntent)"}]},
+      {"from": "VerificationGateService", "type": "depends_on", "to": "DetectedValueCheck", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 393, "match": "let detectedEvidence = await DetectedValueCheck.evidence(from: chunks.map { $0.chunk.contextText })"}]},
+      {"from": "VerificationGateService", "type": "depends_on", "to": "NumericValueExtractor", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 447, "match": "let responseNumbers = NumericValueExtractor.mentions(inAnswer: response).filter(NumericValueExtractor.isCountedByGate)"}]},
+      {"from": "VerificationGateService", "type": "depends_on", "to": "DomainIsolationService", "status": "INFERRED", "evidence": [{"path": "OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift", "line": 1075, "match": "let assessment = DomainIsolationService.assess(query: query, chunks: chunks, answerIntent: answerIntent)"}]},
       {"from": "VerificationOutcome", "type": "tested_by", "to": "test:VerificationOutcomeTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Core/Models/VerificationOutcomeTests.swift", "line": 17, "match": "XCTAssertEqual(VerificationOutcome.from(gatingDecision: \"verified:92%\"), .supported)"}]},
       {"from": "VerificationGateService", "type": "tested_by", "to": "test:ClaimCoverageFallbackTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Safety/ClaimCoverageFallbackTests.swift", "line": 16, "match": "let terms = VerificationGateService.contentWordTerms(in: \"The security deposit is two months of rent.\")"}]},
       {"from": "DetectedValueCheck", "type": "tested_by", "to": "test:DetectedValueCheckTests", "status": "INFERRED", "evidence": [{"path": "OpenIntelligenceTests/Services/RAG/Safety/DetectedValueCheckTests.swift", "line": 16, "match": "private func contradictions(_ answer: String, against passage: String) async -> [DetectedValueCheck.Contradiction] {"}]},

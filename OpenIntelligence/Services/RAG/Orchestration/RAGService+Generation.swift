@@ -1017,6 +1017,27 @@ extension RAGService {
         return (Self.verificationSummary(for: result), result)
     }
 
+    /// Fact Check for a Deep Think or Maximum answer (5.8, 2026-11-07): each claim its structured answer lists, checked
+    /// on its own with Gate B's per-claim check (`VerificationGateService.claimVerdicts`), so the list shows a verdict
+    /// for each claim instead of "Not Checked". Called after the displayed text is fixed; it makes no model call and
+    /// decides no gate. The badge reads the verdicts the way Standard's does (`VerificationOutcome.from(gatingDecision:
+    /// claims:)`): passing gates with no supported claim show Partial or Not supported, not Verified.
+    func factCheckedAgenticAnswer(
+        _ structuredAnswer: StructuredAnswer,
+        answer: String,
+        chunks: [RetrievedChunk],
+        question: String,
+        answerIntent: AnswerIntent,
+        qualityMode: RAGQualityMode
+    ) async -> StructuredAnswer {
+        guard !structuredAnswer.claims.isEmpty, !chunks.isEmpty else { return structuredAnswer }
+        let policy = ConfidencePolicyService.policy(for: question, answerIntent: answerIntent, qualityMode: qualityMode)
+        let gates = VerificationGateService(config: policy.verificationConfig)
+        let results = await gates.claimVerdicts(
+            for: structuredAnswer.claims.map(\.claim), response: answer, chunks: chunks, query: question)
+        return structuredAnswer.withClaimVerdicts(results)
+    }
+
     /// The status string Standard writes for a verification result: `verified:NN%` or
     /// `unverified:<failed gates>`.
     nonisolated static func verificationSummary(for result: RAGVerificationResult) -> String {

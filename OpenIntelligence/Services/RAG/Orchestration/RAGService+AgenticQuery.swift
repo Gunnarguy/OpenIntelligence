@@ -808,7 +808,9 @@ extension RAGService {
             // abstains when its gates fail, but these answers took minutes, and a structured answer
             // rebuilt from a failed check can turn into a refusal (`resolvedDisplayResponse`), so the
             // result is not passed into it. Skipped when the source-only check ran, which is a check.
+            var ranAgenticGates = false
             if gatingDecision == nil, qualityMode.usesVerificationGates {
+                ranAgenticGates = true
                 let gated = await verifyAgenticAnswer(
                     question: question,
                     answer: agenticAnswer,
@@ -828,6 +830,13 @@ extension RAGService {
                 fallback: agenticAnswer,
                 structuredAnswer: structuredAnswer
             )
+            // Fact Check for the claims the answer lists (5.8, 2026-11-07), after the displayed text is fixed so the
+            // answer the user reads is unchanged. Only where the gates ran: the source-only check builds its own.
+            if ranAgenticGates {
+                structuredAnswer = await factCheckedAgenticAnswer(
+                    structuredAnswer, answer: agenticAnswer, chunks: result.retrievedChunks, question: question,
+                    answerIntent: agenticAnswerIntent, qualityMode: qualityMode)
+            }
 
             return RAGResponse(
                 queryId: UUID(),

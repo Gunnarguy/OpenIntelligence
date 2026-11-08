@@ -908,6 +908,29 @@ extension StructuredAnswer {
         }
     }
 
+    /// This answer with each claim's Fact Check verdict taken from `claimResults`, matched by claim text the way `from`
+    /// matches them (5.8, 2026-11-07). The answer, its claims and their order, evidence and confidence stay as they are;
+    /// a claim with no match keeps no verdict. Deep Think and Maximum use it after their displayed text is fixed.
+    nonisolated func withClaimVerdicts(_ claimResults: [RAGVerificationResult.ClaimResult]) -> StructuredAnswer {
+        guard !claimResults.isEmpty else { return self }
+        let keyed = claimResults.map { (key: Self.normalizeForMatch(Self.cleanClaimText($0.claim)), result: $0) }
+        let updated = claims.map { claim -> Claim in
+            let key = Self.normalizeForMatch(Self.cleanClaimText(claim.claim))
+            guard !key.isEmpty, let match = keyed.first(where: { $0.key == key })?.result else { return claim }
+            return Claim(
+                claim: claim.claim,
+                evidenceIds: claim.evidenceIds,
+                confidence: claim.confidence,
+                isExtracted: claim.isExtracted,
+                verificationVerdict: Self.mapVerificationVerdict(match.verdict),
+                verificationDetails: match.details
+            )
+        }
+        return StructuredAnswer(
+            refuse: refuse, answerType: answerType, answer: answer, claims: updated, evidence: evidence,
+            missing: missing, debug: debug)
+    }
+
     nonisolated private static func claimVerification(
         for claim: String,
         in verificationResult: RAGVerificationResult?

@@ -319,6 +319,23 @@ actor VerificationGateService {
     }
 
     /// Gate B: Evidence Coverage
+    /// Each claim checked on its own against the passages, for a Fact Check list (5.8, 2026-11-07). This is Gate B's
+    /// per-claim check with the claims as given, so a claim gets the verdict Standard would give it; it decides no gate
+    /// and changes no answer. Deep Think and Maximum build their structured answer before their gates run and never
+    /// rebuilt it from the result, so every claim in their Fact Check list read "Not Checked" (owner's iPhone,
+    /// 2026-11-07, six claims under a Verified badge).
+    func claimVerdicts(
+        for claims: [String],
+        response: String,
+        chunks: [RetrievedChunk],
+        query: String
+    ) async -> [RAGVerificationResult.ClaimResult] {
+        guard !claims.isEmpty, !chunks.isEmpty else { return [] }
+        let structuredClaims = claims.map { StructuredRAGClaim(claim: $0, citations: [], isExtracted: false) }
+        return await runGateB(response: response, chunks: chunks, query: query, structuredClaims: structuredClaims)
+            .claimResults
+    }
+
     /// Check that key claims in response can be traced to retrieved chunks
     /// CONSERVATIVE: Only fail for egregious cases, not normal extractive lookups
     private func runGateB(

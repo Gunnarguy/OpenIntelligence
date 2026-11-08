@@ -685,6 +685,10 @@ supposed to be agentic.
   agentic. `[evidence: code_verified, exact, device trace 2026-08-14 message D74F98E4; RAGService useAgentic gate]`
 - **Deep Think and Maximum are where the agentic loop is supposed to fire.** The rest of this section
   is about those two modes only.
+- **Fact Check in Deep Think and Maximum (5.8, 2026-11-07).** After the displayed text is fixed, `RAGService.factCheckedAgenticAnswer`
+  checks each claim the structured answer lists with `VerificationGateService.claimVerdicts` (Gate B's per-claim check) and
+  `StructuredAnswer.withClaimVerdicts` fills in only the verdicts; until then every claim read Not Checked.
+  `[evidence_level: test_verified, confidence: high, evidence_source: AgenticFactCheckTests]`
 - **The sub-searches run partly in parallel (5.8, 2026-11-07).** `AgenticOrchestrator.executeMultiQuerySearch`
   runs the first `executeFullRetrievalPipeline` call alone (it builds the library vocabulary when none is cached), then
   the rest at most two at once in a throwing task group, and merges their results in query order, so the fusion is unchanged (`DeepThinkRetrievalGoldenTests`: 57 of 57 multi-query searches identical

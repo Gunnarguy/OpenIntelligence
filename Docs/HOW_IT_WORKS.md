@@ -639,7 +639,12 @@ The same five call sites in the working tree at 22:11 on 2026-10-20 (5.7): the s
 > - **Deep Think and Maximum:** in 5.6 these answers skipped the nine checks and read Not Checked unless the
 >   source-only check ran. From 5.7 the nine checks run once at the end as a label, and never refuse or rewrite these
 >   answers. The exception is a lookup not locked to an extracted value: it gets the source-only check instead, which
->   can rewrite the answer or, for a precise-value or state question, replace it with a refusal.
+>   can rewrite the answer or, for a precise-value or state question, replace it with a refusal. Until 5.8 their
+>   Fact Check list read Not Checked for every claim, because the answer is built before the checks and was never
+>   rebuilt from them. From 5.8 each listed claim is checked on its own after the answer is final (Gate B's per-claim
+>   check), so the list shows a verdict per claim and the answer's text does not change; with no claim supported, the
+>   badge reads Partial or Not supported instead of Verified, as in Standard. `[evidence_level: test_verified,
+>   confidence: high, evidence_source: RAGService+Generation.swift factCheckedAgenticAnswer, AgenticFactCheckTests]`
 > - **The shortcut for exact values** (section 07) returns a value with no checks at all, so it reads Not Checked.
 > - In Standard, a lookup that is shown after its checks failed then gets the source-only check: two more on-device
 >   sessions that draft and rate claims from the passages, and the result can replace the answer, or refuse it when

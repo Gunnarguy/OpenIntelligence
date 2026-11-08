@@ -27,6 +27,9 @@ This one's about making the app easier to start with and easier to trust. Every 
 - **Taps no longer get lost after iCloud catches up.** Each time iCloud brought changes in, the app re-read your libraries in a way that froze the screen for up to several seconds, so a tap in Settings or Chat could do nothing. That reading now happens in the background.
 - **Every citation shows its passage in the document.** Tapping a citation used to highlight the passage only in a PDF. Now any document opens at the passage, highlighted, with a line saying whether it was found word for word, found in part, or not found. For Word, Excel and the like you see the text the app read from the file, not the original page. It shows the words are in your document; whether the answer read them correctly is yours to check.
 - **Illustrate under an answer, and source chips that open.** Illustrate now appears with an answer's other actions where Image Playground is available, and tapping a source chip opens that passage in its document.
+- **Deep Think checks every claim it lists.** Its Fact Check list read Not Checked for every claim, even under a Verified answer. Each claim is now checked against its sources, as Standard does, and the answer itself is unchanged. If none of the claims holds up, the badge says so instead of Verified.
+- **Deep Think searches side by side.** The five searches behind a Deep Think or Maximum answer used to run one after another. Now the first runs, then the rest two at a time, and the answer draws on exactly the same passages.
+- **iPhone stays upright.** Turned sideways, the iPhone app squeezed the chat into half the screen. It now stays in portrait on iPhone. iPad and Mac are unchanged.
 
 ### Libraries
 
