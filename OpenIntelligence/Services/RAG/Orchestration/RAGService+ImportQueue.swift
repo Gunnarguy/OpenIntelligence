@@ -672,11 +672,22 @@ extension RAGService {
         if savesQueue {
             savePersistedIngestionQueueState()
         }
+        let importFraction = ImportProgress.fraction(of: currentImportItems)
         IngestionRuntimeBridge.shared.updateContinuedIngestionProgress(
             title: "Importing documents",
             subtitle: "\(filename) • \(stage.displayName)",
-            fraction: ImportProgress.fraction(of: currentImportItems)
+            fraction: importFraction
         )
+        // Each whole-percent change of what the system's background task is told (5.8), so a journal shows whether
+        // the import's progress moved while the app was in the background. No file name.
+        let importPercent = Int((importFraction * 100).rounded())
+        if importPercent != ImportProgressJournal.lastPercent {
+            ImportProgressJournal.lastPercent = importPercent
+            VerificationJournal.record(
+                "import.progress",
+                ["percent": "\(importPercent)", "stage": stage.rawValue, "item": VerificationJournal.anon(id),
+                    "background": "\(Self.appIsInBackground)"])
+        }
         syncIngestionLiveActivity()
     }
 
@@ -853,4 +864,10 @@ extension RAGService {
         }
     }
 
+}
+
+/// The last import percent the journal recorded (`updateIngestionItem`, 5.8).
+@MainActor
+enum ImportProgressJournal {
+    static var lastPercent = -1
 }

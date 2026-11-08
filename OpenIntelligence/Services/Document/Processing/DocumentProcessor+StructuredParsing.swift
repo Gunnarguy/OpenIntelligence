@@ -164,14 +164,15 @@ extension DocumentProcessor {
         for batchStart in stride(from: startPageIdx, to: endPageIdx + 1, by: maxConcurrentPages) {
             let batchEnd = min(batchStart + maxConcurrentPages, endPageIdx + 1)
 
-            // Emit rich progress with current metrics
+            // Emit rich progress with current metrics. `page` is the pages finished so far (5.8): this said
+            // `batchEnd`, so a PDF that fits one batch reported its extraction done before any page was read.
             await MainActor.run {
                 self.emitProgress(
                     stage: "vision",
                     detail: useHybridMode
                         ? "🔬 Max quality parsing pages \(batchStart + 1)-\(batchEnd)/\(pageCount)"
                         : "👁 Vision parsing pages \(batchStart + 1)-\(batchEnd)/\(pageCount)",
-                    page: batchEnd,
+                    page: batchStart,
                     totalPages: pageCount
                 )
             }
@@ -403,7 +404,7 @@ extension DocumentProcessor {
                 self.emitProgress(
                     stage: "layout",
                     detail: "📐 Detecting columns for \(pagesNeedingVision.count) complex pages",
-                    page: batchStart,
+                    page: subBatchIndices.lowerBound,
                     totalPages: pageCount
                 )
             }
@@ -443,7 +444,7 @@ extension DocumentProcessor {
                 self.emitProgress(
                     stage: "layout",
                     detail: "✅ Layout detected, parsing structure \(batchStart + 1)-\(batchEnd)",
-                    page: batchEnd,
+                    page: subBatchIndices.lowerBound,
                     totalPages: pageCount
                 )
             }
@@ -483,7 +484,7 @@ extension DocumentProcessor {
             self.emitProgress(
                 stage: "structure",
                 detail: "🔍 Tables/lists \(batchStart + 1)-\(batchEnd)/\(pageCount)",
-                page: batchStart,
+                page: subBatchIndices.lowerBound,
                 totalPages: pageCount
             )
         }
@@ -1052,6 +1053,21 @@ extension DocumentProcessor {
                     break
                 }
                 collected.append(result)
+                // Each page as it finishes (5.8). Every report during a batch named the batch's first page, so
+                // the progress the system's background task showed stayed put through the whole extraction: 4%
+                // for 71 s while nine of ten pages were read on the owner's iPhone (2026-11-07), and iOS ended the
+                // task. A task that shows little progress is the one iOS ends first ("Performing long-running
+                // tasks on iOS and iPadOS"). Rich handler only, so the queue item keeps its stage.
+                let finishedPages = subBatchIndices.lowerBound + collected.count
+                await MainActor.run {
+                    self.emitProgress(
+                        stage: "structure",
+                        detail: "🔍 Page \(finishedPages)/\(pageCount) read",
+                        page: finishedPages,
+                        totalPages: pageCount,
+                        legacy: false
+                    )
+                }
             }
             return collected
         }
